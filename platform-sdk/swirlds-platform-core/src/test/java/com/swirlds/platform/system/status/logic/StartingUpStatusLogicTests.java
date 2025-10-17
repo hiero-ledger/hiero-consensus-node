@@ -59,7 +59,9 @@ class StartingUpStatusLogicTests {
     @DisplayName("Irrelevant actions shouldn't cause transitions")
     void irrelevantActions() {
         triggerActionAndAssertNoTransition(
-                logic::processTimeElapsedAction, new TimeElapsedAction(time.now()), logic.getStatus());
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now())),
+                logic.getStatus());
     }
 
     @Test

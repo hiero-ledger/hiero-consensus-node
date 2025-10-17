@@ -6,9 +6,12 @@ module com.hedera.state.validator {
     requires com.hedera.node.app.service.consensus;
     requires com.hedera.node.app.service.contract.impl;
     requires com.hedera.node.app.service.contract;
+    requires com.hedera.node.app.service.entityid.impl;
+    requires com.hedera.node.app.service.entityid;
     requires com.hedera.node.app.service.file.impl;
     requires com.hedera.node.app.service.file;
     requires com.hedera.node.app.service.network.admin.impl;
+    requires com.hedera.node.app.service.roster.impl;
     requires com.hedera.node.app.service.schedule.impl;
     requires com.hedera.node.app.service.schedule;
     requires com.hedera.node.app.service.token.impl;

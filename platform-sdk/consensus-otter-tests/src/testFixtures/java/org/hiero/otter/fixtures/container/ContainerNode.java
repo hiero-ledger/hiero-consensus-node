@@ -5,6 +5,7 @@ import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseD
 import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_CONTROL_PORT;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.EVENT_STREAM_DIRECTORY;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.HASHSTREAM_LOG_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.METRICS_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.NODE_COMMUNICATION_PORT;
@@ -29,12 +30,15 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -42,6 +46,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.ProtobufConverter;
+import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.app.services.consistency.ConsistencyServiceConfig;
 import org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc;
@@ -56,13 +61,17 @@ import org.hiero.otter.fixtures.container.proto.StartRequest;
 import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
+import org.hiero.otter.fixtures.container.utils.ContainerConstants;
+import org.hiero.otter.fixtures.container.utils.ContainerUtils;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
+import org.hiero.otter.fixtures.internal.result.SingleNodeEventStreamResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodeMarkerFileResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodeReconnectResultImpl;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
+import org.hiero.otter.fixtures.result.SingleNodeEventStreamResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
@@ -78,6 +87,9 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
 public class ContainerNode extends AbstractNode implements Node, TimeTickReceiver {
 
     private static final Logger log = LogManager.getLogger();
+
+    /** The time manager to use for this node */
+    private final TimeManager timeManager;
 
     /** The image used to run the consensus node. */
     private final ContainerImage container;
@@ -106,6 +118,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     /** A collector of the various test run related events stored as strongly typed objects use for assertions. */
     private final NodeResultsCollector resultsCollector;
 
+    /** A source of randomness for the node */
+    private final Random random;
+
     /**
      * Constructor for the {@link ContainerNode} class.
      *
@@ -117,6 +132,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      */
     public ContainerNode(
             @NonNull final NodeId selfId,
+            @NonNull final TimeManager timeManager,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final Network network,
             @NonNull final ImageFromDockerfile dockerImage,
@@ -124,12 +140,15 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         super(selfId, keysAndCerts);
 
         this.localOutputDirectory = requireNonNull(outputDirectory, "outputDirectory must not be null");
+        this.timeManager = requireNonNull(timeManager, "timeManager must not be null");
 
         this.resultsCollector = new NodeResultsCollector(selfId);
         this.nodeConfiguration = new ContainerNodeConfiguration(() -> lifeCycle);
+        this.random = new SecureRandom();
 
         container = new ContainerImage(dockerImage, network, selfId);
         container.start();
+
         containerControlChannel = ManagedChannelBuilder.forAddress(
                         container.getHost(), container.getMappedPort(CONTAINER_CONTROL_PORT))
                 .maxInboundMessageSize(32 * 1024 * 1024)
@@ -148,12 +167,30 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     /**
      * {@inheritDoc}
      */
+    @NonNull
+    @Override
+    public SingleNodeEventStreamResult newEventStreamResult() {
+        final Path eventStreamDir = localOutputDirectory.resolve(ContainerConstants.EVENT_STREAM_DIRECTORY);
+        downloadEventStreamFiles(localOutputDirectory);
+        return new SingleNodeEventStreamResultImpl(
+                selfId, eventStreamDir, configuration().current(), newReconnectResult());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     @Override
     protected void doStart(@NonNull final Duration timeout) {
-        throwIfIn(LifeCycle.RUNNING, "Node has already been started.");
-        throwIfIn(LifeCycle.DESTROYED, "Node has already been destroyed.");
+        throwIfInLifecycle(LifeCycle.RUNNING, "Node has already been started.");
+        throwIfInLifecycle(LifeCycle.DESTROYED, "Node has already been destroyed.");
 
         log.info("Starting node {}...", selfId);
+
+        if (savedStateDirectory != null) {
+            final StateCommonConfig stateCommonConfig =
+                    configuration().current().getConfigData(StateCommonConfig.class);
+            ContainerUtils.copySavedStateToContainer(container, selfId, stateCommonConfig, savedStateDirectory);
+        }
 
         final InitRequest initRequest = InitRequest.newBuilder()
                 .setSelfId(ProtobufConverter.toLegacy(selfId))
@@ -276,7 +313,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 };
         nodeCommBlockingStub
                 .withDeadlineAfter(timeout)
-                .quiescence(QuiescenceRequest.newBuilder().setCommand(dto).build());
+                .quiescenceCommandUpdate(
+                        QuiescenceRequest.newBuilder().setCommand(dto).build());
     }
 
     /**
@@ -284,9 +322,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      */
     @Override
     public void submitTransaction(@NonNull final OtterTransaction transaction) {
-        throwIfIn(INIT, "Node has not been started yet.");
-        throwIfIn(SHUTDOWN, "Node has been shut down.");
-        throwIfIn(DESTROYED, "Node has been destroyed.");
+        throwIfInLifecycle(INIT, "Node has not been started yet.");
+        throwIfInLifecycle(SHUTDOWN, "Node has been shut down.");
+        throwIfInLifecycle(DESTROYED, "Node has been destroyed.");
 
         try {
             final TransactionRequest request = TransactionRequest.newBuilder()
@@ -344,7 +382,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     @Override
     @NonNull
     public SingleNodePcesResult newPcesResult() {
-        throwIfNotIn(SHUTDOWN, "Node must be in the shutdown state to retrieve PCES results.");
+        throwIsNotInLifecycle(SHUTDOWN, "Node must be in the shutdown state to retrieve PCES results.");
 
         final Configuration configuration = nodeConfiguration.current();
         try {
@@ -429,6 +467,26 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         lifeCycle = DESTROYED;
     }
 
+    private void downloadEventStreamFiles(@NonNull final Path localOutputDirectory) {
+        try {
+            Files.createDirectories(localOutputDirectory.resolve(EVENT_STREAM_DIRECTORY));
+            final Configuration configuration = nodeConfiguration.current();
+            final EventConfig eventConfig = configuration.getConfigData(EventConfig.class);
+
+            // Use Docker cp command to copy the entire directory
+            final String containerId = container.getContainerId();
+            final ProcessBuilder processBuilder = new ProcessBuilder(
+                    "docker", "cp", containerId + ":" + eventConfig.eventsLogDir(), localOutputDirectory.toString());
+            final Process process = processBuilder.start();
+            process.waitFor();
+        } catch (final IOException e) {
+            throw new UncheckedIOException("Failed to copy event stream files from container", e);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while copying event stream files from container", e);
+        }
+    }
+
     private void downloadConsensusFiles(@NonNull final Path localOutputDirectory) throws IOException {
         Files.createDirectories(localOutputDirectory.resolve("output/swirlds-hashstream"));
         Files.createDirectories(localOutputDirectory.resolve("data/stats"));
@@ -462,6 +520,24 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 localOutputDirectory
                         .resolve(consistencyServiceConfig.historyFileName())
                         .toString());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    protected TimeManager timeManager() {
+        return timeManager;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    protected Random random() {
+        return random;
     }
 
     /**

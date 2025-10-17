@@ -405,7 +405,7 @@ public class BlockBufferService {
     public @Nullable BlockState getBlockState(final long blockNumber) {
         final BlockState block = blockBuffer.get(blockNumber);
 
-        if (block == null) {
+        if (block == null && blockNumber <= lastProducedBlockNumber.get()) {
             blockStreamMetrics.recordBlockMissing();
         }
 
@@ -890,7 +890,7 @@ public class BlockBufferService {
             return;
         }
 
-        logger.info(
+        logger.debug(
                 "Attempting to forcefully switch block node connections due to increasing block buffer saturation (saturation={}%)",
                 pruneResult.saturationPercent);
         lastRecoveryActionTimestamp = now;

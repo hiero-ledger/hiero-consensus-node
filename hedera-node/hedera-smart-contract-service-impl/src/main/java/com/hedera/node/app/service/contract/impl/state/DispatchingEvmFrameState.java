@@ -38,7 +38,7 @@ import com.hedera.node.app.service.contract.impl.exec.scope.ActiveContractVerifi
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.utils.RedirectBytecodeUtils;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.swirlds.state.spi.WritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -604,7 +604,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         return account;
     }
 
-    private UInt256 valueOrZero(@Nullable final SlotValue slotValue) {
+    protected UInt256 valueOrZero(@Nullable final SlotValue slotValue) {
         return (slotValue == null) ? UInt256.ZERO : pbjToTuweniUInt256(slotValue.value());
     }
 }

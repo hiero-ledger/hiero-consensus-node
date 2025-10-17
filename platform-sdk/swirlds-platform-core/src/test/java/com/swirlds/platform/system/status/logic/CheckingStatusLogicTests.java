@@ -18,6 +18,7 @@ import com.swirlds.platform.system.status.actions.SelfEventReachedConsensusActio
 import com.swirlds.platform.system.status.actions.StartedReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.StateWrittenToDiskAction;
 import com.swirlds.platform.system.status.actions.TimeElapsedAction;
+import java.time.Duration;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -83,8 +84,6 @@ class CheckingStatusLogicTests {
     void irrelevantActions() {
         triggerActionAndAssertNoTransition(
                 logic::processStateWrittenToDiskAction, new StateWrittenToDiskAction(0, false), logic.getStatus());
-        triggerActionAndAssertNoTransition(
-                logic::processTimeElapsedAction, new TimeElapsedAction(time.now()), logic.getStatus());
     }
 
     @Test
@@ -96,5 +95,30 @@ class CheckingStatusLogicTests {
                 logic::processDoneReplayingEventsAction, new DoneReplayingEventsAction(time.now()), logic.getStatus());
         triggerActionAndAssertException(
                 logic::processReconnectCompleteAction, new ReconnectCompleteAction(0), logic.getStatus());
+    }
+
+    @Test
+    @DisplayName("Go to ACTIVE when quiescing")
+    void toActiveWhenQuiescing() {
+        // Should transition to ACTIVE when quiescing
+        triggerActionAndAssertTransition(
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(true, time.now())),
+                PlatformStatus.ACTIVE);
+    }
+
+    @Test
+    @DisplayName("remain in CHECKING when not quiescing")
+    void remainInCheckingNotQuiescing() {
+        triggerActionAndAssertTransition(
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now())),
+                PlatformStatus.CHECKING);
+        time.tick(Duration.ofSeconds(6));
+        // Should transition to ACTIVE when quiescing
+        triggerActionAndAssertTransition(
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now())),
+                PlatformStatus.CHECKING);
     }
 }

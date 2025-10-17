@@ -282,7 +282,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         // then
         assertThat(blockState).isNull();
 
-        verify(blockStreamMetrics).recordBlockMissing();
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -389,7 +388,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         assertDoesNotThrow(() -> blockBufferService.addItem(
                 TEST_BLOCK_NUMBER, BlockItem.newBuilder().build()));
 
-        verify(blockStreamMetrics).recordBlockMissing();
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -401,7 +399,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         // when and then
         assertThat(blockBufferService.getBlockState(TEST_BLOCK_NUMBER)).isNull();
 
-        verify(blockStreamMetrics).recordBlockMissing();
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 

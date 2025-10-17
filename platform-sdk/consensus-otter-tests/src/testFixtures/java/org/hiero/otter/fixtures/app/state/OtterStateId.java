@@ -20,7 +20,10 @@ public enum OtterStateId {
     ROSTERS_STATE_ID(RosterStateId.ROSTERS_STATE_ID), // 28
 
     /** Consistency state id, used by the consistency service. */
-    CONSISTENCY_SINGLETON_STATE_ID(1);
+    CONSISTENCY_SINGLETON_STATE_ID(1),
+
+    /** ISS state id, used by the ISS Service. */
+    ISS_SINGLETON_STATE_ID(2);
 
     private final int id;
 
@@ -28,6 +31,11 @@ public enum OtterStateId {
         this.id = id;
     }
 
+    /**
+     * Get the state id.
+     *
+     * @return the state id
+     */
     public int id() {
         return id;
     }

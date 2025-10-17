@@ -2,12 +2,12 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.THIRTY_SECONDS;
+import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static java.util.Collections.shuffle;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.collectingAndThen;
 import static java.util.stream.Collectors.toList;
 import static org.apache.logging.log4j.Level.DEBUG;
-import static org.apache.logging.log4j.Level.ERROR;
 import static org.apache.logging.log4j.Level.INFO;
 import static org.apache.logging.log4j.Level.TRACE;
 import static org.apache.logging.log4j.Level.WARN;
@@ -20,16 +20,10 @@ import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import com.hedera.node.internal.network.BlockNodeConnectionInfo;
-import com.hedera.pbj.grpc.client.helidon.PbjGrpcClient;
-import com.hedera.pbj.grpc.client.helidon.PbjGrpcClientConfig;
 import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import io.helidon.common.tls.Tls;
-import io.helidon.webclient.api.WebClient;
-import io.helidon.webclient.grpc.GrpcClientProtocolConfig;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetAddress;
@@ -38,19 +32,19 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardWatchEventKinds;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchKey;
+import java.nio.file.WatchService;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -60,7 +54,6 @@ import javax.inject.Singleton;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 import org.hiero.block.api.PublishStreamRequest;
 
 /**
@@ -79,10 +72,6 @@ public class BlockNodeConnectionManager {
 
     private static final Logger logger = LogManager.getLogger(BlockNodeConnectionManager.class);
 
-    private record Options(Optional<String> authority, String contentType) implements ServiceInterface.RequestOptions {}
-
-    private static final BlockNodeConnectionManager.Options OPTIONS =
-            new BlockNodeConnectionManager.Options(Optional.empty(), ServiceInterface.RequestOptions.APPLICATION_GRPC);
     /**
      * Initial retry delay for connection attempts.
      */
@@ -106,7 +95,7 @@ public class BlockNodeConnectionManager {
      * Scheduled executor service that is used to schedule asynchronous tasks such as reconnecting to block nodes.
      * It is shared across all connections to block nodes, allowing periodic stream resets.
      */
-    private final ScheduledExecutorService sharedExecutorService;
+    private ScheduledExecutorService sharedExecutorService;
     /**
      * Metrics API for block stream-specific metrics.
      */
@@ -119,7 +108,7 @@ public class BlockNodeConnectionManager {
      * List of available block nodes this consensus node can connect to, or at least attempt to. This list is read upon
      * startup from the configuration file(s) on disk.
      */
-    private final List<BlockNodeConfig> availableBlockNodes;
+    private final List<BlockNodeConfig> availableBlockNodes = new ArrayList<>();
     /**
      * Flag that indicates if this connection manager is active or not. In this case, being active means it is actively
      * processing blocks and attempting to send them to a block node.
@@ -145,6 +134,22 @@ public class BlockNodeConnectionManager {
      * Reference to the worker thread that handles creating requests and sending requests to the connected block node.
      */
     private final AtomicReference<Thread> blockStreamWorkerThreadRef = new AtomicReference<>();
+    /**
+     * Watch service for monitoring the block node configuration file for updates.
+     */
+    private final AtomicReference<WatchService> configWatchServiceRef = new AtomicReference<>();
+    /**
+     * Reference to the configuration watcher thread.
+     */
+    private final AtomicReference<Thread> configWatcherThreadRef = new AtomicReference<>();
+    /**
+     * The directory containing the block node connection configuration file.
+     */
+    private Path blockNodeConfigDirectory;
+    /**
+     * The file name of the block node configuration file.
+     */
+    private static final String BLOCK_NODES_FILE_NAME = "block-nodes.json";
     /**
      * Map that contains one or more connections to block nodes. The connections in this map will be a subset (or all)
      * of the available block node connections. (see {@link BlockNodeConnectionManager#availableBlockNodes})
@@ -220,6 +225,8 @@ public class BlockNodeConnectionManager {
      */
     private final int highLatencyEventsBeforeSwitching;
 
+    private final BlockNodeClientFactory clientFactory;
+
     /**
      * Helper method to remove current instance information for debug logging.
      */
@@ -245,19 +252,16 @@ public class BlockNodeConnectionManager {
      * @param configProvider the configuration to use
      * @param blockBufferService the block stream state manager
      * @param blockStreamMetrics the block stream metrics to track
-     * @param sharedExecutorService the scheduled executor service used to perform async connection operations (e.g. reconnecting)
      */
     @Inject
     public BlockNodeConnectionManager(
             @NonNull final ConfigProvider configProvider,
             @NonNull final BlockBufferService blockBufferService,
-            @NonNull final BlockStreamMetrics blockStreamMetrics,
-            @NonNull final ScheduledExecutorService sharedExecutorService) {
+            @NonNull final BlockStreamMetrics blockStreamMetrics) {
         this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
         this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
         this.lastVerifiedBlockPerConnection = new ConcurrentHashMap<>();
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
-        this.sharedExecutorService = requireNonNull(sharedExecutorService, "sharedExecutorService must not be null");
         this.nodeStats = new ConcurrentHashMap<>();
         final var blockNodeConnectionConfig =
                 configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
@@ -266,18 +270,23 @@ public class BlockNodeConnectionManager {
         this.endOfStreamScheduleDelay = blockNodeConnectionConfig.endOfStreamScheduleDelay();
         this.highLatencyThreshold = blockNodeConnectionConfig.highLatencyThreshold();
         this.highLatencyEventsBeforeSwitching = blockNodeConnectionConfig.highLatencyEventsBeforeSwitching();
+        this.clientFactory = new BlockNodeClientFactory();
 
         isStreamingEnabled.set(isStreamingEnabled());
 
         if (isStreamingEnabled.get()) {
             final String blockNodeConnectionConfigPath = blockNodeConnectionFileDir();
+            blockNodeConfigDirectory = getAbsolutePath(blockNodeConnectionConfigPath);
 
-            availableBlockNodes = new ArrayList<>(extractBlockNodesConfigurations(blockNodeConnectionConfigPath));
-            logWithContext(INFO, "Loaded block node configuration from {}.", blockNodeConnectionConfigPath);
-            logWithContext(INFO, "Block node configuration: {}.", availableBlockNodes);
+            logWithContext(
+                    INFO,
+                    "Initialized empty block node configuration; awaiting file watcher events from {}.",
+                    blockNodeConnectionConfigPath);
+
+            // Start a watcher to monitor changes to the block-nodes.json file for dynamic updates
+            startConfigWatcher();
         } else {
             logWithContext(INFO, "Block node streaming is disabled. Will not setup connections to block nodes.");
-            availableBlockNodes = new ArrayList<>();
         }
     }
 
@@ -347,8 +356,13 @@ public class BlockNodeConnectionManager {
      * @return the configurations for all block nodes
      */
     private List<BlockNodeConfig> extractBlockNodesConfigurations(@NonNull final String blockNodeConfigPath) {
-        final Path configPath = Paths.get(blockNodeConfigPath, "block-nodes.json");
+        final Path configPath = Paths.get(blockNodeConfigPath, BLOCK_NODES_FILE_NAME);
         try {
+            if (!Files.exists(configPath)) {
+                logWithContext(INFO, "Block node configuration file does not exist: {}", configPath);
+                return List.of();
+            }
+
             final byte[] jsonConfig = Files.readAllBytes(configPath);
             final BlockNodeConnectionInfo protoConfig = BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(jsonConfig));
 
@@ -357,8 +371,12 @@ public class BlockNodeConnectionManager {
                     .map(node -> new BlockNodeConfig(node.address(), node.port(), node.priority()))
                     .toList();
         } catch (final IOException | ParseException e) {
-            logWithContext(ERROR, "Failed to read block node configuration from {}.", configPath, e);
-            throw new RuntimeException("Failed to read block node configuration from " + configPath, e);
+            logWithContext(
+                    INFO,
+                    "Failed to read or parse block node configuration from {}. Continuing without block node connections.",
+                    configPath,
+                    e);
+            return List.of();
         }
     }
 
@@ -367,39 +385,11 @@ public class BlockNodeConnectionManager {
      * @return whether there is only one block node configured
      */
     public boolean isOnlyOneBlockNodeConfigured() {
-        return availableBlockNodes.size() == 1;
-    }
-
-    /**
-     * Creates a new gRPC client based on the specified configuration.
-     *
-     * @param nodeConfig the configuration to use for a specific block node to connect to
-     * @return a gRPC client
-     */
-    private @NonNull BlockStreamPublishServiceClient createNewGrpcClient(@NonNull final BlockNodeConfig nodeConfig) {
-        requireNonNull(nodeConfig);
-
-        final Duration timeoutDuration = configProvider
-                .getConfiguration()
-                .getConfigData(BlockNodeConnectionConfig.class)
-                .grpcOverallTimeout();
-
-        final Tls tls = Tls.builder().enabled(false).build();
-        final PbjGrpcClientConfig grpcConfig =
-                new PbjGrpcClientConfig(timeoutDuration, tls, Optional.of(""), "application/grpc");
-
-        final WebClient webClient = WebClient.builder()
-                .baseUri("http://" + nodeConfig.address() + ":" + nodeConfig.port())
-                .tls(tls)
-                .protocolConfigs(List.of(GrpcClientProtocolConfig.builder()
-                        .abortPollTimeExpired(false)
-                        .pollWaitTime(timeoutDuration)
-                        .build()))
-                .connectTimeout(timeoutDuration)
-                .build();
-        logWithContext(
-                DEBUG, "Created BlockStreamPublishServiceClient for {}:{}.", nodeConfig.address(), nodeConfig.port());
-        return new BlockStreamPublishServiceClient(new PbjGrpcClient(webClient, grpcConfig), OPTIONS);
+        int size;
+        synchronized (availableBlockNodes) {
+            size = availableBlockNodes.size();
+        }
+        return size == 1;
     }
 
     /**
@@ -562,29 +552,26 @@ public class BlockNodeConnectionManager {
         if (!isStreamingEnabled.get()) {
             return;
         }
+        logWithContext(DEBUG, "Shutting down block node connection manager.");
 
-        // Shutdown the block buffer
-        blockBufferService.shutdown();
-
-        logWithContext(INFO, "Shutting down connection manager.");
+        // Stop config watcher
+        stopConfigWatcher();
 
         if (!isConnectionManagerActive.compareAndSet(true, false)) {
             logWithContext(DEBUG, "Connection Manager already shutdown.");
             return;
         }
 
-        // Stop the block stream worker loop thread
-        final Thread workerThread = blockStreamWorkerThreadRef.get();
-        if (workerThread != null) {
-            workerThread.interrupt();
-            try {
-                workerThread.join();
-            } catch (final InterruptedException e) {
-                Thread.currentThread().interrupt();
-                logWithContext(DEBUG, "Interrupted while waiting for block stream worker thread to terminate.", e);
-            }
+        // Shutdown the block buffer
+        blockBufferService.shutdown();
+
+        // Stop the scheduled executor service
+        if (sharedExecutorService != null) {
+            sharedExecutorService.shutdownNow();
         }
-        blockStreamWorkerThreadRef.set(null);
+
+        // Stop the block stream worker loop thread
+        shutdownBlockStreamWorkerThread();
 
         // Close all connections
         final Iterator<Map.Entry<BlockNodeConfig, BlockNodeConnection>> it =
@@ -611,6 +598,52 @@ public class BlockNodeConnectionManager {
         nodeStats.clear();
     }
 
+    private void shutdownBlockStreamWorkerThread() {
+        final Thread workerThread = blockStreamWorkerThreadRef.get();
+        if (workerThread != null) {
+            workerThread.interrupt();
+            try {
+                workerThread.join();
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logWithContext(DEBUG, "Interrupted while waiting for block stream worker thread to terminate.", e);
+            }
+        }
+        blockStreamWorkerThreadRef.set(null);
+    }
+
+    /**
+     * Stops only the connection processing and active connections, without shutting down the block buffer
+     * or the configuration watcher. Intended for dynamic reconfiguration when the configuration file changes.
+     */
+    private void stopConnections() {
+        if (!isStreamingEnabled.get()) {
+            return;
+        }
+
+        logWithContext(INFO, "Stopping block node connections.");
+
+        // Close all connections
+        final Iterator<Map.Entry<BlockNodeConfig, BlockNodeConnection>> it =
+                connections.entrySet().iterator();
+        while (it.hasNext()) {
+            final Map.Entry<BlockNodeConfig, BlockNodeConnection> entry = it.next();
+            final BlockNodeConnection connection = entry.getValue();
+            try {
+                connection.close(true);
+            } catch (final RuntimeException e) {
+                logWithContext(
+                        DEBUG, "Error while closing connection during stopConnections. Ignoring.", connection, e);
+            }
+            it.remove();
+        }
+
+        // clear metadata
+        streamingBlockNumber.set(-1);
+        requestIndex = 0;
+        activeConnectionRef.set(null);
+    }
+
     /**
      * Starts the connection manager. This will schedule a connection attempt to one of the block nodes. This does not
      * block.
@@ -622,18 +655,30 @@ public class BlockNodeConnectionManager {
             return;
         }
 
-        if (!isConnectionManagerActive.compareAndSet(false, true)) {
+        // Start a watcher to monitor changes to the block-nodes.json file for dynamic updates
+        startConfigWatcher();
+
+        // Determine if we have a node to connect to before starting worker thread
+        final BlockNodeConfig selectedNode = getNextPriorityBlockNode();
+        if (selectedNode == null) {
+            logWithContext(INFO, "No block nodes available to connect to. Waiting for configuration updates.");
             return;
         }
 
-        // start worker thread
-        final Thread t = Thread.ofPlatform().name("BlockStreamWorkerLoop").start(this::blockStreamWorkerLoop);
-        blockStreamWorkerThreadRef.set(t);
+        // Create a Single-threaded executor for sharedExecutorService
+        logWithContext(DEBUG, "Creating scheduled executor service for the Block Node connection manager.");
+        sharedExecutorService = Executors.newSingleThreadScheduledExecutor();
 
-        if (!selectNewBlockNodeForStreaming(false)) {
-            isConnectionManagerActive.set(false);
-            throw new NoBlockNodesAvailableException();
+        isConnectionManagerActive.set(true);
+        // Start worker thread if not already running
+        if (blockStreamWorkerThreadRef.get() == null) {
+            logWithContext(DEBUG, "Starting block stream worker loop thread.");
+            final Thread t = Thread.ofPlatform().name("BlockStreamWorkerLoop").start(this::blockStreamWorkerLoop);
+            blockStreamWorkerThreadRef.set(t);
         }
+
+        // Schedule connection attempt to the selected node
+        scheduleConnectionAttempt(selectedNode, Duration.ZERO, null, false);
     }
 
     /**
@@ -676,7 +721,12 @@ public class BlockNodeConnectionManager {
     private @Nullable BlockNodeConfig getNextPriorityBlockNode() {
         logWithContext(DEBUG, "Searching for new block node connection based on node priorities.");
 
-        final SortedMap<Integer, List<BlockNodeConfig>> priorityGroups = availableBlockNodes.stream()
+        final List<BlockNodeConfig> snapshot;
+        synchronized (availableBlockNodes) {
+            snapshot = new ArrayList<>(availableBlockNodes);
+        }
+
+        final SortedMap<Integer, List<BlockNodeConfig>> priorityGroups = snapshot.stream()
                 .collect(Collectors.groupingBy(BlockNodeConfig::priority, TreeMap::new, Collectors.toList()));
 
         BlockNodeConfig selectedNode = null;
@@ -729,16 +779,14 @@ public class BlockNodeConnectionManager {
     private BlockNodeConnection createConnection(@NonNull final BlockNodeConfig nodeConfig) {
         requireNonNull(nodeConfig);
 
-        // Create the connection object with a fresh gRPC client
-        final BlockStreamPublishServiceClient grpcClient = createNewGrpcClient(nodeConfig);
         final BlockNodeConnection connection = new BlockNodeConnection(
                 configProvider,
                 nodeConfig,
                 this,
                 blockBufferService,
-                grpcClient,
                 blockStreamMetrics,
-                sharedExecutorService);
+                sharedExecutorService,
+                clientFactory);
 
         connections.put(nodeConfig, connection);
         return connection;
@@ -806,7 +854,7 @@ public class BlockNodeConnectionManager {
     }
 
     private void blockStreamWorkerLoop() {
-        while (isConnectionManagerActive.get()) {
+        while (isConnectionManagerActive.get() && !Thread.currentThread().isInterrupted()) {
             // use the same connection for all operations per iteration
             final BlockNodeConnection connection = activeConnectionRef.get();
 
@@ -829,9 +877,176 @@ public class BlockNodeConnectionManager {
                 logWithContext(DEBUG, "UncheckedIOException caught in block stream worker loop ({}).", e.getMessage());
                 connection.handleStreamFailureWithoutOnComplete();
             } catch (final Exception e) {
-                logWithContext(DEBUG, "Exception caught in block stream worker loop ({}).", e.getMessage());
+                if (Thread.currentThread().isInterrupted()) {
+                    logWithContext(DEBUG, "Block stream worker loop interrupted, exiting.");
+                    return;
+                }
+                logWithContext(
+                        DEBUG, "Exception caught in block stream worker loop ({}) {}", e.getMessage(), e.toString());
                 connection.handleStreamFailure();
             }
+        }
+    }
+
+    /**
+     * Starts a WatchService to monitor the configuration directory for changes to block-nodes.json.
+     * On create/modify events, it will attempt to reload configuration and restart connections.
+     */
+    private void startConfigWatcher() {
+        if (configWatchServiceRef.get() != null) {
+            logWithContext(DEBUG, "Configuration watcher already running.");
+            return;
+        }
+        try {
+            final WatchService watchService =
+                    blockNodeConfigDirectory.getFileSystem().newWatchService();
+            configWatchServiceRef.set(watchService);
+            blockNodeConfigDirectory.register(
+                    watchService,
+                    StandardWatchEventKinds.ENTRY_CREATE,
+                    StandardWatchEventKinds.ENTRY_MODIFY,
+                    StandardWatchEventKinds.ENTRY_DELETE);
+
+            final Thread watcherThread = Thread.ofPlatform()
+                    .name("BlockNodesConfigWatcher")
+                    .start(() -> {
+                        while (!Thread.currentThread().isInterrupted()) {
+                            WatchKey key = null;
+                            try {
+                                key = watchService.take();
+                                for (WatchEvent<?> event : key.pollEvents()) {
+                                    final WatchEvent.Kind<?> kind = event.kind();
+                                    final Object ctx = event.context();
+                                    if (ctx instanceof Path changed
+                                            && BLOCK_NODES_FILE_NAME.equals(changed.toString())) {
+                                        logWithContext(INFO, "Detected {} event for {}.", kind.name(), changed);
+                                        try {
+                                            handleConfigFileChange();
+                                        } catch (Exception e) {
+                                            logWithContext(
+                                                    INFO,
+                                                    "Exception in BlockNodesConfigWatcher config file change handler. {}",
+                                                    e);
+                                        }
+                                    }
+                                }
+                            } catch (InterruptedException e) {
+                                break;
+                            } catch (Exception e) {
+                                logWithContext(INFO, "Exception in config watcher loop.", e);
+                                if (Thread.currentThread().isInterrupted()) {
+                                    logWithContext(DEBUG, "Config watcher thread interrupted, exiting.");
+                                    return;
+                                }
+                            } finally {
+                                // Always reset the key to continue watching for events, even if an exception occurred
+                                if (key != null && !key.reset()) {
+                                    logWithContext(INFO, "WatchKey could not be reset. Exiting config watcher loop.");
+                                    break;
+                                }
+                            }
+                        }
+                    });
+            configWatcherThreadRef.set(watcherThread);
+            logWithContext(INFO, "Started block-nodes.json configuration watcher thread.");
+            // Perform an initial load if the configuration file already exists
+            performInitialConfigLoad();
+        } catch (final IOException e) {
+            logWithContext(
+                    INFO, "Failed to start block-nodes.json configuration watcher. Dynamic updates disabled.", e);
+        }
+    }
+
+    /**
+     * Performs an initial configuration load if the block-nodes.json exists at startup,
+     * updating the available nodes and starting connections as appropriate.
+     */
+    private void performInitialConfigLoad() {
+        final Path configPath = blockNodeConfigDirectory.resolve(BLOCK_NODES_FILE_NAME);
+        if (Files.exists(configPath)) {
+            final List<BlockNodeConfig> newConfigs =
+                    extractBlockNodesConfigurations(blockNodeConfigDirectory.toString());
+            synchronized (availableBlockNodes) {
+                availableBlockNodes.clear();
+                availableBlockNodes.addAll(newConfigs);
+            }
+            if (!newConfigs.isEmpty()) {
+                logWithContext(INFO, "Initial block node configuration loaded ({}).", newConfigs);
+                start();
+            } else {
+                logWithContext(INFO, "Initial block node configuration missing or invalid. Waiting for updates.");
+            }
+        } else {
+            logWithContext(INFO, "No initial block node configuration file found. Waiting for updates.");
+        }
+    }
+
+    /**
+     * Stop the configuration file watcher and associated thread.
+     */
+    private void stopConfigWatcher() {
+        final Thread watcherThread = configWatcherThreadRef.getAndSet(null);
+        if (watcherThread != null) {
+            watcherThread.interrupt();
+            try {
+                watcherThread.join();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        final WatchService ws = configWatchServiceRef.getAndSet(null);
+        if (ws != null) {
+            try {
+                ws.close();
+            } catch (IOException ignored) {
+                // ignore
+            }
+        }
+    }
+
+    /**
+     * Handle a configuration file change event by attempting to reload the block-nodes.json and restarting
+     * connections with the new configuration if parsing succeeds. If parsing fails or the file is deleted,
+     * we clear available nodes and stop connections, allowing the system to continue running without block nodes.
+     */
+    private void handleConfigFileChange() {
+        final String configDir = blockNodeConfigDirectory.toString();
+        final List<BlockNodeConfig> newConfigs = extractBlockNodesConfigurations(configDir);
+
+        // Compare new configs with existing ones to determine if a restart is needed
+        synchronized (availableBlockNodes) {
+            if (newConfigs.equals(availableBlockNodes)) {
+                logWithContext(INFO, "Block node configuration unchanged. No action taken.");
+                return;
+            }
+        }
+
+        logWithContext(DEBUG, "Shutting down block stream worker thread for config reload.");
+        // Shutdown the block stream worker thread
+        shutdownBlockStreamWorkerThread();
+        logWithContext(DEBUG, "Block stream worker thread is shutdown.");
+
+        // Shutdown the executor service for BlockNodeConnectionTask's
+        if (sharedExecutorService != null) {
+            logWithContext(DEBUG, "Shutting down existing scheduled executor service for config reload.");
+            sharedExecutorService.shutdownNow();
+        }
+
+        // Stop connections immediately to avoid streaming with stale configs
+        stopConnections();
+
+        synchronized (availableBlockNodes) {
+            availableBlockNodes.clear();
+            availableBlockNodes.addAll(newConfigs);
+        }
+
+        if (!newConfigs.isEmpty()) {
+            logWithContext(INFO, "Reloaded block node configurations ({})", newConfigs);
+            start();
+        } else {
+            logWithContext(
+                    INFO,
+                    "No valid block node configurations available after file change. Connections remain stopped.");
         }
     }
 
@@ -1036,7 +1251,6 @@ public class BlockNodeConnectionManager {
                 connection, but the active connection has a lower priority than the connection in this task. In either
                 case, we want to elevate this connection to be the new active connection.
                  */
-
                 connection.createRequestPipeline();
 
                 if (activeConnectionRef.compareAndSet(activeConnection, connection)) {
@@ -1106,6 +1320,14 @@ public class BlockNodeConnectionManager {
 
             // Reschedule this task using the calculated jittered delay
             try {
+                // No-op if node was removed from available list
+                synchronized (availableBlockNodes) {
+                    if (!availableBlockNodes.contains(connection.getNodeConfig())) {
+                        logWithContext(DEBUG, "Node no longer available, skipping reschedule.");
+                        connections.remove(connection.getNodeConfig());
+                        return;
+                    }
+                }
                 sharedExecutorService.schedule(this, jitteredDelayMs, TimeUnit.MILLISECONDS);
                 logWithContext(
                         DEBUG,
@@ -1247,7 +1469,7 @@ public class BlockNodeConnectionManager {
                     ipAsInteger);
         } catch (final IOException e) {
             logWithContext(
-                    ERROR, "Failed to resolve block node host ({}:{})", nodeConfig.address(), nodeConfig.port(), e);
+                    DEBUG, "Failed to resolve block node host ({}:{})", nodeConfig.address(), nodeConfig.port(), e);
             ipAsInteger = -1L;
         }
 
