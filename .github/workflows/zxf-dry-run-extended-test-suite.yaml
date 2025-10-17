@@ -97,8 +97,23 @@ jobs:
       - name: Set Outputs
         id: set-outputs
         run: |
-          echo "solo-version=${{ fromJson(inputs.additional-parameters).solo-version || '' }}" >> "${GITHUB_OUTPUT}"
-          echo "helm-release-name=${{ fromJson(inputs.additional-parameters).helm-release-name || '' }}" >> "${GITHUB_OUTPUT}"
+          solo_version='' # default empty
+          helm_release_name='' # default empty
+
+          # Try parsing JSON inside GitHub expression safely
+          additional_params="${{ toJSON(fromJSON(inputs.additional-parameters)) }}" # sanitize input
+          echo "inputs.additional-parameters=${additional_params}"
+
+          # Use jq to extract (with defaults)
+          solo_version=$(echo "${additional_params}" | jq -r '.["solo-version"] // empty')
+          helm_release_name=$(echo "${additional_params}" | jq -r '.["helm-release-name"] // empty')
+
+          # Echo outputs
+          echo "::debug::Extracted solo-version: ${solo_version}"
+          echo "::debug::Extracted helm-release-name: ${helm_release_name}"
+
+          echo "solo-version=${solo_version}" >> "${GITHUB_OUTPUT}"
+          echo "helm-release-name=${helm_release_name}" >> "${GITHUB_OUTPUT}"
 
   xts-timing-sensitive-tests:
     name: XTS Timing Sensitive Tests
