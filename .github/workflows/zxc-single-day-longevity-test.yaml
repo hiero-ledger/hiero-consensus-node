@@ -531,6 +531,7 @@ jobs:
                 mkdir -p /opt/hiero/block-node/data/live;      \
                 mkdir -p /opt/hiero/block-node/logs;           \
                 mkdir -p /opt/hiero/block-node/logs/config;    \
+                mkdir -p /opt/hiero/block-node/backfill;    \
                 export SERVER_PORT=40840;                      \
                 cd /opt/hiero/block-node; \
                 tar xf /tmp/blocknode.tar;"
@@ -561,21 +562,58 @@ jobs:
           #  sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" describe pod $i | grep -E '^IP:' | awk '{print $2}' >> block_ips.txt
           #done
 
+          #create block-nodes.json for CNs
           for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
           do
-            podprio1name=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep "block-node-${i} " | awk '{print $1}'`
+            podprio1name=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep "block-node-${i}" | awk '{print $1}'`
             podprio1IP=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" describe pod $podprio1name | grep -E '^IP:' | awk '{print $2}'`
 
-            podprio2name=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep "block-node-p2-${i} " | awk '{print $1}'`
+            podprio2name=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep "block-node-p2-${i}" | awk '{print $1}'`
             podprio2IP=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" describe pod $podprio2name | grep -E '^IP:' | awk '{print $2}'`
-
             counter=`expr $i - 1`
 
             echo "{\"nodes\": [" > block-nodes_$counter.json
             echo "{ \"address\": \"$podprio1IP\", \"port\": 40840, \"priority\": 1 }," >> block-nodes_$counter.json
             echo "{ \"address\": \"$podprio2IP\", \"port\": 40840, \"priority\": 2 }"  >> block-nodes_$counter.json
             echo "]}" >> block-nodes_$counter.json
+          
+            echo "DEBUG: block-node_$counter.json is:"
+            cat block-node_$counter.json
           done
+
+          #create block-nodes-source.json for BNs
+          for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
+          do
+            counter=`expr $i - 1`
+
+            echo "{\"nodes\": [" > block-node-sources_$counter.json
+          
+            ls -1 block-nodes_*.json | grep -v $counter | xargs cat > tmp.txt
+            grep -v -E 'nodes|[\]][\}]' tmp.txt | sed -e 's/1 },/1 }/g' > tmp.txt2
+            lines=`wc -l tmp.txt2 | awk '{print $1}'`
+            head -n `expr $lines -1` tmp.txt2 |  awk '{print $0","}' > tmp.txt1
+            tail -n 1 tmp.txt2 >> tmp.txt1
+            cat tmp.txt1 >> block-node-sources_$counter.json
+            echo "]}" >> block-node-sources_$counter.json
+          
+            echo "DEBUG: block-node-sources_$counter.json is:"
+            cat block-node-sources_$counter.json
+          
+            rm -f tmp.txt2 tmp.txt1 tmp.txt
+          done
+
+          #copy block-nodes-source.json for BNs
+          for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
+          do
+            podprio1name=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep "block-node-${i}" | awk '{print $1}'`
+            podprio2name=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep "block-node-p2-${i}" | awk '{print $1}'`
+            counter=`expr $i - 1`
+
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp block-node-sources_$counter.json ${podprio1name}:/opt/hiero/block-node/backfill/block-node-sources.json
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp block-node-sources_$counter.json ${podprio2name}:/opt/hiero/block-node/backfill/block-node-sources.json
+
+          done
+
 
           if [ 0 -eq 1 ]
           then
@@ -867,10 +905,10 @@ jobs:
               if [ "${{ inputs.perf_analysis }}" = "true" ]
               then
                 sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c \
-                  "cd /opt/hiero/block-node/; export SERVER_MAX_MESSAGE_SIZE_BYTES=\"16_777_215\"; MESSAGING_BLOCK_ITEM_QUEUE_SIZE=4096; MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=1024; export BLOCK_NODE_EARLIEST_MANAGED_BLOCK=$lastBlock; sh /tmp/startInstrumentedBN.sh"
+                  "cd /opt/hiero/block-node/; export BACKFILL_FETCH_BATCH_SIZE=10; export BACKFILL_BLOCK_NODE_SOURCES_PATH=\"/opt/hiero/block-node/backfill/block-node-sources.json\"; export SERVER_MAX_MESSAGE_SIZE_BYTES=\"16_777_215\"; MESSAGING_BLOCK_ITEM_QUEUE_SIZE=4096; MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=1024; export BLOCK_NODE_EARLIEST_MANAGED_BLOCK=$lastBlock; sh /tmp/startInstrumentedBN.sh"
               else
                 sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c \
-                  "cd /opt/hiero/block-node/; export JAVA_OPTS=\"-Xms16G -Xmx28G\"; export SERVER_MAX_MESSAGE_SIZE_BYTES=\"16_777_215\"; MESSAGING_BLOCK_ITEM_QUEUE_SIZE=4096; MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=1024; export BLOCK_NODE_EARLIEST_MANAGED_BLOCK=$lastBlock; bash ./block-node-app-*/bin/block-node-app > ./logs/block-node.log 2>&1 &"
+                  "cd /opt/hiero/block-node/; export BACKFILL_FETCH_BATCH_SIZE=10; export BACKFILL_BLOCK_NODE_SOURCES_PATH=\"/opt/hiero/block-node/backfill/block-node-sources.json\"; export JAVA_OPTS=\"-Xms16G -Xmx28G\"; export SERVER_MAX_MESSAGE_SIZE_BYTES=\"16_777_215\"; MESSAGING_BLOCK_ITEM_QUEUE_SIZE=4096; MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=1024; export BLOCK_NODE_EARLIEST_MANAGED_BLOCK=$lastBlock; bash ./block-node-app-*/bin/block-node-app > ./logs/block-node.log 2>&1 &"
               fi
           done
 
