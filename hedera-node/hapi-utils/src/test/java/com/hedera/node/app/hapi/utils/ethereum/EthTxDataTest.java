@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.ethereum;
 
+import static com.hedera.node.app.hapi.utils.ethereum.CodeDelegationTest.fillBytes;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.DETERMINISTIC_DEPLOYER_TRANSACTION;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.WEIBARS_IN_A_TINYBAR;
 import static java.util.Objects.requireNonNull;
@@ -16,11 +17,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.esaulpaugh.headlong.rlp.RLPDecoder;
 import com.esaulpaugh.headlong.rlp.RLPEncoder;
+import com.esaulpaugh.headlong.rlp.RLPItem;
 import com.esaulpaugh.headlong.rlp.RLPList;
 import com.esaulpaugh.headlong.util.Integers;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import org.bouncycastle.asn1.sec.SECNamedCurves;
@@ -773,5 +776,223 @@ class EthTxDataTest {
         final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0_WITH_CHAIN_ID_11155111));
         final byte[] failingChainId = BigInteger.valueOf(11155111L).toByteArray();
         assertNotEquals(Hex.toHexString(subject.chainId()), Hex.toHexString(failingChainId));
+    }
+
+    // Minimal harness to encode/decode authorizationList without native libs
+    static final class Harness {
+        byte[] authorizationList;
+
+        void populateEip7702EthTxData(final List<CodeDelegation> delegations) {
+            final List<Object> inner = new ArrayList<>();
+            for (var d : delegations) {
+                inner.add(new Object[] {
+                    d.chainId(),
+                    d.address(),
+                    Integers.toBytes(d.nonce()), // nonce as RLP integer
+                    new byte[] {(byte) d.recId()}, // recId as single byte
+                    d.r(),
+                    d.s()
+                });
+            }
+            // The method under test decodes with sequenceIterator(...) and expects the first item to be a list.
+            this.authorizationList = RLPEncoder.sequence(new Object[] {inner.toArray(new Object[0])});
+        }
+
+        List<CodeDelegation> extractCodeDelegations() {
+            final List<CodeDelegation> codeDelegations = new ArrayList<>();
+            if (authorizationList != null) {
+                final var decoder = RLPDecoder.RLP_STRICT.sequenceIterator(authorizationList);
+                if (!decoder.hasNext()) {
+                    return codeDelegations;
+                }
+                final var rlpItem = decoder.next();
+                if (!rlpItem.isList()) {
+                    return codeDelegations;
+                }
+
+                for (final var rlpInner : rlpItem.asRLPList().elements()) {
+                    if (!rlpInner.isList()) {
+                        continue;
+                    }
+                    final var rlpInnerList = rlpInner.asRLPList().elements(); // intended behavior
+                    if (rlpInnerList.size() != 6) {
+                        continue;
+                    }
+                    codeDelegations.add(new CodeDelegation(
+                            rlpInnerList.get(0).data(), // chainId
+                            rlpInnerList.get(1).data(), // address
+                            asLong(rlpInnerList.get(2)), // nonce
+                            asByte(rlpInnerList.get(3)), // recId
+                            rlpInnerList.get(4).data(), // r
+                            rlpInnerList.get(5).data() // s
+                            ));
+                }
+            }
+            return codeDelegations;
+        }
+
+        private static long asLong(final RLPItem item) {
+            final byte[] d = item.data();
+            if (d.length == 0) return 0L;
+            return new BigInteger(1, d).longValue();
+        }
+
+        private static int asByte(final RLPItem item) {
+            final byte[] d = item.data();
+            if (d.length == 0) return 0;
+            return d[d.length - 1] & 0xFF;
+        }
+    }
+
+    @Test
+    void extractReturnsEmptyWhenAuthorizationListNull() {
+        final var h = new Harness();
+        h.authorizationList = null;
+        assertTrue(h.extractCodeDelegations().isEmpty());
+    }
+
+    @Test
+    void extractReturnsEmptyWhenTopLevelNotList() {
+        final var h = new Harness();
+        // sequence with a single byte[] as first item (not a list)
+        h.authorizationList = RLPEncoder.sequence(fillBytes(3, 0x01));
+        assertTrue(h.extractCodeDelegations().isEmpty());
+    }
+
+    @Test
+    void extractSkipsNonListInnerAndWrongArity() {
+        final var h = new Harness();
+
+        final var good = new Object[] {
+            new byte[] {0x01}, // chainId
+            fillBytes(20, 0x10), // address
+            Integers.toBytes(7), // nonce
+            new byte[] {0x1B}, // recId (27)
+            fillBytes(32, 0x21), // r
+            fillBytes(32, 0x41) // s
+        };
+
+        final var innerTop = new Object[] {
+            fillBytes(4, 0x01), // not a list (will be skipped)
+            new Object[] { // wrong arity (5 instead of 6)
+                new byte[] {0x02}, fillBytes(20, 0x11), Integers.toBytes(8), new byte[] {0x1C}, fillBytes(32, 0x22)
+            },
+            good // valid item
+        };
+
+        h.authorizationList = RLPEncoder.sequence(new Object[] {innerTop});
+
+        final var result = h.extractCodeDelegations();
+        assertEquals(1, result.size());
+
+        final var cd = result.get(0);
+        assertArrayEquals(new byte[] {0x01}, cd.chainId());
+        assertArrayEquals(fillBytes(20, 0x10), cd.address());
+        assertEquals(7L, cd.nonce());
+        assertEquals(0x1B, cd.recId());
+        assertArrayEquals(fillBytes(32, 0x21), cd.r());
+        assertArrayEquals(fillBytes(32, 0x41), cd.s());
+    }
+
+    @Test
+    void populateThenExtractRoundTripsTwoDelegations() {
+        final var h = new Harness();
+
+        final var d1 = new CodeDelegation(
+                new byte[] {0x01}, fillBytes(20, 0x10), 1L, 27, fillBytes(32, 0x21), fillBytes(32, 0x41));
+        final var d2 = new CodeDelegation(
+                new byte[] {0x02}, fillBytes(20, 0x20), 2L, 28, fillBytes(32, 0x22), fillBytes(32, 0x42));
+
+        final var in = List.of(d1, d2);
+        h.populateEip7702EthTxData(in);
+        final var out = h.extractCodeDelegations();
+
+        assertEquals(in, out);
+        // Sanity: ensure the encoded blob really contains a list as the first item
+        final var it = RLPDecoder.RLP_STRICT.sequenceIterator(h.authorizationList);
+        assertTrue(it.hasNext());
+        assertTrue(it.next().isList());
+    }
+
+    @Test
+    void testType4TransactionEncoding() {
+        final byte[] chainId = new byte[] {0x01, 0x2A};
+        final int nonce = 7;
+        final byte[] maxPriorityGas = fillBytes(3, 0x11);
+        final byte[] maxGas = fillBytes(3, 0x21);
+        final int gasLimit = 123456;
+        final byte[] to = fillBytes(20, 0x33);
+        final long value = 987_654L;
+        final byte[] callData = fillBytes(4, 0x44);
+
+        final byte[] addr1 = fillBytes(20, 0x50);
+        final byte[] addr2 = fillBytes(20, 0x60);
+        final byte[] key1 = fillBytes(32, 0x70);
+        final byte[] key2 = fillBytes(32, 0x80);
+        final Object[] accessListList = new Object[] {
+            new Object[] {addr1, new Object[] {key1, key2}},
+            new Object[] {addr2, new Object[] {}}
+        };
+
+        final byte[] expectedAccessListBytes = RLPEncoder.sequence(accessListList);
+
+        final byte[] authorizationList = fillBytes(5, 0x40);
+        final int recId = 27;
+        final byte[] r = fillBytes(32, 0x90);
+        final byte[] s = fillBytes(32, 0xA0);
+
+        final byte[] raw = RLPEncoder.sequence(Integers.toBytes(4), new Object[] {
+            chainId, // 0
+            Integers.toBytes(nonce), // 1
+            maxPriorityGas, // 2
+            maxGas, // 3
+            Integers.toBytes(gasLimit), // 4
+            to, // 5
+            Integers.toBytesUnsigned(BigInteger.valueOf(value)), // 6
+            callData, // 7
+            accessListList, // 8 (list)
+            authorizationList, // 9
+            new byte[] {(byte) recId}, // 10
+            r, // 11
+            s // 12
+        });
+
+        final EthTxData tx = EthTxData.populateEthTxData(raw);
+        assertNotNull(tx);
+        assertEquals(EthTransactionType.EIP7702, tx.type());
+
+        assertArrayEquals(chainId, tx.chainId());
+        assertEquals(nonce, tx.nonce());
+        assertNull(tx.gasPrice());
+        assertArrayEquals(maxPriorityGas, tx.maxPriorityGas());
+        assertArrayEquals(maxGas, tx.maxGas());
+        assertEquals(gasLimit, tx.gasLimit());
+        assertArrayEquals(to, tx.to());
+        assertEquals(value, tx.value().longValue());
+        assertArrayEquals(callData, tx.callData());
+
+        assertArrayEquals(expectedAccessListBytes, tx.accessList());
+
+        final Object[] alRlp = tx.accessListAsRlp();
+        assertNotNull(alRlp);
+        assertEquals(2, alRlp.length);
+
+        final Object[] firstEntry = (Object[]) alRrpEntry(alRlp, 0);
+        assertArrayEquals(addr1, (byte[]) firstEntry[0]);
+        final Object[] firstKeys = (Object[]) firstEntry[1];
+        assertEquals(2, firstKeys.length);
+        assertArrayEquals(key1, (byte[]) firstKeys[0]);
+        assertArrayEquals(key2, (byte[]) firstKeys[1]);
+
+        assertArrayEquals(authorizationList, tx.authorizationList());
+        assertEquals(recId, tx.recId());
+        assertArrayEquals(r, tx.r());
+        assertArrayEquals(s, tx.s());
+    }
+
+    private static Object alRrpEntry(Object[] alRlp, int index) {
+        final Object entry = alRlp[index];
+        assertTrue(entry instanceof Object[], "access list entry must be a list");
+        return entry;
     }
 }

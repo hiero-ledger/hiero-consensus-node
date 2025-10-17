@@ -16,7 +16,7 @@ import org.hyperledger.besu.evm.worldstate.WorldUpdater;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class CodeDelegationProcessor {
+public record CodeDelegationProcessor(long maybeChainId) {
     private static final Logger LOG = LoggerFactory.getLogger(CodeDelegationProcessor.class);
 
     // The half of the secp256k1 curve order, used to validate the signature.
@@ -28,15 +28,9 @@ public class CodeDelegationProcessor {
     /** The size of the delegated code */
     public static final int DELEGATED_CODE_SIZE = CODE_DELEGATION_PREFIX.size() + Address.SIZE;
 
-    private final long maybeChainId;
-
-    public CodeDelegationProcessor(final long maybeChainId) {
-        this.maybeChainId = maybeChainId;
-    }
-
     /**
-     * At the start of executing the transaction, after incrementing the sender’s nonce, for each
-     * authorization we do the following:
+     * At the start of executing the transaction, after incrementing the sender’s nonce, for each authorization we do
+     * the following:
      *
      * <ol>
      *   <li>Verify the chain id is either 0 or the chain's current ID.
@@ -52,7 +46,7 @@ public class CodeDelegationProcessor {
      * </ol>
      *
      * @param worldUpdater The world state updater which is aware of code delegation.
-     * @param transaction The transaction being processed.
+     * @param transaction  The transaction being processed.
      * @return The result of the code delegation processing.
      */
     public CodeDelegationResult process(final WorldUpdater worldUpdater, final HederaEvmTransaction transaction) {
