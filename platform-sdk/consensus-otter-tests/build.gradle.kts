@@ -17,10 +17,19 @@ plugins {
     id("org.hiero.gradle.report.test-logger")
     id("org.hiero.gradle.feature.test-fixtures")
     id("org.hiero.gradle.feature.test-integration")
-    id("org.hiero.gradle.feature.protobuf")
+    id("com.hedera.pbj.pbj-compiler") version "0.12.1"
 }
 
 description = "Consensus Otter Test Framework"
+
+dependencies {
+    testFixturesImplementation(platform(project(":hiero-dependency-versions")))
+    testFixturesImplementation("com.hedera.pbj:pbj-grpc-client-helidon")
+    testFixturesImplementation("io.helidon.webclient:helidon-webclient")
+    testFixturesImplementation("io.helidon.webclient:helidon-webclient-grpc")
+    testFixturesImplementation("io.helidon.webclient:helidon-webclient-http2")
+    testFixturesImplementation("io.helidon.common:helidon-common-tls")
+}
 
 testModuleInfo {
     requires("com.swirlds.base.test.fixtures")
@@ -34,7 +43,6 @@ testModuleInfo {
     requires("com.swirlds.component.framework")
     requires("com.swirlds.metrics.api")
     requires("org.hiero.consensus.utility")
-    runtimeOnly("io.grpc.netty.shaded")
 }
 
 testIntegrationModuleInfo {
@@ -45,7 +53,6 @@ testIntegrationModuleInfo {
     requires("org.assertj.core")
     requires("org.junit.jupiter.params")
     requires("com.github.spotbugs.annotations")
-    runtimeOnly("io.grpc.netty.shaded")
 }
 
 // This should probably not be necessary (Log4j issue?)
@@ -114,4 +121,40 @@ tasks.testIntegration {
     // Limit heap and number of processors
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
+}
+
+// Workaround for PBJ code generation bug with field named 'result'
+abstract class FixPbjGeneratedCodeTask : DefaultTask() {
+    @get:InputFile
+    @get:Optional
+    abstract val inputFile: RegularFileProperty
+
+    @get:OutputFile
+    abstract val outputFile: RegularFileProperty
+
+    @TaskAction
+    fun fix() {
+        val file = inputFile.get().asFile
+        if (file.exists()) {
+            val content = file.readText()
+            val fixed = content
+                .replace("if (result != DEFAULT.result)", "if (this.result != DEFAULT.result)")
+                .replace("Boolean.hashCode(result)", "Boolean.hashCode(this.result)")
+            outputFile.get().asFile.writeText(fixed)
+        }
+    }
+}
+
+tasks.register<FixPbjGeneratedCodeTask>("fixPbjGeneratedCode") {
+    val targetFile = layout.buildDirectory.file("generated/source/pbj-proto/testFixtures/java/org/hiero/otter/fixtures/container/proto/TransactionRequestAnswer.java")
+    inputFile.set(targetFile)
+    outputFile.set(targetFile)
+}
+
+tasks.named("compileTestFixturesJava") {
+    dependsOn("fixPbjGeneratedCode")
+}
+
+tasks.named("generateTestFixturesPbjSource") {
+    finalizedBy("fixPbjGeneratedCode")
 }

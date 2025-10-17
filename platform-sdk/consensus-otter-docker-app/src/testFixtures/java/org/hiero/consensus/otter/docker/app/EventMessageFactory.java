@@ -34,10 +34,10 @@ public final class EventMessageFactory {
         final PlatformStatus newStatus = notification.getNewStatus();
 
         final PlatformStatusChange protoStatusChange =
-                PlatformStatusChange.newBuilder().setNewStatus(newStatus.name()).build();
+                PlatformStatusChange.newBuilder().newStatus(newStatus.name()).build();
 
         return EventMessage.newBuilder()
-                .setPlatformStatusChange(protoStatusChange)
+                .platformStatusChange(protoStatusChange)
                 .build();
     }
 
@@ -53,10 +53,10 @@ public final class EventMessageFactory {
                 rounds.stream().map(ProtobufConverter::fromPlatform).toList();
 
         final ProtoConsensusRounds protoConsensusRounds =
-                ProtoConsensusRounds.newBuilder().addAllRounds(protoRounds).build();
+                ProtoConsensusRounds.newBuilder().rounds(protoRounds).build();
 
         return EventMessage.newBuilder()
-                .setConsensusRounds(protoConsensusRounds)
+                .consensusRounds(protoConsensusRounds)
                 .build();
     }
 
@@ -69,7 +69,7 @@ public final class EventMessageFactory {
     @NonNull
     public static EventMessage fromStructuredLog(@NonNull final StructuredLog log) {
         final LogEntry logEntry = ProtobufConverter.fromPlatform(log);
-        return EventMessage.newBuilder().setLogEntry(logEntry).build();
+        return EventMessage.newBuilder().logEntry(logEntry).build();
     }
 
     /**
@@ -81,7 +81,7 @@ public final class EventMessageFactory {
     @NonNull
     public static EventMessage fromMarkerFiles(@NonNull final List<String> markerFiles) {
         final MarkerFileAdded markerFileAdded =
-                MarkerFileAdded.newBuilder().addAllMarkerFileName(markerFiles).build();
-        return EventMessage.newBuilder().setMarkerFileAdded(markerFileAdded).build();
+                MarkerFileAdded.newBuilder().markerFileName(markerFiles).build();
+        return EventMessage.newBuilder().markerFileAdded(markerFileAdded).build();
     }
 }
