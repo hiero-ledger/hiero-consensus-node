@@ -176,9 +176,9 @@ jobs:
         run: |
           version=$(solo --version | grep Version | awk '{print $3}')
           if [[ "$(printf '%s\n' "$version" "0.44.0" | sort -V | head -n1)" == "0.44.0" ]]; then
-            solo ledger account create --dev --ed25519-private-key "${{ steps.solo-action.outputs.ed25519PrivateKey }}" --deployment ${{ steps.solo-action.outputs.deployment }} --hbar-amount 1000000
+            solo ledger account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ steps.solo-action.outputs.deployment }} --hbar-amount 1000000
           else
-            solo account create --dev --ed25519-private-key "${{ steps.solo-action.outputs.ed25519PrivateKey }}" --deployment ${{ steps.solo-action.outputs.deployment }} --hbar-amount 1000000
+            solo account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ steps.solo-action.outputs.deployment }} --hbar-amount 1000000
           fi
           cp .env.custom_node .env
           npm run test
