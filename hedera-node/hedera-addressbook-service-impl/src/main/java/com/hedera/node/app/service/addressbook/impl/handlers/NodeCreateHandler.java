@@ -19,6 +19,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.state.addressbook.Node;
+import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.records.NodeCreateStreamBuilder;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
@@ -87,6 +88,7 @@ public class NodeCreateHandler implements TransactionHandler {
         final var nodeConfig = handleContext.configuration().getConfigData(NodesConfig.class);
         final var storeFactory = handleContext.storeFactory();
         final var nodeStore = storeFactory.writableStore(WritableNodeStore.class);
+        final var accountNodeRelStore = storeFactory.writableStore(WritableAccountNodeRelStore.class);
         final var accountStore = storeFactory.readableStore(ReadableAccountStore.class);
         final var accountId = op.accountIdOrElse(AccountID.DEFAULT);
 
@@ -119,6 +121,8 @@ public class NodeCreateHandler implements TransactionHandler {
         final var node = nodeBuilder.nodeId(nodeStore.sizeOfState()).build();
 
         nodeStore.putAndIncrementCount(node);
+        // add account id relation
+        accountNodeRelStore.put(op.accountIdOrThrow(), node.nodeId());
 
         final var recordBuilder = handleContext.savepointStack().getBaseBuilder(NodeCreateStreamBuilder.class);
 

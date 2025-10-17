@@ -4,6 +4,8 @@ package com.hedera.node.app.service.addressbook.impl.test.handlers;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.asBytes;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_LABEL;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V068AddressBookSchema.ACCOUNT_NODE_REL_STATE_ID;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V068AddressBookSchema.ACCOUNT_NODE_REL_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
@@ -24,8 +26,11 @@ import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.service.addressbook.impl.ReadableAccountNodeRelStoreImpl;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
+import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -168,6 +173,11 @@ public class AddressBookTestBase {
     protected ReadableNodeStore readableStore;
     protected WritableNodeStore writableStore;
 
+    protected MapReadableKVState<AccountID, Long> readableAccountNodeRelState;
+    protected MapWritableKVState<AccountID, Long> writableAccountNodeRelState;
+    protected ReadableAccountNodeRelStore readableAccountNodeRelStore;
+    protected WritableAccountNodeRelStore writableAccountNodeRelStore;
+
     @BeforeEach
     void commonSetUp() {
         givenValidNode();
@@ -182,6 +192,13 @@ public class AddressBookTestBase {
         given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(writableNodeState);
         readableStore = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
         writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
+
+        readableAccountNodeRelState = newReadableAccNodeRelState();
+        writableAccountNodeRelState = newWritableAccNodeRelState();
+        given(readableStates.<AccountID, Long>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(readableAccountNodeRelState);
+        given(writableStates.<AccountID, Long>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(writableAccountNodeRelState);
+        readableAccountNodeRelStore = new ReadableAccountNodeRelStoreImpl(readableStates, readableEntityCounters);
+        writableAccountNodeRelStore = new WritableAccountNodeRelStore(writableStates, writableEntityCounters);
     }
 
     protected void givenEntityCounters() {
@@ -255,8 +272,14 @@ public class AddressBookTestBase {
         givenEntityCounters();
         writableNodeState = writableNodeStateWithMoreKeys();
         given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(writableNodeState);
-        final var configuration = HederaTestConfigBuilder.createConfig();
         writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
+
+        readableAccountNodeRelState = newReadableAccNodeRelState();
+        writableAccountNodeRelState = newWritableAccNodeRelState();
+        given(readableStates.<AccountID, Long>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(readableAccountNodeRelState);
+        given(writableStates.<AccountID, Long>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(writableAccountNodeRelState);
+        readableAccountNodeRelStore = new ReadableAccountNodeRelStoreImpl(readableStates, readableEntityCounters);
+        writableAccountNodeRelStore = new WritableAccountNodeRelStore(writableStates, writableEntityCounters);
     }
 
     @NonNull
@@ -290,6 +313,20 @@ public class AddressBookTestBase {
     @NonNull
     protected MapReadableKVState.Builder<EntityNumber, Node> emptyReadableNodeStateBuilder() {
         return MapReadableKVState.builder(NODES_STATE_ID, NODES_STATE_LABEL);
+    }
+
+    @NonNull
+    protected MapReadableKVState<AccountID, Long> newReadableAccNodeRelState() {
+        return MapReadableKVState.<AccountID, Long>builder(ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_LABEL)
+                .value(node.accountId(), node.nodeId())
+                .build();
+    }
+
+    @NonNull
+    protected MapWritableKVState<AccountID, Long> newWritableAccNodeRelState() {
+        return MapWritableKVState.<AccountID, Long>builder(ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_LABEL)
+                .value(node.accountId(), node.nodeId())
+                .build();
     }
 
     protected void givenValidNode() {

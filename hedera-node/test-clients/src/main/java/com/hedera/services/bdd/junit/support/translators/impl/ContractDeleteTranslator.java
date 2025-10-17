@@ -42,7 +42,11 @@ public class ContractDeleteTranslator implements BlockTransactionPartsTranslator
                                     && stateChange
                                             .mapUpdateOrThrow()
                                             .keyOrThrow()
-                                            .hasAccountIdKey()) {
+                                            .hasAccountIdKey()
+                                    && stateChange
+                                            .mapUpdateOrThrow()
+                                            .valueOrThrow()
+                                            .hasAccountValue()) {
                                 final var account = stateChange
                                         .mapUpdateOrThrow()
                                         .valueOrThrow()

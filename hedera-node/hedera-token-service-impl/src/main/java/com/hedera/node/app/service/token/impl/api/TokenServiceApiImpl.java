@@ -4,6 +4,7 @@ package com.hedera.node.app.service.token.impl.api;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_EXPIRED_AND_PENDING_REMOVAL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_HAS_PENDING_AIRDROPS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_IS_LINKED_TO_A_NODE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_IS_TREASURY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
@@ -21,6 +22,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
 import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
@@ -612,10 +614,12 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             @NonNull final AccountID deletedId,
             @NonNull final AccountID obtainerId,
             @NonNull final ExpiryValidator expiryValidator,
-            @NonNull final DeleteCapableTransactionStreamBuilder recordBuilder) {
+            @NonNull final DeleteCapableTransactionStreamBuilder recordBuilder,
+            @NonNull final ReadableAccountNodeRelStore accountNodeRelStore) {
         // validate the semantics involving dynamic properties and state.
         // Gets delete and transfer accounts from state
-        final var deleteAndTransferAccounts = validateSemantics(deletedId, obtainerId, expiryValidator);
+        final var deleteAndTransferAccounts =
+                validateSemantics(deletedId, obtainerId, expiryValidator, accountNodeRelStore);
         transferRemainingBalance(expiryValidator, deleteAndTransferAccounts);
 
         // get the account from account store that has all balance changes
@@ -635,7 +639,8 @@ public class TokenServiceApiImpl implements TokenServiceApi {
     private InvolvedAccounts validateSemantics(
             @NonNull final AccountID deletedId,
             @NonNull final AccountID obtainerId,
-            @NonNull final ExpiryValidator expiryValidator) {
+            @NonNull final ExpiryValidator expiryValidator,
+            @NonNull final ReadableAccountNodeRelStore accountNodeRelStore) {
         // validate if accounts exist
         final var deletedAccount = accountStore.get(deletedId);
         validateTrue(deletedAccount != null, INVALID_ACCOUNT_ID);
@@ -651,6 +656,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         validateTrue(deletedAccount.numberPositiveBalances() == 0, TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES);
         // Can't delete account with non-zero hooks
         validateTrue(deletedAccount.numberHooksInUse() == 0, TRANSACTION_REQUIRES_ZERO_HOOKS);
+        validateTrue(accountNodeRelStore.get(deletedAccount.accountId()) == null, ACCOUNT_IS_LINKED_TO_A_NODE);
         return new InvolvedAccounts(deletedAccount, transferAccount);
     }
 

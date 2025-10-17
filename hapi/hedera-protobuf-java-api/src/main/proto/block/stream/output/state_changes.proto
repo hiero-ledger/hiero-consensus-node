@@ -61,6 +61,7 @@ import "services/state/hints/hints_types.proto";
 import "services/state/history/history_types.proto";
 import "services/state/entity/entity_counts.proto";
 import "services/auxiliary/hints/crs_publication.proto";
+import "services/state/primitives.proto";
 
 /**
  * A set of state changes.
@@ -527,6 +528,11 @@ enum StateIdentifier {
      * A state for the `159` upgrade file data. Queue state.
      */
     STATE_ID_UPGRADE_DATA_159 = 10010;
+
+    /**
+     * A state identifier fro account to node relation.
+     */
+    STATE_ID_ACCOUNT_NODE_REL = 10011;
 }
 
 /**
@@ -1074,6 +1080,11 @@ message MapChangeValue {
          * An EVM hook's state.
          */
         com.hedera.hapi.node.state.hooks.EvmHookState evm_hook_state_value = 29;
+
+        /**
+         * A node identifier.
+         */
+        proto.ProtoLong node_id_value = 30;
     }
 }
 

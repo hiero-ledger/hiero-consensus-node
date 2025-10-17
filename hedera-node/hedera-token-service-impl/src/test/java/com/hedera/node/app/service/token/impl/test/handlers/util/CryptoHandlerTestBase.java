@@ -182,6 +182,7 @@ public class CryptoHandlerTestBase {
     protected MapReadableKVState<AccountID, Account> readableAccounts;
     protected MapWritableKVState<ProtoBytes, AccountID> writableAliases;
     protected MapWritableKVState<AccountID, Account> writableAccounts;
+    protected MapReadableKVState<AccountID, Long> readableAccountNodeRels;
     protected Account account;
     protected ReadableAccountStore readableStore;
     protected WritableAccountStore writableStore;
