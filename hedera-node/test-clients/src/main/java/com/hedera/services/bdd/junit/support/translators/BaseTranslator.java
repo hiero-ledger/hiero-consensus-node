@@ -498,10 +498,14 @@ public class BaseTranslator {
                 .transferList(parts.transferList())
                 .tokenTransferLists(parts.tokenTransferLists())
                 .automaticTokenAssociations(parts.automaticTokenAssociations())
-                .paidStakingRewards(parts.paidStakingRewards())
-                .parentConsensusTimestamp(parts.parentConsensusTimestamp());
+                .paidStakingRewards(parts.paidStakingRewards());
         final var receiptBuilder =
                 TransactionReceipt.newBuilder().status(parts.transactionResult().status());
+        if (!txnId.scheduled() || parts.isTopLevel()) {
+            recordBuilder.parentConsensusTimestamp(parts.parentConsensusTimestamp());
+        } else {
+            receiptBuilder.exchangeRate(activeRates);
+        }
         final boolean followsUserRecord = asInstant(parts.consensusTimestamp()).isAfter(userTimestamp);
         if ((!followsUserRecord || parts.transactionIdOrThrow().scheduled())
                 && parts.parentConsensusTimestamp() == null) {
