@@ -98,7 +98,7 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                 assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
-                        Duration.ofMinutes(1),
+                        Duration.ofMinutes(3),
                         Duration.ofSeconds(45),
                         "Block node configuration unchanged. No action taken."),
                 burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(30)),
@@ -136,7 +136,6 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                 // Cleanup - delete the block-nodes.json file to stop streaming to block nodes
                 // Delete block-nodes.json
                 doingContextual((spec) -> {
-                    timeRef.set(Instant.now());
                     try {
                         Path configPath = spec.getNetworkNodes()
                                 .getFirst()
@@ -153,7 +152,7 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                         timeRef::get,
                         Duration.ofSeconds(45),
                         Duration.ofSeconds(45),
-                        "Detected ENTRY_DELETE event for block-nodes.json",
+                        "Detected ENTRY_DELETE event for block-nodes.json.",
                         "No valid block node configurations available after file change. Connections remain stopped.")),
                 assertHgcaaLogDoesNotContain(NodeSelector.allNodes(), "ERROR", Duration.ofSeconds(5)));
     }

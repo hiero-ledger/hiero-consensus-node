@@ -85,7 +85,11 @@ public final class ExampleFixedValue extends ExampleByteArrayVirtualValue {
         @NonNull
         @Override
         public ExampleFixedValue parse(
-                @NonNull ReadableSequentialData in, boolean strictMode, boolean parseUnknownFields, int maxDepth)
+                @NonNull ReadableSequentialData in,
+                boolean strictMode,
+                boolean parseUnknownFields,
+                int maxDepth,
+                int maxSize)
                 throws ParseException {
             return new ExampleFixedValue(in);
         }

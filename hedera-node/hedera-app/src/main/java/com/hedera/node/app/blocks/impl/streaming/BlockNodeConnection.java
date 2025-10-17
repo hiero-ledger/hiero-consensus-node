@@ -14,13 +14,20 @@ import com.hedera.node.app.util.LoggingUtilities;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.internal.network.BlockNodeConfig;
+import com.hedera.pbj.grpc.client.helidon.PbjGrpcClientConfig;
 import com.hedera.pbj.runtime.grpc.GrpcException;
 import com.hedera.pbj.runtime.grpc.Pipeline;
+import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import io.helidon.common.tls.Tls;
+import io.helidon.webclient.api.WebClient;
+import io.helidon.webclient.grpc.GrpcClientProtocolConfig;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.Flow;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -56,6 +63,11 @@ import org.hiero.block.api.PublishStreamResponse.SkipBlock;
 public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
     private static final Logger logger = LogManager.getLogger(BlockNodeConnection.class);
+
+    private record Options(Optional<String> authority, String contentType) implements ServiceInterface.RequestOptions {}
+
+    private static final Options OPTIONS =
+            new Options(Optional.empty(), ServiceInterface.RequestOptions.APPLICATION_GRPC);
 
     /**
      * Counter used to get unique identities for connection instances.
@@ -93,7 +105,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     /**
      * Publish gRPC client used to send messages to the block node.
      */
-    private final BlockStreamPublishServiceClient blockStreamPublishServiceClient;
+    private BlockStreamPublishServiceClient blockStreamPublishServiceClient;
 
     private final AtomicReference<Pipeline<? super PublishStreamRequest>> requestPipelineRef = new AtomicReference<>();
     /**
@@ -114,6 +126,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * The unique ID of this connection instance.
      */
     private final String connectionId;
+
+    private final ConfigProvider configProvider;
+    private final BlockNodeClientFactory clientFactory;
 
     /**
      * Represents the possible states of a Block Node connection.
@@ -172,7 +187,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * @param nodeConfig the configuration for the block node
      * @param blockNodeConnectionManager the connection manager coordinating block node connections
      * @param blockBufferService the block stream state manager for block node connections
-     * @param grpcServiceClient the gRPC client to establish the bidirectional streaming to block node connections
      * @param blockStreamMetrics the block stream metrics for block node connections
      * @param executorService the scheduled executor service used to perform async connection reconnects
      */
@@ -181,21 +195,21 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             @NonNull final BlockNodeConfig nodeConfig,
             @NonNull final BlockNodeConnectionManager blockNodeConnectionManager,
             @NonNull final BlockBufferService blockBufferService,
-            @NonNull final BlockStreamPublishServiceClient grpcServiceClient,
             @NonNull final BlockStreamMetrics blockStreamMetrics,
-            @NonNull final ScheduledExecutorService executorService) {
-        requireNonNull(configProvider, "configProvider must not be null");
+            @NonNull final ScheduledExecutorService executorService,
+            @NonNull final BlockNodeClientFactory clientFactory) {
+        this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
         this.blockNodeConfig = requireNonNull(nodeConfig, "nodeConfig must not be null");
         this.blockNodeConnectionManager =
                 requireNonNull(blockNodeConnectionManager, "blockNodeConnectionManager must not be null");
         this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
-        this.blockStreamPublishServiceClient = requireNonNull(grpcServiceClient, "grpcServiceClient must not be null");
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
         this.connectionState = new AtomicReference<>(ConnectionState.UNINITIALIZED);
         this.executorService = requireNonNull(executorService, "executorService must not be null");
         final var blockNodeConnectionConfig =
                 configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
         this.streamResetPeriod = blockNodeConnectionConfig.streamResetPeriod();
+        this.clientFactory = requireNonNull(clientFactory, "clientFactory must not be null");
         connectionId = String.format("%04d", connectionIdCounter.incrementAndGet());
     }
 
@@ -204,6 +218,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     public synchronized void createRequestPipeline() {
         if (requestPipelineRef.get() == null) {
+            blockStreamPublishServiceClient = createNewGrpcClient();
             final Pipeline<? super PublishStreamRequest> pipeline =
                     blockStreamPublishServiceClient.publishBlockStream(this);
             requestPipelineRef.set(pipeline);
@@ -213,6 +228,32 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         } else {
             logWithContext(DEBUG, "Request pipeline already available.");
         }
+    }
+
+    /**
+     * Creates a new gRPC client based on the specified configuration.
+     * @return a gRPC client
+     */
+    private @NonNull BlockStreamPublishServiceClient createNewGrpcClient() {
+        final Tls tls = Tls.builder().enabled(false).build();
+        final PbjGrpcClientConfig grpcConfig =
+                new PbjGrpcClientConfig(Duration.ofSeconds(30), tls, Optional.of(""), "application/grpc");
+
+        final WebClient webClient = WebClient.builder()
+                .baseUri("http://" + blockNodeConfig.address() + ":" + blockNodeConfig.port())
+                .tls(tls)
+                .protocolConfigs(List.of(GrpcClientProtocolConfig.builder()
+                        .abortPollTimeExpired(false)
+                        .pollWaitTime(Duration.ofSeconds(30))
+                        .build()))
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
+        logWithContext(
+                DEBUG,
+                "Created BlockStreamPublishServiceClient for {}:{}.",
+                blockNodeConfig.address(),
+                blockNodeConfig.port());
+        return clientFactory.createClient(webClient, grpcConfig, OPTIONS);
     }
 
     /**
@@ -663,6 +704,13 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         } catch (final RuntimeException e) {
             logWithContext(DEBUG, "Error occurred while attempting to close connection.", e);
         } finally {
+            try {
+                if (blockStreamPublishServiceClient != null) {
+                    blockStreamPublishServiceClient.close();
+                }
+            } catch (final Exception e) {
+                logger.error("Error occurred while closing gRPC client.", e);
+            }
             blockStreamMetrics.recordConnectionClosed();
             blockStreamMetrics.recordActiveConnectionIp(-1L);
             // regardless of outcome, mark the connection as closed

@@ -20,16 +20,10 @@ import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import com.hedera.node.internal.network.BlockNodeConnectionInfo;
-import com.hedera.pbj.grpc.client.helidon.PbjGrpcClient;
-import com.hedera.pbj.grpc.client.helidon.PbjGrpcClientConfig;
 import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import io.helidon.common.tls.Tls;
-import io.helidon.webclient.api.WebClient;
-import io.helidon.webclient.grpc.GrpcClientProtocolConfig;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetAddress;
@@ -48,7 +42,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.*;
@@ -61,7 +54,6 @@ import javax.inject.Singleton;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 import org.hiero.block.api.PublishStreamRequest;
 
 /**
@@ -80,10 +72,6 @@ public class BlockNodeConnectionManager {
 
     private static final Logger logger = LogManager.getLogger(BlockNodeConnectionManager.class);
 
-    private record Options(Optional<String> authority, String contentType) implements ServiceInterface.RequestOptions {}
-
-    private static final BlockNodeConnectionManager.Options OPTIONS =
-            new BlockNodeConnectionManager.Options(Optional.empty(), ServiceInterface.RequestOptions.APPLICATION_GRPC);
     /**
      * Initial retry delay for connection attempts.
      */
@@ -216,6 +204,8 @@ public class BlockNodeConnectionManager {
         }
     }
 
+    private final BlockNodeClientFactory clientFactory;
+
     /**
      * Helper method to remove current instance information for debug logging.
      */
@@ -253,6 +243,7 @@ public class BlockNodeConnectionManager {
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
         this.nodeStats = new ConcurrentHashMap<>();
         this.blockNodeConfigDirectory = getAbsolutePath(blockNodeConnectionFileDir());
+        this.clientFactory = new BlockNodeClientFactory();
     }
 
     /**
@@ -348,33 +339,6 @@ public class BlockNodeConnectionManager {
             size = availableBlockNodes.size();
         }
         return size == 1;
-    }
-
-    /**
-     * Creates a new gRPC client based on the specified configuration.
-     *
-     * @param nodeConfig the configuration to use for a specific block node to connect to
-     * @return a gRPC client
-     */
-    private @NonNull BlockStreamPublishServiceClient createNewGrpcClient(@NonNull final BlockNodeConfig nodeConfig) {
-        requireNonNull(nodeConfig);
-
-        final Tls tls = Tls.builder().enabled(false).build();
-        final PbjGrpcClientConfig grpcConfig =
-                new PbjGrpcClientConfig(Duration.ofSeconds(30), tls, Optional.of(""), "application/grpc");
-
-        final WebClient webClient = WebClient.builder()
-                .baseUri("http://" + nodeConfig.address() + ":" + nodeConfig.port())
-                .tls(tls)
-                .protocolConfigs(List.of(GrpcClientProtocolConfig.builder()
-                        .abortPollTimeExpired(false)
-                        .pollWaitTime(Duration.ofSeconds(30))
-                        .build()))
-                .connectTimeout(Duration.ofSeconds(10))
-                .build();
-        logWithContext(
-                DEBUG, "Created BlockStreamPublishServiceClient for {}:{}.", nodeConfig.address(), nodeConfig.port());
-        return new BlockStreamPublishServiceClient(new PbjGrpcClient(webClient, grpcConfig), OPTIONS);
     }
 
     /**
@@ -732,16 +696,14 @@ public class BlockNodeConnectionManager {
     private BlockNodeConnection createConnection(@NonNull final BlockNodeConfig nodeConfig) {
         requireNonNull(nodeConfig);
 
-        // Create the connection object with a fresh gRPC client
-        final BlockStreamPublishServiceClient grpcClient = createNewGrpcClient(nodeConfig);
         final BlockNodeConnection connection = new BlockNodeConnection(
                 configProvider,
                 nodeConfig,
                 this,
                 blockBufferService,
-                grpcClient,
                 blockStreamMetrics,
-                sharedExecutorService);
+                sharedExecutorService,
+                clientFactory);
 
         connections.put(nodeConfig, connection);
         return connection;
@@ -1167,7 +1129,6 @@ public class BlockNodeConnectionManager {
                 connection, but the active connection has a lower priority than the connection in this task. In either
                 case, we want to elevate this connection to be the new active connection.
                  */
-
                 connection.createRequestPipeline();
 
                 if (activeConnectionRef.compareAndSet(activeConnection, connection)) {
