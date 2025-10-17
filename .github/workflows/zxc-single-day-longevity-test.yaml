@@ -675,7 +675,7 @@ jobs:
               sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp application.properties $i:/opt/hgcapp/services-hedera/HapiApp2.0/data/config/application.properties
           ##    sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp block-nodes_${node_id}.json $i:/opt/hgcapp/services-hedera/HapiApp2.0/data/config/block-nodes.json
               sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/.github/workflows/support/citr/startPodJava.sh $i:/opt/hgcapp/services-hedera/HapiApp2.0/startPodJava.sh
-              sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -c root-container -- bash -c "yum install -q -y unzip perl"
+              sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -c root-container -- bash -c "yum install -qq -y unzip perl"
 
               sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -c root-container -- su - hedera -c bash -c "cd /opt/hgcapp/services-hedera/HapiApp2.0; sh startPodJava.sh ${node_id} ${podFlag}"
           done
@@ -892,7 +892,26 @@ jobs:
         run: |
           set +x
           set +e
-          for i in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node-' | awk '{print $1}'`
+          for i in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node-' | grep -v '\-p2\-' | awk '{print $1}'`
+          do
+              cN=$(echo $i | perl -ne 'print "$1\n" if /^.*block-node-(\d+)-network-load-generator-.*$/')
+              sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec network-node${cN}-0 -- bash -c \
+                "grep -E 'BlockNodeConnectionManager.*Opening block with number' /opt/hgcapp/services-hedera/HapiApp2.0/output/hgcaa.log | tail -n 1" > /tmp/$$.tmpout.txt
+              lastBlock=`cat /tmp/$$.tmpout.txt | perl -ne 'print "$1\n" if /^.*Opening block with number (\d+)\b.*$/'`
+              rm -f /tmp/$$.tmpout.txt
+              echo "Last block at node $cN is $lastBlock"
+              lastBlock=`expr $lastBlock + 100` # 100 block ahead to let BN time to start
+          
+              if [ "${{ inputs.perf_analysis }}" = "true" ]
+              then
+                sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c \
+                  "cd /opt/hiero/block-node/; export BACKFILL_FETCH_BATCH_SIZE=10; export BACKFILL_BLOCK_NODE_SOURCES_PATH=\"/opt/hiero/block-node/backfill/block-node-sources.json\"; export SERVER_MAX_MESSAGE_SIZE_BYTES=\"16_777_215\"; MESSAGING_BLOCK_ITEM_QUEUE_SIZE=4096; MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=1024; export BLOCK_NODE_EARLIEST_MANAGED_BLOCK=$lastBlock; sh /tmp/startInstrumentedBN.sh"
+              else
+                sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c \
+                  "cd /opt/hiero/block-node/; export BACKFILL_FETCH_BATCH_SIZE=10; export BACKFILL_BLOCK_NODE_SOURCES_PATH=\"/opt/hiero/block-node/backfill/block-node-sources.json\"; export JAVA_OPTS=\"-Xms16G -Xmx28G\"; export SERVER_MAX_MESSAGE_SIZE_BYTES=\"16_777_215\"; MESSAGING_BLOCK_ITEM_QUEUE_SIZE=4096; MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=1024; export BLOCK_NODE_EARLIEST_MANAGED_BLOCK=$lastBlock; bash ./block-node-app-*/bin/block-node-app > ./logs/block-node.log 2>&1 &"
+              fi
+          done
+          for i in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node-' | grep '\-p2\-' | awk '{print $1}'`
           do
               cN=$(echo $i | perl -ne 'print "$1\n" if /^.*block-node-(\d+)-network-load-generator-.*$/')
               sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec network-node${cN}-0 -- bash -c \
