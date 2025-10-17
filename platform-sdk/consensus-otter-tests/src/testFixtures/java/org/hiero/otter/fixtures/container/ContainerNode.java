@@ -17,6 +17,7 @@ import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.google.protobuf.Empty;
 import com.google.protobuf.ProtocolStringList;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.config.api.Configuration;
@@ -55,6 +56,7 @@ import org.hiero.otter.fixtures.container.proto.InitRequest;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
 import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc;
 import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc.NodeCommunicationServiceStub;
+import org.hiero.otter.fixtures.container.proto.PingResponse;
 import org.hiero.otter.fixtures.container.proto.PlatformStatusChange;
 import org.hiero.otter.fixtures.container.proto.QuiescenceRequest;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
@@ -338,6 +340,20 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         } catch (final Exception e) {
             fail("Failed to submit transaction to node %d".formatted(selfId.id()), e);
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isAlive() {
+        final PingResponse response =
+                containerControlBlockingStub.nodePing(Empty.newBuilder().build());
+        if (!response.getAlive()) {
+            lifeCycle = SHUTDOWN;
+            platformStatus = null;
+        }
+        return response.getAlive();
     }
 
     /**
