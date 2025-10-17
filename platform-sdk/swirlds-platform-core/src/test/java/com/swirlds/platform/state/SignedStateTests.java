@@ -14,7 +14,6 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
@@ -222,14 +221,7 @@ class SignedStateTests {
         TestingAppStateInitializer.initPlatformState(state);
         when(platformState.getRound()).thenReturn(0L);
         final SignedState signedState = new SignedState(
-                TestPlatformContextBuilder.create().build().getConfiguration(),
-                mock(SignatureVerifier.class),
-                state,
-                "test",
-                false,
-                false,
-                false,
-                platformStateFacade);
+                CONFIGURATION, mock(SignatureVerifier.class), state, "test", false, false, false, platformStateFacade);
 
         assertFalse(state.isDestroyed(), "state should not yet be destroyed");
 

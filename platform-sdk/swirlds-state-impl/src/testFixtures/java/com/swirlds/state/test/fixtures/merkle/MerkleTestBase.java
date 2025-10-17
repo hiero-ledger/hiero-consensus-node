@@ -48,6 +48,7 @@ import java.util.stream.Stream;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.crypto.config.CryptoConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.params.provider.Arguments;
 
@@ -81,6 +82,7 @@ public class MerkleTestBase extends StateTestBase {
             .withConfigDataType(TemporaryFileConfig.class)
             .withConfigDataType(StateCommonConfig.class)
             .withConfigDataType(FileSystemManagerConfig.class)
+            .withConfigDataType(CryptoConfig.class)
             .build();
 
     private static final String SINGLETON_CLASS_ID_SUFFIX = "SingletonLeaf";

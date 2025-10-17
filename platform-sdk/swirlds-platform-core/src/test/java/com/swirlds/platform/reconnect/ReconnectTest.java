@@ -187,9 +187,10 @@ final class ReconnectTest {
             final PlatformStateFacade platformStateFacade) {
         final Roster roster =
                 RandomRosterBuilder.create(getRandomPrintSeed()).withSize(5).build();
-
+        final PlatformContext testPlatformContext =
+                TestPlatformContextBuilder.create().build();
         return new ReconnectLearner(
-                TestPlatformContextBuilder.create().build(),
+                testPlatformContext,
                 getStaticThreadManager(),
                 connection,
                 roster,

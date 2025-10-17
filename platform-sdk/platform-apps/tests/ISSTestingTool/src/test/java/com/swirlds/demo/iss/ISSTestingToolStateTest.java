@@ -13,6 +13,8 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
@@ -58,8 +60,7 @@ class ISSTestingToolStateTest {
         final VirtualDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(
                 CONFIGURATION, merkleDbConfig.initialCapacity(), merkleDbConfig.hashesRamToDiskThreshold());
         final VirtualMap virtualMap = new VirtualMap("ISSTestingToolStateTest", dsBuilder, CONFIGURATION);
-        state = new ISSTestingToolState(virtualMap);
-
+        state = new ISSTestingToolState(virtualMap, new NoOpMetrics(), Time.getCurrent());
         final var schema = new V0680ISSTestingToolSchema();
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateId))

@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state;
 
-import com.swirlds.base.time.Time;
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
@@ -14,7 +11,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.function.LongSupplier;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Hashable;
 
@@ -24,20 +20,6 @@ import org.hiero.base.crypto.Hashable;
  * detail, and are happy with just the API provided by this interface.
  */
 public interface State extends FastCopyable, Hashable {
-    /**
-     * Initializes the state with the given parameters.
-     *
-     * @param time               The time provider.
-     * @param metrics            The metrics provider.
-     * @param merkleCryptography The merkle cryptography provider.
-     * @param roundSupplier      The round supplier.
-     */
-    void init(
-            @NonNull Time time,
-            @NonNull Metrics metrics,
-            @NonNull MerkleCryptography merkleCryptography,
-            @NonNull LongSupplier roundSupplier);
-
     /**
      * Returns a {@link ReadableStates} for the given named service. If such a service doesn't
      * exist, an empty {@link ReadableStates} is returned.
