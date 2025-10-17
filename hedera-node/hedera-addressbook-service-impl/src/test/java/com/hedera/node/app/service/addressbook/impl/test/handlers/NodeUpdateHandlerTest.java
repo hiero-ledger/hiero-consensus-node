@@ -564,7 +564,8 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .ifPresent(key -> {
                     assertThat(key.thresholdKeyOrThrow().threshold()).isEqualTo(1);
                     assertThat(key.thresholdKeyOrThrow().keys().keys().size()).isEqualTo(2);
-                    assertThat(key.thresholdKeyOrThrow().keys().keys()).containsExactlyInAnyOrder(aPrimitiveKey, bPrimitiveKey);
+                    assertThat(key.thresholdKeyOrThrow().keys().keys())
+                            .containsExactlyInAnyOrder(aPrimitiveKey, bPrimitiveKey);
                 });
     }
 

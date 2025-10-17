@@ -200,8 +200,7 @@ public class NodeUpdateHandler implements TransactionHandler {
     private void handleAccountIdOnlyUpdate(PreHandleContext context, Node existingNode) throws PreCheckException {
         if (existingNode.hasAccountId()) {
             // Allow signature from either admin key or existing account key
-            Key requiredKey =
-                    oneOf(existingNode.adminKey(), context.getAccountKey(existingNode.accountIdOrThrow()));
+            Key requiredKey = oneOf(existingNode.adminKey(), context.getAccountKey(existingNode.accountIdOrThrow()));
             context.requireKeyOrThrow(requiredKey, INVALID_SIGNATURE);
         } else {
             // No account ID exists, so only admin key signature is acceptable
