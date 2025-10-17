@@ -1372,13 +1372,7 @@ public class BlockNodeConnectionManager {
                     blockAddress.getHostAddress(),
                     ipAsInteger);
         } catch (final IOException e) {
-            logWithContext(
-                    logger,
-                    DEBUG,
-                    "Failed to resolve block node host ({}:{})",
-                    nodeConfig.address(),
-                    nodeConfig.port(),
-                    e);
+            logger.debug("Failed to resolve block node host ({}:{})", nodeConfig.address(), nodeConfig.port(), e);
             ipAsInteger = -1L;
         }
 

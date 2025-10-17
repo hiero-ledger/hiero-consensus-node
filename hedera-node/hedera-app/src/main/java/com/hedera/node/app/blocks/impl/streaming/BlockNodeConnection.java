@@ -243,6 +243,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 .connectTimeout(timeoutDuration)
                 .build();
         logWithContext(
+                logger,
                 DEBUG,
                 "Created BlockStreamPublishServiceClient for {}:{}.",
                 blockNodeConfig.address(),
@@ -748,7 +749,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     blockStreamPublishServiceClient.close();
                 }
             } catch (final Exception e) {
-                logger.error("Error occurred while closing gRPC client.", e);
+                logger.error(formatLogMessage("Error occurred while closing gRPC client.", this), e);
             }
             blockStreamMetrics.recordConnectionClosed();
             blockStreamMetrics.recordActiveConnectionIp(-1L);
