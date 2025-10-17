@@ -131,39 +131,10 @@ class NodeLifecycleTest {
     }
 
     /**
-     * Test that killing an already killed node is a no-op.
+     * Test that killing a node that is not running is a no-op.
      */
     @Test
-    void testKillAlreadyKilledNodeIsNoOp() {
-        final TestEnvironment env = new TurtleTestEnvironment();
-        try {
-            final Network network = env.network();
-
-            // Setup network with 4 nodes
-            final List<Node> nodes = network.addNodes(4);
-            final Node node = nodes.getFirst();
-
-            network.start();
-
-            // Kill the node
-            node.killImmediately();
-
-            // Try killing the already killed node - should be a no-op
-            node.killImmediately();
-
-            // Verify node is still not active
-            assertThat(node.platformStatus()).isNull();
-            assertThat(node.isActive()).isFalse();
-        } finally {
-            env.destroy();
-        }
-    }
-
-    /**
-     * Test that killing a node before it is started is a no-op.
-     */
-    @Test
-    void testKillNodeBeforeStartIsNoOp() {
+    void testKillNotRunningNodeIsNoOp() {
         final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
@@ -173,6 +144,18 @@ class NodeLifecycleTest {
             final Node node = nodes.getFirst();
 
             // Kill the node before starting the network
+            node.killImmediately();
+
+            // Verify node is still not active
+            assertThat(node.platformStatus()).isNull();
+            assertThat(node.isActive()).isFalse();
+
+            network.start();
+
+            // Kill the node
+            node.killImmediately();
+
+            // Try killing the already killed node - should be a no-op
             node.killImmediately();
 
             // Verify node is still not active
