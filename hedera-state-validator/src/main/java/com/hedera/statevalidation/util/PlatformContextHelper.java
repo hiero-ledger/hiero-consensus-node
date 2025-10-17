@@ -24,12 +24,12 @@ public final class PlatformContextHelper {
         return new PlatformContext() {
             @Override
             public MerkleCryptography getMerkleCryptography() {
-                return MerkleCryptographyFactory.create(getConfiguration());
+                return MerkleCryptographyFactory.create(ConfigUtils.getConfiguration());
             }
 
             @Override
             public Configuration getConfiguration() {
-                return getConfiguration();
+                return ConfigUtils.getConfiguration();
             }
 
             @Override
@@ -54,7 +54,7 @@ public final class PlatformContextHelper {
 
             @Override
             public FileSystemManager getFileSystemManager() {
-                return FileSystemManager.create(getConfiguration());
+                return FileSystemManager.create(ConfigUtils.getConfiguration());
             }
         };
     }

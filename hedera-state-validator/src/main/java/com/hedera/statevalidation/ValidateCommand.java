@@ -43,7 +43,7 @@ public class ValidateCommand implements Callable<Integer> {
         parent.initializeStateDir();
 
         LauncherDiscoveryRequest request = LauncherDiscoveryRequestBuilder.request()
-                .selectors(selectPackage("com.hedera.statevalidation.validators"))
+                .selectors(selectPackage("com.hedera.statevalidation.validator"))
                 .filters(TagFilter.includeTags(tags))
                 .build();
 
