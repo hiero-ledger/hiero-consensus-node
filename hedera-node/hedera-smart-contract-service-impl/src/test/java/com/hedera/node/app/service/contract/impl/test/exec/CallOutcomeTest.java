@@ -70,7 +70,7 @@ class CallOutcomeTest {
                 null,
                 null,
                 null,
-                SUCCESS_RESULT.asEvmTxResultOf(null, null),
+                SUCCESS_RESULT.asEvmTxResultOf(null, updater, null),
                 SUCCESS_RESULT.signerNonce(),
                 Bytes.EMPTY,
                 null);
@@ -88,7 +88,7 @@ class CallOutcomeTest {
                 null,
                 null,
                 null,
-                SUCCESS_RESULT.asEvmTxResultOf(null, null),
+                SUCCESS_RESULT.asEvmTxResultOf(null, updater, null),
                 SUCCESS_RESULT.signerNonce(),
                 null,
                 null);
@@ -106,7 +106,7 @@ class CallOutcomeTest {
                 null,
                 null,
                 null,
-                SUCCESS_RESULT.asEvmTxResultOf(null, null),
+                SUCCESS_RESULT.asEvmTxResultOf(null, updater, null),
                 SUCCESS_RESULT.signerNonce(),
                 null,
                 null);
