@@ -48,6 +48,7 @@ public class ContainerNetwork extends AbstractNetwork {
 
     private ToxiproxyContainer toxiproxyContainer;
     private NetworkBehavior networkBehavior;
+    private boolean restartNodesOnSelfShutdown;
 
     /**
      * Constructor for {@link ContainerNetwork}.
