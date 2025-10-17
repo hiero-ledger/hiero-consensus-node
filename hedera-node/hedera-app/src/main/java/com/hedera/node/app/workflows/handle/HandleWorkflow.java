@@ -59,6 +59,7 @@ import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.systemtasks.SystemTaskContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.HederaRecordCache;
@@ -67,9 +68,7 @@ import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.store.StoreFactoryImpl;
 import com.hedera.node.app.systemtask.SystemTaskService;
-import com.hedera.node.app.systemtask.SystemTasks;
-import com.hedera.node.app.systemtask.SystemTasksImpl;
-import com.hedera.node.app.systemtask.schemas.V0690SystemTaskSchema;
+import com.hedera.node.app.systemtask.WritableSystemTaskStore;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
@@ -86,6 +85,7 @@ import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.types.StreamMode;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
@@ -93,7 +93,6 @@ import com.swirlds.platform.state.service.WritablePlatformStateStore;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
-import com.swirlds.state.spi.WritableQueueState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -733,11 +732,10 @@ public class HandleWorkflow {
         final var consensusConfig = config.getConfigData(ConsensusConfig.class);
 
         // Build SystemTasks bound to the current state's writable queue
-        final var rawQueue = state.getWritableStates(SystemTaskService.NAME)
-                .getQueue(V0690SystemTaskSchema.SYSTEM_TASK_QUEUE_STATE_ID);
-        @SuppressWarnings("unchecked")
-        final var typedQueue = (WritableQueueState<SystemTask>) (WritableQueueState<?>) rawQueue;
-        final SystemTasks systemTasks = new SystemTasksImpl(typedQueue);
+        final var entityIdWritableStates = state.getWritableStates(EntityIdService.NAME);
+        final var writableEntityIdStore = new WritableEntityIdStore(entityIdWritableStates);
+        final var systemTasksStore =
+                new WritableSystemTaskStore(state.getWritableStates(SystemTaskService.NAME), writableEntityIdStore);
 
         int remaining = capacity;
         Instant lastUsed = streamMode == RECORDS
@@ -747,11 +745,10 @@ public class HandleWorkflow {
         Instant lastProcessed = null;
 
         while (remaining > 0) {
-            final var maybeTask = systemTasks.poll();
-            if (maybeTask.isEmpty()) {
+            final var task = systemTasksStore.poll();
+            if (task == null) {
                 break;
             }
-            final var task = maybeTask.get();
             final var writableEntityIdStates = state.getWritableStates(EntityIdService.NAME);
             final var storeFactory = StoreFactoryImpl.from(
                     state,
@@ -771,23 +768,18 @@ public class HandleWorkflow {
                 }
 
                 @Override
-                public void offerSystemTask(@NonNull final SystemTask t) {
-                    systemTasks.offer(t);
+                public void offer(@NonNull final SystemTask t) {
+                    systemTasksStore.offer(t);
                 }
 
                 @Override
-                public @NonNull com.hedera.node.app.spi.store.StoreFactory storeFactory() {
+                public @NonNull StoreFactory storeFactory() {
                     return storeFactory;
                 }
 
                 @Override
-                public @NonNull com.swirlds.config.api.Configuration configuration() {
+                public @NonNull Configuration configuration() {
                     return config;
-                }
-
-                @Override
-                public @NonNull NetworkInfo networkInfo() {
-                    return networkInfo;
                 }
 
                 @Override

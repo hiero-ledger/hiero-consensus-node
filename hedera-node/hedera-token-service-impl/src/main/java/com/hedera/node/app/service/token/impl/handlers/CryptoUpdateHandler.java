@@ -35,6 +35,7 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePr
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
@@ -44,6 +45,7 @@ import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.hapi.utils.keys.KeyMaterializer;
 import com.hedera.node.app.service.token.CryptoSignatureWaivers;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
@@ -63,10 +65,9 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.AutoRenewConfig;
 import com.hedera.node.config.data.EntitiesConfig;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.TokensConfig;
-import com.hedera.node.config.data.FeesConfig;
-
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -194,9 +195,8 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
 
             // 2) Materialize the new key and set both template and materialized_key
             final var materializer = new com.hedera.node.app.hapi.utils.keys.KeyMaterializer();
-            final var source = (com.hedera.node.app.hapi.utils.keys.KeyMaterializer.KeySource)
-                    new KeySourceFromStore(accountStore);
-            final var newMaterialized = materializer.materialize(target, op.keyOrThrow(), source);
+            final var source = (KeyMaterializer.Source) new KeySourceFromStore(accountStore);
+            final var newMaterialized = materializer.materialize(op.keyOrThrow(), source);
             builder.key(op.keyOrThrow());
             builder.materializedKey(newMaterialized);
 
@@ -221,7 +221,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                         .keyPropagation(com.hedera.hapi.node.state.systemtask.KeyPropagation.newBuilder()
                                 .keyAccountId(target))
                         .build();
-                context.offerSystemTask(task);
+                context.offer(task);
             }
         }
 
@@ -311,7 +311,6 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
             }
         }
     }
-
 
     private static void removeIndirectUserFromList(
             final com.swirlds.state.spi.WritableKVState<
@@ -436,19 +435,20 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         }
     }
 
-    /** Minimal KeySource backed by the account store */
-    private record KeySourceFromStore(WritableAccountStore store)
-            implements com.hedera.node.app.hapi.utils.keys.KeyMaterializer.KeySource {
+    /**
+     *  Minimal KeySource backed by the account store
+     */
+    private record KeySourceFromStore(WritableAccountStore store) implements KeyMaterializer.Source {
         @Override
-        public Key materializedKey(@NonNull final AccountID id) {
-            final var a = store.get(id);
-            return a == null ? null : a.materializedKey();
+        public Key materializedKeyOrThrow(@NonNull final AccountID id) {
+            final var a = requireNonNull(store.get(id));
+            return a.materializedKeyOrElse(a.keyOrThrow());
         }
 
         @Override
-        public Key templateKey(@NonNull final AccountID id) {
-            final var a = store.get(id);
-            return a == null ? null : a.key();
+        public Key materializedKeyOrThrow(@NonNull final ContractID id) {
+            final var a = requireNonNull(store.getContractById(id));
+            return a.materializedKeyOrElse(a.keyOrThrow());
         }
     }
 

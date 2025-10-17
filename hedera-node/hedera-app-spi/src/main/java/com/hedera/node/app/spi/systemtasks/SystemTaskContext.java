@@ -2,16 +2,14 @@
 package com.hedera.node.app.spi.systemtasks;
 
 import com.hedera.hapi.node.state.systemtask.SystemTask;
-import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 
 /**
- * Provides context for handling a {@link SystemTask}, including access to
- * configuration, network info, time, and stores; and a way to enqueue
- * additional system tasks.
+ * Provides context for handling a {@link SystemTask}, including access to configuration, network info, time,
+ * and stores; and a way to enqueue additional system tasks.
  */
 public interface SystemTaskContext {
     /**
@@ -21,14 +19,14 @@ public interface SystemTaskContext {
     SystemTask currentTask();
 
     /**
-     * Enqueue a new system task to be processed asynchronously.
-     * Implementations must ensure the task is added to the SystemTaskService
-     * writable queue for the current state, so it is committed atomically
-     * with other state changes.
-     *
+     * Enqueue a new system task to be processed when capacity is available.
+     * <p>
+     * As a state change, is committed atomically any with other state changes by the {@link SystemTaskHandler}
+     * receiving this context; i.e., if {@link SystemTaskHandler#handle(SystemTaskContext)} throws an exception
+     * after calling this method, the enqueued task will not be added to the queue.
      * @param task the task to enqueue
      */
-    void offerSystemTask(@NonNull SystemTask task);
+    void offer(@NonNull SystemTask task);
 
     /**
      * A {@link StoreFactory} for accessing readable and writable stores and service APIs.
@@ -41,12 +39,6 @@ public interface SystemTaskContext {
      */
     @NonNull
     Configuration configuration();
-
-    /**
-     * Information about the current network.
-     */
-    @NonNull
-    NetworkInfo networkInfo();
 
     /**
      * The consensus time to use for any state transitions initiated by this context.

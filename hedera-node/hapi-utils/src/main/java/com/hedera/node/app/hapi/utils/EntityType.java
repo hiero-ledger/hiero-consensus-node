@@ -20,4 +20,5 @@ public enum EntityType {
     STAKING_INFO,
     HOOK,
     LAMBDA_STORAGE,
+    SYSTEM_TASK,
 }

@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-import com.hedera.node.app.systemtask.schemas.V0690SystemTaskSchema;
+import com.hedera.node.app.systemtask.schemas.V069SystemTaskSchema;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import org.junit.jupiter.api.Test;
@@ -27,6 +27,6 @@ class SystemTaskServiceTest {
         svc.registerSchemas(registry);
         verify(registry, times(1)).register(captor.capture());
         final var schemas = captor.getAllValues();
-        assertThat(schemas.get(0)).isInstanceOf(V0690SystemTaskSchema.class);
+        assertThat(schemas.get(0)).isInstanceOf(V069SystemTaskSchema.class);
     }
 }

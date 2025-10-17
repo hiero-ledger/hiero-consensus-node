@@ -15,7 +15,6 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class SystemTaskDispatcher {
-
     private final List<SystemTaskHandler> handlers;
 
     @Inject

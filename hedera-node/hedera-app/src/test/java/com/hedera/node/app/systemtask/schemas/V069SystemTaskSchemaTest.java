@@ -10,9 +10,9 @@ import java.util.Comparator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-class V0690SystemTaskSchemaTest {
+class V069SystemTaskSchemaTest {
 
-    private final V0690SystemTaskSchema subject = new V0690SystemTaskSchema();
+    private final V069SystemTaskSchema subject = new V069SystemTaskSchema();
 
     @Test
     @DisplayName("verify states to create includes SYSTEM_TASK_QUEUE with SystemTask codec")
@@ -21,7 +21,7 @@ class V0690SystemTaskSchemaTest {
                 .sorted(Comparator.comparing(StateDefinition::stateKey))
                 .toList();
         final var def = sorted.getFirst();
-        assertThat(def.stateKey()).isEqualTo(V0690SystemTaskSchema.SYSTEM_TASK_QUEUE_KEY);
+        assertThat(def.stateKey()).isEqualTo(V069SystemTaskSchema.SYSTEM_TASK_QUEUE_KEY);
         assertThat(def.keyCodec()).isNull();
         assertThat(def.valueCodec()).isEqualTo(SystemTask.PROTOBUF);
     }
@@ -36,8 +36,8 @@ class V0690SystemTaskSchemaTest {
                 .keyPropagation(KeyPropagation.newBuilder().build())
                 .build();
 
-        final var queueId = V0690SystemTaskSchema.SYSTEM_TASK_QUEUE_STATE_ID;
-        final var label = V0690SystemTaskSchema.SYSTEM_TASK_QUEUE_STATE_LABEL;
+        final var queueId = V069SystemTaskSchema.SYSTEM_TASK_QUEUE_STATE_ID;
+        final var label = V069SystemTaskSchema.SYSTEM_TASK_QUEUE_STATE_LABEL;
 
         final var q = new com.swirlds.state.test.fixtures.ListWritableQueueState<SystemTask>(
                 queueId, label, new java.util.LinkedList<>());

@@ -388,7 +388,7 @@ public interface HandleContext {
      * the current transaction's state, so it will be committed with other state changes.
      * @param task the system task to enqueue
      */
-    void offerSystemTask(@NonNull SystemTask task);
+    void offer(@NonNull SystemTask task);
 
     /**
      * A stack of savepoints.

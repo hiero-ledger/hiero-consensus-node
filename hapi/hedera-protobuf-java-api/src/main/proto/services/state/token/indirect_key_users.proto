@@ -9,16 +9,33 @@ option java_multiple_files = true;
 
 import "services/basic_types.proto";
 
-// Key for the INDIRECT_KEY_USERS KV state: (key_account_id, indirect_user_id)
+/**
+ * The key of a mapping in the INDIRECT_KEY_USERS K/V state. Presence means that
+ * `indirect_user_id` is an indirect user of `key_account_id`.
+ */
 message IndirectKeyUsersKey {
+  /**
+   * The account whose key is indirectly used by `indirect_user_id`.
+   */
   AccountID key_account_id = 1;
+  /**
+   * The account that indirectly uses `key_account_id`'s key.
+   */
   AccountID indirect_user_id = 2;
 }
 
-// Value for the INDIRECT_KEY_USERS KV state: (prev_user_id, next_user_id)
-// Used to form a doubly-linked list of indirect users per key account
+/**
+ * The value of a mapping in the INDIRECT_KEY_USERS K/V state. Values forms a
+ * doubly-linked list of indirect users per key account.
+ */
 message IndirectKeyUsersValue {
+  /**
+   * The previous user in the implicit doubly-linked list of indirect users.
+   */
   AccountID prev_user_id = 1;
+  /**
+   * The next user in the implicit doubly-linked list of indirect users.
+   */
   AccountID next_user_id = 2;
 }
 

@@ -3,6 +3,7 @@ package com.hedera.services.bdd.spec.keys;
 
 import static com.hedera.services.bdd.spec.keys.SigControl.KeyAlgo.UNSPECIFIED;
 import static com.hedera.services.bdd.spec.keys.SigControl.Nature.*;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hederahashgraph.api.proto.java.Key;
@@ -15,8 +16,6 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Assertions;
 
 public class SigControl implements Serializable {
-    private static final long serialVersionUID = 1L;
-
     private static boolean isContract(final Nature nature) {
         return nature == CONTRACT_ID || nature == DELEGATABLE_CONTRACT_ID;
     }
@@ -28,7 +27,9 @@ public class SigControl implements Serializable {
         THRESHOLD,
         CONTRACT_ID,
         DELEGATABLE_CONTRACT_ID,
-        PREDEFINED
+        PREDEFINED,
+        INDIRECT_ACCOUNT,
+        INDIRECT_CONTRACT,
     }
 
     public enum KeyAlgo {
@@ -43,6 +44,8 @@ public class SigControl implements Serializable {
     private String predefined;
     private String delegatableContract;
     private SigControl[] childControls = new SigControl[0];
+    private String indirectAccountId;
+    private String indirectContractId;
 
     protected KeyAlgo keyAlgo = UNSPECIFIED;
 
@@ -56,6 +59,14 @@ public class SigControl implements Serializable {
 
     public String predefined() {
         return predefined;
+    }
+
+    public String indirectAccountIdOrThrow() {
+        return requireNonNull(indirectAccountId);
+    }
+
+    public String indirectContractIdOrThrow() {
+        return requireNonNull(indirectContractId);
     }
 
     public KeyAlgo keyAlgo() {
@@ -103,6 +114,10 @@ public class SigControl implements Serializable {
             return (!key.hasKeyList() && !key.hasThresholdKey());
         } else if (nature == CONTRACT_ID) {
             return key.hasContractID();
+        } else if (nature == INDIRECT_ACCOUNT) {
+            return key.hasIndirectKey() && key.getIndirectKey().hasAccountId();
+        } else if (nature == INDIRECT_CONTRACT) {
+            return key.hasIndirectKey() && key.getIndirectKey().hasContractId();
         } else if (nature == DELEGATABLE_CONTRACT_ID) {
             return key.hasDelegatableContractId();
         } else {
@@ -143,6 +158,10 @@ public class SigControl implements Serializable {
         this.nature = nature;
         if (nature == PREDEFINED) {
             this.predefined = id;
+        } else if (nature == INDIRECT_ACCOUNT) {
+            this.indirectAccountId = id;
+        } else if (nature == INDIRECT_CONTRACT) {
+            this.indirectContractId = id;
         } else {
             if (!isContract(nature)) {
                 throw new IllegalArgumentException("Contract " + id + " n/a to nature " + nature);

@@ -483,10 +483,9 @@ message Account {
     uint64 number_lambda_storage_slots = 38;
 
     /**
-     * The materialized key for this account, if any.
+     * If applicable, the materialized key for this account.
      * <p>
-     * This is the key that is actually used for signature verification after any
-     * indirections are resolved.
+     * Never contains indirection if non-null. When set, MUST be used for signature verifications.
      */
     Key materialized_key = 39;
 
@@ -496,20 +495,23 @@ message Account {
     uint32 num_indirect_key_users = 40;
 
     /**
-     * The maximum remaining propagations allowed for this account's key materialization.
+     * The maximum remaining propagations required to distribute the latest key
+     * change to all indirect key users. An upper bound; could overestimate if
+     * some users are deleted or stop using indirection before propagation, but
+     * this is harmless.
      */
     uint32 max_remaining_propagations = 41;
 
     /**
-     * If there are indirect key users, the first account id in the queue of key users.
+     * If this account has indirect key users, the first user id in a doubly-linked list.
      */
     AccountID first_key_user_id = 42;
 
     /**
-     * If there are indirect key users, the next account id in line after this account in the queue.
+     * If there is an ongoing propagation (`max_remaining_propagations > 0`), the next
+     * user id in line to receive the latest key change.
      */
     AccountID next_in_line_key_user_id = 43;
-
 }
 
 /**

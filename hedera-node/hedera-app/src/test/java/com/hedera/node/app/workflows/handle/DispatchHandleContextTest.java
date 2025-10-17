@@ -106,7 +106,7 @@ import com.hedera.node.app.store.ServiceApiFactory;
 import com.hedera.node.app.store.StoreFactoryImpl;
 import com.hedera.node.app.store.WritableStoreFactory;
 import com.hedera.node.app.systemtask.SystemTaskService;
-import com.hedera.node.app.systemtask.schemas.V0690SystemTaskSchema;
+import com.hedera.node.app.systemtask.schemas.V069SystemTaskSchema;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
@@ -277,8 +277,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
 
     // Backing queue for SystemTaskService so tests can observe enqueued tasks
     private final ListWritableQueueState<SystemTask> systemTaskQueue = ListWritableQueueState.<SystemTask>builder(
-                    V0690SystemTaskSchema.SYSTEM_TASK_QUEUE_STATE_ID,
-                    V0690SystemTaskSchema.SYSTEM_TASK_QUEUE_STATE_LABEL)
+                    V069SystemTaskSchema.SYSTEM_TASK_QUEUE_STATE_ID, V069SystemTaskSchema.SYSTEM_TASK_QUEUE_STATE_LABEL)
             .build();
 
     private static final AccountID payerId = ALICE.accountID();
@@ -367,7 +366,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                         .build())
                 .build();
 
-        context.offerSystemTask(task);
+        context.offer(task);
 
         // Verify the task is now at the head of the underlying queue
         assertThat(systemTaskQueue.peek()).isEqualTo(task);

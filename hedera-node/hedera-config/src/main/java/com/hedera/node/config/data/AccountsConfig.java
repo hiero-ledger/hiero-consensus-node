@@ -30,6 +30,7 @@ public record AccountsConfig(
         @ConfigProperty(defaultValue = "60") @NetworkProperty long systemUndeleteAdmin,
         @ConfigProperty(defaultValue = "2") @NetworkProperty long treasury,
         @ConfigProperty(defaultValue = "100000000") @NetworkProperty long maxNumber,
+        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean indirectKeysEnabled,
         @ConfigProperty(defaultValue = "10") @NetworkProperty @Min(0) int maxIndirectKeyUsers,
         @ConfigProperty(defaultValue = "100") @NetworkProperty @Min(0) int maxIndirectKeyRefs,
         @ConfigProperty(value = "blocklist.enabled", defaultValue = "false") @NetworkProperty boolean blocklistEnabled,

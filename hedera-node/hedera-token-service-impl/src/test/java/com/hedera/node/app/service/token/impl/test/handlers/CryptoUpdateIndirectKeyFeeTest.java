@@ -2,7 +2,6 @@
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -32,14 +31,22 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class CryptoUpdateIndirectKeyFeeTest {
-    private static final AccountID ACCOUNT_1 = AccountID.newBuilder().accountNum(1L).build();
+    private static final AccountID ACCOUNT_1 =
+            AccountID.newBuilder().accountNum(1L).build();
 
     private CryptoUpdateHandler subject;
 
-    @Mock private FeeContext feeContext;
-    @Mock private FeeCalculatorFactory feeCalculatorFactory;
-    @Mock private FeeCalculator feeCalculator;
-    @Mock private ReadableAccountStore accountStore;
+    @Mock
+    private FeeContext feeContext;
+
+    @Mock
+    private FeeCalculatorFactory feeCalculatorFactory;
+
+    @Mock
+    private FeeCalculator feeCalculator;
+
+    @Mock
+    private ReadableAccountStore accountStore;
 
     private Configuration config;
 
@@ -56,7 +63,8 @@ class CryptoUpdateIndirectKeyFeeTest {
                 .getOrCreateConfig();
 
         // Existing account has no indirect keys
-        final var existing = Account.newBuilder().accountId(ACCOUNT_1).key(Key.DEFAULT).build();
+        final var existing =
+                Account.newBuilder().accountId(ACCOUNT_1).key(Key.DEFAULT).build();
         given(accountStore.getAccountById(ACCOUNT_1)).willReturn(existing);
 
         // New key has two indirect keys
@@ -65,7 +73,8 @@ class CryptoUpdateIndirectKeyFeeTest {
         final var txn = TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder()
                         .accountID(ACCOUNT_1)
-                        .transactionValidStart(com.hedera.hapi.node.base.Timestamp.newBuilder().seconds(1)))
+                        .transactionValidStart(
+                                com.hedera.hapi.node.base.Timestamp.newBuilder().seconds(1)))
                 .cryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder()
                         .accountIDToUpdate(ACCOUNT_1)
                         .key(newKey))
@@ -98,7 +107,10 @@ class CryptoUpdateIndirectKeyFeeTest {
                 .getOrCreateConfig();
 
         // Existing account has two indirect keys
-        final var existing = Account.newBuilder().accountId(ACCOUNT_1).key(keyList(indirectTo(ACCOUNT_1), indirectTo(ACCOUNT_1))).build();
+        final var existing = Account.newBuilder()
+                .accountId(ACCOUNT_1)
+                .key(keyList(indirectTo(ACCOUNT_1), indirectTo(ACCOUNT_1)))
+                .build();
         given(accountStore.getAccountById(ACCOUNT_1)).willReturn(existing);
 
         // New key removes both indirect keys (zero occurrences)
@@ -107,7 +119,8 @@ class CryptoUpdateIndirectKeyFeeTest {
         final var txn = TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder()
                         .accountID(ACCOUNT_1)
-                        .transactionValidStart(com.hedera.hapi.node.base.Timestamp.newBuilder().seconds(1)))
+                        .transactionValidStart(
+                                com.hedera.hapi.node.base.Timestamp.newBuilder().seconds(1)))
                 .cryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder()
                         .accountIDToUpdate(ACCOUNT_1)
                         .key(newKey))
@@ -135,7 +148,8 @@ class CryptoUpdateIndirectKeyFeeTest {
     }
 
     private static Key indirectTo(final AccountID id) {
-        return Key.newBuilder().indirectKey(IndirectKey.newBuilder().accountId(id).build()).build();
+        return Key.newBuilder()
+                .indirectKey(IndirectKey.newBuilder().accountId(id).build())
+                .build();
     }
 }
-

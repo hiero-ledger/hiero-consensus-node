@@ -101,7 +101,7 @@ public class KeyPropagationSystemTaskHandler implements SystemTaskHandler {
                         final var cascadeTask = SystemTask.newBuilder()
                                 .keyPropagation(KeyPropagation.newBuilder().keyAccountId(uId))
                                 .build();
-                        context.offerSystemTask(cascadeTask);
+                        context.offer(cascadeTask);
                     }
                 }
             }
@@ -125,7 +125,7 @@ public class KeyPropagationSystemTaskHandler implements SystemTaskHandler {
             final var repeatTask = SystemTask.newBuilder()
                     .keyPropagation(KeyPropagation.newBuilder().keyAccountId(A.accountId()))
                     .build();
-            context.offerSystemTask(repeatTask);
+            context.offer(repeatTask);
         }
     }
 

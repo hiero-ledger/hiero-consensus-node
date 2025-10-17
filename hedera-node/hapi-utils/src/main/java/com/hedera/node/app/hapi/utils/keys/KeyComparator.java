@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.keys;
 
-import com.hedera.hapi.node.base.AccountID;
+import static com.hedera.hapi.util.HapiUtils.ACCOUNT_ID_COMPARATOR;
+
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.IndirectKey;
 import com.hedera.hapi.node.base.Key;
@@ -99,44 +100,24 @@ public class KeyComparator implements Comparator<Key> {
         }
     }
 
-    private int compareAccountId(final AccountID left, final AccountID right) {
-        if (left == right) return 0;
-        else if (left == null) return -1;
-        else if (right == null) return 1;
-        final long realmOne = left.realmNum();
-        final long realmTwo = right.realmNum();
-        if (realmOne != realmTwo) return Long.compare(realmOne, realmTwo);
-        final long shardOne = left.shardNum();
-        final long shardTwo = right.shardNum();
-        if (shardOne != shardTwo) return Long.compare(shardOne, shardTwo);
-        final Long leftNum = left.accountNum();
-        final Long rightNum = right.accountNum();
-        final Bytes leftAlias = left.alias();
-        final Bytes rightAlias = right.alias();
-        final boolean leftHasNum = leftNum != null;
-        final boolean rightHasNum = rightNum != null;
-        if (leftHasNum && rightHasNum) {
-            return Long.compare(leftNum, rightNum);
-        } else if (!leftHasNum && !rightHasNum) {
-            return compareBytes(leftAlias, rightAlias);
-        } else {
-            // By convention, numeric IDs sort before alias bytes
-            return leftHasNum ? -1 : 1;
-        }
-    }
-
     private int compareIndirectKey(final Key first, final Key second) {
-        final IndirectKey lhs = first.indirectKey();
-        final IndirectKey rhs = second.indirectKey();
-        if (lhs == rhs) return 0;
-        else if (lhs == null) return -1;
-        else if (rhs == null) return 1;
+        final var lhs = first.indirectKey();
+        final var rhs = second.indirectKey();
+        if (lhs == rhs) {
+            return 0;
+        } else if (lhs == null) {
+            return -1;
+        } else if (rhs == null) {
+            return 1;
+        }
         final var lk = lhs.target().kind();
         final var rk = rhs.target().kind();
-        if (lk != rk) return Integer.compare(lk.protoOrdinal(), rk.protoOrdinal());
+        if (lk != rk) {
+            return Integer.compare(lk.protoOrdinal(), rk.protoOrdinal());
+        }
         return (lk == IndirectKey.TargetOneOfType.ACCOUNT_ID)
-                ? compareAccountId(lhs.accountId(), rhs.accountId())
-                : compareId(lhs.contractId(), rhs.contractId());
+                ? ACCOUNT_ID_COMPARATOR.compare(lhs.accountId(), rhs.accountId())
+                : compareId(lhs.contractIdOrElse(ContractID.DEFAULT), rhs.contractIdOrElse(ContractID.DEFAULT));
     }
 
     private int compareEdwards(final Key first, final Key second) {

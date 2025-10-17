@@ -8,11 +8,14 @@ import static com.hedera.node.app.service.token.AliasUtils.extractIdFromAddressA
 import static com.hedera.node.app.service.token.AliasUtils.isEntityNumAlias;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0620TokenSchema.INDIRECT_KEY_USERS_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.state.token.IndirectKeyUsersKey;
+import com.hedera.hapi.node.state.token.IndirectKeyUsersValue;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.ids.ReadableEntityCounters;
@@ -28,7 +31,6 @@ import java.util.Optional;
  * Default implementation of {@link ReadableAccountStore}.
  */
 public class ReadableAccountStoreImpl implements ReadableAccountStore {
-
     /** The underlying data storage class that holds the account data. */
     private final ReadableKVState<AccountID, Account> accountState;
     /**
@@ -63,6 +65,9 @@ public class ReadableAccountStoreImpl implements ReadableAccountStore {
      */
     private final ReadableKVState<ProtoBytes, AccountID> aliases;
 
+    /** The underlying data storage class that holds the account data. */
+    private final ReadableKVState<IndirectKeyUsersKey, IndirectKeyUsersValue> indirectKeyUsers;
+
     private final ReadableEntityCounters entityCounters;
 
     /**
@@ -71,19 +76,28 @@ public class ReadableAccountStoreImpl implements ReadableAccountStore {
      * @param states The state to use.
      */
     public ReadableAccountStoreImpl(@NonNull final ReadableStates states, ReadableEntityCounters entityCounters) {
+        this.indirectKeyUsers = states.get(INDIRECT_KEY_USERS_STATE_ID);
         this.accountState = states.get(ACCOUNTS_STATE_ID);
         this.aliases = states.get(ALIASES_STATE_ID);
         this.entityCounters = requireNonNull(entityCounters);
     }
 
     /** Get the account state. Convenience method for auto-casting to the right kind of state (readable vs. writable) */
+    @SuppressWarnings("unchecked")
     protected <T extends ReadableKVState<AccountID, Account>> T accountState() {
         return (T) accountState;
     }
 
     /** Get the alias state. Convenience method for auto-casting to the right kind of state (readable vs. writable) */
+    @SuppressWarnings("unchecked")
     protected <T extends ReadableKVState<ProtoBytes, AccountID>> T aliases() {
         return (T) aliases;
+    }
+
+    /** Get the alias state. Convenience method for auto-casting to the right kind of state (readable vs. writable) */
+    @SuppressWarnings("unchecked")
+    protected <T extends ReadableKVState<IndirectKeyUsersKey, IndirectKeyUsersValue>> T indirectKeyUsers() {
+        return (T) indirectKeyUsers;
     }
 
     /**

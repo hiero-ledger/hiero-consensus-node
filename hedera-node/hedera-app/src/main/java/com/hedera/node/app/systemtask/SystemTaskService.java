@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.systemtask;
 
-import com.hedera.node.app.systemtask.schemas.V0690SystemTaskSchema;
+import com.hedera.node.app.systemtask.schemas.V069SystemTaskSchema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.lifecycle.Service;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -20,6 +20,6 @@ public final class SystemTaskService implements Service {
 
     @Override
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
-        registry.register(new V0690SystemTaskSchema());
+        registry.register(new V069SystemTaskSchema());
     }
 }

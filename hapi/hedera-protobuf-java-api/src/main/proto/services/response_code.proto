@@ -1772,6 +1772,11 @@ enum ResponseCodeEnum {
     INVALID_SERIALIZED_TX_MESSAGE_HASH_ALGORITHM = 401;
 
     /**
+     * The system task queue has no more capacity at this time.
+     */
+    SYSTEM_TASK_QUEUE_FULL = 402;
+
+    /**
      * An EVM hook execution was throttled due to high network gas utilization.
      */
     EVM_HOOK_GAS_THROTTLED = 500;
@@ -1888,6 +1893,7 @@ enum ResponseCodeEnum {
      * The HookCall set in the transaction is invalid
      */
     INVALID_HOOK_CALL = 522;
+
     /**
      *  Hooks are not supported to be used in TokenAirdrop transactions
      */

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SYSTEM_TASK_QUEUE_FULL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNRESOLVABLE_REQUIRED_SIGNERS;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.INNER_TRANSACTION_BYTES;
@@ -51,10 +52,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.TransactionKeys;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.store.StoreFactoryImpl;
-import com.hedera.node.app.systemtask.SystemTaskService;
-import com.hedera.node.app.systemtask.SystemTasks;
-import com.hedera.node.app.systemtask.SystemTasksImpl;
-import com.hedera.node.app.systemtask.schemas.V0690SystemTaskSchema;
+import com.hedera.node.app.systemtask.WritableSystemTaskStore;
 import com.hedera.node.app.workflows.InnerTransaction;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -67,10 +65,9 @@ import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
-import com.hedera.node.config.data.SchedulingConfig;
+import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.spi.WritableQueueState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -97,7 +94,6 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     private final Key payerKey;
     private final ExchangeRateManager exchangeRateManager;
     private final SavepointStackImpl stack;
-    private final SystemTasks systemTasks;
     private final EntityNumGenerator entityNumGenerator;
     private final AttributeValidator attributeValidator;
     private final ExpiryValidator expiryValidator;
@@ -111,8 +107,6 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     private final DispatchMetadata dispatchMetaData;
     private final TransactionChecker transactionChecker;
     private final TransactionCategory transactionCategory;
-    // Tracks the number of system tasks enqueued during this user transaction
-    private int enqueuedSystemTasks = 0;
 
     // This is used to store the pre-handle results for the inner transactions
     // in an atomic batch, null otherwise
@@ -165,13 +159,6 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
         this.payerKey = requireNonNull(payerKey);
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
         this.stack = requireNonNull(stack);
-        // Construct SystemTasks bound to the current transaction's writable state
-        final var rawQueue = this.stack
-                .getWritableStates(SystemTaskService.NAME)
-                .getQueue(V0690SystemTaskSchema.SYSTEM_TASK_QUEUE_STATE_ID);
-        @SuppressWarnings("unchecked")
-        final var typedQueue = (WritableQueueState<SystemTask>) (WritableQueueState<?>) rawQueue;
-        this.systemTasks = new SystemTasksImpl(typedQueue);
         this.entityNumGenerator = requireNonNull(entityNumGenerator);
         this.childDispatchFactory = requireNonNull(childDispatchLogic);
         this.dispatchProcessor = requireNonNull(dispatchProcessor);
@@ -473,14 +460,13 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     }
 
     @Override
-    public void offerSystemTask(@NonNull final SystemTask task) {
-        final var schedulingConfig = config.getConfigData(SchedulingConfig.class);
-        if (enqueuedSystemTasks >= schedulingConfig.maxSystemTasksPerUserTxn()) {
-            // Bound total enqueued per user transaction; ignore excess
-            return;
+    public void offer(@NonNull final SystemTask task) {
+        final var store = storeFactory.writableStore(WritableSystemTaskStore.class);
+        final long limit = config.getConfigData(NetworkAdminConfig.class).maxPendingSystemTasks();
+        if (store.numPendingTasks() >= limit) {
+            throw new HandleException(SYSTEM_TASK_QUEUE_FULL);
         }
-        systemTasks.offer(task);
-        enqueuedSystemTasks++;
+        store.offer(task);
     }
 
     @NonNull

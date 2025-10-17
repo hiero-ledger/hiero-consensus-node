@@ -36,6 +36,8 @@ import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
+import com.hedera.node.app.systemtask.SystemTaskService;
+import com.hedera.node.app.systemtask.WritableSystemTaskStore;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -103,6 +105,8 @@ public class WritableStoreFactory {
         newMap.put(
                 WritableHistoryStore.class,
                 new StoreEntry(HistoryService.NAME, (states, entityCounters) -> new WritableHistoryStoreImpl(states)));
+        // SystemTaskService
+        newMap.put(WritableSystemTaskStore.class, new StoreEntry(SystemTaskService.NAME, WritableSystemTaskStore::new));
         return Collections.unmodifiableMap(newMap);
     }
 

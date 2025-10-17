@@ -438,4 +438,12 @@ public class HapiUtils {
             }
         }
     }
+
+    public static AccountID asAccountId(final ContractID contractID) {
+        return AccountID.newBuilder()
+                .shardNum(contractID.shardNum())
+                .realmNum(contractID.realmNum())
+                .accountNum(contractID.contractNumOrThrow())
+                .build();
+    }
 }

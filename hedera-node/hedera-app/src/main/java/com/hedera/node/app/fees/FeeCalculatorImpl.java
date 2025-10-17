@@ -4,6 +4,7 @@ package com.hedera.node.app.fees;
 import static com.hedera.hapi.util.HapiUtils.countOfCryptographicKeys;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.node.app.hapi.utils.CommonUtils.productWouldOverflow;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_QUERY_HEADER;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_QUERY_RES_HEADER;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_TX_ID_SIZE;
@@ -255,19 +256,13 @@ public class FeeCalculatorImpl implements FeeCalculator {
 
     @Override
     public long tinybarsFromTinycents(final long tinycents) {
-        // Convert tinycents to tinybars using the current exchange rate, then apply the current congestion multiplier
         final long tinybars = OverflowCheckingCalc.tinycentsToTinybars(tinycents, currentRate);
         final long multiplier = getCongestionMultiplier();
-        if (multiplier <= 1) {
-            return tinybars * Math.max(1, multiplier);
-        }
-        final long max = Long.MAX_VALUE / multiplier;
-        if (tinybars > max) {
-            throw new IllegalArgumentException("Overflow when applying congestion multiplier to tinybars amount");
+        if (productWouldOverflow(tinybars, multiplier)) {
+            return Long.MAX_VALUE;
         }
         return tinybars * multiplier;
     }
-
 
     private void failIfLegacyOnly() {
         if (usage == null) {

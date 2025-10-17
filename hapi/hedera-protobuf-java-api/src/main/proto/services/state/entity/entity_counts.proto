@@ -79,4 +79,8 @@ message EntityCounts {
    * The number of lambda hook storage slots in the network.
    */
   uint64 num_lambda_storage_slots = 15;
+  /**
+   * The number of pending system tasks in state.
+   */
+  uint64 num_system_tasks = 16;
 }

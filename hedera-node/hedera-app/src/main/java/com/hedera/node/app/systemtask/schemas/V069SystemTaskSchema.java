@@ -14,9 +14,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
 /**
- * Schema V0690: Adds the SYSTEM_TASK_QUEUE queue state for system tasks.
+ * Defines the SYSTEM_TASK_QUEUE queue state for system tasks.
  */
-public class V0690SystemTaskSchema extends Schema<SemanticVersion> {
+public class V069SystemTaskSchema extends Schema<SemanticVersion> {
+    private static final SemanticVersion VERSION =
+            SemanticVersion.newBuilder().major(0).minor(69).build();
 
     public static final String SYSTEM_TASK_QUEUE_KEY = "SYSTEM_TASK_QUEUE";
     public static final int SYSTEM_TASK_QUEUE_STATE_ID =
@@ -24,15 +26,12 @@ public class V0690SystemTaskSchema extends Schema<SemanticVersion> {
     public static final String SYSTEM_TASK_QUEUE_STATE_LABEL =
             computeLabel(SystemTaskService.NAME, SYSTEM_TASK_QUEUE_KEY);
 
-    private static final SemanticVersion VERSION =
-            SemanticVersion.newBuilder().major(0).minor(69).patch(0).build();
-
-    public V0690SystemTaskSchema() {
+    public V069SystemTaskSchema() {
         super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
-    @SuppressWarnings("rawtypes")
     @Override
+    @SuppressWarnings("rawtypes")
     public @NonNull Set<StateDefinition> statesToCreate() {
         return Set.of(StateDefinition.queue(SYSTEM_TASK_QUEUE_STATE_ID, SYSTEM_TASK_QUEUE_KEY, SystemTask.PROTOBUF));
     }
