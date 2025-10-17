@@ -971,8 +971,7 @@ public class BlockNodeConnectionManager {
                 availableBlockNodes.addAll(newConfigs);
             }
             if (!newConfigs.isEmpty()) {
-                logWithContext(
-                        INFO, "Initial block node configuration loaded ({}). Starting connection manager.", newConfigs);
+                logWithContext(INFO, "Initial block node configuration loaded ({}).", newConfigs);
                 start();
             } else {
                 logWithContext(INFO, "Initial block node configuration missing or invalid. Waiting for updates.");

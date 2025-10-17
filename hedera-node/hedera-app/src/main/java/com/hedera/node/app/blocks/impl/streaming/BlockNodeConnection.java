@@ -219,6 +219,12 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     public synchronized void createRequestPipeline() {
         if (requestPipelineRef.get() == null) {
             blockStreamPublishServiceClient = createNewGrpcClient();
+            logWithContext(
+                    DEBUG,
+                    "Created BlockStreamPublishServiceClient for {}:{}.",
+                    blockNodeConfig.address(),
+                    blockNodeConfig.port());
+
             final Pipeline<? super PublishStreamRequest> pipeline =
                     blockStreamPublishServiceClient.publishBlockStream(this);
             requestPipelineRef.set(pipeline);
@@ -253,11 +259,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                         .build()))
                 .connectTimeout(timeoutDuration)
                 .build();
-        logWithContext(
-                DEBUG,
-                "Created BlockStreamPublishServiceClient for {}:{}.",
-                blockNodeConfig.address(),
-                blockNodeConfig.port());
+
         return clientFactory.createClient(webClient, grpcConfig, OPTIONS);
     }
 
