@@ -202,6 +202,7 @@ public class NodeResultsCollector {
      *
      * @param startIndex the index to start from
      * @param suppressedLogMarkers the set of {@link Marker} that should be ignored in the logs
+     * @param suppressedLoggerNames the set of logger names that should be ignored in the logs
      * @return the list of log entries
      */
     @NonNull
