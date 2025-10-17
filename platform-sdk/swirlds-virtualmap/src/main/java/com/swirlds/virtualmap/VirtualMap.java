@@ -25,6 +25,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.io.ExternalSelfSerializable;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
+import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.exceptions.IllegalChildIndexException;
@@ -580,7 +581,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      */
     public boolean containsKey(final Bytes key) {
         requireNonNull(key, NO_NULL_KEYS_ALLOWED_MESSAGE);
-        final long path = records.findKey(key);
+        final long path = records.findPath(key);
         statistics.countReadEntities();
         return path != INVALID_PATH;
     }
@@ -640,7 +641,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         assert currentModifyingThreadRef.compareAndSet(null, Thread.currentThread());
         try {
             requireNonNull(key, NO_NULL_KEYS_ALLOWED_MESSAGE);
-            final long path = records.findKey(key);
+            final long path = records.findPath(key);
             if (path == INVALID_PATH) {
                 // The key is not stored. So add a new entry and return.
                 add(key, value, valueCodec, valueBytes);
@@ -1572,12 +1573,17 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             // backpressure mechanism
             VirtualDataSource dataSourceCopy = null;
             try {
+                // Restore a data source into memory from the snapshot. It will use its own directory
+                // to store data files
                 dataSourceCopy = dataSourceBuilder.build(getLabel(), snapshotPath, false, true);
                 // Then flush the cache snapshot to the data source copy
                 flush(cacheSnapshot.getValue(), metadata, dataSourceCopy);
                 // And finally snapshot the copy to the target dir
                 dataSourceBuilder.snapshot(outputDirectory, dataSourceCopy);
             } finally {
+                // Delete the snapshot directory
+                FileUtils.deleteDirectory(snapshotPath);
+                // And delete the data source copy directory
                 if (dataSourceCopy != null) {
                     dataSourceCopy.close();
                 }

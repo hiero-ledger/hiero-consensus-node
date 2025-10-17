@@ -2,12 +2,12 @@
 package org.hiero.otter.fixtures.internal;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.model.status.PlatformStatus.CATASTROPHIC_FAILURE;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.swirlds.logging.legacy.payload.IssPayload;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
@@ -15,6 +15,7 @@ import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -314,11 +315,11 @@ public abstract class AbstractNode implements Node {
 
         log.debug("Waiting for Self ISS to trigger...");
 
+        final AtomicBoolean found =
+                newLogResult().onNextMatch(logEntry -> logEntry.message().contains(IssPayload.class.getName()));
+
         timeManager()
-                .waitForCondition(
-                        () -> platformStatus == CATASTROPHIC_FAILURE,
-                        timeout.minus(elapsed),
-                        "Did not receive IssPayload log before timeout");
+                .waitForCondition(found::get, timeout.minus(elapsed), "Did not find the IssPayload log before timeout");
 
         log.info("Self ISS triggered");
     }
