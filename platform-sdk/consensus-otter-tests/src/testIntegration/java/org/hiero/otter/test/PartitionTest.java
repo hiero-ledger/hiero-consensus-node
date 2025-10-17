@@ -75,6 +75,12 @@ public class PartitionTest {
             network.addNode().weight(Math.round(TOTAL_WEIGHTS * weightFraction));
         }
 
+        // Setup continuous assertions
+        assertThat(network.newLogResults()).haveNoErrorLevelMessages();
+        assertThat(network.newReconnectResults()).haveNoReconnects();
+        assertThat(network.newConsensusResults()).haveEqualCommonRounds().haveConsistentRounds();
+        assertThat(network.newMarkerFileResults()).haveNoMarkerFiles();
+
         network.start();
 
         final List<Node> nodesToPartition =
@@ -107,11 +113,10 @@ public class PartitionTest {
                 .max(Long::compareTo)
                 .orElseThrow();
 
-        assertThat(network.newLogResults()).haveNoErrorLevelMessages();
         assertThat(network.newConsensusResults()).haveAdvancedSinceRound(maxPartitionRoundReached);
         assertThat(networkStatusResults).haveSteps(target(ACTIVE));
-        assertThat(network.newMarkerFileResults()).haveNoMarkerFiles();
-        assertThat(network.newReconnectResults()).haveNoReconnects();
+
+        assertThat(network.newEventStreamResults()).haveEqualFiles();
     }
 
     private void throwIfInvalidArguments(

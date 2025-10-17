@@ -62,7 +62,7 @@ public class MultipleNodeMarkerFileResultsAssert
         isNotNull();
 
         for (final SingleNodeMarkerFileResult result : actual.results()) {
-            OtterAssertions.assertThat(result).hasNoCoinRoundMarkerFile();
+            OtterAssertions.assertThat(result).hasNotCoinRoundMarkerFile();
         }
 
         return this;
@@ -78,7 +78,7 @@ public class MultipleNodeMarkerFileResultsAssert
         isNotNull();
 
         for (final SingleNodeMarkerFileResult result : actual.results()) {
-            OtterAssertions.assertThat(result).hasNoNoSuperMajorityMarkerFile();
+            OtterAssertions.assertThat(result).hasNotNoSuperMajorityMarkerFile();
         }
 
         return this;
@@ -94,7 +94,7 @@ public class MultipleNodeMarkerFileResultsAssert
         isNotNull();
 
         for (final SingleNodeMarkerFileResult result : actual.results()) {
-            OtterAssertions.assertThat(result).hasNoNoJudgesMarkerFile();
+            OtterAssertions.assertThat(result).hasNotNoJudgesMarkerFile();
         }
 
         return this;
@@ -110,7 +110,7 @@ public class MultipleNodeMarkerFileResultsAssert
         isNotNull();
 
         for (final SingleNodeMarkerFileResult result : actual.results()) {
-            OtterAssertions.assertThat(result).hasNoConsensusExceptionMarkerFile();
+            OtterAssertions.assertThat(result).hasNotConsensusExceptionMarkerFile();
         }
 
         return this;
@@ -143,7 +143,7 @@ public class MultipleNodeMarkerFileResultsAssert
         isNotNull();
 
         for (final SingleNodeMarkerFileResult result : actual.results()) {
-            OtterAssertions.assertThat(result).hasNoISSMarkerFileOfType(issType);
+            OtterAssertions.assertThat(result).hasNotISSMarkerFileOfType(issType);
         }
 
         return this;

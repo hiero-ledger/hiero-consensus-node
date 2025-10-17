@@ -41,7 +41,11 @@ public class RestartTest {
         network.addNodes(4);
 
         // Setup continuous assertions
+        assertContinuouslyThat(network.newLogResults().suppressingLogMarker(LogMarker.SOCKET_EXCEPTIONS))
+                .haveNoErrorLevelMessages();
+        assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
         assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds();
+        assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
         assertContinuouslyThat(network.newPlatformStatusResults()).doNotEnterAnyStatusesOf(BEHIND);
 
         network.start();
@@ -70,13 +74,8 @@ public class RestartTest {
                 () -> network.newConsensusResults().allNodesAdvancedToRound(lastRoundReached + 20),
                 Duration.ofSeconds(120L));
 
-        assertThat(network.newLogResults().suppressingLogMarker(LogMarker.SOCKET_EXCEPTIONS))
-                .haveNoErrorLevelMessages();
-
         // All nodes should go through the normal status progression again
         assertThat(networkStatusResults)
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
-
-        assertThat(network.newConsensusResults()).haveEqualCommonRounds();
     }
 }

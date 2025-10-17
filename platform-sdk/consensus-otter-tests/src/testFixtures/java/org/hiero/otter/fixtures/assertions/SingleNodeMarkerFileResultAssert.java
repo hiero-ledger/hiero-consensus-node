@@ -52,16 +52,48 @@ public class SingleNodeMarkerFileResultAssert
     }
 
     /**
+     * Verifies that the node has any marker file.
+     *
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public SingleNodeMarkerFileResultAssert hasAnyMarkerFile() {
+        isNotNull();
+
+        if (!actual.status().hasAnyMarkerFile()) {
+            failWithMessage("Expected any marker files, but node %s wrote none", actual.nodeId());
+        }
+
+        return this;
+    }
+
+    /**
      * Verifies that the node has no coin round marker file.
      *
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeMarkerFileResultAssert hasNoCoinRoundMarkerFile() {
+    public SingleNodeMarkerFileResultAssert hasNotCoinRoundMarkerFile() {
         isNotNull();
 
         if (actual.status().hasCoinRoundMarkerFile()) {
             failWithMessage("Expected no coin round marker file, but node %s wrote one", actual.nodeId());
+        }
+
+        return this;
+    }
+
+    /**
+     * Verifies that the node has a coin round marker file.
+     *
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public SingleNodeMarkerFileResultAssert hasCoinRoundMarkerFile() {
+        isNotNull();
+
+        if (!actual.status().hasCoinRoundMarkerFile()) {
+            failWithMessage("Expected a coin round marker file, but node %s wrote none", actual.nodeId());
         }
 
         return this;
@@ -73,11 +105,27 @@ public class SingleNodeMarkerFileResultAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeMarkerFileResultAssert hasNoNoSuperMajorityMarkerFile() {
+    public SingleNodeMarkerFileResultAssert hasNotNoSuperMajorityMarkerFile() {
         isNotNull();
 
         if (actual.status().hasNoSuperMajorityMarkerFile()) {
             failWithMessage("Expected no no-super-majority marker file, but node %s wrote one", actual.nodeId());
+        }
+
+        return this;
+    }
+
+    /**
+     * Verifies that the node has a no-super-majority marker file.
+     *
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public SingleNodeMarkerFileResultAssert hasNoSuperMajorityMarkerFile() {
+        isNotNull();
+
+        if (!actual.status().hasNoSuperMajorityMarkerFile()) {
+            failWithMessage("Expected a no-super-majority marker file, but node %s wrote none", actual.nodeId());
         }
 
         return this;
@@ -89,11 +137,27 @@ public class SingleNodeMarkerFileResultAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeMarkerFileResultAssert hasNoNoJudgesMarkerFile() {
+    public SingleNodeMarkerFileResultAssert hasNotNoJudgesMarkerFile() {
         isNotNull();
 
         if (actual.status().hasNoJudgesMarkerFile()) {
             failWithMessage("Expected no no-judges marker file, but node %s wrote one", actual.nodeId());
+        }
+
+        return this;
+    }
+
+    /**
+     * Verifies that the node has a no-judges marker file.
+     *
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public SingleNodeMarkerFileResultAssert hasNoJudgesMarkerFile() {
+        isNotNull();
+
+        if (!actual.status().hasNoJudgesMarkerFile()) {
+            failWithMessage("Expected a no-judges marker file, but node %s wrote none", actual.nodeId());
         }
 
         return this;
@@ -105,11 +169,27 @@ public class SingleNodeMarkerFileResultAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeMarkerFileResultAssert hasNoConsensusExceptionMarkerFile() {
+    public SingleNodeMarkerFileResultAssert hasNotConsensusExceptionMarkerFile() {
         isNotNull();
 
         if (actual.status().hasConsensusExceptionMarkerFile()) {
             failWithMessage("Expected no consensus exception marker file, but node %s wrote one", actual.nodeId());
+        }
+
+        return this;
+    }
+
+    /**
+     * Verifies that the node has a consensus exception marker file.
+     *
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public SingleNodeMarkerFileResultAssert hasConsensusExceptionMarkerFile() {
+        isNotNull();
+
+        if (!actual.status().hasConsensusExceptionMarkerFile()) {
+            failWithMessage("Expected a consensus exception marker file, but node %s wrote none", actual.nodeId());
         }
 
         return this;
@@ -134,17 +214,50 @@ public class SingleNodeMarkerFileResultAssert
     }
 
     /**
+     * Verifies that the node has any ISS marker file.
+     *
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public SingleNodeMarkerFileResultAssert hasAnyISSMarkerFile() {
+        isNotNull();
+
+        if (!actual.status().hasAnyISSMarkerFile()) {
+            failWithMessage("Expected any ISS marker files, but node %s wrote none", actual.nodeId());
+        }
+
+        return this;
+    }
+
+    /**
      * Verifies that the node does not have an ISS marker file of a given {@link IssType}.
      *
      * @param issType the type of ISS marker file to check
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeMarkerFileResultAssert hasNoISSMarkerFileOfType(@NonNull final IssType issType) {
+    public SingleNodeMarkerFileResultAssert hasNotISSMarkerFileOfType(@NonNull final IssType issType) {
         isNotNull();
 
         if (actual.status().hasISSMarkerFileOfType(issType)) {
             failWithMessage("Expected no ISS marker file of type %s, but node %s wrote one", issType, actual.nodeId());
+        }
+
+        return this;
+    }
+
+    /**
+     * Verifies that the node has an ISS marker file of a given {@link IssType}.
+     *
+     * @param issType the type of ISS marker file to check
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public SingleNodeMarkerFileResultAssert hasISSMarkerFileOfType(@NonNull final IssType issType) {
+        isNotNull();
+
+        if (!actual.status().hasISSMarkerFileOfType(issType)) {
+            failWithMessage("Expected an ISS marker file of type %s, but node %s wrote none", issType, actual.nodeId());
         }
 
         return this;

@@ -8,6 +8,7 @@ import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
 import static org.hiero.consensus.model.status.PlatformStatus.FREEZING;
 import static org.hiero.consensus.model.status.PlatformStatus.OBSERVING;
 import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
+import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
@@ -33,12 +34,18 @@ public class SingleNodeNetworkTest {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
-        network.addNodes(1);
+        final Node theOnlyNode = network.addNode();
+
+        // Setup continuous assertions
+        assertContinuouslyThat(theOnlyNode.newLogResult()).hasNoErrorLevelMessages();
+        assertContinuouslyThat(theOnlyNode.newConsensusResult()).hasConsistentRounds();
+        assertContinuouslyThat(theOnlyNode.newReconnectResult()).doesNotAttemptToReconnect();
+        assertContinuouslyThat(theOnlyNode.newMarkerFileResult()).hasNoMarkerFile();
+
         network.start();
         // Let the single node run for a short time
         timeManager.waitFor(Duration.ofSeconds(10));
         network.freeze();
-        final Node theOnlyNode = network.nodes().getFirst();
         final long freezeRound = theOnlyNode.newConsensusResult().lastRoundNum();
         network.shutdown();
 
@@ -51,7 +58,5 @@ public class SingleNodeNetworkTest {
         assertThat(freezeRound)
                 .withFailMessage("10 seconds should be enough time for a single node to reach at least round 20")
                 .isGreaterThan(20);
-        // Verify that there are no errors
-        assertThat(network.newLogResults()).haveNoErrorLevelMessages();
     }
 }
