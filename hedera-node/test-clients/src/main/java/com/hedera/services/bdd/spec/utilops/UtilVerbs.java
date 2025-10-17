@@ -2834,6 +2834,26 @@ public class UtilVerbs {
                 waitTimeout);
     }
 
+    /**
+     * Asserts that a sequence of log messages appears in the specified node's block node comms log within a timeframe.
+     *
+     * @param selector the node selector
+     * @param startTimeSupplier supplier for the start time of the timeframe
+     * @param timeframe the duration of the timeframe window to search for messages
+     * @param waitTimeout the duration to wait for messages to appear
+     * @param patterns the sequence of patterns to look for
+     * @return a new LogContainmentTimeframeOp
+     */
+    public static LogContainmentTimeframeOp assertHgcaaLogContainsTimeframe(
+            @NonNull final NodeSelector selector,
+            @NonNull final Supplier<Instant> startTimeSupplier,
+            @NonNull final Duration timeframe,
+            @NonNull final Duration waitTimeout,
+            @NonNull final String... patterns) {
+        return new LogContainmentTimeframeOp(
+                selector, APPLICATION_LOG, Arrays.asList(patterns), startTimeSupplier, timeframe, waitTimeout);
+    }
+
     public static CustomSpecAssert valueIsInRange(
             final double value, final double lowerBoundInclusive, final double upperBoundExclusive) {
         return assertionsHold((spec, opLog) -> {

@@ -193,12 +193,18 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                 fileUpdate(APP_PROPERTIES)
                         .payingWith(GENESIS)
                         .overridingProps(Map.of("blockStream.writerMode", "FILE")),
+                sourcingContextual(
+                        spec -> assertHgcaaLogContainsTimeframe(
+                                byNodeId(0),
+                                timeRef::get,
+                                Duration.ofMinutes(2),
+                                Duration.ofMinutes(2),
+                                "Disabling gRPC Block Node streaming as the network properties have changed writerMode from FILE_AND_GRPC to FILE only")),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
                         Duration.ofMinutes(2),
                         Duration.ofMinutes(2),
-                        "Disabling gRPC Block Node streaming as the network properties have changed writerMode from FILE_AND_GRPC to FILE only",
                         String.format(
                                 "/localhost:%s/CLOSED] Connection state transitioned from CLOSING to CLOSED.",
                                 portNumbers.getFirst()))),
@@ -209,12 +215,18 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                 fileUpdate(APP_PROPERTIES)
                         .payingWith(GENESIS)
                         .overridingProps(Map.of("blockStream.writerMode", "FILE_AND_GRPC")),
+                sourcingContextual(
+                        spec -> assertHgcaaLogContainsTimeframe(
+                                byNodeId(0),
+                                timeRef::get,
+                                Duration.ofMinutes(2),
+                                Duration.ofMinutes(2),
+                                "Enabling gRPC Block Node streaming as the network properties have changed writerMode from FILE to FILE_AND_GRPC")),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
                         Duration.ofMinutes(2),
                         Duration.ofMinutes(2),
-                        "Enabling gRPC Block Node streaming as the network properties have changed writerMode from FILE to FILE_AND_GRPC",
                         "Current streaming block number is",
                         String.format(
                                 "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
