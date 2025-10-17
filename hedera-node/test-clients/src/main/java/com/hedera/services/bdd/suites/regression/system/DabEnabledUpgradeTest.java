@@ -17,6 +17,7 @@ import static com.hedera.services.bdd.spec.dsl.operations.transactions.TouchBala
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getVersionInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.sysFileUpdateTo;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
@@ -241,10 +242,12 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     @HapiTest
     @Order(5)
     final Stream<DynamicTest> newNodeId4InCandidateRosterAfterAddition() {
+        final var nodeAccount = "nodeAccount";
         return hapiTest(
+                cryptoCreate(nodeAccount),
                 recordStreamMustIncludePassFrom(selectedItems(
                         EXISTENCE_ONLY_VALIDATOR, 2, sysFileUpdateTo("files.nodeDetails", "files.addressBook"))),
-                nodeCreate("node4")
+                nodeCreate("node4", nodeAccount)
                         .adminKey(DEFAULT_PAYER)
                         .accountNum(classicFeeCollectorIdFor(4))
                         .description(CLASSIC_NODE_NAMES[4])
@@ -264,6 +267,9 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     class WithMultipartDabEditsBeforeAndAfterPrepareUpgrade {
         @BeforeAll
         static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+            final var nodeAccount5 = "nodeAccount5";
+            final var nodeAccount6 = "nodeAccount6";
+            final var nodeAccount7 = "nodeAccount7";
             testLifecycle.overrideInClass(Map.of(
                     // Note that deleted nodes still count against the max number of nodes
                     "nodes.maxNumber", "7",
@@ -272,19 +278,22 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
             // all the successful edits here are before issuing PREPARE_UPGRADE and should be reflected in the
             // address book after the upgrade
             testLifecycle.doAdhoc(
-                    nodeCreate("node5")
+                    cryptoCreate(nodeAccount5),
+                    cryptoCreate(nodeAccount6),
+                    cryptoCreate(nodeAccount7),
+                    nodeCreate("node5", nodeAccount5)
                             .adminKey(DEFAULT_PAYER)
                             .accountNum(classicFeeCollectorIdFor(5))
                             .description(CLASSIC_NODE_NAMES[5])
                             .withAvailableSubProcessPorts()
                             .gossipCaCertificate(VALID_CERT),
-                    nodeCreate("toBeDeletedNode6")
+                    nodeCreate("toBeDeletedNode6", nodeAccount6)
                             .adminKey(DEFAULT_PAYER)
                             .accountNum(classicFeeCollectorIdFor(6))
                             .description(CLASSIC_NODE_NAMES[6])
                             .withAvailableSubProcessPorts()
                             .gossipCaCertificate(VALID_CERT),
-                    nodeCreate("disallowedNode7")
+                    nodeCreate("disallowedNode7", nodeAccount7)
                             .adminKey(DEFAULT_PAYER)
                             .accountNum(classicFeeCollectorIdFor(7))
                             .description(CLASSIC_NODE_NAMES[7])
