@@ -36,6 +36,7 @@ import com.swirlds.state.test.fixtures.StateTestBase;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
 import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
+import java.io.IOException;
 import java.util.EnumSet;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.config.CryptoConfig;
@@ -762,7 +763,6 @@ public class VirtualMapStateTest extends MerkleTestBase {
             addSingletonState(virtualMap, countryMetadata, GHANA);
             addKvState(virtualMap, fruitMetadata, A_KEY, APPLE);
             // Initialize a queue state and add three elements via the API to ensure QueueState is set up
-
             final WritableStates writable = virtualMapState.getWritableStates(FIRST_SERVICE);
             final WritableQueueState<ProtoBytes> queue = writable.getQueue(STEAM_STATE_ID);
             queue.add(ART);
@@ -890,12 +890,24 @@ public class VirtualMapStateTest extends MerkleTestBase {
 
         @Test
         @DisplayName("getHashByPath for existing path")
-        void getHashByPath_existingPath() {
-            virtualMapState.getHash();
+        void getHashByPath_existingPath() throws IOException {
+            // trigger hash calculation for the state
+            Hash rootHash = virtualMapState.getHash();
 
-            assertNotNull(virtualMapState.getHashForPath(1));
-            assertNotNull(virtualMapState.getHashForPath(3));
-            assertNotNull(virtualMapState.getHashForPath(7));
+            /*
+                                             Tree configuration:
+                                                  root (0)
+                                       /                               \
+                               hash(1)                                 hash (2)
+                             /         \                                /       \
+                      hash(3)           hash(4)                 Apple (5)        Queue state (6)
+                    /    \               /    \
+            Ghana(7)   Biology(8)  Art(9)    Chemistry (10)
+                  */
+            assertThat(virtualMapState.getHashForPath(0)).isEqualTo(rootHash);
+            for (int i = 1; i <= 10; i++) {
+                assertNotNull(virtualMapState.getHashForPath(i));
+            }
         }
 
         @Test

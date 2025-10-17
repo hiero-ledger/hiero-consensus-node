@@ -129,8 +129,9 @@ public interface MerkleNodeState extends State {
     }
 
     /**
+     * Get the hash of the merkle node at the given path.
      * @param path merkle path
-     * @return hash of the merkle node at the given path
+     * @return hash of the merkle node at the given path or null if the path is non-existent
      */
     Hash getHashForPath(long path);
 }
