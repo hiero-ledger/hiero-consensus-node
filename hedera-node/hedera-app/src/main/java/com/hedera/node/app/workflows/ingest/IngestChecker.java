@@ -572,7 +572,6 @@ public final class IngestChecker {
     }
 
     public static boolean isSystemAccount(@NonNull Account account) {
-        //        return false;
         requireNonNull(account);
         return account.accountIdOrThrow().accountNumOrThrow() <= 1000L;
     }
