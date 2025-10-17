@@ -5,6 +5,8 @@ import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
  * Module that provides the implementation of the Hedera Consensus Service.
  */
 module com.hedera.node.app.service.consensus.impl {
+    requires transitive com.hedera.node.app.hapi.fees;
+    requires transitive com.hedera.node.app.hapi.utils;
     requires transitive com.hedera.node.app.service.consensus;
     requires transitive com.hedera.node.app.service.entityid;
     requires transitive com.hedera.node.app.service.token;
@@ -15,8 +17,6 @@ module com.hedera.node.app.service.consensus.impl {
     requires transitive dagger;
     requires transitive java.compiler; // javax.annotation.processing.Generated
     requires transitive javax.inject;
-    requires transitive com.hedera.node.app.hapi.fees;
-    requires transitive com.hedera.node.app.hapi.utils;
     requires com.hedera.node.app.service.token.impl;
     requires com.hedera.node.config;
     requires com.swirlds.config.api;

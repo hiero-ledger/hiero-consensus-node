@@ -13,13 +13,11 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fix
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SIMPLE_FEE_SCHEDULE;
-import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -27,14 +25,11 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.SpecOperation;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
-import org.hiero.hapi.support.fees.Extra;
-import org.hiero.hapi.support.fees.FeeSchedule;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -53,14 +48,14 @@ public class SimpleFeesSuite {
     static Stream<DynamicTest> runBeforeAfter(@NonNull final SpecOperation... ops) {
         List<SpecOperation> opsList = new ArrayList<>();
         opsList.add(overriding("fees.simpleFeesEnabled", "false"));
-//        opsList.add(withOpContext((spec, log) -> {
-//            System.out.println("simple fees enabled = false");
-//        }));
+        //        opsList.add(withOpContext((spec, log) -> {
+        //            System.out.println("simple fees enabled = false");
+        //        }));
         opsList.addAll(Arrays.asList(ops));
         opsList.add(overriding("fees.simpleFeesEnabled", "true"));
-//        opsList.add(withOpContext((spec, log) -> {
-//            System.out.println("simple fees enabled = true");
-//        }));
+        //        opsList.add(withOpContext((spec, log) -> {
+        //            System.out.println("simple fees enabled = true");
+        //        }));
         opsList.addAll(Arrays.asList(ops));
         return hapiTest(opsList.toArray(new SpecOperation[opsList.size()]));
     }
@@ -83,7 +78,7 @@ public class SimpleFeesSuite {
                             .via("create-topic-txn"),
                     validateChargedUsd("create-topic-txn", ucents_to_USD(1000))
                     // keys = 0, sigs = 1
-            );
+                    );
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -99,12 +94,10 @@ public class SimpleFeesSuite {
                             .adminKeyName(ADMIN)
                             .fee(ONE_HBAR)
                             .via("create-topic-admin-txn"),
-                    validateChargedUsd(
-                            "create-topic-admin-txn",
-                            ucents_to_USD(1630))
+                    validateChargedUsd("create-topic-admin-txn", ucents_to_USD(1630))
 
                     // keys = 1, sigs = 2
-            );
+                    );
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -121,10 +114,7 @@ public class SimpleFeesSuite {
                             .adminKeyName(PAYER)
                             .fee(ONE_HBAR)
                             .via("create-topic-admin-txn"),
-                    validateChargedUsd(
-                            "create-topic-admin-txn",
-                            ucents_to_USD(1022))
-            );
+                    validateChargedUsd("create-topic-admin-txn", ucents_to_USD(1022)));
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -141,18 +131,14 @@ public class SimpleFeesSuite {
                             .adminKeyName(ADMIN)
                             .fee(ONE_HBAR)
                             .via("create-topic-admin-txn"),
-                    validateChargedUsd( "create-topic-admin-txn",
-                            ucents_to_USD(1630)),
+                    validateChargedUsd("create-topic-admin-txn", ucents_to_USD(1630)),
                     // update topic is base:19 + key(1-1), node:(base:1,sig:1)*3 to include network
                     updateTopic("testTopic")
                             .adminKey(ADMIN)
                             .payingWith(PAYER)
                             .fee(ONE_HBAR)
                             .via("update-topic-txn"),
-                    validateChargedUsd(
-                            "update-topic-txn",
-                            ucents_to_USD(35.4))
-            );
+                    validateChargedUsd("update-topic-txn", ucents_to_USD(35.4)));
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -179,10 +165,7 @@ public class SimpleFeesSuite {
                             .message(new String(messageBytes))
                             .fee(ONE_HBAR)
                             .via("submit-message-txn"),
-                    validateChargedUsd(
-                            "submit-message-txn",
-                            ucents_to_USD(10))
-            );
+                    validateChargedUsd("submit-message-txn", ucents_to_USD(10)));
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -209,10 +192,7 @@ public class SimpleFeesSuite {
                             .message(new String(messageBytes))
                             .fee(ONE_HBAR)
                             .via("submit-message-txn"),
-                    validateChargedUsd(
-                            "submit-message-txn",
-                            ucents_to_USD(11.6))
-            );
+                    validateChargedUsd("submit-message-txn", ucents_to_USD(11.6)));
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -236,8 +216,7 @@ public class SimpleFeesSuite {
                             .fee(ONE_HBAR)
                             .via("get-topic-txn")
                             .logged(),
-                    validateChargedUsd("get-topic-txn", ucents_to_USD(10.1))
-            );
+                    validateChargedUsd("get-topic-txn", ucents_to_USD(10.1)));
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -262,8 +241,7 @@ public class SimpleFeesSuite {
                                     1000 // base fee for create topic
                                             + 200_000 // custom fee
                                             + 1 * 3 // node + network fee
-                            ))
-                    ,
+                                    )),
                     // submit message, provide up to 1 hbar to pay for it
                     submitMessageTo("testTopic")
                             .blankMemo()
@@ -277,8 +255,7 @@ public class SimpleFeesSuite {
                                     7 // base fee
                                             + 5000 // custom fee
                                             + 1 * 3 // node + network fee
-                            ))
-            );
+                                    )));
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -293,17 +270,12 @@ public class SimpleFeesSuite {
                             .adminKeyName(ADMIN)
                             .fee(ONE_HBAR)
                             .via("create-topic-admin-txn"),
-                    validateChargedUsd(
-                            "create-topic-admin-txn",
-                            ucents_to_USD(1630))
-                    ,
+                    validateChargedUsd("create-topic-admin-txn", ucents_to_USD(1630)),
                     deleteTopic("testTopic").payingWith(PAYER).fee(ONE_HBAR).via("delete-topic-txn"),
-                    validateChargedUsd(
-                            "delete-topic-txn",
-                            ucents_to_USD(505+315))
-            );
+                    validateChargedUsd("delete-topic-txn", ucents_to_USD(505 + 315)));
         }
     }
+
     @Nested
     class TopicFees {
 
@@ -346,7 +318,7 @@ public class SimpleFeesSuite {
                                     1000 // base fee for create topic
                                             + 200_000 // custom fee
                                             + 1 * 3 // node + network fee
-                            )));
+                                    )));
         }
 
         @HapiTest
