@@ -21,6 +21,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.NODE_ACCOUNT_HAS_ZERO_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
@@ -47,6 +48,7 @@ import com.hedera.node.app.fees.FeeContextImpl;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hedera.node.app.info.CurrentPlatformStatus;
+import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.signature.DefaultKeyVerifier;
 import com.hedera.node.app.signature.ExpandedSignaturePair;
 import com.hedera.node.app.signature.SignatureExpander;
@@ -229,6 +231,19 @@ public final class IngestChecker {
         }
     }
 
+    public void verifyNodeAccountBalance(ReadableStoreFactory storeFactory, Account payerAccount)
+            throws PreCheckException {
+        final var accountStore = storeFactory.getStore(ReadableAccountStore.class);
+        final var nodeAccount =
+                accountStore.getAccountById(networkInfo.selfNodeInfo().accountId());
+        if (nodeAccount == null) {
+            throw new PreCheckException(INVALID_NODE_ACCOUNT);
+        }
+        if (nodeAccount.tinybarBalance() < 1 && !isSystemAccount(payerAccount)) {
+            throw new PreCheckException(NODE_ACCOUNT_HAS_ZERO_BALANCE);
+        }
+    }
+
     /**
      * Runs all the ingest checks on a {@link Transaction}
      *
@@ -317,6 +332,7 @@ public final class IngestChecker {
             logger.warn("Payer account {} has no key, indicating a problem with state", txInfo.payerID());
             throw new PreCheckException(UNAUTHORIZED);
         }
+        verifyNodeAccountBalance(storeFactory, payer);
 
         // 6. Verify payer's signatures
         verifyPayerSignature(txInfo, payer, configuration);
@@ -553,5 +569,11 @@ public final class IngestChecker {
         if (payerKeyVerification.failed()) {
             throw new PreCheckException(INVALID_SIGNATURE);
         }
+    }
+
+    public static boolean isSystemAccount(@NonNull Account account) {
+        //        return false;
+        requireNonNull(account);
+        return account.accountIdOrThrow().accountNumOrThrow() <= 1000L;
     }
 }

@@ -27,6 +27,8 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.resourceAsStrin
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.turnLoggingOff;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.SysFileOverrideOp.Target.FEES;
 import static com.hedera.services.bdd.spec.utilops.SysFileOverrideOp.Target.THROTTLES;
 import static com.hedera.services.bdd.spec.utilops.UtilStateChange.createEthereumAccountForSpec;
@@ -39,6 +41,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_CONTRACT_SENDER;
 import static com.hedera.services.bdd.suites.HapiSuite.ETH_SUFFIX;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
@@ -936,7 +939,24 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
             status = ERROR;
             return false;
         }
+        fundNodeAccounts();
         return true;
+    }
+
+    private void fundNodeAccounts() {
+        targetNetwork.nodes().forEach(node -> {
+            final var nodeAccount = node.getAccountId();
+            if (nodeAccount != null) {
+                allRunFor(
+                        this,
+                        cryptoTransfer(movingHbar(ONE_HUNDRED_HBARS)
+                                .between(setup().defaultPayerName(), asAccountString(nodeAccount))));
+            }
+        });
+    }
+
+    private String asAccountString(final com.hedera.hapi.node.base.AccountID accountID) {
+        return String.format("%d.%d.%d", accountID.shardNum(), accountID.realmNum(), accountID.accountNum());
     }
 
     private void buildRemoteNetwork() {
