@@ -8,11 +8,7 @@ import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -760,6 +756,8 @@ public class VirtualMapStateTest extends MerkleTestBase {
             setupSteamQueue();
             virtualMap = (VirtualMap) virtualMapState.getRoot();
             virtualMapState.initializeState(steamMetadata);
+            virtualMapState.initializeState(countryMetadata);
+            virtualMapState.initializeState(fruitMetadata);
 
             addSingletonState(virtualMap, countryMetadata, GHANA);
             addKvState(virtualMap, fruitMetadata, A_KEY, APPLE);
@@ -776,8 +774,6 @@ public class VirtualMapStateTest extends MerkleTestBase {
         @Test
         @DisplayName("singletonPath returns path for existing singleton")
         void singletonPath_found() {
-            // Register the singleton metadata with the state (not strictly needed for path lookup)
-            virtualMapState.initializeState(countryMetadata);
 
             // Expected path using records.findPath on the singleton key
             final long expected = ((VirtualMap) virtualMapState.getRoot())
@@ -823,8 +819,6 @@ public class VirtualMapStateTest extends MerkleTestBase {
         @Test
         @DisplayName("singletonPath returns invalid path for unkown singleton state ID")
         void singletonPath_unknownState() {
-            // Register the singleton metadata with the state (not strictly needed for path lookup)
-            virtualMapState.initializeState(countryMetadata);
             final long actual = virtualMapState.singletonPath(rand.nextInt(65535));
             assertThat(actual).isEqualTo(INVALID_PATH);
         }
@@ -832,8 +826,6 @@ public class VirtualMapStateTest extends MerkleTestBase {
         @Test
         @DisplayName("kvPath returns path for existing kv key")
         void kvPath_found() {
-            virtualMapState.initializeState(fruitMetadata);
-
             final var kvKey = StateUtils.getStateKeyForKv(FRUIT_STATE_ID, A_KEY, ProtoBytes.PROTOBUF);
             final long expected =
                     ((VirtualMap) virtualMapState.getRoot()).getRecords().findPath(kvKey);
@@ -847,8 +839,6 @@ public class VirtualMapStateTest extends MerkleTestBase {
         @Test
         @DisplayName("kvPath lookup for non-existing key")
         void kvPath_notFound() {
-            virtualMapState.initializeState(fruitMetadata);
-
             final long actual = virtualMapState.kvPath(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(B_KEY));
             assertThat(actual).isEqualTo(INVALID_PATH);
         }
@@ -856,8 +846,6 @@ public class VirtualMapStateTest extends MerkleTestBase {
         @Test
         @DisplayName("kvPath lookup for unknown state")
         void kvPath_unknownState() {
-            virtualMapState.initializeState(fruitMetadata);
-
             final long actual = virtualMapState.kvPath(rand.nextInt(65535), ProtoBytes.PROTOBUF.toBytes(A_KEY));
             assertThat(actual).isEqualTo(INVALID_PATH);
         }
@@ -865,7 +853,6 @@ public class VirtualMapStateTest extends MerkleTestBase {
         @Test
         @DisplayName("queueElementPath returns correct path for existing element and INVALID_PATH otherwise")
         void queueElementPath_foundAndNotFound() {
-
             final var firstIdxKey = StateUtils.getStateKeyForQueue(STEAM_STATE_ID, 1);
             // normally this shouldn't be happening as we don't delete values from VM directly.
             // This is needed to cover the case when VM returns null
@@ -887,7 +874,6 @@ public class VirtualMapStateTest extends MerkleTestBase {
         @Test
         @DisplayName("queueElementPath returns INVALID_PATH for a not found value")
         void queueElementPath_notFound() {
-            virtualMapState.initializeState(steamMetadata);
             final long actual =
                     virtualMapState.queueElementPath(STEAM_STATE_ID, ProtoBytes.PROTOBUF.toBytes(DISCIPLINE));
             assertThat(actual).isEqualTo(INVALID_PATH);
@@ -896,11 +882,27 @@ public class VirtualMapStateTest extends MerkleTestBase {
         @Test
         @DisplayName("queueElementPath returns INVALID_PATH for unknown state")
         void queueElementPath_unknownState() {
-            virtualMapState.initializeState(steamMetadata);
             final int unknownStateId = rand.nextInt(65535);
             final long unknownStatePath =
                     virtualMapState.queueElementPath(unknownStateId, ProtoBytes.PROTOBUF.toBytes(CHEMISTRY));
             assertThat(unknownStatePath).isEqualTo(INVALID_PATH);
+        }
+
+        @Test
+        @DisplayName("getHashByPath for existing path")
+        void getHashByPath_existingPath() {
+            virtualMapState.getHash();
+
+            assertNotNull(virtualMapState.getHashForPath(1));
+            assertNotNull(virtualMapState.getHashForPath(3));
+            assertNotNull(virtualMapState.getHashForPath(7));
+        }
+
+        @Test
+        @DisplayName("getHashByPath for non-existent path")
+        void getHashByPath_nonExistentPath() {
+            virtualMapState.getHash();
+            assertNull(virtualMapState.getHashForPath(777));
         }
     }
 
