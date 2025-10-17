@@ -34,6 +34,7 @@ testModuleInfo {
     requires("com.swirlds.component.framework")
     requires("com.swirlds.metrics.api")
     requires("org.hiero.consensus.utility")
+    requires("awaitility")
     runtimeOnly("io.grpc.netty.shaded")
 }
 

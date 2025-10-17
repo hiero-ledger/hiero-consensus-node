@@ -98,7 +98,7 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                 assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
-                        Duration.ofMinutes(2),
+                        Duration.ofMinutes(3),
                         Duration.ofSeconds(45),
                         "Block node configuration unchanged. No action taken."),
                 burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(30)),

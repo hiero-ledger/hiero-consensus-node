@@ -332,6 +332,7 @@ jobs:
       ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }} # pass the xts-candidate tag to the JRS panel for checkout
       custom-job-name: "Mirror Node Regression"
       solo-version: ${{ vars.CITR_SOLO_VERSION }}
+      helm-release-name: "mirror" # TODO: Update this to 'mirror-1' when ${vars.CITR_SOLO_VERSION} is >= 0.44.0
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
