@@ -123,12 +123,12 @@ public class PartitionTest {
                 .isCloseTo(1.0, within(0.0001));
         final double partitionSum =
                 partitionIndices.stream().mapToDouble(weightFractions::get).sum();
-        assertThat(Threshold.STRONG_MINORITY.isSatisfiedBy(Math.round(TOTAL_NETWORK_WEIGHT * partitionSum),
-                TOTAL_NETWORK_WEIGHT))
+        assertThat(Threshold.STRONG_MINORITY.isSatisfiedBy(
+                        Math.round(TOTAL_NETWORK_WEIGHT * partitionSum), TOTAL_NETWORK_WEIGHT))
                 .withFailMessage("partition is not a strong minority")
                 .isTrue();
-        assertThat(Threshold.SUPER_MAJORITY.isSatisfiedBy(Math.round(TOTAL_NETWORK_WEIGHT * partitionSum),
-                TOTAL_NETWORK_WEIGHT))
+        assertThat(Threshold.SUPER_MAJORITY.isSatisfiedBy(
+                        Math.round(TOTAL_NETWORK_WEIGHT * partitionSum), TOTAL_NETWORK_WEIGHT))
                 .withFailMessage("partition is a super majority")
                 .isFalse();
     }
