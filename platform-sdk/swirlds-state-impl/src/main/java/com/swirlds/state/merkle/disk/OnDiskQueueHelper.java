@@ -50,15 +50,15 @@ import java.util.NoSuchElementException;
 public final class OnDiskQueueHelper<V> {
 
     /**
+     * StateValue codec to store the queue state singleton.
+     */
+    public static final StateValueCodec<QueueState> QUEUE_STATE_VALUE_CODEC =
+            new StateValueCodec<>(StateUtils.STATE_VALUE_QUEUE_STATE, QueueStateCodec.INSTANCE);
+
+    /**
      * The unique state ID for this queue.
      */
     private final int stateId;
-
-    /**
-     * StateValue codec to store the queue state singleton.
-     */
-    @NonNull
-    private final Codec<StateValue<QueueState>> queueStateValueCodec;
 
     /**
      * StateValue codec to store queue elements.
@@ -82,7 +82,6 @@ public final class OnDiskQueueHelper<V> {
     public OnDiskQueueHelper(
             final int stateId, @NonNull final Codec<V> valueCodec, @NonNull final VirtualMap virtualMap) {
         this.stateId = stateId;
-        this.queueStateValueCodec = new StateValueCodec<>(StateUtils.STATE_VALUE_QUEUE_STATE, QueueStateCodec.INSTANCE);
         this.stateValueCodec = new StateValueCodec<>(stateId, requireNonNull(valueCodec));
         this.virtualMap = requireNonNull(virtualMap);
     }
@@ -135,7 +134,7 @@ public final class OnDiskQueueHelper<V> {
      */
     public QueueState getState() {
         final Bytes queueStateKey = getStateKeyForSingleton(stateId);
-        final StateValue<QueueState> queueStateValue = virtualMap.get(queueStateKey, queueStateValueCodec);
+        final StateValue<QueueState> queueStateValue = virtualMap.get(queueStateKey, QUEUE_STATE_VALUE_CODEC);
         return queueStateValue != null ? queueStateValue.value() : null;
     }
 
@@ -147,7 +146,7 @@ public final class OnDiskQueueHelper<V> {
     public void updateState(@NonNull final QueueState state) {
         final Bytes keyBytes = getStateKeyForSingleton(stateId);
         final StateValue<QueueState> queueStateValue = getStateValueForQueueState(state);
-        virtualMap.put(keyBytes, queueStateValue, queueStateValueCodec);
+        virtualMap.put(keyBytes, queueStateValue, QUEUE_STATE_VALUE_CODEC);
     }
 
     /**

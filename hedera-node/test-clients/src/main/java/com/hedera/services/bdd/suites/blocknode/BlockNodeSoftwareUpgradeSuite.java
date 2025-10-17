@@ -5,7 +5,10 @@ import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.*;
+import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.regression.system.MixedOperations.burstOfTps;
 
 import com.hedera.node.internal.network.BlockNodeConnectionInfo;
@@ -97,7 +100,7 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                         timeRef::get,
                         Duration.ofMinutes(2),
                         Duration.ofSeconds(45),
-                        "No initial block node configuration file found. Waiting for updates."),
+                        "Block node configuration unchanged. No action taken."),
                 burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(30)),
                 // Now let's write a block-nodes.json file to the data/config directory of node 0
                 // Create block-nodes.json to establish connection
@@ -151,6 +154,74 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                         Duration.ofSeconds(45),
                         "Detected ENTRY_DELETE event for block-nodes.json.",
                         "No valid block node configurations available after file change. Connections remain stopped.")),
+                assertHgcaaLogDoesNotContain(NodeSelector.allNodes(), "ERROR", Duration.ofSeconds(5)));
+    }
+
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodePriorities = {0},
+                        blockNodeIds = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BOTH",
+                            "blockStream.writerMode", "FILE_AND_GRPC"
+                        })
+            })
+    @Order(0)
+    final Stream<DynamicTest> updateAppPropertiesWriterMode() {
+        final AtomicReference<Instant> timeRef = new AtomicReference<>(Instant.now());
+        final List<Integer> portNumbers = new ArrayList<>();
+        return hapiTest(
+                doingContextual(spec -> portNumbers.add(spec.getBlockNodePortById(0))),
+                // Verify Block Node Streaming is Active
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        timeRef::get,
+                        Duration.ofMinutes(2),
+                        Duration.ofMinutes(2),
+                        String.format(
+                                "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
+                                portNumbers.getFirst()),
+                        String.format(
+                                "Active block node connection updated to: localhost:%s", portNumbers.getFirst()))),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                doingContextual(spec -> timeRef.set(Instant.now())),
+                fileUpdate(APP_PROPERTIES)
+                        .payingWith(GENESIS)
+                        .overridingProps(Map.of("blockStream.writerMode", "FILE")),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        timeRef::get,
+                        Duration.ofMinutes(2),
+                        Duration.ofMinutes(2),
+                        "Disabling gRPC Block Node streaming as the network properties have changed writerMode from FILE_AND_GRPC to FILE only",
+                        String.format(
+                                "/localhost:%s/CLOSED] Connection state transitioned from CLOSING to CLOSED.",
+                                portNumbers.getFirst()))),
+                waitUntilNextBlocks(20).withBackgroundTraffic(true),
+                // Now that the writerMode is FILE only, let's enable gRPC streaming by changing the writerMode back to
+                // FILE_AND_GRPC
+                doingContextual(spec -> timeRef.set(Instant.now())),
+                fileUpdate(APP_PROPERTIES)
+                        .payingWith(GENESIS)
+                        .overridingProps(Map.of("blockStream.writerMode", "FILE_AND_GRPC")),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        timeRef::get,
+                        Duration.ofMinutes(2),
+                        Duration.ofMinutes(2),
+                        "Enabling gRPC Block Node streaming as the network properties have changed writerMode from FILE to FILE_AND_GRPC",
+                        "Current streaming block number is",
+                        String.format(
+                                "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
+                                portNumbers.getFirst()))),
+                waitUntilNextBlocks(20).withBackgroundTraffic(true),
+                // Verify no errors in the log after the config change and all nodes are active
+                waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(30)),
                 assertHgcaaLogDoesNotContain(NodeSelector.allNodes(), "ERROR", Duration.ofSeconds(5)));
     }
 }
