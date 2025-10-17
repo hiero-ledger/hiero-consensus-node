@@ -9,7 +9,7 @@
 | node-zxcron-main-fsts-regression.yaml                 | ZXCron: [Node] Main JRS Tests                                     |                  |                      |
 | node-zxcron-release-fsts-regression.yaml              | ZXCron: [Node] Release JRS Tests                                  |                  |                      |
 | platform-zxcron-main-jrs-regression.yaml              | ZXCron: [Platform] Main JRS Regression                            |                  |                      |
-| platform-zxcron-release-jrs-regression.yaml           | ZXCron: [Platform] Release JRS Regression"                        |                  |                      |
+| platform-zxcron-release-jrs-regression.yaml           | ZXCron: [Platform] Release JRS Regression                         |                  |                      |
 |                                                       |                                                                   |                  |                      |
 | # REUSABLE                                            |                                                                   |                  |                      |
 | zxc-block-node-regression.yaml                        | ZXC: Block Node Explorer Regression                               |                  |                      |
