@@ -43,7 +43,7 @@ public final class StateAnalyzer {
             @NonNull final Report report, @NonNull final MerkleDbDataSource vds) {
         updateReport(
                 report,
-                new MemoryIndexDiskKeyValueStoreW<>(vds.getPathToKeyValue()).getFileCollection(),
+                new MemoryIndexDiskKeyValueStoreW<>(vds.getKeyValueStore()).getFileCollection(),
                 vds.getPathToDiskLocationLeafNodes().size(),
                 Report::setPathToKeyValueReport,
                 VirtualLeafBytes::parseFrom);
@@ -66,8 +66,8 @@ public final class StateAnalyzer {
     public static void analyzePathToHashStorage(@NonNull final Report report, @NonNull final MerkleDbDataSource vds) {
         updateReport(
                 report,
-                new MemoryIndexDiskKeyValueStoreW<>(vds.getHashStoreDisk()).getFileCollection(),
-                vds.getPathToDiskLocationInternalNodes().size(),
+                new MemoryIndexDiskKeyValueStoreW<>(vds.getHashChunkStore()).getFileCollection(),
+                vds.getIdToDiskLocationHashChunks().size(),
                 Report::setPathToHashReport,
                 VirtualHashRecord::parseFrom);
     }

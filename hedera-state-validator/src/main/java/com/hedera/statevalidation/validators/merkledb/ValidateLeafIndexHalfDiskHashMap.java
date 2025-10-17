@@ -58,10 +58,10 @@ public class ValidateLeafIndexHalfDiskHashMap {
         boolean skipIncorrectBucketIndexValidation =
                 VALIDATE_INCORRECT_BUCKET_INDEX_EXCLUSIONS.contains(virtualMap.getLabel());
 
-        log.debug(vds.getHashStoreDisk().getFilesSizeStatistics());
+        log.debug(vds.getHashChunkStore().getFilesSizeStatistics());
 
         final var hdhm = new HalfDiskHashMapW(vds.getKeyToPath());
-        final var leafStore = new MemoryIndexDiskKeyValueStoreW<>(vds.getPathToKeyValue());
+        final var leafStore = new MemoryIndexDiskKeyValueStoreW<>(vds.getKeyValueStore());
         final var pathToDiskLocationLeafNodes = vds.getPathToDiskLocationLeafNodes();
         final var dfc = hdhm.getFileCollection();
         final var leafStoreDFC = leafStore.getFileCollection();

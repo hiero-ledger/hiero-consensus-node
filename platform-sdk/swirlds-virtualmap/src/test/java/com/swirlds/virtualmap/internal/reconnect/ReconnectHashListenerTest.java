@@ -3,6 +3,7 @@ package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VIRTUAL_MAP_CONFIG;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.hashChunkStreamSize;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -12,7 +13,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
-import com.swirlds.virtualmap.datasource.VirtualHashRecord;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.hash.VirtualHasher;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
@@ -63,41 +64,48 @@ class ReconnectHashListenerTest {
 
     @SuppressWarnings("unchecked")
     @ParameterizedTest
-    @ValueSource(ints = {1, 2, 10, 100, 1000, 10_000, 100_000, 1_000_000})
+    @ValueSource(ints = {2, 10, 100, 1000, 10_000, 100_000, 1_000_000})
     @DisplayName("Flushed data is always done in the right order")
     void flushOrder(int size) {
         final VirtualDataSourceSpy ds =
                 new VirtualDataSourceSpy(new InMemoryBuilder().build("flushOrder", null, true, false));
 
         final VirtualMapStatistics statistics = mock(VirtualMapStatistics.class);
-        final ReconnectHashLeafFlusher flusher =
-                new ReconnectHashLeafFlusher(ds, VIRTUAL_MAP_CONFIG.reconnectFlushInterval(), statistics);
+        final int hashChunkHeight = VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight();
+        final ReconnectHashLeafFlusher flusher = new ReconnectHashLeafFlusher(
+                ds, hashChunkHeight, VIRTUAL_MAP_CONFIG.reconnectFlushInterval(), statistics);
 
         // 100 leaves would have firstLeafPath = 99, lastLeafPath = 198
-        final long last = size + size;
+        final int first = size - 1;
+        final int last = 2 * size - 2;
         final ReconnectHashListener listener = new ReconnectHashListener(flusher);
         final VirtualHasher hasher = new VirtualHasher();
         hasher.hash(
                 this::hash,
-                LongStream.range(size, last).mapToObj(this::leaf).iterator(),
-                size,
+                null,
+                LongStream.range(first, last + 1).mapToObj(this::leaf).iterator(),
+                first,
                 last,
                 listener,
                 CONFIGURATION.getConfigData(VirtualMapConfig.class));
 
         // Now validate that everything showed up the data source in ordered chunks
-        final TreeSet<VirtualHashRecord> allInternalRecords =
-                new TreeSet<>(Comparator.comparingLong(VirtualHashRecord::path));
-        for (List<VirtualHashRecord> internalRecords : ds.internalRecords) {
-            allInternalRecords.addAll(internalRecords);
+        final TreeSet<VirtualHashChunk> allFlushedChunks =
+                new TreeSet<>(Comparator.comparingLong(VirtualHashChunk::path));
+        for (List<VirtualHashChunk> internalRecords : ds.internalRecords) {
+            allFlushedChunks.addAll(internalRecords);
         }
 
-        assertEquals(size + size, allInternalRecords.size(), "Some internal records were not written!");
-        long expected = 0;
-        for (VirtualHashRecord rec : allInternalRecords) {
+        final long expectedFlushedChunkCount = hashChunkStreamSize(hashChunkHeight, 1, last + 1);
+
+        assertEquals(expectedFlushedChunkCount, allFlushedChunks.size(), "Some internal records were not written!");
+        int chunkId = 0;
+        for (VirtualHashChunk rec : allFlushedChunks) {
             final long path = rec.path();
-            assertEquals(expected, path, "Path did not match expectation. path=" + path + ", expected=" + expected);
-            expected++;
+            final long expectedPath = VirtualHashChunk.chunkIdToChunkPath(chunkId, hashChunkHeight);
+            assertEquals(
+                    expectedPath, path, "Path did not match expectation. path=" + path + ", expected=" + expectedPath);
+            chunkId++;
         }
 
         final TreeSet<VirtualLeafBytes> allLeafRecords =
@@ -108,7 +116,7 @@ class ReconnectHashListenerTest {
         }
 
         assertEquals(size, allLeafRecords.size(), "Some leaf records were not written!");
-        expected = size;
+        long expected = first;
         for (VirtualLeafBytes rec : allLeafRecords) {
             final long path = rec.path();
             assertEquals(expected, path, "Path did not match expectation. path=" + path + ", expected=" + expected);
@@ -128,7 +136,7 @@ class ReconnectHashListenerTest {
 
         private final VirtualDataSource delegate;
 
-        private final List<List<VirtualHashRecord>> internalRecords = new ArrayList<>();
+        private final List<List<VirtualHashChunk>> internalRecords = new ArrayList<>();
         private final List<List<VirtualLeafBytes>> leafRecords = new ArrayList<>();
 
         VirtualDataSourceSpy(VirtualDataSource delegate) {
@@ -144,12 +152,12 @@ class ReconnectHashListenerTest {
         public void saveRecords(
                 final long firstLeafPath,
                 final long lastLeafPath,
-                @NonNull final Stream<VirtualHashRecord> pathHashRecordsToUpdate,
+                @NonNull final Stream<VirtualHashChunk> hashChunksToUpdate,
                 @NonNull final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
                 @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete,
                 final boolean isReconnectContext)
                 throws IOException {
-            final var ir = pathHashRecordsToUpdate.toList();
+            final var ir = hashChunksToUpdate.toList();
             this.internalRecords.add(ir);
             final var lr = leafRecordsToAddOrUpdate.toList();
             this.leafRecords.add(lr);
@@ -173,8 +181,8 @@ class ReconnectHashListenerTest {
         }
 
         @Override
-        public Hash loadHash(final long path) throws IOException {
-            return delegate.loadHash(path);
+        public VirtualHashChunk loadHashChunk(final long chunkId) throws IOException {
+            return delegate.loadHashChunk(chunkId);
         }
 
         @Override

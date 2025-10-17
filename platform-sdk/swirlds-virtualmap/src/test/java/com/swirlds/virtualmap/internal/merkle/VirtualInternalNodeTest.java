@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.merkle;
 
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VIRTUAL_MAP_CONFIG;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createHashChunkStream;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -152,7 +154,13 @@ class VirtualInternalNodeTest extends VirtualTestBase {
                 new VirtualLeafBytes<>(11, G_KEY, GRAPE, TestValueCodec.INSTANCE),
                 new VirtualLeafBytes<>(12, B_KEY, BANANA, TestValueCodec.INSTANCE));
         map.getDataSource()
-                .saveRecords(6, 12, leaves.stream().map(this::hashRecord), leaves.stream(), Stream.empty(), false);
+                .saveRecords(
+                        6,
+                        12,
+                        createHashChunkStream(VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), leaves),
+                        leaves.stream(),
+                        Stream.empty(),
+                        false);
 
         VirtualHashRecord virtualHashRecord = new VirtualHashRecord(2, null);
         VirtualInternalNode internalNode = new VirtualInternalNode(map, virtualHashRecord);
