@@ -764,6 +764,11 @@ public class BlockStreamBuilder
     }
 
     @Override
+    public StreamBuilder triggeringParentConsensus(@NonNull final Instant parentConsensus) {
+        return parentConsensus(parentConsensus);
+    }
+
+    @Override
     @NonNull
     public BlockStreamBuilder consensusTimestamp(@NonNull final Instant now) {
         this.consensusNow = requireNonNull(now, "consensus time must not be null");
