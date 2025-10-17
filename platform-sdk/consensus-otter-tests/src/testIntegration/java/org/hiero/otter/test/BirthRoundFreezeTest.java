@@ -73,5 +73,7 @@ public class BirthRoundFreezeTest {
                 .haveBirthRoundSplit(postFreezeShutdownTime, freezeRound);
 
         assertThat(network.newPcesResults()).haveBirthRoundSplit(postFreezeShutdownTime, freezeRound);
+
+        assertThat(network.newEventStreamResults()).haveEqualFiles();
     }
 }

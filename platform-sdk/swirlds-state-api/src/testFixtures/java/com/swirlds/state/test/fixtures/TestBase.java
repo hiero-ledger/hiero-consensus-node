@@ -48,7 +48,7 @@ public class TestBase {
      * classes can run in parallel while keeping the order of generated random numbers deterministic
      * between runs. If a single test class executes its methods in parallel, then beware!
      */
-    private final Random rand = new Random(9239992);
+    protected final Random rand = new Random(9239992);
 
     /**
      * Gets the random number generator used by this instance

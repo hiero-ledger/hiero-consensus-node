@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle;
 
+import static java.lang.StrictMath.toIntExact;
+
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.ProtoConstants;
@@ -97,6 +99,24 @@ public class StateKeyUtils {
             out.writeVarInt(keyCodec.measureRecord(key), false);
             // Write key
             keyCodec.write(key, out);
+            return Bytes.wrap(bout.toByteArray());
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    // K/V key: OneOf field number is K/V state ID, field value is the key
+    public static Bytes kvKey(final int stateId, final Bytes key) {
+        try (final ByteArrayOutputStream bout = new ByteArrayOutputStream()) {
+            final WritableSequentialData out = new WritableStreamingData(bout);
+            // Write tag: field number == state ID, wire type == DELIMITED
+            out.writeVarInt(
+                    (stateId << ProtoParserTools.TAG_FIELD_OFFSET) | ProtoConstants.WIRE_TYPE_DELIMITED.ordinal(),
+                    false);
+            // Write length, varint
+            out.writeVarInt(toIntExact(key.length()), false);
+            // Write key
+            out.writeBytes(key);
             return Bytes.wrap(bout.toByteArray());
         } catch (final IOException e) {
             throw new UncheckedIOException(e);

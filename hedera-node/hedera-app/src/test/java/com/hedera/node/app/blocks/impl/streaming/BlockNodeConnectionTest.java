@@ -24,16 +24,12 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.grpc.Pipeline;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodHandles.Lookup;
-import java.lang.invoke.VarHandle;
 import java.time.Duration;
 import java.util.concurrent.Flow;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
@@ -53,22 +49,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     private static final long ONCE_PER_DAY_MILLIS = Duration.ofHours(24).toMillis();
-    private static final VarHandle isStreamingEnabledHandle;
-    private static final String LOCALHOST_8080 = "localhost:8080";
-    private static final VarHandle connectionStateHandle;
-
-    static {
-        try {
-            final Lookup lookup = MethodHandles.lookup();
-            isStreamingEnabledHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
-                    .findVarHandle(BlockNodeConnectionManager.class, "isStreamingEnabled", AtomicBoolean.class);
-            connectionStateHandle = MethodHandles.privateLookupIn(BlockNodeConnection.class, lookup)
-                    .findVarHandle(BlockNodeConnection.class, "connectionState", AtomicReference.class);
-        } catch (final Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     private BlockNodeConnection connection;
     private BlockNodeConfig nodeConfig;
 
@@ -1354,15 +1334,4 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     private void resetMocks() {
         reset(connectionManager, requestPipeline, bufferService, metrics);
     }
-
-    private AtomicBoolean isStreamingEnabled() {
-        return (AtomicBoolean) isStreamingEnabledHandle.get(connectionManager);
-    }
-
-    @SuppressWarnings("unchecked")
-    private AtomicReference<ConnectionState> connectionState() {
-        return (AtomicReference<ConnectionState>) connectionStateHandle.get(connection);
-    }
-
-    private static class TracedAtomicBoolean extends AtomicBoolean {}
 }

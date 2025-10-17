@@ -5,9 +5,12 @@ import static com.swirlds.state.StateChangeListener.StateType.MAP;
 import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
+import static com.swirlds.state.merkle.disk.OnDiskQueueHelper.QUEUE_STATE_VALUE_CODEC;
+import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.Reservable;
 import com.swirlds.common.merkle.MerkleNode;
@@ -18,6 +21,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.lifecycle.StateMetadata;
@@ -27,6 +31,7 @@ import com.swirlds.state.merkle.disk.OnDiskReadableSingletonState;
 import com.swirlds.state.merkle.disk.OnDiskWritableKVState;
 import com.swirlds.state.merkle.disk.OnDiskWritableQueueState;
 import com.swirlds.state.merkle.disk.OnDiskWritableSingletonState;
+import com.swirlds.state.merkle.disk.QueueState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.EmptyReadableStates;
 import com.swirlds.state.spi.KVChangeListener;
@@ -43,6 +48,7 @@ import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -55,9 +61,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
@@ -65,7 +69,7 @@ import org.hiero.base.crypto.Hash;
 /**
  * An implementation of {@link State} backed by a single Virtual Map.
  */
-public abstract class VirtualMapState<T extends VirtualMapState<T>> implements State {
+public abstract class VirtualMapState<T extends VirtualMapState<T>> implements MerkleNodeState {
 
     public static final String VM_LABEL = "state";
 
@@ -147,7 +151,11 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
         }
     }
 
-    public void init(Time time, Metrics metrics, MerkleCryptography merkleCryptography, LongSupplier roundSupplier) {
+    public void init(
+            @NonNull Time time,
+            @NonNull Metrics metrics,
+            @NonNull MerkleCryptography merkleCryptography,
+            @NonNull LongSupplier roundSupplier) {
         this.time = time;
         this.metrics = metrics;
         this.snapshotMetrics = new MerkleRootSnapshotMetrics(metrics);
@@ -260,19 +268,6 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
         readVirtualMap = mutableCopy;
 
         return newInstance(readVirtualMap);
-    }
-
-    // MerkleNodeState interface implementation
-
-    /**
-     * @deprecated Should be removed once the MerkleStateRoot is removed along with {@code MerkleNodeState#putServiceStateIfAbsent()}
-     */
-    @Deprecated
-    public <T extends MerkleNode> void putServiceStateIfAbsent(
-            @NonNull final StateMetadata<?, ?> md,
-            @NonNull final Supplier<T> nodeSupplier,
-            @NonNull final Consumer<T> nodeInitializer) {
-        throw new UnsupportedOperationException();
     }
 
     /**
@@ -805,6 +800,48 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
                             (WritableSingletonStateBase<?>) writableStates.getSingleton(service.getKey());
                     writableSingleton.commit();
                 }));
+    }
+
+    /**
+     * {@inheritDoc}}
+     */
+    public long singletonPath(final int stateId) {
+        return virtualMap.getRecords().findPath(StateUtils.getStateKeyForSingleton(stateId));
+    }
+
+    /**
+     * {@inheritDoc}}
+     */
+    @Override
+    public long queueElementPath(final int stateId, @NonNull final Bytes expectedValue) {
+        final StateValue<QueueState> queueStateValue =
+                virtualMap.get(StateKeyUtils.queueStateKey(stateId), QUEUE_STATE_VALUE_CODEC);
+        if (queueStateValue == null) {
+            return INVALID_PATH;
+        }
+        final QueueState queueState = queueStateValue.value();
+
+        for (long i = queueState.head(); i < queueState.tail(); i++) {
+            final Bytes stateKey = StateUtils.getStateKeyForQueue(stateId, i);
+            VirtualLeafBytes<?> leafRecord = virtualMap.getRecords().findLeafRecord(stateKey);
+            if (leafRecord == null) {
+                continue;
+            }
+            Bytes actualValue = StateValue.StateValueCodec.unwrap(leafRecord.valueBytes());
+            if (actualValue.equals(expectedValue)) {
+                return leafRecord.path();
+            }
+        }
+
+        return INVALID_PATH;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long kvPath(final int stateId, @NonNull final Bytes key) {
+        return virtualMap.getRecords().findPath(StateKeyUtils.kvKey(stateId, key));
     }
 
     /**
