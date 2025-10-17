@@ -549,11 +549,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     @Override
-    public void writeItemSansLastUsedTime(@NonNull final BlockItem item) {
-        worker.addItem(item);
-    }
-
-    @Override
     public void writeItem(@NonNull final BlockItem item) {
         lastUsedTime = switch (item.item().kind()) {
             case STATE_CHANGES -> item.stateChangesOrThrow().consensusTimestampOrThrow();

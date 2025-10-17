@@ -371,8 +371,7 @@ public class HandleWorkflow {
 
             final var creator = networkInfo.nodeInfo(event.getCreatorId().id());
             TransactionStrategy strategy = TransactionStrategy.HANDLE;
-            if (platformStateStore.getLatestFreezeRound() > 0
-                    && event.getEventCore().birthRound() <= platformStateStore.getLatestFreezeRound()) {
+            if (event.getEventCore().birthRound() <= platformStateStore.getLatestFreezeRound()) {
                 strategy = TransactionStrategy.TRANSACTION_ONLY;
                 if (streamMode != RECORDS) {
                     // Include all transactions from the event in the block stream, BUT NO TRANSACTION RESULTS. We can't
@@ -383,7 +382,7 @@ public class HandleWorkflow {
                         final var txnToWrite = BlockItem.newBuilder()
                                 .signedTransaction(currentTxn.getApplicationTransaction())
                                 .build();
-                        blockStreamManager.writeItemSansLastUsedTime(txnToWrite);
+                        blockStreamManager.writeItem(txnToWrite);
                     }
                 }
             } else if (creator == null) {
