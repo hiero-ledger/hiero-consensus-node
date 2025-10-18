@@ -11,6 +11,7 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.AC
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.BYTECODE_SIDECARS_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.HAPI_RECORD_BUILDER_CONTEXT_VARIABLE;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.INVALID_ADDRESS_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.IS_HOOK_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.OPS_DURATION_COUNTER;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.PENDING_CREATION_BUILDER_CONTEXT_VARIABLE;
@@ -159,6 +160,7 @@ public class FrameBuilder {
         if (hookDispatch) {
             contextEntries.put(IS_HOOK_VARIABLE, true);
         }
+        contextEntries.put(INVALID_ADDRESS_CONTEXT_VARIABLE, new InvalidAddressContext());
         return contextEntries;
     }
 

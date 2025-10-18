@@ -12,6 +12,7 @@ import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomExtCodeHashOperation;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
+import com.hedera.node.app.service.contract.impl.exec.utils.InvalidAddressContext;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
@@ -67,6 +68,7 @@ class CustomExtCodeHashOperationTest {
     void rejectsMissingNonSystemAddressIfAllowCallFeatureFlagOff() {
         try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
             givenWellKnownFrameWith();
+            frameUtils.when(() -> FrameUtils.invalidAddressContext(frame)).thenReturn(new InvalidAddressContext());
             given(frame.getRemainingGas()).willReturn(123L);
             given(frame.getStackItem(0)).willReturn(Address.fromHexString("0x123"));
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
