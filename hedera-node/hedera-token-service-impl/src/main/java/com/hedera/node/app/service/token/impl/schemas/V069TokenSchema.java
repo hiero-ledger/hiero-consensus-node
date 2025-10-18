@@ -18,8 +18,7 @@ import java.util.Set;
 /**
  * Schema V0620: Adds the INDIRECT_KEY_USERS KV state for tracking doubly-linked lists of indirect key users.
  */
-public class V0620TokenSchema extends Schema<SemanticVersion> {
-
+public class V069TokenSchema extends Schema<SemanticVersion> {
     private static final long MAX_INDIRECT_KEY_USERS = 1_000_000L;
 
     public static final int INDIRECT_KEY_USERS_STATE_ID =
@@ -28,9 +27,9 @@ public class V0620TokenSchema extends Schema<SemanticVersion> {
     public static final String INDIRECT_KEY_USERS_STATE_LABEL = computeLabel(TokenService.NAME, INDIRECT_KEY_USERS_KEY);
 
     private static final SemanticVersion VERSION =
-            SemanticVersion.newBuilder().major(0).minor(62).patch(0).build();
+            SemanticVersion.newBuilder().major(0).minor(69).build();
 
-    public V0620TokenSchema() {
+    public V069TokenSchema() {
         super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi;
 
+import com.hedera.node.app.spi.systemtasks.SystemTaskHandler;
 import com.hedera.pbj.runtime.RpcServiceDefinition;
 import com.swirlds.state.lifecycle.Service;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -18,4 +19,12 @@ public interface RpcService extends Service {
      */
     @NonNull
     Set<RpcServiceDefinition> rpcDefinitions();
+
+    /**
+     * If this service can handle system tasks, then this method returns the system task handlers.
+     * @return The system task handlers if this service can handle system tasks.
+     */
+    default Set<SystemTaskHandler> systemTaskHandlers() {
+        return Set.of();
+    }
 }

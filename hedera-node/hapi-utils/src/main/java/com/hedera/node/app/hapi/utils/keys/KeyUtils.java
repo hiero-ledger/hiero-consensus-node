@@ -4,11 +4,13 @@ package com.hedera.node.app.hapi.utils.keys;
 import static com.hedera.node.app.hapi.utils.keys.Ed25519Utils.isValidEd25519Key;
 import static com.hedera.node.app.hapi.utils.keys.Secp256k1Utils.isValidEcdsaSecp256k1Key;
 import static com.hedera.node.app.hapi.utils.keys.Secp256k1Utils.isValidEvmAddress;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ThresholdKey;
+import com.hedera.hapi.node.state.token.Account;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -133,6 +135,17 @@ public final class KeyUtils {
         } catch (final IOException | NoSuchAlgorithmException | OperatorCreationException e) {
             throw new IllegalArgumentException(e);
         }
+    }
+
+    /**
+     * Returns the concrete key of the given account to be used for signature verification
+     * or examining other properties of the key.
+     * @param account the account
+     * @return the concrete key
+     */
+    public static @NonNull Key concreteKeyOf(@NonNull final Account account) {
+        requireNonNull(account);
+        return account.materializedKeyOrElse(account.keyOrThrow());
     }
 
     /**

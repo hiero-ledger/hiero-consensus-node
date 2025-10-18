@@ -49,6 +49,11 @@ public class PartialRecordSource implements RecordSource {
     }
 
     @Override
+    public boolean isEmpty() {
+        return precomputedRecords.isEmpty();
+    }
+
+    @Override
     public List<IdentifiedReceipt> identifiedReceipts() {
         return identifiedReceipts;
     }

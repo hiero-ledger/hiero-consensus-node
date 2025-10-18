@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_R
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PENDING_NFT_AIRDROP_ALREADY_EXISTS;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.concreteKeyOf;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.AssociateTokenRecipientsStep.PLACEHOLDER_SYNTHETIC_ASSOCIATION;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.AssociateTokenRecipientsStep.associationFeeFor;
 import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.createAccountPendingAirdrop;
@@ -240,7 +241,7 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
             final var account = accountStore.getAliasedAccountById(receiverId);
             // Missing accounts will be treated as auto-creation attempts
             if (account != null) {
-                validateTrue(isHollow(account) || canClaimAirdrop(account.keyOrThrow()), NOT_SUPPORTED);
+                validateTrue(isHollow(account) || canClaimAirdrop(concreteKeyOf(account)), NOT_SUPPORTED);
             }
         }
     }
@@ -260,7 +261,8 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
             case KEY_LIST -> key.keyListOrThrow().keys().stream().allMatch(TokenAirdropHandler::canClaimAirdrop);
             case ECDSA_SECP256K1 -> true;
             case DELEGATABLE_CONTRACT_ID -> false;
-            case INDIRECT_KEY -> true; // Treat indirect keys as claim-capable
+            case INDIRECT_KEY ->
+                throw new IllegalArgumentException("Cannot evaluate indirect key for claiming airdrop");
         };
     }
 

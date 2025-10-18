@@ -8,7 +8,7 @@ import static com.hedera.node.app.service.token.AliasUtils.extractIdFromAddressA
 import static com.hedera.node.app.service.token.AliasUtils.isEntityNumAlias;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
-import static com.hedera.node.app.service.token.impl.schemas.V0620TokenSchema.INDIRECT_KEY_USERS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V069TokenSchema.INDIRECT_KEY_USERS_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;

@@ -6,7 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.token.IndirectKeyUsersKey;
 import com.hedera.hapi.node.state.token.IndirectKeyUsersValue;
-import com.hedera.node.app.service.token.impl.schemas.V0620TokenSchema;
+import com.hedera.node.app.service.token.impl.schemas.V069TokenSchema;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -36,7 +36,7 @@ class IndirectKeyUsersStateTest {
     void insertRemovePointers() {
         // Build an in-memory writable state for INDIRECT_KEY_USERS
         final var state = MapWritableKVState.<IndirectKeyUsersKey, IndirectKeyUsersValue>builder(
-                        V0620TokenSchema.INDIRECT_KEY_USERS_STATE_ID, V0620TokenSchema.INDIRECT_KEY_USERS_STATE_LABEL)
+                        V069TokenSchema.INDIRECT_KEY_USERS_STATE_ID, V069TokenSchema.INDIRECT_KEY_USERS_STATE_LABEL)
                 .build();
 
         final var A = acct(1001);

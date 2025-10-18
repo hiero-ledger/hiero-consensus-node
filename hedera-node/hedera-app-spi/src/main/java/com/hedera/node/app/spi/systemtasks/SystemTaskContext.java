@@ -2,10 +2,13 @@
 package com.hedera.node.app.spi.systemtasks;
 
 import com.hedera.hapi.node.state.systemtask.SystemTask;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.store.StoreFactory;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import java.util.function.Consumer;
 
 /**
  * Provides context for handling a {@link SystemTask}, including access to configuration, network info, time,
@@ -45,4 +48,16 @@ public interface SystemTaskContext {
      */
     @NonNull
     Instant now();
+
+    /**
+     * Checks if there are any dispatches remaining in the current context.
+     * @return true if there are dispatches remaining, false otherwise
+     */
+    boolean hasDispatchesRemaining();
+
+    /**
+     * Dispatches a transaction to its handler on behalf of the network.
+     * @param spec the transaction to dispatch
+     */
+    <T extends StreamBuilder> T  dispatch(@NonNull Consumer<TransactionBody.Builder> spec, @NonNull Class<T> streamBuilderType);
 }

@@ -46,6 +46,7 @@ module com.hedera.node.app {
     requires com.hedera.node.app.service.network.admin;
     requires com.hedera.node.app.service.roster;
     requires com.hedera.node.app.service.util;
+    requires com.hedera.node.app;
     requires com.hedera.pbj.grpc.client.helidon;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
@@ -127,6 +128,7 @@ module com.hedera.node.app {
     exports com.hedera.node.app.records.schemas;
     exports com.hedera.node.app.ids.schemas;
     exports com.hedera.node.app.hints.schemas;
+    exports com.hedera.node.app.systemtask;
 
     provides com.swirlds.config.api.ConfigurationExtension with
             com.hedera.node.app.config.ServicesConfigExtension;

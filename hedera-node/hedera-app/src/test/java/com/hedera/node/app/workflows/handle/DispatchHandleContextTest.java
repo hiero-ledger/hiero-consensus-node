@@ -11,8 +11,6 @@ import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_C
 import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_LABEL;
 import static com.hedera.node.app.spi.authorization.SystemPrivilege.IMPERMISSIBLE;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
@@ -61,6 +59,7 @@ import com.hedera.hapi.node.consensus.ConsensusSubmitMessageTransactionBody;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.node.state.systemtask.KeyPropagation;
 import com.hedera.hapi.node.state.systemtask.SystemTask;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
@@ -106,6 +105,7 @@ import com.hedera.node.app.store.ServiceApiFactory;
 import com.hedera.node.app.store.StoreFactoryImpl;
 import com.hedera.node.app.store.WritableStoreFactory;
 import com.hedera.node.app.systemtask.SystemTaskService;
+import com.hedera.node.app.systemtask.WritableSystemTaskStore;
 import com.hedera.node.app.systemtask.schemas.V069SystemTaskSchema;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -157,8 +157,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 public class DispatchHandleContextTest extends StateTestBase implements Scenarios {
-
-    private static final Fees FEES = new Fees(1L, 2L, 3L);
     public static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L, 890);
     private static final AccountID PAYER_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(1_234).build();
@@ -206,6 +204,9 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
 
     @Mock
     private ResourcePriceCalculator resourcePriceCalculator;
+
+    @Mock
+    private WritableSystemTaskStore writableSystemTaskStore;
 
     @Mock
     private FeeManager feeManager;
@@ -359,23 +360,27 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     }
 
     @Test
-    void offersSystemTaskToQueue() {
+    void offersSystemTaskToQueueWithCapacity() {
         final var context = createContext(txBody);
-        final var task = SystemTask.newBuilder()
-                .keyPropagation(com.hedera.hapi.node.state.systemtask.KeyPropagation.newBuilder()
-                        .build())
-                .build();
+        given(writableStoreFactory.getStore(WritableSystemTaskStore.class)).willReturn(writableSystemTaskStore);
+        given(writableSystemTaskStore.numPendingTasks()).willReturn(Integer.MAX_VALUE - 1L);
+        final var task =
+                SystemTask.newBuilder().keyPropagation(KeyPropagation.DEFAULT).build();
 
         context.offer(task);
 
         // Verify the task is now at the head of the underlying queue
-        assertThat(systemTaskQueue.peek()).isEqualTo(task);
+        verify(writableSystemTaskStore).offer(task);
     }
 
-    void dispatchComputeFeesDelegatesWithBodyAndNotFree() {
-        given(dispatcher.dispatchComputeFees(any())).willReturn(FEES);
-        assertThat(subject.dispatchComputeFees(CRYPTO_TRANSFER_TXN_BODY, PAYER_ACCOUNT_ID))
-                .isSameAs(FEES);
+    @Test
+    void failsOfferingSystemTaskToQueueWithoutCapacity() {
+        final var context = createContext(txBody);
+        given(writableStoreFactory.getStore(WritableSystemTaskStore.class)).willReturn(writableSystemTaskStore);
+        given(writableSystemTaskStore.numPendingTasks()).willReturn(Long.MAX_VALUE);
+        final var task =
+                SystemTask.newBuilder().keyPropagation(KeyPropagation.DEFAULT).build();
+        assertThrows(HandleException.class, () -> context.offer(task));
     }
 
     @Test
@@ -879,14 +884,6 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                         any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(childDispatch);
         lenient().when(childDispatch.streamBuilder()).thenReturn(childRecordBuilder);
-        lenient()
-                .when(stack.getWritableStates(TokenService.NAME))
-                .thenReturn(MapWritableStates.builder()
-                        .state(MapWritableKVState.builder(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL)
-                                .build())
-                        .state(MapWritableKVState.builder(ALIASES_STATE_ID, ALIASES_STATE_LABEL)
-                                .build())
-                        .build());
         lenient().when(writableStates.<EntityNumber>getSingleton(anyInt())).thenReturn(entityNumberState);
         lenient().when(writableStates.<EntityCounts>getSingleton(anyInt())).thenReturn(entityCountsState);
         lenient().when(stack.getWritableStates(EntityIdService.NAME)).thenReturn(writableStates);

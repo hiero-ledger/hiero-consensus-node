@@ -10,7 +10,7 @@ import static org.mockito.Mockito.verify;
 import com.hedera.node.app.service.token.CryptoServiceDefinition;
 import com.hedera.node.app.service.token.TokenServiceDefinition;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
-import com.hedera.node.app.service.token.impl.schemas.V0620TokenSchema;
+import com.hedera.node.app.service.token.impl.schemas.V069TokenSchema;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.swirlds.state.lifecycle.Schema;
@@ -56,7 +56,7 @@ class TokenServiceImplTest {
         final var schemas = captor.getAllValues();
         assertThat(schemas).hasSize(4);
         assertThat(schemas.getFirst()).isInstanceOf(V0490TokenSchema.class);
-        assertThat(schemas.getLast()).isInstanceOf(V0620TokenSchema.class);
+        assertThat(schemas.getLast()).isInstanceOf(V069TokenSchema.class);
     }
 
     @Test

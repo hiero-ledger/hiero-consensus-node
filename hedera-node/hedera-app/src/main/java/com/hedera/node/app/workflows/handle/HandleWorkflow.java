@@ -1,18 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.UNCHECKED_SUBMIT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartEvent;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartRound;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartUserTransaction;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartUserTransactionPreHandleResultP2;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartUserTransactionPreHandleResultP3;
+import static com.hedera.node.app.systemtask.schemas.V069SystemTaskSchema.SYSTEM_TASK_QUEUE_STATE_ID;
 import static com.hedera.node.app.workflows.handle.TransactionType.ORDINARY_TRANSACTION;
 import static com.hedera.node.app.workflows.handle.TransactionType.POST_UPGRADE_TRANSACTION;
+import static com.hedera.node.app.workflows.handle.stack.SavepointStackImpl.castBuilder;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.system.InitTrigger.EVENT_STREAM_RECOVERY;
@@ -25,14 +29,18 @@ import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.ParentEventReference;
 import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.systemtask.SystemTask;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
+import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
@@ -61,20 +69,28 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.systemtasks.SystemTaskContext;
+import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.HederaRecordCache.DueDiligenceFailure;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ServiceApiFactory;
 import com.hedera.node.app.store.StoreFactoryImpl;
+import com.hedera.node.app.store.WritableStoreFactory;
+import com.hedera.node.app.systemtask.SystemTaskHandlers;
 import com.hedera.node.app.systemtask.SystemTaskService;
 import com.hedera.node.app.systemtask.WritableSystemTaskStore;
+import com.hedera.node.app.throttle.AppThrottleAdviser;
 import com.hedera.node.app.throttle.CongestionMetrics;
+import com.hedera.node.app.throttle.NetworkUtilizationManager;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
+import com.hedera.node.app.workflows.handle.dispatch.ChildDispatchFactory;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
+import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.app.workflows.handle.steps.HollowAccountCompletions;
 import com.hedera.node.app.workflows.handle.steps.ParentTxn;
 import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
@@ -103,6 +119,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -140,15 +158,19 @@ public class HandleWorkflow {
     private final HollowAccountCompletions hollowAccountCompletions;
     private final SystemTransactions systemTransactions;
     private final StakeInfoHelper stakeInfoHelper;
+    private final SystemTaskHandlers systemTaskHandlers;
     private final HederaRecordCache recordCache;
     private final ExchangeRateManager exchangeRateManager;
     private final StakePeriodManager stakePeriodManager;
     private final List<StateChanges.Builder> migrationStateChanges;
     private final ParentTxnFactory parentTxnFactory;
+    private final ChildDispatchFactory childDispatchFactory;
+    private final NetworkUtilizationManager networkUtilizationManager;
     private final HintsService hintsService;
     private final HistoryService historyService;
     private final ConfigProvider configProvider;
     private final ImmediateStateChangeListener immediateStateChangeListener;
+    private final BoundaryStateChangeListener boundaryStateChangeListener;
     private final ScheduleService scheduleService;
     private final CongestionMetrics congestionMetrics;
     private final CurrentPlatformStatus currentPlatformStatus;
@@ -175,6 +197,7 @@ public class HandleWorkflow {
             @NonNull final NetworkInfo networkInfo,
             @NonNull final StakePeriodChanges stakePeriodChanges,
             @NonNull final DispatchProcessor dispatchProcessor,
+            @NonNull final ChildDispatchFactory childDispatchFactory,
             @NonNull final ConfigProvider configProvider,
             @NonNull final BlockRecordManager blockRecordManager,
             @NonNull final BlockStreamManager blockStreamManager,
@@ -185,15 +208,18 @@ public class HandleWorkflow {
             @NonNull final HollowAccountCompletions hollowAccountCompletions,
             @NonNull final SystemTransactions systemTransactions,
             @NonNull final StakeInfoHelper stakeInfoHelper,
+            @NonNull final SystemTaskHandlers systemTaskHandlers,
             @NonNull final HederaRecordCache recordCache,
             @NonNull final ExchangeRateManager exchangeRateManager,
             @NonNull final StakePeriodManager stakePeriodManager,
             @NonNull final List<StateChanges.Builder> migrationStateChanges,
             @NonNull final ParentTxnFactory parentTxnFactory,
+            @NonNull final NetworkUtilizationManager networkUtilizationManager,
             @NonNull final ImmediateStateChangeListener immediateStateChangeListener,
             @NonNull final ScheduleService scheduleService,
             @NonNull final HintsService hintsService,
             @NonNull final HistoryService historyService,
+            @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
             @NonNull final CongestionMetrics congestionMetrics,
             @NonNull final CurrentPlatformStatus currentPlatformStatus,
             @NonNull final BlockHashSigner blockHashSigner,
@@ -205,6 +231,7 @@ public class HandleWorkflow {
         this.networkInfo = requireNonNull(networkInfo);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.dispatchProcessor = requireNonNull(dispatchProcessor);
+        this.childDispatchFactory = requireNonNull(childDispatchFactory);
         this.blockRecordManager = requireNonNull(blockRecordManager);
         this.blockStreamManager = requireNonNull(blockStreamManager);
         this.cacheWarmer = requireNonNull(cacheWarmer);
@@ -214,14 +241,17 @@ public class HandleWorkflow {
         this.hollowAccountCompletions = requireNonNull(hollowAccountCompletions);
         this.systemTransactions = requireNonNull(systemTransactions);
         this.stakeInfoHelper = requireNonNull(stakeInfoHelper);
+        this.systemTaskHandlers = requireNonNull(systemTaskHandlers);
         this.recordCache = requireNonNull(recordCache);
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
         this.stakePeriodManager = requireNonNull(stakePeriodManager);
         this.migrationStateChanges = new ArrayList<>(migrationStateChanges);
         this.parentTxnFactory = requireNonNull(parentTxnFactory);
         this.configProvider = requireNonNull(configProvider);
+        this.networkUtilizationManager = requireNonNull(networkUtilizationManager);
         this.immediateStateChangeListener = requireNonNull(immediateStateChangeListener);
         this.scheduleService = requireNonNull(scheduleService);
+        this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
         this.congestionMetrics = requireNonNull(congestionMetrics);
         this.streamMode = configProvider
                 .getConfiguration()
@@ -575,10 +605,10 @@ public class HandleWorkflow {
             // We execute as many schedules expiring in [lastIntervalProcessTime, consensusNow]
             // as there are available consensus times and execution slots (ordinarily there will
             // be more than enough of both, but we must be prepared for the edge cases)
-            final int remainingCapacity =
+            final var systemDispatchState =
                     executeAsManyScheduled(state, executionStart, userTxn.consensusNow(), userTxn.creatorInfo());
             // Then, within any remaining capacity, execute pending system tasks
-            doAsManyPendingTasks(state, remainingCapacity);
+            doAsManyPending(state, systemDispatchState);
         } catch (Exception e) {
             logger.error(
                     "{} - unhandled exception while executing schedules between [{}, {}]",
@@ -598,6 +628,14 @@ public class HandleWorkflow {
     }
 
     /**
+     * The state of the system dispatches.
+     * @param remaining the maximum number of dispatches remaining
+     * @param lastUsableTime the last usable time
+     * @param nextTime the next time
+     */
+    private record SystemDispatchState(int remaining, Instant lastUsableTime, Instant nextTime) {}
+
+    /**
      * Executes as many transactions scheduled to expire in the interval {@code [executionStart, consensusNow]} as
      * possible from the given state, given some context of the triggering user transaction.
      * <p>
@@ -609,8 +647,9 @@ public class HandleWorkflow {
      * @param executionStart the start of the interval to execute transactions in
      * @param consensusNow the consensus time at which the user transaction triggering this execution was processed
      * @param creatorInfo the node info of the user transaction creator
+     * @return the state of the system dispatch mechanism after executing as many scheduled transactions as possible
      */
-    private int executeAsManyScheduled(
+    private SystemDispatchState executeAsManyScheduled(
             @NonNull final State state,
             @NonNull final Instant executionStart,
             @NonNull final Instant consensusNow,
@@ -622,8 +661,7 @@ public class HandleWorkflow {
         final var config = configProvider.getConfiguration();
         final var schedulingConfig = config.getConfigData(SchedulingConfig.class);
         final var consensusConfig = config.getConfigData(ConsensusConfig.class);
-        final var reservedForSystemTasks =
-                Math.max(schedulingConfig.reservedSystemTxnNanos(), schedulingConfig.minReservedSystemTaskNanos());
+        final var reservedForSystemTasks = schedulingConfig.reservedSystemTxnNanos();
         final var lastUsableTime = consensusNow.plusNanos(schedulingConfig.consTimeSeparationNanos()
                 - reservedForSystemTasks
                 - (consensusConfig.handleMaxFollowingRecords() + consensusConfig.handleMaxPrecedingRecords() + 1));
@@ -705,16 +743,7 @@ public class HandleWorkflow {
             blockRecordManager.setLastIntervalProcessTime(executionEnd, state);
         }
 
-        // Compute remaining capacity by counting how many consensus slots remain (bounded by n)
-        int remainingCapacity = 0;
-        var cursor = nextTime;
-        int slots = n;
-        while (slots > 0 && !cursor.isAfter(lastUsableTime)) {
-            remainingCapacity++;
-            slots--;
-            cursor = cursor.plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
-        }
-        return remainingCapacity;
+        return new SystemDispatchState(n, lastUsableTime, nextTime);
     }
 
     /**
@@ -722,45 +751,61 @@ public class HandleWorkflow {
      * If the queue is empty or capacity is zero, does nothing.
      *
      * @param state the state to use to access the system task queue and stores
-     * @param capacity the maximum number of tasks to execute
+     * @param systemDispatchState the state of the system dispatches
      */
-    private void doAsManyPendingTasks(@NonNull final State state, final int capacity) {
-        if (capacity <= 0) {
+    private void doAsManyPending(@NonNull final State state, @NonNull final SystemDispatchState systemDispatchState) {
+        if (systemDispatchState.remaining() <= 0) {
             return;
         }
         final var config = configProvider.getConfiguration();
         final var consensusConfig = config.getConfigData(ConsensusConfig.class);
-
-        // Build SystemTasks bound to the current state's writable queue
-        final var entityIdWritableStates = state.getWritableStates(EntityIdService.NAME);
-        final var writableEntityIdStore = new WritableEntityIdStore(entityIdWritableStates);
-        final var systemTasksStore =
-                new WritableSystemTaskStore(state.getWritableStates(SystemTaskService.NAME), writableEntityIdStore);
-
-        int remaining = capacity;
-        Instant lastUsed = streamMode == RECORDS
-                ? blockRecordManager.lastUsedConsensusTime()
-                : blockStreamManager.lastUsedConsensusTime();
-        Instant nextTime = lastUsed.plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
-        Instant lastProcessed = null;
-
-        while (remaining > 0) {
-            final var task = systemTasksStore.poll();
+        final var n = new AtomicInteger(systemDispatchState.remaining());
+        final var nextTime = new AtomicReference<>(systemDispatchState.nextTime());
+        final var lastUsableTaskTime = systemDispatchState.lastUsableTime().minusNanos(1);
+        while (n.getAndDecrement() > 0 && !nextTime.get().isAfter(lastUsableTaskTime)) {
+            final var systemTaskStates = state.getWritableStates(SystemTaskService.NAME);
+            final var systemTaskQueue = systemTaskStates.<SystemTask>getQueue(SYSTEM_TASK_QUEUE_STATE_ID);
+            final var task = systemTaskQueue.poll();
             if (task == null) {
                 break;
             }
-            final var writableEntityIdStates = state.getWritableStates(EntityIdService.NAME);
-            final var storeFactory = StoreFactoryImpl.from(
+            // Never retry the same task so we don't get stuck; we'll log loudly if the task handler throws
+            if (systemTaskStates instanceof CommittableWritableStates committableStates) {
+                committableStates.commit();
+            }
+            if (streamMode != RECORDS) {
+                final var changes = immediateStateChangeListener.getQueueStateChanges();
+                if (!changes.isEmpty()) {
+                    blockStreamManager.writeItem((now -> BlockItem.newBuilder()
+                            .stateChanges(new StateChanges(now, new ArrayList<>(changes)))
+                            .build()));
+                }
+            }
+            final var taskStack = SavepointStackImpl.newTaskStack(
                     state,
-                    SystemTaskService.NAME,
-                    config,
-                    new WritableEntityIdStore(writableEntityIdStates),
-                    apiProviders);
-
-            // Capture the time slot for this task
-            final Instant thisTime = nextTime;
-
-            // Prepare the context for this task
+                    consensusConfig.handleMaxPrecedingRecords(),
+                    consensusConfig.handleMaxFollowingRecords(),
+                    boundaryStateChangeListener,
+                    immediateStateChangeListener,
+                    streamMode);
+            final var entityIdWritableStates = taskStack.getWritableStates(EntityIdService.NAME);
+            final var writableEntityIdStore = new WritableEntityIdStore(entityIdWritableStates);
+            final var taskStore =
+                    new WritableSystemTaskStore(state.getWritableStates(SystemTaskService.NAME), writableEntityIdStore);
+            final var registration = systemTaskHandlers.getRegistration(task);
+            if (registration == null) {
+                logger.error("{} - no handler found for system task {}", ALERT_MESSAGE, task);
+                continue;
+            }
+            final var readableStoreFactory = new ReadableStoreFactory(taskStack);
+            final var writableStoreFactory =
+                    new WritableStoreFactory(taskStack, registration.service().getServiceName(), writableEntityIdStore);
+            final var serviceApiFactory = new ServiceApiFactory(taskStack, config, apiProviders);
+            final var storeFactory =
+                    new StoreFactoryImpl(readableStoreFactory, writableStoreFactory, serviceApiFactory);
+            final var taskTime = nextTime.get();
+            final var creatorInfo = networkInfo.addressBook().getFirst();
+            final var throttleAdvisor = new AppThrottleAdviser(networkUtilizationManager, taskTime);
             final var context = new SystemTaskContext() {
                 @Override
                 public @NonNull SystemTask currentTask() {
@@ -768,8 +813,37 @@ public class HandleWorkflow {
                 }
 
                 @Override
-                public void offer(@NonNull final SystemTask t) {
-                    systemTasksStore.offer(t);
+                public boolean hasDispatchesRemaining() {
+                    return n.get() > 0;
+                }
+
+                @Override
+                public <T extends StreamBuilder> T dispatch(
+                        @NonNull Consumer<TransactionBody.Builder> spec, @NonNull Class<T> streamBuilderType) {
+                    final var dispatchTime = nextTime.get().plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
+                    final var dispatch = childDispatchFactory.createChildDispatch(
+                            config,
+                            taskStack,
+                            storeFactory.asReadOnly(),
+                            creatorInfo,
+                            UNCHECKED_SUBMIT,
+                            throttleAdvisor,
+                            dispatchTime,
+                            streamMode != RECORDS ? blockStreamManager : blockRecordManager,
+                            DispatchOptions.stepDispatch(
+                                    AccountID.DEFAULT,
+                                    TransactionBody.DEFAULT,
+                                    streamBuilderType,
+                                    NOOP_SIGNED_TX_CUSTOMIZER),
+                            null);
+                    dispatchProcessor.processDispatch(dispatch);
+                    return castBuilder(dispatch.streamBuilder(), streamBuilderType);
+                }
+
+                @Override
+                public void offer(@NonNull final SystemTask task) {
+                    requireNonNull(task);
+                    taskStore.offer(task);
                 }
 
                 @Override
@@ -784,42 +858,48 @@ public class HandleWorkflow {
 
                 @Override
                 public @NonNull Instant now() {
-                    return thisTime;
+                    return taskTime;
                 }
             };
-
             try {
-                stakePeriodManager.setCurrentStakePeriodFor(thisTime);
-                // Dispatch using a local dispatcher. Handlers may be provided by future modules; currently may be
-                // empty.
-                new com.hedera.node.app.systemtask.dispatcher.SystemTaskDispatcher(java.util.List.of())
-                        .dispatch(context);
-                // Advance and record last used consensus time
-                if (streamMode != RECORDS) {
-                    blockStreamManager.setLastTopLevelTime(thisTime);
-                } else {
-                    blockRecordManager.setLastUsedConsensusTime(thisTime, state);
+                stakePeriodManager.setCurrentStakePeriodFor(taskTime);
+                if (streamMode != BLOCKS) {
+                    blockRecordManager.startUserTransaction(taskTime, state);
                 }
-                lastProcessed = thisTime;
-            } catch (Exception e) {
-                logger.error("{} - unhandled exception while executing system task", ALERT_MESSAGE, e);
-                // Continue to the next task/slot to avoid getting stuck
-            }
-
-            // Compute next available time slot and decrement remaining capacity
-            lastUsed = streamMode == RECORDS
-                    ? blockRecordManager.lastUsedConsensusTime()
-                    : blockStreamManager.lastUsedConsensusTime();
-            nextTime = lastUsed.plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
-            remaining--;
-        }
-
-        // If we processed any tasks, update the last interval process time to the time of the last processed task
-        if (lastProcessed != null) {
-            if (streamMode != RECORDS) {
-                blockStreamManager.setLastIntervalProcessTime(lastProcessed);
-            } else {
-                blockRecordManager.setLastIntervalProcessTime(lastProcessed, state);
+                // Handle the task and commit its changes
+                registration.handler().handle(context);
+                taskStack.commitFullStack();
+                // Then externalize all its effects to the record and/or block stream
+                final var taskOutput =
+                        taskStack.buildHandleOutput(taskTime.plusNanos(1), exchangeRateManager.exchangeRates());
+                final var taskChanges =
+                        taskStack.getBaseBuilder(StreamBuilder.class).getStateChanges();
+                if (!taskChanges.isEmpty()) {
+                    blockStreamManager.writeItem((now) -> BlockItem.newBuilder()
+                            .stateChanges(new StateChanges(asTimestamp(taskTime), taskChanges))
+                            .build());
+                }
+                recordCache.addRecordSource(
+                        creatorInfo.nodeId(),
+                        TransactionID.DEFAULT,
+                        DueDiligenceFailure.NO,
+                        taskOutput.preferringBlockRecordSource());
+                if (streamMode != BLOCKS) {
+                    final var records =
+                            ((LegacyListRecordSource) taskOutput.recordSourceOrThrow()).precomputedRecords();
+                    blockRecordManager.endUserTransaction(records.stream(), state);
+                }
+                if (streamMode != RECORDS) {
+                    taskOutput.blockRecordSourceOrThrow().forEachItem(blockStreamManager::writeItem);
+                } else if (taskOutput.lastAssignedConsensusTime().isAfter(taskTime)) {
+                    blockRecordManager.setLastUsedConsensusTime(taskOutput.lastAssignedConsensusTime(), state);
+                }
+                final var nextTaskTime = streamMode == RECORDS
+                        ? blockRecordManager.lastUsedConsensusTime()
+                        : blockStreamManager.lastUsedConsensusTime().plusNanos(1);
+                nextTime.set(nextTaskTime);
+            } catch (final Exception e) {
+                logger.error("{} - unhandled exception thrown while for system task {}", ALERT_MESSAGE, task, e);
             }
         }
     }

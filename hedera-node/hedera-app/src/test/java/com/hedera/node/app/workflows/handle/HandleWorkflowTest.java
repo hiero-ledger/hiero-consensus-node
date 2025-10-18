@@ -27,6 +27,7 @@ import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
+import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
@@ -40,10 +41,12 @@ import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.state.HederaRecordCache;
+import com.hedera.node.app.systemtask.SystemTaskHandlers;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
+import com.hedera.node.app.workflows.handle.dispatch.ChildDispatchFactory;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
 import com.hedera.node.app.workflows.handle.steps.HollowAccountCompletions;
 import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
@@ -93,6 +96,9 @@ class HandleWorkflowTest {
     private HistoryService historyService;
 
     @Mock
+    private SystemTaskHandlers systemTaskHandlers;
+
+    @Mock
     private NetworkInfo networkInfo;
 
     @Mock
@@ -121,6 +127,9 @@ class HandleWorkflowTest {
 
     @Mock
     private ImmediateStateChangeListener immediateStateChangeListener;
+
+    @Mock
+    private BoundaryStateChangeListener boundaryStateChangeListener;
 
     @Mock
     private OpWorkflowMetrics opWorkflowMetrics;
@@ -157,6 +166,9 @@ class HandleWorkflowTest {
 
     @Mock
     private ParentTxnFactory parentTxnFactory;
+
+    @Mock
+    private ChildDispatchFactory childDispatchFactory;
 
     @Mock
     private CongestionMetrics congestionMetrics;
@@ -485,6 +497,7 @@ class HandleWorkflowTest {
                 networkInfo,
                 stakePeriodChanges,
                 dispatchProcessor,
+                childDispatchFactory,
                 configProvider,
                 blockRecordManager,
                 blockStreamManager,
@@ -495,6 +508,7 @@ class HandleWorkflowTest {
                 hollowAccountCompletions,
                 systemTransactions,
                 stakeInfoHelper,
+                systemTaskHandlers,
                 recordCache,
                 exchangeRateManager,
                 stakePeriodManager,
@@ -504,6 +518,7 @@ class HandleWorkflowTest {
                 scheduleService,
                 hintsService,
                 historyService,
+                boundaryStateChangeListener,
                 congestionMetrics,
                 () -> PlatformStatus.ACTIVE,
                 blockHashSigner,

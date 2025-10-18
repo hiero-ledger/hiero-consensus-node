@@ -5,12 +5,16 @@ import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.AC
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_LABEL;
+import static com.hedera.node.app.service.token.impl.schemas.V069TokenSchema.INDIRECT_KEY_USERS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V069TokenSchema.INDIRECT_KEY_USERS_STATE_LABEL;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.state.token.IndirectKeyUsersKey;
+import com.hedera.hapi.node.state.token.IndirectKeyUsersValue;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
@@ -341,6 +345,10 @@ public interface Scenarios extends TransactionFactory {
         return Map.of();
     }
 
+    default Map<IndirectKeyUsersKey, IndirectKeyUsersValue> defaultIndirectKeyUsers() {
+        return Map.of();
+    }
+
     default MapReadableKVState<AccountID, Account> defaultAccountKVState() {
         return new MapReadableKVState<>(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL, defaultAccounts());
     }
@@ -349,10 +357,16 @@ public interface Scenarios extends TransactionFactory {
         return new MapReadableKVState<>(ALIASES_STATE_ID, ALIASES_STATE_LABEL, defaultAliases());
     }
 
+    default MapReadableKVState<IndirectKeyUsersKey, IndirectKeyUsersValue> defaultsIndirectKeyUsersState() {
+        return new MapReadableKVState<>(
+                INDIRECT_KEY_USERS_STATE_ID, INDIRECT_KEY_USERS_STATE_LABEL, defaultIndirectKeyUsers());
+    }
+
     default ReadableStates defaultTokenReadableStates() {
         return MapReadableStates.builder()
                 .state(defaultAccountKVState())
                 .state(defaultAliasesKVState())
+                .state(defaultsIndirectKeyUsersState())
                 .build();
     }
 }

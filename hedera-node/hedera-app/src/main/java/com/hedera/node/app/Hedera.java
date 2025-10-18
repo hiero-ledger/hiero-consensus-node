@@ -97,6 +97,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.ConsensusStateEventHandlerImpl;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
 import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.systemtask.SystemTaskService;
 import com.hedera.node.app.throttle.AppThrottleFactory;
 import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
@@ -545,6 +546,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                         blockStreamService,
                         new FeeService(),
                         new CongestionThrottleService(),
+                        new SystemTaskService(),
                         new NetworkServiceImpl(),
                         new AddressBookServiceImpl(),
                         new RosterServiceImpl(
