@@ -13,6 +13,7 @@ package com.swirlds.demo.stats;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.MerkleProof;
 import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.constructable.ConstructableIgnored;
@@ -112,6 +113,11 @@ public class StatsDemoState extends MerkleStateRoot<StatsDemoState> implements M
 
     @Override
     public Hash getHashForPath(long path) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public MerkleProof getMerkleProof(long path) {
         throw new UnsupportedOperationException();
     }
 }
