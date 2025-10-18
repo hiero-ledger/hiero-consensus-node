@@ -503,6 +503,7 @@ jobs:
           fi
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" blocknode-values.yaml
           sed -i -e 's/cpu: 20/cpu: 8/g' -e 's/auxiliary-services/consensus-node/g' blocknode-values.yaml
+          sed -e 's/cpu: 8/cpu: 6/g' blocknode-values.yaml > blocknode-values-p2.yaml
           for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
           do
            helm upgrade --install --set name=bn-${i} --set appName=bn-${i} block-node-${i} oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator \
@@ -511,7 +512,7 @@ jobs:
           for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
           do
            helm upgrade --install --set name=bn-p2-${i} --set appName=bn-p2-${i} block-node-p2-${i} oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator \
-             --version 0.6.2 --values blocknode-values.yaml -n "${{ steps.set-namespace.outputs.namespace }}" &
+             --version 0.6.2 --values blocknode-values-p2.yaml -n "${{ steps.set-namespace.outputs.namespace }}" &
           done
           sleep 180
           wait
