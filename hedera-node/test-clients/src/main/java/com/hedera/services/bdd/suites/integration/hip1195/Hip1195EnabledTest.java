@@ -79,14 +79,12 @@ import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
@@ -153,7 +151,7 @@ public class Hip1195EnabledTest {
         testLifecycle.doAdhoc(STORAGE_SET_SLOT_HOOK.getInfo());
         testLifecycle.doAdhoc(AUTO_ASSOCIATE_HOOK.getInfo());
         testLifecycle.doAdhoc(DELEGATE_CALL_HOOK.getInfo());
-//        testLifecycle.doAdhoc(CALL_CODE_HOOK.getInfo());
+        //        testLifecycle.doAdhoc(CALL_CODE_HOOK.getInfo());
         testLifecycle.doAdhoc(STATIC_CALL_HOOK.getInfo());
 
         testLifecycle.doAdhoc(withOpContext(
@@ -167,8 +165,7 @@ public class Hip1195EnabledTest {
         return hapiTest(
                 newKeyNamed("supplyKey"),
                 cryptoCreate(PAYER),
-                cryptoCreate(OWNER)
-                        .withHooks(accountAllowanceHook(123L, AUTO_ASSOCIATE_HOOK.name())),
+                cryptoCreate(OWNER).withHooks(accountAllowanceHook(123L, AUTO_ASSOCIATE_HOOK.name())),
                 tokenCreate("token")
                         .treasury(PAYER)
                         .supplyType(TokenSupplyType.FINITE)
@@ -177,25 +174,22 @@ public class Hip1195EnabledTest {
                         .maxSupply(1000L),
                 mintToken("token", 10),
                 getAccountInfo(OWNER),
-                withOpContext(
-                        (spec, opLog) -> payerMirror.set(unhex(asHexedSolidityAddress(spec.registry().getAccountID(PAYER))))),
+                withOpContext((spec, opLog) -> payerMirror.set(
+                        unhex(asHexedSolidityAddress(spec.registry().getAccountID(PAYER))))),
                 sourcing(() -> accountLambdaSStore(OWNER, 123L)
                         .putMappingEntry(
                                 mappingSlot,
                                 LambdaMappingEntry.newBuilder()
                                         .key(Bytes.wrap(payerMirror.get()))
-                                        .value(Bytes.wrap(new byte[]{(byte) 0x01}))
+                                        .value(Bytes.wrap(new byte[] {(byte) 0x01}))
                                         .build())
                         .signedBy(DEFAULT_PAYER, OWNER)),
                 cryptoTransfer(TokenMovement.moving(10, "token").between(PAYER, OWNER))
                         .withPreHookFor(OWNER, 123L, 5_000_000L, "")
                         .payingWith(PAYER)
                         .via("associateAndXferTxn"),
-                getTxnRecord("associateAndXferTxn")
-                        .andAllChildRecords()
-                        .logged(),
+                getTxnRecord("associateAndXferTxn").andAllChildRecords().logged(),
                 getAccountInfo(OWNER).logged());
-
     }
 
     @HapiTest
@@ -205,8 +199,7 @@ public class Hip1195EnabledTest {
         return hapiTest(
                 newKeyNamed("supplyKey"),
                 cryptoCreate(PAYER),
-                cryptoCreate(OWNER)
-                        .withHooks(accountAllowanceHook(123L, DELEGATE_CALL_HOOK.name())),
+                cryptoCreate(OWNER).withHooks(accountAllowanceHook(123L, DELEGATE_CALL_HOOK.name())),
                 tokenCreate("token")
                         .treasury(PAYER)
                         .supplyType(TokenSupplyType.FINITE)
@@ -215,14 +208,13 @@ public class Hip1195EnabledTest {
                         .maxSupply(1000L),
                 mintToken("token", 10),
                 withOpContext((spec, opLog) -> payerMirror.set(
-                        unhex(asHexedSolidityAddress(spec.registry().getAccountID(PAYER)))
-                )),
+                        unhex(asHexedSolidityAddress(spec.registry().getAccountID(PAYER))))),
                 sourcing(() -> accountLambdaSStore(OWNER, 123L)
                         .putMappingEntry(
                                 mappingSlot,
                                 LambdaMappingEntry.newBuilder()
                                         .key(Bytes.wrap(payerMirror.get()))
-                                        .value(Bytes.wrap(new byte[]{(byte) 0x01}))
+                                        .value(Bytes.wrap(new byte[] {(byte) 0x01}))
                                         .build())
                         .signedBy(DEFAULT_PAYER, OWNER)),
                 // DELEGATECALL executes the target code in the caller's storage context
@@ -237,9 +229,9 @@ public class Hip1195EnabledTest {
                         .via("delegateCallTxn"),
                 getTxnRecord("delegateCallTxn")
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().contractCallResult(resultWith().error("INVALID_OPERATION"))),
-                getAccountInfo(OWNER).hasNoTokenRelationship("token")
-        );
+                        .hasChildRecords(
+                                recordWith().contractCallResult(resultWith().error("INVALID_OPERATION"))),
+                getAccountInfo(OWNER).hasNoTokenRelationship("token"));
     }
 
     @HapiTest
@@ -249,8 +241,7 @@ public class Hip1195EnabledTest {
         return hapiTest(
                 newKeyNamed("supplyKey"),
                 cryptoCreate(PAYER),
-                cryptoCreate(OWNER)
-                        .withHooks(accountAllowanceHook(123L, STATIC_CALL_HOOK.name())),
+                cryptoCreate(OWNER).withHooks(accountAllowanceHook(123L, STATIC_CALL_HOOK.name())),
                 tokenCreate("token")
                         .treasury(PAYER)
                         .supplyType(TokenSupplyType.FINITE)
@@ -259,14 +250,13 @@ public class Hip1195EnabledTest {
                         .maxSupply(1000L),
                 mintToken("token", 10),
                 withOpContext((spec, opLog) -> payerMirror.set(
-                        unhex(asHexedSolidityAddress(spec.registry().getAccountID(PAYER)))
-                )),
+                        unhex(asHexedSolidityAddress(spec.registry().getAccountID(PAYER))))),
                 sourcing(() -> accountLambdaSStore(OWNER, 123L)
                         .putMappingEntry(
                                 mappingSlot,
                                 LambdaMappingEntry.newBuilder()
                                         .key(Bytes.wrap(payerMirror.get()))
-                                        .value(Bytes.wrap(new byte[]{(byte) 0x01}))
+                                        .value(Bytes.wrap(new byte[] {(byte) 0x01}))
                                         .build())
                         .signedBy(DEFAULT_PAYER, OWNER)),
                 // STATICCALL is read-only. The low-level self-call returns ok=false,
@@ -288,8 +278,7 @@ public class Hip1195EnabledTest {
                 getTxnRecord("staticCallWithAssociation")
                         .andAllChildRecords()
                         .hasChildRecords(recordWith().status(SUCCESS))
-                        .logged()
-        );
+                        .logged());
     }
 
     @HapiTest
@@ -430,7 +419,7 @@ public class Hip1195EnabledTest {
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
                 // Change the hook storage's zero slot to 0x01 so that the hook returns true
                 accountLambdaSStore(OWNER, 124L)
-                        .putSlot(Bytes.EMPTY, Bytes.wrap(new byte[]{(byte) 0x01}))
+                        .putSlot(Bytes.EMPTY, Bytes.wrap(new byte[] {(byte) 0x01}))
                         .signedBy(DEFAULT_PAYER, OWNER),
                 // now the transfer works
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
@@ -464,9 +453,9 @@ public class Hip1195EnabledTest {
         final var passHash32 = Bytes.wrap(keccak256(org.apache.tuweni.bytes.Bytes.wrap(passcode.getBytes(UTF_8)))
                 .toArray());
         final var correctPassword =
-                ByteString.copyFrom(encodeParametersForConstructor(new Object[]{passcode}, STRING_ABI));
+                ByteString.copyFrom(encodeParametersForConstructor(new Object[] {passcode}, STRING_ABI));
         final var wrongPassword =
-                ByteString.copyFrom(encodeParametersForConstructor(new Object[]{"wrong password"}, STRING_ABI));
+                ByteString.copyFrom(encodeParametersForConstructor(new Object[] {"wrong password"}, STRING_ABI));
 
         return hapiTest(
                 cryptoCreate(OWNER).withHooks(accountAllowanceHook(124L, STORAGE_SET_SLOT_HOOK.name())),
@@ -751,9 +740,9 @@ public class Hip1195EnabledTest {
                         .fee(ONE_HBAR)
                         .via(txnFromTreasury),
                 cryptoTransfer(
-                        movingUnique(westWindArt, 1L).between(amelie, alice),
-                        moving(200, usdc).distributing(alice, amelie, "receiverUsdc"),
-                        movingHbar(10 * ONE_HUNDRED_HBARS).between(alice, amelie))
+                                movingUnique(westWindArt, 1L).between(amelie, alice),
+                                moving(200, usdc).distributing(alice, amelie, "receiverUsdc"),
+                                movingHbar(10 * ONE_HUNDRED_HBARS).between(alice, amelie))
                         .withPreHookFor("AMELIE", 124L, 25_000L, "")
                         .signedBy(amelie, alice)
                         .payingWith(amelie)
@@ -881,8 +870,7 @@ public class Hip1195EnabledTest {
         return hapiTest(
                 newKeyNamed("supplyKey"),
                 cryptoCreate(PAYER),
-                cryptoCreate(OWNER)
-                        .withHooks(accountAllowanceHook(127L, DELEGATE_CALL_HOOK.name())),
+                cryptoCreate(OWNER).withHooks(accountAllowanceHook(127L, DELEGATE_CALL_HOOK.name())),
                 tokenCreate("nftToken")
                         .treasury(PAYER)
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
@@ -896,14 +884,13 @@ public class Hip1195EnabledTest {
                                 .mapToObj(a -> ByteString.copyFromUtf8("NFT_" + a))
                                 .toList()),
                 withOpContext((spec, opLog) -> payerMirror.set(
-                        unhex(asHexedSolidityAddress(spec.registry().getAccountID(PAYER)))
-                )),
+                        unhex(asHexedSolidityAddress(spec.registry().getAccountID(PAYER))))),
                 sourcing(() -> accountLambdaSStore(OWNER, 127L)
                         .putMappingEntry(
                                 mappingSlot,
                                 LambdaMappingEntry.newBuilder()
                                         .key(Bytes.wrap(payerMirror.get()))
-                                        .value(Bytes.wrap(new byte[]{(byte) 0x01}))
+                                        .value(Bytes.wrap(new byte[] {(byte) 0x01}))
                                         .build())
                         .signedBy(DEFAULT_PAYER, OWNER)),
                 // NFT transfer with DELEGATECALL hook
@@ -912,12 +899,13 @@ public class Hip1195EnabledTest {
                 cryptoTransfer(TokenMovement.movingUnique("nftToken", 1L).between(PAYER, OWNER))
                         .withPreHookFor(OWNER, 127L, 5_000_000L, "")
                         .payingWith(PAYER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("nftDelegateCallTxn"),
                 getTxnRecord("nftDelegateCallTxn")
                         .andAllChildRecords()
-                        .logged(),
-                getAccountInfo(OWNER).logged()
-        );
+                        .hasChildRecords(
+                                recordWith().contractCallResult(resultWith().error("INVALID_OPERATION"))),
+                getAccountInfo(OWNER).logged());
     }
 
     @HapiTest
@@ -927,8 +915,7 @@ public class Hip1195EnabledTest {
         return hapiTest(
                 newKeyNamed("supplyKey"),
                 cryptoCreate(PAYER),
-                cryptoCreate(OWNER)
-                        .withHooks(accountAllowanceHook(128L, CALL_CODE_HOOK.name())),
+                cryptoCreate(OWNER).withHooks(accountAllowanceHook(128L, CALL_CODE_HOOK.name())),
                 tokenCreate("nftToken")
                         .treasury(PAYER)
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
@@ -942,14 +929,13 @@ public class Hip1195EnabledTest {
                                 .mapToObj(a -> ByteString.copyFromUtf8("NFT_" + a))
                                 .toList()),
                 withOpContext((spec, opLog) -> payerMirror.set(
-                        unhex(asHexedSolidityAddress(spec.registry().getAccountID(PAYER)))
-                )),
+                        unhex(asHexedSolidityAddress(spec.registry().getAccountID(PAYER))))),
                 sourcing(() -> accountLambdaSStore(OWNER, 128L)
                         .putMappingEntry(
                                 mappingSlot,
                                 LambdaMappingEntry.newBuilder()
                                         .key(Bytes.wrap(payerMirror.get()))
-                                        .value(Bytes.wrap(new byte[]{(byte) 0x01}))
+                                        .value(Bytes.wrap(new byte[] {(byte) 0x01}))
                                         .build())
                         .signedBy(DEFAULT_PAYER, OWNER)),
                 // NFT transfer with CALLCODE hook
@@ -959,11 +945,8 @@ public class Hip1195EnabledTest {
                         .withPreHookFor(OWNER, 128L, 5_000_000L, "")
                         .payingWith(PAYER)
                         .via("nftCallCodeTxn"),
-                getTxnRecord("nftCallCodeTxn")
-                        .andAllChildRecords()
-                        .logged(),
-                getAccountInfo(OWNER).logged()
-        );
+                getTxnRecord("nftCallCodeTxn").andAllChildRecords().logged(),
+                getAccountInfo(OWNER).logged());
     }
 
     @HapiTest
@@ -973,8 +956,7 @@ public class Hip1195EnabledTest {
         return hapiTest(
                 newKeyNamed("supplyKey"),
                 cryptoCreate(PAYER),
-                cryptoCreate(OWNER)
-                        .withHooks(accountAllowanceHook(129L, STATIC_CALL_HOOK.name())),
+                cryptoCreate(OWNER).withHooks(accountAllowanceHook(129L, STATIC_CALL_HOOK.name())),
                 tokenCreate("nftToken")
                         .treasury(PAYER)
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
@@ -988,14 +970,13 @@ public class Hip1195EnabledTest {
                                 .mapToObj(a -> ByteString.copyFromUtf8("NFT_" + a))
                                 .toList()),
                 withOpContext((spec, opLog) -> payerMirror.set(
-                        unhex(asHexedSolidityAddress(spec.registry().getAccountID(PAYER)))
-                )),
+                        unhex(asHexedSolidityAddress(spec.registry().getAccountID(PAYER))))),
                 sourcing(() -> accountLambdaSStore(OWNER, 129L)
                         .putMappingEntry(
                                 mappingSlot,
                                 LambdaMappingEntry.newBuilder()
                                         .key(Bytes.wrap(payerMirror.get()))
-                                        .value(Bytes.wrap(new byte[]{(byte) 0x01}))
+                                        .value(Bytes.wrap(new byte[] {(byte) 0x01}))
                                         .build())
                         .signedBy(DEFAULT_PAYER, OWNER)),
                 // NFT transfer with STATICCALL hook
@@ -1004,12 +985,23 @@ public class Hip1195EnabledTest {
                 cryptoTransfer(TokenMovement.movingUnique("nftToken", 1L).between(PAYER, OWNER))
                         .withPreHookFor(OWNER, 129L, 5_000_000L, "")
                         .payingWith(PAYER)
+                        .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT)
                         .via("nftStaticCallTxn"),
                 getTxnRecord("nftStaticCallTxn")
                         .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(REVERTED_SUCCESS))
                         .logged(),
-                getAccountInfo(OWNER).logged()
-        );
+                getAccountInfo(OWNER).logged(),
+                tokenAssociate(OWNER, "nftToken"),
+                cryptoTransfer(TokenMovement.movingUnique("nftToken", 1L).between(PAYER, OWNER))
+                        .withPreHookFor(OWNER, 129L, 5_000_000L, "")
+                        .payingWith(PAYER)
+                        .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT)
+                        .via("nftStaticCallTxnWithAssociation"),
+                getTxnRecord("nftStaticCallTxnWithAssociation")
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS))
+                        .logged());
     }
 
     @HapiTest
@@ -1269,7 +1261,7 @@ public class Hip1195EnabledTest {
                                 mappingSlot,
                                 LambdaMappingEntry.newBuilder()
                                         .key(minimalKey(Bytes.wrap(defaultPayerMirror.get())))
-                                        .value(Bytes.wrap(new byte[]{(byte) 0x01}))
+                                        .value(Bytes.wrap(new byte[] {(byte) 0x01}))
                                         .build())
                         .signedBy(DEFAULT_PAYER, OWNER)),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
