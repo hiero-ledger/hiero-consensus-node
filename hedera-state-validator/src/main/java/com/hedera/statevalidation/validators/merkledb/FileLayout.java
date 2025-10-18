@@ -36,19 +36,25 @@ public class FileLayout {
 
     // internalHashStoreDisk templates
     private static final String INTERNAL_HASH_METADATA_TMPL =
-            ".*%1$s-\\d+.internalHashStoreDisk.%1$s_internalhashes_metadata[.]pbj";
+            ".*data.state.internalHashStoreDisk.state_internalhashes_metadata[.]pbj";
+    private static final String INTERNAL_HASH_STORE_TMPL =
+            ".*data.state.internalHashStoreDisk.state_internalhashes_\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}-\\d{3}[_]+\\d+[.]pbj";
 
     // objectKeyToPath templates
     private static final String OBJECT_KEY_TO_PATH_BUCKET_INDEX_TMPL =
             ".*%1$s-\\d+.objectKeyToPath.%1$s_objectkeytopath_bucket_index[.]ll";
     private static final String OBJECT_KEY_TO_PATH_METADATA_TMPL =
-            ".*%1$s-\\d+.objectKeyToPath.%1$s_objectkeytopath_metadata[.]pbj";
+            ".*data.state.objectKeyToPath.state_objectkeytopath_metadata[.]pbj";
+    private static final String OBJECT_KEY_TO_PATH_STORE_TMPL =
+            ".*data.state.objectKeyToPath.state_objectkeytopath_\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}-\\d{3}[_]+\\d+[.]pbj";
     private static final String OBJECT_KEY_TO_PATH_METADATA_HDHM_TMPL =
             ".*%1$s-\\d+.objectKeyToPath.%1$s_objectkeytopath_metadata[.]hdhm";
 
     // pathToHashKeyValue templates
     private static final String PATH_TO_HASH_KEY_VALUE_METADATA_TMPL =
-            ".*%1$s-\\d+.pathToHashKeyValue.%1$s_pathtohashkeyvalue_metadata.*[.]pbj";
+            ".*data.state.pathToHashKeyValue.state_pathtohashkeyvalue_metadata.*[.]pbj";
+    private static final String PATH_TO_HASH_KEY_VALUE_STORE_TMPL =
+            ".*data.state.pathToHashKeyValue.state_pathtohashkeyvalue_\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}-\\d{3}[_]+\\d+[.]pbj";
 
     // metadata
     private static final String METADATA_PBJ_TMPL = ".*%1$s-\\d+.table_metadata[.]pbj";
@@ -119,14 +125,17 @@ public class FileLayout {
 
     private List<OptionalPattern> indexPathsToMatch(String vmName) {
         return Stream.of(
-                        format(INTERNAL_HASH_METADATA_TMPL, vmName),
-                        format(OBJECT_KEY_TO_PATH_BUCKET_INDEX_TMPL, vmName),
-                        format(OBJECT_KEY_TO_PATH_METADATA_TMPL, vmName),
-                        format(OBJECT_KEY_TO_PATH_METADATA_HDHM_TMPL, vmName),
-                        format(PATH_TO_HASH_KEY_VALUE_METADATA_TMPL, vmName),
-                        format(METADATA_PBJ_TMPL, vmName),
-                        format(PATH_TO_DISK_INTERNAL_TMPL, vmName),
-                        format(PATH_TO_DISK_LEAF_TMPL, vmName))
+                        INTERNAL_HASH_METADATA_TMPL,
+                        INTERNAL_HASH_STORE_TMPL,
+                        OBJECT_KEY_TO_PATH_BUCKET_INDEX_TMPL,
+                        OBJECT_KEY_TO_PATH_METADATA_TMPL,
+                        OBJECT_KEY_TO_PATH_STORE_TMPL,
+                        OBJECT_KEY_TO_PATH_METADATA_HDHM_TMPL,
+                        PATH_TO_HASH_KEY_VALUE_METADATA_TMPL,
+                        PATH_TO_HASH_KEY_VALUE_STORE_TMPL,
+                        METADATA_PBJ_TMPL,
+                        PATH_TO_DISK_INTERNAL_TMPL,
+                        PATH_TO_DISK_LEAF_TMPL)
                 .map(Pattern::compile)
                 .map(v -> new OptionalPattern(v, false))
                 .toList();

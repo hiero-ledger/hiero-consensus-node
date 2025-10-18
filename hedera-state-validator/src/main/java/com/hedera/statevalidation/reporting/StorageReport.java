@@ -2,30 +2,30 @@
 package com.hedera.statevalidation.reporting;
 
 public class StorageReport {
-    long minPath;
-    long maxPath;
+    private long minKey;
+    private long maxKey;
 
-    long onDiskSizeInMb;
-    long numberOfStorageFiles;
+    private long onDiskSizeInMb;
+    private long numberOfStorageFiles;
 
-    double wastePercentage;
-    long duplicateItems;
-    long itemCount;
+    private double wastePercentage;
+    private long duplicateItems;
+    private long itemCount;
 
-    public long minPath() {
-        return minPath;
+    public long minKey() {
+        return minKey;
     }
 
-    public void setMinPath(final long minPath) {
-        this.minPath = minPath;
+    public void setMinKey(final long minKey) {
+        this.minKey = minKey;
     }
 
-    public long maxPath() {
-        return maxPath;
+    public long maxKey() {
+        return maxKey;
     }
 
-    public void setMaxPath(final long maxPath) {
-        this.maxPath = maxPath;
+    public void setMaxKey(final long maxKey) {
+        this.maxKey = maxKey;
     }
 
     public long onDiskSizeInMb() {
@@ -72,7 +72,7 @@ public class StorageReport {
     public String toString() {
         StringBuilder sb = new StringBuilder();
 
-        sb.append(String.format("  Path Range: %d to %d\n", minPath, maxPath));
+        sb.append(String.format("  Key Range: %d to %d\n", minKey, maxKey));
         sb.append(String.format("  Size: %d MB\n", onDiskSizeInMb));
         sb.append(String.format("  Files: %d\n", numberOfStorageFiles));
         sb.append(String.format("  Items: %,d\n", itemCount));

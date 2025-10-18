@@ -1,20 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation;
 
-import static picocli.CommandLine.*;
-
-import com.hedera.statevalidation.exporters.JsonExporter;
+import com.hedera.hapi.platform.state.SingletonType;
+import com.hedera.hapi.platform.state.StateKey;
+import com.hedera.statevalidation.exporters.SortedJsonExporter;
 import com.hedera.statevalidation.parameterresolver.StateResolver;
+import com.swirlds.base.utility.Pair;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.virtualmap.VirtualMap;
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
+import picocli.CommandLine.ParentCommand;
 
-@Command(name = "export", description = "Exports the state.")
-public class ExportCommand implements Runnable {
+@Command(name = "sorted-export", description = "Exports the state in a sorted way.")
+public class SortedExportCommand implements Runnable {
 
     public static final int MAX_OBJ_PER_FILE = Integer.parseInt(System.getProperty("maxObjPerFile", "1000000"));
-    public static final boolean PRETTY_PRINT_ENABLED = Boolean.parseBoolean(System.getProperty("prettyPrint", "false"));
 
     @ParentCommand
     private StateOperatorCommand parent;
@@ -53,9 +58,35 @@ public class ExportCommand implements Runnable {
 
         ((VirtualMap) state.getRoot()).getDataSource().stopAndDisableBackgroundCompaction();
 
-        final JsonExporter exporter = new JsonExporter(resultDir, state, serviceName, stateName);
-        exporter.export();
+        if (serviceName == null) {
+            // processing all
+            final SortedJsonExporter exporter =
+                    new SortedJsonExporter(resultDir, state, prepareServiceNameAndStateKeys());
+            exporter.export();
+        } else {
+            final SortedJsonExporter exporter = new SortedJsonExporter(resultDir, state, serviceName, stateName);
+            exporter.export();
+        }
 
         System.out.printf("Total time is  %d seconds. \n", (System.currentTimeMillis() - start) / 1000);
+    }
+
+    private List<Pair<String, String>> prepareServiceNameAndStateKeys() {
+        List<Pair<String, String>> serviceNameAndStateKeys = new ArrayList<>();
+        for (StateKey.KeyOneOfType value : StateKey.KeyOneOfType.values()) {
+            extractStateName(value.protoName(), serviceNameAndStateKeys);
+        }
+        for (SingletonType singletonType : SingletonType.values()) {
+            extractStateName(singletonType.protoName(), serviceNameAndStateKeys);
+        }
+
+        return serviceNameAndStateKeys;
+    }
+
+    private static void extractStateName(String value, List<Pair<String, String>> serviceNameAndStateKeys) {
+        String[] serviceNameStateKey = value.split("_I_");
+        if (serviceNameStateKey.length == 2) {
+            serviceNameAndStateKeys.add(Pair.of(serviceNameStateKey[0], serviceNameStateKey[1]));
+        }
     }
 }
