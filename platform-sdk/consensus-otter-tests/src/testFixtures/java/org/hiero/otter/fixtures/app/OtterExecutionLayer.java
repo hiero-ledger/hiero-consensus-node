@@ -47,8 +47,8 @@ public class OtterExecutionLayer implements ExecutionLayer {
     @Override
     public void submitStateSignature(@NonNull final StateSignatureTransaction transaction) {
         transactionPool.submitPriorityTransaction(
-                Bytes.wrap(TransactionFactory.createStateSignatureTransaction(random.nextLong(), transaction)
-                        .toByteArray()));
+                OtterTransaction.PROTOBUF.toBytes(
+                        TransactionFactory.createStateSignatureTransaction(random.nextLong(), transaction)));
     }
 
     /**
