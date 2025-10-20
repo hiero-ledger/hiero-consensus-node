@@ -3,7 +3,7 @@ package com.swirlds.platform.reconnect;
 
 import static com.swirlds.common.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
-import static com.swirlds.platform.reconnect.StateSyncLearner.endReconnectHandshake;
+import static com.swirlds.platform.reconnect.ReconnectStateSyncLearner.endReconnectHandshake;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
@@ -31,13 +31,12 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
- * This class encapsulates reconnect logic for the up to date node which is helping an out of date node obtain a recent
- * state.
+ * This class encapsulates logic for transmitting the up-to-date state to a peer that has an out-of-date state.
  */
-public class StateSyncTeacher {
+public class ReconnectStateSyncTeacher {
 
     /** use this for all logging, as controlled by the optional data/log4j2.xml file */
-    private static final Logger logger = LogManager.getLogger(StateSyncTeacher.class);
+    private static final Logger logger = LogManager.getLogger(ReconnectStateSyncTeacher.class);
 
     private final Connection connection;
     private final Duration reconnectSocketTimeout;
@@ -71,7 +70,7 @@ public class StateSyncTeacher {
      * @param statistics             reconnect metrics
      * @param platformStateFacade    the facade to access the platform state
      */
-    public StateSyncTeacher(
+    public ReconnectStateSyncTeacher(
             @NonNull final PlatformContext platformContext,
             @NonNull final Time time,
             @NonNull final ThreadManager threadManager,
@@ -100,23 +99,23 @@ public class StateSyncTeacher {
     /**
      * increase socketTimout before performing reconnect
      *
-     * @throws StateSyncException thrown when there is an error in the underlying protocol
+     * @throws ReconnectStateSyncException thrown when there is an error in the underlying protocol
      */
-    private void increaseSocketTimeout() throws StateSyncException {
+    private void increaseSocketTimeout() throws ReconnectStateSyncException {
         try {
             originalSocketTimeout = connection.getTimeout();
             connection.setTimeout(reconnectSocketTimeout.toMillis());
         } catch (final SocketException e) {
-            throw new StateSyncException(e);
+            throw new ReconnectStateSyncException(e);
         }
     }
 
     /**
      * Reset socketTimeout to original value
      *
-     * @throws StateSyncException thrown when there is an error in the underlying protocol
+     * @throws ReconnectStateSyncException thrown when there is an error in the underlying protocol
      */
-    private void resetSocketTimeout() throws StateSyncException {
+    private void resetSocketTimeout() throws ReconnectStateSyncException {
         if (!connection.connected()) {
             logger.debug(
                     RECONNECT.getMarker(),
@@ -129,17 +128,17 @@ public class StateSyncTeacher {
         try {
             connection.setTimeout(originalSocketTimeout);
         } catch (final SocketException e) {
-            throw new StateSyncException(e);
+            throw new ReconnectStateSyncException(e);
         }
     }
 
     /**
      * Perform the reconnect operation.
      *
-     * @throws StateSyncException thrown when current thread is interrupted, or when any I/O related errors occur, or
+     * @throws ReconnectStateSyncException thrown when current thread is interrupted, or when any I/O related errors occur, or
      *                            when there is an error in the underlying protocol
      */
-    public void execute(final SignedState signedState) throws StateSyncException {
+    public void execute(final SignedState signedState) throws ReconnectStateSyncException {
 
         // If the connection object to be used here has been disconnected on another thread, we can
         // not reconnect with this connection.
@@ -160,9 +159,9 @@ public class StateSyncTeacher {
             endReconnectHandshake(connection);
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new StateSyncException(e);
+            throw new ReconnectStateSyncException(e);
         } catch (final IOException e) {
-            throw new StateSyncException(e);
+            throw new ReconnectStateSyncException(e);
         } finally {
             resetSocketTimeout();
         }

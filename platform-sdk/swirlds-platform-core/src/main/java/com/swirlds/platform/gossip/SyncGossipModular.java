@@ -28,8 +28,8 @@ import com.swirlds.platform.network.protocol.AbstractSyncProtocol;
 import com.swirlds.platform.network.protocol.HeartbeatProtocol;
 import com.swirlds.platform.network.protocol.Protocol;
 import com.swirlds.platform.network.protocol.ProtocolRunnable;
+import com.swirlds.platform.network.protocol.ReconnectStateSyncProtocol;
 import com.swirlds.platform.network.protocol.ReservedSignedStatePromise;
-import com.swirlds.platform.network.protocol.StateSyncProtocol;
 import com.swirlds.platform.network.protocol.SyncProtocol;
 import com.swirlds.platform.network.protocol.rpc.RpcProtocol;
 import com.swirlds.platform.reconnect.FallenBehindMonitor;
@@ -187,11 +187,11 @@ public class SyncGossipModular implements Gossip {
                     syncMetrics);
         }
 
-        final StateSyncProtocol stateSyncProtocol = createStateSyncProtocol(
+        final ReconnectStateSyncProtocol reconnectStateSyncProtocol = createStateSyncProtocol(
                 platformContext, threadManager, latestCompleteState, platformStateFacade, reservedSignedStatePromise);
         this.protocols = ImmutableList.of(
                 HeartbeatProtocol.create(platformContext, this.network.getNetworkMetrics()),
-                stateSyncProtocol,
+                reconnectStateSyncProtocol,
                 syncProtocol);
 
         final VersionCompareHandshake versionCompareHandshake =
@@ -210,7 +210,7 @@ public class SyncGossipModular implements Gossip {
      * @param platformStateFacade           the facade to access the platform state
      * @return constructed ReconnectProtocol
      */
-    public StateSyncProtocol createStateSyncProtocol(
+    public ReconnectStateSyncProtocol createStateSyncProtocol(
             @NonNull final PlatformContext platformContext,
             @NonNull final ThreadManager threadManager,
             @NonNull final Supplier<ReservedSignedState> latestCompleteState,
@@ -224,7 +224,7 @@ public class SyncGossipModular implements Gossip {
 
         final ReconnectMetrics reconnectMetrics = new ReconnectMetrics(platformContext.getMetrics());
 
-        return new StateSyncProtocol(
+        return new ReconnectStateSyncProtocol(
                 platformContext,
                 threadManager,
                 stateSyncThrottle,
