@@ -78,7 +78,7 @@ public class SingleNodeMarkerFileResultContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeMarkerFileResultContinuousAssert hasNoNoSuperMajorityMarkerFile() {
+    public SingleNodeMarkerFileResultContinuousAssert hasNoMissingSuperMajorityMarkerFile() {
         return checkContinuously(markerFilesStatus -> {
             if (markerFilesStatus.hasNoSuperMajorityMarkerFile()) {
                 failWithMessage("Expected no no-super-majority marker file, but one was written");
@@ -92,7 +92,7 @@ public class SingleNodeMarkerFileResultContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeMarkerFileResultContinuousAssert hasNoNoJudgesMarkerFile() {
+    public SingleNodeMarkerFileResultContinuousAssert hasNoMissingJudgesMarkerFile() {
         return checkContinuously(markerFilesStatus -> {
             if (markerFilesStatus.hasNoJudgesMarkerFile()) {
                 failWithMessage("Expected no no-judges marker file, but one was written");
@@ -120,7 +120,7 @@ public class SingleNodeMarkerFileResultContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeMarkerFileResultContinuousAssert hasNoISSMarkerFile() {
+    public SingleNodeMarkerFileResultContinuousAssert hasNoIssMarkerFile() {
         return checkContinuously(markerFilesStatus -> {
             if (markerFilesStatus.hasAnyISSMarkerFile()) {
                 failWithMessage("Expected no ISS marker file, but found: %s", markerFilesStatus);
@@ -135,7 +135,7 @@ public class SingleNodeMarkerFileResultContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeMarkerFileResultContinuousAssert hasNoISSMarkerFileOfType(@NonNull final IssType issType) {
+    public SingleNodeMarkerFileResultContinuousAssert hasNoIssMarkerFileOfType(@NonNull final IssType issType) {
         return checkContinuously(markerFilesStatus -> {
             if (markerFilesStatus.hasISSMarkerFileOfType(issType)) {
                 failWithMessage("Expected no ISS marker file of type %s, but one was written", issType);

@@ -56,19 +56,19 @@ public class IssTest {
                 .haveConsistentRounds();
         assertContinuouslyThat(network.newMarkerFileResults().suppressingNode(issNode))
                 .haveNoCoinRoundMarkerFiles()
-                .haveNoNoSuperMajorityMarkerFiles()
-                .haveNoNoJudgesMarkerFiles()
+                .haveNoMissingSuperMajorityMarkerFiles()
+                .haveNoMissingJudgesMarkerFiles()
                 .haveNoConsensusExceptionMarkerFiles()
                 .haveNoIssMarkerFilesOfType(IssType.SELF_ISS)
                 .haveNoIssMarkerFilesOfType(IssType.CATASTROPHIC_ISS);
         assertContinuouslyThat(issNode.newMarkerFileResult())
                 .hasNoCoinRoundMarkerFile()
-                .hasNoNoSuperMajorityMarkerFile()
-                .hasNoNoJudgesMarkerFile()
+                .hasNoMissingSuperMajorityMarkerFile()
+                .hasNoMissingJudgesMarkerFile()
                 .hasNoWriteConsensusExceptionMarkerFile()
                 // Check can be enabled once https://github.com/hiero-ledger/hiero-consensus-node/issues/21666 is fixed
                 //                .hasNoISSMarkerFileOfType(IssType.OTHER_ISS)
-                .hasNoISSMarkerFileOfType(IssType.CATASTROPHIC_ISS);
+                .hasNoIssMarkerFileOfType(IssType.CATASTROPHIC_ISS);
 
         network.start();
 
@@ -194,8 +194,8 @@ public class IssTest {
         assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds().haveConsistentRounds();
         assertContinuouslyThat(network.newMarkerFileResults())
                 .haveNoCoinRoundMarkerFiles()
-                .haveNoNoSuperMajorityMarkerFiles()
-                .haveNoNoJudgesMarkerFiles()
+                .haveNoMissingSuperMajorityMarkerFiles()
+                .haveNoMissingJudgesMarkerFiles()
                 .haveNoConsensusExceptionMarkerFiles()
                 .haveNoIssMarkerFilesOfType(IssType.OTHER_ISS)
                 .haveNoIssMarkerFilesOfType(IssType.SELF_ISS);

@@ -62,7 +62,7 @@ public class MultipleNodeMarkerFileResultsAssert
         isNotNull();
 
         for (final SingleNodeMarkerFileResult result : actual.results()) {
-            OtterAssertions.assertThat(result).hasNotCoinRoundMarkerFile();
+            OtterAssertions.assertThat(result).hasNoCoinRoundMarkerFile();
         }
 
         return this;
@@ -74,11 +74,11 @@ public class MultipleNodeMarkerFileResultsAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeMarkerFileResultsAssert haveNoNoSuperMajorityMarkerFile() {
+    public MultipleNodeMarkerFileResultsAssert haveNoMissingSuperMajorityMarkerFile() {
         isNotNull();
 
         for (final SingleNodeMarkerFileResult result : actual.results()) {
-            OtterAssertions.assertThat(result).hasNotNoSuperMajorityMarkerFile();
+            OtterAssertions.assertThat(result).hasNoMissingSuperMajorityMarkerFile();
         }
 
         return this;
@@ -90,11 +90,11 @@ public class MultipleNodeMarkerFileResultsAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeMarkerFileResultsAssert haveNoNoJudgesMarkerFile() {
+    public MultipleNodeMarkerFileResultsAssert haveNoMissingJudgesMarkerFile() {
         isNotNull();
 
         for (final SingleNodeMarkerFileResult result : actual.results()) {
-            OtterAssertions.assertThat(result).hasNotNoJudgesMarkerFile();
+            OtterAssertions.assertThat(result).hasNoMissingJudgesMarkerFile();
         }
 
         return this;
@@ -110,7 +110,7 @@ public class MultipleNodeMarkerFileResultsAssert
         isNotNull();
 
         for (final SingleNodeMarkerFileResult result : actual.results()) {
-            OtterAssertions.assertThat(result).hasNotConsensusExceptionMarkerFile();
+            OtterAssertions.assertThat(result).hasNoConsensusExceptionMarkerFile();
         }
 
         return this;
@@ -122,11 +122,11 @@ public class MultipleNodeMarkerFileResultsAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeMarkerFileResultsAssert haveNoISSMarkerFile() {
+    public MultipleNodeMarkerFileResultsAssert haveNoIssMarkerFile() {
         isNotNull();
 
         for (final SingleNodeMarkerFileResult result : actual.results()) {
-            OtterAssertions.assertThat(result).hasNoISSMarkerFile();
+            OtterAssertions.assertThat(result).hasNoIssMarkerFile();
         }
 
         return this;
@@ -139,11 +139,11 @@ public class MultipleNodeMarkerFileResultsAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeMarkerFileResultsAssert haveNoISSMarkerFileOfType(@NonNull final IssType issType) {
+    public MultipleNodeMarkerFileResultsAssert haveNoIssMarkerFileOfType(@NonNull final IssType issType) {
         isNotNull();
 
         for (final SingleNodeMarkerFileResult result : actual.results()) {
-            OtterAssertions.assertThat(result).hasNotISSMarkerFileOfType(issType);
+            OtterAssertions.assertThat(result).hasNoIssMarkerFileOfType(issType);
         }
 
         return this;

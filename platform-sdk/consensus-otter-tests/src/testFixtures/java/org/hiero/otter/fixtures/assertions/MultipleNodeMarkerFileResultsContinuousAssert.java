@@ -81,7 +81,7 @@ public class MultipleNodeMarkerFileResultsContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeMarkerFileResultsContinuousAssert haveNoNoSuperMajorityMarkerFiles() {
+    public MultipleNodeMarkerFileResultsContinuousAssert haveNoMissingSuperMajorityMarkerFiles() {
         return checkContinuously((nodeId, markerFileStatus) -> {
             if (markerFileStatus.hasNoSuperMajorityMarkerFile()) {
                 failWithMessage("Expected no no-super-majority marker file, but node %s wrote one", nodeId);
@@ -95,7 +95,7 @@ public class MultipleNodeMarkerFileResultsContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeMarkerFileResultsContinuousAssert haveNoNoJudgesMarkerFiles() {
+    public MultipleNodeMarkerFileResultsContinuousAssert haveNoMissingJudgesMarkerFiles() {
         return checkContinuously((nodeId, markerFileStatus) -> {
             if (markerFileStatus.hasNoJudgesMarkerFile()) {
                 failWithMessage("Expected no no-judges marker file, but node %s wrote one", nodeId);
