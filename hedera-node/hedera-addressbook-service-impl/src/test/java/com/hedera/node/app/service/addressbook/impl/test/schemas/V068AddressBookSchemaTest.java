@@ -12,6 +12,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.service.addressbook.impl.schemas.V068AddressBookSchema;
 import com.hedera.node.app.services.MigrationContextImpl;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
@@ -73,10 +74,10 @@ class V068AddressBookSchemaTest {
         schema.migrate(migrationContext);
 
         // assert that the map is updated
-        final var accountNodeRelations = newStates.<AccountID, ProtoLong>get(ACCOUNT_NODE_REL_STATE_ID);
+        final var accountNodeRelations = newStates.<AccountID, NodeId>get(ACCOUNT_NODE_REL_STATE_ID);
         assertThat(accountNodeRelations.isModified()).isTrue();
         // assert values are correct
         final var nodeIdInState = accountNodeRelations.get(accountId);
-        assertThat(nodeIdInState.value()).isEqualTo(node.nodeId());
+        assertThat(nodeIdInState.id()).isEqualTo(node.nodeId());
     }
 }
