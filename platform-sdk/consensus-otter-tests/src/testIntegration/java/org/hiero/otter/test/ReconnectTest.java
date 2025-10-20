@@ -137,7 +137,6 @@ public class ReconnectTest {
      *
      * @param env the test environment
      */
-    @Disabled("This test is flaky and needs to be investigated further")
     @OtterTest(requires = Capability.BACK_PRESSURE)
     void testSyntheticBottleneckReconnect(final TestEnvironment env) {
         final int numReconnectCycles = 2;
