@@ -28,10 +28,13 @@ import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions;
 import io.helidon.webclient.api.WebClient;
 import java.time.Duration;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Flow;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 import org.hiero.block.api.PublishStreamRequest;
@@ -82,12 +85,19 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
                 .when(clientFactory)
                 .createClient(any(WebClient.class), any(PbjGrpcClientConfig.class), any(RequestOptions.class));
 
-        // Setup default mock for timeout scheduling used by sendRequest() and closePipeline()
-        final ScheduledFuture<?> mockTimeoutFuture = mock(ScheduledFuture.class);
-        lenient().when(mockTimeoutFuture.isDone()).thenReturn(false);
-        lenient()
-                .when(executorService.schedule(any(Runnable.class), eq(30000L), eq(TimeUnit.MILLISECONDS)))
-                .thenReturn((ScheduledFuture) mockTimeoutFuture);
+        // Setup default mock for Future.get() used by sendRequest() and closePipeline()
+        // Make the executor actually run the submitted Runnable so pipeline methods get called
+        lenient().when(executorService.submit(any(Runnable.class))).thenAnswer(invocation -> {
+            Runnable runnable = invocation.getArgument(0);
+            runnable.run(); // Execute the runnable immediately
+            final Future<?> mockFuture = mock(Future.class);
+            try {
+                when(mockFuture.get(eq(30000L), eq(TimeUnit.MILLISECONDS))).thenReturn(null);
+            } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                throw new RuntimeException(e);
+            }
+            return mockFuture;
+        });
 
         connection = new BlockNodeConnection(
                 configProvider, nodeConfig, connectionManager, bufferService, metrics, executorService, clientFactory);
@@ -1340,79 +1350,66 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
      * This simulates a block node that stops responding during request processing.
      */
     @Test
-    void testSendRequest_onNextTimeout() {
+    void testSendRequest_onNextTimeout() throws Exception {
         openConnectionAndResetMocks();
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
-        // Mock a slow onNext that doesn't complete within timeout
-        final ScheduledFuture<?> mockTimeoutFuture = mock(ScheduledFuture.class);
-        when(mockTimeoutFuture.isDone()).thenReturn(false, true);
+        // Mock a Future that times out on sendRequest, but succeeds on close
+        final Future<?> timeoutFuture = mock(Future.class);
+        final Future<?> successFuture = mock(Future.class);
+        when(timeoutFuture.get(eq(30000L), eq(TimeUnit.MILLISECONDS)))
+                .thenThrow(new TimeoutException("Simulated timeout"));
+        when(successFuture.get(eq(30000L), eq(TimeUnit.MILLISECONDS))).thenReturn(null);
 
-        // Capture the scheduled timeout task
-        final ArgumentCaptor<Runnable> timeoutTaskCaptor = ArgumentCaptor.forClass(Runnable.class);
-        when(executorService.schedule(timeoutTaskCaptor.capture(), eq(30000L), eq(TimeUnit.MILLISECONDS)))
-                .thenReturn((ScheduledFuture) mockTimeoutFuture);
-
-        // Simulate onNext blocking - capture it but don't let it complete normally
-        doThrow(new RuntimeException("Simulated timeout during onNext"))
-                .when(requestPipeline)
-                .onNext(any());
+        // First call (sendRequest) times out, second call (close) succeeds
+        when(executorService.submit(any(Runnable.class)))
+                .thenAnswer(invocation -> {
+                    // Don't run the runnable for timeout simulation
+                    return timeoutFuture;
+                })
+                .thenAnswer(invocation -> {
+                    Runnable runnable = invocation.getArgument(0);
+                    runnable.run(); // Execute close's onComplete
+                    return successFuture;
+                });
 
         final PublishStreamRequest request = createRequest(newBlockHeaderItem());
 
-        // Send request - this should schedule the timeout task
-        try {
-            connection.sendRequest(request);
-        } catch (final RuntimeException e) {
-            // Expected exception from the blocked onNext
-        }
+        // Send request - this should trigger timeout handling
+        connection.sendRequest(request);
 
-        // Verify timeout task was scheduled with correct delay
-        verify(executorService).schedule(any(Runnable.class), eq(30000L), eq(TimeUnit.MILLISECONDS));
-
-        // Simulate timeout expiring by running the captured timeout task
-        resetMocks();
-        final Runnable timeoutTask = timeoutTaskCaptor.getValue();
-        timeoutTask.run();
+        // Verify submit was called (for sendRequest and then for close)
+        verify(executorService, times(2)).submit(any(Runnable.class));
 
         // Verify timeout handling
+        verify(timeoutFuture).cancel(true); // Should cancel the future on timeout
         verify(metrics).recordPipelineOperationTimeout();
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
         verify(connectionManager).rescheduleConnection(connection, Duration.ofSeconds(30), null, true);
         verify(connectionManager).jumpToBlock(-1L);
-        verify(requestPipeline).onComplete();
 
         // Verify connection transitioned to CLOSED after timeout
         assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CLOSED);
     }
 
     /**
-     * Tests that onNext() operation completes successfully before timeout and cancels the timeout task.
+     * Tests that onNext() operation completes successfully before timeout.
      */
     @Test
-    void testSendRequest_onNextCompletesBeforeTimeout() {
+    void testSendRequest_onNextCompletesBeforeTimeout() throws Exception {
         openConnectionAndResetMocks();
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
-        final ScheduledFuture<?> mockTimeoutFuture = mock(ScheduledFuture.class);
-        when(mockTimeoutFuture.isDone()).thenReturn(false);
-
-        // Capture the scheduled timeout task
-        when(executorService.schedule(any(Runnable.class), eq(30000L), eq(TimeUnit.MILLISECONDS)))
-                .thenReturn((ScheduledFuture) mockTimeoutFuture);
+        final Future<?> mockFuture = mock(Future.class);
+        when(mockFuture.get(eq(30000L), eq(TimeUnit.MILLISECONDS))).thenReturn(null);
+        when(executorService.submit(any(Runnable.class))).thenReturn((Future) mockFuture);
 
         final PublishStreamRequest request = createRequest(newBlockHeaderItem());
         connection.sendRequest(request);
 
-        // Verify timeout task was scheduled
-        verify(executorService).schedule(any(Runnable.class), eq(30000L), eq(TimeUnit.MILLISECONDS));
-
-        // Verify onNext completed successfully
-        verify(requestPipeline).onNext(request);
-
-        // Verify timeout was cancelled after successful completion
-        verify(mockTimeoutFuture).cancel(false);
+        // Verify submit was called
+        verify(executorService).submit(any(Runnable.class));
 
         // Verify no timeout was recorded
         verify(metrics, times(0)).recordPipelineOperationTimeout();
@@ -1425,33 +1422,20 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
      * Tests that onNext() timeout does not trigger handleStreamFailure if connection is no longer ACTIVE.
      */
     @Test
-    void testSendRequest_onNextTimeoutWhenConnectionNotActive() {
+    void testSendRequest_onNextTimeoutWhenConnectionNotActive() throws Exception {
         openConnectionAndResetMocks();
-        connection.updateConnectionState(ConnectionState.ACTIVE);
-
-        final ScheduledFuture<?> mockTimeoutFuture = mock(ScheduledFuture.class);
-        when(mockTimeoutFuture.isDone()).thenReturn(false);
-
-        // Capture the scheduled timeout task
-        final ArgumentCaptor<Runnable> timeoutTaskCaptor = ArgumentCaptor.forClass(Runnable.class);
-        when(executorService.schedule(timeoutTaskCaptor.capture(), eq(30000L), eq(TimeUnit.MILLISECONDS)))
-                .thenReturn((ScheduledFuture) mockTimeoutFuture);
+        // Start in CLOSING state
+        connection.updateConnectionState(ConnectionState.CLOSING);
 
         final PublishStreamRequest request = createRequest(newBlockHeaderItem());
+
+        // Since connection is not ACTIVE, sendRequest should not do anything
         connection.sendRequest(request);
 
-        // Change connection state to CLOSING before timeout expires
-        connection.updateConnectionState(ConnectionState.CLOSING);
-        resetMocks();
-
-        // Simulate timeout expiring
-        final Runnable timeoutTask = timeoutTaskCaptor.getValue();
-        timeoutTask.run();
-
-        // Timeout task should not trigger failure handling since connection is not ACTIVE
+        // Verify submit was not called since connection is not ACTIVE
+        verifyNoInteractions(executorService);
         verifyNoInteractions(metrics);
         verifyNoInteractions(connectionManager);
-        verifyNoInteractions(requestPipeline);
     }
 
     /**
@@ -1459,71 +1443,45 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
      * Since connection is already CLOSING, we just record the timeout without triggering failure.
      */
     @Test
-    void testClose_onCompleteTimeout() {
+    void testClose_onCompleteTimeout() throws Exception {
         openConnectionAndResetMocks();
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
-        final ScheduledFuture<?> mockTimeoutFuture = mock(ScheduledFuture.class);
-        when(mockTimeoutFuture.isDone()).thenReturn(false, true);
-
-        // Capture the scheduled timeout task
-        final ArgumentCaptor<Runnable> timeoutTaskCaptor = ArgumentCaptor.forClass(Runnable.class);
-        when(executorService.schedule(timeoutTaskCaptor.capture(), eq(30000L), eq(TimeUnit.MILLISECONDS)))
-                .thenReturn((ScheduledFuture) mockTimeoutFuture);
-
-        // Simulate onComplete blocking
-        doThrow(new RuntimeException("Simulated timeout during onComplete"))
-                .when(requestPipeline)
-                .onComplete();
+        // Mock Future that times out during onComplete
+        final Future<?> mockFuture = mock(Future.class);
+        when(mockFuture.get(eq(30000L), eq(TimeUnit.MILLISECONDS)))
+                .thenThrow(new TimeoutException("Simulated timeout"));
+        when(executorService.submit(any(Runnable.class))).thenReturn((Future) mockFuture);
 
         // Initiate close
-        try {
-            connection.close(true);
-        } catch (final RuntimeException e) {
-            // Expected exception from blocked onComplete
-        }
+        connection.close(true);
 
-        // Verify timeout task was scheduled
-        verify(executorService).schedule(any(Runnable.class), eq(30000L), eq(TimeUnit.MILLISECONDS));
-
-        // Reset mocks to isolate timeout task execution
-        reset(metrics);
-
-        // Simulate timeout expiring by running the captured timeout task
-        final Runnable timeoutTask = timeoutTaskCaptor.getValue();
-        timeoutTask.run();
+        // Verify submit was called for onComplete
+        verify(executorService).submit(any(Runnable.class));
 
         // Verify timeout was recorded (but no failure handling since we're already closing)
+        verify(mockFuture).cancel(true);
         verify(metrics).recordPipelineOperationTimeout();
-        verifyNoMoreInteractions(metrics);
+        verify(metrics).recordConnectionClosed();
     }
 
     /**
-     * Tests that onComplete() operation completes successfully before timeout and cancels the timeout task.
+     * Tests that onComplete() operation completes successfully before timeout.
      */
     @Test
-    void testClose_onCompleteCompletesBeforeTimeout() {
+    void testClose_onCompleteCompletesBeforeTimeout() throws Exception {
         openConnectionAndResetMocks();
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
-        final ScheduledFuture<?> mockTimeoutFuture = mock(ScheduledFuture.class);
-        when(mockTimeoutFuture.isDone()).thenReturn(false);
-
-        // Capture the scheduled timeout task
-        when(executorService.schedule(any(Runnable.class), eq(30000L), eq(TimeUnit.MILLISECONDS)))
-                .thenReturn((ScheduledFuture) mockTimeoutFuture);
+        final Future<?> mockFuture = mock(Future.class);
+        when(mockFuture.get(eq(30000L), eq(TimeUnit.MILLISECONDS))).thenReturn(null);
+        when(executorService.submit(any(Runnable.class))).thenReturn((Future) mockFuture);
 
         // Close connection normally
         connection.close(true);
 
-        // Verify timeout task was scheduled
-        verify(executorService).schedule(any(Runnable.class), eq(30000L), eq(TimeUnit.MILLISECONDS));
-
-        // Verify onComplete was called successfully
-        verify(requestPipeline).onComplete();
-
-        // Verify timeout was cancelled after successful completion
-        verify(mockTimeoutFuture).cancel(false);
+        // Verify submit was called
+        verify(executorService).submit(any(Runnable.class));
 
         // Verify no timeout was recorded
         verify(metrics, times(0)).recordPipelineOperationTimeout();
@@ -1533,7 +1491,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     /**
-     * Tests that closing without calling onComplete does not schedule a timeout task.
+     * Tests that closing without calling onComplete does not submit onComplete task.
      * This covers the case where callOnComplete=false.
      */
     @Test
@@ -1544,17 +1502,109 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         // Close without calling onComplete
         connection.close(false);
 
-        // Verify no timeout task was scheduled for onComplete
-        // (Only the stream reset schedule from ACTIVE state transition should have happened)
-        verify(executorService, times(0)).schedule(any(Runnable.class), eq(30000L), eq(TimeUnit.MILLISECONDS));
-
-        // Verify onComplete was not called
-        verify(requestPipeline, times(0)).onComplete();
+        // Verify no task was submitted for onComplete
+        verify(executorService, times(0)).submit(any(Runnable.class));
 
         // Verify no timeout was recorded
         verify(metrics, times(0)).recordPipelineOperationTimeout();
 
         // Connection should be CLOSED
+        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CLOSED);
+    }
+
+    /**
+     * Tests that InterruptedException during sendRequest is handled properly.
+     */
+    @Test
+    void testSendRequest_InterruptedException() throws Exception {
+        openConnectionAndResetMocks();
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        // Mock Future that throws InterruptedException
+        final Future<?> mockFuture = mock(Future.class);
+        when(mockFuture.get(eq(30000L), eq(TimeUnit.MILLISECONDS)))
+                .thenThrow(new InterruptedException("Thread interrupted"));
+        when(executorService.submit(any(Runnable.class))).thenReturn((Future) mockFuture);
+
+        final PublishStreamRequest request = createRequest(newBlockHeaderItem());
+
+        // Should throw RuntimeException wrapping InterruptedException
+        final RuntimeException exception = catchRuntimeException(() -> connection.sendRequest(request));
+
+        assertThat(exception).isNotNull();
+        assertThat(exception.getMessage()).contains("Interrupted while waiting for pipeline.onNext()");
+        assertThat(exception.getCause()).isInstanceOf(InterruptedException.class);
+    }
+
+    /**
+     * Tests that ExecutionException during sendRequest is handled properly.
+     */
+    @Test
+    void testSendRequest_ExecutionException() throws Exception {
+        openConnectionAndResetMocks();
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        // Mock Future that throws ExecutionException with a cause
+        final Future<?> mockFuture = mock(Future.class);
+        final RuntimeException cause = new RuntimeException("Pipeline operation failed");
+        when(mockFuture.get(eq(30000L), eq(TimeUnit.MILLISECONDS))).thenThrow(new ExecutionException(cause));
+        when(executorService.submit(any(Runnable.class))).thenReturn((Future) mockFuture);
+
+        final PublishStreamRequest request = createRequest(newBlockHeaderItem());
+
+        // Should throw RuntimeException with the cause
+        final RuntimeException exception = catchRuntimeException(() -> connection.sendRequest(request));
+
+        assertThat(exception).isNotNull();
+        assertThat(exception.getMessage()).contains("Error executing pipeline.onNext()");
+        assertThat(exception.getCause()).isEqualTo(cause);
+    }
+
+    /**
+     * Tests that InterruptedException during close is handled properly.
+     */
+    @Test
+    void testClose_InterruptedException() throws Exception {
+        openConnectionAndResetMocks();
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        // Mock Future that throws InterruptedException
+        final Future<?> mockFuture = mock(Future.class);
+        when(mockFuture.get(eq(30000L), eq(TimeUnit.MILLISECONDS)))
+                .thenThrow(new InterruptedException("Thread interrupted"));
+        when(executorService.submit(any(Runnable.class))).thenReturn((Future) mockFuture);
+
+        // Close should handle the exception gracefully
+        connection.close(true);
+
+        // Verify submit was called for onComplete
+        verify(executorService).submit(any(Runnable.class));
+
+        // Connection should still be CLOSED despite the interruption
+        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CLOSED);
+    }
+
+    /**
+     * Tests that ExecutionException during close is handled properly.
+     */
+    @Test
+    void testClose_ExecutionException() throws Exception {
+        openConnectionAndResetMocks();
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        // Mock Future that throws ExecutionException
+        final Future<?> mockFuture = mock(Future.class);
+        final RuntimeException cause = new RuntimeException("Pipeline close failed");
+        when(mockFuture.get(eq(30000L), eq(TimeUnit.MILLISECONDS))).thenThrow(new ExecutionException(cause));
+        when(executorService.submit(any(Runnable.class))).thenReturn((Future) mockFuture);
+
+        // Close should handle the exception gracefully
+        connection.close(true);
+
+        // Verify submit was called for onComplete
+        verify(executorService).submit(any(Runnable.class));
+
+        // Connection should still be CLOSED despite the error
         assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CLOSED);
     }
 

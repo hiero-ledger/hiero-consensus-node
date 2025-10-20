@@ -173,19 +173,27 @@ To detect unresponsive block nodes during message transmission, the connection i
 
 #### Timeout Behavior
 
-- **onNext() timeout**: When sending block items via `sendRequest()`, a timeout task is scheduled before calling `pipeline.onNext()`. If the operation does not complete within the configured timeout period:
+Pipeline operations (`onNext()` and `onComplete()`) are blocking I/O operations that are executed on a separate executor thread with timeout enforcement using `Future.get(timeout)`.
+
+- **onNext() timeout**: When sending block items via `sendRequest()`, the operation is submitted to an executor and the calling thread blocks waiting for completion with a timeout. If the operation does not complete within the configured timeout period:
+  - The Future is cancelled to interrupt the blocked operation
   - The timeout metric is incremented
   - `handleStreamFailure()` is triggered (only if connection is still ACTIVE)
   - The connection follows standard failure handling with exponential backoff retry
   - The connection manager will select a different block node for the next attempt if one is available
-- **onComplete() timeout**: When closing the stream via `closePipeline()`, a timeout task is scheduled before calling `pipeline.onComplete()`. If the operation does not complete within the configured timeout period:
+  - `TimeoutException` is caught and handled internally
+- **onComplete() timeout**: When closing the stream via `closePipeline()`, the operation is submitted to an executor with the same timeout mechanism. If the operation does not complete within the configured timeout period:
+  - The Future is cancelled to interrupt the blocked operation
   - The timeout metric is incremented
   - Since the connection is already in CLOSING state, only the timeout is logged
   - The connection completes the close operation normally
 
-#### Timeout Cancellation
+#### Exception Handling
 
-If the pipeline operation completes successfully before the timeout expires, the timeout task is immediately cancelled to prevent false positives.
+The implementation handles multiple exception scenarios:
+- **TimeoutException**: Pipeline operation exceeded the timeout - triggers failure handling for `onNext()`, logged for `onComplete()`
+- **InterruptedException**: Thread was interrupted while waiting - interrupt status is restored via `Thread.currentThread().interrupt()` before propagating the exception (for `onNext()`) or logging it (for `onComplete()`)
+- **ExecutionException**: Error occurred during pipeline operation execution - the underlying cause is unwrapped and re-thrown (for `onNext()`) or logged (for `onComplete()`)
 
 #### Metrics
 

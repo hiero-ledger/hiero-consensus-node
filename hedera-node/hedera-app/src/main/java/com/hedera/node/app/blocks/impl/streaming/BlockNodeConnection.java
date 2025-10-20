@@ -30,10 +30,13 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Flow;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -683,30 +686,26 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 }
                 final long startMs = System.currentTimeMillis();
 
-                // Schedule timeout task to detect unresponsive block nodes
-                final ScheduledFuture<?> timeoutTask = executorService.schedule(
-                        () -> {
-                            if (getConnectionState() == ConnectionState.ACTIVE) {
-                                logWithContext(
-                                        logger,
-                                        DEBUG,
-                                        this,
-                                        "Pipeline onNext() timed out after {}ms",
-                                        pipelineOperationTimeout.toMillis());
-                                blockStreamMetrics.recordPipelineOperationTimeout();
-                                handleStreamFailure();
-                            }
-                        },
-                        pipelineOperationTimeout.toMillis(),
-                        TimeUnit.MILLISECONDS);
-
+                Future<?> future = executorService.submit(() -> pipeline.onNext(request));
                 try {
-                    pipeline.onNext(request);
-                } finally {
-                    // Cancel timeout if operation completes (successfully or not)
-                    if (!timeoutTask.isDone()) {
-                        timeoutTask.cancel(false);
+                    future.get(pipelineOperationTimeout.toMillis(), TimeUnit.MILLISECONDS);
+                } catch (TimeoutException e) {
+                    future.cancel(true); // Cancel the task if it times out
+                    if (getConnectionState() == ConnectionState.ACTIVE) {
+                        logWithContext(
+                                logger,
+                                DEBUG,
+                                this,
+                                "Pipeline onNext() timed out after {}ms",
+                                pipelineOperationTimeout.toMillis());
+                        blockStreamMetrics.recordPipelineOperationTimeout();
+                        handleStreamFailure();
                     }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt(); // Restore interrupt status
+                    throw new RuntimeException("Interrupted while waiting for pipeline.onNext()", e);
+                } catch (ExecutionException e) {
+                    throw new RuntimeException("Error executing pipeline.onNext()", e.getCause());
                 }
 
                 final long durationMs = System.currentTimeMillis() - startMs;
@@ -801,32 +800,26 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             try {
                 final ConnectionState state = getConnectionState();
                 if (state == ConnectionState.CLOSING && callOnComplete) {
-                    // Schedule timeout task to detect unresponsive block nodes during close
-                    final ScheduledFuture<?> timeoutTask = executorService.schedule(
-                            () -> {
-                                logWithContext(
-                                        logger,
-                                        DEBUG,
-                                        this,
-                                        "Pipeline onComplete() timed out after {}ms",
-                                        pipelineOperationTimeout.toMillis());
-                                blockStreamMetrics.recordPipelineOperationTimeout();
-                                // Connection is already closing, just log the timeout
-                            },
-                            pipelineOperationTimeout.toMillis(),
-                            TimeUnit.MILLISECONDS);
-
+                    Future<?> future = executorService.submit(pipeline::onComplete);
                     try {
-                        pipeline.onComplete();
+                        future.get(pipelineOperationTimeout.toMillis(), TimeUnit.MILLISECONDS);
                         logWithContext(logger, DEBUG, this, "Request pipeline successfully closed.");
-                    } finally {
-                        // Cancel timeout if operation completes (successfully or not)
-                        if (!timeoutTask.isDone()) {
-                            timeoutTask.cancel(false);
-                        }
+                    } catch (TimeoutException e) {
+                        future.cancel(true); // Cancel the task if it times out
+                        logWithContext(
+                                logger,
+                                DEBUG,
+                                this,
+                                "Pipeline onComplete() timed out after {}ms",
+                                pipelineOperationTimeout.toMillis());
+                        blockStreamMetrics.recordPipelineOperationTimeout();
+                        // Connection is already closing, just log the timeout
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt(); // Restore interrupt status
+                        logWithContext(logger, DEBUG, this, "Interrupted while waiting for pipeline.onComplete()");
+                    } catch (ExecutionException e) {
+                        logWithContext(logger, DEBUG, this, "Error executing pipeline.onComplete()", e.getCause());
                     }
-
-                    logWithContext(logger, DEBUG, this, "Request pipeline successfully closed.");
                 }
             } catch (final Exception e) {
                 logger.warn(formatLogMessage("Error while completing request pipeline.", this), e);
