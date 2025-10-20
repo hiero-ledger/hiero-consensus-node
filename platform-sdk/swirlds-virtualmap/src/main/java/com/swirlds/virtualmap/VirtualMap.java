@@ -539,18 +539,15 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         return 2;
     }
 
-    //  FUTURE WORK: Uncomment this once migration from the existing VirtualMap is done
-    //  See https://github.com/hiero-ledger/hiero-consensus-node/issues/19690
-    //    /**
-    //     * This is never called for a {@link VirtualMap}.
-    //     *
-    //     * {@inheritDoc}
-    //     */
-    //    @Override
-    //    protected void setChildInternal(final int index, final MerkleNode child) {
-    //        throw new UnsupportedOperationException("You cannot set the child of a VirtualMap directly with this
-    // API");
-    //    }
+    /**
+     * This is never called for a {@link VirtualMap}.
+     *
+     * {@inheritDoc}
+     */
+    @Override
+    protected void setChildInternal(final int index, final MerkleNode child) {
+        throw new UnsupportedOperationException("You cannot set the child of a VirtualMap directly with this API");
+    }
 
     /**
      * {@inheritDoc}
