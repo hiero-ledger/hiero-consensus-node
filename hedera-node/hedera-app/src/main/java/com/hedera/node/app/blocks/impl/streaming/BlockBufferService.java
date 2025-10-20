@@ -10,7 +10,6 @@ import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockBufferConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
-import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -105,9 +104,6 @@ public class BlockBufferService {
      */
     private final BlockStreamMetrics blockStreamMetrics;
 
-    private final boolean grpcStreamingEnabled;
-    private final boolean backpressureEnabled;
-
     /**
      * The timestamp of the most recent attempt at proactive buffer recovery.
      */
@@ -142,11 +138,22 @@ public class BlockBufferService {
         this.configProvider = configProvider;
         this.blockStreamMetrics = blockStreamMetrics;
         this.bufferIO = new BlockBufferIO(bufferDirectory());
+    }
 
-        final BlockStreamConfig blockStreamConfig =
-                configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
-        this.grpcStreamingEnabled = blockStreamConfig.writerMode() != BlockStreamWriterMode.FILE;
-        this.backpressureEnabled = (blockStreamConfig.streamMode() == StreamMode.BLOCKS && grpcStreamingEnabled);
+    private boolean isGrpcStreamingEnabled() {
+        return configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .streamToBlockNodes();
+    }
+
+    private boolean isBackpressureEnabled() {
+        return (configProvider
+                                .getConfiguration()
+                                .getConfigData(BlockStreamConfig.class)
+                                .streamMode()
+                        == StreamMode.BLOCKS
+                && isGrpcStreamingEnabled());
     }
 
     /**
@@ -154,7 +161,7 @@ public class BlockBufferService {
      * background worker thread. Calling this method multiple times on the same instance will do nothing.
      */
     public void start() {
-        if (!grpcStreamingEnabled || !isStarted.compareAndSet(false, true)) {
+        if (!isGrpcStreamingEnabled() || !isStarted.compareAndSet(false, true)) {
             return;
         }
 
@@ -182,9 +189,9 @@ public class BlockBufferService {
         // if back pressure was enabled, disable it during shutdown
         disableBackPressure();
         // clear metadata
-        highestAckedBlockNumber.set(-1);
+        highestAckedBlockNumber.set(Long.MIN_VALUE);
         lastProducedBlockNumber.set(-1);
-        earliestBlockNumber.set(-1);
+        earliestBlockNumber.set(Long.MIN_VALUE);
         lastPruningResult = PruneResult.NIL;
         lastRecoveryActionTimestamp = Instant.MIN;
         awaitingRecovery = false;
@@ -309,9 +316,10 @@ public class BlockBufferService {
      * @throws IllegalArgumentException if the block number is negative
      */
     public void openBlock(final long blockNumber) {
-        if (!grpcStreamingEnabled || !isStarted.get()) {
+        if (!isGrpcStreamingEnabled() || !isStarted.get()) {
             return;
         }
+        logger.debug("Opening block {}.", blockNumber);
 
         if (blockNumber < 0) {
             throw new IllegalArgumentException("Block number must be non-negative");
@@ -343,7 +351,7 @@ public class BlockBufferService {
      * @throws IllegalStateException if no block is currently open
      */
     public void addItem(final long blockNumber, @NonNull final BlockItem blockItem) {
-        if (!grpcStreamingEnabled || !isStarted.get()) {
+        if (!isGrpcStreamingEnabled() || !isStarted.get()) {
             return;
         }
         requireNonNull(blockItem, "blockItem must not be null");
@@ -360,16 +368,12 @@ public class BlockBufferService {
      * @throws IllegalStateException if no block is currently open
      */
     public void closeBlock(final long blockNumber) {
-        if (!grpcStreamingEnabled || !isStarted.get()) {
+        if (!isGrpcStreamingEnabled() || !isStarted.get()) {
             return;
         }
 
         final BlockState blockState = getBlockState(blockNumber);
-        if (blockState == null) {
-            throw new IllegalStateException("Block state not found for block " + blockNumber);
-        }
-
-        if (blockState.isClosed()) {
+        if (blockState == null || blockState.isClosed()) {
             return;
         }
         blockStreamMetrics.recordBlockClosed();
@@ -409,7 +413,7 @@ public class BlockBufferService {
      * @param blockNumber the block number to mark acknowledged up to and including
      */
     public void setLatestAcknowledgedBlock(final long blockNumber) {
-        if (!grpcStreamingEnabled || !isStarted.get()) {
+        if (!isGrpcStreamingEnabled() || !isStarted.get()) {
             return;
         }
 
@@ -449,7 +453,7 @@ public class BlockBufferService {
      * enough capacity - i.e. the buffer is saturated - then this method will block until there is enough capacity.
      */
     public void ensureNewBlocksPermitted() {
-        if (!grpcStreamingEnabled || !isStarted.get()) {
+        if (!isGrpcStreamingEnabled() || !isStarted.get()) {
             return;
         }
 
@@ -536,7 +540,7 @@ public class BlockBufferService {
      * @see BlockBufferIO
      */
     public void persistBuffer() {
-        if (!grpcStreamingEnabled || !isStarted.get() || !isBufferPersistenceEnabled()) {
+        if (!isGrpcStreamingEnabled() || !isStarted.get() || !isBufferPersistenceEnabled()) {
             return;
         }
 
@@ -593,7 +597,7 @@ public class BlockBufferService {
                 continue;
             }
 
-            if (!backpressureEnabled) {
+            if (!isBackpressureEnabled()) {
                 // If backpressure is disabled, remove blocks based solely on TTL
                 if (closedTimestamp.isBefore(cutoffInstant)) {
                     it.remove();
@@ -626,12 +630,12 @@ public class BlockBufferService {
         }
 
         // update the earliest block number after pruning
-        newEarliestBlock = newEarliestBlock == Long.MAX_VALUE ? -1 : newEarliestBlock;
+        newEarliestBlock = newEarliestBlock == Long.MAX_VALUE ? Long.MIN_VALUE : newEarliestBlock;
         newLatestBlock = newLatestBlock == Long.MIN_VALUE ? -1 : newLatestBlock;
         earliestBlockNumber.set(newEarliestBlock);
 
         blockStreamMetrics.recordNumberOfBlocksPruned(numPruned);
-        blockStreamMetrics.recordBufferOldestBlock(newEarliestBlock);
+        blockStreamMetrics.recordBufferOldestBlock(newEarliestBlock == Long.MIN_VALUE ? -1 : newEarliestBlock);
         blockStreamMetrics.recordBufferNewestBlock(newLatestBlock);
 
         return new PruneResult(
@@ -699,7 +703,7 @@ public class BlockBufferService {
      * continues to be saturated.
      */
     private void checkBuffer() {
-        if (!grpcStreamingEnabled) {
+        if (!isGrpcStreamingEnabled()) {
             return;
         }
 
@@ -885,7 +889,7 @@ public class BlockBufferService {
      * @param latestPruneResult the latest pruning result
      */
     private void disableBackPressureIfRecovered(final PruneResult latestPruneResult) {
-        if (!backpressureEnabled) {
+        if (!isBackpressureEnabled()) {
             // back pressure is not enabled, so nothing to do
             return;
         }
@@ -926,7 +930,7 @@ public class BlockBufferService {
      * @param latestPruneResult the latest pruning result
      */
     private void enableBackPressure(final PruneResult latestPruneResult) {
-        if (!backpressureEnabled) {
+        if (!isBackpressureEnabled()) {
             return;
         }
 
@@ -962,7 +966,7 @@ public class BlockBufferService {
      * check if the configuration has changed.
      */
     private void scheduleNextWorkerTask() {
-        if (!grpcStreamingEnabled) {
+        if (!isGrpcStreamingEnabled()) {
             return;
         }
 
