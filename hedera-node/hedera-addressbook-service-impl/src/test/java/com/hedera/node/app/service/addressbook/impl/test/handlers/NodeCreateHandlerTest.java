@@ -619,12 +619,6 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         assertThat(subject.calculateFees(feeCtx)).isEqualTo(new Fees(1, 0, 0));
     }
 
-    @Test
-    @DisplayName("fails if account is already linked to another node")
-    void testCreteNodeWithAccountInRelationFail() {
-        // TODO implement test
-    }
-
     private void setupHandle() {
         given(handleContext.body()).willReturn(txn);
         refreshStoresWithCurrentNodeInWritable();
