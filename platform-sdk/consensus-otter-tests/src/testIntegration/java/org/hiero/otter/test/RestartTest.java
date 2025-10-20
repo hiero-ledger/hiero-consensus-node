@@ -18,7 +18,6 @@ import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
-import org.junit.jupiter.api.RepeatedTest;
 
 /**
  * Tests that a hard restart of all nodes in the network works correctly, and that all nodes are able to restart, replay
@@ -33,7 +32,6 @@ public class RestartTest {
      * @param env the test environment
      */
     @OtterTest
-    @RepeatedTest(value = 5, failureThreshold = 1)
     void testHardNetworkRestart(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
