@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import org.hiero.otter.fixtures.app.model.IssState;
 import org.hiero.otter.fixtures.app.model.schema.IssStateSchema;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * Protobuf Codec for IssState model object. Generated based on protobuf schema.
@@ -42,6 +43,17 @@ public final class IssStateProtoCodec implements Codec<IssState> {
      */
     public IssStateProtoCodec() {
         // no-op
+    }
+
+    @Override
+    public @NotNull IssState parse(
+            @NotNull ReadableSequentialData input,
+            boolean strictMode,
+            boolean parseUnknownFields,
+            int maxDepth,
+            int maxSize)
+            throws ParseException {
+        return parse(input, strictMode, parseUnknownFields, maxDepth);
     }
 
     /**

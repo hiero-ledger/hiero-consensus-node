@@ -24,7 +24,8 @@ import org.hiero.otter.fixtures.internal.RegularTimeManager;
 public class ContainerTestEnvironment implements TestEnvironment {
 
     /** Capabilities supported by the container test environment */
-    private static final Set<Capability> CAPABILITIES = Set.of(Capability.RECONNECT, Capability.BACK_PRESSURE);
+    private static final Set<Capability> CAPABILITIES =
+            Set.of(Capability.RECONNECT, Capability.BACK_PRESSURE, Capability.SINGLE_NODE_JVM_SHUTDOWN);
 
     /** The granularity of time defining how often continuous assertions are checked */
     private static final Duration GRANULARITY = Duration.ofMillis(10);
@@ -34,9 +35,18 @@ public class ContainerTestEnvironment implements TestEnvironment {
     private final ContainerTransactionGenerator transactionGenerator = new ContainerTransactionGenerator();
 
     /**
-     * Constructor for the {@link ContainerTestEnvironment} class.
+     * Constructor with default values for using random node-ids
      */
     public ContainerTestEnvironment() {
+        this(true);
+    }
+
+    /**
+     * Constructor for the {@link ContainerTestEnvironment} class.
+     *
+     * @param useRandomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
+     */
+    public ContainerTestEnvironment(final boolean useRandomNodeIds) {
 
         ContainerLogConfigBuilder.configure();
 
@@ -50,14 +60,15 @@ public class ContainerTestEnvironment implements TestEnvironment {
             fail("Failed to prepare directory: " + rootOutputDirectory, ex);
         }
 
-        network = new ContainerNetwork(timeManager, transactionGenerator, rootOutputDirectory);
+        network = new ContainerNetwork(timeManager, transactionGenerator, rootOutputDirectory, useRandomNodeIds);
     }
 
     /**
      * Checks if the container test environment supports the given capabilities.
      *
      * @param requiredCapabilities the list of capabilities required by the test
-     * @return {@code true} if the container test environment supports the required capabilities, {@code false} otherwise
+     * @return {@code true} if the container test environment supports the required capabilities, {@code false}
+     * otherwise
      */
     public static boolean supports(@NonNull final List<Capability> requiredCapabilities) {
         return CAPABILITIES.containsAll(requiredCapabilities);

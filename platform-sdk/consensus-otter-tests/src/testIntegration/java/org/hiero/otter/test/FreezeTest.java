@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
+import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -25,8 +26,6 @@ public class FreezeTest {
      * Tests that multiple freezes of the network work correctly, and that all nodes are able to freeze, restart, and
      * continue reaching consensus.
      *
-     * seed 1794451103092207386L fails the PCES birth round maximum
-     *
      * @param env the test environment
      */
     @OtterTest
@@ -35,6 +34,15 @@ public class FreezeTest {
         final TimeManager timeManager = env.timeManager();
 
         network.addNodes(4);
+
+        // Setup continuous assertions
+        assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
+        assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
+        assertContinuouslyThat(network.newConsensusResults())
+                .haveEqualCommonRounds()
+                .haveConsistentRounds();
+        assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
+
         network.start();
 
         final MultipleNodeConsensusResults networkConsensusResults = network.newConsensusResults();
@@ -44,10 +52,7 @@ public class FreezeTest {
             final long freezeRound =
                     network.nodes().getFirst().newConsensusResult().lastRoundNum();
             final Instant postFreezeTime = timeManager.now();
-            assertThat(network.newConsensusResults())
-                    .haveEqualCommonRounds()
-                    .haveConsistentRounds()
-                    .haveLastRoundNum(freezeRound);
+            assertThat(network.newConsensusResults()).haveLastRoundNum(freezeRound);
 
             network.shutdown();
             assertThat(network.newPcesResults()).haveMaxBirthRoundLessThanOrEqualTo(freezeRound);
@@ -62,7 +67,6 @@ public class FreezeTest {
             networkConsensusResults.clear();
         }
 
-        assertThat(network.newLogResults()).haveNoErrorLevelMessages();
-        assertThat(network.newReconnectResults()).haveNoReconnects();
+        assertThat(network.newEventStreamResults()).haveEqualFiles();
     }
 }
