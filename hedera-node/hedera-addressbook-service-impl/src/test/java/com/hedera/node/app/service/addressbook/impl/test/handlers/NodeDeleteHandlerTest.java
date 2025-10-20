@@ -180,6 +180,7 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
                 .willReturn(TransactionBody.newBuilder().nodeDelete(txn).build());
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
+        createEmptyAccountNodeRelState();
         given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
 
         subject.handle(handleContext);
