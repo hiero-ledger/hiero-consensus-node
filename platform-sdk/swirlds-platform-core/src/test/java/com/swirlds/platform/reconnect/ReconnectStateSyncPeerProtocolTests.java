@@ -31,8 +31,8 @@ import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.protocol.PeerProtocol;
 import com.swirlds.platform.network.protocol.Protocol;
+import com.swirlds.platform.network.protocol.ReconnectStateSyncProtocol;
 import com.swirlds.platform.network.protocol.ReservedSignedStatePromise;
-import com.swirlds.platform.network.protocol.StateSyncProtocol;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
@@ -56,7 +56,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  */
-class StateSyncPeerProtocolTests {
+class ReconnectStateSyncPeerProtocolTests {
     private static final NodeId PEER_ID = NodeId.of(1L);
 
     private StateSyncThrottle teacherThrottle;
@@ -152,7 +152,7 @@ class StateSyncPeerProtocolTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        final Protocol reconnectProtocol = new StateSyncProtocol(
+        final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
                 platformContext,
                 getStaticThreadManager(),
                 mock(StateSyncThrottle.class),
@@ -196,7 +196,7 @@ class StateSyncPeerProtocolTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        final Protocol reconnectProtocol = new StateSyncProtocol(
+        final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
                 platformContext,
                 getStaticThreadManager(),
                 teacherThrottle,
@@ -232,7 +232,7 @@ class StateSyncPeerProtocolTests {
         final NodeId node1 = NodeId.of(1L);
         final NodeId node2 = NodeId.of(2L);
 
-        final StateSyncPeerProtocol peer1 = new StateSyncPeerProtocol(
+        final ReconnectStateSyncPeerProtocol peer1 = new ReconnectStateSyncPeerProtocol(
                 platformContext,
                 getStaticThreadManager(),
                 node1,
@@ -254,7 +254,7 @@ class StateSyncPeerProtocolTests {
 
         final ReservedSignedState reservedSignedState = signedState.reserve("test");
 
-        final StateSyncPeerProtocol peer2 = new StateSyncPeerProtocol(
+        final ReconnectStateSyncPeerProtocol peer2 = new ReconnectStateSyncPeerProtocol(
                 platformContext,
                 getStaticThreadManager(),
                 node2,
@@ -292,7 +292,7 @@ class StateSyncPeerProtocolTests {
             final PlatformContext platformContext =
                     TestPlatformContextBuilder.create().build();
 
-            final Protocol reconnectProtocol = new StateSyncProtocol(
+            final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
                     platformContext,
                     getStaticThreadManager(),
                     mock(StateSyncThrottle.class),
@@ -351,7 +351,7 @@ class StateSyncPeerProtocolTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        final Protocol reconnectProtocol = new StateSyncProtocol(
+        final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
                 platformContext,
                 getStaticThreadManager(),
                 mock(StateSyncThrottle.class),
@@ -396,7 +396,7 @@ class StateSyncPeerProtocolTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        final Protocol reconnectProtocol = new StateSyncProtocol(
+        final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
                 platformContext,
                 getStaticThreadManager(),
                 reconnectThrottle,
@@ -434,7 +434,7 @@ class StateSyncPeerProtocolTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        final Protocol reconnectProtocol = new StateSyncProtocol(
+        final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
                 platformContext,
                 getStaticThreadManager(),
                 reconnectThrottle,
@@ -465,7 +465,7 @@ class StateSyncPeerProtocolTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        final Protocol reconnectProtocol = new StateSyncProtocol(
+        final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
                 platformContext,
                 getStaticThreadManager(),
                 teacherThrottle,
@@ -492,7 +492,7 @@ class StateSyncPeerProtocolTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        final Protocol reconnectProtocol = new StateSyncProtocol(
+        final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
                 platformContext,
                 getStaticThreadManager(),
                 teacherThrottle,
@@ -539,7 +539,7 @@ class StateSyncPeerProtocolTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        final Protocol reconnectProtocol = new StateSyncProtocol(
+        final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
                 platformContext,
                 getStaticThreadManager(),
                 teacherThrottle,

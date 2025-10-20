@@ -40,11 +40,12 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
- * Implements the reconnect protocol over a bidirectional network
+ * This protocol is responsible for synchronizing an out of date state either local acting as lerner or remote acting as teacher
+ * with one particular peer in the network.
  */
-public class StateSyncPeerProtocol implements PeerProtocol {
+public class ReconnectStateSyncPeerProtocol implements PeerProtocol {
 
-    private static final Logger logger = LogManager.getLogger(StateSyncPeerProtocol.class);
+    private static final Logger logger = LogManager.getLogger(ReconnectStateSyncPeerProtocol.class);
 
     private final NodeId peerId;
     private final StateSyncThrottle teacherThrottle;
@@ -100,7 +101,7 @@ public class StateSyncPeerProtocol implements PeerProtocol {
      * @param reservedSignedStatePromise a mechanism to get a SignedState or block while it is not available
      * @param createStateFromVirtualMap  a function to instantiate the state object from a Virtual Map
      */
-    public StateSyncPeerProtocol(
+    public ReconnectStateSyncPeerProtocol(
             @NonNull final PlatformContext platformContext,
             @NonNull final ThreadManager threadManager,
             @NonNull final NodeId peerId,
@@ -313,7 +314,7 @@ public class StateSyncPeerProtocol implements PeerProtocol {
         try {
 
             final MerkleNodeState consensusState = swirldStateManager.getConsensusState();
-            final StateSyncLearner reconnect = new StateSyncLearner(
+            final ReconnectStateSyncLearner learner = new ReconnectStateSyncLearner(
                     platformContext,
                     threadManager,
                     connection,
@@ -324,7 +325,7 @@ public class StateSyncPeerProtocol implements PeerProtocol {
                     createStateFromVirtualMap);
 
             logger.info(RECONNECT.getMarker(), () -> new ReconnectStartPayload(
-                            "Starting reconnect in role of the receiver.",
+                            "Starting learner in role of the receiver.",
                             true,
                             connection.getSelfId().id(),
                             connection.getOtherId().id(),
@@ -332,10 +333,10 @@ public class StateSyncPeerProtocol implements PeerProtocol {
                             platformStateFacade.roundOf(consensusState))
                     .toString());
 
-            final ReservedSignedState reservedSignedState = reconnect.execute();
+            final ReservedSignedState reservedSignedState = learner.execute();
 
             logger.info(RECONNECT.getMarker(), () -> new ReconnectFinishPayload(
-                            "Finished reconnect in the role of the receiver.",
+                            "Finished learner in the role of the receiver.",
                             true,
                             connection.getSelfId().id(),
                             connection.getOtherId().id(),
@@ -348,7 +349,7 @@ public class StateSyncPeerProtocol implements PeerProtocol {
             logger.info(
                     RECONNECT.getMarker(),
                     """
-                            Information for state received during reconnect:
+                            Information for state received during learner:
                             {}""",
                     () -> platformStateFacade.getInfoString(
                             reservedSignedState.get().getState(), debugHashDepth));
@@ -376,7 +377,7 @@ public class StateSyncPeerProtocol implements PeerProtocol {
      */
     private void teacher(final Connection connection) {
         try (final ReservedSignedState state = teacherState) {
-            new StateSyncTeacher(
+            new ReconnectStateSyncTeacher(
                             platformContext,
                             time,
                             threadManager,

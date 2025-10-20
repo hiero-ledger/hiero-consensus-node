@@ -6,7 +6,7 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.reconnect.FallenBehindMonitor;
-import com.swirlds.platform.reconnect.StateSyncPeerProtocol;
+import com.swirlds.platform.reconnect.ReconnectStateSyncPeerProtocol;
 import com.swirlds.platform.reconnect.StateSyncThrottle;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
@@ -23,9 +23,9 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
- * Implementation of a factory for reconnect protocol
+ * This protocol is responsible for synchronizing a current state either local acting as lerner or remote acting as teacher.
  */
-public class StateSyncProtocol implements Protocol {
+public class ReconnectStateSyncProtocol implements Protocol {
 
     private final StateSyncThrottle stateSyncThrottle;
     private final Supplier<ReservedSignedState> lastCompleteSignedState;
@@ -42,7 +42,7 @@ public class StateSyncProtocol implements Protocol {
     private final SwirldStateManager swirldStateManager;
     private final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap;
 
-    public StateSyncProtocol(
+    public ReconnectStateSyncProtocol(
             @NonNull final PlatformContext platformContext,
             @NonNull final ThreadManager threadManager,
             @NonNull final StateSyncThrottle stateSyncThrottle,
@@ -74,8 +74,8 @@ public class StateSyncProtocol implements Protocol {
      */
     @NonNull
     @Override
-    public StateSyncPeerProtocol createPeerInstance(@NonNull final NodeId peerId) {
-        return new StateSyncPeerProtocol(
+    public ReconnectStateSyncPeerProtocol createPeerInstance(@NonNull final NodeId peerId) {
+        return new ReconnectStateSyncPeerProtocol(
                 platformContext,
                 threadManager,
                 Objects.requireNonNull(peerId),
