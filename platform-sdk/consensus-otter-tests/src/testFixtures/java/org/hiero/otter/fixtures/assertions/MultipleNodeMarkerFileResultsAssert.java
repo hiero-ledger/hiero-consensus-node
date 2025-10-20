@@ -148,4 +148,23 @@ public class MultipleNodeMarkerFileResultsAssert
 
         return this;
     }
+
+    /**
+     * Verifies that none of the nodes has any marker files except for the specified ISS type.
+     *
+     * @param first  the first mandatory type of ISS marker file that is allowed
+     * @param rest the other optional types of ISS marker files that are allowed
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public MultipleNodeMarkerFileResultsAssert haveNoMarkerFilesExcept(
+            @NonNull final IssType first, @Nullable final IssType... rest) {
+        isNotNull();
+
+        for (final SingleNodeMarkerFileResult result : actual.results()) {
+            OtterAssertions.assertThat(result).hasNoMarkerFilesExcept(first, rest);
+        }
+
+        return this;
+    }
 }

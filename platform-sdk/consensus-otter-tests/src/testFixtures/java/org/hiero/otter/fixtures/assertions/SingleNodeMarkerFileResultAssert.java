@@ -3,8 +3,10 @@ package org.hiero.otter.fixtures.assertions;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Set;
 import org.assertj.core.api.AbstractAssert;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
+import org.hiero.otter.fixtures.internal.helpers.Utils;
 import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 
 /**
@@ -260,6 +262,33 @@ public class SingleNodeMarkerFileResultAssert
             failWithMessage("Expected an ISS marker file of type %s, but node %s wrote none", issType, actual.nodeId());
         }
 
+        return this;
+    }
+
+    /**
+     * Verifies that the node has no marker files except for the given ISS type.
+     *
+     * @param first  the first mandatory type of ISS marker file that is allowed
+     * @param rest the other optional types of ISS marker files that are allowed
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public SingleNodeMarkerFileResultAssert hasNoMarkerFilesExcept(
+            @NonNull final IssType first, @Nullable final IssType... rest) {
+        final Set<IssType> issTypes = Utils.collect(first, rest);
+        hasNoCoinRoundMarkerFile();
+        hasNoMissingSuperMajorityMarkerFile();
+        hasNoMissingJudgesMarkerFile();
+        hasNoConsensusExceptionMarkerFile();
+        if (!issTypes.contains(IssType.OTHER_ISS)) {
+            hasNoIssMarkerFileOfType(IssType.OTHER_ISS);
+        }
+        if (!issTypes.contains(IssType.SELF_ISS)) {
+            hasNoIssMarkerFileOfType(IssType.SELF_ISS);
+        }
+        if (!issTypes.contains(IssType.CATASTROPHIC_ISS)) {
+            hasNoIssMarkerFileOfType(IssType.CATASTROPHIC_ISS);
+        }
         return this;
     }
 }
