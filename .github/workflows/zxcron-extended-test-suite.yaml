@@ -99,6 +99,7 @@ jobs:
           BUILD_PROMO_PATTERN: ${{ env.PROMOTED_GREP_PATTERN }}
           BUILD_PATTERN: ${{ env.BUILD_GREP_PATTERN }}
           RC_TAG: ${{ inputs.rc-tag || '' }}
+          DEFAULT_BRANCH_NAME: "main"
         run: |
           # Check if the tag exists and if so grab its commit id
           if [[ -n "${RC_TAG}" ]]; then
@@ -159,15 +160,26 @@ jobs:
           XTS_SHORT_COMMIT="$(git rev-parse --short "${XTS_COMMIT}")"
           echo "::debug::XTS_SHORT_COMMIT=${XTS_SHORT_COMMIT}"
 
-          # Get the branch name for the commit
-          XTS_COMMIT_BRANCH="$(git name-rev --name-only --refs="refs/remotes/*" "${XTS_COMMIT}" | sed 's~^.*origin/~~' | sed 's/~.*//')"
-          echo "::debug::XTS_COMMIT_BRANCH=${XTS_COMMIT_BRANCH}"
+          # Determine which branch the commit belongs to
+          XTS_COMMIT_BRANCHES="$(git branch -r --contains "${XTS_COMMIT}" | sed 's/^[ *]*//')"
+          echo "::debug::XTS_COMMIT_BRANCHES=${XTS_COMMIT_BRANCHES}"
 
-          # Check if the tag exists on the main branch
+          XTS_COMMIT_BRANCH="${DEFAULT_BRANCH_NAME}"
           COMMIT_ON_DEFAULT_BRANCH=0
-          if [[ "${XTS_COMMIT_BRANCH}" != "main" ]]; then
+          if echo "${XTS_COMMIT_BRANCHES}" | grep -qE "(^|/)${DEFAULT_BRANCH_NAME}$"; then
+            echo "::debug::Commit ${XTS_COMMIT} found on main branch."
+          else
+            echo "::debug::Commit ${XTS_COMMIT} not found on main branch, determining actual branch."
             COMMIT_ON_DEFAULT_BRANCH=1
+            XTS_COMMIT_BRANCH="$(
+              git name-rev --name-only --refs="refs/remotes/*" "${XTS_COMMIT}" \
+              | sed 's~^.*origin/~~' \
+              | sed 's/~.*//'
+            )"
           fi
+
+          # Print branch debug info
+          echo "::debug::XTS_COMMIT_BRANCH=${XTS_COMMIT_BRANCH}"
           echo "::debug::COMMIT_ON_DEFAULT_BRANCH=${COMMIT_ON_DEFAULT_BRANCH}"
 
           # Get commit author
