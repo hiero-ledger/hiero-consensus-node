@@ -1,25 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.integration.hip1195;
-
-import com.google.protobuf.ByteString;
-import com.hedera.hapi.node.state.token.Account;
-import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.TargetEmbeddedMode;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
-import com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts;
-import com.hedera.services.bdd.spec.dsl.annotations.Contract;
-import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
-import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
-import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Order;
-import org.junit.jupiter.api.Tag;
-
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Stream;
 
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
@@ -52,6 +32,26 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_NOT_FOUND
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import com.google.protobuf.ByteString;
+import com.hedera.hapi.node.state.token.Account;
+import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts;
+import com.hedera.services.bdd.spec.dsl.annotations.Contract;
+import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
+import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
+import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Tag;
 
 @Order(13)
 @Tag(INTEGRATION)
@@ -136,6 +136,7 @@ public class Hip1195BasicTests {
                     assertEquals(3, a.numberHooksInUse());
                 }));
     }
+
     @HapiTest
     final Stream<DynamicTest> cryptoCreateWithMultipleHooksAndCryptoUpdateToAddMoreHooks() {
         return hapiTest(
@@ -200,6 +201,7 @@ public class Hip1195BasicTests {
                                 accountAllowanceHook(218L, FALSE_ALLOWANCE_HOOK.name()))
                         .hasPrecheck(HOOK_ID_REPEATED_IN_CREATION_DETAILS));
     }
+
     @HapiTest
     final Stream<DynamicTest> deleteThenCreateSameHookIdInSingleUpdate() {
         return hapiTest(
@@ -253,7 +255,7 @@ public class Hip1195BasicTests {
                         .withHooks(accountAllowanceHook(226L, FALSE_ALLOWANCE_HOOK.name())),
                 cryptoCreate("receiverAccount").balance(0L),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR)
-                        .between("senderWithFalseHook", "receiverAccount"))
+                                .between("senderWithFalseHook", "receiverAccount"))
                         .withPreHookFor("senderWithFalseHook", 226L, 25_000L, "")
                         .payingWith(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
@@ -267,7 +269,7 @@ public class Hip1195BasicTests {
                         .withHooks(accountAllowanceHook(227L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
                 cryptoCreate("receiverAccount").balance(0L),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR)
-                        .between("senderWithPrePostHook", "receiverAccount"))
+                                .between("senderWithPrePostHook", "receiverAccount"))
                         .withPrePostHookFor("senderWithPrePostHook", 227L, 25_000L, "")
                         .payingWith(DEFAULT_PAYER),
                 getAccountBalance("receiverAccount").hasTinyBars(10 * ONE_HBAR));
@@ -281,7 +283,7 @@ public class Hip1195BasicTests {
                         .withHooks(accountAllowanceHook(228L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
                 cryptoCreate("receiverAccount").balance(0L),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR)
-                        .between("senderWithPrePostHook", "receiverAccount"))
+                                .between("senderWithPrePostHook", "receiverAccount"))
                         .withPrePostHookFor("senderWithPrePostHook", 228L, 25_000L, "")
                         .payingWith(DEFAULT_PAYER)
                         .signedBy(DEFAULT_PAYER));
@@ -295,7 +297,7 @@ public class Hip1195BasicTests {
                         .withHooks(accountAllowanceHook(229L, FALSE_PRE_POST_ALLOWANCE_HOOK.name())),
                 cryptoCreate("receiverAccount").balance(0L),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR)
-                        .between("senderWithFalsePrePostHook", "receiverAccount"))
+                                .between("senderWithFalsePrePostHook", "receiverAccount"))
                         .withPrePostHookFor("senderWithFalsePrePostHook", 229L, 25_000L, "")
                         .payingWith(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
@@ -309,7 +311,7 @@ public class Hip1195BasicTests {
                         .withHooks(accountAllowanceHook(230L, FALSE_PRE_POST_ALLOWANCE_HOOK.name())),
                 cryptoCreate("receiverAccount").balance(0L),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR)
-                        .between("senderWithFalsePreHook", "receiverAccount"))
+                                .between("senderWithFalsePreHook", "receiverAccount"))
                         .withPrePostHookFor("senderWithFalsePreHook", 230L, 25_000L, "")
                         .payingWith(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
@@ -323,12 +325,11 @@ public class Hip1195BasicTests {
                         .withHooks(accountAllowanceHook(231L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
                 cryptoCreate("receiverAccount").balance(0L),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR)
-                        .between("senderWithTruePrePostHook", "receiverAccount"))
+                                .between("senderWithTruePrePostHook", "receiverAccount"))
                         .withPrePostHookFor("senderWithTruePrePostHook", 231L, 25_000L, "")
                         .payingWith(DEFAULT_PAYER),
                 getAccountBalance("receiverAccount").hasTinyBars(10 * ONE_HBAR));
     }
-
 
     @HapiTest
     final Stream<DynamicTest> cryptoTransferReferencingNonExistentHookIdFails() {
@@ -559,6 +560,7 @@ public class Hip1195BasicTests {
                                 accountAllowanceHook(307L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
                 viewContract("SimpleUpdate", (c) -> assertEquals(3, c.numberHooksInUse())));
     }
+
     @HapiTest
     final Stream<DynamicTest> contractCreateWithMultipleHooksAndContractUpdateToAddMoreHooks() {
         return hapiTest(
@@ -635,6 +637,7 @@ public class Hip1195BasicTests {
                         .withHooks(accountAllowanceHook(319L, FALSE_ALLOWANCE_HOOK.name()))
                         .hasKnownStatus(HOOK_ID_IN_USE));
     }
+
     @HapiTest
     final Stream<DynamicTest> deleteAllHooks() {
         final var OWNER = "acctHeadRun";
