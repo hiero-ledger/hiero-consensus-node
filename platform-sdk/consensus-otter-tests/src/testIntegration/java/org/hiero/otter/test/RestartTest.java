@@ -10,7 +10,6 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
-import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.hiero.otter.fixtures.Network;
@@ -19,6 +18,7 @@ import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
+import org.junit.jupiter.api.RepeatedTest;
 
 /**
  * Tests that a hard restart of all nodes in the network works correctly, and that all nodes are able to restart, replay
@@ -33,6 +33,7 @@ public class RestartTest {
      * @param env the test environment
      */
     @OtterTest
+    @RepeatedTest(value = 5, failureThreshold = 1)
     void testHardNetworkRestart(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -41,8 +42,7 @@ public class RestartTest {
         network.addNodes(4);
 
         // Setup continuous assertions
-        assertContinuouslyThat(network.newLogResults().suppressingLogMarker(LogMarker.SOCKET_EXCEPTIONS))
-                .haveNoErrorLevelMessages();
+        assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
         assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
         assertContinuouslyThat(network.newConsensusResults()).haveEqualCommonRounds();
         assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
