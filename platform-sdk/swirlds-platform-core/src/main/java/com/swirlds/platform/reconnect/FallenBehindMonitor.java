@@ -37,7 +37,7 @@ public class FallenBehindMonitor {
     /**
      * the number of peers in the roster
      */
-    private int peersSize;
+    private final int peersSize;
 
     /**
      * set of peers that reported this node has fallen behind
@@ -63,7 +63,7 @@ public class FallenBehindMonitor {
     }
 
     @VisibleForTesting
-    public FallenBehindMonitor(int peersSize, final double fallenBehindThreshold) {
+    public FallenBehindMonitor(final int peersSize, final double fallenBehindThreshold) {
         this.peersSize = peersSize;
         this.fallenBehindThreshold = fallenBehindThreshold;
     }
@@ -105,30 +105,6 @@ public class FallenBehindMonitor {
         lock.lock();
         try {
             reportFallenBehind.remove(id);
-            checkAndNotify();
-        } finally {
-            lock.unlock();
-        }
-    }
-
-    /**
-     * Notify about changes in list of node ids we should be taking into account for falling behind
-     *
-     * @param added   node ids which were added from the roster
-     * @param removed node ids which were removed from the roster
-     */
-    public void update(@NonNull final Set<NodeId> added, @NonNull final Set<NodeId> removed) {
-        requireNonNull(added);
-        requireNonNull(removed);
-
-        lock.lock();
-        try {
-            peersSize += added.size() - removed.size();
-            for (final NodeId nodeId : removed) {
-                if (reportFallenBehind.contains(nodeId) && !added.contains(nodeId)) {
-                    reportFallenBehind.remove(nodeId);
-                }
-            }
             checkAndNotify();
         } finally {
             lock.unlock();
