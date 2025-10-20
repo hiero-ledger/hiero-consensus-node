@@ -28,6 +28,7 @@ import com.hedera.hapi.node.hooks.HookExecution;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.contracts.HookUtils;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler;
@@ -58,15 +59,20 @@ import javax.inject.Singleton;
 public class TransferExecutor extends BaseTokenHandler {
     private final CryptoTransferValidator validator;
     private final HookCallFactory hookCallFactory;
+    private final EntityIdFactory entityIdFactory;
 
     /**
      * Default constructor for injection.
      */
     @Inject
-    public TransferExecutor(final CryptoTransferValidator validator, final HookCallFactory hookCallFactory) {
+    public TransferExecutor(
+            final CryptoTransferValidator validator,
+            final HookCallFactory hookCallFactory,
+            EntityIdFactory entityIdFactory) {
         // For Dagger injection
         this.validator = validator;
         this.hookCallFactory = hookCallFactory;
+        this.entityIdFactory = entityIdFactory;
     }
 
     /**
@@ -346,7 +352,7 @@ public class TransferExecutor extends BaseTokenHandler {
                             .hookId(hookInvocation.hookId())
                             .build())
                     .build();
-            dispatchExecution(handleContext, execution, function);
+            dispatchExecution(handleContext, execution, function, entityIdFactory);
         }
     }
 

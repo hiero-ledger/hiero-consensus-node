@@ -33,6 +33,7 @@ import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
@@ -80,8 +81,10 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
      */
     @Inject
     public CryptoTransferHandler(
-            @NonNull final CryptoTransferValidator validator, @NonNull final HookCallFactory hookCallFactory) {
-        this(validator, true, hookCallFactory);
+            @NonNull final CryptoTransferValidator validator,
+            @NonNull final HookCallFactory hookCallFactory,
+            @NonNull final EntityIdFactory entityIdFactory) {
+        this(validator, true, hookCallFactory, entityIdFactory);
     }
 
     /**
@@ -93,8 +96,9 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
     public CryptoTransferHandler(
             @NonNull final CryptoTransferValidator validator,
             final boolean enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments,
-            @NonNull final HookCallFactory hookCallFactory) {
-        super(validator, hookCallFactory);
+            @NonNull final HookCallFactory hookCallFactory,
+            @NonNull final EntityIdFactory entityIdFactory) {
+        super(validator, hookCallFactory, entityIdFactory);
         this.validator = validator;
         this.enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments =
                 enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments;
