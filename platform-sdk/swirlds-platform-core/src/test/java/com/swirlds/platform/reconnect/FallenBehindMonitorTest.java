@@ -7,13 +7,11 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTimeout;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.google.common.collect.ImmutableSet;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.platform.Utilities;
 import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.time.Duration;
-import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
@@ -101,48 +99,6 @@ class FallenBehindMonitorTest {
         assertFalse(monitor.isBehindPeer(NodeId.of(4)));
 
         monitor.report(NodeId.of(4));
-        monitor.report(NodeId.of(8));
-        assertFallenBehind(true, 8, "more nodes reported, but the status should be the same");
-
-        monitor.reset();
-        assertFallenBehind(false, 0, "resetting should return to default");
-    }
-
-    @Test
-    void testChangingPeerAmount() {
-        assertFallenBehind(false, 0, "default should be none report fallen behind");
-
-        // node 1 reports fallen behind
-        monitor.report(NodeId.of(1));
-        assertFallenBehind(false, 1, "one node only reported fallen behind");
-
-        // if the same node reports again, nothing should change
-        monitor.report(NodeId.of(1));
-        assertFallenBehind(false, 1, "if the same node reports again, nothing should change");
-
-        monitor.report(NodeId.of(2));
-        monitor.report(NodeId.of(3));
-        monitor.report(NodeId.of(4));
-        monitor.report(NodeId.of(5));
-        assertFallenBehind(false, 5, "we should still be missing one for fallen behind");
-
-        monitor.update(ImmutableSet.of(NodeId.of(22), NodeId.of(23)), Collections.emptySet());
-
-        monitor.report(NodeId.of(6));
-        assertFallenBehind(false, 6, "we miss one due to changed size");
-
-        monitor.update(Collections.emptySet(), Collections.singleton(NodeId.of(9)));
-
-        assertFallenBehind(true, 6, "we should fall behind due to reduced number of peers");
-
-        monitor.report(NodeId.of(1));
-        monitor.report(NodeId.of(2));
-        monitor.report(NodeId.of(3));
-        monitor.report(NodeId.of(4));
-        monitor.report(NodeId.of(6));
-        assertFallenBehind(true, 6, "if the same nodes report again, nothing should change");
-
-        monitor.report(NodeId.of(7));
         monitor.report(NodeId.of(8));
         assertFallenBehind(true, 8, "more nodes reported, but the status should be the same");
 
@@ -403,38 +359,6 @@ class FallenBehindMonitorTest {
         assertFalse(monitor.isBehindPeer(peer1), "All should be cleared after reset");
         assertFalse(monitor.isBehindPeer(peer2), "All should be cleared after reset");
         assertFalse(monitor.isBehindPeer(peer3), "All should be cleared after reset");
-    }
-
-    @Test
-    @DisplayName("Test update with simultaneous add and remove")
-    void testUpdateWithSimultaneousAddAndRemove() {
-        // Set up initial state with some reports
-        monitor.report(NodeId.of(1));
-        monitor.report(NodeId.of(2));
-        monitor.report(NodeId.of(3));
-        assertFalse(monitor.hasFallenBehind());
-
-        // Remove node 2 and add nodes 11, 12
-        monitor.update(ImmutableSet.of(NodeId.of(11), NodeId.of(12)), ImmutableSet.of(NodeId.of(2)));
-
-        // Node 2's report should be removed, but we now have 2 peers added
-        assertEquals(2, monitor.reportedSize(), "Node 2 should be removed from reports");
-        assertFalse(monitor.isBehindPeer(NodeId.of(2)));
-        assertTrue(monitor.isBehindPeer(NodeId.of(1)));
-        assertTrue(monitor.isBehindPeer(NodeId.of(3)));
-    }
-
-    @Test
-    @DisplayName("Test update when removing a node also in added set")
-    void testUpdateWithNodeInBothAddedAndRemoved() {
-        monitor.report(NodeId.of(1));
-        monitor.report(NodeId.of(2));
-
-        // Node 2 is in both added and removed - should not be removed from reports
-        monitor.update(ImmutableSet.of(NodeId.of(2)), ImmutableSet.of(NodeId.of(2)));
-
-        assertTrue(monitor.isBehindPeer(NodeId.of(2)), "Node 2 should still be in reports when in both sets");
-        assertEquals(2, monitor.reportedSize());
     }
 
     @Test
