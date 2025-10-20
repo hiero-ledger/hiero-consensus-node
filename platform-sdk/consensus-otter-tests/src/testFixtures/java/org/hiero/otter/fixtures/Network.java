@@ -16,6 +16,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.internal.helpers.Utils;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology;
+import org.hiero.otter.fixtures.network.utils.LatencyRange;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeEventStreamResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
@@ -230,6 +231,17 @@ public interface Network {
      * @return true if the node is isolated, false otherwise
      */
     boolean isIsolated(@NonNull Node node);
+
+    /**
+     * Sets the latency range for all connections from this node.
+     *
+     * <p>This method sets the latency for all connections from the specified node to the given latency range. If a
+     * connection already has a custom latency set, it will be overridden by this method.
+     *
+     * @param node the node for which to set the latency
+     * @param latencyRange the latency range to apply to all connections
+     */
+    void setLatencyForAllConnections(@NonNull Node node, @NonNull LatencyRange latencyRange);
 
     /**
      * Restore the network connectivity to its original/default state. Removes all partitions, cliques, and custom

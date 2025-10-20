@@ -41,6 +41,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.assertj.core.data.Percentage;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -67,6 +68,7 @@ import org.hiero.otter.fixtures.internal.result.MultipleNodeReconnectResultsImpl
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology;
 import org.hiero.otter.fixtures.network.Topology.ConnectionData;
+import org.hiero.otter.fixtures.network.utils.LatencyRange;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeEventStreamResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
@@ -117,6 +119,7 @@ public abstract class AbstractNetwork implements Network {
 
     private final Random random;
     private final Map<NodeId, PartitionImpl> networkPartitions = new HashMap<>();
+    private final Map<ConnectionKey, LatencyOverride> latencyOverrides = new HashMap<>();
     private final Topology topology;
     private final boolean useRandomNodeIds;
 
@@ -453,6 +456,20 @@ public abstract class AbstractNetwork implements Network {
     public boolean isIsolated(@NonNull final Node node) {
         final Partition partition = networkPartitions.get(node.selfId());
         return partition != null && partition.size() == 1;
+    }
+
+    /**
+     *  {@inheritDoc}
+     */
+    @Override
+    public void setLatencyForAllConnections(@NonNull final Node sender, @NonNull final LatencyRange latencyRange) {
+        for (final Node receiver : nodes()) {
+            if (!receiver.equals(sender)) {
+                final long nanos = random.nextLong(latencyRange.min().toNanos(), latencyRange.max().toNanos());
+                final LatencyOverride latencyOverride = new LatencyOverride(Duration.ofNanos(nanos), latencyRange.jitterPercent());
+                latencyOverrides.put(new ConnectionKey(sender.selfId(), receiver.selfId()), latencyOverride);
+            }
+        }
     }
 
     /**
@@ -954,4 +971,6 @@ public abstract class AbstractNetwork implements Network {
             return nodes.size();
         }
     }
+
+    private record LatencyOverride(@NonNull Duration latency, @NonNull Percentage jitter) {}
 }
