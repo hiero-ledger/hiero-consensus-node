@@ -240,8 +240,8 @@ public class SwirldsPlatform implements Platform {
                 new DefaultSignedStateValidator(platformContext, platformStateFacade));
 
         final Thread reconnectControllerThread = new ThreadConfiguration(AdHocThreadManager.getStaticThreadManager())
-                .setComponent("ReconnectController")
-                .setThreadName("ReconnectController")
+                .setComponent("platform-core")
+                .setThreadName("reconnectController")
                 .setRunnable(reconnectController)
                 .build(true);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
