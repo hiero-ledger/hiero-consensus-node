@@ -177,7 +177,7 @@ To detect unresponsive block nodes during message transmission, the connection i
   - The timeout metric is incremented
   - `handleStreamFailure()` is triggered (only if connection is still ACTIVE)
   - The connection follows standard failure handling with exponential backoff retry
-  - The connection manager may select a different block node for the next attempt
+  - The connection manager will select a different block node for the next attempt if one is available
 - **onComplete() timeout**: When closing the stream via `closePipeline()`, a timeout task is scheduled before calling `pipeline.onComplete()`. If the operation does not complete within the configured timeout period:
   - The timeout metric is incremented
   - Since the connection is already in CLOSING state, only the timeout is logged
