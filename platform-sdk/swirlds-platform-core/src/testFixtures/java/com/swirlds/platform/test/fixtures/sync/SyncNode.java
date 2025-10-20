@@ -27,7 +27,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -362,9 +361,6 @@ public class SyncNode {
                     == com.swirlds.platform.reconnect.FallenBehindStatus.SELF_FALLEN_BEHIND;
             return status;
         }
-
-        @Override
-        public synchronized void update(@NonNull final Set<NodeId> added, @NonNull final Set<NodeId> removed) {}
 
         @Override
         public boolean isBehindPeer(@NonNull final NodeId peerId) {
