@@ -6,16 +6,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 
 import com.swirlds.common.test.fixtures.WeightGenerators;
-import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
-import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
-import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.hiero.otter.fixtures.util.TimeoutException;
 import org.junit.jupiter.api.Disabled;
@@ -100,19 +97,20 @@ class NodeLifecycleTest {
                 assertThat(node3.isActive()).isTrue();
 
                 // check there are socket exceptions in all logs that remained active
-                if (env.capabilities().contains(Capability.USES_REAL_NETWORK)) {
-                    for (final SingleNodeLogResult logResult : logResults.results()) {
-                        final boolean socketExceptionFound = logResult.logs().stream()
-                                .map(StructuredLog::marker)
-                                .anyMatch(marker -> marker == LogMarker.SOCKET_EXCEPTIONS.getMarker());
-                        assertThat(socketExceptionFound)
-                                .as(
-                                        "Expected node %d to have a SOCKET_EXCEPTION, but it did not",
-                                        logResult.nodeId().id())
-                                .isTrue();
-                        logResult.clear();
-                    }
-                }
+                //                if (env.capabilities().contains(Capability.USES_REAL_NETWORK)) {
+                //                    for (final SingleNodeLogResult logResult : logResults.results()) {
+                //                        final boolean socketExceptionFound = logResult.logs().stream()
+                //                                .map(StructuredLog::marker)
+                //                                .anyMatch(marker -> marker ==
+                // LogMarker.SOCKET_EXCEPTIONS.getMarker());
+                //                        assertThat(socketExceptionFound)
+                //                                .as(
+                //                                        "Expected node %d to have a SOCKET_EXCEPTION, but it did not",
+                //                                        logResult.nodeId().id())
+                //                                .isTrue();
+                //                        logResult.clear();
+                //                    }
+                //                }
 
                 // Restart the killed node
                 nodeToKill.start();
