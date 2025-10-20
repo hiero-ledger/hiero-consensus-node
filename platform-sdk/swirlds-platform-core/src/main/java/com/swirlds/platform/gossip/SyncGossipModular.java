@@ -49,7 +49,6 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
@@ -251,10 +250,9 @@ public class SyncGossipModular implements Gossip {
      */
     public void addRemovePeers(@NonNull final List<PeerInfo> added, @NonNull final List<PeerInfo> removed) {
         synchronized (this) {
-            fallenBehindMonitor.update(
-                    added.stream().map(PeerInfo::nodeId).collect(Collectors.toSet()),
-                    removed.stream().map(PeerInfo::nodeId).collect(Collectors.toSet()));
-            syncProtocol.adjustTotalPermits(added.size() - removed.size());
+            // if this is needed we should update fallenBehindMonitor
+            syncProtocol.adjustTotalPermits(
+                    added.size() - removed.size()); // Review, needs to make sure that the removed are part of the AB?
             network.addRemovePeers(added, removed);
         }
     }
