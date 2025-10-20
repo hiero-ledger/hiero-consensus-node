@@ -137,8 +137,8 @@ public class ReconnectTest {
      *
      * @param env the test environment
      */
+    @Disabled("This test is flaky and needs to be investigated further")
     @OtterTest(requires = Capability.BACK_PRESSURE)
-    @Disabled
     void testSyntheticBottleneckReconnect(final TestEnvironment env) {
         final int numReconnectCycles = 2;
         final Network network = env.network();
@@ -179,7 +179,7 @@ public class ReconnectTest {
 
         for (int i = 0; i < numReconnectCycles; i++) {
             // Throttle the last node for a period of time so that it falls into CHECKING
-            enableSyntheticBottleneck(Duration.ofSeconds(30), node0, node1, node2);
+            enableSyntheticBottleneck(Duration.ofMinutes(10), node0, node1, node2);
 
             timeManager.waitForCondition(
                     () -> network.nodesAreBehindByNodeCount(node0, node1, node2),
