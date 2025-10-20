@@ -63,13 +63,20 @@ public class ReconnectTest {
         final Node nodeToReconnect = network.nodes().getLast();
 
         // Setup continuous assertions
-        assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds();
-        assertContinuouslyThat(network.newPlatformStatusResults().suppressingNode(nodeToReconnect))
-                .doNotEnterAnyStatusesOf(BEHIND);
+        assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
+        assertContinuouslyThat(network.newReconnectResults().suppressingNode(nodeToReconnect))
+                .doNotAttemptToReconnect();
         assertContinuouslyThat(nodeToReconnect.newReconnectResult())
                 .hasNoFailedReconnects()
                 .hasMaximumReconnectTime(Duration.ofSeconds(10))
                 .hasMaximumTreeInitializationTime(Duration.ofSeconds(1));
+        assertContinuouslyThat(network.newConsensusResults()).haveEqualCommonRounds();
+        assertContinuouslyThat(network.newConsensusResults().suppressingNode(nodeToReconnect))
+                .haveConsistentRounds();
+        assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
+
+        assertContinuouslyThat(network.newPlatformStatusResults().suppressingNode(nodeToReconnect))
+                .doNotEnterAnyStatusesOf(BEHIND);
         network.start();
 
         // Allow the nodes to run for a short time
@@ -111,13 +118,7 @@ public class ReconnectTest {
                 Duration.ofSeconds(120L));
 
         // Validations
-        assertThat(network.newLogResults()).haveNoErrorLevelMessages();
-
         assertThat(nodeToReconnect.newReconnectResult()).hasExactSuccessfulReconnects(1);
-
-        assertThat(network.newConsensusResults().suppressingNode(nodeToReconnect))
-                .haveConsistentRounds()
-                .haveEqualCommonRounds();
 
         // All non-reconnected nodes should go through the normal status progression
         assertThat(network.newPlatformStatusResults().suppressingNode(nodeToReconnect))
@@ -155,20 +156,30 @@ public class ReconnectTest {
                         "SEQUENTIAL_THREAD CAPACITY(100) FLUSHABLE SQUELCHABLE")
                 .withConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, ROUNDS_EXPIRED);
 
-        assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds();
-        network.start();
-
-        // Run the nodes for some time
-        timeManager.waitFor(Duration.ofSeconds(5L));
-
         // These nodes will be forced to reconnect
         final Node node0 = network.nodes().get(0);
         final Node node1 = network.nodes().get(1);
         final Node node2 = network.nodes().get(2);
 
+        final List<Node> unstableNodes = List.of(node0, node1, node2);
         final List<Node> stableNodes = network.nodes().stream()
                 .filter(n -> !Set.of(node0, node1, node2).contains(n))
                 .toList();
+
+        // Setup continuous assertions
+        assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
+        assertContinuouslyThat(network.newReconnectResults()).hasNoFailedReconnects();
+        assertContinuouslyThat(network.newReconnectResults().suppressingNodes(unstableNodes))
+                .doNotAttemptToReconnect();
+        assertContinuouslyThat(network.newConsensusResults())
+                .haveEqualCommonRounds()
+                .haveConsistentRounds();
+        assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
+
+        network.start();
+
+        // Run the nodes for some time
+        timeManager.waitFor(Duration.ofSeconds(5L));
 
         final MultipleNodePlatformStatusResults reconnectingNodeStatusResults =
                 network.newPlatformStatusResults().suppressingNodes(stableNodes);
@@ -208,21 +219,12 @@ public class ReconnectTest {
         // Allow the nodes to run for a short time after completing the last reconnect cycle
         timeManager.waitFor(Duration.ofSeconds(5L));
 
-        assertThat(network.newLogResults()).haveNoErrorLevelMessages();
-        assertThat(network.newConsensusResults()).haveConsistentRounds().haveEqualCommonRounds();
-
-        for (Node node : Set.of(node0, node1, node2)) {
-            assertThat(node.newReconnectResult())
-                    .hasExactSuccessfulReconnects(numReconnectCycles)
-                    .hasNoFailedReconnects();
+        for (final Node node : Set.of(node0, node1, node2)) {
+            assertThat(node.newReconnectResult()).hasExactSuccessfulReconnects(numReconnectCycles);
         }
-        assertThat(network.newReconnectResults().suppressingNodes(node0, node1, node2))
-                .haveNoReconnects();
 
         assertThat(network.newPlatformStatusResults().suppressingNodes(node0, node1, node2))
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
-
-        assertThat(network.newMarkerFileResults()).haveNoMarkerFiles();
     }
 
     private void enableSyntheticBottleneck(@NonNull final Duration duration, @NonNull final Node... nodesToThrottle) {

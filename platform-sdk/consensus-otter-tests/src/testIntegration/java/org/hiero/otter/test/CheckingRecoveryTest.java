@@ -47,7 +47,14 @@ public class CheckingRecoveryTest {
         network.withConfigValue(
                 PlatformSchedulersConfig_.TRANSACTION_HANDLER, "SEQUENTIAL_THREAD CAPACITY(100) FLUSHABLE SQUELCHABLE");
 
-        assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds();
+        // Setup continuous assertions
+        assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
+        assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
+        assertContinuouslyThat(network.newConsensusResults())
+                .haveEqualCommonRounds()
+                .haveConsistentRounds();
+        assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
+
         network.start();
 
         // Run the nodes for some time
