@@ -37,7 +37,7 @@ public class MultipleNodeMarkerFileResultsAssert
     }
 
     /**
-     * Verifies that the nodes do not have any marker files.
+     * Verifies that none of the nodes has any marker files.
      *
      * @return this assertion object for method chaining
      */
@@ -53,7 +53,7 @@ public class MultipleNodeMarkerFileResultsAssert
     }
 
     /**
-     * Verifies that the nodes do not have coin round marker files.
+     * Verifies that none of the nodes has a coin round marker files.
      *
      * @return this assertion object for method chaining
      */
@@ -69,7 +69,7 @@ public class MultipleNodeMarkerFileResultsAssert
     }
 
     /**
-     * Verifies that the nodes do not have no-super-majority marker files.
+     * Verifies that none of the nodes has a missing-super-majority marker files.
      *
      * @return this assertion object for method chaining
      */
@@ -85,7 +85,7 @@ public class MultipleNodeMarkerFileResultsAssert
     }
 
     /**
-     * Verifies that the nodes do not have no-judges marker files.
+     * Verifies that none of the nodes has a missing-judges marker files.
      *
      * @return this assertion object for method chaining
      */
@@ -101,7 +101,7 @@ public class MultipleNodeMarkerFileResultsAssert
     }
 
     /**
-     * Verifies that the nodes do not have consensus exception marker files.
+     * Verifies that none of the nodes has a consensus exception marker files.
      *
      * @return this assertion object for method chaining
      */
@@ -117,7 +117,7 @@ public class MultipleNodeMarkerFileResultsAssert
     }
 
     /**
-     * Verifies that the nodes do not have any ISS marker files.
+     * Verifies that none of the nodes has any ISS marker files.
      *
      * @return this assertion object for method chaining
      */
@@ -133,7 +133,7 @@ public class MultipleNodeMarkerFileResultsAssert
     }
 
     /**
-     * Verifies that the nodes do not have ISS marker files of type {@link IssType#OTHER_ISS}.
+     * Verifies that none of the nodes has an ISS marker files of type {@link IssType#OTHER_ISS}.
      *
      * @param issType the type of ISS marker file to check
      * @return this assertion object for method chaining

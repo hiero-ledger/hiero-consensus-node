@@ -9,17 +9,16 @@ import java.nio.file.ClosedWatchServiceException;
 import java.nio.file.Path;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
+import java.time.Duration;
 import java.time.Instant;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.helpers.MarkerFileUtils;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 
 /**
  * An observer that watches for marker files written by a Turtle node.
- * It checks for new marker files on each time tick, thus making this check deterministic.
+ * It checks for new marker files on each time tick.
  * <p>
  * On macOS, the WatchService implementation has known reliability issues (polling-based with delays).
  * To work around this, we periodically scan the directory as a fallback mechanism to ensure we
@@ -27,10 +26,10 @@ import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
  */
 public class TurtleMarkerFileObserver implements TimeTickReceiver {
 
-    private static final int FALLBACK_SCAN_INTERVAL = 100; // Scan directory every 100 ticks as fallback
+    /** The time interval between fallback directory scans */
+    private static final Duration FALLBACK_SCAN_INTERVAL = Duration.ofSeconds(10L);
 
     private final NodeResultsCollector resultsCollector;
-    private final Set<String> seenMarkerFiles = new HashSet<>();
 
     @Nullable
     private WatchService watchService;
@@ -38,7 +37,8 @@ public class TurtleMarkerFileObserver implements TimeTickReceiver {
     @Nullable
     private Path markerFilesDir;
 
-    private int tickCount = 0;
+    /** The last time (in real time) a fallback scan was performed */
+    private Instant lastFallbackScanTime = Instant.now();
 
     /**
      * Creates a new instance of {@link TurtleMarkerFileObserver}.
@@ -86,7 +86,7 @@ public class TurtleMarkerFileObserver implements TimeTickReceiver {
             final WatchKey key = watchService.poll();
             if (key != null && key.isValid()) {
                 final List<String> newMarkerFiles = MarkerFileUtils.evaluateWatchKey(key);
-                processNewMarkerFiles(newMarkerFiles);
+                resultsCollector.addMarkerFiles(newMarkerFiles);
                 key.reset();
             }
         } catch (final ClosedWatchServiceException e) {
@@ -96,26 +96,11 @@ public class TurtleMarkerFileObserver implements TimeTickReceiver {
 
         // Fallback: Periodically scan the directory to catch any files missed by WatchService
         // This is especially important on macOS where WatchService has known reliability issues
-        tickCount++;
-        if (tickCount % FALLBACK_SCAN_INTERVAL == 0) {
+        final Instant currentRealTime = Instant.now();
+        if (Duration.between(lastFallbackScanTime, currentRealTime).compareTo(FALLBACK_SCAN_INTERVAL) >= 0) {
             final List<String> allMarkerFiles = MarkerFileUtils.scanDirectoryForMarkerFiles(markerFilesDir);
-            processNewMarkerFiles(allMarkerFiles);
-        }
-    }
-
-    /**
-     * Processes a list of marker files, filtering out any that have already been seen.
-     *
-     * @param markerFiles the list of marker files to process
-     */
-    private void processNewMarkerFiles(@NonNull final List<String> markerFiles) {
-        final List<String> newFiles = markerFiles.stream()
-                .filter(file -> !seenMarkerFiles.contains(file))
-                .toList();
-
-        if (!newFiles.isEmpty()) {
-            seenMarkerFiles.addAll(newFiles);
-            resultsCollector.addMarkerFiles(newFiles);
+            resultsCollector.addMarkerFiles(allMarkerFiles);
+            lastFallbackScanTime = currentRealTime;
         }
     }
 }

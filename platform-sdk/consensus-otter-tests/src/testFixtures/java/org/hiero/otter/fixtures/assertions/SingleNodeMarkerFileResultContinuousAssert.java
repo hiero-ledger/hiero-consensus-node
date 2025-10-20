@@ -73,29 +73,29 @@ public class SingleNodeMarkerFileResultContinuousAssert
     }
 
     /**
-     * Verifies that the node does not write a no-super-majority marker file.
+     * Verifies that the node does not write a missing-super-majority marker file.
      *
      * @return this assertion object for method chaining
      */
     @NonNull
     public SingleNodeMarkerFileResultContinuousAssert hasNoMissingSuperMajorityMarkerFile() {
         return checkContinuously(markerFilesStatus -> {
-            if (markerFilesStatus.hasNoSuperMajorityMarkerFile()) {
-                failWithMessage("Expected no no-super-majority marker file, but one was written");
+            if (markerFilesStatus.hasMissingSuperMajorityMarkerFile()) {
+                failWithMessage("Expected no missing-super-majority marker file, but one was written");
             }
         });
     }
 
     /**
-     * Verifies that the node does not write a no-judges marker file.
+     * Verifies that the node does not write a missing-judges marker file.
      *
      * @return this assertion object for method chaining
      */
     @NonNull
     public SingleNodeMarkerFileResultContinuousAssert hasNoMissingJudgesMarkerFile() {
         return checkContinuously(markerFilesStatus -> {
-            if (markerFilesStatus.hasNoJudgesMarkerFile()) {
-                failWithMessage("Expected no no-judges marker file, but one was written");
+            if (markerFilesStatus.hasMissingJudgesMarkerFile()) {
+                failWithMessage("Expected no missing-judges marker file, but one was written");
             }
         });
     }

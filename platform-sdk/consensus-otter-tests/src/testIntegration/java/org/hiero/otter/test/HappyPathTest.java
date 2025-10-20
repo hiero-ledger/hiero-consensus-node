@@ -39,7 +39,9 @@ public class HappyPathTest {
         // Setup continuous assertions
         assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
         assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
-        assertContinuouslyThat(network.newConsensusResults()).haveEqualCommonRounds().haveConsistentRounds();
+        assertContinuouslyThat(network.newConsensusResults())
+                .haveEqualCommonRounds()
+                .haveConsistentRounds();
         assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
         assertContinuouslyThat(network.newPlatformStatusResults())
                 .doOnlyEnterStatusesOf(ACTIVE, REPLAYING_EVENTS, OBSERVING, CHECKING)

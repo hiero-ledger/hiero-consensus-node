@@ -79,7 +79,9 @@ public class PartitionTest {
         // Setup continuous assertions
         assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
         assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
-        assertContinuouslyThat(network.newConsensusResults()).haveEqualCommonRounds().haveConsistentRounds();
+        assertContinuouslyThat(network.newConsensusResults())
+                .haveEqualCommonRounds()
+                .haveConsistentRounds();
         assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
 
         network.start();

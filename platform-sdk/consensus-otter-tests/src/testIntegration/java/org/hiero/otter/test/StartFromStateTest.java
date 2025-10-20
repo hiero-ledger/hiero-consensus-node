@@ -54,7 +54,9 @@ public class StartFromStateTest {
 
         // Setup continuous assertions
         assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
-        assertContinuouslyThat(network.newConsensusResults()).haveEqualCommonRounds().haveConsistentRounds();
+        assertContinuouslyThat(network.newConsensusResults())
+                .haveEqualCommonRounds()
+                .haveConsistentRounds();
         assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
         assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
 

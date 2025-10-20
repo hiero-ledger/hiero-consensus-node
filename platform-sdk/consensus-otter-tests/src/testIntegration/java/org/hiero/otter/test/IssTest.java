@@ -10,7 +10,6 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.targets;
-import static org.testcontainers.shaded.org.awaitility.Awaitility.await;
 
 import com.swirlds.platform.config.StateConfig_;
 import com.swirlds.platform.state.iss.DefaultIssDetector;
@@ -26,6 +25,7 @@ import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.result.MarkerFilesStatus;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
+import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 
 /**
@@ -41,6 +41,7 @@ public class IssTest {
     @OtterTest
     void testManualSelfIssRecovery(@NonNull final TestEnvironment env) {
         final Network network = env.network();
+        final TimeManager timeManager = env.timeManager();
 
         network.addNodes(4);
 
@@ -108,18 +109,18 @@ public class IssTest {
         // Wait for SELF_ISS marker file on the ISS node (max 2 minutes)
         final MarkerFilesStatus issMarkerFilesStatus =
                 issNode.newMarkerFileResult().status();
-        await().atMost(Duration.ofMinutes(2L))
-                .until(() -> issMarkerFilesStatus.hasISSMarkerFileOfType(IssType.SELF_ISS));
+        timeManager.waitForConditionInRealTime(
+                () -> issMarkerFilesStatus.hasISSMarkerFileOfType(IssType.SELF_ISS), Duration.ofMinutes(2L));
 
         // This functionality is currently unstable. Enable the check once
         // https://github.com/hiero-ledger/hiero-consensus-node/issues/21684 has been fixed
 
         //        // Wait for OTHER_ISS marker files on all other nodes (max 10 seconds each)
         //        for (final SingleNodeMarkerFileResult result :
-        // network.newMarkerFileResults().suppressingNode(issNode).results()) {
-        //            final MarkerFilesStatus markerFilesStatus = result.status();
-        //            await().atMost(Duration.ofSeconds(10L))
-        //                    .until(() -> markerFilesStatus.hasISSMarkerFileOfType(IssType.OTHER_ISS));
+        //                network.newMarkerFileResults().suppressingNode(issNode).results()) {
+        //            timeManager.waitForConditionInRealTime(() ->
+        // result.status().hasISSMarkerFileOfType(IssType.OTHER_ISS),
+        //                    Duration.ofSeconds(10L));
         //        }
     }
 
@@ -134,12 +135,34 @@ public class IssTest {
         final TimeManager timeManager = env.timeManager();
 
         network.addNodes(4);
+        final Node issNode = network.nodes().getFirst();
 
         network.withConfigValue(StateConfig_.AUTOMATED_SELF_ISS_RECOVERY, true);
 
-        network.start();
+        // Setup continuous assertions
+        assertContinuouslyThat(network.newLogResults().suppressingNode(issNode)).haveNoErrorLevelMessages();
+        assertContinuouslyThat(network.newReconnectResults().suppressingNode(issNode))
+                .doNotAttemptToReconnect();
+        assertContinuouslyThat(network.newConsensusResults()).haveEqualCommonRounds();
+        assertContinuouslyThat(network.newConsensusResults().suppressingNode(issNode))
+                .haveConsistentRounds();
+        assertContinuouslyThat(network.newMarkerFileResults().suppressingNode(issNode))
+                .haveNoCoinRoundMarkerFiles()
+                .haveNoMissingSuperMajorityMarkerFiles()
+                .haveNoMissingJudgesMarkerFiles()
+                .haveNoConsensusExceptionMarkerFiles()
+                .haveNoIssMarkerFilesOfType(IssType.SELF_ISS)
+                .haveNoIssMarkerFilesOfType(IssType.CATASTROPHIC_ISS);
+        assertContinuouslyThat(issNode.newMarkerFileResult())
+                .hasNoCoinRoundMarkerFile()
+                .hasNoMissingSuperMajorityMarkerFile()
+                .hasNoMissingJudgesMarkerFile()
+                .hasNoWriteConsensusExceptionMarkerFile()
+                // Check can be enabled once https://github.com/hiero-ledger/hiero-consensus-node/issues/21666 is fixed
+                //                .hasNoISSMarkerFileOfType(IssType.OTHER_ISS)
+                .hasNoIssMarkerFileOfType(IssType.CATASTROPHIC_ISS);
 
-        final Node issNode = network.nodes().getFirst();
+        network.start();
 
         final SingleNodeLogResult issNodeLogResult = issNode.newLogResult();
         assertThat(issNodeLogResult).hasNoErrorLevelMessages();
@@ -168,7 +191,6 @@ public class IssTest {
                                 .optionalInterim(CATASTROPHIC_FAILURE));
 
         assertThat(issNodeLogResult).hasNoErrorLevelMessages();
-        assertThat(network.newLogResults().suppressingNode(issNode)).haveNoErrorLevelMessages();
     }
 
     /**
@@ -183,6 +205,7 @@ public class IssTest {
     @OtterTest
     void testCatastrophicIss(@NonNull final TestEnvironment env) {
         final Network network = env.network();
+        final TimeManager timeManager = env.timeManager();
 
         network.addNodes(4);
         network.withConfigValue(StateConfig_.HALT_ON_CATASTROPHIC_ISS, true);
@@ -191,7 +214,9 @@ public class IssTest {
         assertContinuouslyThat(network.newLogResults().suppressingLoggerName(DefaultIssDetector.class))
                 .haveNoErrorLevelMessages();
         assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
-        assertContinuouslyThat(network.newConsensusResults()).haveEqualCommonRounds().haveConsistentRounds();
+        assertContinuouslyThat(network.newConsensusResults())
+                .haveEqualCommonRounds()
+                .haveConsistentRounds();
         assertContinuouslyThat(network.newMarkerFileResults())
                 .haveNoCoinRoundMarkerFiles()
                 .haveNoMissingSuperMajorityMarkerFiles()
@@ -211,13 +236,11 @@ public class IssTest {
 
         assertThat(network.newEventStreamResults()).haveEqualFiles();
 
-        // This functionality is currently unstable. Enable the check once
-        // https://github.com/hiero-ledger/hiero-consensus-node/issues/21703 has been fixed
-
-        //        // It takes a while (real time) until a marker file is created, therefore we check it in a loop
-        //        for (final SingleNodeMarkerFileResult result : network.newMarkerFileResults().results()) {
-        //            await().atMost(Duration.ofMinutes(2))
-        //                    .until(() -> result.status().hasISSMarkerFileOfType(IssType.CATASTROPHIC_ISS));
-        //        }
+        // It can take a while (real time) until a marker file is created, therefore we wait for its presence
+        for (final SingleNodeMarkerFileResult result :
+                network.newMarkerFileResults().results()) {
+            timeManager.waitForConditionInRealTime(
+                    () -> result.status().hasISSMarkerFileOfType(IssType.CATASTROPHIC_ISS), Duration.ofMinutes(2L));
+        }
     }
 }

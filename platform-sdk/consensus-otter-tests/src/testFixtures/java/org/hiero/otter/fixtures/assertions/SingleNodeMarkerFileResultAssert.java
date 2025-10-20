@@ -100,7 +100,7 @@ public class SingleNodeMarkerFileResultAssert
     }
 
     /**
-     * Verifies that the node does not have a no-super-majority marker file.
+     * Verifies that the node does not have a missing-super-majority marker file.
      *
      * @return this assertion object for method chaining
      */
@@ -108,15 +108,15 @@ public class SingleNodeMarkerFileResultAssert
     public SingleNodeMarkerFileResultAssert hasNoMissingSuperMajorityMarkerFile() {
         isNotNull();
 
-        if (actual.status().hasNoSuperMajorityMarkerFile()) {
-            failWithMessage("Expected no no-super-majority marker file, but node %s wrote one", actual.nodeId());
+        if (actual.status().hasMissingSuperMajorityMarkerFile()) {
+            failWithMessage("Expected no missing-super-majority marker file, but node %s wrote one", actual.nodeId());
         }
 
         return this;
     }
 
     /**
-     * Verifies that the node has a no-super-majority marker file.
+     * Verifies that the node has a missing-super-majority marker file.
      *
      * @return this assertion object for method chaining
      */
@@ -124,15 +124,15 @@ public class SingleNodeMarkerFileResultAssert
     public SingleNodeMarkerFileResultAssert hasMissingSuperMajorityMarkerFile() {
         isNotNull();
 
-        if (!actual.status().hasNoSuperMajorityMarkerFile()) {
-            failWithMessage("Expected a no-super-majority marker file, but node %s wrote none", actual.nodeId());
+        if (!actual.status().hasMissingSuperMajorityMarkerFile()) {
+            failWithMessage("Expected a missing-super-majority marker file, but node %s wrote none", actual.nodeId());
         }
 
         return this;
     }
 
     /**
-     * Verifies that the node does not have a no-judges marker file.
+     * Verifies that the node does not have a missing-judges marker file.
      *
      * @return this assertion object for method chaining
      */
@@ -140,15 +140,15 @@ public class SingleNodeMarkerFileResultAssert
     public SingleNodeMarkerFileResultAssert hasNoMissingJudgesMarkerFile() {
         isNotNull();
 
-        if (actual.status().hasNoJudgesMarkerFile()) {
-            failWithMessage("Expected no no-judges marker file, but node %s wrote one", actual.nodeId());
+        if (actual.status().hasMissingJudgesMarkerFile()) {
+            failWithMessage("Expected no missing-judges marker file, but node %s wrote one", actual.nodeId());
         }
 
         return this;
     }
 
     /**
-     * Verifies that the node has a no-judges marker file.
+     * Verifies that the node has a missing-judges marker file.
      *
      * @return this assertion object for method chaining
      */
@@ -156,8 +156,8 @@ public class SingleNodeMarkerFileResultAssert
     public SingleNodeMarkerFileResultAssert hasMissingJudgesMarkerFile() {
         isNotNull();
 
-        if (!actual.status().hasNoJudgesMarkerFile()) {
-            failWithMessage("Expected a no-judges marker file, but node %s wrote none", actual.nodeId());
+        if (!actual.status().hasMissingJudgesMarkerFile()) {
+            failWithMessage("Expected a missing-judges marker file, but node %s wrote none", actual.nodeId());
         }
 
         return this;

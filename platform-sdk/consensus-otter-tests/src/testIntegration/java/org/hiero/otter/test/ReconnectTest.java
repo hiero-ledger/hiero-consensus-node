@@ -171,7 +171,9 @@ public class ReconnectTest {
         assertContinuouslyThat(network.newReconnectResults()).hasNoFailedReconnects();
         assertContinuouslyThat(network.newReconnectResults().suppressingNodes(unstableNodes))
                 .doNotAttemptToReconnect();
-        assertContinuouslyThat(network.newConsensusResults()).haveEqualCommonRounds().haveConsistentRounds();
+        assertContinuouslyThat(network.newConsensusResults())
+                .haveEqualCommonRounds()
+                .haveConsistentRounds();
         assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
 
         network.start();
