@@ -35,6 +35,7 @@ testModuleInfo {
     requires("com.swirlds.metrics.api")
     requires("org.hiero.consensus.utility")
     requires("org.apache.logging.log4j")
+    requires("awaitility")
     runtimeOnly("io.grpc.netty.shaded")
 }
 

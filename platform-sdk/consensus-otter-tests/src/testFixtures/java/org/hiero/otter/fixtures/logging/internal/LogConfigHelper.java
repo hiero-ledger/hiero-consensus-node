@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.EnumSet;
 import java.util.Set;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.ThreadContext;
@@ -43,7 +44,7 @@ import org.hiero.consensus.model.node.NodeId;
 public final class LogConfigHelper {
 
     /** Markers that are allowed in swirlds.log & console. */
-    private static final Set<LogMarker> ALLOWED_MARKERS = Set.of(
+    private static final Set<LogMarker> ALLOWED_MARKERS = EnumSet.of(
             EXCEPTION,
             ERROR,
             TESTING_EXCEPTIONS,

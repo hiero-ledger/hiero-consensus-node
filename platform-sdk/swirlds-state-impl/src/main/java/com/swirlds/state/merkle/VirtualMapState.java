@@ -848,6 +848,14 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
      * {@inheritDoc}
      */
     @Override
+    public Hash getHashForPath(long path) {
+        return virtualMap.getRecords().findHash(path);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public boolean isHashed() {
         return virtualMap.isHashed();
     }
