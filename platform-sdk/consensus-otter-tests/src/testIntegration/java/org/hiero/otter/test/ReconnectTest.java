@@ -70,7 +70,7 @@ public class ReconnectTest {
                 .hasNoFailedReconnects()
                 .hasMaximumReconnectTime(Duration.ofSeconds(10))
                 .hasMaximumTreeInitializationTime(Duration.ofSeconds(1));
-        assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds();
+        assertContinuouslyThat(network.newConsensusResults()).haveEqualCommonRounds();
         assertContinuouslyThat(network.newConsensusResults().suppressingNode(nodeToReconnect))
                 .haveConsistentRounds();
         assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
@@ -171,7 +171,7 @@ public class ReconnectTest {
         assertContinuouslyThat(network.newReconnectResults()).hasNoFailedReconnects();
         assertContinuouslyThat(network.newReconnectResults().suppressingNodes(unstableNodes))
                 .doNotAttemptToReconnect();
-        assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds().haveConsistentRounds();
+        assertContinuouslyThat(network.newConsensusResults()).haveEqualCommonRounds().haveConsistentRounds();
         assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
 
         network.start();

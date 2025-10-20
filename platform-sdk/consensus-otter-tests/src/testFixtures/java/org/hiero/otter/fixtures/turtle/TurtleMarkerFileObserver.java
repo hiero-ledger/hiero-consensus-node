@@ -27,7 +27,7 @@ import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
  */
 public class TurtleMarkerFileObserver implements TimeTickReceiver {
 
-    private static final int FALLBACK_SCAN_INTERVAL = 100; // Scan directory every 10 ticks as fallback
+    private static final int FALLBACK_SCAN_INTERVAL = 100; // Scan directory every 100 ticks as fallback
 
     private final NodeResultsCollector resultsCollector;
     private final Set<String> seenMarkerFiles = new HashSet<>();
@@ -81,8 +81,6 @@ public class TurtleMarkerFileObserver implements TimeTickReceiver {
             return; // WatchService is not set up
         }
 
-        tickCount++;
-
         // Process WatchService events
         try {
             final WatchKey key = watchService.poll();
@@ -98,6 +96,7 @@ public class TurtleMarkerFileObserver implements TimeTickReceiver {
 
         // Fallback: Periodically scan the directory to catch any files missed by WatchService
         // This is especially important on macOS where WatchService has known reliability issues
+        tickCount++;
         if (tickCount % FALLBACK_SCAN_INTERVAL == 0) {
             final List<String> allMarkerFiles = MarkerFileUtils.scanDirectoryForMarkerFiles(markerFilesDir);
             processNewMarkerFiles(allMarkerFiles);

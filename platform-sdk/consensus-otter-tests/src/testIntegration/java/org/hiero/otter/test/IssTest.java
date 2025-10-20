@@ -51,7 +51,7 @@ public class IssTest {
         // Setup continuous assertions
         assertContinuouslyThat(network.newLogResults().suppressingNode(issNode)).haveNoErrorLevelMessages();
         assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
-        assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds();
+        assertContinuouslyThat(network.newConsensusResults()).haveEqualCommonRounds();
         assertContinuouslyThat(network.newConsensusResults().suppressingNode(issNode))
                 .haveConsistentRounds();
         assertContinuouslyThat(network.newMarkerFileResults().suppressingNode(issNode))
@@ -191,7 +191,7 @@ public class IssTest {
         assertContinuouslyThat(network.newLogResults().suppressingLoggerName(DefaultIssDetector.class))
                 .haveNoErrorLevelMessages();
         assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
-        assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds().haveConsistentRounds();
+        assertContinuouslyThat(network.newConsensusResults()).haveEqualCommonRounds().haveConsistentRounds();
         assertContinuouslyThat(network.newMarkerFileResults())
                 .haveNoCoinRoundMarkerFiles()
                 .haveNoMissingSuperMajorityMarkerFiles()

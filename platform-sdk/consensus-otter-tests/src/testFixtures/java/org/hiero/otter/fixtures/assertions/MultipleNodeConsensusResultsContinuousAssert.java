@@ -82,7 +82,7 @@ public class MultipleNodeConsensusResultsContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeConsensusResultsContinuousAssert haveEqualRounds() {
+    public MultipleNodeConsensusResultsContinuousAssert haveEqualCommonRounds() {
         final Map<Long, RoundFromNode> referenceRounds = new ConcurrentHashMap<>();
         return checkContinuously((nodeId, rounds) -> {
             for (final ConsensusRound round : rounds) {

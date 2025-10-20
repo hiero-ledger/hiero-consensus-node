@@ -54,7 +54,7 @@ public class StartFromStateTest {
 
         // Setup continuous assertions
         assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
-        assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds().haveConsistentRounds();
+        assertContinuouslyThat(network.newConsensusResults()).haveEqualCommonRounds().haveConsistentRounds();
         assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
         assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
 
@@ -67,7 +67,7 @@ public class StartFromStateTest {
                 .max()
                 .getAsLong();
 
-        // Wait for two minutes
+        // Wait for 30 seconds
         timeManager.waitFor(Duration.ofSeconds(30L));
 
         // Validations

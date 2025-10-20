@@ -7,6 +7,7 @@ import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
 import static org.hiero.consensus.model.status.PlatformStatus.OBSERVING;
 import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
+import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
@@ -76,10 +77,10 @@ public class PartitionTest {
         }
 
         // Setup continuous assertions
-        assertThat(network.newLogResults()).haveNoErrorLevelMessages();
-        assertThat(network.newReconnectResults()).haveNoReconnects();
-        assertThat(network.newConsensusResults()).haveEqualCommonRounds().haveConsistentRounds();
-        assertThat(network.newMarkerFileResults()).haveNoMarkerFiles();
+        assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
+        assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
+        assertContinuouslyThat(network.newConsensusResults()).haveEqualCommonRounds().haveConsistentRounds();
+        assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
 
         network.start();
 
