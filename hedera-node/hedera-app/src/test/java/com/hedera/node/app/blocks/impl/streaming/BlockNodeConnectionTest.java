@@ -22,8 +22,11 @@ import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionS
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.internal.network.BlockNodeConfig;
+import com.hedera.pbj.grpc.client.helidon.PbjGrpcClientConfig;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.grpc.Pipeline;
+import com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions;
+import io.helidon.webclient.api.WebClient;
 import java.time.Duration;
 import java.util.concurrent.Flow;
 import java.util.concurrent.ScheduledExecutorService;
@@ -73,14 +76,14 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         executorService = mock(ScheduledExecutorService.class);
         latencyResult = mock(BlockNodeStats.HighLatencyResult.class);
 
+        final BlockNodeClientFactory clientFactory = mock(BlockNodeClientFactory.class);
+        lenient()
+                .doReturn(grpcServiceClient)
+                .when(clientFactory)
+                .createClient(any(WebClient.class), any(PbjGrpcClientConfig.class), any(RequestOptions.class));
+
         connection = new BlockNodeConnection(
-                configProvider,
-                nodeConfig,
-                connectionManager,
-                bufferService,
-                grpcServiceClient,
-                metrics,
-                executorService);
+                configProvider, nodeConfig, connectionManager, bufferService, metrics, executorService, clientFactory);
 
         lenient().doReturn(requestPipeline).when(grpcServiceClient).publishBlockStream(connection);
     }

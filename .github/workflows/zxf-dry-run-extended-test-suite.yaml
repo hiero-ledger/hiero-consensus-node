@@ -44,15 +44,6 @@ on:
         type: boolean
         default: true
         description: "Run Block Node Regression Panel"
-      additional-parameters:
-        # Expected additional parameters (all optional):
-        #   { "solo-version": "vX.Y.Z" } # for a specific solo version
-        #   { "helm-release-name": "mirror" } # for a specific helm release name
-        #   { "solo-version": "vX.Y.Z", "helm-release-name": "mirror" } # for multiple
-        required: false
-        type: string
-        description: "Additional Parameters (json format): solo-version, helm-release-name"
-        default: "{}"
 
 permissions:
   id-token: write
@@ -71,8 +62,9 @@ jobs:
     name: Workflow Parameters
     runs-on: hiero-citr-linux-medium
     outputs:
-      solo-version: ${{ steps.set-outputs.outputs.solo-version }}
-      helm-release-name: ${{ steps.set-outputs.outputs.helm-release-name }}
+      solo-version: ${{ steps.params.outputs.solo-version }}
+      helm-release-name: ${{ steps.params.outputs.helm-release-name }}
+      solo-ge-0440: ${{ steps.params.outputs.solo-ge-0440 }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -80,7 +72,13 @@ jobs:
           egress-policy: audit
 
       - name: Print Params
+        id: params
         run: |
+          SOLO_GE_0440=$([[ "$(printf '%s\n' "${{vars.ADHOC_SOLO_VERSION}}" "v0.44.0" | sort -V | head -n1)" == "v0.44.0" ]] && echo "true" || echo "false")
+          HELM_NAME="mirror"
+          if [[ "${SOLO_GE_0440}" == "true" ]]; then
+            HELM_NAME="mirror-1"
+          fi
           echo "Commit SHA: ${{ inputs.commit_sha }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Branch Name: ${{ inputs.branch_name }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Extended Test Suite: ${{ inputs.enable-extended-test-suite }}" | tee -a "${GITHUB_STEP_SUMMARY}"
@@ -91,14 +89,12 @@ jobs:
           echo "Enable JSON-RPC Relay Regression Panel: ${{ inputs.enable-rpc-relay-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Block Node Regression Panel: ${{ inputs.enable-block-node-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Additional Parameters: ${{ inputs.additional-parameters }}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          echo "Solo Version: ${{ fromJson(inputs.additional-parameters).solo-version || '' }}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          echo "Helm Release Name: ${{ fromJson(inputs.additional-parameters).helm-release-name || '' }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Solo Version: ${{ vars.ADHOC_SOLO_VERSION }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Helm Release Name: ${HELM_NAME}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
-      - name: Set Outputs
-        id: set-outputs
-        run: |
-          echo "solo-version=${{ fromJson(inputs.additional-parameters).solo-version || '' }}" >> "${GITHUB_OUTPUT}"
-          echo "helm-release-name=${{ fromJson(inputs.additional-parameters).helm-release-name || '' }}" >> "${GITHUB_OUTPUT}"
+          echo "solo-version=${{ vars.ADHOC_SOLO_VERSION }}" >> "${GITHUB_OUTPUT}"
+          echo "helm-release-name=${HELM_NAME}" >> "${GITHUB_OUTPUT}"
+          echo "solo-ge-0440=${SOLO_GE_0440}" >> "${GITHUB_OUTPUT}"
 
   xts-timing-sensitive-tests:
     name: XTS Timing Sensitive Tests
@@ -227,7 +223,7 @@ jobs:
     with:
       ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the JRS panel for checkout
       custom-job-name: "Dry-Run: SDK TCK Regression"
-      solo-version: ${{ needs.parameters.outputs.solo-version || 'v0.38.0' }}
+      solo-version: ${{ needs.parameters.outputs.solo-version }}
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-tck-report-webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
@@ -243,7 +239,7 @@ jobs:
       ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the MN panel for checkout
       custom-job-name: "Mirror Node Regression"
       solo-version: ${{ needs.parameters.outputs.solo-version || vars.CITR_SOLO_VERSION }}
-      helm-release-name: ${{ needs.parameters.outputs.helm-release-name || 'mirror' }}
+      helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
@@ -257,7 +253,7 @@ jobs:
     with:
       ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the RPC Relay panel for checkout
       custom-job-name: "JSON-RPC Relay Regression"
-      solo-version: ${{ needs.parameters.outputs.solo-version || vars.CITR_SOLO_VERSION }}
+      solo-version: ${{ needs.parameters.outputs.solo-version }}
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
@@ -266,12 +262,12 @@ jobs:
     name: Block Node Regression Panel
     needs:
       - parameters
-    if: ${{ inputs.enable-block-node-regression-panel == true }}
+    if: ${{ inputs.enable-block-node-regression-panel == true && needs.parameters.outputs.solo-ge-0440 == 'true' }}
     uses: ./.github/workflows/zxc-block-node-regression.yaml
     with:
       ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the BN panel for checkout
       custom-job-name: "Dry Run: Block Node Regression"
-      solo-version: ${{ needs.parameters.outputs.solo-version || 'v0.46.1' }}
+      solo-version: ${{ needs.parameters.outputs.solo-version }}
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}

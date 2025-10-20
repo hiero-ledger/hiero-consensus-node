@@ -74,6 +74,17 @@
       <DefaultRolloverStrategy max="10"/>
     </RollingFile>
 
+    <RollingFile name="BlockNodeCommsFile" fileName="output/blocknode-comms.log"
+               filePattern="output/blocknode-comms-%i.log">
+      <PatternLayout>
+          <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p %-4L %c{1} - %m{nolookups}%n</pattern>
+      </PatternLayout>
+      <Policies>
+          <SizeBasedTriggeringPolicy size="100 MB"/>
+      </Policies>
+      <DefaultRolloverStrategy max="10"/>
+    </RollingFile>
+
   </Appenders>
   <Loggers>
     <Root level="FATAL">
@@ -210,6 +221,9 @@
     <Logger name="com.hedera" level="info" additivity="false">
       <AppenderRef ref="Console"/>
       <AppenderRef ref="RollingFile"/>
+    </Logger>
+    <Logger name="com.hedera.node.app.blocks.impl.streaming" level="INFO" additivity="false">
+      <AppenderRef ref="BlockNodeCommsFile"/>
     </Logger>
     <Logger name="com.hedera.services.sigs" level="error" additivity="false">
       <AppenderRef ref="Console"/>
