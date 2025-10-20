@@ -120,6 +120,7 @@ public abstract class AbstractNetwork implements Network {
     private final boolean useRandomNodeIds;
 
     protected Lifecycle lifecycle = Lifecycle.INIT;
+
     protected WeightGenerator weightGenerator = WeightGenerators.REAL_NETWORK_GAUSSIAN;
 
     @Nullable

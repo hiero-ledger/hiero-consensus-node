@@ -466,6 +466,14 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * {@inheritDoc}
      */
     @Override
+    public boolean isAlive() {
+        return lifeCycle == RUNNING;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void tick(@NonNull final Instant now) {
         try (final LoggingContextScope ignored = installNodeContext()) {
             if (lifeCycle == RUNNING) {

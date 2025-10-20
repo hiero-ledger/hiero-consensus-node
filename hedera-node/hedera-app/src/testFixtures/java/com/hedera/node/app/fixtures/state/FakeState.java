@@ -297,6 +297,11 @@ public class FakeState implements MerkleNodeState {
     }
 
     @Override
+    public Hash getHashForPath(long path) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public long queueElementPath(final int stateId, @NonNull final Bytes expectedValue) {
         throw new UnsupportedOperationException();
     }

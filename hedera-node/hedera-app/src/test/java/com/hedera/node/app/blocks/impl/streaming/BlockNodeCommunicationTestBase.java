@@ -148,11 +148,15 @@ public abstract class BlockNodeCommunicationTestBase {
         return BlockItem.newBuilder().blockProof(proof).build();
     }
 
-    protected static BlockNodeConfig newBlockNodeConfig(final int port, final int priority) {
+    protected static BlockNodeConfig newBlockNodeConfig(final String host, final int port, final int priority) {
         return BlockNodeConfig.newBuilder()
-                .address("localhost")
+                .address(host)
                 .port(port)
                 .priority(priority)
                 .build();
+    }
+
+    protected static BlockNodeConfig newBlockNodeConfig(final int port, final int priority) {
+        return newBlockNodeConfig("localhost", port, priority);
     }
 }
