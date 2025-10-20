@@ -30,11 +30,11 @@ import com.hedera.node.internal.network.BlockNodeConfig;
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClientConfig;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.grpc.Pipeline;
+import com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions;
+import io.helidon.webclient.api.WebClient;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.VarHandle;
-import com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions;
-import io.helidon.webclient.api.WebClient;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -116,14 +116,22 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
                 .when(clientFactory)
                 .createClient(any(WebClient.class), any(PbjGrpcClientConfig.class), any(RequestOptions.class));
 
-        connection = new BlockNodeConnection(configProvider, nodeConfig, connectionManager, bufferService, metrics, executorService, null, clientFactory);
+        connection = new BlockNodeConnection(
+                configProvider,
+                nodeConfig,
+                connectionManager,
+                bufferService,
+                metrics,
+                executorService,
+                null,
+                clientFactory);
 
         // To avoid potential non-deterministic effects due to the worker thread, assign a fake worker thread to the
         // connection that does nothing.
         final AtomicReference<Thread> workerThreadRef = workerThreadRef();
         workerThreadRef.set(FAKE_WORKER_THREAD);
 
-//        resetMocks();
+        //        resetMocks();
 
         lenient().doReturn(requestPipeline).when(grpcServiceClient).publishBlockStream(connection);
     }

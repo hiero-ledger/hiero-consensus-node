@@ -387,8 +387,13 @@ public class BlockNodeConnectionManager {
         final long delayMillis = Math.max(0, initialDelay.toMillis());
         final BlockNodeConnection newConnection = createConnection(blockNodeConfig, initialBlockToStream);
 
-        logWithContext(logger,
-                DEBUG, "Scheduling reconnection for node in {} ms (force={}).", newConnection, delayMillis, force);
+        logWithContext(
+                logger,
+                DEBUG,
+                "Scheduling reconnection for node in {} ms (force={}).",
+                newConnection,
+                delayMillis,
+                force);
 
         // Schedule the first attempt using the connectionExecutor
         try {

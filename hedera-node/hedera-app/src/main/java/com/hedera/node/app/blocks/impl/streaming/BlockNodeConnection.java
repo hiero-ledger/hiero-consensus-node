@@ -229,7 +229,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         if (initialBlockToStream != null) {
             streamingBlockNumber.set(initialBlockToStream);
-            logWithContext(logger, INFO, "Block node connection will initially stream with block {}", initialBlockToStream);
+            logWithContext(
+                    logger, INFO, "Block node connection will initially stream with block {}", initialBlockToStream);
         }
     }
 
@@ -1147,7 +1148,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             // Swap blocks and reset
             if (logger.isTraceEnabled()) {
                 final long oldBlock = block == null ? -1 : block.blockNumber();
-                logWithContext(logger, TRACE, "Worker switching from block {} to block {}", oldBlock, latestActiveBlockNumber);
+                logWithContext(
+                        logger, TRACE, "Worker switching from block {} to block {}", oldBlock, latestActiveBlockNumber);
             }
             block = blockBufferService.getBlockState(latestActiveBlockNumber);
             pendingRequestBytes = BYTES_PADDING;
