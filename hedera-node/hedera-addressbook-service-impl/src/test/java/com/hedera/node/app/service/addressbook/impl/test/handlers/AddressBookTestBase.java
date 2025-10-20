@@ -25,6 +25,7 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
@@ -173,8 +174,8 @@ public class AddressBookTestBase {
     protected ReadableNodeStore readableStore;
     protected WritableNodeStore writableStore;
 
-    protected MapReadableKVState<AccountID, Long> readableAccountNodeRelState;
-    protected MapWritableKVState<AccountID, Long> writableAccountNodeRelState;
+    protected MapReadableKVState<AccountID, NodeId> readableAccountNodeRelState;
+    protected MapWritableKVState<AccountID, NodeId> writableAccountNodeRelState;
     protected ReadableAccountNodeRelStore readableAccountNodeRelStore;
     protected WritableAccountNodeRelStore writableAccountNodeRelStore;
 
@@ -195,8 +196,8 @@ public class AddressBookTestBase {
 
         readableAccountNodeRelState = newReadableAccNodeRelState();
         writableAccountNodeRelState = newWritableAccNodeRelState();
-        given(readableStates.<AccountID, Long>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(readableAccountNodeRelState);
-        given(writableStates.<AccountID, Long>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(writableAccountNodeRelState);
+        given(readableStates.<AccountID, NodeId>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(readableAccountNodeRelState);
+        given(writableStates.<AccountID, NodeId>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(writableAccountNodeRelState);
         readableAccountNodeRelStore = new ReadableAccountNodeRelStoreImpl(readableStates, readableEntityCounters);
         writableAccountNodeRelStore = new WritableAccountNodeRelStore(writableStates, writableEntityCounters);
     }
@@ -276,8 +277,8 @@ public class AddressBookTestBase {
 
         readableAccountNodeRelState = newReadableAccNodeRelState();
         writableAccountNodeRelState = newWritableAccNodeRelState();
-        given(readableStates.<AccountID, Long>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(readableAccountNodeRelState);
-        given(writableStates.<AccountID, Long>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(writableAccountNodeRelState);
+        given(readableStates.<AccountID, NodeId>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(readableAccountNodeRelState);
+        given(writableStates.<AccountID, NodeId>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(writableAccountNodeRelState);
         readableAccountNodeRelStore = new ReadableAccountNodeRelStoreImpl(readableStates, readableEntityCounters);
         writableAccountNodeRelStore = new WritableAccountNodeRelStore(writableStates, writableEntityCounters);
     }
@@ -316,16 +317,16 @@ public class AddressBookTestBase {
     }
 
     @NonNull
-    protected MapReadableKVState<AccountID, Long> newReadableAccNodeRelState() {
-        return MapReadableKVState.<AccountID, Long>builder(ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_LABEL)
-                .value(node.accountId(), node.nodeId())
+    protected MapReadableKVState<AccountID, NodeId> newReadableAccNodeRelState() {
+        return MapReadableKVState.<AccountID, NodeId>builder(ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_LABEL)
+                .value(node.accountId(), NodeId.newBuilder().id(node.nodeId()).build())
                 .build();
     }
 
     @NonNull
-    protected MapWritableKVState<AccountID, Long> newWritableAccNodeRelState() {
-        return MapWritableKVState.<AccountID, Long>builder(ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_LABEL)
-                .value(node.accountId(), node.nodeId())
+    protected MapWritableKVState<AccountID, NodeId> newWritableAccNodeRelState() {
+        return MapWritableKVState.<AccountID, NodeId>builder(ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_LABEL)
+                .value(node.accountId(), NodeId.newBuilder().id(node.nodeId()).build())
                 .build();
     }
 
