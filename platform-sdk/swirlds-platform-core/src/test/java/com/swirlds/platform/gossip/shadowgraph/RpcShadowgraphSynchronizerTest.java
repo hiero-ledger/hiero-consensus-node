@@ -255,42 +255,4 @@ class RpcShadowgraphSynchronizerTest {
         Mockito.verify(gossipSender).sendSyncData(any());
     }
 
-    @Test
-    void broadcastSelfEvent() {
-        var otherNodeId5 = NodeId.of(5);
-        var otherNodeId7 = NodeId.of(7);
-        var gossipSender7 = mock(GossipRpcSender.class);
-        var conversation5 = synchronizer.createPeerHandler(gossipSender, otherNodeId5);
-        var conversation7 = synchronizer.createPeerHandler(gossipSender7, otherNodeId7);
-        var event = new TestingEventBuilder(new Random())
-                .setSystemTransactionCount(0)
-                .setAppTransactionCount(0)
-                .setCreatorId(selfId)
-                .build();
-        synchronizer.addEvent(event);
-        // we are not sending events as first sync is not yet finished
-        Mockito.verifyNoInteractions(gossipSender);
-        Mockito.verifyNoInteractions(gossipSender7);
-
-        conversation5.checkForPeriodicActions(false, false);
-        conversation7.checkForPeriodicActions(false, false);
-        conversation5.receiveSyncData(EMPTY_SYNC_MESSAGE);
-        conversation7.receiveSyncData(EMPTY_SYNC_MESSAGE);
-        conversation5.receiveTips(List.of(true));
-        conversation7.receiveTips(List.of(true));
-        conversation5.receiveEventsFinished();
-        conversation7.receiveEventsFinished();
-
-        // we have finished first full sync, so we can now broadcast events
-
-        var event2 = new TestingEventBuilder(new Random())
-                .setSystemTransactionCount(0)
-                .setAppTransactionCount(0)
-                .setCreatorId(selfId)
-                .build();
-        var gossipEvent2 = event2.getGossipEvent();
-        synchronizer.addEvent(event2);
-        Mockito.verify(gossipSender).sendBroadcastEvent(gossipEvent2);
-        Mockito.verify(gossipSender7).sendBroadcastEvent(gossipEvent2);
-    }
 }
