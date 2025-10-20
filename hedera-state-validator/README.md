@@ -13,23 +13,22 @@ Can also be used for development purposes, such as verifying that the node's sta
 1. Download the state files.
 2. Run the following command to execute the validation:
 
-   ```shell
-   java -jar ./validator-<version>.jar {path-to-state-round} validate {tag} [{tag}...]
-   ```
+```shell
+java -jar ./validator-<version>.jar {path-to-state-round} validate {tag} [{tag}...]
+```
 
-Here, the `{path-to-state-round}` (required) is the location of the state files, and `tag` refers to the validation that should be run.
-Multiple tags can be specified, separated by spaces, but at least one tag is required.
+### Parameters
 
-### Validation tags
-
-- [`files`](src/main/java/com/hedera/statevalidation/validator/merkledb/FileLayout.java) - Validates all expected files are present in the state directory.
-- [`internal`](/src/main/java/com/hedera/statevalidation/validator/merkledb/ValidateInternalIndex.java) - Validates the consistency of the indices of internal nodes.
-- [`leaf`](/src/main/java/com/hedera/statevalidation/validator/merkledb/ValidateLeafIndex.java) - Validates the consistency of the indices of leaf nodes.
-- [`hdhm`](/src/main/java/com/hedera/statevalidation/validator/merkledb/ValidateLeafIndexHalfDiskHashMap.java) - Validates the consistency of the indices of leaf nodes in the half-disk hashmap.
-- [`rehash`](/src/main/java/com/hedera/statevalidation/validator/state/Rehash.java) - Runs a full rehash of the state.
-- [`account`](/src/main/java/com/hedera/statevalidation/validator/service/AccountValidator.java) - Ensures all accounts have a positive balance, calculates the total HBAR supply,
-  and verifies it totals exactly 50 billion HBAR.
-- [`tokenRelations`](/src/main/java/com/hedera/statevalidation/validator/service/TokenRelationsIntegrity.java) - Verifies that the accounts and tokens for every token relationship exist.
+- `{path-to-state-round}` - Location of the state files (required).
+- `{tag}` - Validation that should be run, multiple tags can be specified, separated by spaces (at least one required). Current supported tags:
+  - [`files`](src/main/java/com/hedera/statevalidation/validator/merkledb/FileLayout.java) - Validates all expected files are present in the state directory.
+  - [`internal`](/src/main/java/com/hedera/statevalidation/validator/merkledb/ValidateInternalIndex.java) - Validates the consistency of the indices of internal nodes.
+  - [`leaf`](/src/main/java/com/hedera/statevalidation/validator/merkledb/ValidateLeafIndex.java) - Validates the consistency of the indices of leaf nodes.
+  - [`hdhm`](/src/main/java/com/hedera/statevalidation/validator/merkledb/ValidateLeafIndexHalfDiskHashMap.java) - Validates the consistency of the indices of leaf nodes in the half-disk hashmap.
+  - [`rehash`](/src/main/java/com/hedera/statevalidation/validator/state/Rehash.java) - Runs a full rehash of the state.
+  - [`account`](/src/main/java/com/hedera/statevalidation/validator/service/AccountValidator.java) - Ensures all accounts have a positive balance, calculates the total HBAR supply,
+    and verifies it totals exactly 50 billion HBAR.
+  - [`tokenRelations`](/src/main/java/com/hedera/statevalidation/validator/service/TokenRelationsIntegrity.java) - Verifies that the accounts and tokens for every token relationship exist.
 
 ## Introspect
 
@@ -40,15 +39,22 @@ Multiple tags can be specified, separated by spaces, but at least one tag is req
 1. Download the state files.
 2. Run the following command to execute the introspection:
 
-   ```shell
-   java -jar ./validator-<version>.jar {path-to-state-round} introspect {service_name} {state_key} [{key_info}]
-   ```
+```shell
+java -jar ./validator-<version>.jar {path-to-state-round} introspect -s=<service-name> -k=<state-key> [-i=<key-info>]
+```
 
-Here,  the `{path-to-state-round}` (required) is the location of the state files, `{service_name}` is the required name of the service to introspect,
-and `{state_key}` is the required name of the state to introspect.
-Optionally, you can specify `key_info` to get information about the values in the virtual map of the service state in a format `keyType:keyJson`:
-`keyType` represents service key type (`TopicID`, `AccountID`, etc.) and `keyJson` represents key value as JSON.
-If `keyInfo` is not provided, it introspects singleton value of the service state.
+### Parameters
+
+- `{path-to-state-round}` - Location of the state files (required).
+
+### Options
+
+- `--service-name` (or `-s`) - Name of the service to introspect (required).
+- `--state-key` (or `-k`) - Name of the state to introspect (required).
+- `--key-info` (or `-i`) - Key, which used to get information about the values in the virtual map of the service state. If this option is not provided, command introspects a singleton value of the service state.
+  Should be specified in a format `keyType:keyJson`, where:
+  - `keyType` represents the service key type (`TopicID`, `AccountID`, etc.)
+  - `keyJson` represents key value as JSON.
 
 ## Analyze
 
@@ -60,13 +66,15 @@ file counts, wasted space in bytes, and total space usage. These metrics are dis
 1. Download the state files.
 2. Run the following command to execute the introspection:
 
-   ```shell
-   java -jar ./validator-<version>.jar {path-to-state-round} analyze [--path-to-kv] [--key-to-path] [--path-to-hash]
-   ```
+```shell
+java -jar ./validator-<version>.jar {path-to-state-round} analyze [--path-to-kv] [--key-to-path] [--path-to-hash]
+```
 
-Here, the `{path-to-state-round}` (required) is the location of the state files.
+### Parameters
 
-### Analysis Options
+- `{path-to-state-round}` - Location of the state files (required).
+
+### Options
 
 - `--path-to-kv` (or `-p2kv`) - Analyze path-to-key-value storage.
 - `--key-to-path` (or `-k2p`) - Analyze key to path storage.
@@ -123,14 +131,26 @@ Path-to-KeyValue Storage:
 1. Download the state files.
 2. Run the following command to execute the export:
 
-   ```shell
-   java -jar [-DmaxObjPerFile=X] [-DprettyPrint=true] ./validator-<version>.jar {path-to-state-round} export {path-to-result-dir} [{service_name}] [{state_key}]
-   ```
+```shell
+java -jar [-DmaxObjPerFile=<number>] [-DprettyPrint=true] ./validator-<version>.jar {path-to-state-round} export -o=<output-directory> [-s=<service-name> -k=<state-key>]
+```
 
-Here,  the `{path-to-state-round}` (required) is the location of the state files, `{service_name}` is the required name of the service to export,
-and `{state_key}` is the required name of the state to export.
-- `-DmaxObjPerFile` option allows customizing the upper limit of objects per file.
-- `-DprettyPrint=true` enables human-readable result files.
+### System Properties
+
+- `-DmaxObjPerFile` - Maximum number of objects per exported file. Default = `1000000`.
+- `-DprettyPrint=true` - Enable human-readable formatting in result files. Set to `true` to enable. Default = `false`.
+
+### Parameters
+
+- `{path-to-state-round}` - Location of the state files (required).
+
+### Options
+
+- `--out` (or `-o`) - Directory where the exported JSON files are written (required). Must exist before invocation.
+- `--service-name` (or `-s`) - Name of the service to export. If omitted along with `--state-key`, exports all states.
+- `--state-key` (or `-k`) - Name of the state to export. If omitted along with `--service-name`, exports all states.
+
+### Output Format
 
 Example entry:
 
@@ -159,27 +179,28 @@ Example entry:
 
 where `p` is a path in the virtual map, `k` is a key, and `v` is a value.
 
-Examples:
+### Examples
 
 Export all states to the current directory (assuming the JAR file is located in the round directory):
 
 ```shell
-java -jar ./validator-<version>.jar . export .
+java -jar ./validator-<version>.jar . export -o=.
 ```
 
 Export all states to the current directory, limiting the number of objects per file to 100,000:
 
 ```shell
-java -jar -DmaxObjPerFile=100000 ./validator-<version>.jar /path/to/round export .
+java -jar -DmaxObjPerFile=100000 ./validator-<version>.jar /path/to/round export -o=.
 ```
 
 Export all accounts to `/tmp/accounts`, limiting the number of objects per file to 100,000:
 
 ```shell
-java -jar -DmaxObjPerFile=100000 ./validator-<version>.jar /path/to/round export /path/to/result AccountService ACCOUNTS
+java -jar -DmaxObjPerFile=100000 ./validator-<version>.jar /path/to/round export -o=/path/to/result -s=AccountService -k=ACCOUNTS
 ```
 
-Notes:
+### Notes
+
 - If the service name and state key are omitted, it will export all the states.
 - Service name and state key should both be either omitted or specified.
 - If service name and state key are specified, the resulting file is `{service_name}_{state_key}_X.json`, where `X` is an ordinal number in the series of such files.
@@ -197,14 +218,11 @@ Notes:
 1. Download the state files.
 2. Run the following command to execute the sorted export:
 
-   ```shell
-   java -jar [-DmaxObjPerFile=X] [-DprettyPrint=true] ./validator-<version>.jar {path-to-state-round} sorted-export {path-to-result-dir} [{service_name}] [{state_key}]
-   ```
+```shell
+java -jar [-DmaxObjPerFile=<number>] [-DprettyPrint=true] ./validator-<version>.jar {path-to-state-round} sorted-export -o=<output-directory> [-s=<service-name> -k=<state-key>]
+```
 
-Here,  the `{path-to-state-round}` (required) is the location of the state files, `{service_name}` is the required name of the service to export,
-and `{state_key}` is the required name of the state to export.
-- `-DmaxObjPerFile` option allows customizing the upper limit of objects per file.
-- `-DprettyPrint=true` enables human-readable result files.
+### Output Format
 
 Example entry:
 
@@ -227,9 +245,13 @@ Example entry:
 
 where `k` is a key, and `v` is a value.
 
-Examples and Notes (same as export command, with these differences):
+### System Properties / Parameters / Options / Examples / Notes
+
+**Same as the export command right above, with these differences:**
+
 - Paths are not included in sorted export files.
-- The data is sorted by the **byte representation of the key**, which doesn't always map to natural ordering. For example, varint encoding does not preserve numerical ordering under lexicographical byte comparison, particularly when values cross boundaries that affect the number of bytes or the leading byte values. However, it will produce a stable ordering across different versions of the state, which is critically important for differential testing.
+- The data is sorted by the **byte representation of the key**, which doesn't always map to natural ordering. For example, varint encoding does not preserve numerical ordering under lexicographical byte comparison,
+  particularly when values cross boundaries that affect the number of bytes or the leading byte values. However, it will produce a stable ordering across different versions of the state, which is critically important for differential testing.
 
 ## Compact
 
@@ -240,11 +262,13 @@ Examples and Notes (same as export command, with these differences):
 1. Download the state files.
 2. Run the following command to execute the compaction:
 
-   ```shell
-   java -jar ./validator-<version>.jar {path-to-state-round} compact
-   ```
+```shell
+java -jar ./validator-<version>.jar {path-to-state-round} compact
+```
 
-Here,  the `{path-to-state-round}` (required) is the location of the state files.
+### Parameters
+
+- `{path-to-state-round}` - Location of the state files (required).
 
 ## Updating State with a Block Stream
 
@@ -252,15 +276,17 @@ Here,  the `{path-to-state-round}` (required) is the location of the state files
 
 ### Usage:
 
-```bash
-
+```shell
 java -jar ./validator-<version>.jar {path-to-state-round} apply-blocks {path-to-block-stream-files} \
  -i=<self-id> [-o="<path to output directory>"] [-h="<hash of the target state>"] [-t="<target round>"]
 ```
 
-Here, the `{path-to-state-round}` (required) is the location of the state files, `{path-to-block-stream-files}` (required) is the location of the block stream files.
+### Parameters
 
-### Apply Block Options
+- `{path-to-state-round}` - Location of the state files (required).
+- `{path-to-block-stream-files}` - Location of the block stream files (required).
+
+### Options
 
 - `--out` (or `-o`) - The location where the resulting snapshot is written. Must not exist prior to invocation. Default = `./out`.
 - `--id` (or `-i`) - The ID of the node that is being used to recover the state. This node's keys should be available locally.

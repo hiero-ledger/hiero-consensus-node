@@ -18,14 +18,19 @@ public class ApplyBlocksCommand extends ParameterizedClass implements Runnable {
     @ParentCommand
     private StateOperatorCommand parent;
 
-    public static final long DEFAULT_TARGET_ROUND = Long.MAX_VALUE;
+    private Path blockStreamDirectory;
     private Path outputPath = Path.of("./out");
     private NodeId selfId;
+    public static final long DEFAULT_TARGET_ROUND = Long.MAX_VALUE;
     private long targetRound = DEFAULT_TARGET_ROUND;
-    private Path blockStreamDirectory;
     private String expectedHash = "";
 
     private ApplyBlocksCommand() {}
+
+    @Parameters(index = "0", description = "The path to a directory tree containing block stream files.")
+    private void setBlockStreamDirectory(final Path blockStreamDirectory) {
+        this.blockStreamDirectory = pathMustExist(blockStreamDirectory.toAbsolutePath());
+    }
 
     @Option(
             names = {"-o", "--out"},
@@ -33,11 +38,6 @@ public class ApplyBlocksCommand extends ParameterizedClass implements Runnable {
                     "The location where output is written. Default = './out'. " + "Must not exist prior to invocation.")
     private void setOutputPath(final Path outputPath) {
         this.outputPath = outputPath;
-    }
-
-    @Parameters(index = "0", description = "The path to a directory tree containing block stream files.")
-    private void setBlockStreamDirectory(final Path blockStreamDirectory) {
-        this.blockStreamDirectory = pathMustExist(blockStreamDirectory.toAbsolutePath());
     }
 
     @Option(

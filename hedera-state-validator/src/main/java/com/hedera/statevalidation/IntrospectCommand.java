@@ -7,7 +7,7 @@ import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.state.State;
 import picocli.CommandLine.Command;
-import picocli.CommandLine.Parameters;
+import picocli.CommandLine.Option;
 import picocli.CommandLine.ParentCommand;
 
 @Command(name = "introspect", description = "Introspects the state.")
@@ -16,13 +16,21 @@ public class IntrospectCommand implements Runnable {
     @ParentCommand
     private StateOperatorCommand parent;
 
-    @Parameters(index = "0", description = "Service name.")
+    @Option(
+            names = {"-s", "--service-name"},
+            required = true,
+            description = "Service name.")
     private String serviceName;
 
-    @Parameters(index = "1", description = "State key.")
+    @Option(
+            names = {"-k", "--state-key"},
+            required = true,
+            description = "State key.")
     private String stateKey;
 
-    @Parameters(index = "2", arity = "0..1", description = "Key info - KeyType:<Payload as JSON>")
+    @Option(
+            names = {"-i", "--key-info"},
+            description = "Key info - KeyType:<Payload as JSON>")
     private String keyInfo;
 
     @Override
