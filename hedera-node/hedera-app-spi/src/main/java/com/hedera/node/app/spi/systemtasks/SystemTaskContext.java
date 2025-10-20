@@ -59,5 +59,6 @@ public interface SystemTaskContext {
      * Dispatches a transaction to its handler on behalf of the network.
      * @param spec the transaction to dispatch
      */
-    <T extends StreamBuilder> T  dispatch(@NonNull Consumer<TransactionBody.Builder> spec, @NonNull Class<T> streamBuilderType);
+    <T extends StreamBuilder> T dispatch(
+            @NonNull Consumer<TransactionBody.Builder> spec, @NonNull Class<T> streamBuilderType);
 }

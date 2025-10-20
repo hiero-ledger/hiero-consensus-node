@@ -8,11 +8,13 @@ import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V069TokenSchema;
+import com.hedera.node.app.service.token.impl.systemtasks.KeyPropagationSystemTaskHandler;
 import com.hedera.node.app.spi.AppContext;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
+import com.hedera.node.app.spi.systemtasks.SystemTaskHandler;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.ZoneId;
+import java.util.Set;
 
 /** An implementation of the {@link TokenService} interface. */
 public class TokenServiceImpl implements TokenService {
@@ -21,11 +23,8 @@ public class TokenServiceImpl implements TokenService {
     public static final long HBARS_TO_TINYBARS = 100_000_000L;
     public static final ZoneId ZONE_UTC = ZoneId.of("UTC");
 
-    private final EntityIdFactory idFactory;
-
     public TokenServiceImpl(@NonNull final AppContext appContext) {
         requireNonNull(appContext);
-        this.idFactory = appContext.idFactory();
     }
 
     @Override
@@ -35,5 +34,10 @@ public class TokenServiceImpl implements TokenService {
         registry.register(new V0530TokenSchema());
         registry.register(new V0610TokenSchema());
         registry.register(new V069TokenSchema());
+    }
+
+    @Override
+    public Set<SystemTaskHandler> systemTaskHandlers() {
+        return Set.of(new KeyPropagationSystemTaskHandler());
     }
 }

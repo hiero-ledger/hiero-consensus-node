@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.integration;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
+import static com.hedera.node.app.systemtask.schemas.V069SystemTaskSchema.SYSTEM_TASK_QUEUE_STATE_ID;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_LAST_ASSIGNED_CONSENSUS_TIME;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
@@ -11,9 +13,17 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.PREDEFINED_SHAPE;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
+import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
+import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewQueue;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.exposeSpecSecondTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
+import com.hedera.node.app.systemtask.SystemTaskService;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
@@ -53,6 +63,20 @@ public class RepeatableIndirectKeysTest {
                 newKeyNamed("userKey")
                         .shape(threshOf(1, PREDEFINED_SHAPE, INDIRECT_ACCOUNT_SHAPE)
                                 .signedWith(sigs("controlKey", "target"))),
-                cryptoCreate("user").key("userKey"));
+                cryptoCreate("user").key("userKey"),
+                // New account should have a materialized key
+                viewAccount("user", account -> assertNotNull(account.materializedKey())),
+                // Target account should have one indirect user
+                sourcingContextual(spec -> viewAccount("target", account -> {
+                    assertEquals(1, account.numIndirectKeyUsers());
+                    final var userId = spec.registry().getAccountID("user");
+                    assertEquals(toPbj(userId), account.firstKeyUserId());
+                })),
+                // Verify we can change user by signing with the target key
+                cryptoUpdate("user").memo("Testing 123").payingWith("target").signedBy("target"),
+                // Confirm the task queue is currently empty
+                viewQueue(SystemTaskService.NAME, SYSTEM_TASK_QUEUE_STATE_ID, queue -> assertNull(queue.peek())),
+                // Now update the target account
+                cryptoUpdate("target").key("replacementKey"));
     }
 }

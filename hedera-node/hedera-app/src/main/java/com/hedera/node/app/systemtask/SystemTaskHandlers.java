@@ -32,9 +32,8 @@ public class SystemTaskHandlers {
     }
 
     /**
-     * Finds a handler that {@link SystemTaskHandler#supports} the given task, and returns it.
-     * Throws {@link UnsupportedOperationException} if no suitable handler is found.
-     * @param task the task to find a handler for it
+     * Finds a registration supporting the given task, and returns it; null if there is none.
+     * @param task the task to find a handler registration for
      */
     public @Nullable Registration getRegistration(@NonNull final SystemTask task) {
         for (final var r : registrations) {

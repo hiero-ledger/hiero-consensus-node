@@ -43,6 +43,7 @@ import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.systemtask.SystemTaskHandlers;
 import com.hedera.node.app.throttle.CongestionMetrics;
+import com.hedera.node.app.throttle.NetworkUtilizationManager;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
@@ -151,6 +152,9 @@ class HandleWorkflowTest {
 
     @Mock
     private ExchangeRateManager exchangeRateManager;
+
+    @Mock
+    private NetworkUtilizationManager networkUtilizationManager;
 
     @Mock
     private State state;
@@ -514,6 +518,7 @@ class HandleWorkflowTest {
                 stakePeriodManager,
                 migrationStateChanges,
                 parentTxnFactory,
+                networkUtilizationManager,
                 immediateStateChangeListener,
                 scheduleService,
                 hintsService,

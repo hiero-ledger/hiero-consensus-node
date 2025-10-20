@@ -43,10 +43,12 @@ import com.hedera.services.bdd.spec.utilops.embedded.ViewKVStateOp;
 import com.hedera.services.bdd.spec.utilops.embedded.ViewMappingValueOp;
 import com.hedera.services.bdd.spec.utilops.embedded.ViewNodeOp;
 import com.hedera.services.bdd.spec.utilops.embedded.ViewPendingAirdropOp;
+import com.hedera.services.bdd.spec.utilops.embedded.ViewQueueOp;
 import com.hedera.services.bdd.spec.utilops.embedded.ViewSingletonOp;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableKVState;
+import com.swirlds.state.spi.ReadableQueueState;
 import com.swirlds.state.spi.WritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -131,6 +133,15 @@ public final class EmbeddedVerbs {
 
     public static ViewContractOp viewContract(@NonNull final String name, @NonNull final Consumer<Account> observer) {
         return new ViewContractOp(name, observer);
+    }
+
+    public static <T> ViewQueueOp<T> viewQueue(
+            @NonNull final String serviceName,
+            final int stateId,
+            @NonNull final Consumer<ReadableQueueState<T>> observer) {
+        requireNonNull(serviceName);
+        requireNonNull(observer);
+        return new ViewQueueOp<>(serviceName, stateId, observer);
     }
 
     /**

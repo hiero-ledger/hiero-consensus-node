@@ -28,6 +28,7 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.INT_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.getIndirectAccountRefs;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
 import static com.hedera.node.app.service.token.AliasUtils.asKeyFromAlias;
@@ -58,6 +59,7 @@ import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
+import com.hedera.node.app.hapi.utils.keys.KeyMaterializer;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.validators.CryptoCreateValidator;
@@ -282,6 +284,13 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         // As an extra guardrail, ensure it's impossible to programmatically create a system file account
         validateFalse(isSystemFile(accountCreated.accountIdOrThrow().accountNumOrThrow()), FAIL_INVALID);
         accountStore.putAndIncrementCount(accountCreated);
+        if (accountCreated.hasMaterializedKey()) {
+            final var newRefs = getIndirectAccountRefs(accountCreated.keyOrThrow());
+            final var userId = accountCreated.accountIdOrThrow();
+            for (final var keyAccountId : newRefs) {
+                accountStore.insertIndirectUser(keyAccountId, userId);
+            }
+        }
 
         final var createdAccountID = accountCreated.accountIdOrThrow();
         final var recordBuilder = context.savepointStack().getBaseBuilder(CryptoCreateStreamBuilder.class);
@@ -436,6 +445,10 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         final var autoRenewPeriod = op.autoRenewPeriodOrThrow().seconds();
         final var consensusTime = handleContext.consensusNow().getEpochSecond();
         final var expiry = consensusTime + autoRenewPeriod;
+
+        final var accountStore = handleContext.storeFactory().writableStore(WritableAccountStore.class);
+        final var templateKey = op.keyOrThrow();
+        final var concreteKey = new KeyMaterializer().materialize(templateKey, new KeySourceFromStore(accountStore));
         var builder = Account.newBuilder()
                 .memo(op.memo())
                 .expirationSecond(expiry)
@@ -444,10 +457,13 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
                 .maxAutoAssociations(op.maxAutomaticTokenAssociations())
                 .tinybarBalance(op.initialBalance())
                 .declineReward(op.declineReward())
-                .key(op.keyOrThrow())
                 .stakeAtStartOfLastRewardedPeriod(NOT_REWARDED_SINCE_LAST_STAKING_META_CHANGE)
                 .stakePeriodStart(NO_STAKE_PERIOD_START)
-                .alias(op.alias());
+                .alias(op.alias())
+                .key(templateKey);
+        if (!concreteKey.equals(templateKey)) {
+            builder.materializedKey(concreteKey);
+        }
         if (!op.hookCreationDetails().isEmpty()) {
             builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
             builder.numberHooksInUse(op.hookCreationDetails().size());

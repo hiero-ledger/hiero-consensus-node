@@ -657,6 +657,7 @@ public class HandleWorkflow {
         // Non-final right endpoint of the execution interval, in case we cannot do all the scheduled work
         var executionEnd = consensusNow;
 
+        // TODO - move this back inside if and return null when no work is done
         // Obtain configuration and compute time bounds for this interval
         final var config = configProvider.getConfiguration();
         final var schedulingConfig = config.getConfigData(SchedulingConfig.class);
@@ -781,6 +782,12 @@ public class HandleWorkflow {
                             .build()));
                 }
             }
+            final var registration = systemTaskHandlers.getRegistration(task);
+            if (registration == null) {
+                logger.error("{} - no handler found for system task {}", ALERT_MESSAGE, task);
+                continue;
+            }
+
             final var taskStack = SavepointStackImpl.newTaskStack(
                     state,
                     consensusConfig.handleMaxPrecedingRecords(),
@@ -792,11 +799,6 @@ public class HandleWorkflow {
             final var writableEntityIdStore = new WritableEntityIdStore(entityIdWritableStates);
             final var taskStore =
                     new WritableSystemTaskStore(state.getWritableStates(SystemTaskService.NAME), writableEntityIdStore);
-            final var registration = systemTaskHandlers.getRegistration(task);
-            if (registration == null) {
-                logger.error("{} - no handler found for system task {}", ALERT_MESSAGE, task);
-                continue;
-            }
             final var readableStoreFactory = new ReadableStoreFactory(taskStack);
             final var writableStoreFactory =
                     new WritableStoreFactory(taskStack, registration.service().getServiceName(), writableEntityIdStore);

@@ -25,6 +25,8 @@ import com.hedera.node.app.fees.ChildFeeContextImpl;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.fees.FeeManager;
+import com.hedera.node.app.ids.EntityIdService;
+import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
@@ -52,6 +54,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.TransactionKeys;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.store.StoreFactoryImpl;
+import com.hedera.node.app.systemtask.SystemTaskService;
 import com.hedera.node.app.systemtask.WritableSystemTaskStore;
 import com.hedera.node.app.workflows.InnerTransaction;
 import com.hedera.node.app.workflows.TransactionChecker;
@@ -461,7 +464,10 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
 
     @Override
     public void offer(@NonNull final SystemTask task) {
-        final var store = storeFactory.writableStore(WritableSystemTaskStore.class);
+        final var entityIdWritableStates = stack.getWritableStates(EntityIdService.NAME);
+        final var writableEntityIdStore = new WritableEntityIdStore(entityIdWritableStates);
+        final var store =
+                new WritableSystemTaskStore(stack.getWritableStates(SystemTaskService.NAME), writableEntityIdStore);
         final long limit = config.getConfigData(NetworkAdminConfig.class).maxPendingSystemTasks();
         if (store.numPendingTasks() >= limit) {
             throw new HandleException(SYSTEM_TASK_QUEUE_FULL);

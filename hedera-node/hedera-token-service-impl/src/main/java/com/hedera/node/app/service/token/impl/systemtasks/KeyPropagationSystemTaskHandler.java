@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.systemtasks;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -12,12 +14,15 @@ import com.hedera.hapi.node.state.systemtask.SystemTask;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.IndirectKeyUsersKey;
 import com.hedera.hapi.node.state.token.IndirectKeyUsersValue;
+import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
+import com.hedera.node.app.service.token.records.CryptoUpdateStreamBuilder;
 import com.hedera.node.app.spi.systemtasks.SystemTaskContext;
 import com.hedera.node.app.spi.systemtasks.SystemTaskHandler;
 import com.swirlds.state.spi.WritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
+import javax.inject.Inject;
 import javax.inject.Singleton;
 
 /**
@@ -25,34 +30,14 @@ import javax.inject.Singleton;
  *
  * <p>See task description for the full algorithm. In brief, for key_account_id=A,
  * this handler will attempt to propagate A's materialized key to the next-in-line
- * indirect key user U, updating U's materialized key via a synthetic CryptoUpdate
- * (simulated through an injected submitter), and schedule cascading propagation
- * if needed.
+ * indirect key user U, updating U's materialized key via a synthetic CryptoUpdate,
+ * and schedule cascading propagation if needed.
  */
 @Singleton
 public class KeyPropagationSystemTaskHandler implements SystemTaskHandler {
-    /** Collaborator to submit a synthetic CryptoUpdate for a payer account. */
-    public interface CryptoUpdateSubmitter {
-        /**
-         * Attempts to submit a synthetic CryptoUpdate that updates only the materialized key of the payer account.
-         * Implementations may choose to actually dispatch a transaction or simply return SUCCESS.
-         *
-         * @param payer the account paying for the synthetic update
-         * @param newMaterialized the new materialized key that will be written if the update succeeds
-         * @return true if update should be committed, false to simulate INSUFFICIENT_PAYER_BALANCE (rollback)
-         */
-        boolean submit(@NonNull AccountID payer, @NonNull Key newMaterialized);
-    }
-
-    private final CryptoUpdateSubmitter submitter;
-
-    /** Default constructor uses a no-op submitter that always succeeds. */
+    @Inject
     public KeyPropagationSystemTaskHandler() {
-        this((payer, newMat) -> true);
-    }
-
-    public KeyPropagationSystemTaskHandler(@NonNull final CryptoUpdateSubmitter submitter) {
-        this.submitter = requireNonNull(submitter);
+        // Dagger2
     }
 
     @Override
@@ -65,8 +50,8 @@ public class KeyPropagationSystemTaskHandler implements SystemTaskHandler {
     public void handle(@NonNull final SystemTaskContext context) {
         requireNonNull(context);
         final var task = context.currentTask();
-        final KeyPropagation kp = task.keyPropagation();
-        final AccountID keyAccountId = kp.keyAccountId();
+        final KeyPropagation kp = task.keyPropagationOrThrow();
+        final AccountID keyAccountId = kp.keyAccountIdOrThrow();
         final var accountStore = context.storeFactory().writableStore(WritableAccountStore.class);
         final Account A = accountStore.get(keyAccountId);
         if (A == null || A.deleted()) {
@@ -78,31 +63,36 @@ public class KeyPropagationSystemTaskHandler implements SystemTaskHandler {
         }
         final Account U = accountStore.get(uId);
         if (U != null && !U.deleted()) {
-            final Key newMatForU =
-                    replaceIndirectRefsTo(A.accountId(), A.materializedKey(), U.key(), U.materializedKey());
+            final Key newMatForU = replaceIndirectRefsTo(
+                    A.accountIdOrThrow(), A.materializedKeyOrThrow(), U.keyOrThrow(), U.materializedKeyOrThrow());
             if (newMatForU != null && !Objects.equals(newMatForU, U.materializedKey())) {
                 final var originalU = U;
                 // Tentatively update U, then submit synthetic update; rollback on failure
                 final var uBuilder = U.copyBuilder().materializedKey(newMatForU);
                 accountStore.put(uBuilder.build());
-                final boolean ok = submitter.submit(uId, newMatForU);
-                if (!ok) {
-                    // Roll back to original state
-                    accountStore.put(originalU);
-                } else {
-                    // If U has indirect key users after update, schedule its own propagation
-                    final var updatedU = accountStore.get(uId);
-                    if (updatedU != null && updatedU.numIndirectKeyUsers() > 0) {
-                        final var cascaded = updatedU.copyBuilder()
-                                .maxRemainingPropagations(updatedU.numIndirectKeyUsers())
-                                .nextInLineKeyUserId(updatedU.firstKeyUserId())
-                                .build();
-                        accountStore.put(cascaded);
-                        final var cascadeTask = SystemTask.newBuilder()
-                                .keyPropagation(KeyPropagation.newBuilder().keyAccountId(uId))
-                                .build();
-                        context.offer(cascadeTask);
-                    }
+                //                final boolean ok = submitter.submit(uId, newMatForU);
+                final var streamBuilder = context.dispatch(
+                        b -> {
+                            // Since this is an internal dispatch, the key will go straight to materialized, not
+                            // template
+                            b.cryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder()
+                                    .accountIDToUpdate(U.accountIdOrThrow())
+                                    .key(newMatForU));
+                        },
+                        CryptoUpdateStreamBuilder.class);
+                validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
+                // If U has indirect key users after update, schedule its own propagation
+                final var updatedU = accountStore.get(uId);
+                if (updatedU != null && updatedU.numIndirectKeyUsers() > 0) {
+                    final var cascaded = updatedU.copyBuilder()
+                            .maxRemainingPropagations(updatedU.numIndirectKeyUsers())
+                            .nextInLineKeyUserId(updatedU.firstKeyUserId())
+                            .build();
+                    accountStore.put(cascaded);
+                    final var cascadeTask = SystemTask.newBuilder()
+                            .keyPropagation(KeyPropagation.newBuilder().keyAccountId(uId))
+                            .build();
+                    context.offer(cascadeTask);
                 }
             }
         }

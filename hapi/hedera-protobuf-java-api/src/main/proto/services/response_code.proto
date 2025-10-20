@@ -1777,6 +1777,16 @@ enum ResponseCodeEnum {
     SYSTEM_TASK_QUEUE_FULL = 402;
 
     /**
+     * A complex key used more than the allowed number of indirect references.
+     */
+    INDIRECTION_LIMIT_PER_KEY_EXCEEDED = 403;
+
+    /**
+     * A key indirectly referenced an account or contract that does not exist.
+     */
+    INDIRECTION_KEY_TARGET_NOT_FOUND = 404;
+
+    /**
      * An EVM hook execution was throttled due to high network gas utilization.
      */
     EVM_HOOK_GAS_THROTTLED = 500;

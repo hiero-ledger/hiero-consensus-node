@@ -23,7 +23,7 @@ import java.util.List;
  * or contract according to the {@link Source}.
  */
 public final class KeyMaterializer {
-    public static final int DEFAULT_MAX_DEPTH = 64;
+    public static final int DEFAULT_MAX_DEPTH = 15;
 
     private final int maxDepth;
 

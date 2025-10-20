@@ -5,8 +5,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_EXPIRED_AND_PENDING_REMOVAL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_ID_DOES_NOT_EXIST;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INDIRECTION_LIMIT_PER_KEY_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
@@ -21,6 +21,8 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.INT_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.concreteKeyOf;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.getIndirectAccountRefs;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookCreations;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookDeletions;
 import static com.hedera.node.app.service.token.HookDispatchUtils.validateHookDuplicates;
@@ -35,11 +37,12 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePr
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.systemtask.KeyPropagation;
+import com.hedera.hapi.node.state.systemtask.SystemTask;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -72,6 +75,7 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -173,53 +177,39 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         // Handle indirect key bookkeeping if the key is being updated
         if (op.hasKey()) {
             // 1) Before storing the new template key, compute OLD/NEW indirect references and remove OLD
-            final var oldRefs = collectIndirectAccountRefs(targetAccount.keyOrElse(Key.DEFAULT));
-            final var newRefs = collectIndirectAccountRefs(op.keyOrThrow());
+            final var oldRefs = getIndirectAccountRefs(targetAccount.keyOrElse(Key.DEFAULT));
+            final var newRefs = getIndirectAccountRefs(op.keyOrThrow());
             final var toRemove = new java.util.HashSet<>(oldRefs);
             toRemove.removeAll(newRefs);
             final var toAdd = new java.util.HashSet<>(newRefs);
             toAdd.removeAll(oldRefs);
 
-            // Writable KV for INDIRECT_KEY_USERS via account store
-            final var indirectUsersKv = accountStore.indirectKeyUsers();
-
             // Remove target from lists for accounts no longer referenced
-            for (final var xId : toRemove) {
-                final var x = accountStore.get(xId);
-                if (x == null) continue; // defensive: ignore missing
-                final var xBuilder = x.copyBuilder();
-                decrementIndirectUserCount(xBuilder);
-                removeIndirectUserFromList(indirectUsersKv, xBuilder, xId, target);
-                accountStore.put(xBuilder.build());
+            final var userId = targetAccount.accountIdOrThrow();
+            for (final var keyAccountId : toRemove) {
+                accountStore.removeIndirectUser(keyAccountId, userId);
             }
 
             // 2) Materialize the new key and set both template and materialized_key
-            final var materializer = new com.hedera.node.app.hapi.utils.keys.KeyMaterializer();
-            final var source = (KeyMaterializer.Source) new KeySourceFromStore(accountStore);
-            final var newMaterialized = materializer.materialize(op.keyOrThrow(), source);
             builder.key(op.keyOrThrow());
-            builder.materializedKey(newMaterialized);
+            final var concrete =
+                    new KeyMaterializer().materialize(op.keyOrThrow(), new KeySourceFromStore(accountStore));
+            builder.materializedKey(concrete);
 
             // 3) For each newly referenced account, insert target into its indirect users list
-            for (final var xId : toAdd) {
-                final var x = accountStore.get(xId);
-                if (x == null) continue; // defensive
-                final var xBuilder = x.copyBuilder();
-                incrementIndirectUserCount(xBuilder);
-                insertIndirectUserIntoList(indirectUsersKv, xBuilder, xId, target);
-                accountStore.put(xBuilder.build());
+            for (final var keyAccountId : toAdd) {
+                accountStore.insertIndirectUser(keyAccountId, userId);
             }
 
-            // 4) If materialized_key changed and target has indirect key users, schedule propagation
-            final var oldMat = targetAccount.materializedKey();
-            final boolean matChanged =
-                    (oldMat == null && newMaterialized != null) || (oldMat != null && !oldMat.equals(newMaterialized));
-            if (matChanged && targetAccount.numIndirectKeyUsers() > 0) {
+            // 4) If materialized_key changed and target has indirect key users, schedule
+            // propagation of the target account's new key to its users
+            final var oldKey = concreteKeyOf(targetAccount);
+            final boolean keyChanged = !Objects.equals(oldKey, concrete);
+            if (keyChanged && targetAccount.numIndirectKeyUsers() > 0) {
                 builder.maxRemainingPropagations(targetAccount.numIndirectKeyUsers());
                 builder.nextInLineKeyUserId(targetAccount.firstKeyUserId());
-                final var task = com.hedera.hapi.node.state.systemtask.SystemTask.newBuilder()
-                        .keyPropagation(com.hedera.hapi.node.state.systemtask.KeyPropagation.newBuilder()
-                                .keyAccountId(target))
+                final var task = SystemTask.newBuilder()
+                        .keyPropagation(KeyPropagation.newBuilder().keyAccountId(target))
                         .build();
                 context.offer(task);
             }
@@ -232,60 +222,8 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                 .accountID(targetAccount.accountIdOrThrow());
     }
 
-    // === Indirect keys helpers ===
-    private static void incrementIndirectUserCount(final Account.Builder accountBuilder) {
-        final var current = accountBuilder.build().numIndirectKeyUsers();
-        accountBuilder.numIndirectKeyUsers(current + 1);
-    }
-
-    private static void decrementIndirectUserCount(final Account.Builder accountBuilder) {
-        final var current = accountBuilder.build().numIndirectKeyUsers();
-        accountBuilder.numIndirectKeyUsers(current > 0 ? current - 1 : 0);
-    }
-
-    private static java.util.Set<AccountID> collectIndirectAccountRefs(@NonNull final Key key) {
-        final java.util.Set<AccountID> refs = new java.util.HashSet<>();
-        collectIndirectAccountRefsRec(key, refs);
-        return refs;
-    }
-
-    private static void collectIndirectAccountRefsRec(final Key key, final java.util.Set<AccountID> refs) {
-        if (key == null || key.key() == null) return;
-        switch (key.key().kind()) {
-            case INDIRECT_KEY -> {
-                final var ik = key.indirectKey();
-                if (ik != null
-                        && ik.target() != null
-                        && ik.target().kind() == com.hedera.hapi.node.base.IndirectKey.TargetOneOfType.ACCOUNT_ID) {
-                    final var id = ik.accountId();
-                    if (id != null && !AccountID.DEFAULT.equals(id)) refs.add(id);
-                }
-            }
-            case KEY_LIST -> {
-                final var list = key.keyList();
-                if (list != null && list.keys() != null) {
-                    for (final var child : list.keys()) collectIndirectAccountRefsRec(child, refs);
-                }
-            }
-            case THRESHOLD_KEY -> {
-                final var t = key.thresholdKey();
-                if (t != null && t.keys() != null && t.keys().keys() != null) {
-                    for (final var child : t.keys().keys()) collectIndirectAccountRefsRec(child, refs);
-                }
-            }
-            default -> {
-                // nothing
-            }
-        }
-    }
-
     /** Counts total occurrences of IndirectKey nodes within the given key tree. */
     private static int countIndirectKeyOccurrences(@NonNull final Key key) {
-        return countIndirectKeyOccurrencesRec(key);
-    }
-
-    private static int countIndirectKeyOccurrencesRec(final Key key) {
-        if (key == null || key.key() == null) return 0;
         switch (key.key().kind()) {
             case INDIRECT_KEY -> {
                 return 1;
@@ -293,162 +231,26 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
             case KEY_LIST -> {
                 int total = 0;
                 final var list = key.keyList();
-                if (list != null && list.keys() != null) {
-                    for (final var child : list.keys()) total += countIndirectKeyOccurrencesRec(child);
+                if (list != null) {
+                    for (final var child : list.keys()) {
+                        total += countIndirectKeyOccurrences(child);
+                    }
                 }
                 return total;
             }
             case THRESHOLD_KEY -> {
                 int total = 0;
                 final var t = key.thresholdKey();
-                if (t != null && t.keys() != null && t.keys().keys() != null) {
-                    for (final var child : t.keys().keys()) total += countIndirectKeyOccurrencesRec(child);
+                if (t != null && t.keys() != null) {
+                    for (final var child : t.keys().keys()) {
+                        total += countIndirectKeyOccurrences(child);
+                    }
                 }
                 return total;
             }
             default -> {
                 return 0;
             }
-        }
-    }
-
-    private static void removeIndirectUserFromList(
-            final com.swirlds.state.spi.WritableKVState<
-                            com.hedera.hapi.node.state.token.IndirectKeyUsersKey,
-                            com.hedera.hapi.node.state.token.IndirectKeyUsersValue>
-                    kv,
-            final Account.Builder keyAccountBuilder,
-            final AccountID keyAccountId,
-            final AccountID userId) {
-        final var k = com.hedera.hapi.node.state.token.IndirectKeyUsersKey.newBuilder()
-                .keyAccountId(keyAccountId)
-                .indirectUserId(userId)
-                .build();
-        final var entry = kv.get(k);
-        if (entry == null) return; // nothing to remove
-        final var prev = entry.prevUserId();
-        final var next = entry.nextUserId();
-        // Update previous' next pointer
-        if (prev != null && !AccountID.DEFAULT.equals(prev)) {
-            final var prevKey = com.hedera.hapi.node.state.token.IndirectKeyUsersKey.newBuilder()
-                    .keyAccountId(keyAccountId)
-                    .indirectUserId(prev)
-                    .build();
-            final var prevVal = kv.get(prevKey);
-            if (prevVal != null) {
-                kv.put(prevKey, prevVal.copyBuilder().nextUserId(next).build());
-            }
-        } else {
-            // We removed the head
-            keyAccountBuilder.firstKeyUserId(next);
-        }
-        // Update next's prev pointer
-        if (next != null && !AccountID.DEFAULT.equals(next)) {
-            final var nextKey = com.hedera.hapi.node.state.token.IndirectKeyUsersKey.newBuilder()
-                    .keyAccountId(keyAccountId)
-                    .indirectUserId(next)
-                    .build();
-            final var nextVal = kv.get(nextKey);
-            if (nextVal != null) {
-                kv.put(nextKey, nextVal.copyBuilder().prevUserId(prev).build());
-            }
-        }
-        // If the next_in_line pointer was this user, advance it
-        if (userId.equals(keyAccountBuilder.build().nextInLineKeyUserId())) {
-            keyAccountBuilder.nextInLineKeyUserId(next);
-        }
-        // Finally remove this entry
-        kv.remove(k);
-    }
-
-    private static void insertIndirectUserIntoList(
-            final com.swirlds.state.spi.WritableKVState<
-                            com.hedera.hapi.node.state.token.IndirectKeyUsersKey,
-                            com.hedera.hapi.node.state.token.IndirectKeyUsersValue>
-                    kv,
-            final Account.Builder keyAccountBuilder,
-            final AccountID keyAccountId,
-            final AccountID newUserId) {
-        final var nextInLine = keyAccountBuilder.build().nextInLineKeyUserId();
-        if (nextInLine != null && !AccountID.DEFAULT.equals(nextInLine)) {
-            // Insert after nextInLine
-            final var afterKey = com.hedera.hapi.node.state.token.IndirectKeyUsersKey.newBuilder()
-                    .keyAccountId(keyAccountId)
-                    .indirectUserId(nextInLine)
-                    .build();
-            final var afterVal = kv.get(afterKey);
-            final var afterNext = (afterVal == null) ? AccountID.DEFAULT : afterVal.nextUserId();
-            // New entry
-            final var newVal = com.hedera.hapi.node.state.token.IndirectKeyUsersValue.newBuilder()
-                    .prevUserId(nextInLine)
-                    .nextUserId(afterNext)
-                    .build();
-            kv.put(
-                    com.hedera.hapi.node.state.token.IndirectKeyUsersKey.newBuilder()
-                            .keyAccountId(keyAccountId)
-                            .indirectUserId(newUserId)
-                            .build(),
-                    newVal);
-            // Patch 'after' next
-            if (afterVal != null) {
-                kv.put(afterKey, afterVal.copyBuilder().nextUserId(newUserId).build());
-            }
-            // Patch 'afterNext' prev
-            if (afterNext != null && !AccountID.DEFAULT.equals(afterNext)) {
-                final var afterNextKey = com.hedera.hapi.node.state.token.IndirectKeyUsersKey.newBuilder()
-                        .keyAccountId(keyAccountId)
-                        .indirectUserId(afterNext)
-                        .build();
-                final var afterNextVal = kv.get(afterNextKey);
-                if (afterNextVal != null) {
-                    kv.put(
-                            afterNextKey,
-                            afterNextVal.copyBuilder().prevUserId(newUserId).build());
-                }
-            }
-        } else {
-            // Insert at head (before first)
-            final var oldHead = keyAccountBuilder.build().firstKeyUserId();
-            final var newVal = com.hedera.hapi.node.state.token.IndirectKeyUsersValue.newBuilder()
-                    .prevUserId(AccountID.DEFAULT)
-                    .nextUserId(oldHead)
-                    .build();
-            kv.put(
-                    com.hedera.hapi.node.state.token.IndirectKeyUsersKey.newBuilder()
-                            .keyAccountId(keyAccountId)
-                            .indirectUserId(newUserId)
-                            .build(),
-                    newVal);
-            if (oldHead != null && !AccountID.DEFAULT.equals(oldHead)) {
-                final var oldHeadKey = com.hedera.hapi.node.state.token.IndirectKeyUsersKey.newBuilder()
-                        .keyAccountId(keyAccountId)
-                        .indirectUserId(oldHead)
-                        .build();
-                final var oldHeadVal = kv.get(oldHeadKey);
-                if (oldHeadVal != null) {
-                    kv.put(
-                            oldHeadKey,
-                            oldHeadVal.copyBuilder().prevUserId(newUserId).build());
-                }
-            }
-            keyAccountBuilder.firstKeyUserId(newUserId);
-        }
-    }
-
-    /**
-     *  Minimal KeySource backed by the account store
-     */
-    private record KeySourceFromStore(WritableAccountStore store) implements KeyMaterializer.Source {
-        @Override
-        public Key materializedKeyOrThrow(@NonNull final AccountID id) {
-            final var a = requireNonNull(store.get(id));
-            return a.materializedKeyOrElse(a.keyOrThrow());
-        }
-
-        @Override
-        public Key materializedKeyOrThrow(@NonNull final ContractID id) {
-            final var a = requireNonNull(store.getContractById(id));
-            return a.materializedKeyOrElse(a.keyOrThrow());
         }
     }
 
@@ -577,8 +379,8 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         final var currentMetadata = new ExpiryMeta(
                 updateAccount.expirationSecond(), updateAccount.autoRenewSeconds(), updateAccount.autoRenewAccountId());
         final var updateMeta = new ExpiryMeta(
-                op.hasExpirationTime() ? op.expirationTime().seconds() : NA,
-                op.hasAutoRenewPeriod() ? op.autoRenewPeriod().seconds() : NA,
+                op.hasExpirationTime() ? op.expirationTimeOrThrow().seconds() : NA,
+                op.hasAutoRenewPeriod() ? op.autoRenewPeriodOrThrow().seconds() : NA,
                 null);
         context.expiryValidator().resolveUpdateAttempt(currentMetadata, updateMeta);
 
@@ -627,17 +429,17 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
             context.attributeValidator().validateMemo(op.memo());
         }
         // Empty key list is allowed and is used for immutable entities (e.g. system accounts)
-        if (op.hasKey() && !isImmutableKey(op.key())) {
-            context.attributeValidator().validateKey(op.key());
+        if (op.hasKey() && !isImmutableKey(op.keyOrThrow())) {
+            context.attributeValidator().validateKey(op.keyOrThrow());
             // Enforce the maximum number of indirect key references allowed in the template key
             final var accountsConfig = context.configuration().getConfigData(AccountsConfig.class);
-            final var refs = collectIndirectAccountRefs(op.keyOrThrow());
-            validateTrue(refs.size() <= accountsConfig.maxIndirectKeyRefs(), FAIL_INVALID);
+            final var refs = getIndirectAccountRefs(op.keyOrThrow());
+            validateTrue(refs.size() <= accountsConfig.maxIndirectKeyRefs(), INDIRECTION_LIMIT_PER_KEY_EXCEEDED);
         }
 
         if (op.hasAutoRenewPeriod()) {
             context.attributeValidator()
-                    .validateAutoRenewPeriod(op.autoRenewPeriod().seconds());
+                    .validateAutoRenewPeriod(op.autoRenewPeriodOrThrow().seconds());
         }
 
         StakingValidator.validateStakedIdForUpdate(
@@ -807,8 +609,6 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                 extraServiceFeeTinybars = feeCalculator.tinybarsFromTinycents(totalTinycents);
             }
         } catch (final Exception ignore) {
-            // Be defensive: fee pricing must never fail the node. If anything goes wrong here, skip the extra fee.
-            extraServiceFeeTinybars = 0L;
         }
         return baseFees.plus(new Fees(0L, 0L, extraServiceFeeTinybars));
     }
