@@ -24,7 +24,6 @@ import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
-import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.hapi.utils.EntityType;
@@ -194,9 +193,20 @@ public class AddressBookTestBase {
         given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(writableNodeState);
         readableStore = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
         writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
+    }
 
-        readableAccountNodeRelState = newReadableAccNodeRelState();
-        writableAccountNodeRelState = newWritableAccNodeRelState();
+    protected void createEmptyAccountNodeRelState() {
+        readableAccountNodeRelState = newEmptyReadableAccNodeRelState();
+        writableAccountNodeRelState = newEmptyWritableAccNodeRelState();
+        given(readableStates.<AccountID, NodeId>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(readableAccountNodeRelState);
+        given(writableStates.<AccountID, NodeId>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(writableAccountNodeRelState);
+        readableAccountNodeRelStore = new ReadableAccountNodeRelStoreImpl(readableStates, readableEntityCounters);
+        writableAccountNodeRelStore = new WritableAccountNodeRelStore(writableStates, writableEntityCounters);
+    }
+
+    protected void createAccountNodeRelStoreWithCurrentAccountNodeRel() {
+        readableAccountNodeRelState = newReadableAccNodeRelStateWithNode();
+        writableAccountNodeRelState = newWritableAccNodeRelStateWithNode();
         given(readableStates.<AccountID, NodeId>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(readableAccountNodeRelState);
         given(writableStates.<AccountID, NodeId>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(writableAccountNodeRelState);
         readableAccountNodeRelStore = new ReadableAccountNodeRelStoreImpl(readableStates, readableEntityCounters);
@@ -275,16 +285,6 @@ public class AddressBookTestBase {
         writableNodeState = writableNodeStateWithMoreKeys();
         given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(writableNodeState);
         writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
-        addAccountNodeRelation();
-    }
-
-    protected void addAccountNodeRelation() {
-        readableAccountNodeRelState = newReadableAccNodeRelState();
-        writableAccountNodeRelState = newWritableAccNodeRelState();
-        given(readableStates.<AccountID, NodeId>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(readableAccountNodeRelState);
-        given(writableStates.<AccountID, NodeId>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(writableAccountNodeRelState);
-        readableAccountNodeRelStore = new ReadableAccountNodeRelStoreImpl(readableStates, readableEntityCounters);
-        writableAccountNodeRelStore = new WritableAccountNodeRelStore(writableStates, writableEntityCounters);
     }
 
     @NonNull
@@ -321,16 +321,34 @@ public class AddressBookTestBase {
     }
 
     @NonNull
-    protected MapReadableKVState<AccountID, NodeId> newReadableAccNodeRelState() {
+    protected MapReadableKVState<AccountID, NodeId> newReadableAccNodeRelStateWithNode() {
         return MapReadableKVState.<AccountID, NodeId>builder(ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_LABEL)
                 .value(node.accountId(), NodeId.newBuilder().id(node.nodeId()).build())
+                .value(
+                        AccountID.newBuilder().accountNum(4).build(),
+                        NodeId.newBuilder().id(5).build())
                 .build();
     }
 
     @NonNull
-    protected MapWritableKVState<AccountID, NodeId> newWritableAccNodeRelState() {
+    protected MapWritableKVState<AccountID, NodeId> newWritableAccNodeRelStateWithNode() {
         return MapWritableKVState.<AccountID, NodeId>builder(ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_LABEL)
                 .value(node.accountId(), NodeId.newBuilder().id(node.nodeId()).build())
+                .value(
+                        AccountID.newBuilder().accountNum(4).build(),
+                        NodeId.newBuilder().id(5).build())
+                .build();
+    }
+
+    @NonNull
+    protected MapReadableKVState<AccountID, NodeId> newEmptyReadableAccNodeRelState() {
+        return MapReadableKVState.<AccountID, NodeId>builder(ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_LABEL)
+                .build();
+    }
+
+    @NonNull
+    protected MapWritableKVState<AccountID, NodeId> newEmptyWritableAccNodeRelState() {
+        return MapWritableKVState.<AccountID, NodeId>builder(ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_LABEL)
                 .build();
     }
 

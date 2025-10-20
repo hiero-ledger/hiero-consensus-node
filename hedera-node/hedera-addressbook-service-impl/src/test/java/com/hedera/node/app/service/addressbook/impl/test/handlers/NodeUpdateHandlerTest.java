@@ -30,6 +30,7 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeUpdateHandler;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
@@ -380,6 +381,29 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         assertArrayEquals("hash".getBytes(), updatedNode.grpcCertificateHash().toByteArray());
         assertTrue(updatedNode.declineReward());
         assertEquals(key, updatedNode.adminKey());
+    }
+
+    @Test
+    void updateWithRelatedAccountFail() {
+        final var relatedAccountId = AccountID.newBuilder().accountNum(4).build();
+        txn = new NodeUpdateBuilder()
+                .withNodeId(1L)
+                .withAccountId(relatedAccountId)
+                .build();
+        given(handleContext.body()).willReturn(txn);
+        refreshStoresWithMoreNodeInWritable();
+        createAccountNodeRelStoreWithCurrentAccountNodeRel();
+        given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
+        final var config = HederaTestConfigBuilder.create().getOrCreateConfig();
+        given(handleContext.configuration()).willReturn(config);
+        given(handleContext.storeFactory()).willReturn(storeFactory);
+        given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
+        given(accountStore.contains(relatedAccountId)).willReturn(true);
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(handleContext.attributeValidator()).willReturn(validator);
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(ResponseCodeEnum.ACCOUNT_IS_LINKED_TO_A_NODE, msg.getStatus());
     }
 
     @Test

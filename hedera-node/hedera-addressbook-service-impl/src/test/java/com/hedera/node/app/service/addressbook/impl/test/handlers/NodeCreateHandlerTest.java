@@ -550,6 +550,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
+        createEmptyAccountNodeRelState();
         given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
 
         final var stack = mock(HandleContext.SavepointStack.class);
@@ -576,6 +577,25 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         assertArrayEquals("hash".getBytes(), createdNode.grpcCertificateHash().toByteArray());
         assertEquals(key, createdNode.adminKey());
         assertTrue(createdNode.declineReward());
+    }
+
+    @Test
+    void createWithRelatedAccountFail() throws CertificateEncodingException {
+        txn = new NodeCreateBuilder().withAccountId(accountId).withAdminKey(key).build(payerId);
+        given(handleContext.body()).willReturn(txn);
+        refreshStoresWithMoreNodeInWritable();
+        createAccountNodeRelStoreWithCurrentAccountNodeRel();
+        final var config = HederaTestConfigBuilder.create().getOrCreateConfig();
+        given(handleContext.configuration()).willReturn(config);
+        given(handleContext.storeFactory()).willReturn(storeFactory);
+        given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
+        given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
+        given(accountStore.contains(accountId)).willReturn(true);
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(handleContext.attributeValidator()).willReturn(validator);
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(ResponseCodeEnum.ACCOUNT_IS_LINKED_TO_A_NODE, msg.getStatus());
     }
 
     @Test
@@ -630,6 +650,8 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
         given(accountStore.contains(accountId)).willReturn(true);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
+        createEmptyAccountNodeRelState();
         given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
     }
 
