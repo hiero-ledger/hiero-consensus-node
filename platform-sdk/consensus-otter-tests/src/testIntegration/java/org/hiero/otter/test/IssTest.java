@@ -102,7 +102,7 @@ public class IssTest {
         final MarkerFilesStatus issMarkerFilesStatus =
                 issNode.newMarkerFileResult().status();
         timeManager.waitForConditionInRealTime(
-                () -> issMarkerFilesStatus.hasISSMarkerFileOfType(IssType.SELF_ISS), Duration.ofMinutes(2L));
+                () -> issMarkerFilesStatus.hasIssMarkerFileOfType(IssType.SELF_ISS), Duration.ofMinutes(2L));
 
         // This functionality is currently unstable. Enable the check once
         // https://github.com/hiero-ledger/hiero-consensus-node/issues/21684 has been fixed
@@ -133,8 +133,7 @@ public class IssTest {
 
         // Setup continuous assertions
         assertContinuouslyThat(network.newLogResults().suppressingNode(issNode)).haveNoErrorLevelMessages();
-        assertContinuouslyThat(network.newReconnectResults().suppressingNode(issNode))
-                .doNotAttemptToReconnect();
+        assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
         assertContinuouslyThat(network.newConsensusResults()).haveEqualCommonRounds();
         assertContinuouslyThat(network.newConsensusResults().suppressingNode(issNode))
                 .haveConsistentRounds();
@@ -217,7 +216,7 @@ public class IssTest {
         for (final SingleNodeMarkerFileResult result :
                 network.newMarkerFileResults().results()) {
             timeManager.waitForConditionInRealTime(
-                    () -> result.status().hasISSMarkerFileOfType(IssType.CATASTROPHIC_ISS), Duration.ofMinutes(2L));
+                    () -> result.status().hasIssMarkerFileOfType(IssType.CATASTROPHIC_ISS), Duration.ofMinutes(2L));
         }
     }
 }

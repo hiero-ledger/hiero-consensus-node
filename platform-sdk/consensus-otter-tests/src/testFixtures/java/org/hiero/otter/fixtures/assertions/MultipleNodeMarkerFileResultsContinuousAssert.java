@@ -128,7 +128,7 @@ public class MultipleNodeMarkerFileResultsContinuousAssert
     @NonNull
     public MultipleNodeMarkerFileResultsContinuousAssert haveNoIssMarkerFiles() {
         return checkContinuously((nodeId, markerFilesStatus) -> {
-            if (markerFilesStatus.hasAnyISSMarkerFile()) {
+            if (markerFilesStatus.hasAnyIssMarkerFile()) {
                 failWithMessage(
                         "Expected no ISS marker file, but node %s wrote at least one: %s", nodeId, markerFilesStatus);
             }
@@ -144,7 +144,7 @@ public class MultipleNodeMarkerFileResultsContinuousAssert
     @NonNull
     public MultipleNodeMarkerFileResultsContinuousAssert haveNoIssMarkerFilesOfType(@NonNull final IssType issType) {
         return checkContinuously((nodeId, markerFilesStatus) -> {
-            if (markerFilesStatus.hasISSMarkerFileOfType(issType)) {
+            if (markerFilesStatus.hasIssMarkerFileOfType(issType)) {
                 failWithMessage("Expected no ISS marker file of type '%s', but node %s wrote one", issType, nodeId);
             }
         });
@@ -175,15 +175,15 @@ public class MultipleNodeMarkerFileResultsContinuousAssert
                 failWithMessage("Expected no consensus exception marker file, but one was written");
             }
             if (!issTypes.contains(IssType.OTHER_ISS)
-                    && markerFilesStatus.hasISSMarkerFileOfType(IssNotification.IssType.OTHER_ISS)) {
+                    && markerFilesStatus.hasIssMarkerFileOfType(IssNotification.IssType.OTHER_ISS)) {
                 failWithMessage("Expected no ISS marker file of type OTHER_ISS, but one was written");
             }
             if (!issTypes.contains(IssType.SELF_ISS)
-                    && markerFilesStatus.hasISSMarkerFileOfType(IssNotification.IssType.SELF_ISS)) {
+                    && markerFilesStatus.hasIssMarkerFileOfType(IssNotification.IssType.SELF_ISS)) {
                 failWithMessage("Expected no ISS marker file of type SELF_ISS, but one was written");
             }
             if (!issTypes.contains(IssType.CATASTROPHIC_ISS)
-                    && markerFilesStatus.hasISSMarkerFileOfType(IssNotification.IssType.CATASTROPHIC_ISS)) {
+                    && markerFilesStatus.hasIssMarkerFileOfType(IssNotification.IssType.CATASTROPHIC_ISS)) {
                 failWithMessage("Expected no ISS marker file of type CATASTROPHIC_ISS, but one was written");
             }
         });

@@ -206,7 +206,7 @@ public class SingleNodeMarkerFileResultAssert
     public SingleNodeMarkerFileResultAssert hasNoIssMarkerFile() {
         isNotNull();
 
-        if (actual.status().hasAnyISSMarkerFile()) {
+        if (actual.status().hasAnyIssMarkerFile()) {
             failWithMessage(
                     "Expected no ISS marker files, but node %s wrote at least one: %s",
                     actual.nodeId(), actual.status());
@@ -224,7 +224,7 @@ public class SingleNodeMarkerFileResultAssert
     public SingleNodeMarkerFileResultAssert hasAnyIssMarkerFile() {
         isNotNull();
 
-        if (!actual.status().hasAnyISSMarkerFile()) {
+        if (!actual.status().hasAnyIssMarkerFile()) {
             failWithMessage("Expected any ISS marker files, but node %s wrote none", actual.nodeId());
         }
 
@@ -241,7 +241,7 @@ public class SingleNodeMarkerFileResultAssert
     public SingleNodeMarkerFileResultAssert hasNoIssMarkerFileOfType(@NonNull final IssType issType) {
         isNotNull();
 
-        if (actual.status().hasISSMarkerFileOfType(issType)) {
+        if (actual.status().hasIssMarkerFileOfType(issType)) {
             failWithMessage("Expected no ISS marker file of type %s, but node %s wrote one", issType, actual.nodeId());
         }
 
@@ -258,7 +258,7 @@ public class SingleNodeMarkerFileResultAssert
     public SingleNodeMarkerFileResultAssert hasIssMarkerFileOfType(@NonNull final IssType issType) {
         isNotNull();
 
-        if (!actual.status().hasISSMarkerFileOfType(issType)) {
+        if (!actual.status().hasIssMarkerFileOfType(issType)) {
             failWithMessage("Expected an ISS marker file of type %s, but node %s wrote none", issType, actual.nodeId());
         }
 

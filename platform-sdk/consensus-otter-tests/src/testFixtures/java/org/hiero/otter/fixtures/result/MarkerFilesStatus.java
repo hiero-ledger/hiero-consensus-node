@@ -34,7 +34,7 @@ public class MarkerFilesStatus {
                 || hasMissingSuperMajorityMarkerFile()
                 || hasMissingJudgesMarkerFile()
                 || hasConsensusExceptionMarkerFile()
-                || hasAnyISSMarkerFile();
+                || hasAnyIssMarkerFile();
     }
 
     /**
@@ -78,8 +78,8 @@ public class MarkerFilesStatus {
      *
      * @return {@code true} if the node has any ISS marker file, {@code false} otherwise
      */
-    public boolean hasAnyISSMarkerFile() {
-        return Stream.of(IssType.values()).anyMatch(this::hasISSMarkerFileOfType);
+    public boolean hasAnyIssMarkerFile() {
+        return Stream.of(IssType.values()).anyMatch(this::hasIssMarkerFileOfType);
     }
 
     /**
@@ -89,7 +89,7 @@ public class MarkerFilesStatus {
      * @return {@code true} if the node has an ISS marker file of the specified type, {@code false} otherwise
      * @throws NullPointerException if {@code issType} is {@code null}
      */
-    public boolean hasISSMarkerFileOfType(@NonNull final IssType issType) {
+    public boolean hasIssMarkerFileOfType(@NonNull final IssType issType) {
         requireNonNull(issType);
         return issMarkerFiles.contains(issType);
     }
