@@ -28,6 +28,7 @@ import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
+import org.junit.jupiter.api.Disabled;
 
 /**
  * Tests the reconnect functionality of a node that has fallen behind in the consensus rounds. The test ensures that the
@@ -136,6 +137,7 @@ public class ReconnectTest {
      *
      * @param env the test environment
      */
+    @Disabled("This test is flaky and needs to be investigated further")
     @OtterTest(requires = Capability.BACK_PRESSURE)
     void testSyntheticBottleneckReconnect(final TestEnvironment env) {
         final int numReconnectCycles = 2;

@@ -262,7 +262,7 @@ jobs:
     name: Block Node Regression Panel
     needs:
       - parameters
-    if: ${{ inputs.enable-block-node-regression-panel == true && needs.paramseters.outputs.solo-ge-0440 == 'true' }}
+    if: ${{ inputs.enable-block-node-regression-panel == true && needs.parameters.outputs.solo-ge-0440 == 'true' }}
     uses: ./.github/workflows/zxc-block-node-regression.yaml
     with:
       ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the BN panel for checkout
