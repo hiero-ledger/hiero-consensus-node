@@ -5,7 +5,7 @@ import static com.hedera.node.app.service.addressbook.impl.schemas.V068AddressBo
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.state.primitives.ProtoLong;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
 import com.hedera.node.app.service.entityid.ReadableEntityCounters;
@@ -21,7 +21,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  */
 public class ReadableAccountNodeRelStoreImpl implements ReadableAccountNodeRelStore {
 
-    private final ReadableKVState<AccountID, ProtoLong> accountNodeRelState;
+    private final ReadableKVState<AccountID, NodeId> accountNodeRelState;
 
     private final ReadableEntityCounters entityCounters;
 
@@ -37,7 +37,7 @@ public class ReadableAccountNodeRelStoreImpl implements ReadableAccountNodeRelSt
         this.accountNodeRelState = states.get(ACCOUNT_NODE_REL_STATE_ID);
     }
 
-    protected <T extends ReadableKVState<AccountID, ProtoLong>> T accountNodeRelState() {
+    protected <T extends ReadableKVState<AccountID, NodeId>> T accountNodeRelState() {
         return (T) accountNodeRelState;
     }
 
@@ -52,7 +52,7 @@ public class ReadableAccountNodeRelStoreImpl implements ReadableAccountNodeRelSt
     @Nullable
     public Long get(final AccountID accountId) {
         final var nodeId = accountNodeRelState.get(accountId);
-        return nodeId != null ? nodeId.value() : null;
+        return nodeId != null ? nodeId.id() : null;
     }
 
     /**

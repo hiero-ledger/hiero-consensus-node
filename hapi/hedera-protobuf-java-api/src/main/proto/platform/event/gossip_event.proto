@@ -57,8 +57,9 @@ message GossipEvent {
    * The `event_creator` public key SHALL be read from the address book that corresponds to the event's birth round.<br/>
    * The signed event hash SHALL be a SHA-384 hash.<br/>
    * The signed event hash SHALL have the following inputs, in the specified order:<br/>
-   * 1. The bytes of the `event_core` field<br/>
-   * 2. The SHA-384 hash of each individual `EventTransaction`, in the order the transaction appear in the `event_transaction` field
+   * 1. The bytes of the serialized `event_core` field<br/>
+   * 2. The bytes of serialized parent event descriptors, in order they appear in 'parents' field.
+   * 3. The concatenation of SHA-384 hashes of every individual transaction byte array, in the order the transactions appear in the `transactions` field
    */
   bytes signature = 2;
 

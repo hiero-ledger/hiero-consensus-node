@@ -9,7 +9,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
-import com.hedera.hapi.node.state.primitives.ProtoLong;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.swirlds.state.lifecycle.MigrationContext;
@@ -49,7 +49,7 @@ public class V068AddressBookSchema extends Schema<SemanticVersion> {
                 ACCOUNT_NODE_REL_STATE_ID,
                 ACCOUNT_NODE_REL_STATE_KEY,
                 AccountID.PROTOBUF,
-                ProtoLong.PROTOBUF,
+                NodeId.PROTOBUF,
                 MAX_RELATIONS));
     }
 
@@ -65,10 +65,10 @@ public class V068AddressBookSchema extends Schema<SemanticVersion> {
             for (int i = 0; i < 100; i++) {
                 final var nodeId = EntityNumber.newBuilder().number(i).build();
                 final var node = (Node) nodeState.get(nodeId);
-                if (node != null) {
+                if (node != null && node.hasAccountId()) {
                     relState.put(
                             node.accountId(),
-                            ProtoLong.newBuilder().value(node.nodeId()).build());
+                            NodeId.newBuilder().id(node.nodeId()).build());
                 }
             }
         }

@@ -1084,7 +1084,7 @@ message MapChangeValue {
         /**
          * A node identifier.
          */
-        proto.ProtoLong node_id_value = 30;
+        com.hedera.hapi.platform.state.NodeId node_id_value = 30;
     }
 }
 

@@ -10,18 +10,22 @@ import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServicesConfigurationList;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.util.FileUtilities;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.LedgerConfig;
+import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.concurrent.CompletableFuture;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -41,6 +45,7 @@ public class SystemFileUpdates {
     private final ExchangeRateManager exchangeRateManager;
     private final FeeManager feeManager;
     private final ThrottleServiceManager throttleServiceManager;
+    private final BlockNodeConnectionManager blockNodeConnectionManager;
 
     /**
      * Creates a new instance of this class.
@@ -52,11 +57,13 @@ public class SystemFileUpdates {
             @NonNull final ConfigProviderImpl configProvider,
             @NonNull final ExchangeRateManager exchangeRateManager,
             @NonNull final FeeManager feeManager,
-            @NonNull final ThrottleServiceManager throttleServiceManager) {
+            @NonNull final ThrottleServiceManager throttleServiceManager,
+            @NonNull final BlockNodeConnectionManager blockNodeConnectionManager) {
         this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
         this.exchangeRateManager = requireNonNull(exchangeRateManager, "exchangeRateManager must not be null");
         this.feeManager = requireNonNull(feeManager, "feeManager must not be null");
         this.throttleServiceManager = requireNonNull(throttleServiceManager);
+        this.blockNodeConnectionManager = requireNonNull(blockNodeConnectionManager);
     }
 
     /**
@@ -98,7 +105,10 @@ public class SystemFileUpdates {
         } else if (fileNum == filesConfig.exchangeRates()) {
             exchangeRateManager.update(FileUtilities.getFileContent(state, fileID), payer);
         } else if (fileNum == filesConfig.networkProperties()) {
+            BlockStreamWriterMode currentWriterMode =
+                    configuration.getConfigData(BlockStreamConfig.class).writerMode();
             updateConfig(configuration, ConfigType.NETWORK_PROPERTIES, state);
+            checkForBlockNodeStreamingChange(currentWriterMode, configProvider);
             throttleServiceManager.refreshThrottleConfiguration();
         } else if (fileNum == filesConfig.hapiPermissions()) {
             updateConfig(configuration, ConfigType.API_PERMISSIONS, state);
@@ -106,6 +116,30 @@ public class SystemFileUpdates {
             return throttleServiceManager.recreateThrottles(FileUtilities.getFileContent(state, fileID));
         }
         return SUCCESS;
+    }
+
+    private void checkForBlockNodeStreamingChange(
+            BlockStreamWriterMode currentWriterMode, ConfigProviderImpl configProvider) {
+        if (currentWriterMode == BlockStreamWriterMode.FILE_AND_GRPC
+                && configProvider
+                                .getConfiguration()
+                                .getConfigData(BlockStreamConfig.class)
+                                .writerMode()
+                        == BlockStreamWriterMode.FILE) {
+            // We have changed from FILE_AND_GRPC to FILE only
+            logger.info(
+                    "Disabling gRPC Block Node streaming as the network properties have changed writerMode from FILE_AND_GRPC to FILE only");
+            CompletableFuture.runAsync(blockNodeConnectionManager::shutdown);
+        } else if (currentWriterMode == BlockStreamWriterMode.FILE
+                && configProvider
+                                .getConfiguration()
+                                .getConfigData(BlockStreamConfig.class)
+                                .writerMode()
+                        == BlockStreamWriterMode.FILE_AND_GRPC) {
+            logger.info(
+                    "Enabling gRPC Block Node streaming as the network properties have changed writerMode from FILE to FILE_AND_GRPC");
+            CompletableFuture.runAsync(blockNodeConnectionManager::start);
+        }
     }
 
     private enum ConfigType {

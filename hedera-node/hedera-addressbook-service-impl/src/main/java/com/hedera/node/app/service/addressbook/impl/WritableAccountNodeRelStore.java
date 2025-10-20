@@ -4,7 +4,7 @@ package com.hedera.node.app.service.addressbook.impl;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.state.primitives.ProtoLong;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.swirlds.state.spi.WritableKVState;
@@ -32,7 +32,7 @@ public class WritableAccountNodeRelStore extends ReadableAccountNodeRelStoreImpl
     }
 
     @Override
-    protected WritableKVState<AccountID, ProtoLong> accountNodeRelState() {
+    protected WritableKVState<AccountID, NodeId> accountNodeRelState() {
         return super.accountNodeRelState();
     }
 
@@ -49,8 +49,7 @@ public class WritableAccountNodeRelStore extends ReadableAccountNodeRelStoreImpl
     public void put(@NonNull final AccountID accountId, @NonNull Long nodeId) {
         requireNonNull(accountId);
         requireNonNull(nodeId);
-        accountNodeRelState()
-                .put(accountId, ProtoLong.newBuilder().value(nodeId).build());
+        accountNodeRelState().put(accountId, NodeId.newBuilder().id(nodeId).build());
         entityCounters.incrementEntityTypeCount(EntityType.ACCOUNT_NODE_REL);
     }
 
