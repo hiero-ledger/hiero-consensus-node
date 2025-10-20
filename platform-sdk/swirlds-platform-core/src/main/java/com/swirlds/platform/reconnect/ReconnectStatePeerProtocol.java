@@ -43,12 +43,12 @@ import org.hiero.consensus.model.status.PlatformStatus;
  * This protocol is responsible for synchronizing an out of date state either local acting as lerner or remote acting as teacher
  * with one particular peer in the network.
  */
-public class ReconnectStateSyncPeerProtocol implements PeerProtocol {
+public class ReconnectStatePeerProtocol implements PeerProtocol {
 
-    private static final Logger logger = LogManager.getLogger(ReconnectStateSyncPeerProtocol.class);
+    private static final Logger logger = LogManager.getLogger(ReconnectStatePeerProtocol.class);
 
     private final NodeId peerId;
-    private final StateSyncThrottle teacherThrottle;
+    private final ReconnectStateTeacherThrottle teacherThrottle;
     private final Supplier<ReservedSignedState> lastCompleteSignedState;
     private final Duration reconnectSocketTimeout;
     private final ReconnectMetrics reconnectMetrics;
@@ -101,11 +101,11 @@ public class ReconnectStateSyncPeerProtocol implements PeerProtocol {
      * @param reservedSignedStatePromise a mechanism to get a SignedState or block while it is not available
      * @param createStateFromVirtualMap  a function to instantiate the state object from a Virtual Map
      */
-    public ReconnectStateSyncPeerProtocol(
+    public ReconnectStatePeerProtocol(
             @NonNull final PlatformContext platformContext,
             @NonNull final ThreadManager threadManager,
             @NonNull final NodeId peerId,
-            @NonNull final StateSyncThrottle teacherThrottle,
+            @NonNull final ReconnectStateTeacherThrottle teacherThrottle,
             @NonNull final Supplier<ReservedSignedState> lastCompleteSignedState,
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics reconnectMetrics,
@@ -314,7 +314,7 @@ public class ReconnectStateSyncPeerProtocol implements PeerProtocol {
         try {
 
             final MerkleNodeState consensusState = swirldStateManager.getConsensusState();
-            final ReconnectStateSyncLearner learner = new ReconnectStateSyncLearner(
+            final ReconnectStateLearner learner = new ReconnectStateLearner(
                     platformContext,
                     threadManager,
                     connection,
@@ -377,7 +377,7 @@ public class ReconnectStateSyncPeerProtocol implements PeerProtocol {
      */
     private void teacher(final Connection connection) {
         try (final ReservedSignedState state = teacherState) {
-            new ReconnectStateSyncTeacher(
+            new ReconnectStateTeacher(
                             platformContext,
                             time,
                             threadManager,

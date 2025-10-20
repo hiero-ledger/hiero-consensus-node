@@ -56,10 +56,10 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  */
-class ReconnectStateSyncPeerProtocolTests {
+class ReconnectStatePeerProtocolTests {
     private static final NodeId PEER_ID = NodeId.of(1L);
 
-    private StateSyncThrottle teacherThrottle;
+    private ReconnectStateTeacherThrottle teacherThrottle;
     private ReconnectMetrics reconnectMetrics;
     private ReservedSignedStatePromise reservedSignedStatePromise;
 
@@ -119,7 +119,7 @@ class ReconnectStateSyncPeerProtocolTests {
         reservedSignedStatePromise = mock(ReservedSignedStatePromise.class);
         when(reservedSignedStatePromise.tryBlock()).thenReturn(true);
 
-        teacherThrottle = mock(StateSyncThrottle.class);
+        teacherThrottle = mock(ReconnectStateTeacherThrottle.class);
         when(teacherThrottle.initiateReconnect(any())).thenReturn(true);
 
         var nopMetrics = new NoOpMetrics();
@@ -155,7 +155,7 @@ class ReconnectStateSyncPeerProtocolTests {
         final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
                 platformContext,
                 getStaticThreadManager(),
-                mock(StateSyncThrottle.class),
+                mock(ReconnectStateTeacherThrottle.class),
                 () -> null,
                 Duration.of(100, ChronoUnit.MILLIS),
                 reconnectMetrics,
@@ -176,7 +176,7 @@ class ReconnectStateSyncPeerProtocolTests {
     @ParameterizedTest
     @MethodSource("acceptParams")
     void testShouldAccept(final AcceptParams params) {
-        final StateSyncThrottle teacherThrottle = mock(StateSyncThrottle.class);
+        final ReconnectStateTeacherThrottle teacherThrottle = mock(ReconnectStateTeacherThrottle.class);
         when(teacherThrottle.initiateReconnect(any())).thenReturn(!params.teacherIsThrottled);
 
         final FallenBehindMonitor fallenBehindManager = mock(FallenBehindMonitor.class);
@@ -223,8 +223,8 @@ class ReconnectStateSyncPeerProtocolTests {
                 // we don't want the time based throttle to interfere
                 .withValue(ReconnectConfig_.MINIMUM_TIME_BETWEEN_RECONNECTS, "0s")
                 .getOrCreateConfig();
-        final StateSyncThrottle reconnectThrottle =
-                new StateSyncThrottle(config.getConfigData(ReconnectConfig.class), Time.getCurrent());
+        final ReconnectStateTeacherThrottle reconnectThrottle =
+                new ReconnectStateTeacherThrottle(config.getConfigData(ReconnectConfig.class), Time.getCurrent());
 
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
@@ -232,7 +232,7 @@ class ReconnectStateSyncPeerProtocolTests {
         final NodeId node1 = NodeId.of(1L);
         final NodeId node2 = NodeId.of(2L);
 
-        final ReconnectStateSyncPeerProtocol peer1 = new ReconnectStateSyncPeerProtocol(
+        final ReconnectStatePeerProtocol peer1 = new ReconnectStatePeerProtocol(
                 platformContext,
                 getStaticThreadManager(),
                 node1,
@@ -254,7 +254,7 @@ class ReconnectStateSyncPeerProtocolTests {
 
         final ReservedSignedState reservedSignedState = signedState.reserve("test");
 
-        final ReconnectStateSyncPeerProtocol peer2 = new ReconnectStateSyncPeerProtocol(
+        final ReconnectStatePeerProtocol peer2 = new ReconnectStatePeerProtocol(
                 platformContext,
                 getStaticThreadManager(),
                 node2,
@@ -295,7 +295,7 @@ class ReconnectStateSyncPeerProtocolTests {
             final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
                     platformContext,
                     getStaticThreadManager(),
-                    mock(StateSyncThrottle.class),
+                    mock(ReconnectStateTeacherThrottle.class),
                     () -> null,
                     Duration.of(100, ChronoUnit.MILLIS),
                     reconnectMetrics,
@@ -354,7 +354,7 @@ class ReconnectStateSyncPeerProtocolTests {
         final Protocol reconnectProtocol = new ReconnectStateSyncProtocol(
                 platformContext,
                 getStaticThreadManager(),
-                mock(StateSyncThrottle.class),
+                mock(ReconnectStateTeacherThrottle.class),
                 () -> mock(ReservedSignedState.class),
                 Duration.of(100, ChronoUnit.MILLIS),
                 reconnectMetrics,
@@ -374,7 +374,7 @@ class ReconnectStateSyncPeerProtocolTests {
     @Test
     @DisplayName("Aborted Teacher")
     void abortedTeacher() {
-        final StateSyncThrottle reconnectThrottle = mock(StateSyncThrottle.class);
+        final ReconnectStateTeacherThrottle reconnectThrottle = mock(ReconnectStateTeacherThrottle.class);
         when(reconnectThrottle.initiateReconnect(any())).thenReturn(true);
         final ValueReference<Boolean> throttleReleased = new ValueReference<>(false);
         doAnswer(invocation -> {
@@ -420,7 +420,7 @@ class ReconnectStateSyncPeerProtocolTests {
     @Test
     @DisplayName("Teacher Has No Signed State")
     void teacherHasNoSignedState() {
-        final StateSyncThrottle reconnectThrottle = mock(StateSyncThrottle.class);
+        final ReconnectStateTeacherThrottle reconnectThrottle = mock(ReconnectStateTeacherThrottle.class);
         doAnswer(invocation -> {
                     fail("throttle should not be engaged if there is not available state");
                     return null;
