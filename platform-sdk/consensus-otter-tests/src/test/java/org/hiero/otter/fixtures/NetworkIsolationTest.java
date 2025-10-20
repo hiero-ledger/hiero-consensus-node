@@ -14,6 +14,7 @@ import java.util.stream.Stream;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.network.Partition;
+import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.Test;
@@ -68,10 +69,8 @@ class NetworkIsolationTest {
             for (int i = 0; i < 3; i++) {
 
                 // Capture logs from all nodes
-                final List<SingleNodeLogResult> logResults = Stream.of(node0, node1, node2, node3)
-                        .map(Node::newLogResult)
-                        .toList();
-                logResults.forEach(SingleNodeLogResult::clear);
+                final MultipleNodeLogResults logResults = network.newLogResults();
+                logResults.clear();
 
                 // Isolate node0
                 final Partition isolationPartition = network.isolate(node0);
@@ -99,7 +98,7 @@ class NetworkIsolationTest {
                 assertThat(remainingPartition).isNotNull().isNotEqualTo(isolationPartition);
                 assertThat(remainingPartition.nodes()).containsExactlyInAnyOrder(node1, node2, node3);
 
-                // Wait for nodes to become inactive due to network partition
+                // Wait for the isolated node to go into CHECKING due to the network
                 timeManager.waitForCondition(
                         node0::isChecking,
                         Duration.ofSeconds(120L),
@@ -112,7 +111,7 @@ class NetworkIsolationTest {
 
                 // check there are socket exceptions in all logs
                 if (env.capabilities().contains(Capability.USES_REAL_NETWORK)) {
-                    for (final SingleNodeLogResult logResult : logResults) {
+                    for (final SingleNodeLogResult logResult : logResults.results()) {
                         final boolean socketExceptionFound = logResult.logs().stream()
                                 .map(StructuredLog::marker)
                                 .anyMatch(marker -> marker == LogMarker.SOCKET_EXCEPTIONS.getMarker());

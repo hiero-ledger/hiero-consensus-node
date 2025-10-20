@@ -22,6 +22,7 @@ import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.network.Partition;
+import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.Test;
@@ -75,10 +76,8 @@ class NetworkPartitionTest {
             for (int i = 0; i < 3; i++) {
 
                 // Capture logs from all nodes
-                final List<SingleNodeLogResult> logResults = Stream.of(node0, node1, node2, node3)
-                        .map(Node::newLogResult)
-                        .toList();
-                logResults.forEach(SingleNodeLogResult::clear);
+                final MultipleNodeLogResults logResults = network.newLogResults();
+                logResults.clear();
 
                 // Create a partition using varargs syntax
                 final Partition partition = network.createNetworkPartition(node0, node1);
@@ -120,7 +119,7 @@ class NetworkPartitionTest {
 
                 // check there are socket exceptions in all logs
                 if (env.capabilities().contains(Capability.USES_REAL_NETWORK)) {
-                    for (final SingleNodeLogResult logResult : logResults) {
+                    for (final SingleNodeLogResult logResult : logResults.results()) {
                         final boolean socketExceptionFound = logResult.logs().stream()
                                 .map(StructuredLog::marker)
                                 .anyMatch(marker -> marker == LogMarker.SOCKET_EXCEPTIONS.getMarker());

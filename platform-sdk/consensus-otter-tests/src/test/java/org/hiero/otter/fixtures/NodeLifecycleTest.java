@@ -14,6 +14,7 @@ import java.util.stream.Stream;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.hiero.otter.fixtures.logging.StructuredLog;
+import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.hiero.otter.fixtures.util.TimeoutException;
@@ -78,9 +79,9 @@ class NodeLifecycleTest {
             for (int i = 0; i < 3; i++) {
 
                 // Capture logs from the nodes that will remain active
-                final List<SingleNodeLogResult> logResults =
-                        Stream.of(node1, node2, node3).map(Node::newLogResult).toList();
-                logResults.forEach(SingleNodeLogResult::clear);
+                final MultipleNodeLogResults logResults =
+                        network.newLogResults().suppressingNode(nodeToKill);
+                logResults.clear();
 
                 // Kill the first node
                 nodeToKill.killImmediately();
@@ -98,9 +99,9 @@ class NodeLifecycleTest {
                 assertThat(node2.isActive()).isTrue();
                 assertThat(node3.isActive()).isTrue();
 
-                // check there are socket exceptions in all logs
+                // check there are socket exceptions in all logs that remained active
                 if (env.capabilities().contains(Capability.USES_REAL_NETWORK)) {
-                    for (final SingleNodeLogResult logResult : logResults) {
+                    for (final SingleNodeLogResult logResult : logResults.results()) {
                         final boolean socketExceptionFound = logResult.logs().stream()
                                 .map(StructuredLog::marker)
                                 .anyMatch(marker -> marker == LogMarker.SOCKET_EXCEPTIONS.getMarker());
