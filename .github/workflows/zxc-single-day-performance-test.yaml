@@ -56,6 +56,9 @@ on:
       rootly-api-token:
         required: true
         description: "The rootly api token used for reporting"
+      perf_ghp:
+        required: true
+        description: "Algorithmic analysis GHP"
     outputs:
       result:
         description: "Result of the SDPT Run"
@@ -357,7 +360,7 @@ jobs:
 
       - name: Build NLG test
         env:
-          GITHUB_PAGES_URL: ${{ secrets.NLG_ACCESS_TOKEN }}
+          GITHUB_PAGES_URL: ${{ secrets.perf_ghp }}
         run: |
           set +x
           set +e

@@ -68,7 +68,11 @@ on:
         default: true
         type: boolean
         description: "If true, skip tag and notifications"
-
+      perf_ghp:
+        required: true
+        default: "MUST_BE_SET_BY_CALL"
+        type: string
+        description: "Algorithmic analysis GHP"
 defaults:
   run:
     shell: bash
@@ -141,7 +145,7 @@ jobs:
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       rootly-api-token: ${{ secrets.ROOTLY_API_TOKEN }}
-
+      perf_ghp: ${{ inputs.perf_ghp }}
   tag-sdpt-result:
     name: Tag SDPT Result
     runs-on: hiero-citr-linux-medium
