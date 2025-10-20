@@ -3,7 +3,6 @@ package com.hedera.statevalidation.validators.merkledb;
 
 import static com.hedera.statevalidation.Constants.VM_LABEL;
 import static com.hedera.statevalidation.validators.Constants.VALIDATE_FILE_LAYOUT;
-import static java.lang.String.format;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.statevalidation.parameterresolver.StateResolver;
