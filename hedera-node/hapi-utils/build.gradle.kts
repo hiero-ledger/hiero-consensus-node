@@ -5,7 +5,6 @@ description = "Hedera Services API Utilities"
 
 mainModuleInfo { annotationProcessor("dagger.compiler") }
 
-tasks.withType<JavaCompile>().configureEach { options.compilerArgs.remove("-Werror") }
 
 testModuleInfo {
     requires("org.junit.jupiter.api")
