@@ -15,6 +15,10 @@ on:
         description: "The version of solo to install (if not specified, latest will be used):"
         required: false
         type: string
+      helm-release-name:
+        description: "The Helm release name to use for the mirror node deployment"
+        required: false
+        type: string
     secrets:
       access-token:
         description: "GitHub Access Token with write permissions to the repository."
@@ -90,6 +94,7 @@ jobs:
           wait: 120s
 
       - name: Configure and run solo
+        id: run-solo
         run: |
           set -ex
           cat <<EOF > mirror.yml
@@ -108,7 +113,9 @@ jobs:
 
           # check solo version
           version=$(solo --version | grep Version | awk '{print $3}')
-          if [[ "$(printf '%s\n' "$version" "0.44.0" | sort -V | head -n1)" == "0.44.0" ]]; then
+          solo_ge_0440=$([[ "$(printf '%s\n' "${version}" "0.44.0" | sort -V | head -n1)" == "0.44.0" ]] && echo "true" || echo "false")
+          echo "::debug::solo_ge_0440=${solo_ge_0440}"
+          if [[ "${solo_ge_0440}" == "true" ]]; then
             echo "::debug::Solo version ($version) is >= 0.44.0"
             solo cluster-ref config connect --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --context "kind-${SOLO_CLUSTER_NAME}"
             solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
@@ -132,8 +139,17 @@ jobs:
             solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --pinger --values-file mirror.yml
           fi
 
+          echo "solo-ge-0440=${solo_ge_0440}" >> "${GITHUB_OUTPUT}"
+
       - name: Execute mirror node acceptance tests
-        run: helm test mirror --filter name=mirror-acceptance --logs -n "${SOLO_NAMESPACE}" --timeout 30m
+        env:
+          HELM_RELEASE_NAME: ${{ inputs.helm-release-name || 'mirror-1' }}
+        run: |
+          if [[ "${{ steps.run-solo.outputs.solo-ge-0440 }}" == "true" ]]; then
+            helm test ${HELM_RELEASE_NAME} -n "${SOLO_NAMESPACE}" --filter name="${HELM_RELEASE_NAME}-mirror-acceptance" --logs  --timeout 20m
+          else
+            helm test ${HELM_RELEASE_NAME} -n "${SOLO_NAMESPACE}" --filter name="${HELM_RELEASE_NAME}-acceptance" --logs  --timeout 20m
+          fi
 
       - name: Stop Solo
         continue-on-error: true

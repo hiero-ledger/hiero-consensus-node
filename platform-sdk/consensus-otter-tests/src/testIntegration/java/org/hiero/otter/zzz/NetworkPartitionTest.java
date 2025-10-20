@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures;
+package org.hiero.otter.zzz;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
 
 import com.swirlds.common.test.fixtures.WeightGenerators;
+import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Collection;
@@ -13,10 +14,17 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
+import org.hiero.otter.fixtures.Capability;
+import org.hiero.otter.fixtures.Network;
+import org.hiero.otter.fixtures.Node;
+import org.hiero.otter.fixtures.TestEnvironment;
+import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
+import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.network.Partition;
+import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
+import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -47,7 +55,6 @@ class NetworkPartitionTest {
      */
     @ParameterizedTest
     @MethodSource("environments")
-    @Disabled
     void testCreateAndRemovePartition(@NonNull final TestEnvironment env) {
         try {
             final Network network = env.network();
@@ -66,59 +73,81 @@ class NetworkPartitionTest {
             // Wait for nodes to stabilize
             timeManager.waitFor(Duration.ofSeconds(5));
 
-            // Create a partition using varargs syntax
-            final Partition partition = network.createNetworkPartition(node0, node1);
+            for (int i = 0; i < 3; i++) {
 
-            // Verify the partition was created correctly
-            assertThat(partition).isNotNull();
-            assertThat(partition.nodes()).containsExactlyInAnyOrder(node0, node1);
+                // Capture logs from all nodes
+                final MultipleNodeLogResults logResults = network.newLogResults();
+                logResults.clear();
 
-            // Verify we have exactly 2 partitions
-            assertThat(network.networkPartitions()).hasSize(2);
-            assertThat(network.networkPartitions()).contains(partition);
+                // Create a partition using varargs syntax
+                final Partition partition = network.createNetworkPartition(node0, node1);
 
-            // Verify nodes not in our partition are in the complementary partition
-            final Partition complementaryPartition = network.getNetworkPartitionContaining(node3);
-            assertThat(complementaryPartition).isNotNull().isNotEqualTo(partition);
-            assertThat(complementaryPartition.nodes()).containsExactlyInAnyOrder(node2, node3);
+                // Verify the partition was created correctly
+                assertThat(partition).isNotNull();
+                assertThat(partition.nodes()).containsExactlyInAnyOrder(node0, node1);
 
-            // Verify each node knows it's in the partition
-            assertThat(partition.contains(node0)).isTrue();
-            assertThat(partition.contains(node1)).isTrue();
-            assertThat(partition.contains(node2)).isFalse();
-            assertThat(partition.contains(node3)).isFalse();
-            assertThat(complementaryPartition.contains(node0)).isFalse();
-            assertThat(complementaryPartition.contains(node1)).isFalse();
-            assertThat(complementaryPartition.contains(node2)).isTrue();
-            assertThat(complementaryPartition.contains(node3)).isTrue();
+                // Verify we have exactly 2 partitions
+                assertThat(network.networkPartitions()).hasSize(2);
+                assertThat(network.networkPartitions()).contains(partition);
 
-            // Verify network knows about the partition
-            assertThat(network.getNetworkPartitionContaining(node0)).isEqualTo(partition);
-            assertThat(network.getNetworkPartitionContaining(node1)).isEqualTo(partition);
-            assertThat(network.getNetworkPartitionContaining(node2)).isEqualTo(complementaryPartition);
-            assertThat(network.getNetworkPartitionContaining(node3)).isEqualTo(complementaryPartition);
+                // Verify nodes not in our partition are in the complementary partition
+                final Partition complementaryPartition = network.getNetworkPartitionContaining(node3);
+                assertThat(complementaryPartition).isNotNull().isNotEqualTo(partition);
+                assertThat(complementaryPartition.nodes()).containsExactlyInAnyOrder(node2, node3);
 
-            // Wait for nodes to become inactive
-            timeManager.waitForCondition(
-                    () -> network.allNodesInStatus(CHECKING),
-                    Duration.ofSeconds(120L),
-                    "Not all nodes entered CHECKING status within the expected time after creating partition");
+                // Verify each node knows it's in the partition
+                assertThat(partition.contains(node0)).isTrue();
+                assertThat(partition.contains(node1)).isTrue();
+                assertThat(partition.contains(node2)).isFalse();
+                assertThat(partition.contains(node3)).isFalse();
+                assertThat(complementaryPartition.contains(node0)).isFalse();
+                assertThat(complementaryPartition.contains(node1)).isFalse();
+                assertThat(complementaryPartition.contains(node2)).isTrue();
+                assertThat(complementaryPartition.contains(node3)).isTrue();
 
-            // Remove the partition
-            network.removePartition(partition);
+                // Verify network knows about the partition
+                assertThat(network.getNetworkPartitionContaining(node0)).isEqualTo(partition);
+                assertThat(network.getNetworkPartitionContaining(node1)).isEqualTo(partition);
+                assertThat(network.getNetworkPartitionContaining(node2)).isEqualTo(complementaryPartition);
+                assertThat(network.getNetworkPartitionContaining(node3)).isEqualTo(complementaryPartition);
 
-            // Verify all nodes are back in normal connectivity
-            assertThat(network.networkPartitions()).isEmpty();
-            assertThat(network.getNetworkPartitionContaining(node0)).isNull();
-            assertThat(network.getNetworkPartitionContaining(node1)).isNull();
-            assertThat(network.getNetworkPartitionContaining(node2)).isNull();
-            assertThat(network.getNetworkPartitionContaining(node3)).isNull();
+                // Wait for nodes to become inactive
+                timeManager.waitForCondition(
+                        () -> network.allNodesInStatus(CHECKING),
+                        Duration.ofSeconds(120L),
+                        "Not all nodes entered CHECKING status within the expected time after creating partition");
 
-            // The node should be active again
-            timeManager.waitForCondition(
-                    network::allNodesAreActive,
-                    Duration.ofSeconds(120L),
-                    "Not all nodes entered ACTIVE status within the expected time after removing partition");
+                // check there are socket exceptions in all logs
+                if (env.capabilities().contains(Capability.USES_REAL_NETWORK)) {
+                    for (final SingleNodeLogResult logResult : logResults.results()) {
+                        final boolean socketExceptionFound = logResult.logs().stream()
+                                .map(StructuredLog::marker)
+                                .anyMatch(marker -> marker == LogMarker.SOCKET_EXCEPTIONS.getMarker());
+                        assertThat(socketExceptionFound)
+                                .as(
+                                        "Expected node %d to have a SOCKET_EXCEPTION, but it did not",
+                                        logResult.nodeId().id())
+                                .isTrue();
+                        logResult.clear();
+                    }
+                }
+
+                // Remove the partition
+                network.removePartition(partition);
+
+                // Verify all nodes are back in normal connectivity
+                assertThat(network.networkPartitions()).isEmpty();
+                assertThat(network.getNetworkPartitionContaining(node0)).isNull();
+                assertThat(network.getNetworkPartitionContaining(node1)).isNull();
+                assertThat(network.getNetworkPartitionContaining(node2)).isNull();
+                assertThat(network.getNetworkPartitionContaining(node3)).isNull();
+
+                // The node should be active again
+                timeManager.waitForCondition(
+                        network::allNodesAreActive,
+                        Duration.ofSeconds(120L),
+                        "Not all nodes entered ACTIVE status within the expected time after removing partition");
+            }
         } finally {
             env.destroy();
         }

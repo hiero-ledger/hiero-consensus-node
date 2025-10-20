@@ -10,7 +10,6 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
-import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.hiero.otter.fixtures.Network;
@@ -41,7 +40,10 @@ public class RestartTest {
         network.addNodes(4);
 
         // Setup continuous assertions
-        assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds();
+        assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
+        assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
+        assertContinuouslyThat(network.newConsensusResults()).haveEqualCommonRounds();
+        assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
         assertContinuouslyThat(network.newPlatformStatusResults()).doNotEnterAnyStatusesOf(BEHIND);
 
         network.start();
@@ -70,13 +72,8 @@ public class RestartTest {
                 () -> network.newConsensusResults().allNodesAdvancedToRound(lastRoundReached + 20),
                 Duration.ofSeconds(120L));
 
-        assertThat(network.newLogResults().suppressingLogMarker(LogMarker.SOCKET_EXCEPTIONS))
-                .haveNoErrorLevelMessages();
-
         // All nodes should go through the normal status progression again
         assertThat(networkStatusResults)
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
-
-        assertThat(network.newConsensusResults()).haveEqualCommonRounds();
     }
 }

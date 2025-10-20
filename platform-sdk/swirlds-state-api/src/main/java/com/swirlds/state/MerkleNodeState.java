@@ -8,6 +8,7 @@ import com.swirlds.state.lifecycle.StateMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
+import org.hiero.base.crypto.Hash;
 
 /**
  * Represent a state backed up by the Merkle tree. It's a {@link State} implementation that is backed by a Merkle tree.
@@ -126,4 +127,11 @@ public interface MerkleNodeState extends State {
     default <V> long kvPath(final int stateId, @NonNull final V key, @NonNull final Codec<V> keyCodec) {
         return kvPath(stateId, keyCodec.toBytes(key));
     }
+
+    /**
+     * Get the hash of the merkle node at the given path.
+     * @param path merkle path
+     * @return hash of the merkle node at the given path or null if the path is non-existent
+     */
+    Hash getHashForPath(long path);
 }

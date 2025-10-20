@@ -275,4 +275,11 @@ public interface Node {
      * @param savedStateDirectory the software version to set for the node
      */
     void startFromSavedState(@NonNull final Path savedStateDirectory);
+
+    /**
+     * Checks if the consensus node is currently running.
+     *
+     * @return true if the node is running, false otherwise
+     */
+    boolean isAlive();
 }
