@@ -78,6 +78,21 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
     }
 
     /**
+     * Verifies that at least one log message with the specified marker exists.
+     *
+     * @param marker the marker to check
+     * @return this assertion object for method chaining
+     */
+    public SingleNodeLogResultAssert hasMessageWithMarker(@NonNull final LogMarker marker) {
+        isNotNull();
+        final boolean matchFound = actual.logs().stream().anyMatch(log -> marker.getMarker() == log.marker());
+        if (!matchFound) {
+            failWithMessage("Expected to find a message with marker '%s', but did not", marker);
+        }
+        return this;
+    }
+
+    /**
      * Verifies that no log messages with a level higher than the specified level exist.
      *
      * @param level the maximum log level to allow
