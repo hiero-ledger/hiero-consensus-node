@@ -155,7 +155,14 @@ public class ReconnectController implements Runnable {
                 int failedReconnectsInARow = 0;
                 fallenBehindMonitor.awaitFallenBehind();
                 exitIfReconnectTimeTimeElapsed();
+
                 platformCoordinator.submitStatusAction(new FallenBehindAction());
+                logger.info(RECONNECT.getMarker(), "Preparing for reconnect, stopping gossip");
+                platformCoordinator.pauseGossip();
+                logger.info(RECONNECT.getMarker(), "Preparing for reconnect, start clearing queues");
+                platformCoordinator.clear();
+                logger.info(RECONNECT.getMarker(), "Queues have been cleared");
+
                 final MerkleNodeState currentState = swirldStateManager.getConsensusState();
                 hashStateForReconnect(merkleCryptography, currentState);
                 while (run.get() && !attemptReconnect(currentState)) {
@@ -165,6 +172,8 @@ public class ReconnectController implements Runnable {
                 }
                 // reset the monitor to the initial state
                 fallenBehindMonitor.reset();
+                logger.info(RECONNECT.getMarker(), "Reconnect almost done resuming gossip");
+                platformCoordinator.resumeGossip();
             }
         } catch (final RuntimeException e) {
             logger.error(EXCEPTION.getMarker(), "Unexpected error occurred while reconnecting", e);
@@ -180,20 +189,13 @@ public class ReconnectController implements Runnable {
 
     /** One reconnect attempt; returns true on success. */
     private boolean attemptReconnect(final MerkleNodeState currentState) throws InterruptedException {
-
-        logger.info(RECONNECT.getMarker(), "Preparing for reconnect, stopping gossip");
-        platformCoordinator.pauseGossip();
-        logger.info(RECONNECT.getMarker(), "Preparing for reconnect, start clearing queues");
-        platformCoordinator.clear();
-        logger.info(RECONNECT.getMarker(), "Queues have been cleared");
-
-        logger.info(RECONNECT.getMarker(), "Waiting for a state to be obtained from a peer");
         // This is a direct connection with the protocols at Gossip component.
         // reservedStateResource is a blocking data structure that will provide a signed state from one of the peers
         // At the same time this code is evaluated, the StateSyncProtocol is being executed
         // which will select a peer to receive a state (only one from all the ones that reported we are behind)
         // Once the transferred is complete this peerReservedSignedStatePromise will be notified and this code will be
         // unblocked
+        logger.info(RECONNECT.getMarker(), "Waiting for a state to be obtained from a peer");
         try (final LockedResource<ReservedSignedState> reservedStateResource =
                         requireNonNull(peerReservedSignedStatePromise.await());
                 final ReservedSignedState reservedState = requireNonNull(reservedStateResource.getResource())) {
@@ -208,7 +210,6 @@ public class ReconnectController implements Runnable {
             loadState(reservedState.get());
             // Notify any listeners that the reconnect has been completed
             platformCoordinator.sendReconnectCompleteNotification(reservedState.get());
-            platformCoordinator.resumeGossip();
             return true;
         } catch (final RuntimeException e) {
             logger.info(RECONNECT.getMarker(), "Reconnect failed with the following exception", e);

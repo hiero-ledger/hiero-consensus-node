@@ -13,6 +13,9 @@ import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -27,6 +30,9 @@ import org.hiero.consensus.model.node.NodeId;
  * condition is detected that allow interested parties to be notified without the need of polling for the information.
  */
 public class FallenBehindMonitor {
+
+    private final Lock lock = new ReentrantLock();
+    private final Condition fallenBehindCondition = lock.newCondition();
 
     /**
      * the number of peers in the roster
@@ -68,7 +74,7 @@ public class FallenBehindMonitor {
         isBehind = peersSize * fallenBehindThreshold < reportFallenBehind.size()
                 || (peersSize > 0 && reportFallenBehind.size() == peersSize);
         if (wasNotBehind && isBehind) {
-            notifyAll(); // notify waiting threads
+            fallenBehindCondition.signalAll(); // notify waiting threads
         }
     }
 
@@ -78,9 +84,14 @@ public class FallenBehindMonitor {
      *
      * @param id the id of the node who says we have fallen behind
      */
-    synchronized void report(@NonNull final NodeId id) {
-        if (reportFallenBehind.add(id)) {
-            checkAndNotify();
+    void report(@NonNull final NodeId id) {
+        lock.lock();
+        try {
+            if (reportFallenBehind.add(id)) {
+                checkAndNotify();
+            }
+        } finally {
+            lock.unlock();
         }
     }
 
@@ -90,9 +101,14 @@ public class FallenBehindMonitor {
      *
      * @param id the id of the node who is providing us with up to date events
      */
-    synchronized void clear(@NonNull final NodeId id) {
-        reportFallenBehind.remove(id);
-        checkAndNotify();
+    void clear(@NonNull final NodeId id) {
+        lock.lock();
+        try {
+            reportFallenBehind.remove(id);
+            checkAndNotify();
+        } finally {
+            lock.unlock();
+        }
     }
 
     /**
@@ -101,17 +117,22 @@ public class FallenBehindMonitor {
      * @param added   node ids which were added from the roster
      * @param removed node ids which were removed from the roster
      */
-    public synchronized void update(@NonNull final Set<NodeId> added, @NonNull final Set<NodeId> removed) {
+    public void update(@NonNull final Set<NodeId> added, @NonNull final Set<NodeId> removed) {
         requireNonNull(added);
         requireNonNull(removed);
 
-        peersSize += added.size() - removed.size();
-        for (final NodeId nodeId : removed) {
-            if (reportFallenBehind.contains(nodeId) && !added.contains(nodeId)) {
-                reportFallenBehind.remove(nodeId);
+        lock.lock();
+        try {
+            peersSize += added.size() - removed.size();
+            for (final NodeId nodeId : removed) {
+                if (reportFallenBehind.contains(nodeId) && !added.contains(nodeId)) {
+                    reportFallenBehind.remove(nodeId);
+                }
             }
+            checkAndNotify();
+        } finally {
+            lock.unlock();
         }
-        checkAndNotify();
     }
 
     /**
@@ -119,8 +140,13 @@ public class FallenBehindMonitor {
      *
      * @return true if we have fallen behind, false otherwise
      */
-    public synchronized boolean hasFallenBehind() {
-        return isBehind;
+    public boolean hasFallenBehind() {
+        lock.lock();
+        try {
+            return isBehind;
+        } finally {
+            lock.unlock();
+        }
     }
 
     /**
@@ -130,25 +156,38 @@ public class FallenBehindMonitor {
      * @return true if it was detected that the local node is behind
      */
     public boolean isBehindPeer(@NonNull final NodeId peerId) {
-        synchronized (this) {
+        lock.lock();
+        try {
             // if this peer has told me I have fallen behind, I will reconnect with him
             return reportFallenBehind.contains(peerId);
+        } finally {
+            lock.unlock();
         }
     }
 
     /**
      * Reset everything to the initial state
      */
-    public synchronized void reset() {
-        reportFallenBehind.clear();
-        isBehind = false;
+    public void reset() {
+        lock.lock();
+        try {
+            reportFallenBehind.clear();
+            isBehind = false;
+        } finally {
+            lock.unlock();
+        }
     }
 
     /**
      * @return the number of nodes that have told us we have fallen behind
      */
-    public synchronized int reportedSize() {
-        return reportFallenBehind.size();
+    public int reportedSize() {
+        lock.lock();
+        try {
+            return reportFallenBehind.size();
+        } finally {
+            lock.unlock();
+        }
     }
 
     /**
@@ -156,10 +195,13 @@ public class FallenBehindMonitor {
      * It releases all waiting threads as soon as the condition becomes true.
      */
     public void awaitFallenBehind() throws InterruptedException {
-        synchronized (this) {
+        lock.lock();
+        try {
             while (!isBehind) {
-                wait();
+                fallenBehindCondition.await();
             }
+        } finally {
+            lock.unlock();
         }
     }
 
