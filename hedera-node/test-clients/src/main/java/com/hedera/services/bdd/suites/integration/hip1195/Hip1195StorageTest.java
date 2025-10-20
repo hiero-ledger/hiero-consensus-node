@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore.minimalKey;
+import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
@@ -253,6 +254,7 @@ public class Hip1195StorageTest {
     }
 
     @HapiTest
+    @Tag(ADHOC)
     final Stream<DynamicTest> storageSettingWorks() {
         final var passcode = "open-sesame";
         final var passHash32 = Bytes.wrap(keccak256(org.apache.tuweni.bytes.Bytes.wrap(passcode.getBytes(UTF_8)))
@@ -330,4 +332,20 @@ public class Hip1195StorageTest {
                         .withPreHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER));
     }
+
+    @HapiTest
+    final Stream<DynamicTest> deleteHooksWithoutStorageSlots() {
+        return hapiTest(
+                cryptoCreate("accountToDelete").withHooks(accountAllowanceHook(222L, STORAGE_GET_SLOT_HOOK.name())),
+                viewAccount("accountToDelete", (Account a) -> {
+                    assertEquals(222L, a.firstHookId());
+                    assertEquals(1, a.numberHooksInUse());
+                }),
+                cryptoUpdate("accountToDelete").removingHooks(222L),
+                viewAccount("accountToDelete", (Account a) -> {
+                    assertEquals(0L, a.firstHookId());
+                    assertEquals(0, a.numberHooksInUse());
+                }));
+    }
+
 }

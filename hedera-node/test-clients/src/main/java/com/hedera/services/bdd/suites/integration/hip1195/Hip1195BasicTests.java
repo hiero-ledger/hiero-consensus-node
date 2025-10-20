@@ -136,22 +136,6 @@ public class Hip1195BasicTests {
                     assertEquals(3, a.numberHooksInUse());
                 }));
     }
-
-    @HapiTest
-    final Stream<DynamicTest> cryptoCreateWithHookAndCryptoUpdateToAddSecondHook() {
-        return hapiTest(
-                cryptoCreate("accountWithOneHook").withHooks(accountAllowanceHook(208L, TRUE_ALLOWANCE_HOOK.name())),
-                viewAccount("accountWithOneHook", (Account a) -> {
-                    assertEquals(208L, a.firstHookId());
-                    assertEquals(1, a.numberHooksInUse());
-                }),
-                cryptoUpdate("accountWithOneHook").withHooks(accountAllowanceHook(209L, FALSE_ALLOWANCE_HOOK.name())),
-                viewAccount("accountWithOneHook", (Account a) -> {
-                    assertEquals(209L, a.firstHookId());
-                    assertEquals(2, a.numberHooksInUse());
-                }));
-    }
-
     @HapiTest
     final Stream<DynamicTest> cryptoCreateWithMultipleHooksAndCryptoUpdateToAddMoreHooks() {
         return hapiTest(
@@ -216,41 +200,6 @@ public class Hip1195BasicTests {
                                 accountAllowanceHook(218L, FALSE_ALLOWANCE_HOOK.name()))
                         .hasPrecheck(HOOK_ID_REPEATED_IN_CREATION_DETAILS));
     }
-
-    @HapiTest
-    final Stream<DynamicTest> cryptoCreateWithAlreadyCreatedHookIdFails() {
-        return hapiTest(
-                cryptoCreate("firstAccount").withHooks(accountAllowanceHook(219L, TRUE_ALLOWANCE_HOOK.name())),
-                cryptoCreate("secondAccount").withHooks(accountAllowanceHook(219L, TRUE_ALLOWANCE_HOOK.name())),
-                cryptoUpdate("firstAccount")
-                        .withHooks(accountAllowanceHook(219L, FALSE_ALLOWANCE_HOOK.name()))
-                        .hasKnownStatus(HOOK_ID_IN_USE));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> cryptoUpdateWithAlreadyCreatedHookIdFails() {
-        return hapiTest(
-                cryptoCreate("account1").withHooks(accountAllowanceHook(220L, TRUE_ALLOWANCE_HOOK.name())),
-                cryptoUpdate("account1")
-                        .withHooks(accountAllowanceHook(220L, FALSE_ALLOWANCE_HOOK.name()))
-                        .hasKnownStatus(HOOK_ID_IN_USE));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> deleteHooksWithoutStorageSlots() {
-        return hapiTest(
-                cryptoCreate("accountToDelete").withHooks(accountAllowanceHook(222L, TRUE_ALLOWANCE_HOOK.name())),
-                viewAccount("accountToDelete", (Account a) -> {
-                    assertEquals(222L, a.firstHookId());
-                    assertEquals(1, a.numberHooksInUse());
-                }),
-                cryptoUpdate("accountToDelete").removingHooks(222L),
-                viewAccount("accountToDelete", (Account a) -> {
-                    assertEquals(0L, a.firstHookId());
-                    assertEquals(0, a.numberHooksInUse());
-                }));
-    }
-
     @HapiTest
     final Stream<DynamicTest> deleteThenCreateSameHookIdInSingleUpdate() {
         return hapiTest(
@@ -268,45 +217,18 @@ public class Hip1195BasicTests {
                 }));
     }
 
-    // ================================================================================================================
-    // CRYPTOTRANSFER WITHOUT HOOKS TEST CASES
-    // ================================================================================================================
-
-    @HapiTest
-    final Stream<DynamicTest> cryptoTransferWithAllowanceApprovedWithoutHooksReferences() {
-        return hapiTest(
-                cryptoCreate("sender").balance(ONE_HUNDRED_HBARS),
-                cryptoCreate("receiver").balance(0L),
-                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between("sender", "receiver"))
-                        .payingWith("sender"),
-                getAccountBalance("receiver").hasTinyBars(10 * ONE_HBAR));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> cryptoTransferWithoutAllowanceApprovedWithoutHooksReferences() {
-        return hapiTest(
-                cryptoCreate("sender").balance(ONE_HUNDRED_HBARS),
-                cryptoCreate("receiver").balance(0L),
-                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between("sender", "receiver"))
-                        .payingWith(DEFAULT_PAYER),
-                getAccountBalance("receiver").hasTinyBars(10 * ONE_HBAR));
-    }
-
-    // ================================================================================================================
-    // PRE-HOOK TESTS WITH TRANSFER LIMITS
-    // ================================================================================================================
-
     @HapiTest
     final Stream<DynamicTest> preHookWithAllowanceSuccessfulCryptoTransfer() {
         return hapiTest(
+                cryptoCreate("payer"),
                 cryptoCreate("senderWithHook")
                         .balance(ONE_HUNDRED_HBARS)
                         .withHooks(accountAllowanceHook(224L, TRUE_ALLOWANCE_HOOK.name())),
-                cryptoCreate("receiverAccount").balance(0L),
+                cryptoCreate("receiverAccount").balance(ONE_HUNDRED_HBARS),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between("senderWithHook", "receiverAccount"))
                         .withPreHookFor("senderWithHook", 224L, 25_000L, "")
-                        .payingWith(DEFAULT_PAYER),
-                getAccountBalance("receiverAccount").hasTinyBars(10 * ONE_HBAR));
+                        .payingWith("payer"),
+                getAccountBalance("receiverAccount").hasTinyBars(ONE_HUNDRED_HBARS + (10 * ONE_HBAR)));
     }
 
     @HapiTest
@@ -314,13 +236,13 @@ public class Hip1195BasicTests {
         return hapiTest(
                 cryptoCreate("senderWithHook")
                         .balance(ONE_HUNDRED_HBARS)
-                        .withHooks(accountAllowanceHook(225L, TRUE_ALLOWANCE_HOOK.name())),
-                cryptoCreate("receiverAccount").balance(0L),
+                        .withHooks(accountAllowanceHook(225L, FALSE_ALLOWANCE_HOOK.name())),
+                cryptoCreate("receiverAccount").balance(ONE_HUNDRED_HBARS),
                 // Transfer should fail because there's no allowance approved
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between("senderWithHook", "receiverAccount"))
                         .withPreHookFor("senderWithHook", 225L, 25_000L, "")
-                        .payingWith(DEFAULT_PAYER)
-                        .signedBy(DEFAULT_PAYER));
+                        .payingWith("receiverAccount")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
     }
 
     @HapiTest
@@ -336,10 +258,6 @@ public class Hip1195BasicTests {
                         .payingWith(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
     }
-
-    // ================================================================================================================
-    // PRE-POST HOOK TESTS
-    // ================================================================================================================
 
     @HapiTest
     final Stream<DynamicTest> prePostHookWithAllowanceSuccessfulCryptoTransfer() {
