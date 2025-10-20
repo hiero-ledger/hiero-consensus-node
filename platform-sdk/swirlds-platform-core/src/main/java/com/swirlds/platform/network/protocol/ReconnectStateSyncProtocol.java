@@ -6,8 +6,8 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.reconnect.FallenBehindMonitor;
-import com.swirlds.platform.reconnect.ReconnectStateSyncPeerProtocol;
-import com.swirlds.platform.reconnect.StateSyncThrottle;
+import com.swirlds.platform.reconnect.ReconnectStatePeerProtocol;
+import com.swirlds.platform.reconnect.ReconnectStateTeacherThrottle;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -27,7 +27,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
  */
 public class ReconnectStateSyncProtocol implements Protocol {
 
-    private final StateSyncThrottle stateSyncThrottle;
+    private final ReconnectStateTeacherThrottle reconnectStateTeacherThrottle;
     private final Supplier<ReservedSignedState> lastCompleteSignedState;
     private final Duration reconnectSocketTimeout;
     private final ReconnectMetrics reconnectMetrics;
@@ -45,7 +45,7 @@ public class ReconnectStateSyncProtocol implements Protocol {
     public ReconnectStateSyncProtocol(
             @NonNull final PlatformContext platformContext,
             @NonNull final ThreadManager threadManager,
-            @NonNull final StateSyncThrottle stateSyncThrottle,
+            @NonNull final ReconnectStateTeacherThrottle reconnectStateTeacherThrottle,
             @NonNull final Supplier<ReservedSignedState> lastCompleteSignedState,
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics reconnectMetrics,
@@ -57,7 +57,7 @@ public class ReconnectStateSyncProtocol implements Protocol {
 
         this.platformContext = Objects.requireNonNull(platformContext);
         this.threadManager = Objects.requireNonNull(threadManager);
-        this.stateSyncThrottle = Objects.requireNonNull(stateSyncThrottle);
+        this.reconnectStateTeacherThrottle = Objects.requireNonNull(reconnectStateTeacherThrottle);
         this.lastCompleteSignedState = Objects.requireNonNull(lastCompleteSignedState);
         this.reconnectSocketTimeout = Objects.requireNonNull(reconnectSocketTimeout);
         this.reconnectMetrics = Objects.requireNonNull(reconnectMetrics);
@@ -74,12 +74,12 @@ public class ReconnectStateSyncProtocol implements Protocol {
      */
     @NonNull
     @Override
-    public ReconnectStateSyncPeerProtocol createPeerInstance(@NonNull final NodeId peerId) {
-        return new ReconnectStateSyncPeerProtocol(
+    public ReconnectStatePeerProtocol createPeerInstance(@NonNull final NodeId peerId) {
+        return new ReconnectStatePeerProtocol(
                 platformContext,
                 threadManager,
                 Objects.requireNonNull(peerId),
-                stateSyncThrottle,
+                reconnectStateTeacherThrottle,
                 lastCompleteSignedState,
                 reconnectSocketTimeout,
                 reconnectMetrics,

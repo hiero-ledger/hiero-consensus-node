@@ -33,7 +33,7 @@ import com.swirlds.platform.network.protocol.ReservedSignedStatePromise;
 import com.swirlds.platform.network.protocol.SyncProtocol;
 import com.swirlds.platform.network.protocol.rpc.RpcProtocol;
 import com.swirlds.platform.reconnect.FallenBehindMonitor;
-import com.swirlds.platform.reconnect.StateSyncThrottle;
+import com.swirlds.platform.reconnect.ReconnectStateTeacherThrottle;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -220,14 +220,15 @@ public class SyncGossipModular implements Gossip {
         final ReconnectConfig reconnectConfig =
                 platformContext.getConfiguration().getConfigData(ReconnectConfig.class);
 
-        final StateSyncThrottle stateSyncThrottle = new StateSyncThrottle(reconnectConfig, platformContext.getTime());
+        final ReconnectStateTeacherThrottle reconnectStateTeacherThrottle =
+                new ReconnectStateTeacherThrottle(reconnectConfig, platformContext.getTime());
 
         final ReconnectMetrics reconnectMetrics = new ReconnectMetrics(platformContext.getMetrics());
 
         return new ReconnectStateSyncProtocol(
                 platformContext,
                 threadManager,
-                stateSyncThrottle,
+                reconnectStateTeacherThrottle,
                 latestCompleteState,
                 reconnectConfig.asyncStreamTimeout(),
                 reconnectMetrics,
