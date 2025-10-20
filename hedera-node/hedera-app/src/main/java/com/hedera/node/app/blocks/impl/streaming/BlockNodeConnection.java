@@ -688,7 +688,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                         () -> {
                             if (getConnectionState() == ConnectionState.ACTIVE) {
                                 logWithContext(
+                                        logger,
                                         DEBUG,
+                                        this,
                                         "Pipeline onNext() timed out after {}ms",
                                         pipelineOperationTimeout.toMillis());
                                 blockStreamMetrics.recordPipelineOperationTimeout();
@@ -803,7 +805,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     final ScheduledFuture<?> timeoutTask = executorService.schedule(
                             () -> {
                                 logWithContext(
-                                        logger, DEBUG, this,
+                                        logger,
+                                        DEBUG,
+                                        this,
                                         "Pipeline onComplete() timed out after {}ms",
                                         pipelineOperationTimeout.toMillis());
                                 blockStreamMetrics.recordPipelineOperationTimeout();
@@ -822,7 +826,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                         }
                     }
 
-                    logWithContext(DEBUG, "Request pipeline successfully closed.");
+                    logWithContext(logger, DEBUG, this, "Request pipeline successfully closed.");
                 }
             } catch (final Exception e) {
                 logger.warn(formatLogMessage("Error while completing request pipeline.", this), e);
