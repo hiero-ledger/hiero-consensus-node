@@ -1639,40 +1639,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testRestartConnection() {
-        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-        final BlockNodeConfig nodeConfig = newBlockNodeConfig("pbj-unit-test-host", 8080, 1);
-        doReturn(nodeConfig).when(connection).getNodeConfig();
-
-        // Add the connection to the connections map and set it as active
-        final Map<BlockNodeConfig, BlockNodeConnection> connections = connections();
-        final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
-        connections.put(nodeConfig, connection);
-        activeConnectionRef.set(connection);
-
-        // Ensure the node config is available for selection
-        final List<BlockNodeConfig> availableNodes = availableNodes();
-        availableNodes.clear();
-        availableNodes.add(nodeConfig);
-
-        connectionManager.connectionResetsTheStream(connection);
-
-        // Verify the active connection reference was cleared
-        assertThat(activeConnectionRef).hasNullValue();
-        // Verify a new connection was created and added to the connections map
-        assertThat(connections).containsKey(nodeConfig);
-        // Verify it's a different connection object (the old one was replaced)
-        assertThat(connections.get(nodeConfig)).isNotSameAs(connection);
-
-        // Verify that scheduleConnectionAttempt was called with Duration.ZERO and the block number
-        verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(0L), eq(TimeUnit.MILLISECONDS));
-        verifyNoMoreInteractions(connection);
-        verifyNoInteractions(bufferService);
-        verifyNoInteractions(metrics);
-        verifyNoMoreInteractions(executorService);
-    }
-
-    @Test
     void testRescheduleConnection_singleBlockNode() {
         // selectNewBlockNodeForStreaming should NOT be called
         final var config = HederaTestConfigBuilder.create()
@@ -1705,53 +1671,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // Verify exactly 1 schedule call was made (only the retry, no new node selection since there's only one node)
         verify(executorService, times(1))
                 .schedule(any(BlockNodeConnectionTask.class), eq(5000L), eq(TimeUnit.MILLISECONDS));
-    }
-
-    @Test
-    void testConnectionResetsTheStream() {
-        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-        final BlockNodeConfig nodeConfig = newBlockNodeConfig("pbj-unit-test-host", 8080, 1);
-        doReturn(nodeConfig).when(connection).getNodeConfig();
-
-        // Add the connection to the connections map and set it as active
-        final Map<BlockNodeConfig, BlockNodeConnection> connections = connections();
-        final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
-        connections.put(nodeConfig, connection);
-        activeConnectionRef.set(connection);
-
-        // Ensure the node config is available for selection
-        final List<BlockNodeConfig> availableNodes = availableNodes();
-        availableNodes.clear();
-        availableNodes.add(nodeConfig);
-
-        connectionManager.connectionResetsTheStream(connection);
-
-        // Verify the active connection reference was cleared
-        assertThat(activeConnectionRef).hasNullValue();
-        // Verify a new connection was created and added to the connections map
-        assertThat(connections).containsKey(nodeConfig);
-        // Verify it's a different connection object (the old one was replaced)
-        assertThat(connections.get(nodeConfig)).isNotSameAs(connection);
-
-        // Verify that selectNewBlockNodeForStreaming was called
-        verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(0L), eq(TimeUnit.MILLISECONDS));
-        verifyNoMoreInteractions(connection);
-        verifyNoInteractions(bufferService);
-        verifyNoInteractions(metrics);
-        verifyNoMoreInteractions(executorService);
-    }
-
-    @Test
-    void testConnectionResetsTheStream_streamingDisabled() {
-        useStreamingDisabledManager();
-        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-
-        connectionManager.connectionResetsTheStream(connection);
-
-        verifyNoInteractions(connection);
-        verifyNoInteractions(bufferService);
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(metrics);
     }
 
     @Test

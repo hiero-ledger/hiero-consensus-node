@@ -1289,7 +1289,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         // Verify reset behavior
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(bufferService).getHighestAckedBlockNumber();
-        verify(connectionManager).connectionResetsTheStream(connection);
+        verify(connectionManager).selectNewBlockNodeForStreaming(false);
         verify(requestPipeline).onNext(any(PublishStreamRequest.class));
         verify(requestPipeline).onComplete();
         verify(connectionManager).jumpToBlock(-1L);
