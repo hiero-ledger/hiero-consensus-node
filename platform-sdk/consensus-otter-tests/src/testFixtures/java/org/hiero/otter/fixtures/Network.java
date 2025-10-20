@@ -245,6 +245,7 @@ public interface Network {
      * @param value the value of the property
      * @return this {@code Network} instance for method chaining
      */
+    @NonNull
     Network withConfigValue(@NonNull String key, @NonNull String value);
 
     /**
@@ -255,6 +256,18 @@ public interface Network {
      * @param value the value of the property
      * @return this {@code Network} instance for method chaining
      */
+    @NonNull
+    Network withConfigValue(@NonNull String key, @NonNull Duration value);
+
+    /**
+     * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
+     * in the network are running.
+     *
+     * @param key the key of the property
+     * @param value the value of the property
+     * @return this {@code Network} instance for method chaining
+     */
+    @NonNull
     Network withConfigValue(@NonNull String key, int value);
 
     /**
@@ -265,6 +278,7 @@ public interface Network {
      * @param value the value of the property
      * @return this {@code Network} instance for method chaining
      */
+    @NonNull
     Network withConfigValue(@NonNull String key, long value);
 
     /**
@@ -275,6 +289,7 @@ public interface Network {
      * @param value the value of the property
      * @return this {@code Network} instance for method chaining
      */
+    @NonNull
     Network withConfigValue(@NonNull String key, boolean value);
 
     /**
@@ -285,6 +300,7 @@ public interface Network {
      * @param value the value of the property
      * @return this {@code Network} instance for method chaining
      */
+    @NonNull
     Network withConfigValue(@NonNull String key, @NonNull Path value);
 
     /**

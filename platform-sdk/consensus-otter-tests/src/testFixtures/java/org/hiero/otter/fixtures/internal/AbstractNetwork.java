@@ -80,6 +80,7 @@ import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * An abstract base class for a network implementation that provides common functionality shared by the different
@@ -553,6 +554,16 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Network withConfigValue(@NonNull final String key, @NonNull final String value) {
+        requireNodesBeforeConfigChange();
+        nodes().forEach(node -> node.configuration().set(key, value));
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NotNull Network withConfigValue(@NotNull final String key, @NotNull final Duration value) {
         requireNodesBeforeConfigChange();
         nodes().forEach(node -> node.configuration().set(key, value));
         return this;

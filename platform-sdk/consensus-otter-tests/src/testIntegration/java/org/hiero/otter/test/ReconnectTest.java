@@ -11,6 +11,7 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
+import com.swirlds.common.merkle.synchronization.config.ReconnectConfig_;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.platform.consensus.ConsensusConfig_;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig_;
@@ -139,7 +140,7 @@ public class ReconnectTest {
      * @param env the test environment
      */
     @Disabled("This test is flaky and needs to be investigated further")
-    @OtterTest(requires = Capability.BACK_PRESSURE)
+    @OtterTest(requires = {Capability.BACK_PRESSURE, Capability.RECONNECT})
     void testSyntheticBottleneckReconnect(final TestEnvironment env) {
         final int numReconnectCycles = 2;
         final Network network = env.network();
@@ -233,5 +234,94 @@ public class ReconnectTest {
 
     private void disableSyntheticBottleneck(@NonNull final Node... nodesToThrottle) {
         Arrays.stream(nodesToThrottle).forEach(Node::stopSyntheticBottleneck);
+    }
+
+    @OtterTest(requires = Capability.RECONNECT)
+    void testReconnectSucceedsAfterFailure(@NonNull final TestEnvironment env) {
+        final Network network = env.network();
+        final TimeManager timeManager = env.timeManager();
+
+        network.addNodes(5);
+
+        // For this test to work, we need to lower the limit for the transaction handler component
+        // With the new limit set, once the transaction handler has 100 pending transactions, the node will stop
+        // gossipping and stop creating events. This will cause the node to go into the checking state.
+        network.withConfigValue(
+                        PlatformSchedulersConfig_.TRANSACTION_HANDLER,
+                        "SEQUENTIAL_THREAD CAPACITY(100) FLUSHABLE SQUELCHABLE")
+                .withConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, ROUNDS_EXPIRED)
+                .withConfigValue(ReconnectConfig_.ASYNC_STREAM_TIMEOUT, Duration.ofSeconds(1));
+
+        network.start();
+
+        final Node nodeToReconnect = network.nodes().getLast();
+
+        enableSyntheticBottleneck(Duration.ofMinutes(10), nodeToReconnect);
+        timeManager.waitForCondition(
+                nodeToReconnect::isBehind,
+                Duration.ofSeconds(120L),
+                "Node did not enter BEHIND status within the expected time "
+                        + "frame after synthetic bottleneck was enabled");
+
+        // TODO increase the latency for all connections, must be higher than 1 second to trigger reconnect timeout
+
+        disableSyntheticBottleneck(nodeToReconnect);
+
+        timeManager.waitForCondition(
+                () -> nodeToReconnect.newReconnectResult().numFailedReconnects() == 1,
+                Duration.ofMinutes(2L),
+                "Node did not record a failed reconnect attempt within the expected time frame after synthetic "
+                        + "bottleneck was disabled");
+
+        network.restoreConnectivity();
+
+        timeManager.waitForCondition(
+                nodeToReconnect::isActive,
+                Duration.ofMinutes(2L),
+                "Node did not become ACTIVE within the expected time frame after restoring normal latency");
+    }
+
+    @OtterTest(requires = {Capability.RECONNECT, Capability.SINGLE_NODE_JVM_SHUTDOWN})
+    void testNodeShutsDownAfterMaxFailedReconnects(@NonNull final TestEnvironment env) {
+        final Network network = env.network();
+        final TimeManager timeManager = env.timeManager();
+
+        network.addNodes(5);
+
+        final int maxFailedReconnects = 3;
+
+        // For this test to work, we need to lower the limit for the transaction handler component
+        // With the new limit set, once the transaction handler has 100 pending transactions, the node will stop
+        // gossipping and stop creating events. This will cause the node to go into the checking state.
+        network.withConfigValue(
+                        PlatformSchedulersConfig_.TRANSACTION_HANDLER,
+                        "SEQUENTIAL_THREAD CAPACITY(100) FLUSHABLE SQUELCHABLE")
+                .withConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, ROUNDS_EXPIRED)
+                .withConfigValue(ReconnectConfig_.ASYNC_STREAM_TIMEOUT, Duration.ofSeconds(1))
+                .withConfigValue(ReconnectConfig_.MAXIMUM_RECONNECT_FAILURES_BEFORE_SHUTDOWN, maxFailedReconnects);
+
+        network.start();
+
+        final Node nodeToReconnect = network.nodes().getLast();
+
+        enableSyntheticBottleneck(Duration.ofMinutes(10), nodeToReconnect);
+        timeManager.waitForCondition(
+                nodeToReconnect::isBehind,
+                Duration.ofSeconds(120L),
+                "Node did not enter BEHIND status within the expected time "
+                        + "frame after synthetic bottleneck was enabled");
+
+        // TODO increase the latency for all connections, must be higher than 1 second to trigger reconnect timeout
+
+        disableSyntheticBottleneck(nodeToReconnect);
+
+        timeManager.waitForCondition(
+                () -> nodeToReconnect.newReconnectResult().numFailedReconnects() >= maxFailedReconnects,
+                Duration.ofMinutes(2L),
+                "Node did not record the expected number of failed reconnect attempts within the expected time frame.");
+        timeManager.waitForCondition(
+                () -> !nodeToReconnect.isAlive(),
+                Duration.ofMinutes(2L),
+                "Node did not shut down within the expected time frame after exceeding the maximum number of failed reconnects.");
     }
 }
