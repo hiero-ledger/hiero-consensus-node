@@ -70,6 +70,7 @@ import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.info.CurrentPlatformStatusImpl;
 import com.hedera.node.app.info.StateNetworkInfo;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
+import com.hedera.node.app.quiescence.QuiescenceConfig;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
@@ -368,6 +369,9 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
      * The action to take, if any, when a consensus round is sealed.
      */
     private final BiPredicate<Round, State> onSealConsensusRound;
+
+    private final boolean quiescenceEnabled;
+
     /**
      * Once set, a future that resolves to the hash of the state used to initialize the application. This is known
      * immediately at genesis or on restart from a saved state; during reconnect, it is known when reconnect
@@ -476,6 +480,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         bootstrapConfigProvider = new BootstrapConfigProviderImpl();
         final var bootstrapConfig = bootstrapConfigProvider.getConfiguration();
         hapiVersion = bootstrapConfig.getConfigData(VersionConfig.class).hapiVersion();
+        quiescenceEnabled = bootstrapConfig.getConfigData(QuiescenceConfig.class).enabled();
         final var versionConfig = bootstrapConfig.getConfigData(VersionConfig.class);
         version = versionConfig
                 .servicesVersion()
@@ -613,6 +618,9 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
     public void newPlatformStatus(@NonNull final PlatformStatus platformStatus) {
         this.platformStatus = platformStatus;
         transactionPool.updatePlatformStatus(platformStatus);
+        if (daggerApp != null) {
+            daggerApp.quiescenceController().platformStatusUpdate(platformStatus);
+        }
         logger.info("HederaNode#{} is {}", platform.getSelfId(), platformStatus.name());
         final var streamToBlockNodes = configProvider
                 .getConfiguration()
@@ -986,6 +994,9 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
 
         final var transactions = new ArrayList<Transaction>(1000);
         event.forEachTransaction(transactions::add);
+        if (quiescenceEnabled) {
+            daggerApp.quiescenceController().onPreHandle(transactions);
+        }
         daggerApp
                 .preHandleWorkflow()
                 .preHandle(

@@ -41,6 +41,8 @@ import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.info.CurrentPlatformStatus;
+import com.hedera.node.app.quiescence.CurrentBlockTracker;
+import com.hedera.node.app.quiescence.QuiescenceConfig;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.service.entityid.EntityIdService;
@@ -121,6 +123,7 @@ public class HandleWorkflow {
     public static final String ALERT_MESSAGE = "Possibly CATASTROPHIC failure";
     public static final String SYSTEM_ENTITIES_CREATED_MSG = "System entities created";
 
+    private final boolean quiescenceEnabled;
     private final StreamMode streamMode;
     private final NetworkInfo networkInfo;
     private final StakePeriodChanges stakePeriodChanges;
@@ -149,6 +152,7 @@ public class HandleWorkflow {
     private final BlockHashSigner blockHashSigner;
     private final BlockBufferService blockBufferService;
     private final Map<Class<?>, ServiceApiProvider<?>> apiProviders;
+    private final CurrentBlockTracker currentBlockTracker;
 
     @Nullable
     private final AtomicBoolean systemEntitiesCreatedFlag;
@@ -195,7 +199,8 @@ public class HandleWorkflow {
             @NonNull final NodeRewardManager nodeRewardManager,
             @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final BlockBufferService blockBufferService,
-            @NonNull final Map<Class<?>, ServiceApiProvider<?>> apiProviders) {
+            @NonNull final Map<Class<?>, ServiceApiProvider<?>> apiProviders,
+            @NonNull final CurrentBlockTracker currentBlockTracker) {
         this.networkInfo = requireNonNull(networkInfo);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.dispatchProcessor = requireNonNull(dispatchProcessor);
@@ -217,10 +222,13 @@ public class HandleWorkflow {
         this.immediateStateChangeListener = requireNonNull(immediateStateChangeListener);
         this.scheduleService = requireNonNull(scheduleService);
         this.congestionMetrics = requireNonNull(congestionMetrics);
-        this.streamMode = configProvider
-                .getConfiguration()
+        final var config = configProvider.getConfiguration();
+        this.streamMode = config
                 .getConfigData(BlockStreamConfig.class)
                 .streamMode();
+        this.quiescenceEnabled = config
+                .getConfigData(QuiescenceConfig.class)
+                .enabled();
         this.hintsService = requireNonNull(hintsService);
         this.historyService = requireNonNull(historyService);
         this.blockHashSigner = requireNonNull(blockHashSigner);
@@ -230,6 +238,7 @@ public class HandleWorkflow {
         this.platformStateFacade = requireNonNull(platformStateFacade);
         this.blockBufferService = requireNonNull(blockBufferService);
         this.apiProviders = requireNonNull(apiProviders);
+        this.currentBlockTracker = requireNonNull(currentBlockTracker);
     }
 
     /**
@@ -391,6 +400,11 @@ public class HandleWorkflow {
             // handle each transaction of the event
             for (final var it = event.consensusTransactionIterator(); it.hasNext(); ) {
                 final var platformTxn = it.next();
+                if (quiescenceEnabled) {
+                    final var tracker = currentBlockTracker.trackerOrThrow();
+                    tracker.blockTransaction(platformTxn);
+                    tracker.consensusTimeAdvanced(platformTxn.getConsensusTimestamp());
+                }
                 try {
                     transactionsDispatched |= handlePlatformTransaction(
                             state,

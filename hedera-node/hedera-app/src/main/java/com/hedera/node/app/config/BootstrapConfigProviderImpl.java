@@ -2,6 +2,7 @@
 package com.hedera.node.app.config;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.node.app.quiescence.QuiescenceConfig;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.converter.BytesConverter;
@@ -57,6 +58,7 @@ public class BootstrapConfigProviderImpl extends ConfigProviderBase {
                 .withConfigDataType(LedgerConfig.class)
                 .withConfigDataType(AccountsConfig.class)
                 .withConfigDataType(TssConfig.class)
+                .withConfigDataType(QuiescenceConfig.class)
                 .withConfigDataType(ContractsConfig.class)
                 .withConfigDataType(BlockNodeConnectionConfig.class)
                 .withConfigDataType(OpsDurationConfig.class)

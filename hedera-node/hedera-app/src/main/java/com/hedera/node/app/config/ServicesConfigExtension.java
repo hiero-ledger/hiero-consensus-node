@@ -8,6 +8,7 @@ import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.hapi.utils.sysfiles.domain.KnownBlockValues;
 import com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.ScaleFactor;
+import com.hedera.node.app.quiescence.QuiescenceConfig;
 import com.hedera.node.config.converter.AccountIDConverter;
 import com.hedera.node.config.converter.BytesConverter;
 import com.hedera.node.config.converter.CongestionMultipliersConverter;
@@ -117,6 +118,7 @@ public class ServicesConfigExtension implements ConfigurationExtension {
                 AtomicBatchConfig.class,
                 VersionConfig.class,
                 TssConfig.class,
+                QuiescenceConfig.class,
                 JumboTransactionsConfig.class,
                 GrpcUsageTrackerConfig.class,
                 OpsDurationConfig.class);
