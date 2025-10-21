@@ -34,13 +34,14 @@ testModuleInfo {
     requires("com.swirlds.component.framework")
     requires("com.swirlds.metrics.api")
     requires("org.hiero.consensus.utility")
+    requires("org.apache.logging.log4j")
+    requires("awaitility")
     runtimeOnly("io.grpc.netty.shaded")
 }
 
 testIntegrationModuleInfo {
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.logging")
-    requires("org.apache.logging.log4j")
     requires("org.hiero.otter.fixtures")
     requires("org.assertj.core")
     requires("org.junit.jupiter.params")

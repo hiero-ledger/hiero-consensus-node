@@ -73,7 +73,9 @@ public class SingleNodeConsensusResultContinuousAssert
                                         Stream.ofNullable(lastRound), rounds.stream())
                                 .toList();
                         ConsensusRoundValidator.validate(includingLast);
-                        lastRound = rounds.getLast();
+                        if (!rounds.isEmpty()) {
+                            lastRound = rounds.getLast();
+                        }
                         yield CONTINUE;
                     }
                     case PAUSED -> CONTINUE;
