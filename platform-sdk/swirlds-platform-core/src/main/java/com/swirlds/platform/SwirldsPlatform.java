@@ -245,7 +245,7 @@ public class SwirldsPlatform implements Platform {
                 .setRunnable(reconnectController)
                 .build(true);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            reconnectController.stop();
+            reconnectController.stopReconnectLoop();
             reconnectControllerThread.interrupt();
         }));
 

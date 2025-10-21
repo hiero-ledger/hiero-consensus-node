@@ -142,9 +142,9 @@ public class FallenBehindMonitor {
     }
 
     /**
-     * Reset everything to the initial state
+     * Clears the monitor initial state
      */
-    public void reset() {
+    public void clear() {
         lock.lock();
         try {
             reportFallenBehind.clear();

@@ -248,7 +248,7 @@ class ReconnectControllerTest {
                 // Wait a bit to ensure reconnect completes
                 Thread.sleep(200);
                 reconnectCompleted.set(true);
-                controller.stop();
+                controller.stopReconnectLoop();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -308,7 +308,7 @@ class ReconnectControllerTest {
                 secondAcquireFailed.set(!peerReservedSignedStatePromise.acquire());
                 reconnectCompleteLatch.countDown();
 
-                controller.stop();
+                controller.stopReconnectLoop();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -330,7 +330,7 @@ class ReconnectControllerTest {
 
     @Test
     @DisplayName("Controller stops when stop() is called")
-    void testControllerStop() throws Exception {
+    void testControllerStopReconnectLoop() throws Exception {
         final ReconnectController controller = createController();
         final AtomicBoolean controllerExited = new AtomicBoolean(false);
 
@@ -347,7 +347,7 @@ class ReconnectControllerTest {
         Thread.sleep(100);
 
         // Stop the controller
-        controller.stop();
+        controller.stopReconnectLoop();
         controllerThread.interrupt();
         controllerThread.join();
 
@@ -398,7 +398,7 @@ class ReconnectControllerTest {
                 peerReservedSignedStatePromise.provide(secondAttempt);
 
                 Thread.sleep(200);
-                controller.stop();
+                controller.stopReconnectLoop();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -448,7 +448,7 @@ class ReconnectControllerTest {
                 // Wait for hash to fail and controller to be ready for next attempt
                 Thread.sleep(150);
 
-                controller.stop();
+                controller.stopReconnectLoop();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -506,7 +506,7 @@ class ReconnectControllerTest {
                 }
 
                 Thread.sleep(200);
-                controller.stop();
+                controller.stopReconnectLoop();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -553,7 +553,7 @@ class ReconnectControllerTest {
                 // Check if monitor was reset
                 monitorWasReset.set(!fallenBehindMonitor.hasFallenBehind());
 
-                controller.stop();
+                controller.stopReconnectLoop();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -612,7 +612,7 @@ class ReconnectControllerTest {
                 peerReservedSignedStatePromise.provide(testReservedSignedState);
 
                 Thread.sleep(200);
-                controller.stop();
+                controller.stopReconnectLoop();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -657,7 +657,7 @@ class ReconnectControllerTest {
                 peerReservedSignedStatePromise.provide(testReservedSignedState);
 
                 Thread.sleep(200);
-                controller.stop();
+                controller.stopReconnectLoop();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -705,7 +705,7 @@ class ReconnectControllerTest {
                 peerReservedSignedStatePromise.provide(testReservedSignedState);
 
                 Thread.sleep(200);
-                controller.stop();
+                controller.stopReconnectLoop();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -1043,7 +1043,7 @@ class ReconnectControllerTest {
 
     @Test
     @DisplayName("Controller gracefully stops when interrupted during operations after stop()")
-    void controllerGracefullyStopsWhenStopIsCalledAndThreadIsInterrupted() throws Exception {
+    void controllerGracefullyStopsWhenStopReconnectLoopIsCalledAndThreadIsInterrupted() throws Exception {
         final AtomicBoolean systemExitCalled = new AtomicBoolean(false);
 
         final ReconnectController controller = createController();
@@ -1070,7 +1070,7 @@ class ReconnectControllerTest {
                 // Give enough time for the reconnect thread to wait on a state to be provided
                 Thread.sleep(2000);
                 // Cause an expected interruption on the reconnectThread
-                controller.stop();
+                controller.stopReconnectLoop();
                 controllerThread.interrupt();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

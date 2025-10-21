@@ -67,7 +67,7 @@ class FallenBehindMonitorTest {
         monitor.report(NodeId.of(8));
         assertFallenBehind(true, 8, "more nodes reported, but the status should be the same");
 
-        monitor.reset();
+        monitor.clear();
         assertFallenBehind(false, 0, "resetting should return to default");
     }
 
@@ -102,7 +102,7 @@ class FallenBehindMonitorTest {
         monitor.report(NodeId.of(8));
         assertFallenBehind(true, 8, "more nodes reported, but the status should be the same");
 
-        monitor.reset();
+        monitor.clear();
         assertFallenBehind(false, 0, "resetting should return to default");
     }
 
@@ -166,7 +166,7 @@ class FallenBehindMonitorTest {
         assertTrue(test.fallenBehindMonitor.hasFallenBehind());
 
         // reset it
-        test.fallenBehindMonitor.reset();
+        test.fallenBehindMonitor.clear();
 
         // we should now be back where we started
         assertFalse(test.fallenBehindMonitor.hasFallenBehind());
@@ -355,7 +355,7 @@ class FallenBehindMonitorTest {
         assertFalse(monitor.isBehindPeer(peer1), "Peer1 should be cleared");
         assertTrue(monitor.isBehindPeer(peer2), "Peer2 should still be reported");
 
-        monitor.reset();
+        monitor.clear();
         assertFalse(monitor.isBehindPeer(peer1), "All should be cleared after reset");
         assertFalse(monitor.isBehindPeer(peer2), "All should be cleared after reset");
         assertFalse(monitor.isBehindPeer(peer3), "All should be cleared after reset");
@@ -519,7 +519,7 @@ class FallenBehindMonitorTest {
         monitor.clear(NodeId.of(1));
         assertEquals(1, monitor.reportedSize());
 
-        monitor.reset();
+        monitor.clear();
         assertEquals(0, monitor.reportedSize(), "Reset should clear all reports");
     }
 }
