@@ -15,6 +15,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.NODE_ACCOUNT_HAS_ZERO_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
@@ -57,17 +58,20 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.info.CurrentPlatformStatus;
 import com.hedera.node.app.info.NodeInfoImpl;
+import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.signature.SignatureExpander;
 import com.hedera.node.app.signature.SignatureVerificationFuture;
 import com.hedera.node.app.signature.SignatureVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.state.recordcache.DeduplicationCacheImpl;
+import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
@@ -298,6 +302,76 @@ class IngestCheckerTest extends AppTestBase {
         // then
         assertThat(result.txnInfoOrThrow()).isEqualTo(expected);
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
+    }
+
+    @Nested
+    class IngestCheckerNodeAccountBalanceTest {
+        private IngestChecker subject;
+        private ReadableStoreFactory storeFactory;
+        private ReadableAccountStore accountStore;
+        private Account nodeAccount;
+        private Account payerAccount;
+
+        @BeforeEach
+        void setUp() {
+            storeFactory = mock(ReadableStoreFactory.class);
+            accountStore = mock(ReadableAccountStore.class);
+            nodeAccount = mock(Account.class);
+            payerAccount = mock(Account.class);
+            var networkInfo = mock(NetworkInfo.class);
+
+            // Setup node account id
+            var nodeAccountId = AccountID.newBuilder().accountNum(1234L).build();
+            var nodeInfo = mock(NodeInfo.class);
+            when(nodeInfo.accountId()).thenReturn(nodeAccountId);
+            when(networkInfo.selfNodeInfo()).thenReturn(nodeInfo);
+
+            subject = new IngestChecker(
+                    networkInfo,
+                    mock(CurrentPlatformStatus.class),
+                    mock(BlockStreamManager.class),
+                    mock(TransactionChecker.class),
+                    mock(SolvencyPreCheck.class),
+                    mock(SignatureExpander.class),
+                    mock(SignatureVerifier.class),
+                    mock(DeduplicationCache.class),
+                    mock(TransactionDispatcher.class),
+                    mock(FeeManager.class),
+                    mock(Authorizer.class),
+                    mock(SynchronizedThrottleAccumulator.class),
+                    mock(java.time.InstantSource.class),
+                    mock(OpWorkflowMetrics.class),
+                    null);
+            when(storeFactory.getStore(ReadableAccountStore.class)).thenReturn(accountStore);
+        }
+
+        @Test
+        void throwsIfNodeAccountNotFound() {
+            when(accountStore.getAccountById(any())).thenReturn(null);
+            assertThatThrownBy(() -> subject.verifyNodeAccountBalance(storeFactory, payerAccount))
+                    .isInstanceOf(PreCheckException.class)
+                    .hasFieldOrPropertyWithValue("responseCode", INVALID_NODE_ACCOUNT);
+        }
+
+        @Test
+        void throwsIfNodeAccountHasZeroBalanceAndPayerIsNotSystemAccount() {
+            when(accountStore.getAccountById(any())).thenReturn(nodeAccount);
+            when(nodeAccount.tinybarBalance()).thenReturn(0L);
+            // Simulate non-system account
+            when(payerAccount.accountIdOrThrow())
+                    .thenReturn(AccountID.newBuilder().accountNum(2000L).build());
+            assertThatThrownBy(() -> subject.verifyNodeAccountBalance(storeFactory, payerAccount))
+                    .isInstanceOf(PreCheckException.class)
+                    .hasFieldOrPropertyWithValue("responseCode", NODE_ACCOUNT_HAS_ZERO_BALANCE);
+        }
+
+        @Test
+        void succeedsIfNodeAccountHasBalance() {
+            when(accountStore.getAccountById(any())).thenReturn(nodeAccount);
+            when(nodeAccount.tinybarBalance()).thenReturn(100L);
+            assertThatCode(() -> subject.verifyNodeAccountBalance(storeFactory, payerAccount))
+                    .doesNotThrowAnyException();
+        }
     }
 
     @Nested
