@@ -515,9 +515,7 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
 
         final var topic =
                 feeContext.readableStore(ReadableTopicStore.class).getTopic(op.topicIDOrElse(TopicID.DEFAULT));
-        final var hasCustomFees = topic != null && !topic.customFees().isEmpty();
-
-        if (hasCustomFees) {
+        if (topic != null && !topic.customFees().isEmpty()) {
             final var calculator = calculatorFactory.feeCalculator(SubType.SUBMIT_MESSAGE_WITH_CUSTOM_FEES);
             calculator.resetUsage();
             // Charges the canonical price of $0.05 for a message up to 512 bytes and scales up to $0.06 for 1KB
