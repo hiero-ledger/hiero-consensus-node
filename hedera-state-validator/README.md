@@ -39,7 +39,9 @@ java -jar ./validator-<version>.jar {path-to-state-round} validate {tag} [{tag}.
 2. Run the following command to execute the introspection:
 
 ```shell
-java -jar ./validator-<version>.jar {path-to-state-round} introspect -s=<service-name> -k=<state-key> [-i=<key-info>]
+java -jar ./validator-<version>.jar {path-to-state-round} introspect --service-name=<service-name> \
+ --state-key=<state-key> \
+ [--key-info=<keyType:keyJson>]
 ```
 
 ### Parameters
@@ -131,7 +133,9 @@ Path-to-KeyValue Storage:
 2. Run the following command to execute the export:
 
 ```shell
-java -jar [-DmaxObjPerFile=<number>] [-DprettyPrint=true] ./validator-<version>.jar {path-to-state-round} export -o=<output-directory> [-s=<service-name> -k=<state-key>]
+java -jar [-DmaxObjPerFile=<number>] [-DprettyPrint=true] ./validator-<version>.jar {path-to-state-round} export \
+ --out=<output-directory> \
+ [--service-name=<service-name> --state-key=<state-key>]
 ```
 
 ### System Properties
@@ -153,27 +157,21 @@ java -jar [-DmaxObjPerFile=<number>] [-DprettyPrint=true] ./validator-<version>.
 
 Example entry:
 
-```json
-{"p":970084,"k":"{
-  "accountId": {
-    "accountNum": "18147"
-  },
-  "tokenId": {
-    "tokenNum": "202004"
-  }
-}", "v":{
-  "tokenId": {
-    "tokenNum": "202004"
-  },
-  "accountId": {
-    "accountNum": "18147"
-  },
-  "kycGranted": true,
-  "automaticAssociation": true,
-  "previousToken": {
-    "tokenNum": "201052"
-  }
-}}
+```
+{"p":742, "k":"{
+    \"accountNum\": \"503\"
+}", "v":"{
+    \"accountId\": {
+      \"accountNum\": \"503\"
+    },
+    \"key\": {
+      \"ed25519\": \"CqjiEGTGHquG4qnBZFZbTnqaQUYQbgps0DqMOVoRDpI=\"
+    },
+    \"expirationSecond\": \"1769026993\",
+    \"stakePeriodStart\": \"-1\",
+    \"stakeAtStartOfLastRewardedPeriod\": \"-1\",
+    \"autoRenewSeconds\": \"8000001\"
+}"}
 ```
 
 where `p` is a path in the virtual map, `k` is a key, and `v` is a value.
@@ -183,19 +181,20 @@ where `p` is a path in the virtual map, `k` is a key, and `v` is a value.
 Export all states to the current directory (assuming the JAR file is located in the round directory):
 
 ```shell
-java -jar ./validator-<version>.jar . export -o=.
+java -jar ./validator-<version>.jar . export --out=.
 ```
 
 Export all states to the current directory, limiting the number of objects per file to 100,000:
 
 ```shell
-java -jar -DmaxObjPerFile=100000 ./validator-<version>.jar /path/to/round export -o=.
+java -jar -DmaxObjPerFile=100000 ./validator-<version>.jar /path/to/round export --out=.
 ```
 
 Export all accounts to `/tmp/accounts`, limiting the number of objects per file to 100,000:
 
 ```shell
-java -jar -DmaxObjPerFile=100000 ./validator-<version>.jar /path/to/round export -o=/path/to/result -s=AccountService -k=ACCOUNTS
+java -jar -DmaxObjPerFile=100000 ./validator-<version>.jar /path/to/round export --out=/path/to/result \
+  --service-name=AccountService --state-key=ACCOUNTS
 ```
 
 ### Notes
@@ -218,7 +217,9 @@ java -jar -DmaxObjPerFile=100000 ./validator-<version>.jar /path/to/round export
 2. Run the following command to execute the sorted export:
 
 ```shell
-java -jar [-DmaxObjPerFile=<number>] [-DprettyPrint=true] ./validator-<version>.jar {path-to-state-round} sorted-export -o=<output-directory> [-s=<service-name> -k=<state-key>]
+java -jar [-DmaxObjPerFile=<number>] [-DprettyPrint=true] ./validator-<version>.jar {path-to-state-round} sorted-export \
+  --out=<output-directory> 
+  [--service-name=<service-name> --state-key=<state-key>]
 ```
 
 ### Output Format
@@ -276,8 +277,9 @@ java -jar ./validator-<version>.jar {path-to-state-round} compact
 ### Usage:
 
 ```shell
-java -jar ./validator-<version>.jar {path-to-state-round} apply-blocks {path-to-block-stream-files} \
- -i=<self-id> [-o="<path to output directory>"] [-h="<hash of the target state>"] [-t="<target round>"]
+java -jar ./validator-<version>.jar {path-to-state-round} apply-blocks --block-stream-dir=<path-to-block-stream-files> \
+ --node-id=<self-id> \ 
+ [--out=<path to output directory>] [--expected-hash=<hash of the target state>] [--target-round=<target round>]
 ```
 
 ### Parameters
