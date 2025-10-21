@@ -4,6 +4,7 @@ package com.swirlds.platform.reconnect;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static com.swirlds.logging.legacy.LogMarker.STATE_HASH;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -12,8 +13,6 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
-import com.swirlds.logging.legacy.LogMarker;
-import com.swirlds.logging.legacy.payload.UnableToReconnectPayload;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.network.protocol.ReservedSignedStatePromise;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
@@ -149,7 +148,7 @@ public class ReconnectController implements Runnable {
      */
     @Override
     public void run() {
-        logger.info(LogMarker.RECONNECT.getMarker(), "Starting the ReconnectController");
+        logger.info(RECONNECT.getMarker(), "Starting the ReconnectController");
         exitIfReconnectIsDisabled();
         try {
             while (run.get()) {
@@ -224,7 +223,7 @@ public class ReconnectController implements Runnable {
      */
     private void loadState(@NonNull final SignedState signedState) {
         // the state was received, so now we load its data into different objects
-        logger.info(LogMarker.STATE_HASH.getMarker(), "RECONNECT: loadReconnectState: reloading state");
+        logger.info(STATE_HASH.getMarker(), "RECONNECT: loadState: reloading state");
         logger.debug(RECONNECT.getMarker(), "`loadState` : reloading state");
         final Hash reconnectHash = signedState.getState().getHash();
         final MerkleNodeState state = signedState.getState();
@@ -288,10 +287,10 @@ public class ReconnectController implements Runnable {
         if (reconnectConfig.reconnectWindowSeconds() >= 0
                 && reconnectConfig.reconnectWindowSeconds()
                         < Duration.between(startupTime, time.now()).toSeconds()) {
-            logger.warn(STARTUP.getMarker(), () -> new UnableToReconnectPayload(
-                            "Node has fallen behind, reconnect is disabled outside of time window, will die",
-                            selfId.id())
-                    .toString());
+            logger.warn(
+                    STARTUP.getMarker(),
+                    "Node {} has fallen behind, reconnect is disabled outside of time window, will die",
+                    selfId.id());
             SystemExitUtils.exitSystem(SystemExitCode.RECONNECT_FAILURE);
         }
     }
@@ -301,9 +300,7 @@ public class ReconnectController implements Runnable {
      */
     private void exitIfReconnectIsDisabled() {
         if (!reconnectConfig.active()) {
-            logger.warn(STARTUP.getMarker(), () -> new UnableToReconnectPayload(
-                            "Node has fallen behind, reconnect is disabled, will die", selfId.id())
-                    .toString());
+            logger.warn(STARTUP.getMarker(), "Node {} has fallen behind, reconnect is disabled, will die", selfId.id());
             SystemExitUtils.exitSystem(SystemExitCode.BEHIND_RECONNECT_DISABLED);
         }
     }
