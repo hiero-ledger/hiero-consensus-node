@@ -40,6 +40,7 @@ env:
   SOLO_DEPLOYMENT: "solo-rpc-relay-deployment"
   SOLO_CLUSTER_SETUP_NAMESPACE: "solo-setup"
   GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
+  RUN_LOG_NAME: "run.json-rpc-relay-regression.log"
 
 jobs:
   # Execute JSON-RPC Relay Regression Tests using specified version of hiero-consensus-node
@@ -175,22 +176,22 @@ jobs:
           for job_id in $(gh run view ${{ github.run_id }} --json jobs --jq '.jobs | map(.databaseId) | .[0:-1] | .[]'); do
             echo "Fetching logs for job ${job_id}..."
 
-            current_job_name=$(gh run view ${{ github.run_id }} --json jobs | jq --argjson job_id "${job_id}" -r '.jobs[] | select(.databaseId == ${job_id}) | .name')
+            current_job_name=$(gh run view ${{ github.run_id }} --json jobs | jq --argjson job_id "${job_id}" -r '.jobs[] | select(.databaseId == $job_id) | .name')
 
-            echo "Logs for job $current_job_name :" >> run.log
+            echo "Logs for job $current_job_name :" >> "${RUN_LOG_NAME}"
 
             gh api \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
-            /repos/hiero-ledger/hiero-consensus-node/actions/jobs/"${job_id}"/logs >> run.log
+            /repos/hiero-ledger/hiero-consensus-node/actions/jobs/"${job_id}"/logs >> "${RUN_LOG_NAME}"
           done
 
       - name: Upload log as artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         continue-on-error: true
         with:
-          name: Run Logs
-          path: run.log
+          name: JSON RPC Relay Run Logs
+          path: ${{ env.RUN_LOG_NAME }}
 
       # Stop the solo nodes
       - name: Stop solo

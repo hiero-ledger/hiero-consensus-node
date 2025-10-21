@@ -42,6 +42,7 @@ import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.assertj.core.data.Percentage;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -822,9 +823,17 @@ public abstract class AbstractNetwork implements Network {
             for (final Node maybeAheadNode : peerNodes) {
                 final EventWindow peerEventWindow =
                         maybeAheadNode.newConsensusResult().getLatestEventWindow();
+                final EventWindow peerEventWindowWithBuffer = new EventWindow(
+                        peerEventWindow.latestConsensusRound(),
+                        peerEventWindow.newEventBirthRound(),
+                        peerEventWindow.ancientThreshold(),
+                        Math.max(
+                                ConsensusConstants.ROUND_FIRST,
+                                peerEventWindow.expiredThreshold()
+                                        - 5)); // add buffer to account for unpropagated event windows
 
                 // If any peer in the required list says the "self" node is behind, it is ahead so add it to the count
-                if (SyncFallenBehindStatus.getStatus(selfEventWindow, peerEventWindow)
+                if (SyncFallenBehindStatus.getStatus(selfEventWindow, peerEventWindowWithBuffer)
                         == SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
                     numNodesAhead++;
                 }
