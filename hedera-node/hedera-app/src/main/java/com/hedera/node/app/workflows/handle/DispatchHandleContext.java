@@ -99,10 +99,12 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     private final DispatchProcessor dispatchProcessor;
     private final ThrottleAdviser throttleAdviser;
     private final FeeAccumulator feeAccumulator;
-    private Map<AccountID, Long> dispatchPaidRewards;
     private final DispatchMetadata dispatchMetaData;
     private final TransactionChecker transactionChecker;
     private final TransactionCategory transactionCategory;
+
+    @Nullable
+    private Map<AccountID, Long> dispatchPaidRewards;
 
     // This is used to store the pre-handle results for the inner transactions
     // in an atomic batch, null otherwise

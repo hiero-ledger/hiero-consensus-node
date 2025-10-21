@@ -239,7 +239,7 @@ public class ChildDispatchFactory {
             @NonNull final Instant consensusNow,
             @NonNull final DispatchMetadata dispatchMetadata,
             @NonNull final ConsensusThrottling consensusThrottling,
-            @Nullable FeeCharging customFeeCharging,
+            @Nullable final FeeCharging customFeeCharging,
             // @UserTxnScope
             @NonNull final NodeInfo creatorInfo,
             @NonNull final Configuration config,
