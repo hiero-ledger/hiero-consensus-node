@@ -9,10 +9,12 @@ import static java.util.Collections.emptyMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.node.base.AccountID;
@@ -143,18 +145,12 @@ class ParentTxnTest {
 
     @BeforeEach
     void setUp() {
-        given(preHandleWorkflow.getCurrentPreHandleResult(
-                        eq(creatorInfo),
-                        eq(PLATFORM_TXN),
-                        any(ReadableStoreFactory.class),
-                        eq(stateSignatureTxnCallback)))
-                .willReturn(preHandleResult);
-        given(preHandleResult.txInfo()).willReturn(txnInfo);
-        given(txnInfo.functionality()).willReturn(CONSENSUS_CREATE_TOPIC);
+        lenient().when(txnInfo.functionality()).thenReturn(CONSENSUS_CREATE_TOPIC);
     }
 
     @Test
     void usesPairedStreamBuilderWithDefaultConfig() {
+        givenExistingCreator();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(DEFAULT_CONFIG, 1));
 
         final var factory = createUserTxnFactory();
@@ -176,17 +172,30 @@ class ParentTxnTest {
     }
 
     @Test
-    void returnsNonNullForStateSignatureTxn() {
+    void returnsNullForStateSignatureTxn() {
+        givenExistingCreator();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(BLOCKS_CONFIG, 1));
         given(txnInfo.functionality()).willReturn(STATE_SIGNATURE_TRANSACTION);
 
         final var factory = createUserTxnFactory();
-        assertNotNull(
+        assertNull(
                 factory.createTopLevelTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback));
     }
 
     @Test
+    void returnsNullForNullCreator() {
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(BLOCKS_CONFIG, 1));
+        given(preHandleWorkflow.getCurrentPreHandleResult(
+                        eq(null), eq(PLATFORM_TXN), any(ReadableStoreFactory.class), eq(stateSignatureTxnCallback)))
+                .willReturn(preHandleResult);
+        final var factory = createUserTxnFactory();
+
+        assertNull(factory.createTopLevelTxn(state, null, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback));
+    }
+
+    @Test
     void constructsDispatchAsExpectedWithCongestionMultiplierGreaterThanOne() {
+        givenExistingCreator();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(BLOCKS_CONFIG, 1));
         given(txnInfo.payerID()).willReturn(PAYER_ID);
         given(txnInfo.txBody())
@@ -221,6 +230,7 @@ class ParentTxnTest {
 
     @Test
     void constructsDispatchAsExpectedWithCongestionMultiplierEqualToOne() {
+        givenExistingCreator();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(BLOCKS_CONFIG, 1));
         given(txnInfo.payerID()).willReturn(PAYER_ID);
         given(txnInfo.txBody())
@@ -271,5 +281,15 @@ class ParentTxnTest {
                 childDispatchFactory,
                 transactionChecker,
                 Map.of(TokenServiceApi.class, TOKEN_SERVICE_API_PROVIDER));
+    }
+
+    private void givenExistingCreator() {
+        given(preHandleWorkflow.getCurrentPreHandleResult(
+                        any(NodeInfo.class),
+                        eq(PLATFORM_TXN),
+                        any(ReadableStoreFactory.class),
+                        eq(stateSignatureTxnCallback)))
+                .willReturn(preHandleResult);
+        given(preHandleResult.txInfo()).willReturn(txnInfo);
     }
 }

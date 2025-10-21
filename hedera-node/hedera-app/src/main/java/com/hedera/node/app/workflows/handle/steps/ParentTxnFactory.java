@@ -178,7 +178,6 @@ public class ParentTxnFactory {
             @NonNull final Instant consensusNow,
             @NonNull final BiConsumer<StateSignatureTransaction, Bytes> stateSignatureTxnCallback) {
         requireNonNull(state);
-        requireNonNull(creatorInfo);
         requireNonNull(platformTxn);
         requireNonNull(consensusNow);
         final var config = configProvider.getConfiguration();
@@ -188,7 +187,11 @@ public class ParentTxnFactory {
                 creatorInfo, platformTxn, readableStoreFactory, stateSignatureTxnCallback);
         final var txnInfo = preHandleResult.txInfo();
         if (txnInfo == null) {
-            log.error("Node {} submitted an unparseable transaction {}", creatorInfo.nodeId(), platformTxn);
+            log.error(
+                    "Node {} submitted an unparseable transaction {}",
+                    creatorInfo != null ? creatorInfo.nodeId() : null,
+                    platformTxn);
+            return null;
         }
         if (creatorInfo == null || txnInfo.functionality() == STATE_SIGNATURE_TRANSACTION) {
             return null;
