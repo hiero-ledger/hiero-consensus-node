@@ -247,7 +247,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
                 try (final GZIPInputStream in = new GZIPInputStream(Files.newInputStream(contentsPath))) {
                     partialBlock = parseBlock(in.readAllBytes(), maxReadDepth, maxReadSize);
                 } catch (IOException | ParseException e) {
-                    logger.warn("Error reading zipped pending block contents from {}", contentsPath, e);
+                    logger.error("Error reading zipped pending block contents from {}", contentsPath, e);
                 }
             } else {
                 contentsPath = proofJson.toPath().resolveSibling(name.replace(".pnd.json", ".pnd"));
@@ -255,7 +255,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
                     try {
                         partialBlock = parseBlock(Files.readAllBytes(contentsPath), maxReadDepth, maxReadSize);
                     } catch (IOException | ParseException e) {
-                        logger.warn("Error reading pending block contents from {}", contentsPath, e);
+                        logger.error("Error reading pending block contents from {}", contentsPath, e);
                     }
                 }
             }

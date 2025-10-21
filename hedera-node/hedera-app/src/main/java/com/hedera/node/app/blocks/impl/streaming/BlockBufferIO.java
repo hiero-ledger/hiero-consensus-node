@@ -157,7 +157,7 @@ public class BlockBufferIO {
                             file.getAbsolutePath());
                     blocks.add(bufferedBlock);
                 } catch (final Exception e) {
-                    logger.warn("Failed to read block file; ignoring block (file={})", file.getAbsolutePath(), e);
+                    logger.error("Failed to read block file; ignoring block (file={})", file.getAbsolutePath(), e);
                 }
             }
 
