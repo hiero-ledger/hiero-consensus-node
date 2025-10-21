@@ -17,6 +17,7 @@ testModuleInfo {
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("net.i2p.crypto.eddsa")
     requires("org.assertj.core")
+    requires("com.hedera.node.app.service.entityid.impl")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")

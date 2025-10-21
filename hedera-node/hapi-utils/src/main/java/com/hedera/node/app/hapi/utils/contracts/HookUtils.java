@@ -4,7 +4,12 @@ package com.hedera.node.app.hapi.utils.contracts;
 import static com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.AccountAmount;
+import com.hedera.hapi.node.base.NftTransfer;
+import com.hedera.hapi.node.base.TokenTransferList;
+import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.hooks.LambdaMappingEntry;
+import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -63,5 +68,35 @@ public class HookUtils {
         final var padded = new byte[32];
         bytes.getBytes(0, padded, 32 - n, n);
         return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(padded);
+    }
+
+    /**
+     * Checks if the crypto transfer operation has any hooks set in any of the account amounts or nft transfers.
+     *
+     * @param op the crypto transfer operation
+     * @return true if the crypto transfer operation has any hooks set in any of the account amounts or nft transfers
+     */
+    public static boolean hasHooks(final @NonNull CryptoTransferTransactionBody op) {
+        for (final AccountAmount aa : op.transfersOrElse(TransferList.DEFAULT).accountAmounts()) {
+            if (aa.hasPreTxAllowanceHook() || aa.hasPrePostTxAllowanceHook()) {
+                return true;
+            }
+        }
+        for (final TokenTransferList ttl : op.tokenTransfers()) {
+            for (final AccountAmount aa : ttl.transfers()) {
+                if (aa.hasPreTxAllowanceHook() || aa.hasPrePostTxAllowanceHook()) {
+                    return true;
+                }
+            }
+            for (final NftTransfer nft : ttl.nftTransfers()) {
+                if (nft.hasPreTxSenderAllowanceHook()
+                        || nft.hasPrePostTxSenderAllowanceHook()
+                        || nft.hasPreTxReceiverAllowanceHook()
+                        || nft.hasPrePostTxReceiverAllowanceHook()) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

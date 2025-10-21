@@ -22,6 +22,18 @@ public class AccountCodec implements Codec<Account> {
     @NonNull
     @Override
     public Account parse(
+            @NonNull ReadableSequentialData in,
+            boolean strictMode,
+            boolean parseUnknownFields,
+            int maxDepth,
+            int maxSize)
+            throws ParseException {
+        return new Account(in);
+    }
+
+    @NonNull
+    @Override
+    public Account parse(
             @NonNull ReadableSequentialData in, boolean strictMode, boolean parseUnknownFields, int maxDepth) {
         return new Account(in);
     }

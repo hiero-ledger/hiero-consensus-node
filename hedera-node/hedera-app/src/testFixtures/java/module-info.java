@@ -21,11 +21,14 @@ open module com.hedera.node.app.test.fixtures {
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.model;
     requires com.hedera.node.app.hapi.utils;
+    requires com.hedera.node.app.service.entityid.impl;
+    requires com.hedera.node.app.service.entityid;
     requires com.hedera.node.app.service.token;
     requires com.hedera.node.config.test.fixtures;
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.merkledb.test.fixtures;
     requires com.swirlds.platform.core.test.fixtures;
+    requires com.swirlds.state.impl.test.fixtures;
     requires org.hiero.consensus.utility;
     requires org.apache.logging.log4j;
     requires org.assertj.core;

@@ -91,6 +91,8 @@ module com.hedera.node.hapi {
     exports org.hiero.hapi.interledger.clpr;
     exports org.hiero.hapi.interledger.state.clpr;
     exports com.hedera.hapi.platform.state.legacy;
+    exports org.hiero.hapi.support.fees;
+    exports org.hiero.hapi.support.fees.protoc;
     exports org.hiero.hapi.interledger.state.clpr.protoc;
     exports org.hiero.hapi.interledger.clpr.protoc;
 

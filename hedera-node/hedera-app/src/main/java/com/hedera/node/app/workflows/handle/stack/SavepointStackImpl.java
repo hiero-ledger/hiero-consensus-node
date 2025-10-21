@@ -197,7 +197,11 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     }
 
     @Override
-    public void init(Time time, Metrics metrics, MerkleCryptography merkleCryptography, LongSupplier roundSupplier) {
+    public void init(
+            @NonNull Time time,
+            @NonNull Metrics metrics,
+            @NonNull MerkleCryptography merkleCryptography,
+            @NonNull LongSupplier roundSupplier) {
         state.init(time, metrics, merkleCryptography, roundSupplier);
     }
 

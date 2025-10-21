@@ -194,19 +194,6 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
     }
 
     /**
-     * Get the status action submitter.
-     *
-     * @return the status action submitter
-     */
-    @NonNull
-    public StatusActionSubmitter getStatusActionSubmitter() {
-        return action -> components
-                .platformMonitorWiring()
-                .getInputWire(PlatformMonitor::submitStatusAction)
-                .put(action);
-    }
-
-    /**
      * Inject a new event window into all components that need it.
      *
      * @param eventWindow the new event window
@@ -363,6 +350,10 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
      * @see EventCreatorModule#quiescenceCommand(QuiescenceCommand)
      */
     public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
+        components
+                .platformMonitorWiring()
+                .getInputWire(PlatformMonitor::quiescenceCommand)
+                .inject(quiescenceCommand);
         components
                 .eventCreationManagerWiring()
                 .getInputWire(EventCreatorModule::quiescenceCommand)

@@ -76,9 +76,10 @@ public interface OtterService {
      * Called when a round of consensus has been completely handled. This is called after all events and transactions in
      * the round have been handled.
      *
+     * @param writableStates the {@link WritableStates} to use to modify state
      * @param round the round that was completed
      */
-    default void onRoundComplete(@NonNull final Round round) {
+    default void onRoundComplete(@NonNull final WritableStates writableStates, @NonNull final Round round) {
         // Default implementation does nothing
     }
 

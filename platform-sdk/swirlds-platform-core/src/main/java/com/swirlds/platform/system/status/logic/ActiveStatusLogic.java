@@ -161,13 +161,28 @@ public class ActiveStatusLogic implements PlatformStatusLogic {
     /**
      * {@inheritDoc}
      * <p>
-     * When a {@link TimeElapsedAction} is received while in {@link PlatformStatus#ACTIVE}, we must evaluate whether too
-     * much time has elapsed since seeing a self event reach consensus. If too much time has elapsed, the status
-     * transitions to {@link PlatformStatus#CHECKING}. Otherwise, the status remains {@link PlatformStatus#ACTIVE}.
+     * When a {@link TimeElapsedAction} is received while in {@link PlatformStatus#ACTIVE}, this method evaluates
+     * whether the platform should transition to {@link PlatformStatus#CHECKING} based on two timing conditions:
+     * <ul>
+     *   <li><b>Quiescing state check:</b> If the platform is currently quiescing, it remains in
+     *       {@link PlatformStatus#ACTIVE} regardless of elapsed time.</li>
+     *   <li><b>Time since (not/break) quiescence command:</b> If a grace period has not elapsed since the instruction to stop quiescence,
+     *   the status remains {@link PlatformStatus#ACTIVE}. This gives a recently created new event after quiescing enough time to reach consensus.</li>
+     *   <li><b>Time since last consensus:</b> If both above conditions pass, the method checks whether enough time
+     *     has elapsed since the last self event reached consensus and transitions to {@link PlatformStatus#CHECKING} if so.</li>
+     * </ul>
      */
     @NonNull
     @Override
     public PlatformStatusLogic processTimeElapsedAction(@NonNull final TimeElapsedAction action) {
+        final var isQuiescing = action.quiescingStatus().isQuiescing();
+        final boolean stopQuiesceGracePeriodElapsed = DurationUtils.isLonger(
+                Duration.between(action.quiescingStatus().since(), action.instant()), config.activeStatusDelay());
+
+        if (isQuiescing || !stopQuiesceGracePeriodElapsed) {
+            return this;
+        }
+
         final Duration timeSinceSelfEventReachedConsensus =
                 Duration.between(lastWallClockTimeSelfEventReachedConsensus, action.instant());
 

@@ -6,6 +6,8 @@ module com.hedera.state.validator {
     requires com.hedera.node.app.service.consensus;
     requires com.hedera.node.app.service.contract.impl;
     requires com.hedera.node.app.service.contract;
+    requires com.hedera.node.app.service.entityid.impl;
+    requires com.hedera.node.app.service.entityid;
     requires com.hedera.node.app.service.file.impl;
     requires com.hedera.node.app.service.file;
     requires com.hedera.node.app.service.network.admin.impl;
@@ -20,7 +22,6 @@ module com.hedera.state.validator {
     requires com.hedera.node.app;
     requires com.hedera.node.config;
     requires com.hedera.node.hapi;
-    requires com.hedera.node.test.clients;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.base;
     requires com.swirlds.cli;
