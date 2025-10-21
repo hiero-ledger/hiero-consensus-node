@@ -124,9 +124,9 @@ public interface FacilityInitModule {
                 final var bootstrapConfig = bootstrapConfigProvider.getConfiguration();
                 exchangeRateManager.init(state, schema.genesisExchangeRates(bootstrapConfig));
                 feeManager.update(schema.genesisFeeSchedules(bootstrapConfig));
-                if (bootstrapConfig.getConfigData(FeesConfig.class).simpleFeesEnabled()) {
+//                if (bootstrapConfig.getConfigData(FeesConfig.class).simpleFeesEnabled()) {
                     feeManager.updateSimpleFees(schema.genesisSimpleFeesSchedules(bootstrapConfig));
-                }
+//                }
                 throttleServiceManager.init(state, schema.genesisThrottleDefinitions(bootstrapConfig));
             }
             workingStateAccessor.setState(state);

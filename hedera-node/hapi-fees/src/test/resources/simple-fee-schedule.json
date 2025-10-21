@@ -1,6 +1,6 @@
 {
   "node": {
-    "base_fee": 1,
+    "baseFee": 1,
     "extras": [
       {
         "name": "SIGNATURES", "includedCount": 1
@@ -38,14 +38,14 @@
       "schedule": [
         {
           "name": "CryptoCreate",
-          "base_fee": 22,
+          "baseFee": 22,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1 }
           ]
         },
         {
           "name": "CryptoUpdate",
-          "base_fee": 22,
+          "baseFee": 22,
           "extras": [
             {  "name": "SIGNATURES", "includedCount": 1 },
             {  "name": "KEYS",       "includedCount": 1 }
@@ -53,7 +53,7 @@
         },
         {
           "name": "CryptoTransfer",
-          "base_fee": 18,
+          "baseFee": 18,
           "extras": [
             {  "name": "SIGNATURES", "includedCount": 1 },
             {  "name": "KEYS",       "includedCount": 1 },
@@ -68,14 +68,14 @@
       "schedule": [
         {
           "name": "ConsensusCreateTopic",
-          "base_fee": 19,
+          "baseFee": 19,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1 }
           ]
         },
         {
           "name": "ConsensusUpdateTopic",
-          "base_fee": 19,
+          "baseFee": 19,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1 },
             { "name": "KEYS",       "includedCount": 1 }
@@ -83,7 +83,7 @@
         },
         {
           "name": "ConsensusSubmitMessage",
-          "base_fee": 19,
+          "baseFee": 19,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1 },
             {  "name": "KEYS", "includedCount": 1      },
@@ -92,14 +92,14 @@
         },
         {
           "name": "ConsensusDeleteTopic",
-          "base_fee": 5,
+          "baseFee": 5,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1 }
           ]
         },
         {
           "name": "ConsensusGetTopicInfo",
-          "base_fee": 1,
+          "baseFee": 1,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1      },
             { "name": "KEYS",       "includedCount": 1      }
@@ -112,7 +112,7 @@
       "schedule": [
         {
           "name": "FileCreate",
-          "base_fee": 50,
+          "baseFee": 50,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1},
             { "name": "KEYS", "includedCount": 1},
@@ -121,7 +121,7 @@
         },
         {
           "name": "FileUpdate",
-          "base_fee": 50,
+          "baseFee": 50,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1},
             { "name": "KEYS", "includedCount": 1},
@@ -130,7 +130,7 @@
         },
         {
           "name": "FileAppend",
-          "base_fee": 50,
+          "baseFee": 50,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1},
             { "name": "KEYS", "includedCount": 1},
@@ -139,7 +139,7 @@
         },
         {
           "name": "FileDelete",
-          "base_fee": 7,
+          "baseFee": 7,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1},
             { "name": "KEYS", "includedCount": 1}
@@ -147,7 +147,7 @@
         },
         {
           "name": "FileGetContents",
-          "base_fee": 10,
+          "baseFee": 10,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1},
             { "name": "KEYS", "includedCount": 1},
@@ -161,14 +161,14 @@
       "schedule": [
         {
           "name": "TokenCreate",
-          "base_fee": 25,
+          "baseFee": 25,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1 }
           ]
         },
         {
           "name": "TokenMint",
-          "base_fee": 33,
+          "baseFee": 33,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1 },
             { "name": "STANDARD_FUNGIBLE_TOKENS", "includedCount": 1 },
