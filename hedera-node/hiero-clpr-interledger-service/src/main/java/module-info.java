@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 module org.hiero.interledger.clpr {
     exports org.hiero.interledger.clpr;
+    exports org.hiero.interledger.clpr.client;
 
     uses org.hiero.interledger.clpr.ClprService;
 

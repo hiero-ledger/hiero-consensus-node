@@ -72,6 +72,9 @@ import java.util.function.Supplier;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
+import org.hiero.interledger.clpr.ClprService;
+import org.hiero.interledger.clpr.impl.ClprEndpoint;
+import org.hiero.interledger.clpr.impl.ClprModule;
 
 /**
  * The infrastructure used to implement the platform contract for a Hedera Services node.
@@ -89,7 +92,8 @@ import org.hiero.consensus.transaction.TransactionPoolNexus;
             BlockStreamModule.class,
             PlatformModule.class,
             ThrottleServiceModule.class,
-            FacilityInitModule.class
+            FacilityInitModule.class,
+            ClprModule.class
         })
 public interface HederaInjectionComponent {
     InitTrigger initTrigger();
@@ -152,6 +156,8 @@ public interface HederaInjectionComponent {
     AsyncFatalIssListener fatalIssListener();
 
     CurrentPlatformStatus currentPlatformStatus();
+
+    ClprEndpoint clprEndpoint();
 
     @Component.Builder
     interface Builder {
@@ -235,6 +241,9 @@ public interface HederaInjectionComponent {
 
         @BindsInstance
         Builder appContext(AppContext appContext);
+
+        @BindsInstance
+        Builder clprService(ClprService clprService);
 
         HederaInjectionComponent build();
     }
