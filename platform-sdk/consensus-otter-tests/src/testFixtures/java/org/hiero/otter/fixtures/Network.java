@@ -16,6 +16,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.internal.helpers.Utils;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology;
+import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
 import org.hiero.otter.fixtures.network.utils.LatencyRange;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeEventStreamResults;
@@ -242,6 +243,14 @@ public interface Network {
      * @param latencyRange the latency range to apply to all connections
      */
     void setLatencyForAllConnections(@NonNull Node node, @NonNull LatencyRange latencyRange);
+
+    /**
+     * Sets the bandwidth limit for all connections from this node.
+     *
+     * @param node the node for which to set the bandwidth limit
+     * @param bandwidthLimit the bandwidth limit to apply to all connections
+     */
+    void setBandwidthForAllConnections(@NonNull Node node, @NonNull BandwidthLimit bandwidthLimit);
 
     /**
      * Restore the network connectivity to its original/default state. Removes all partitions, cliques, and custom

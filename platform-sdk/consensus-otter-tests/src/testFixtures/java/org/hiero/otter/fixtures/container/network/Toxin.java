@@ -9,6 +9,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Map;
 import org.assertj.core.data.Percentage;
+import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
 
 /**
  * Represents a network toxin that can be applied to a proxy to simulate network conditions.
@@ -89,7 +90,7 @@ public abstract class Toxin {
      */
     @JsonProperty
     @NonNull
-    public abstract Map<String, Long> attributes();
+    public abstract Map<String, Integer> attributes();
 
     /**
      * Creates a new toxin with the same configuration but applied in the opposite direction.
@@ -128,8 +129,8 @@ public abstract class Toxin {
         /**
          * {@inheritDoc}
          */
-        @NonNull
         @Override
+        @NonNull
         public Type type() {
             return Type.LATENCY;
         }
@@ -147,8 +148,8 @@ public abstract class Toxin {
          */
         @Override
         @NonNull
-        public Map<String, Long> attributes() {
-            return Map.of("latency", latency.toMillis(), "jitter", (long) (latency.toMillis() * jitter.value * 0.01));
+        public Map<String, Integer> attributes() {
+            return Map.of("latency", (int) latency.toMillis(), "jitter", (int) (latency.toMillis() * jitter.value * 0.01));
         }
 
         /**
@@ -156,7 +157,7 @@ public abstract class Toxin {
          */
         @NonNull
         @Override
-        public Toxin downstream() {
+        public LatencyToxin downstream() {
             return new LatencyToxin(latency, jitter, Stream.DOWNSTREAM);
         }
 
@@ -183,6 +184,60 @@ public abstract class Toxin {
             result = 31 * result + jitter.hashCode();
             result = 31 * result + stream.hashCode();
             return result;
+        }
+    }
+
+    /**
+     *  * A toxin that limits the bandwidth.
+     */
+    public static class BandwidthToxin extends Toxin {
+
+        private final BandwidthLimit bandwidthLimit;
+
+        /**
+         * Constructs a new BandwidthToxin instance.
+         *
+         * @param bandwidthLimit the bandwidth limit to apply
+         */
+        protected BandwidthToxin(@NonNull final BandwidthLimit bandwidthLimit) {
+            this(bandwidthLimit, Stream.UPSTREAM);
+        }
+
+        private BandwidthToxin(@NonNull final BandwidthLimit bandwidthLimit, @NonNull final Stream stream) {
+            super(stream);
+            this.bandwidthLimit = requireNonNull(bandwidthLimit);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        @NonNull
+        public Type type() {
+            return Type.BANDWIDTH;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public double toxicity() {
+            return 1.0;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        @NonNull
+        public Map<String, Integer> attributes() {
+            return Map.of("rate", bandwidthLimit.toKilobytesPerSecond());
+        }
+
+        @NonNull
+        @Override
+        public BandwidthToxin downstream() {
+            return new BandwidthToxin(bandwidthLimit, Stream.DOWNSTREAM);
         }
     }
 }

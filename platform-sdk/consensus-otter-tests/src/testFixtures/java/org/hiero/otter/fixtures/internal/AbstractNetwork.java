@@ -68,6 +68,7 @@ import org.hiero.otter.fixtures.internal.result.MultipleNodeReconnectResultsImpl
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology;
 import org.hiero.otter.fixtures.network.Topology.ConnectionData;
+import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
 import org.hiero.otter.fixtures.network.utils.LatencyRange;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeEventStreamResults;
@@ -120,6 +121,7 @@ public abstract class AbstractNetwork implements Network {
     private final Random random;
     private final Map<NodeId, PartitionImpl> networkPartitions = new HashMap<>();
     private final Map<ConnectionKey, LatencyOverride> latencyOverrides = new HashMap<>();
+    private final Map<ConnectionKey, BandwidthLimit> bandwidthOverrides = new HashMap<>();
     private final Topology topology;
     private final boolean useRandomNodeIds;
 
@@ -482,9 +484,24 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
+    public void setBandwidthForAllConnections(@NonNull final Node sender, @NonNull final BandwidthLimit bandwidthLimit) {
+        log.info("Setting bandwidth for all connections from node {} to {}", sender.selfId(), bandwidthLimit);
+        for (final Node receiver : nodes()) {
+            if (!receiver.equals(sender)) {
+                bandwidthOverrides.put(new ConnectionKey(sender.selfId(), receiver.selfId()), bandwidthLimit);
+            }
+        }
+        updateConnections();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void restoreConnectivity() {
         networkPartitions.clear();
         latencyOverrides.clear();
+        bandwidthOverrides.clear();
         updateConnections();
     }
 
@@ -856,13 +873,17 @@ public abstract class AbstractNetwork implements Network {
                 }
                 final ConnectionKey key = new ConnectionKey(sender.selfId(), receiver.selfId());
                 ConnectionData connectionData = topology().getConnectionData(sender, receiver);
+                if (getNetworkPartitionContaining(sender) != getNetworkPartitionContaining(receiver)) {
+                    connectionData = connectionData.withConnected(false);
+                }
                 final LatencyOverride latencyOverride = latencyOverrides.get(key);
                 if (latencyOverride != null) {
                     connectionData =
                             connectionData.withLatencyAndJitter(latencyOverride.latency(), latencyOverride.jitter());
                 }
-                if (getNetworkPartitionContaining(sender) != getNetworkPartitionContaining(receiver)) {
-                    connectionData = connectionData.withConnected(false);
+                final BandwidthLimit bandwidthOverride = bandwidthOverrides.get(key);
+                if (bandwidthOverride != null) {
+                    connectionData = connectionData.withBandwidthLimit(bandwidthOverride);
                 }
                 // add other effects (e.g., clique, latency) on connections here
                 connections.put(key, connectionData);
