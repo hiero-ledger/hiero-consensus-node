@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.stream.Stream;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.hiero.otter.fixtures.network.Partition;
+import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -62,62 +63,87 @@ class NetworkIsolationTest {
             assertThat(network.isIsolated(node2)).isFalse();
             assertThat(network.isIsolated(node3)).isFalse();
 
-            // Isolate node0
-            final Partition isolationPartition = network.isolate(node0);
+            for (int i = 0; i < 3; i++) {
 
-            // Verify the isolation was successful
-            assertThat(isolationPartition).isNotNull();
-            assertThat(isolationPartition.nodes()).containsExactly(node0);
-            assertThat(isolationPartition.contains(node0)).isTrue();
-            assertThat(isolationPartition.contains(node1)).isFalse();
-            assertThat(isolationPartition.contains(node2)).isFalse();
-            assertThat(isolationPartition.contains(node3)).isFalse();
+                // Capture logs from all nodes
+                final MultipleNodeLogResults logResults = network.newLogResults();
+                logResults.clear();
 
-            // Verify node0 is now isolated
-            assertThat(network.isIsolated(node0)).isTrue();
-            assertThat(network.isIsolated(node1)).isFalse();
-            assertThat(network.isIsolated(node2)).isFalse();
-            assertThat(network.isIsolated(node3)).isFalse();
+                // Isolate node0
+                final Partition isolationPartition = network.isolate(node0);
 
-            // Verify network knows about the isolation partition
-            assertThat(network.getNetworkPartitionContaining(node0)).isEqualTo(isolationPartition);
-            assertThat(network.networkPartitions()).hasSize(2); // isolation + remaining nodes
+                // Verify the isolation was successful
+                assertThat(isolationPartition).isNotNull();
+                assertThat(isolationPartition.nodes()).containsExactly(node0);
+                assertThat(isolationPartition.contains(node0)).isTrue();
+                assertThat(isolationPartition.contains(node1)).isFalse();
+                assertThat(isolationPartition.contains(node2)).isFalse();
+                assertThat(isolationPartition.contains(node3)).isFalse();
 
-            // Verify the remaining nodes are in a complementary partition
-            final Partition remainingPartition = network.getNetworkPartitionContaining(node1);
-            assertThat(remainingPartition).isNotNull().isNotEqualTo(isolationPartition);
-            assertThat(remainingPartition.nodes()).containsExactlyInAnyOrder(node1, node2, node3);
+                // Verify node0 is now isolated
+                assertThat(network.isIsolated(node0)).isTrue();
+                assertThat(network.isIsolated(node1)).isFalse();
+                assertThat(network.isIsolated(node2)).isFalse();
+                assertThat(network.isIsolated(node3)).isFalse();
 
-            // Wait for nodes to become inactive due to network partition
-            timeManager.waitForCondition(
-                    node0::isChecking, Duration.ofSeconds(120L), "Node did not enter CHECKING state after isolation");
+                // Verify network knows about the isolation partition
+                assertThat(network.getNetworkPartitionContaining(node0)).isEqualTo(isolationPartition);
+                assertThat(network.networkPartitions()).hasSize(2); // isolation + remaining nodes
 
-            timeManager.waitFor(Duration.ofSeconds(5)); // just to be sure
-            assertThat(node1.platformStatus()).isEqualTo(ACTIVE);
-            assertThat(node2.platformStatus()).isEqualTo(ACTIVE);
-            assertThat(node3.platformStatus()).isEqualTo(ACTIVE);
+                // Verify the remaining nodes are in a complementary partition
+                final Partition remainingPartition = network.getNetworkPartitionContaining(node1);
+                assertThat(remainingPartition).isNotNull().isNotEqualTo(isolationPartition);
+                assertThat(remainingPartition.nodes()).containsExactlyInAnyOrder(node1, node2, node3);
 
-            // Rejoin the isolated node
-            network.rejoin(node0);
+                // Wait for the isolated node to go into CHECKING due to the network
+                timeManager.waitForCondition(
+                        node0::isChecking,
+                        Duration.ofSeconds(120L),
+                        "Node did not enter CHECKING state after isolation");
 
-            // Verify the node is no longer isolated
-            assertThat(network.isIsolated(node0)).isFalse();
-            assertThat(network.isIsolated(node1)).isFalse();
-            assertThat(network.isIsolated(node2)).isFalse();
-            assertThat(network.isIsolated(node3)).isFalse();
+                timeManager.waitFor(Duration.ofSeconds(5)); // just to be sure
+                assertThat(node1.platformStatus()).isEqualTo(ACTIVE);
+                assertThat(node2.platformStatus()).isEqualTo(ACTIVE);
+                assertThat(node3.platformStatus()).isEqualTo(ACTIVE);
 
-            // Verify all partitions are removed
-            assertThat(network.networkPartitions()).isEmpty();
-            assertThat(network.getNetworkPartitionContaining(node0)).isNull();
-            assertThat(network.getNetworkPartitionContaining(node1)).isNull();
-            assertThat(network.getNetworkPartitionContaining(node2)).isNull();
-            assertThat(network.getNetworkPartitionContaining(node3)).isNull();
+                // check there are socket exceptions in all logs
+                //                if (env.capabilities().contains(Capability.USES_REAL_NETWORK)) {
+                //                    for (final SingleNodeLogResult logResult : logResults.results()) {
+                //                        final boolean socketExceptionFound = logResult.logs().stream()
+                //                                .map(StructuredLog::marker)
+                //                                .anyMatch(marker -> marker ==
+                // LogMarker.SOCKET_EXCEPTIONS.getMarker());
+                //                        assertThat(socketExceptionFound)
+                //                                .as(
+                //                                        "Expected node %d to have a SOCKET_EXCEPTION, but it did not",
+                //                                        logResult.nodeId().id())
+                //                                .isTrue();
+                //                        logResult.clear();
+                //                    }
+                //                }
 
-            // The nodes should be active again
-            timeManager.waitForCondition(
-                    network::allNodesAreActive,
-                    Duration.ofSeconds(120L),
-                    "Not all nodes became ACTIVE after rejoining");
+                // Rejoin the isolated node
+                network.rejoin(node0);
+
+                // Verify the node is no longer isolated
+                assertThat(network.isIsolated(node0)).isFalse();
+                assertThat(network.isIsolated(node1)).isFalse();
+                assertThat(network.isIsolated(node2)).isFalse();
+                assertThat(network.isIsolated(node3)).isFalse();
+
+                // Verify all partitions are removed
+                assertThat(network.networkPartitions()).isEmpty();
+                assertThat(network.getNetworkPartitionContaining(node0)).isNull();
+                assertThat(network.getNetworkPartitionContaining(node1)).isNull();
+                assertThat(network.getNetworkPartitionContaining(node2)).isNull();
+                assertThat(network.getNetworkPartitionContaining(node3)).isNull();
+
+                // The nodes should be active again
+                timeManager.waitForCondition(
+                        network::allNodesAreActive,
+                        Duration.ofSeconds(120L),
+                        "Not all nodes became ACTIVE after rejoining");
+            }
         } finally {
             env.destroy();
         }

@@ -27,10 +27,13 @@ import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.state.service.PlatformStateFacade;
+import com.swirlds.platform.state.service.PlatformStateService;
+import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.wiring.PlatformComponents;
+import com.swirlds.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -215,9 +218,14 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     OtterAppState::new);
 
             final ReservedSignedState initialState = reservedState.state();
+            final MerkleNodeState state = initialState.get().getState();
 
-            final RosterHistory rosterHistory =
-                    RosterUtils.createRosterHistory(initialState.get().getState());
+            // Set active the roster
+            final ReadablePlatformStateStore store =
+                    new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
+            RosterUtils.setActiveRoster(state, roster(), store.getRound() + 1);
+
+            final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
             final String eventStreamLoc = Long.toString(selfId.id());
 
             this.executionLayer = new OtterExecutionLayer(
