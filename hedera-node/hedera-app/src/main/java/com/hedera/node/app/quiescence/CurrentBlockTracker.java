@@ -1,11 +1,11 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.quiescence;
 
-import edu.umd.cs.findbugs.annotations.NonNull;
+import static java.util.Objects.requireNonNull;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-
-import static java.util.Objects.requireNonNull;
 
 /**
  * Holds the tracker for the in-progress block.

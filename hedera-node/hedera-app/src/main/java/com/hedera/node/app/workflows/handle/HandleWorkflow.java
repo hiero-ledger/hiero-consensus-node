@@ -223,12 +223,8 @@ public class HandleWorkflow {
         this.scheduleService = requireNonNull(scheduleService);
         this.congestionMetrics = requireNonNull(congestionMetrics);
         final var config = configProvider.getConfiguration();
-        this.streamMode = config
-                .getConfigData(BlockStreamConfig.class)
-                .streamMode();
-        this.quiescenceEnabled = config
-                .getConfigData(QuiescenceConfig.class)
-                .enabled();
+        this.streamMode = config.getConfigData(BlockStreamConfig.class).streamMode();
+        this.quiescenceEnabled = config.getConfigData(QuiescenceConfig.class).enabled();
         this.hintsService = requireNonNull(hintsService);
         this.historyService = requireNonNull(historyService);
         this.blockHashSigner = requireNonNull(blockHashSigner);

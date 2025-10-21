@@ -32,6 +32,7 @@ import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
+import com.hedera.node.app.quiescence.CurrentBlockTracker;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
@@ -511,7 +512,8 @@ class HandleWorkflowTest {
                 nodeRewardManager,
                 platformStateFacade,
                 blockBufferService,
-                Map.of());
+                Map.of(),
+                new CurrentBlockTracker());
     }
 
     @Test

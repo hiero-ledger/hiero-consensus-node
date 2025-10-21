@@ -5,7 +5,6 @@ import static com.hedera.services.bdd.junit.TestTags.RESTART;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupDuration;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
-import static com.hedera.services.bdd.suites.regression.system.MixedOperations.burstOfTps;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import java.util.stream.Stream;
@@ -26,10 +25,9 @@ public class MixedOpsRestartAndMaybeQuiesceTest implements LifecycleTest {
     @HapiTest
     final Stream<DynamicTest> restartMixedOpsAndMaybeQuiesce() {
         return hapiTest(
-//                burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
-//                LifecycleTest.restartAtNextConfigVersion(),
-//                burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
-                doWithStartupDuration(
-                        "quiescence.tctDuration", duration -> sleepForSeconds(2 * duration.toSeconds())));
+                //                burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
+                //                LifecycleTest.restartAtNextConfigVersion(),
+                //                burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
+                doWithStartupDuration("quiescence.tctDuration", duration -> sleepForSeconds(2 * duration.toSeconds())));
     }
 }

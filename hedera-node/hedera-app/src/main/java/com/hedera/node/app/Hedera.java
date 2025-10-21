@@ -480,7 +480,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         bootstrapConfigProvider = new BootstrapConfigProviderImpl();
         final var bootstrapConfig = bootstrapConfigProvider.getConfiguration();
         hapiVersion = bootstrapConfig.getConfigData(VersionConfig.class).hapiVersion();
-        quiescenceEnabled = bootstrapConfig.getConfigData(QuiescenceConfig.class).enabled();
+        quiescenceEnabled =
+                bootstrapConfig.getConfigData(QuiescenceConfig.class).enabled();
         final var versionConfig = bootstrapConfig.getConfigData(VersionConfig.class);
         version = versionConfig
                 .servicesVersion()
