@@ -239,7 +239,6 @@ public class ReconnectTest {
     }
 
     @OtterTest(requires = Capability.RECONNECT)
-    @Disabled
     void testReconnectSucceedsAfterFailure(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -274,7 +273,7 @@ public class ReconnectTest {
                 "Node did not enter BEHIND status within the expected time "
                         + "frame after synthetic bottleneck was enabled");
 
-        network.setBandwidthForAllConnections(nodeToReconnect, BandwidthLimit.ofKilobytesPerSecond(1));
+        network.isolate(nodeToReconnect);
 
         disableSyntheticBottleneck(nodeToReconnect);
 

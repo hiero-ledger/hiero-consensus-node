@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.reconnect;
 
+import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
@@ -73,7 +74,9 @@ public class ReconnectSyncHelper implements ReconnectNetworkHelper {
     public @NonNull ReservedSignedState receiveSignedState(@NonNull final SignedStateValidator validator)
             throws ReconnectException, InterruptedException {
         Connection connection = null;
+        logger.info(DEMO_INFO.getMarker(), "Waiting to receive a connection...");
         try (final LockedResource<Connection> conn = connectionProvider.waitForResource()) {
+            logger.info("Received a connection");
             connection = conn.getResource();
             final ReservedSignedState reservedState = reconnectLearner(connection, validator);
             return reservedState;
