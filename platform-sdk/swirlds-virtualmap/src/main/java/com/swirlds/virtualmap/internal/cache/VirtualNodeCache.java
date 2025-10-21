@@ -1251,6 +1251,11 @@ public final class VirtualNodeCache implements FastCopyable, SelfSerializable {
             final Map<K, Mutation<K, V>> index,
             @NonNull final VirtualMapConfig virtualMapConfig) {
         array.parallelTraverse(getCleaningPool(virtualMapConfig), element -> {
+            // If a cache copy is released after flush, some mutations may be already marked as
+            // filtered in dirtyLeavesForFlush() and dirtyHashesForFlush(). When a mutation is
+            // filtered, it means there is a newer mutation for the same key in the same cache
+            // copy. When this newer mutation is purged, it also takes care of the filtered
+            // mutation, so there is no need to handle filtered mutations explicitly
             if (element.notFiltered()) {
                 index.compute(element.key, (key, mutation) -> {
                     if ((mutation == null) || element.equals(mutation)) {
