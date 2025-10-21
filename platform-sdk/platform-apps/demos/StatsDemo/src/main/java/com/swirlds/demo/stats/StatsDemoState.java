@@ -22,6 +22,7 @@ import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.constructable.ConstructableIgnored;
+import org.hiero.base.crypto.Hash;
 
 /**
  * This demo collects statistics on the running of the network and consensus systems. It writes them to the
@@ -120,6 +121,11 @@ public class StatsDemoState extends MerkleStateRoot<StatsDemoState> implements M
 
     @Override
     public long kvPath(final int stateId, @NonNull Bytes key) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Hash getHashForPath(long path) {
         throw new UnsupportedOperationException();
     }
 }

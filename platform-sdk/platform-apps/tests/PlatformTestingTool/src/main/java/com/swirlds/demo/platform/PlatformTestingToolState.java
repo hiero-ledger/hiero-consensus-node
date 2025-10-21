@@ -43,6 +43,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
 import org.hiero.base.constructable.ConstructableIgnored;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.roster.RosterUtils;
@@ -512,6 +513,11 @@ public class PlatformTestingToolState extends MerkleStateRoot<PlatformTestingToo
 
     @Override
     public long kvPath(final int stateId, @NonNull final Bytes key) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Hash getHashForPath(long path) {
         throw new UnsupportedOperationException();
     }
 

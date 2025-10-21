@@ -5,6 +5,7 @@ import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
 import static org.hiero.consensus.model.status.PlatformStatus.OBSERVING;
 import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
+import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 import static org.hiero.otter.fixtures.tools.GenerateStateTool.SEED;
@@ -50,6 +51,15 @@ public class StartFromStateTest {
         // release
         network.version(
                 currentVersion.copyBuilder().minor(currentVersion.minor() + 1).build());
+
+        // Setup continuous assertions
+        assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
+        assertContinuouslyThat(network.newConsensusResults())
+                .haveEqualCommonRounds()
+                .haveConsistentRounds();
+        assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
+        assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
+
         network.start();
 
         final Map<NodeId, Long> lastRoundByNodeAtStart = network.newConsensusResults().results().stream()
@@ -59,20 +69,16 @@ public class StartFromStateTest {
                 .max()
                 .getAsLong();
 
-        // Wait for two minutes
-        timeManager.waitFor(Duration.ofMinutes(2L));
+        // Wait for 30 seconds
+        timeManager.waitFor(Duration.ofSeconds(30L));
 
         // Validations
         // Verify that all nodes made progress
         network.newConsensusResults().results().stream().forEach(result -> assertThat(result.lastRoundNum())
                 .isGreaterThan(lastRoundByNodeAtStart.get(result.nodeId())));
-        assertThat(network.newConsensusResults())
-                .haveAdvancedSinceRound(highesRound)
-                .haveEqualCommonRounds();
-        assertThat(network.newLogResults()).haveNoErrorLevelMessages();
         assertThat(network.newPlatformStatusResults())
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
-        assertThat(network.newMarkerFileResults()).haveNoMarkerFiles();
-        assertThat(network.newReconnectResults()).haveNoReconnects();
+
+        assertThat(network.newEventStreamResults()).haveEqualFiles();
     }
 }

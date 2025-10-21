@@ -25,6 +25,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.io.ExternalSelfSerializable;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
+import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.exceptions.IllegalChildIndexException;
@@ -538,18 +539,15 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         return 2;
     }
 
-    //  FUTURE WORK: Uncomment this once migration from the existing VirtualMap is done
-    //  See https://github.com/hiero-ledger/hiero-consensus-node/issues/19690
-    //    /**
-    //     * This is never called for a {@link VirtualMap}.
-    //     *
-    //     * {@inheritDoc}
-    //     */
-    //    @Override
-    //    protected void setChildInternal(final int index, final MerkleNode child) {
-    //        throw new UnsupportedOperationException("You cannot set the child of a VirtualMap directly with this
-    // API");
-    //    }
+    /**
+     * This is never called for a {@link VirtualMap}.
+     *
+     * {@inheritDoc}
+     */
+    @Override
+    protected void setChildInternal(final int index, final MerkleNode child) {
+        throw new UnsupportedOperationException("You cannot set the child of a VirtualMap directly with this API");
+    }
 
     /**
      * {@inheritDoc}
@@ -1555,12 +1553,17 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             // backpressure mechanism
             VirtualDataSource dataSourceCopy = null;
             try {
+                // Restore a data source into memory from the snapshot. It will use its own directory
+                // to store data files
                 dataSourceCopy = dataSourceBuilder.build(getLabel(), snapshotPath, false, true);
                 // Then flush the cache snapshot to the data source copy
                 flush(cacheSnapshot.getValue(), metadata, dataSourceCopy);
                 // And finally snapshot the copy to the target dir
                 dataSourceBuilder.snapshot(outputDirectory, dataSourceCopy);
             } finally {
+                // Delete the snapshot directory
+                FileUtils.deleteDirectory(snapshotPath);
+                // And delete the data source copy directory
                 if (dataSourceCopy != null) {
                     dataSourceCopy.close();
                 }
