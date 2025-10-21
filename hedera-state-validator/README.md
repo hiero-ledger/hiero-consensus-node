@@ -283,12 +283,12 @@ java -jar ./validator-<version>.jar {path-to-state-round} apply-blocks {path-to-
 ### Parameters
 
 - `{path-to-state-round}` - Location of the state files (required).
-- `{path-to-block-stream-files}` - Location of the block stream files (required).
 
 ### Options
 
+- `--block-stream-dir` (or `-d`) - Location of the block stream files (required).
 - `--out` (or `-o`) - The location where the resulting snapshot is written. Must not exist prior to invocation. Default = `./out`.
-- `--id` (or `-i`) - The ID of the node that is being used to recover the state. This node's keys should be available locally.
+- `--node-id` (or `-id`) - The ID of the node that is being used to recover the state. This node's keys should be available locally.
 - `--target-round` (or `-t`) - The last round that should be applied to the state, any higher rounds are ignored. If a target round is specified, the command will not apply rounds beyond it, even if additional block files exist.
 - `--expected-hash` (or `-h`) - Expected hash of the resulting state. If specified, the command can validate the hash of the resulting state against it.
 

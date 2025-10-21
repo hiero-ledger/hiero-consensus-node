@@ -9,7 +9,6 @@ import java.nio.file.Path;
 import org.hiero.consensus.model.node.NodeId;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
-import picocli.CommandLine.Parameters;
 import picocli.CommandLine.ParentCommand;
 
 @Command(name = "apply-blocks", description = "Update the state by applying blocks from a block stream.")
@@ -27,7 +26,10 @@ public class ApplyBlocksCommand extends ParameterizedClass implements Runnable {
 
     private ApplyBlocksCommand() {}
 
-    @Parameters(index = "0", description = "The path to a directory tree containing block stream files.")
+    @Option(
+            names = {"-d", "--block-stream-dir"},
+            required = true,
+            description = "The path to a directory tree containing block stream files.")
     private void setBlockStreamDirectory(final Path blockStreamDirectory) {
         this.blockStreamDirectory = pathMustExist(blockStreamDirectory.toAbsolutePath());
     }
@@ -41,7 +43,7 @@ public class ApplyBlocksCommand extends ParameterizedClass implements Runnable {
     }
 
     @Option(
-            names = {"-i", "--id"},
+            names = {"-id", "--node-id"},
             required = true,
             description = "The ID of the node that is being used to recover the state. "
                     + "This node's keys should be available locally.")
