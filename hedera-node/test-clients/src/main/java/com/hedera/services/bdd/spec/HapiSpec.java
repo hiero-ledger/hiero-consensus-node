@@ -22,6 +22,7 @@ import static com.hedera.services.bdd.spec.HapiSpecSetup.getDefaultPropertySourc
 import static com.hedera.services.bdd.spec.HapiSpecSetup.setupFrom;
 import static com.hedera.services.bdd.spec.infrastructure.HapiClients.clientsFor;
 import static com.hedera.services.bdd.spec.keys.DefaultKeyGen.DEFAULT_KEY_GEN;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.doIfNotInterrupted;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.resourceAsString;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.turnLoggingOff;
@@ -129,6 +130,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.LongFunction;
@@ -945,12 +947,17 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
 
     private void fundNodeAccounts() {
         targetNetwork.nodes().forEach(node -> {
+            final AtomicLong nodeBalance = new AtomicLong(0);
             final var nodeAccount = node.getAccountId();
             if (nodeAccount != null) {
-                allRunFor(
-                        this,
-                        cryptoTransfer(movingHbar(ONE_HUNDRED_HBARS)
-                                .between(setup().defaultPayerName(), asAccountString(nodeAccount))));
+                allRunFor(this, getAccountBalance(asAccountString(nodeAccount)).exposingBalanceTo(nodeBalance::set));
+                if (nodeBalance.get() <= 0) {
+                    allRunFor(
+                            this,
+                            cryptoTransfer(movingHbar(ONE_HUNDRED_HBARS)
+                                            .between(setup().defaultPayerName(), asAccountString(nodeAccount)))
+                                    .memo("Initial funding for node account " + nodeAccount.accountNum()));
+                }
             }
         });
     }

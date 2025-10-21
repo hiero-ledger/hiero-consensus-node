@@ -177,6 +177,7 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
 
     protected Account nodeSelfAccount = Account.newBuilder()
             .accountId(nodeSelfAccountId)
+            .tinybarBalance(100_000_000)
             .key(FAKE_ED25519_KEY_INFOS[0].publicKey())
             .declineReward(true)
             .build();
