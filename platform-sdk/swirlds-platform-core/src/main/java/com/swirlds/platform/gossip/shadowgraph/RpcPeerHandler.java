@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.shadowgraph;
 
+import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
 import static com.swirlds.platform.gossip.shadowgraph.SyncUtils.getMyTipsTheyKnow;
 import static com.swirlds.platform.gossip.shadowgraph.SyncUtils.getTheirTipsIHave;
@@ -197,6 +198,8 @@ public class RpcPeerHandler implements GossipRpcReceiver {
     public void cleanup() {
         clearInternalState();
         sharedShadowgraphSynchronizer.deregisterPeerHandler(this);
+        this.syncMetrics.reportSyncPhase(peerId, SyncPhase.OUTSIDE_OF_RPC);
+        logger.info(RECONNECT.getMarker(), "Cleanup of peer protocol to {}", peerId);
     }
 
     // HANDLE INCOMING MESSAGES - all done on dispatch thread
