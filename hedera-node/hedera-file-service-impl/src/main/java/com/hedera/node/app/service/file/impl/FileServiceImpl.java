@@ -6,6 +6,7 @@ import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
 import com.hedera.node.app.spi.RpcService;
 import com.hedera.node.app.spi.workflows.SystemContext;
+import com.hedera.node.config.data.FeesConfig;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
@@ -42,7 +43,9 @@ public final class FileServiceImpl implements FileService {
     public void createSystemEntities(@NonNull final SystemContext context, @NonNull final ReadableNodeStore nodeStore) {
         fileSchema.createGenesisAddressBookAndNodeDetails(context, nodeStore);
         fileSchema.createGenesisFeeSchedule(context);
-        fileSchema.createGenesisSimpleFeesSchedule(context);
+        if (!context.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
+            fileSchema.createGenesisSimpleFeesSchedule(context);
+        }
         fileSchema.createGenesisExchangeRate(context);
         fileSchema.createGenesisNetworkProperties(context);
         fileSchema.createGenesisHapiPermissions(context);
