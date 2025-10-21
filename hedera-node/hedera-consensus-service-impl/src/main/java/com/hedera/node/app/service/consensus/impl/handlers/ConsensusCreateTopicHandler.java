@@ -11,7 +11,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_EXPIRATION_TIME
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_KEY_IN_FEE_EXEMPT_KEY_LIST;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTRIES_FOR_FEE_EXEMPT_KEY_LIST_EXCEEDED;
-import static com.hedera.node.app.hapi.utils.CommonUtils.productWouldOverflow;
 import static com.hedera.node.app.hapi.utils.fee.ConsensusServiceFeeBuilder.getConsensusCreateTopicFee;
 import static com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl.RUNNING_HASH_BYTE_ARRAY_SIZE;
 import static com.hedera.node.app.spi.validation.AttributeValidator.isImmutableKey;
@@ -25,7 +24,6 @@ import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.consensus.ConsensusCreateTopicTransactionBody;
 import com.hedera.hapi.node.state.consensus.Topic;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
-import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.WritableTopicStore;
@@ -46,7 +44,6 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.TopicsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hederahashgraph.api.proto.java.ExchangeRate;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
@@ -219,21 +216,6 @@ public class ConsensusCreateTopicHandler implements TransactionHandler {
 
         /* Validate the topic memo */
         handleContext.attributeValidator().validateMemo(op.memo());
-    }
-
-    public static long tinycentsToTinybars(final long amount, final ExchangeRate rate) {
-        final var hbarEquiv = rate.getHbarEquiv();
-        if (productWouldOverflow(amount, hbarEquiv)) {
-            return FeeBuilder.getTinybarsFromTinyCents(rate, amount);
-        }
-        return amount * hbarEquiv / rate.getCentEquiv();
-    }
-
-    public static Fees feeResultToFees(FeeResult feeResult, ExchangeRate rate) {
-        return new Fees(
-                tinycentsToTinybars(feeResult.node, rate),
-                tinycentsToTinybars(feeResult.network, rate),
-                tinycentsToTinybars(feeResult.service, rate));
     }
 
     @NonNull
