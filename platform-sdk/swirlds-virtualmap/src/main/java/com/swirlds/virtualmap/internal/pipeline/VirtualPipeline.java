@@ -214,7 +214,7 @@ public class VirtualPipeline {
             } while (timeSleptSoFar < sleepTimeMillis);
 
             // Record actual sleep time
-            logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Total size backpressure: {} ms", timeSleptSoFar);
+            logger.warn(VIRTUAL_MERKLE_STATS.getMarker(), "Total size backpressure: {} ms", timeSleptSoFar);
             statistics.recordFamilySizeBackpressureMs((int) timeSleptSoFar);
         } catch (final InterruptedException ex) {
             Thread.currentThread().interrupt();

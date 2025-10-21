@@ -43,6 +43,7 @@ env:
   SOLO_DEPLOYMENT: "solo-tck-deployment"
   SOLO_CLUSTER_SETUP_NAMESPACE: "solo-setup"
   GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
+  RUN_LOG_NAME: "run.tck-regression.log"
 
 jobs:
   # Execute TCK Regression Tests using specified version of hiero-consensus-node
@@ -152,60 +153,14 @@ jobs:
           echo "pid=${server_pid}" >> "${GITHUB_OUTPUT}"
         working-directory: platform-sdk/sdk-server/tck
 
-      # Install solo and configure to use the artifacts from
-      # the hiero-consensus-node build
-      - name: Install Solo
-        run: npm install -g @hashgraph/solo@${{ inputs.solo-version || 'latest' }}
-
-      # Set up kind; needed for configuring the solo environment
-      - name: Setup Kind
-        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+      # Prepare Hiero Solo
+      - name: Prepare Hiero Solo
+        id: solo-action
+        uses: hiero-ledger/hiero-solo-action@8cda77e13916d1ed8f80eb07361a474a264be005 # latest on `main` currently
         with:
-          install_only: true
-          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
-          version: v0.26.0
-          kubectl_version: v1.31.4
-          verbosity: 3
-          wait: 120s
-
-      # Set up solo
-      - name: Configure and run solo
-        run: |
-          kind create cluster -n "${{ env.SOLO_CLUSTER_NAME }}"
-
-          # Initialize solo
-          solo init
-
-          # check solo version
-          version=$(solo --version | grep Version | awk '{print $3}')
-          if [[ "$(printf '%s\n' "$version" "0.44.0" | sort -V | head -n1)" == "0.44.0" ]]; then
-            echo "::debug::Solo version >= 0.44.0"
-            solo cluster-ref config connect --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --context kind-${{ env.SOLO_CLUSTER_NAME }}
-            solo deployment config create -n "${{ env.SOLO_NAMESPACE }}" --deployment "${{ env.SOLO_DEPLOYMENT }}"
-            solo deployment cluster attach --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --num-consensus-nodes 1
-            solo keys consensus generate --gossip-keys --tls-keys -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-            solo cluster-ref config setup -s "${{ env.SOLO_CLUSTER_SETUP_NAMESPACE }}"
-            solo consensus network deploy  -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-            solo consensus node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
-            solo consensus node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-            solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --mirror-node-version "v0.138.0"
-          else
-            echo "::debug::Solo version < 0.44.0"
-            solo cluster-ref connect --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --context kind-${{ env.SOLO_CLUSTER_NAME }}
-            solo deployment create -n "${{ env.SOLO_NAMESPACE }}" --deployment "${{ env.SOLO_DEPLOYMENT }}"
-            solo deployment add-cluster --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --num-consensus-nodes 1
-            solo node keys --gossip-keys --tls-keys -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-            solo cluster-ref setup -s "${{ env.SOLO_CLUSTER_SETUP_NAMESPACE }}"
-            solo network deploy -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-            solo node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
-            solo node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-            solo mirror-node deploy --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --mirror-node-version "v0.138.0"
-          fi
-
-          kubectl port-forward svc/haproxy-node1-svc -n "${{ env.SOLO_NAMESPACE }}" 50211:non-tls-grpc-client-port &
-          kubectl port-forward svc/mirror-monitor -n "${{ env.SOLO_NAMESPACE }}" 5600:http &
-          kubectl port-forward svc/mirror-rest -n "${{ env.SOLO_NAMESPACE }}" 5551:http &
-          kubectl port-forward svc/mirror-restjava -n "${{ env.SOLO_NAMESPACE }}" 8084:http &
+          installMirrorNode: true
+          mirrorNodeVersion: v0.138.0
+          soloVersion: ${{ inputs.solo-version || 'latest' }}
 
       # Start the TCK client
       - name: Start tck-client
@@ -216,12 +171,15 @@ jobs:
           NODE_IP: "127.0.0.1:50211"
           MIRROR_NODE_REST_URL: "http://127.0.0.1:5551"
           MIRROR_NODE_REST_JAVA_URL: "http://127.0.0.1:8084"
+          NODE_TIMEOUT: "30000"
+          MIRROR_NETWORK: "127.0.0.1:5600"
+          NODE_ACCOUNT_ID: "0.0.3"
         run: |
           version=$(solo --version | grep Version | awk '{print $3}')
           if [[ "$(printf '%s\n' "$version" "0.44.0" | sort -V | head -n1)" == "0.44.0" ]]; then
-            solo ledger account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
+            solo ledger account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ steps.solo-action.outputs.deployment }} --hbar-amount 1000000
           else
-            solo account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
+            solo account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ steps.solo-action.outputs.deployment }} --hbar-amount 1000000
           fi
           cp .env.custom_node .env
           npm run test
@@ -244,22 +202,22 @@ jobs:
           for job_id in $(gh run view ${{ github.run_id }} --json jobs --jq '.jobs | map(.databaseId) | .[0:-1] | .[]'); do
             echo "Fetching logs for job ${job_id}..."
 
-            current_job_name=$(gh run view ${{ github.run_id }} --json jobs | jq --argjson job_id "${job_id}" -r '.jobs[] | select(.databaseId == ${job_id}) | .name')
+            current_job_name=$(gh run view ${{ github.run_id }} --json jobs | jq --argjson job_id "${job_id}" -r '.jobs[] | select(.databaseId == $job_id) | .name')
 
-            echo "Logs for job $current_job_name :" >> run.log
+            echo "Logs for job $current_job_name :" >> "${RUN_LOG_NAME}"
 
             gh api \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
-            /repos/hiero-ledger/hiero-consensus-node/actions/jobs/"${job_id}"/logs >> run.log
+            /repos/hiero-ledger/hiero-consensus-node/actions/jobs/"${job_id}"/logs >> "${RUN_LOG_NAME}"
           done
 
       - name: Upload log as artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         continue-on-error: true
         with:
-          name: Run Logs
-          path: run.log
+          name: SDK TCK Run Logs
+          path: ${{ env.RUN_LOG_NAME }}
 
       # Stop the TCK server
       - name: Stop tck-server
@@ -267,12 +225,6 @@ jobs:
         run: |
           echo ${{ steps.start-sdk-server.outputs.pid }}
           kill -9 ${{ steps.start-sdk-server.outputs.pid }}
-
-      # Stop the solo nodes
-      - name: Stop solo
-        if: ${{ always() }}
-        run: |
-          kind delete cluster -n ${{ env.SOLO_CLUSTER_NAME }}
 
   report-tck-regression-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
