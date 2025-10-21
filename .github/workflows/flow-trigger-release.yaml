@@ -276,7 +276,7 @@ jobs:
           echo "Deleting the temporary semantic release branch"
           git branch -d "${{ steps.branch.outputs.name }}"
           echo "Deleted Temporary Branch from Local Runner" >> ${GITHUB_STEP_SUMMARY}
-          
+
           if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
             echo "No remote branches to delete"
           else
