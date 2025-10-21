@@ -52,6 +52,11 @@ on:
         default: ""
         type: string
         description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
+      run_NLGDparams:
+        required: false
+        default: "-Dbenchmark.stepDuration=5m -Dbenchmark.coolDown=2m"
+        type: string
+        description: 'Special miniLongevity settings. Newline is "\n"'
       disable-notifications:
         required: false
         default: true
@@ -139,6 +144,7 @@ jobs:
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
+      run_NLGDparams: "${{ inputs.run_NLGDparams }}"
       add-settings: "${{ inputs.add-settings }}"
       delete-namespace: ${{ inputs.delete-namespace }}
     secrets:

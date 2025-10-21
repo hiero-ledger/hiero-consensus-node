@@ -39,6 +39,11 @@ on:
         default: ""
         type: string
         description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
+      run_NLGDparams:
+        required: false
+        default: "-Dbenchmark.stepDuration=5m -Dbenchmark.coolDown=2m"
+        type: string
+        description: 'Special miniLongevity settings. Newline is "\n"'
       delete-namespace:
         required: false
         default: true
@@ -84,6 +89,11 @@ jobs:
       commit-sha: ${{ steps.hederahash.outputs.sha }}
       waiterMatrix: ${{ steps.matrix.outputs.value }}
       kubernetes-cluster: ${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
+      NFTscore: ${{ steps.NftTransferLoadTestLogs.outputs.value }}
+      Cryptoscore: ${{ steps.CryptoTransferLoadTestLogs.outputs.value }}
+      HCSscore: ${{ steps.HCSLoadTestLogs.outputs.value }}
+      Smartscore: ${{ steps.SmartContractLoadTestLogs.outputs.value }}
+
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -237,7 +247,11 @@ jobs:
           echo "hederahash=${hederahash}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
       - name: Compile
-        run: ./gradlew clean assemble
+        run: ./gradlew --no-daemon clean assemble
+
+      - name: Build Validator
+        run: |
+          ./gradlew --no-daemon :hedera-state-validator:shadowJar
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -437,7 +451,7 @@ jobs:
       - name: Start Longevity test
         run: |
           #FIXME: to parameterize
-          run_NLGDparams="-Dbenchmark.stepDuration=5m -Dbenchmark.coolDown=2m" # e.g. -Dbenchmark.maxtps=8000
+          run_NLGDparams="${{ inputs.run_NLGDparams }}" # e.g. -Dbenchmark.maxtps=8000
           run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
           nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
           n=`expr ${{ inputs.nlg-accounts }} / 1000`
@@ -455,76 +469,6 @@ jobs:
             ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${test} \
             ${NLGargs} -tt ${{ inputs.nlg-time }}m > client.log 2>&1 &"
           sleep 30
-      - id: matrix
-        run: |
-          runs=$(((${{ inputs.nlg-time }}+${{ env.TIMEOUT_6H_LIMIT }}-1)/${{ env.TIMEOUT_6H_LIMIT }}))
-          runs=$(expr ${runs} + 1)
-          matrix=$(seq 1 1 ${runs} | perl -ne '~s/\n//g; print "\"$_\","' | sed -e 's/^\(.*\)[,]$/\1/g')
-          echo "value=[${matrix}]"
-          echo "value=[${matrix}]" >> $GITHUB_OUTPUT
-
-  longevity-tests-wait:
-    name: Wait for Longevity test
-    runs-on: hiero-citr-linux-large
-    if: ${{ !cancelled() }}
-    needs:
-      - longevity-tests-start
-    strategy:
-      max-parallel: 1
-      fail-fast: true
-      matrix:
-        value: ${{fromJSON(needs.longevity-tests-start.outputs.waiterMatrix)}}
-
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
-        with:
-          egress-policy: audit
-
-      - name: Check Test Asset
-        id: set-k8s-cluster
-        run: |
-          K8S_CLUSTER="k8s.pft.dal.lat.ope.eng.hashgraph.io"
-          if [[ "${{ inputs.test-asset }}" =~ ^AdHoc(SD)?[0-9]+$ ]]; then
-            K8S_CLUSTER="k8s.pft.chi.lat.ope.eng.hashgraph.io"
-          fi
-          echo "kubernetes-cluster=${K8S_CLUSTER}" >> "${GITHUB_OUTPUT}"
-
-      - name: Install KubeCtl
-        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
-        with:
-          version: v1.33.0
-
-      - name: Install Teleport Client
-        uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
-        with:
-          version: 18.1.4
-
-      - name: Authorize Teleport SSH Access
-        id: auth-ssh
-        uses: teleport-actions/auth@685adaf480dc79262a99220eb158a92136d5abd9 # v2.0.3
-        with:
-          proxy: hashgraph.teleport.sh:443
-          token: gh-citr-performance-svcs-bot
-
-      - name: Authorize Teleport K8S Access
-        id: auth-k8s
-        uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
-        with:
-          proxy: hashgraph.teleport.sh:443
-          token: gh-citr-performance-svcs-bot
-          kubernetes-cluster: ${{ needs.longevity-tests-start.outputs.kubernetes-cluster }}
-          certificate-ttl: 20h
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: ${{ inputs.ref }}
-
-      - name: Create report dir
-        shell: bash
-        run: |
-          mkdir "${{ github.workspace }}"/report
 
       - name: Wait for Longevity
         run: |
@@ -610,75 +554,26 @@ jobs:
           echo "Finished, exit code=${ec}"
           exit ${ec}
 
-  longevity-tests-finish:
-    name: Read results of Longevity test
-    runs-on: hiero-citr-linux-large
-    if: ${{ !cancelled() }}
-    needs:
-      - longevity-tests-start
-      - longevity-tests-wait
-    outputs:
-      NFTscore: ${{ steps.NftTransferLoadTestLogs.outputs.value }}
-      #Heliscore: ${{ steps.HeliSwapLoadTestLogs.outputs.value }}
-      Cryptoscore: ${{ steps.CryptoTransferLoadTestLogs.outputs.value }}
-      HCSscore: ${{ steps.HCSLoadTestLogs.outputs.value }}
-      Smartscore: ${{ steps.SmartContractLoadTestLogs.outputs.value }}
-
-    steps:
-      - name: Check Test Asset
-        id: set-k8s-cluster
+      - name: Deploy Validator
         run: |
-          K8S_CLUSTER="k8s.pft.dal.lat.ope.eng.hashgraph.io"
-          if [[ "${{ inputs.test-asset }}" =~ ^AdHoc(SD)?[0-9]+$ ]]; then
-            K8S_CLUSTER="k8s.pft.chi.lat.ope.eng.hashgraph.io"
-          fi
-          echo "kubernetes-cluster=${K8S_CLUSTER}" >> "${GITHUB_OUTPUT}"
+          set +x
+          set +e
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" \
+            cp ${{ github.workspace }}/hedera-state-validator/build/libs/hedera-state-validator-*-SNAPSHOT-all.jar network-node1-0:/tmp/
 
-      - name: Install KubeCtl
-        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
-        with:
-          version: v1.33.0
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" \
+            exec -it network-node1-0 -c root-container -- bash -c "mkdir /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/validation.tmp"
 
-      - name: Install Teleport Client
-        uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
-        with:
-          version: 18.1.4
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" \
+            cp "${{ github.workspace }}"/.github/workflows/support/citr/checkValidatorNode.sh network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/checkValidatorNode.sh
 
-      - name: Authorize Teleport SSH Access
-        id: auth-ssh
-        uses: teleport-actions/auth@685adaf480dc79262a99220eb158a92136d5abd9 # v2.0.3
-        with:
-          proxy: hashgraph.teleport.sh:443
-          token: gh-citr-performance-svcs-bot
-
-      - name: Authorize Teleport K8S Access
-        id: auth-k8s
-        uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
-        with:
-          proxy: hashgraph.teleport.sh:443
-          token: gh-citr-performance-svcs-bot
-          kubernetes-cluster: ${{ needs.longevity-tests-start.outputs.kubernetes-cluster }}
-          certificate-ttl: 20h
-
-      - name: Authenticate to Google Cloud
-        id: google-auth
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
-        with:
-          workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
-          service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
-
-      - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: ${{ inputs.ref }}
-
-      - name: Create report dir
-        shell: bash
+      - name: Run Validator
         run: |
-          mkdir "${{ github.workspace }}"/report
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" \
+            exec -it network-node1-0 -c root-container -- bash -c "cd /opt/hgcapp/services-hedera/HapiApp2.0; sh checkValidatorNode.sh 0" > ${{ github.workspace }}/report/validator.log 2>&1
+
+          cat ${{ github.workspace }}/report/validator.log
+          grep -E 'validation .* is OK' ${{ github.workspace }}/report/validator.log
 
       - name: Copy logs
         run: |
@@ -762,7 +657,7 @@ jobs:
     runs-on: hiero-citr-linux-large
     if: ${{ !cancelled() }}
     needs:
-      - longevity-tests-finish
+      - longevity-tests-start
     outputs:
       result: ${{ steps.sdlt-status.outputs.result }}
     steps:
@@ -775,11 +670,11 @@ jobs:
         id: sdlt-status
         run: |
           RESULT="failure"
-          NFT="${{ needs.longevity-tests-finish.outputs.NFTscore }}"
-          #HELI="${{ needs.longevity-tests-finish.outputs.Heliscore }}"
-          CRYPTO="${{ needs.longevity-tests-finish.outputs.Cryptoscore }}"
-          HCS="${{ needs.longevity-tests-finish.outputs.HCSscore }}"
-          SMART="${{ needs.longevity-tests-finish.outputs.Smartscore }}"
+          NFT="${{ needs.longevity-tests-start.outputs.NFTscore }}"
+          #HELI="${{ needs.longevity-tests-start.outputs.Heliscore }}"
+          CRYPTO="${{ needs.longevity-tests-start.outputs.Cryptoscore }}"
+          HCS="${{ needs.longevity-tests-start.outputs.HCSscore }}"
+          SMART="${{ needs.longevity-tests-start.outputs.Smartscore }}"
 
           # Check if any variable is empty. If it is, we set the result to failure.
           if [ -z "${NFT}" ] || [ -z "${CRYPTO}" ] || [ -z "${HCS}" ] || [ -z "${SMART}" ]; then
@@ -798,9 +693,8 @@ jobs:
     runs-on: hiero-citr-linux-medium
     needs:
       - longevity-tests-start
-      - longevity-tests-finish
       - mini-longevity-test-result
-    #if: ${{ (needs.longevity-tests-finish.result != 'success' ||
+    #if: ${{ (needs.longevity-tests-start.result != 'success' ||
     #  needs.mini-longevity-test-result.result != 'success') &&
     #  !cancelled() && always() }}
     steps:
@@ -833,7 +727,7 @@ jobs:
             echo 'summary<<EOF'
             echo "------------------------------------"
             echo "Status of each jobs:"
-            echo "- Longevity Tests Start: ${{ needs.longevity-tests-finish.result }}"
+            echo "- Longevity Tests Start: ${{ needs.longevity-tests-start.result }}"
             echo "- Mini Longevity Test Result: ${{ needs.mini-longevity-test-result.result }}"
             echo "------------------------------------"
             echo "Commit information:"
@@ -872,7 +766,7 @@ jobs:
   longevity-report-to-Slack:
     runs-on: hiero-citr-linux-medium
     needs:
-      - longevity-tests-finish
+      - longevity-tests-start
       - mini-longevity-test-result
 
     steps:
@@ -904,10 +798,10 @@ jobs:
         run: |
 
           report="\
-            NftTransferLoadTest ${{ needs.longevity-tests-finish.outputs.NFTscore }} \n\
-            HCSLoadTest ${{ needs.longevity-tests-finish.outputs.HCSscore }} \n\
-            CryptoTransferLoadTest ${{ needs.longevity-tests-finish.outputs.Cryptoscore }} \n\
-            SmartContractLoadTest ${{ needs.longevity-tests-finish.outputs.Smartscore }}"
+            NftTransferLoadTest ${{ needs.longevity-tests-start.outputs.NFTscore }} \n\
+            HCSLoadTest ${{ needs.longevity-tests-start.outputs.HCSscore }} \n\
+            CryptoTransferLoadTest ${{ needs.longevity-tests-start.outputs.Cryptoscore }} \n\
+            SmartContractLoadTest ${{ needs.longevity-tests-start.outputs.Smartscore }}"
           #last line is 5, it does not need comma block separator
           freport=`/usr/bin/echo -e "$report" | awk '{print $1" "$2}'| perl -ne 'if ($. < 4) {$comma=","} else {$comma="";} ($t,$d)=split(/\s+/,$_,2);printf("{\"type\": \"text\",\"text\": \"%-25s %7d \\\n\"}%s",$t,$d,$comma);'`
           freport="{\"type\": \"text\",\"text\": \"Name                          TPS\n\"},$freport"
