@@ -199,22 +199,27 @@ jobs:
         if: ${{ inputs.dry-run-enabled != true }}
         run: |
           echo "Applying computed version tag"
-          git tag --annotate "v${{ steps.next-release.outputs.version }}" --message "v${{ steps.next-release.outputs.version }}"
-          echo "Applied tag v${{ steps.next-release.outputs.version }}"
-          current_version="$(git-semver latest)"
-          echo "Version Tag Applied: v${{ steps.next-release.outputs.version }}" >> ${GITHUB_STEP_SUMMARY}
-          echo "Current Official Version: ${current_version}" >> ${GITHUB_STEP_SUMMARY}
+          if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
+            echo "Dry run enabled, not applying tag "v${{ steps.next-release.outputs.version }}"
+          else
+            git tag --annotate "v${{ steps.next-release.outputs.version }}" --message "v${{ steps.next-release.outputs.version }}"
+            echo "Applied tag v${{ steps.next-release.outputs.version }}"
+            current_version="$(git-semver latest)"
+            echo "Version Tag Applied: v${{ steps.next-release.outputs.version }}" >> ${GITHUB_STEP_SUMMARY}
+            echo "Current Official Version: ${current_version}" >> ${GITHUB_STEP_SUMMARY}
+          fi
 
       - name: Push Release Tag to Remote
         if: ${{ inputs.dry-run-enabled != true }}
         run: |
           echo "Pushing release tag to remote"
           git push origin tag "v${{ steps.next-release.outputs.version }}"
-          echo "Pushed new release tag to remote"
+          echo "Pushed new release tag v${{ steps.next-release.outputs.version }} to remote"
 
       - name: Create Release Notes with Markdown
         id: release
-        if: ${{ inputs.alpha-release != true }} # Skip step if alpha-release is true
+        # Skip step if alpha-release is true, or we are dry running workflow
+        if: ${{ inputs.alpha-release != true || inputs.dry-run-enabled != true }}
         run: |
           echo git-semver log --markdown "${{ steps.next-release.outputs.version }}" > "RELEASE.md"
           git-semver log --markdown "${{ steps.next-release.outputs.version }}" > "RELEASE.md"
@@ -269,10 +274,13 @@ jobs:
         if: always()
         run: |
           echo "Deleting the temporary semantic release branch"
-          echo "Deleting local branch now:"
           git branch -d "${{ steps.branch.outputs.name }}"
           echo "Deleted Temporary Branch from Local Runner" >> ${GITHUB_STEP_SUMMARY}
-
-          echo "Deleting remote branch now:"
-          git push -d origin "${{ steps.branch.outputs.name }}"
-          echo "Deleted Temporary Branch from Remote" >> ${GITHUB_STEP_SUMMARY}
+          
+          if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
+            echo "No remote branches to delete"
+          else
+            echo "Deleting remote branch now:"
+            git push -d origin "${{ steps.branch.outputs.name }}"
+            echo "Deleted Temporary Branch from Remote" >> ${GITHUB_STEP_SUMMARY}
+          fi
