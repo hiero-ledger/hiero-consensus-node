@@ -125,14 +125,15 @@ public class FeeModelRegistry {
     }
 
     public static FeeModel lookupModel(HederaFunctionality service, boolean customFees) {
-        return lookupModel(service.protoName(),customFees);
+        return lookupModel(service.protoName(), customFees);
     }
+
     public static FeeModel lookupModel(HederaFunctionality service) {
-        return lookupModel(service.protoName(),false);
+        return lookupModel(service.protoName(), false);
     }
 
     public static FeeModel lookupModel(String service, boolean customFees) {
-        var name = customFees? service + "CustomFees" : service;
+        var name = customFees ? service + "CustomFees" : service;
         if (!registry.containsKey(name)) {
             throw new IllegalArgumentException("No registered model found for service " + name);
         }

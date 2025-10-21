@@ -44,7 +44,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
-import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.TopicsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.ExchangeRate;
@@ -270,8 +269,7 @@ public class ConsensusCreateTopicHandler implements TransactionHandler {
         params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
         params.put(Extra.KEYS, (long) key_count);
         return entity.computeFee(
-                params,
-                feeContext.feeCalculatorFactory().feeCalculator(subType).getSimpleFeesSchedule());
+                params, feeContext.feeCalculatorFactory().feeCalculator(subType).getSimpleFeesSchedule());
     }
 
     private FeeData usageGiven(

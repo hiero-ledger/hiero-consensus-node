@@ -20,10 +20,9 @@ import com.hedera.node.app.spi.workflows.WarmupContext;
 import com.hedera.node.config.data.FeesConfig;
 import com.hederahashgraph.api.proto.java.ExchangeRate;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.hapi.fees.FeeResult;
-
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.hapi.fees.FeeResult;
 
 /**
  * A {@code TransactionDispatcher} provides functionality to forward pre-check, pre-handle, and handle-transaction
@@ -133,7 +132,8 @@ public class TransactionDispatcher {
         }
 
         return switch (feeContext.body().data().kind()) {
-            case CONSENSUS_CREATE_TOPIC, CONSENSUS_SUBMIT_MESSAGE, CONSENSUS_UPDATE_TOPIC, CONSENSUS_DELETE_TOPIC -> true;
+            case CONSENSUS_CREATE_TOPIC, CONSENSUS_SUBMIT_MESSAGE, CONSENSUS_UPDATE_TOPIC, CONSENSUS_DELETE_TOPIC ->
+                true;
             default -> false;
         };
     }
