@@ -334,8 +334,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 blockNumber,
                 blockDirPath.toAbsolutePath());
         try {
-            final var onDiskPendingBlocks =
-                    loadContiguousPendingBlocks(blockDirPath, blockNumber, maxReadDepth(config), maxReadSize(config));
+            final var onDiskPendingBlocks = loadContiguousPendingBlocks(
+                    blockDirPath, blockNumber, maxReadDepth(config), maxReadBytesSize(config));
             if (onDiskPendingBlocks.isEmpty()) {
                 log.info("No contiguous pending blocks found for block #{}", blockNumber);
                 final var pendingWriter = writerSupplier.get();
@@ -980,8 +980,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         return config.getConfigData(BlockStreamConfig.class).maxReadDepth();
     }
 
-    private static int maxReadSize(@NonNull final Configuration config) {
+    private static int maxReadBytesSize(@NonNull final Configuration config) {
         requireNonNull(config);
-        return config.getConfigData(BlockStreamConfig.class).maxReadSize();
+        return config.getConfigData(BlockStreamConfig.class).maxReadBytesSize();
     }
 }

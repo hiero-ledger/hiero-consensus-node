@@ -137,7 +137,7 @@ public class BlockBufferService {
             @NonNull final ConfigProvider configProvider, @NonNull final BlockStreamMetrics blockStreamMetrics) {
         this.configProvider = configProvider;
         this.blockStreamMetrics = blockStreamMetrics;
-        this.bufferIO = new BlockBufferIO(bufferDirectory(), maxReadDepth(), maxReadSize());
+        this.bufferIO = new BlockBufferIO(bufferDirectory(), maxReadDepth(), maxReadBytesSize());
     }
 
     private boolean isGrpcStreamingEnabled() {
@@ -301,11 +301,11 @@ public class BlockBufferService {
     /**
      * @return the max read size of a block protobuf <b>in bytes</b>
      */
-    private int maxReadSize() {
+    private int maxReadBytesSize() {
         return configProvider
                 .getConfiguration()
                 .getConfigData(BlockStreamConfig.class)
-                .maxReadSize();
+                .maxReadBytesSize();
     }
 
     /**

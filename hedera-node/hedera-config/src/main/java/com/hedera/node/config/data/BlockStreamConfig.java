@@ -22,7 +22,7 @@ import java.time.Duration;
  * @param receiptEntriesBatchSize the maximum number of receipts to accumulate in a {@link com.hedera.hapi.node.state.recordcache.TransactionReceiptEntries} wrapper before writing a queue state changes item to the block stream
  * @param workerLoopSleepDuration the duration to sleep between iterations of the worker loop
  * @param maxReadDepth the max allowed depth of nested protobuf messages
- * @param maxReadSize the max size in bytes of protobuf messages to read
+ * @param maxReadBytesSize the max size in bytes of protobuf messages to read
  */
 @ConfigData("blockStream")
 public record BlockStreamConfig(
@@ -36,7 +36,7 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "8192") @Min(1) @NetworkProperty int receiptEntriesBatchSize,
         @ConfigProperty(defaultValue = "10ms") @Min(1) @NodeProperty Duration workerLoopSleepDuration,
         @ConfigProperty(defaultValue = Integer.MAX_VALUE + "") @NodeProperty int maxReadDepth,
-        @ConfigProperty(defaultValue = "500000000") @NodeProperty int maxReadSize) { // ~500 MB
+        @ConfigProperty(defaultValue = "500000000") @NodeProperty int maxReadBytesSize) { // ~500 MB
 
     /**
      * Whether to stream to block nodes.
