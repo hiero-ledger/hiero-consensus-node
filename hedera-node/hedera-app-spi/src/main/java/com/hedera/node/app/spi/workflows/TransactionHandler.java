@@ -4,6 +4,7 @@ package com.hedera.node.app.spi.workflows;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.hapi.fees.FeeResult;
 
 /**
  * A {@code TransactionHandler} contains all methods for the different stages of a single operation.
@@ -57,6 +58,18 @@ public interface TransactionHandler {
         return Fees.FREE;
     }
 
+    /**
+     * Calculates the fees for a transaction in USD using the Simple Fees HIP
+     * https://hips.hedera.com/hip/hip-1261
+     * @param feeContext the {@link FeeContext} with all information need for the calculation
+     * @return the calculated {@link FeeResult}
+     * @throws NullPointerException if {@code feeContext} is {@code null}
+     */
+    @NonNull
+    default FeeResult calculateFeeResult(@NonNull final FeeContext feeContext) {
+        throw new RuntimeException("we shouldn't be here. we should be using simple fees");
+//        return new FeeResult();
+    }
     /**
      * Handles a transaction
      *
