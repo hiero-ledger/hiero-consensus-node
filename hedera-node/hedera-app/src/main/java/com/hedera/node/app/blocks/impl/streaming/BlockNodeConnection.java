@@ -984,17 +984,21 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             logWithContext(logger, INFO, "Worker thread started");
             while (true) {
                 try {
+                    if (connectionState.get().isTerminal()) {
+                        break;
+                    }
+
                     doWork();
 
-                    final ConnectionState state = getConnectionState();
-                    if (state.isTerminal()) {
+                    if (connectionState.get().isTerminal()) {
                         // The connection is in a terminal state so allow the worker to stop
                         break;
-                    } else {
-                        Thread.sleep(connectionWorkerSleepMillis());
                     }
+
+                    Thread.sleep(connectionWorkerSleepMillis());
                 } catch (final InterruptedException e) {
                     Thread.currentThread().interrupt();
+                    logWithContext(logger, WARN, "Worker loop was interrupted");
                 } catch (final Exception e) {
                     logWithContext(logger, WARN, "Error caught in connection worker loop", e);
                 }
