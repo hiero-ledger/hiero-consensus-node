@@ -13,6 +13,7 @@ import com.swirlds.common.metrics.extensions.CountPerSecond;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.logging.legacy.payload.ReconnectFailurePayload;
+import com.swirlds.logging.legacy.payload.ReconnectFailurePayload.CauseOfFailure;
 import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.platform.Utilities;
@@ -357,20 +358,33 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
 
         } catch (final RuntimeException | InterruptedException e) {
             if (Utilities.isOrCausedBySocketException(e)) {
-                logger.error(EXCEPTION.getMarker(), () -> new ReconnectFailurePayload(
-                                "Got socket exception while receiving a signed state! "
-                                        + NetworkUtils.formatException(e),
-                                ReconnectFailurePayload.CauseOfFailure.SOCKET)
-                        .toString());
+                logger.error(
+                        EXCEPTION.getMarker(),
+                        () -> new ReconnectFailurePayload(
+                                        "Got socket exception while receiving a signed state! "
+                                                + NetworkUtils.formatException(e),
+                                        ReconnectFailurePayload.CauseOfFailure.SOCKET)
+                                .toString(),
+                        e);
+                // We don't close the connection in this case since being a socket exception the connection might be
+                // already closed
             } else {
-                // For compatibility with past code, though not quite sure why
-                // it would disconnect on any other exception that is not a socket one
+                logger.warn(
+                        EXCEPTION.getMarker(),
+                        () -> new ReconnectFailurePayload(
+                                        "Got an unexpected exception while receiving a signed state! ",
+                                        CauseOfFailure.ERROR)
+                                .toString(),
+                        e);
+                // We are closing the connection as we don't know the state in which is in
+                // it might contain non-read bytes.
                 if (connection != null) {
                     connection.disconnect();
                 }
             }
+            reservedSignedStatePromise.release();
             // Throwing a NetworkProtocolException makes initiateFailed() method to execute.
-            // That should release the permit and allow another peer protocol to execute.
+            // That should release the permit and allow another peer protocol to execute. REVIEW it does not!
             throw new NetworkProtocolException(e);
         }
     }
