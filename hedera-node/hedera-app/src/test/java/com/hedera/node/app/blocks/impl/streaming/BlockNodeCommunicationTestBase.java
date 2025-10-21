@@ -88,11 +88,9 @@ public abstract class BlockNodeCommunicationTestBase {
         return HederaTestConfigBuilder.create()
                 .withValue("blockStream.writerMode", "FILE_AND_GRPC")
                 .withValue("blockNode.blockNodeConnectionFileDir", configPath)
-                .withValue("blockStream.blockItemBatchSize", BATCH_SIZE);
-    }
-
-    protected TestConfigBuilder withValue(TestConfigBuilder builder, final String key, final Object value) {
-        return builder.withValue(key, value);
+                .withValue("blockStream.blockItemBatchSize", BATCH_SIZE)
+                .withValue("blockNode.highLatencyEventsBeforeSwitching", 3)
+                .withValue("blockNode.highLatencyThresholdMs", 500);
     }
 
     protected ConfigProvider createConfigProvider(final TestConfigBuilder configBuilder) {
@@ -128,11 +126,15 @@ public abstract class BlockNodeCommunicationTestBase {
                 .build();
     }
 
-    protected static BlockNodeConfig newBlockNodeConfig(final int port, final int priority) {
+    protected static BlockNodeConfig newBlockNodeConfig(final String host, final int port, final int priority) {
         return BlockNodeConfig.newBuilder()
-                .address("localhost")
+                .address(host)
                 .port(port)
                 .priority(priority)
                 .build();
+    }
+
+    protected static BlockNodeConfig newBlockNodeConfig(final int port, final int priority) {
+        return newBlockNodeConfig("localhost", port, priority);
     }
 }

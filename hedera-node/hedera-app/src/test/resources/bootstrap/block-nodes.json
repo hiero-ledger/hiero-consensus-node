@@ -1,6 +1,6 @@
 {
   "nodes": [
-    { "address": "localhost", "port": 8080, "priority": 1 },
-    { "address": "localhost", "port": 8081, "priority": 2 }
+    { "address": "localhost", "port": 8080, "priority": 0 },
+    { "address": "localhost", "port": 8081, "priority": 1 }
   ]
 }
