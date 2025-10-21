@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.container.network;
 
 import static java.util.Objects.requireNonNull;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -12,10 +13,10 @@ import org.assertj.core.data.Percentage;
 /**
  * Represents a network toxin that can be applied to a proxy to simulate network conditions.
  */
-public interface Toxin {
+public abstract class Toxin {
 
     /** The types of toxins that can be applied to a proxy. */
-    enum Type {
+    public enum Type {
         /** A toxin that adds latency to the network traffic. */
         @JsonProperty("latency")
         LATENCY,
@@ -26,7 +27,7 @@ public interface Toxin {
     }
 
     /** The direction of the toxin (upstream or downstream). */
-    enum Stream {
+    public enum Stream {
         /** The toxin applies to upstream traffic (client -> server). */
         @JsonProperty("upstream")
         UPSTREAM,
@@ -36,6 +37,12 @@ public interface Toxin {
         DOWNSTREAM
     }
 
+    protected final Stream stream;
+
+    protected Toxin(@NonNull final Stream stream) {
+        this.stream = stream;
+    }
+
     /**
      * The name of the toxin.
      *
@@ -43,7 +50,7 @@ public interface Toxin {
      */
     @JsonProperty
     @NonNull
-    default String name() {
+    public String name() {
         return type() + "_" + stream();
     }
 
@@ -54,7 +61,7 @@ public interface Toxin {
      */
     @JsonProperty
     @NonNull
-    Type type();
+    public abstract Type type();
 
     /**
      * The direction of the toxin (upstream or downstream).
@@ -63,8 +70,8 @@ public interface Toxin {
      */
     @JsonProperty
     @NonNull
-    default Stream stream() {
-        return Stream.UPSTREAM;
+    public Stream stream() {
+        return stream;
     }
 
     /**
@@ -73,7 +80,7 @@ public interface Toxin {
      * @return the toxicity of the toxin
      */
     @JsonProperty
-    double toxicity();
+    public abstract double toxicity();
 
     /**
      * Additional attributes specific to the type of toxin.
@@ -82,12 +89,21 @@ public interface Toxin {
      */
     @JsonProperty
     @NonNull
-    Map<String, Long> attributes();
+    public abstract Map<String, Long> attributes();
+
+    /**
+     * Creates a new toxin with the same configuration but applied in the opposite direction.
+     *
+     * @return the downstream toxin
+     */
+    @JsonIgnore
+    @NonNull
+    public abstract Toxin downstream();
 
     /**
      * A toxin that adds latency to the network traffic.
      */
-    class LatencyToxin implements Toxin {
+    public static class LatencyToxin extends Toxin {
 
         private final Duration latency;
         private final Percentage jitter;
@@ -99,6 +115,12 @@ public interface Toxin {
          * @param jitter the percentage of jitter to apply to the latency
          */
         public LatencyToxin(@NonNull final Duration latency, @NonNull final Percentage jitter) {
+            this(latency, jitter, Stream.UPSTREAM);
+        }
+
+        private LatencyToxin(
+                @NonNull final Duration latency, @NonNull final Percentage jitter, @NonNull final Stream stream) {
+            super(stream);
             this.latency = requireNonNull(latency);
             this.jitter = requireNonNull(jitter);
         }
@@ -129,6 +151,18 @@ public interface Toxin {
             return Map.of("latency", latency.toMillis(), "jitter", (long) (latency.toMillis() * jitter.value * 0.01));
         }
 
+        /**
+         * {@inheritDoc}
+         */
+        @NonNull
+        @Override
+        public Toxin downstream() {
+            return new LatencyToxin(latency, jitter, Stream.DOWNSTREAM);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
         @Override
         public boolean equals(final Object o) {
             if (this == o) {
@@ -140,12 +174,15 @@ public interface Toxin {
             }
 
             final LatencyToxin that = (LatencyToxin) o;
-            return latency.equals(that.latency) && jitter.equals(that.jitter);
+            return latency.equals(that.latency) && jitter.equals(that.jitter) && stream == that.stream();
         }
 
         @Override
         public int hashCode() {
-            return 31 * latency.hashCode() + jitter.hashCode();
+            int result = latency.hashCode();
+            result = 31 * result + jitter.hashCode();
+            result = 31 * result + stream.hashCode();
+            return result;
         }
     }
 }

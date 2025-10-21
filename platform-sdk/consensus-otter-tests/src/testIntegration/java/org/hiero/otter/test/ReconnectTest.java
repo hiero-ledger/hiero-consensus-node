@@ -27,6 +27,7 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.network.utils.LatencyRange;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.junit.jupiter.api.Disabled;
@@ -263,7 +264,7 @@ public class ReconnectTest {
                 "Node did not enter BEHIND status within the expected time "
                         + "frame after synthetic bottleneck was enabled");
 
-        // TODO increase the latency for all connections, must be higher than 1 second to trigger reconnect timeout
+        network.setLatencyForAllConnections(nodeToReconnect, LatencyRange.of(Duration.ofSeconds(2L)));
 
         disableSyntheticBottleneck(nodeToReconnect);
 
@@ -311,7 +312,7 @@ public class ReconnectTest {
                 "Node did not enter BEHIND status within the expected time "
                         + "frame after synthetic bottleneck was enabled");
 
-        // TODO increase the latency for all connections, must be higher than 1 second to trigger reconnect timeout
+        network.setLatencyForAllConnections(nodeToReconnect, LatencyRange.of(Duration.ofSeconds(2L)));
 
         disableSyntheticBottleneck(nodeToReconnect);
 

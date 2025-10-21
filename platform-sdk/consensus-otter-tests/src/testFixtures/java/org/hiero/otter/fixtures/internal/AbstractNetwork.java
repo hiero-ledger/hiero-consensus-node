@@ -463,13 +463,19 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void setLatencyForAllConnections(@NonNull final Node sender, @NonNull final LatencyRange latencyRange) {
+        log.info("Setting latency for all connections from node {} to range {}", sender.selfId(), latencyRange);
         for (final Node receiver : nodes()) {
             if (!receiver.equals(sender)) {
-                final long nanos = random.nextLong(latencyRange.min().toNanos(), latencyRange.max().toNanos());
-                final LatencyOverride latencyOverride = new LatencyOverride(Duration.ofNanos(nanos), latencyRange.jitterPercent());
+                final long nanos = latencyRange.min().equals(latencyRange.max())
+                        ? latencyRange.max().toNanos()
+                        : random.nextLong(
+                                latencyRange.min().toNanos(), latencyRange.max().toNanos());
+                final LatencyOverride latencyOverride =
+                        new LatencyOverride(Duration.ofNanos(nanos), latencyRange.jitterPercent());
                 latencyOverrides.put(new ConnectionKey(sender.selfId(), receiver.selfId()), latencyOverride);
             }
         }
+        updateConnections();
     }
 
     /**
@@ -478,6 +484,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     public void restoreConnectivity() {
         networkPartitions.clear();
+        latencyOverrides.clear();
         updateConnections();
     }
 
@@ -849,6 +856,11 @@ public abstract class AbstractNetwork implements Network {
                 }
                 final ConnectionKey key = new ConnectionKey(sender.selfId(), receiver.selfId());
                 ConnectionData connectionData = topology().getConnectionData(sender, receiver);
+                final LatencyOverride latencyOverride = latencyOverrides.get(key);
+                if (latencyOverride != null) {
+                    connectionData =
+                            connectionData.withLatencyAndJitter(latencyOverride.latency(), latencyOverride.jitter());
+                }
                 if (getNetworkPartitionContaining(sender) != getNetworkPartitionContaining(receiver)) {
                     connectionData = connectionData.withConnected(false);
                 }

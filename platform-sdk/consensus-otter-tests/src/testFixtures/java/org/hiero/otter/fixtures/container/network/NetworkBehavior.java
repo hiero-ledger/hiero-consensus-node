@@ -61,6 +61,8 @@ public class NetworkBehavior {
 
         final List<NodeId> nodeIds =
                 roster.rosterEntries().stream().map(RosterUtils::getNodeId).toList();
+        final Toxin upstreamLatencyToxin = new LatencyToxin(INITIAL_STATE.latency(), INITIAL_STATE.jitter());
+        final Toxin downstreamLatencyToxin = upstreamLatencyToxin.downstream();
         for (final RosterEntry receiverEntry : roster.rosterEntries()) {
             final NodeId receiver = NodeId.of(receiverEntry.nodeId());
             final ServiceEndpoint endpoint = receiverEntry.gossipEndpoint().getFirst();
@@ -79,8 +81,8 @@ public class NetworkBehavior {
                 final String connectionName = "%d-%d".formatted(sender.id(), receiver.id());
                 final Proxy proxy = new Proxy(connectionName, listenAddress, receiverAddress, true);
                 proxies.put(connectionKey, toxiproxyClient.createProxy(proxy));
-                final LatencyToxin latencyToxin = new LatencyToxin(INITIAL_STATE.latency(), INITIAL_STATE.jitter());
-                toxiproxyClient.createToxin(proxy, latencyToxin);
+                toxiproxyClient.createToxin(proxy, upstreamLatencyToxin);
+                toxiproxyClient.createToxin(proxy, downstreamLatencyToxin);
                 connections.put(connectionKey, INITIAL_STATE);
             }
         }
@@ -147,13 +149,20 @@ public class NetworkBehavior {
                 connectionKey.sender(),
                 connectionKey.receiver(),
                 newConnectionData.latency());
-        final Proxy proxy = proxies.get(connectionKey);
-        if (proxy == null) {
+        final Proxy upstreamProxy = proxies.get(connectionKey);
+        if (upstreamProxy == null) {
             throw new IllegalStateException("No proxy found for sender %s and receiver %s"
                     .formatted(connectionKey.sender(), connectionKey.receiver()));
         }
         final LatencyToxin latencyToxin = new LatencyToxin(newConnectionData.latency(), newConnectionData.jitter());
-        toxiproxyClient.updateToxin(proxy, latencyToxin);
+        toxiproxyClient.updateToxin(upstreamProxy, latencyToxin);
+        final ConnectionKey reverseConnectionKey = connectionKey.reverted();
+        final Proxy reverseProxy = proxies.get(reverseConnectionKey);
+        if (reverseProxy == null) {
+            throw new IllegalStateException("No proxy found for sender %s and receiver %s"
+                    .formatted(reverseConnectionKey.sender(), reverseConnectionKey.receiver()));
+        }
+        toxiproxyClient.updateToxin(reverseProxy, latencyToxin.downstream());
     }
 
     /**
