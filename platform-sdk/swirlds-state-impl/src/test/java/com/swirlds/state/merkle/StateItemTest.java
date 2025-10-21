@@ -155,7 +155,7 @@ class StateItemTest {
             final var baos = new ByteArrayOutputStream();
             final var out = new WritableStreamingData(baos);
             // Create a tag with correct field number (2) but wrong wire type (use VARINT instead of DELIMITED)
-            final int field = StateItem.StateItemCodec.KEY_FIELD_ORDINAL;
+            final int field = StateItem.StateItemCodec.FIELD_KEY.number();
             final int wrongWire = WIRE_TYPE_VARINT_OR_ZIGZAG.ordinal();
             final int tag = (field << TAG_FIELD_OFFSET) | wrongWire;
             out.writeVarInt(tag, false);
@@ -171,7 +171,7 @@ class StateItemTest {
             final var baos = new ByteArrayOutputStream();
             final var out = new WritableStreamingData(baos);
             final int keyTag =
-                    (StateItem.StateItemCodec.KEY_FIELD_ORDINAL << TAG_FIELD_OFFSET) | WIRE_TYPE_DELIMITED.ordinal();
+                    (StateItem.StateItemCodec.FIELD_KEY.number() << TAG_FIELD_OFFSET) | WIRE_TYPE_DELIMITED.ordinal();
             out.writeVarInt(keyTag, false);
             out.writeVarInt(0, false); // key size = 0
             // Now write an invalid value tag with wrong field number (e.g., 4 instead of 3)

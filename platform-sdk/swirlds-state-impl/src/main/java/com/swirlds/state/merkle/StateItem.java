@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle;
 
-import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_DELIMITED;
-import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
+import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfTag;
+import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfVarInt32;
+import static com.hedera.pbj.runtime.ProtoWriterTools.writeTag;
 import static java.lang.StrictMath.toIntExact;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
+import com.hedera.pbj.runtime.FieldDefinition;
+import com.hedera.pbj.runtime.FieldType;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoParserTools;
@@ -46,8 +49,10 @@ public record StateItem(@NonNull Bytes key, @NonNull Bytes value) {
      */
     public static final class StateItemCodec implements Codec<StateItem> {
 
-        public static final int KEY_FIELD_ORDINAL = 2;
-        public static final int VALUE_FIELD_ORDINAL = 3;
+        static final FieldDefinition FIELD_KEY =
+                new FieldDefinition("keyBytes", FieldType.BYTES, false, 2);
+        static final FieldDefinition FIELD_VALUE =
+                new FieldDefinition("keyBytes", FieldType.BYTES, false, 3);
 
         /**
          * Parses a StateItem object from ProtoBuf bytes in a {@link ReadableSequentialData}. Throws if in strict mode ONLY.
@@ -69,42 +74,60 @@ public record StateItem(@NonNull Bytes key, @NonNull Bytes value) {
                 final int maxDepth,
                 final int maxSize)
                 throws ParseException {
+
             // read key tag
-            final int keyTag = input.readVarInt(false);
-            final int keyFieldNum = keyTag >> ProtoParserTools.TAG_FIELD_OFFSET;
-            if (keyFieldNum != KEY_FIELD_ORDINAL) {
-                throw new ParseException(
-                        "StateItem key field num mismatch: expected=" + KEY_FIELD_ORDINAL + ", actual=" + keyFieldNum);
+            final int firstFieldNum = extractFieldNum(input);
+            Bytes keyBytes = null;
+            Bytes valueBytes = null;
+            if (firstFieldNum == FIELD_KEY.number()) {
+                keyBytes = readBytes(input, FIELD_KEY);
+            } else if (firstFieldNum == FIELD_VALUE.number()) {
+                valueBytes = readBytes(input, FIELD_VALUE);
+            } else {
+                throw new ParseException("StateItem unknown field num: " + firstFieldNum);
             }
-            final int wireType = keyTag & ProtoConstants.TAG_WIRE_TYPE_MASK;
+
+            final int secondFieldNum = extractFieldNum(input);
+            if (secondFieldNum == FIELD_KEY.number()) {
+                keyBytes = readBytes(input, FIELD_KEY);
+            } else if (secondFieldNum == FIELD_VALUE.number()) {
+                valueBytes = readBytes(input, FIELD_VALUE);
+            } else {
+                throw new ParseException("StateItem unknown field num: " + secondFieldNum);
+            }
+
+            assert keyBytes != null;
+            assert valueBytes != null;
+
+            return new StateItem(keyBytes, valueBytes);
+        }
+
+        private static int extractFieldNum(ReadableSequentialData input) throws ParseException {
+            final int tag = input.readVarInt(false);
+            final int wireType = tag & ProtoConstants.TAG_WIRE_TYPE_MASK;
             if (wireType != ProtoConstants.WIRE_TYPE_DELIMITED.ordinal()) {
                 throw new ParseException("StateItem key wire type mismatch: expected="
                         + ProtoConstants.WIRE_TYPE_DELIMITED.ordinal() + ", actual=" + wireType);
             }
+            return tag >> ProtoParserTools.TAG_FIELD_OFFSET;
+        }
+
+        private static Bytes readBytes(ReadableSequentialData input, FieldDefinition fieldDefinition)
+                throws ParseException {
+            final ProtoConstants wireType = ProtoWriterTools.wireType(fieldDefinition);
+            if (wireType != ProtoConstants.WIRE_TYPE_DELIMITED) {
+                throw new ParseException("StateItem key wire type mismatch: expected="
+                        + ProtoConstants.WIRE_TYPE_DELIMITED.ordinal() + ", actual=" + wireType);
+            }
+
+            Bytes keyBytes;
             final int keySize = input.readVarInt(false);
-            final Bytes keyBytes;
             if (keySize == 0) {
                 keyBytes = Bytes.EMPTY;
             } else {
                 keyBytes = input.readBytes(keySize);
             }
-
-            final int valueTag = input.readVarInt(false);
-            final int valueFieldNum = valueTag >> ProtoParserTools.TAG_FIELD_OFFSET;
-
-            if (valueFieldNum != VALUE_FIELD_ORDINAL) {
-                throw new ParseException("StateItem value field num mismatch: expected=" + VALUE_FIELD_ORDINAL
-                        + ", actual=" + keyFieldNum);
-            }
-            final int valueSize = input.readVarInt(false);
-            final Bytes valueBytes;
-            if (valueSize == 0) {
-                valueBytes = Bytes.EMPTY;
-            } else {
-                valueBytes = input.readBytes(valueSize);
-            }
-
-            return new StateItem(keyBytes, valueBytes);
+            return keyBytes;
         }
 
         /**
@@ -116,14 +139,14 @@ public record StateItem(@NonNull Bytes key, @NonNull Bytes value) {
          */
         public void write(@NonNull StateItem data, @NonNull final WritableSequentialData out) throws IOException {
             // [2] - key
-            out.writeVarInt((KEY_FIELD_ORDINAL << TAG_FIELD_OFFSET) | WIRE_TYPE_DELIMITED.ordinal(), false);
+            writeTag(out, FIELD_KEY);
             // Write size
             out.writeVarInt(toIntExact(data.key.length()), false);
             // Write key
             out.writeBytes(data.key);
 
             // [3] - key
-            out.writeVarInt((VALUE_FIELD_ORDINAL << TAG_FIELD_OFFSET) | WIRE_TYPE_DELIMITED.ordinal(), false);
+            writeTag(out, FIELD_VALUE);
             // Write size
             out.writeVarInt(toIntExact(data.value.length()), false);
             // Write value
@@ -146,20 +169,16 @@ public record StateItem(@NonNull Bytes key, @NonNull Bytes value) {
         @Override
         public int measureRecord(StateItem item) {
             int size = 0;
-            // Key tag size
-            size += ProtoWriterTools.sizeOfVarInt32((KEY_FIELD_ORDINAL << ProtoParserTools.TAG_FIELD_OFFSET)
-                    | ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG.ordinal());
+
+            size += sizeOfTag(FIELD_KEY);
             // key size counter size
-            size += ProtoWriterTools.sizeOfVarInt32(toIntExact(item.key.length()));
+            size += sizeOfVarInt32(toIntExact(item.key.length()));
             // Key size
             size += toIntExact(item.key.length());
 
-            // value tag size
-            size += ProtoWriterTools.sizeOfVarInt32((VALUE_FIELD_ORDINAL << ProtoParserTools.TAG_FIELD_OFFSET)
-                    | ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG.ordinal());
-
+            size += sizeOfTag(FIELD_VALUE);
             // value size counter size
-            size += ProtoWriterTools.sizeOfVarInt32(toIntExact(item.value().length()));
+            size += sizeOfVarInt32(toIntExact(item.value().length()));
             // value size
             size += toIntExact(item.value.length());
 

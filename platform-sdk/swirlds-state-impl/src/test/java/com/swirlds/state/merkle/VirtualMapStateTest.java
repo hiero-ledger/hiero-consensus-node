@@ -907,7 +907,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
                       hash(3)           hash(4)                 Apple (5)        Queue state (6)
                     /    \               /    \
             Ghana(7)   Biology(8)  Art(9)    Chemistry (10)
-                  */
+            */
             assertThat(virtualMapState.getHashForPath(0)).isEqualTo(rootHash);
             for (int i = 1; i <= 10; i++) {
                 assertNotNull(virtualMapState.getHashForPath(i));
@@ -919,6 +919,12 @@ public class VirtualMapStateTest extends MerkleTestBase {
         void getHashByPath_nonExistentPath() {
             virtualMapState.getHash();
             assertNull(virtualMapState.getHashForPath(777));
+        }
+
+        @Test
+        @DisplayName("getMerkleProof for non-existent path")
+        void getMerkleProof_nonExistentPath() {
+            assertThat(virtualMapState.getMerkleProof(777)).isNull();
         }
 
         @Test

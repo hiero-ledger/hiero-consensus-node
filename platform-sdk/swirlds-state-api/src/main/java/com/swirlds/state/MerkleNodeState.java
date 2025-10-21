@@ -138,7 +138,7 @@ public interface MerkleNodeState extends State {
     /**
      * Prepares a Merkle proof for the given path.
      * @param path merkle path
-     * @return Merkle proof for the given path
+     * @return Merkle proof for the given path or null if the path is non-existent
      */
     MerkleProof getMerkleProof(long path);
 }

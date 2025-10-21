@@ -863,6 +863,10 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
 
     @Override
     public MerkleProof getMerkleProof(final long path) {
+        VirtualLeafBytes<?> leafRecord = virtualMap.getRecords().findLeafRecord(path);
+        if (leafRecord == null) {
+            return null;
+        }
 
         final List<SiblingHash> siblingHashes = new ArrayList<>();
         final List<byte[]> innerParentHashes = new ArrayList<>();
@@ -884,8 +888,6 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
         // add root hash
         innerParentHashes.add(virtualMap.getHash().copyToByteArray());
 
-        VirtualLeafBytes<?> leafRecord = virtualMap.getRecords().findLeafRecord(path);
-        assert leafRecord != null;
         StateItem stateItem = new StateItem(leafRecord.keyBytes(), leafRecord.valueBytes());
         return new MerkleProof(CODEC.toBytes(stateItem), siblingHashes, innerParentHashes);
     }
