@@ -619,7 +619,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
     public void newPlatformStatus(@NonNull final PlatformStatus platformStatus) {
         this.platformStatus = platformStatus;
         transactionPool.updatePlatformStatus(platformStatus);
-        if (daggerApp != null) {
+        if (quiescenceEnabled && daggerApp != null) {
             daggerApp.quiescenceController().platformStatusUpdate(platformStatus);
         }
         logger.info("HederaNode#{} is {}", platform.getSelfId(), platformStatus.name());

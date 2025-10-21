@@ -532,11 +532,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 attempt.signatureFuture().thenAcceptAsync(signature -> {
                     finishProofWithSignature(
                             blockHash, signature, attempt.verificationKey(), attempt.chainOfTrustProof());
-                    final var lastCommand = lastQuiescenceCommand.get();
-                    final var commandNow = quiescenceController.getQuiescenceStatus();
-                    if (commandNow != lastCommand && lastQuiescenceCommand.compareAndSet(lastCommand, commandNow)) {
-                        log.info("Updating quiescence command from {} to {}", lastCommand, commandNow);
-                        platform.quiescenceCommand(commandNow);
+                    if (quiescenceEnabled) {
+                        final var lastCommand = lastQuiescenceCommand.get();
+                        final var commandNow = quiescenceController.getQuiescenceStatus();
+                        if (commandNow != lastCommand && lastQuiescenceCommand.compareAndSet(lastCommand, commandNow)) {
+                            log.info("Updating quiescence command from {} to {}", lastCommand, commandNow);
+                            platform.quiescenceCommand(commandNow);
+                        }
                     }
                 });
             }
