@@ -3,7 +3,7 @@ package com.hedera.node.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.swirlds.base.time.Time;
+import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
@@ -26,7 +26,7 @@ class HederaVirtualMapStateTest extends MerkleTestBase {
      */
     @BeforeEach
     void setUp() {
-        virtualMapState = new HederaVirtualMapState(CONFIGURATION, new NoOpMetrics(), Time.getCurrent());
+        virtualMapState = new HederaVirtualMapState(CONFIGURATION, new NoOpMetrics(), new FakeTime());
         setupFruitVirtualMap();
         setupSingletonCountry();
         setupSteamQueue();

@@ -25,7 +25,7 @@ import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.swirlds.base.time.Time;
+import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
@@ -70,7 +70,7 @@ class DependencyMigrationTest extends MerkleTestBase {
     @BeforeEach
     void setUp() {
         registry = mock(ConstructableRegistry.class);
-        merkleTree = new HederaVirtualMapState(CONFIGURATION, new NoOpMetrics(), Time.getCurrent());
+        merkleTree = new HederaVirtualMapState(CONFIGURATION, new NoOpMetrics(), new FakeTime());
         configProvider = new ConfigProviderImpl();
         storeMetricsService = new StoreMetricsServiceImpl(new NoOpMetrics());
     }

@@ -3,6 +3,7 @@ package com.swirlds.state.test.fixtures.merkle;
 
 import static com.swirlds.state.test.fixtures.merkle.VirtualMapUtils.CONFIGURATION;
 
+import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.metrics.api.Metrics;
@@ -18,11 +19,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 public class TestVirtualMapState extends VirtualMapState<TestVirtualMapState> implements MerkleNodeState {
 
     public TestVirtualMapState() {
-        super(CONFIGURATION, new NoOpMetrics(), Time.getCurrent());
+        super(CONFIGURATION, new NoOpMetrics(), new FakeTime());
     }
 
     public TestVirtualMapState(@NonNull final VirtualMap virtualMap) {
-        super(virtualMap, new NoOpMetrics(), Time.getCurrent());
+        super(virtualMap, new NoOpMetrics(), new FakeTime());
     }
 
     protected TestVirtualMapState(@NonNull final TestVirtualMapState from) {
