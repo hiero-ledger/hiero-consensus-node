@@ -182,10 +182,6 @@ public class BlockBufferIO {
                 byteBuffer.get(payload);
                 final Bytes bytes = Bytes.wrap(payload);
 
-                if (length > maxReadBytesSize) {
-                    throw new ParseException("Block file is too large to read. Bytes length is: " + length);
-                }
-
                 return BufferedBlock.PROTOBUF.parse(
                         bytes.toReadableSequentialData(), false, false, maxReadDepth, maxReadBytesSize);
             }
