@@ -38,26 +38,6 @@
 	  {
 		"type": "TYPE_VIRTUAL_MERKLE_CREATE",
 		"amount": 400
-	  },
-	  {
-		"type": "TYPE_VIRTUAL_MERKLE_DELETE",
-		"amount": 100
-	  },
-	  {
-		"type": "TYPE_VIRTUAL_MERKLE_UPDATE",
-		"amount": 2000
-	  },
-	  {
-		"type": "TYPE_VIRTUAL_MERKLE_CREATE",
-		"amount": 2000
-	  },
-	  {
-		"type": "TYPE_VIRTUAL_MERKLE_DELETE",
-		"amount": 100
-	  },
-	  {
-		"type": "TYPE_VIRTUAL_MERKLE_UPDATE",
-		"amount": 2000
 	  }
 	]
   },
@@ -73,31 +53,6 @@
 	  {
 		"sequentialType": "SAVE_EXPECTED_MAP",
 		"sequentialAmount": 1,
-		"sequentialSize": 100
-	  },
-	  {
-		"sequentialType": "TYPE_FCM_UPDATE",
-		"sequentialAmount": 4000,
-		"sequentialSize": 100
-	  },
-	  {
-		"sequentialType": "SAVE_EXPECTED_MAP",
-		"sequentialAmount": 1,
-		"sequentialSize": 100
-	  },
-	  {
-		"sequentialType": "TYPE_FCM_TRANSFER",
-		"sequentialAmount": 60000,
-		"sequentialSize": 100
-	  },
-	  {
-		"sequentialType": "SAVE_EXPECTED_MAP",
-		"sequentialAmount": 1,
-		"sequentialSize": 100
-	  },
-	  {
-		"sequentialType": "TYPE_FCM_DELETE",
-		"sequentialAmount": 4000,
 		"sequentialSize": 100
 	  }
 	]
