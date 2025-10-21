@@ -1126,6 +1126,21 @@ public class BlockNodeConnectionManager {
                     try {
                         logWithContext(DEBUG, "Closing current active connection {}.", activeConnection);
                         activeConnection.close(true);
+                        // For a forced switch, reschedule the previously active connection to try again later
+                        if (force) {
+                            try {
+                                final Duration delay = getForcedSwitchRescheduleDelay();
+                                scheduleConnectionAttempt(activeConnection.getNodeConfig(), delay, null);
+                                logWithContext(
+                                        DEBUG,
+                                        "Scheduled previously active connection in {} ms due to forced switch.",
+                                        delay.toMillis());
+                            } catch (final Exception e) {
+                                logger.debug(
+                                        "Failed to schedule reschedule for previous active connection after forced switch.",
+                                        e);
+                            }
+                        }
                     } catch (final RuntimeException e) {
                         logger.info(
                                 "Failed to shutdown current active connection {} (shutdown reason: another connection was elevated to active).",
@@ -1242,6 +1257,13 @@ public class BlockNodeConnectionManager {
                 .getConfiguration()
                 .getConfigData(BlockNodeConnectionConfig.class)
                 .endOfStreamTimeFrame();
+    }
+
+    private Duration getForcedSwitchRescheduleDelay() {
+        return configProvider
+                .getConfiguration()
+                .getConfigData(BlockNodeConnectionConfig.class)
+                .forcedSwitchRescheduleDelay();
     }
 
     /**
