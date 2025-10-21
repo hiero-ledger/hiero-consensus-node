@@ -33,6 +33,7 @@ import com.swirlds.platform.system.status.actions.ReconnectCompleteAction;
 import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
@@ -117,7 +118,7 @@ public class ReconnectController implements Runnable {
     /**
      * Hash the working state to prepare for reconnect
      */
-    static void hashStateForReconnect(
+    private static void hashStateForReconnect(
             final @NonNull MerkleCryptography merkleCryptography, final @NonNull MerkleNodeState workingState)
             throws InterruptedException {
         try {
@@ -126,8 +127,12 @@ public class ReconnectController implements Runnable {
             throw new IllegalStateException("Error encountered while hashing state for reconnect", e);
         }
     }
-    /** Stops a running controller */
-    public void stop() {
+
+    /**
+     * Initiates graceful shutdown of the controller.
+     * Does not guarantee stopping if the thread where the controller is running is blocked
+     */
+    public void stopReconnectLoop() {
         run.set(false);
     }
 
@@ -148,9 +153,8 @@ public class ReconnectController implements Runnable {
         exitIfReconnectIsDisabled();
         try {
             while (run.get()) {
-                fallenBehindMonitor.awaitFallenBehind();
+                fallenBehindMonitor.awaitFallenBehind(); // Block until the monitor notifies the node is behind
                 exitIfReconnectTimeTimeElapsed();
-
                 platformCoordinator.submitStatusAction(new FallenBehindAction());
                 logger.info(RECONNECT.getMarker(), "Preparing for reconnect, stopping gossip");
                 platformCoordinator.pauseGossip();
@@ -164,20 +168,20 @@ public class ReconnectController implements Runnable {
                 do {
                     final AttemptReconnectResult result = attemptReconnect(currentState);
                     if (result.success()) {
+                        // reset the monitor to the initial state
+                        fallenBehindMonitor.clear();
+                        logger.info(RECONNECT.getMarker(), "Reconnect almost done resuming gossip");
+                        platformCoordinator.resumeGossip();
                         break;
                     }
                     platformCoordinator.clear();
                     waitOrExitIfThresholdMet(++failedReconnectsInARow, result.throwable());
                 } while (run.get());
-                // reset the monitor to the initial state
-                fallenBehindMonitor.reset();
-                logger.info(RECONNECT.getMarker(), "Reconnect almost done resuming gossip");
-                platformCoordinator.resumeGossip();
             }
         } catch (final RuntimeException e) {
             logger.error(EXCEPTION.getMarker(), "Unexpected error occurred while reconnecting", e);
             SystemExitUtils.exitSystem(SystemExitCode.RECONNECT_FAILURE);
-        } catch (InterruptedException e) {
+        } catch (final InterruptedException e) {
             if (run.get()) {
                 logger.error(RECONNECT.getMarker(), "Thread was interrupted unexpectedly", e);
                 Thread.currentThread().interrupt();
@@ -211,7 +215,6 @@ public class ReconnectController implements Runnable {
             platformCoordinator.sendReconnectCompleteNotification(reservedState.get());
             return AttemptReconnectResult.ok();
         } catch (final RuntimeException e) {
-
             return AttemptReconnectResult.error(e);
         }
     }
@@ -305,29 +308,13 @@ public class ReconnectController implements Runnable {
         }
     }
 
-    private interface AttemptReconnectResult {
-        boolean success();
-
-        default Throwable throwable() {
-            return null;
-        }
-
+    private record AttemptReconnectResult(boolean success, @Nullable Throwable throwable) {
         static AttemptReconnectResult ok() {
-            return () -> true;
+            return new AttemptReconnectResult(true, null);
         }
 
         static AttemptReconnectResult error(@NonNull final Throwable error) {
-            return new AttemptReconnectResult() {
-                @Override
-                public boolean success() {
-                    return false;
-                }
-
-                @Override
-                public Throwable throwable() {
-                    return error;
-                }
-            };
+            return new AttemptReconnectResult(false, error);
         }
     }
 }

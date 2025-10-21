@@ -368,7 +368,7 @@ public class SyncNode {
         }
 
         @Override
-        public synchronized void reset() {
+        public synchronized void clear() {
             fallenBehind = false;
         }
 
