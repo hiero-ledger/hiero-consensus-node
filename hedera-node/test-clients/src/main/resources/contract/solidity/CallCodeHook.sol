@@ -74,8 +74,10 @@ contract CallCodeHook is IHieroAccountAllowanceHook {
             // - address(this) is the caller's address
             bytes memory payload = abi.encodeWithSelector(this._associateImpl.selector, owner, token);
             (bool ok, bytes memory ret) = _callcode(address(this), payload);
-            (int64 response, address thisAddr, address snd) = _decodeAttempt(ok, ret);
-            emit CallCodeAttempt(ok, response, thisAddr, snd);
+            // Now it's safe to decode (we know the ABI matches our function)
+            (int64 response, address thisAddr, address snd) = abi.decode(ret, (int64, address, address));
+
+             emit CallCodeAttempt(ok, response, thisAddr, snd);
         }
     }
 
@@ -110,20 +112,6 @@ contract CallCodeHook is IHieroAccountAllowanceHook {
             returndatacopy(add(returnData, 0x20), 0, size)
 
             success := ok
-        }
-    }
-
-    function _decodeAttempt(bool ok, bytes memory ret)
-    internal
-    pure
-    returns (int64 response, address thisAddr, address snd)
-    {
-        if (ok && ret.length >= 96) {
-            (response, thisAddr, snd) = abi.decode(ret, (int64, address, address));
-        } else {
-            response = 0;
-            thisAddr = address(0);
-            snd = address(0);
         }
     }
 }

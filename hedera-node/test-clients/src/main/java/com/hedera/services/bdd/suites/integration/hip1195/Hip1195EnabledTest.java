@@ -37,6 +37,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_DELETION_REQUIRES_ZERO_STORAGE_SLOTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_IN_USE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
@@ -239,11 +240,11 @@ public class Hip1195EnabledTest {
                 cryptoTransfer(TokenMovement.moving(10, "token").between(PAYER, OWNER))
                         .withPreHookFor(OWNER, 123L, 5_000_000L, "")
                         .payingWith(PAYER)
-                        .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("staticCallWithoutAssociation"),
                 getTxnRecord("staticCallWithoutAssociation")
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(REVERTED_SUCCESS))
+                        .hasChildRecords(recordWith().status(CONTRACT_REVERT_EXECUTED))
                         .logged(),
                 tokenAssociate(OWNER, "token"),
                 cryptoTransfer(TokenMovement.moving(10, "token").between(PAYER, OWNER))
@@ -880,20 +881,15 @@ public class Hip1195EnabledTest {
                                         .build())
                         .signedBy(DEFAULT_PAYER, OWNER)),
                 cryptoTransfer(TokenMovement.movingUnique("nftToken", 1L).between(PAYER, OWNER))
-                        .withPreHookFor(OWNER, 129L, 5_000_000L, "")
+                        .withNftReceiverPreHookFor(OWNER, 129L, 5_000_000L, "")
                         .payingWith(PAYER)
-                        .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("nftStaticCallTxn"),
                 getAccountInfo(OWNER).hasNoTokenRelationship("nftToken"),
-                getTxnRecord("nftStaticCallTxn").andAllChildRecords().logged(),
-                tokenAssociate(OWNER, "nftToken"),
-                cryptoTransfer(TokenMovement.movingUnique("nftToken", 1L).between(PAYER, OWNER))
-                        .withPreHookFor(OWNER, 129L, 5_000_000L, "")
-                        .payingWith(PAYER)
-                        .via("nftStaticCallTxnWithAssociation"),
-                getTxnRecord("nftStaticCallTxnWithAssociation")
+                getTxnRecord("nftStaticCallTxn")
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(SUCCESS))
+                        .hasChildRecords(
+                                recordWith().status(CONTRACT_REVERT_EXECUTED))
                         .logged());
     }
 
