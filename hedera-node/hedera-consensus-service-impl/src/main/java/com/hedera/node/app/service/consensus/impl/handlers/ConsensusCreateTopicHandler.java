@@ -260,10 +260,7 @@ public class ConsensusCreateTopicHandler implements TransactionHandler {
         final var hasCustomFees =
                 !body.consensusCreateTopicOrThrow().customFees().isEmpty();
         final var subType = hasCustomFees ? SubType.TOPIC_CREATE_WITH_CUSTOM_FEES : SubType.DEFAULT;
-        final var name = hasCustomFees
-                ? HederaFunctionality.CONSENSUS_CREATE_TOPIC.protoName() + "CustomFees"
-                : HederaFunctionality.CONSENSUS_CREATE_TOPIC.protoName();
-        final var entity = FeeModelRegistry.lookupModel(name);
+        final var entity = FeeModelRegistry.lookupModel(HederaFunctionality.CONSENSUS_CREATE_TOPIC, hasCustomFees);
         var createTopic = body.consensusCreateTopicOrThrow();
         var key_count = createTopic.customFees().size();
         if (createTopic.hasAdminKey()) {

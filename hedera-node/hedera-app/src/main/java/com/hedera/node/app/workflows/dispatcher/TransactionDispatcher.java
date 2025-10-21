@@ -117,7 +117,7 @@ public class TransactionDispatcher {
 
         try {
             final var handler = getHandler(feeContext.body());
-            if (feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
+            if (shouldUseSimpleFees(feeContext)) {
                 var feeResult = handler.calculateFeeResult(feeContext);
                 return feeResultToFees(feeResult, fromPbj(feeContext.activeRate()));
             }
@@ -126,6 +126,18 @@ public class TransactionDispatcher {
             throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
         }
     }
+
+    private boolean shouldUseSimpleFees(FeeContext feeContext) {
+        if (!feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
+            return false;
+        }
+
+        return switch (feeContext.body().data().kind()) {
+            case CONSENSUS_CREATE_TOPIC, CONSENSUS_SUBMIT_MESSAGE, CONSENSUS_UPDATE_TOPIC, CONSENSUS_DELETE_TOPIC -> true;
+            default -> false;
+        };
+    }
+
     private static long tinycentsToTinybars(final long amount, final ExchangeRate rate) {
         final var hbarEquiv = rate.getHbarEquiv();
         if (productWouldOverflow(amount, hbarEquiv)) {

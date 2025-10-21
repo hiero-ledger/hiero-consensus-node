@@ -3,8 +3,6 @@ package com.hedera.node.app.service.consensus.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOPIC_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
-import static com.hedera.node.app.service.consensus.impl.handlers.ConsensusCreateTopicHandler.feeResultToFees;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
@@ -28,7 +26,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
-import com.hedera.node.config.data.FeesConfig;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
@@ -36,6 +33,7 @@ import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.hiero.hapi.fees.FeeModelRegistry;
+import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.Extra;
 
 /**
@@ -118,23 +116,23 @@ public class ConsensusDeleteTopicHandler implements TransactionHandler {
     public Fees calculateFees(@NonNull final FeeContext feeContext) {
         requireNonNull(feeContext);
         final var op = feeContext.body();
-        if (feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
-            final var entity = FeeModelRegistry.lookupModel(HederaFunctionality.CONSENSUS_DELETE_TOPIC);
-            Map<Extra, Long> params = new HashMap<>();
-            params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
-            final var feeResult = entity.computeFee(
-                    params,
-                    feeContext
-                            .feeCalculatorFactory()
-                            .feeCalculator(SubType.DEFAULT)
-                            .getSimpleFeesSchedule());
-            return feeResultToFees(feeResult, fromPbj(feeContext.activeRate()));
-        }
-
         return feeContext
                 .feeCalculatorFactory()
                 .feeCalculator(SubType.DEFAULT)
                 .legacyCalculate(sigValueObj -> usageGiven(CommonPbjConverters.fromPbj(op), sigValueObj));
+    }
+
+    @Override
+    public @NonNull FeeResult calculateFeeResult(@NonNull FeeContext feeContext) {
+        final var entity = FeeModelRegistry.lookupModel(HederaFunctionality.CONSENSUS_DELETE_TOPIC,false);
+        Map<Extra, Long> params = new HashMap<>();
+        params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
+        return entity.computeFee(
+                params,
+                feeContext
+                        .feeCalculatorFactory()
+                        .feeCalculator(SubType.DEFAULT)
+                        .getSimpleFeesSchedule());
     }
 
     private FeeData usageGiven(

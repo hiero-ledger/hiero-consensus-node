@@ -69,6 +69,7 @@ import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.hapi.fees.FeeModelRegistry;
+import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.Extra;
 
 /**
@@ -199,19 +200,6 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
     @Override
     public Fees calculateFees(@NonNull final FeeContext feeContext) {
         requireNonNull(feeContext);
-        if (feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
-            final var entity = FeeModelRegistry.lookupModel(HederaFunctionality.CONSENSUS_UPDATE_TOPIC);
-            Map<Extra, Long> params = new HashMap<>();
-            params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
-            params.put(Extra.KEYS, 0L);
-            final var feeResult = entity.computeFee(
-                    params,
-                    feeContext
-                            .feeCalculatorFactory()
-                            .feeCalculator(SubType.DEFAULT)
-                            .getSimpleFeesSchedule());
-            return feeResultToFees(feeResult, fromPbj(feeContext.activeRate()));
-        }
 
         final var op = feeContext.body();
         final var topicUpdate = op.consensusUpdateTopicOrElse(ConsensusUpdateTopicTransactionBody.DEFAULT);
@@ -222,6 +210,20 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
                 .feeCalculatorFactory()
                 .feeCalculator(SubType.DEFAULT)
                 .legacyCalculate(sigValueObj -> usageGivenExplicit(op, sigValueObj, topic));
+    }
+
+    @Override
+    public @NonNull FeeResult calculateFeeResult(@NonNull FeeContext feeContext) {
+        final var entity = FeeModelRegistry.lookupModel(HederaFunctionality.CONSENSUS_UPDATE_TOPIC,false);
+        Map<Extra, Long> params = new HashMap<>();
+        params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
+        params.put(Extra.KEYS, 0L);
+        return entity.computeFee(
+                params,
+                feeContext
+                        .feeCalculatorFactory()
+                        .feeCalculator(SubType.DEFAULT)
+                        .getSimpleFeesSchedule());
     }
 
     private void resolveMutableBuilderAttributes(

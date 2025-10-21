@@ -83,6 +83,7 @@ import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.hiero.hapi.fees.FeeModelRegistry;
+import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.Extra;
 
 /**
@@ -519,23 +520,6 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
                 feeContext.readableStore(ReadableTopicStore.class).getTopic(op.topicIDOrElse(TopicID.DEFAULT));
         final var hasCustomFees = topic != null && !topic.customFees().isEmpty();
 
-        if (feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
-            final var name = hasCustomFees
-                    ? HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE.protoName() + "CustomFees"
-                    : HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE.protoName();
-            final var entity = FeeModelRegistry.lookupModel(name);
-            Map<Extra, Long> params = new HashMap<>();
-            params.put(Extra.BYTES, msgSize);
-            params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
-            final var feeResult = entity.computeFee(
-                    params,
-                    feeContext
-                            .feeCalculatorFactory()
-                            .feeCalculator(SubType.DEFAULT)
-                            .getSimpleFeesSchedule());
-            return feeResultToFees(feeResult, fromPbj(feeContext.activeRate()));
-        }
-
         if (hasCustomFees) {
             final var calculator = calculatorFactory.feeCalculator(SubType.SUBMIT_MESSAGE_WITH_CUSTOM_FEES);
             calculator.resetUsage();
@@ -557,5 +541,24 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
                 .addBytesPerTransaction(BASIC_ENTITY_ID_SIZE + msgSize)
                 .addNetworkRamByteSeconds((LONG_SIZE + TX_HASH_SIZE) * RECEIPT_STORAGE_TIME_SEC)
                 .calculate();
+    }
+
+    @Override
+    public @NonNull FeeResult calculateFeeResult(@NonNull FeeContext feeContext) {
+        final var op = feeContext.body().consensusSubmitMessageOrThrow();
+        final var msgSize = op.message().length();
+        final var topic =
+                feeContext.readableStore(ReadableTopicStore.class).getTopic(op.topicIDOrElse(TopicID.DEFAULT));
+        final var hasCustomFees = topic != null && !topic.customFees().isEmpty();
+        final var entity = FeeModelRegistry.lookupModel(HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE, hasCustomFees);
+        Map<Extra, Long> params = new HashMap<>();
+        params.put(Extra.BYTES, msgSize);
+        params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
+        return entity.computeFee(
+                params,
+                feeContext
+                        .feeCalculatorFactory()
+                        .feeCalculator(SubType.DEFAULT)
+                        .getSimpleFeesSchedule());
     }
 }

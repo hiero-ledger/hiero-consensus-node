@@ -124,14 +124,18 @@ public class FeeModelRegistry {
         register(new StandardFeeModel(SCHEDULE_GET_INFO, "Get metadata for a scheduled transaction"));
     }
 
+    public static FeeModel lookupModel(HederaFunctionality service, boolean customFees) {
+        return lookupModel(service.protoName(),customFees);
+    }
     public static FeeModel lookupModel(HederaFunctionality service) {
-        return lookupModel(service.protoName());
+        return lookupModel(service.protoName(),false);
     }
 
-    public static FeeModel lookupModel(String service) {
-        if (!registry.containsKey(service)) {
-            throw new IllegalArgumentException("No registered model found for service " + service);
+    public static FeeModel lookupModel(String service, boolean customFees) {
+        var name = customFees? service + "CustomFees" : service;
+        if (!registry.containsKey(name)) {
+            throw new IllegalArgumentException("No registered model found for service " + name);
         }
-        return registry.get(service);
+        return registry.get(name);
     }
 }

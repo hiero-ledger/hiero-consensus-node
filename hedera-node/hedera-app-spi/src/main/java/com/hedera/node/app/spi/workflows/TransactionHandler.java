@@ -4,6 +4,7 @@ package com.hedera.node.app.spi.workflows;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.base.exceptions.NotImplementedException;
 import org.hiero.hapi.fees.FeeResult;
 
 /**
@@ -67,8 +68,7 @@ public interface TransactionHandler {
      */
     @NonNull
     default FeeResult calculateFeeResult(@NonNull final FeeContext feeContext) {
-        throw new RuntimeException("we shouldn't be here. we should be using simple fees");
-//        return new FeeResult();
+        throw new NotImplementedException();
     }
     /**
      * Handles a transaction
