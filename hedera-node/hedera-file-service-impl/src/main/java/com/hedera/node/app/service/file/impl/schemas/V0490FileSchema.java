@@ -46,7 +46,6 @@ import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.types.LongPair;
-import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.MigrationContext;
@@ -419,7 +418,8 @@ public class V0490FileSchema extends Schema<SemanticVersion> {
         return feeComponents.build();
     }
 
-    public static org.hiero.hapi.support.fees.FeeSchedule parseSimpleFeesSchedules(@NonNull final byte[] feeScheduleJsonBytes) {
+    public static org.hiero.hapi.support.fees.FeeSchedule parseSimpleFeesSchedules(
+            @NonNull final byte[] feeScheduleJsonBytes) {
         System.out.println("parsing bytes");
         try {
             final org.hiero.hapi.support.fees.FeeSchedule feeSchedule =
