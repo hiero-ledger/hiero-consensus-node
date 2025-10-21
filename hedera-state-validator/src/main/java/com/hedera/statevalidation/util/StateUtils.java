@@ -113,7 +113,8 @@ public final class StateUtils {
 
             deserializedSignedState = readStateFile(
                     Path.of(ConfigUtils.STATE_DIR, STATE_FILE_NAME).toAbsolutePath(),
-                    HederaVirtualMapState::new,
+                    virtualMap -> new HederaVirtualMapState(
+                            virtualMap, platformContext.getMetrics(), platformContext.getTime()),
                     platformStateFacade,
                     platformContext);
 
