@@ -148,15 +148,8 @@ public interface PreHandleWorkflow {
         if (metadata instanceof PreHandleResult result) {
             previousResult = result;
         } else {
-            // This should be impossible since the Platform contract guarantees that
-            // ConsensusStateEventHandler.onPreHandle()
-            // is always called before ConsensusStateEventHandler.onHandleTransaction(); and our preHandle()
-            // implementation
-            // always sets the metadata to a PreHandleResult
-            log.error(
-                    "Received transaction without PreHandleResult metadata from node {} (was {})",
-                    creator != null ? creator.nodeId() : null,
-                    metadata);
+            // For state signature transactions, or transactions with a null creator, it's possible for the prehandle
+            // result to be null. In these cases we also set the previous result to null and continue forward
             previousResult = null;
         }
         // We do not know how long transactions are kept in memory. Clearing metadata to avoid keeping it for too long.
