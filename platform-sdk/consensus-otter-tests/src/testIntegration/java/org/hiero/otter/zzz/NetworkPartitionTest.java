@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
 
 import com.swirlds.common.test.fixtures.WeightGenerators;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
@@ -23,8 +22,6 @@ import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * Tests for the network partition functionality in the Network interface.
@@ -50,8 +47,7 @@ class NetworkPartitionTest {
      * to ensure consistent behavior across different setups.
      *
      */
-
-    @RepeatedTest(100)
+    @RepeatedTest(value = 100, failureThreshold = 1)
     void testCreateAndRemovePartition() {
         var env = new ContainerTestEnvironment();
         try {
