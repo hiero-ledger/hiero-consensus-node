@@ -25,7 +25,6 @@ import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.ParentEventReference;
 import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
-import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
@@ -343,11 +342,6 @@ public class HandleWorkflow {
         }
     }
 
-    private enum TransactionStrategy {
-        HANDLE,
-        TRANSACTION_ONLY
-    }
-
     /**
      * Applies all effects of the events in the given round to the given state, writing stream items
      * that capture these effects in the process.
@@ -540,17 +534,6 @@ public class HandleWorkflow {
             return false;
         } else if (streamMode != BLOCKS && startsNewRecordFile) {
             blockRecordManager.startUserTransaction(consensusNow, state);
-        }
-
-        // Before executing the transaction, check if it's a state signature transaction. These don't need to be
-        // processed through the entire handle workflow, so write the transaction to the block stream and skip execution
-        if (streamMode != BLOCKS
-                && topLevelTxn.txnInfo().functionality() == HederaFunctionality.STATE_SIGNATURE_TRANSACTION) {
-            final var blockItem = BlockItem.newBuilder()
-                    .signedTransaction(topLevelTxn.txnInfo().serializedSignedTx())
-                    .build();
-            blockStreamManager.writeItem(blockItem);
-            return true;
         }
 
         final var handleOutput = executeSubmittedParent(topLevelTxn, eventBirthRound, state);
