@@ -85,6 +85,8 @@ public class Utils {
             Map.entry("exchangeRates.json", 112L),
             Map.entry("fees", 111L),
             Map.entry("feeSchedules.json", 111L),
+            Map.entry("simpleFees", 113L),
+            Map.entry("simpleFeesSchedules.json", 111L),
             Map.entry("props", 121L),
             Map.entry("application.properties", 121L),
             Map.entry("permissions", 122L),

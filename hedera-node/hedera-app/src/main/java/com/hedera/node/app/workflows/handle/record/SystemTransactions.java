@@ -375,7 +375,7 @@ public class SystemTransactions {
                 new AutoEntityUpdate<>(
                         (ctx, bytes) -> dispatchSynthFileUpdate(
                                 ctx, createFileID(filesConfig.simpleFeesSchedules(), config), bytes),
-                        adminConfig.upgradeFeeSchedulesFile(),
+                        adminConfig.upgradeSimpleFeeSchedulesFile(),
                         SystemTransactions::parseSimpleFeesSchedules),
                 new AutoEntityUpdate<>(
                         (ctx, bytes) -> dispatchSynthFileUpdate(
@@ -880,8 +880,13 @@ public class SystemTransactions {
     }
 
     private static Bytes parseSimpleFeesSchedules(@NonNull final InputStream in) {
-        FeeSchedule schedule = FeeSchedule.DEFAULT.copyBuilder().build();
-        return FeeSchedule.PROTOBUF.toBytes(schedule);
+        try {
+            final var bytes = in.readAllBytes();
+            final var feeSchedules = V0490FileSchema.parseSimpleFeesSchedules(bytes);
+            return FeeSchedule.PROTOBUF.toBytes(feeSchedules);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private static Bytes parseThrottles(@NonNull final InputStream in) {

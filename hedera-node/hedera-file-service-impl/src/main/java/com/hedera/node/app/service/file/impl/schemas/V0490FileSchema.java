@@ -320,10 +320,9 @@ public class V0490FileSchema extends Schema<SemanticVersion> {
         final var resourceName = config.getConfigData(BootstrapConfig.class).simpleFeesSchedulesJsonResource();
         try (final var in = loadResourceInPackage(resourceName)) {
             final var feeScheduleJsonBytes = requireNonNull(in).readAllBytes();
-            final org.hiero.hapi.support.fees.FeeSchedule feeSchedule =
-                    org.hiero.hapi.support.fees.FeeSchedule.JSON.parse(Bytes.wrap(feeScheduleJsonBytes));
+            final var feeSchedule = parseSimpleFeesSchedules(feeScheduleJsonBytes);
             return org.hiero.hapi.support.fees.FeeSchedule.PROTOBUF.toBytes(feeSchedule);
-        } catch (IOException | NullPointerException | ParseException e) {
+        } catch (IOException | NullPointerException e) {
             throw new IllegalArgumentException(
                     "Fee schedule (" + resourceName + ") " + "could not be found in the class path", e);
         }
@@ -418,6 +417,17 @@ public class V0490FileSchema extends Schema<SemanticVersion> {
             feeComponents.tv(componentNode.get("tv").asLong());
         }
         return feeComponents.build();
+    }
+
+    public static org.hiero.hapi.support.fees.FeeSchedule parseSimpleFeesSchedules(@NonNull final byte[] feeScheduleJsonBytes) {
+        System.out.println("parsing bytes");
+        try {
+            final org.hiero.hapi.support.fees.FeeSchedule feeSchedule =
+                    org.hiero.hapi.support.fees.FeeSchedule.JSON.parse(Bytes.wrap(feeScheduleJsonBytes));
+            return feeSchedule;
+        } catch (final Exception e) {
+            throw new IllegalArgumentException("Unable to parse simple fee schedule file", e);
+        }
     }
 
     // ================================================================================================================
