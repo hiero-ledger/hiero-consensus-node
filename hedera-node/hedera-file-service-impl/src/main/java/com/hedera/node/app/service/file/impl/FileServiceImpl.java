@@ -43,7 +43,7 @@ public final class FileServiceImpl implements FileService {
     public void createSystemEntities(@NonNull final SystemContext context, @NonNull final ReadableNodeStore nodeStore) {
         fileSchema.createGenesisAddressBookAndNodeDetails(context, nodeStore);
         fileSchema.createGenesisFeeSchedule(context);
-        if (!context.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
+        if (context.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
             fileSchema.createGenesisSimpleFeesSchedule(context);
         }
         fileSchema.createGenesisExchangeRate(context);
