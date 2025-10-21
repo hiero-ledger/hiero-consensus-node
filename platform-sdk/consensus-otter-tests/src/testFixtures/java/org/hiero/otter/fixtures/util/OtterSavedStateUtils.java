@@ -7,11 +7,14 @@ import static org.hiero.otter.fixtures.tools.GenerateStateTool.SAVE_STATE_DIRECT
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.io.utility.FileUtils;
+import com.swirlds.platform.state.snapshot.SavedStateMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.app.OtterApp;
@@ -140,6 +143,53 @@ public class OtterSavedStateUtils {
 
         System.out.println("No version found in properties file or system property, using default version");
         return SemanticVersion.DEFAULT;
+    }
+
+    /**
+     * Loads the WALL_CLOCK_TIME from the saved state metadata file and adds the specified time offset.
+     *
+     * <p>This method:
+     * <ol>
+     *     <li>Locates the saved state directory (relative or absolute path)</li>
+     *     <li>Finds the stateMetadata.txt file within the saved state structure</li>
+     *     <li>Parses the WALL_CLOCK_TIME field</li>
+     *     <li>Adds the specified number of hours to ensure time moves forward</li>
+     * </ol>
+     *
+     * @param savedStateDirectory the path to the saved state directory, either relative to
+     *                            {@code consensus-otter-tests/saved-states} or an absolute path
+     * @param hoursOffset the number of hours to add to the WALL_CLOCK_TIME
+     * @return the computed start instant (WALL_CLOCK_TIME + offset)
+     * @throws IllegalArgumentException if the saved state directory does not exist
+     * @throws IOException if an I/O error occurs while reading the metadata file
+     */
+    @NonNull
+    public static Instant loadSavedStateWallClockTime(@NonNull final String savedStateDirectory, final long hoursOffset)
+            throws IOException {
+        requireNonNull(savedStateDirectory);
+
+        // Find the saved state directory
+        final Path stateDir = findSaveState(Path.of(savedStateDirectory));
+
+        // Locate stateMetadata.txt within the saved state
+        // The stateMetadata.txt is inside: savedState/OtterApp/<node-id>/<round>/<node-id>/stateMetadata.txt
+        // We need to search for it recursively
+        final Path metadataFile = Files.find(
+                        stateDir,
+                        Integer.MAX_VALUE,
+                        (path, basicFileAttributes) -> basicFileAttributes.isRegularFile()
+                                && path.getFileName().toString().equals(SavedStateMetadata.FILE_NAME))
+                .findFirst()
+                .orElseThrow(
+                        () -> new IOException("stateMetadata.txt not found in saved state directory: " + stateDir));
+
+        // Parse the metadata
+        final SavedStateMetadata metadata = SavedStateMetadata.parse(metadataFile);
+
+        // Add the offset to the WALL_CLOCK_TIME
+        final Instant wallClockTime = metadata.wallClockTime();
+
+        return wallClockTime.plus(Duration.ofHours(hoursOffset));
     }
 
     /**
