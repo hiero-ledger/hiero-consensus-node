@@ -3,7 +3,6 @@ package com.swirlds.platform.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
-import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.logging.legacy.LogMarker.STATE_HASH;
 import static java.util.Objects.requireNonNull;
 
@@ -13,6 +12,8 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
+import com.swirlds.logging.legacy.payload.ReconnectFailurePayload;
+import com.swirlds.logging.legacy.payload.ReconnectFailurePayload.CauseOfFailure;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.network.protocol.ReservedSignedStatePromise;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
@@ -149,11 +150,10 @@ public class ReconnectController implements Runnable {
     @Override
     public void run() {
         logger.info(RECONNECT.getMarker(), "Starting the ReconnectController");
-        exitIfReconnectIsDisabled();
         try {
             while (run.get()) {
                 fallenBehindMonitor.awaitFallenBehind(); // Block until the monitor notifies the node is behind
-                exitIfReconnectTimeTimeElapsed();
+                exitIf();
                 platformCoordinator.submitStatusAction(new FallenBehindAction());
                 logger.info(RECONNECT.getMarker(), "Preparing for reconnect, stopping gossip");
                 platformCoordinator.pauseGossip();
@@ -174,16 +174,25 @@ public class ReconnectController implements Runnable {
                         break;
                     }
                     platformCoordinator.clear();
-                    waitOrExitIfThresholdMet(++failedReconnectsInARow, result.throwable());
+                    exitIfMaxRetriesOrWait(++failedReconnectsInARow, result.throwable());
                 } while (run.get());
             }
         } catch (final RuntimeException e) {
-            logger.error(EXCEPTION.getMarker(), "Unexpected error occurred while reconnecting", e);
+            logger.error(
+                    RECONNECT.getMarker(),
+                    () -> new ReconnectFailurePayload(
+                            "Unexpected error occurred while reconnecting", CauseOfFailure.ERROR),
+                    e);
+            // in the future we might want to consider a graceful shutdown hook instead of exitSystem
             SystemExitUtils.exitSystem(SystemExitCode.RECONNECT_FAILURE);
         } catch (final InterruptedException e) {
             if (run.get()) {
-                logger.error(RECONNECT.getMarker(), "Thread was interrupted unexpectedly", e);
+                logger.error(
+                        RECONNECT.getMarker(),
+                        () -> new ReconnectFailurePayload("Thread was interrupted unexpectedly", CauseOfFailure.ERROR),
+                        e);
                 Thread.currentThread().interrupt();
+                // in the future we might want to consider a graceful shutdown hook instead of exitSystem
                 SystemExitUtils.exitSystem(SystemExitCode.RECONNECT_FAILURE);
             }
         }
@@ -260,17 +269,19 @@ public class ReconnectController implements Runnable {
     /**
      * Kills the node if we reached the max reconnect retries, otherwise wait until minimumTimeBetweenReconnects
      */
-    private void waitOrExitIfThresholdMet(final int failedReconnectsInARow, final Throwable throwable)
+    private void exitIfMaxRetriesOrWait(final int failedReconnectsInARow, final Throwable throwable)
             throws InterruptedException {
         if (failedReconnectsInARow >= reconnectConfig.maximumReconnectFailuresBeforeShutdown()) {
             logger.error(
                     EXCEPTION.getMarker(),
-                    "Too many reconnect failures in a row ({}), killing node",
-                    reconnectConfig.maximumReconnectFailuresBeforeShutdown(),
+                    () -> new ReconnectFailurePayload(
+                            "Too many reconnect failures in a row (%s), killing node"
+                                    .formatted(reconnectConfig.maximumReconnectFailuresBeforeShutdown()),
+                            CauseOfFailure.ERROR),
                     throwable);
             SystemExitUtils.exitSystem(SystemExitCode.RECONNECT_FAILURE);
         } else {
-            logger.info(
+            logger.warn(
                     RECONNECT.getMarker(),
                     "Reconnect retry ({}/{}) failed with error",
                     failedReconnectsInARow,
@@ -283,25 +294,19 @@ public class ReconnectController implements Runnable {
     /**
      * Kills the node if the reconnect time window has elapsed.
      */
-    private void exitIfReconnectTimeTimeElapsed() {
-        if (reconnectConfig.reconnectWindowSeconds() >= 0
+    private void exitIf() {
+        if (!reconnectConfig.active()) {
+            logger.error(
+                    RECONNECT.getMarker(), "Node {} has fallen behind, reconnect is disabled, will die", selfId.id());
+            SystemExitUtils.exitSystem(SystemExitCode.BEHIND_RECONNECT_DISABLED);
+        } else if (reconnectConfig.reconnectWindowSeconds() >= 0
                 && reconnectConfig.reconnectWindowSeconds()
                         < Duration.between(startupTime, time.now()).toSeconds()) {
-            logger.warn(
-                    STARTUP.getMarker(),
+            logger.error(
+                    RECONNECT.getMarker(),
                     "Node {} has fallen behind, reconnect is disabled outside of time window, will die",
                     selfId.id());
             SystemExitUtils.exitSystem(SystemExitCode.RECONNECT_FAILURE);
-        }
-    }
-
-    /**
-     * Kills the node if reconnect is currently not allowed.
-     */
-    private void exitIfReconnectIsDisabled() {
-        if (!reconnectConfig.active()) {
-            logger.warn(STARTUP.getMarker(), "Node {} has fallen behind, reconnect is disabled, will die", selfId.id());
-            SystemExitUtils.exitSystem(SystemExitCode.BEHIND_RECONNECT_DISABLED);
         }
     }
 
