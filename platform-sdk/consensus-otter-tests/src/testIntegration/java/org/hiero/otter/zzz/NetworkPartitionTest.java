@@ -21,6 +21,7 @@ import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -48,11 +49,11 @@ class NetworkPartitionTest {
      * correctly and that nodes respond appropriately to changes in network topology. It is run in all environments
      * to ensure consistent behavior across different setups.
      *
-     * @param env the test environment for this test
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testCreateAndRemovePartition(@NonNull final TestEnvironment env) {
+
+    @RepeatedTest(100)
+    void testCreateAndRemovePartition() {
+        var env = new ContainerTestEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
