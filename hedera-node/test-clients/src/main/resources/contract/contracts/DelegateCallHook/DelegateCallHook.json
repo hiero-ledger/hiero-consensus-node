@@ -1,67 +1,9 @@
 [
   {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "bool",
-        "name": "success",
-        "type": "bool"
-      },
-      {
-        "indexed": false,
-        "internalType": "int64",
-        "name": "response",
-        "type": "int64"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "seenThis",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "seenSender",
-        "type": "address"
-      }
-    ],
-    "name": "DelegateCallAttempt",
-    "type": "event"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "owner",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      }
-    ],
-    "name": "_associateImpl",
-    "outputs": [
-      {
-        "internalType": "int64",
-        "name": "response",
-        "type": "int64"
-      },
-      {
-        "internalType": "address",
-        "name": "seenThis",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "seenSender",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "payable",
+    "inputs": [],
+    "name": "_something",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -265,25 +207,6 @@
       }
     ],
     "stateMutability": "payable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "name": "isAllowedSender",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   }
 ]

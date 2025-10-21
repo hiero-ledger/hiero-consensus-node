@@ -47,9 +47,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_HOOK_C
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REVERTED_SUCCESS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -250,10 +247,11 @@ public class Hip1195EnabledTest {
                 cryptoTransfer(TokenMovement.moving(10, "token").between(PAYER, OWNER))
                         .withPreHookFor(OWNER, 123L, 5_000_000L, "")
                         .payingWith(PAYER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("staticCallWithAssociation"),
                 getTxnRecord("staticCallWithAssociation")
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(SUCCESS))
+                        .hasChildRecords(recordWith().status(CONTRACT_REVERT_EXECUTED))
                         .logged());
     }
 
@@ -803,9 +801,9 @@ public class Hip1195EnabledTest {
                 // DELEGATECALL executes the target code in the caller's storage context
                 // The hook emits DelegateCallAttempt events showing execution context
                 cryptoTransfer(TokenMovement.movingUnique("nftToken", 1L).between(PAYER, OWNER))
-                        .withPreHookFor(OWNER, 127L, 5_000_000L, "")
+                        .withNftSenderPreHookFor(OWNER, 127L, 5_000_000L, "")
                         .payingWith(PAYER)
-                        //                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("nftDelegateCallTxn"),
                 getTxnRecord("nftDelegateCallTxn")
                         .andAllChildRecords()
@@ -845,9 +843,16 @@ public class Hip1195EnabledTest {
                                         .build())
                         .signedBy(DEFAULT_PAYER, OWNER)),
                 cryptoTransfer(TokenMovement.movingUnique("nftToken", 1L).between(PAYER, OWNER))
-                        .withPreHookFor(OWNER, 128L, 5_000_000L, "")
+                        .withNftReceiverPreHookFor(OWNER, 128L, 5_000_000L, "")
                         .payingWith(PAYER)
-                        .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT));
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .via("nftCallCodeTxn"),
+                getAccountInfo(OWNER).hasNoTokenRelationship("nftToken"),
+                getTxnRecord("nftCallCodeTxn")
+                        .andAllChildRecords()
+                        .hasChildRecords(
+                                recordWith().contractCallResult(resultWith().error("INVALID_OPERATION")))
+                        .logged());
     }
 
     @HapiTest
@@ -888,8 +893,7 @@ public class Hip1195EnabledTest {
                 getAccountInfo(OWNER).hasNoTokenRelationship("nftToken"),
                 getTxnRecord("nftStaticCallTxn")
                         .andAllChildRecords()
-                        .hasChildRecords(
-                                recordWith().status(CONTRACT_REVERT_EXECUTED))
+                        .hasChildRecords(recordWith().status(CONTRACT_REVERT_EXECUTED))
                         .logged());
     }
 
