@@ -21,7 +21,6 @@ java -jar ./validator-<version>.jar {path-to-state-round} validate {tag} [{tag}.
 
 - `{path-to-state-round}` - Location of the state files (required).
 - `{tag}` - Validation that should be run, multiple tags can be specified, separated by spaces (at least one required). Current supported tags:
-  - [`files`](src/main/java/com/hedera/statevalidation/validator/merkledb/FileLayout.java) - Validates all expected files are present in the state directory.
   - [`internal`](/src/main/java/com/hedera/statevalidation/validator/merkledb/ValidateInternalIndex.java) - Validates the consistency of the indices of internal nodes.
   - [`leaf`](/src/main/java/com/hedera/statevalidation/validator/merkledb/ValidateLeafIndex.java) - Validates the consistency of the indices of leaf nodes.
   - [`hdhm`](/src/main/java/com/hedera/statevalidation/validator/merkledb/ValidateLeafIndexHalfDiskHashMap.java) - Validates the consistency of the indices of leaf nodes in the half-disk hashmap.
