@@ -6,21 +6,27 @@ import static org.hiero.consensus.model.status.PlatformStatus.CATASTROPHIC_FAILU
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
 import static org.hiero.consensus.model.status.PlatformStatus.OBSERVING;
 import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
+import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.targets;
 
 import com.swirlds.platform.config.StateConfig_;
 import com.swirlds.platform.state.iss.DefaultIssDetector;
+import com.swirlds.platform.system.SystemExitUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import org.hiero.consensus.model.notification.IssNotification.IssType;
+import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
+import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.result.MarkerFilesStatus;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
+import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
-import org.junit.jupiter.api.Disabled;
 
 /**
  * Tests for the detection and response to ISSes (Inconsistent State Signatures).
@@ -28,21 +34,44 @@ import org.junit.jupiter.api.Disabled;
 public class IssTest {
 
     /**
-     * Triggers a recoverable ISS on a single node and verifies that it recovers by restarting.
+     * Triggers a recoverable ISS on a single node and verifies that it recovers when it is shutdown and restarted.
      *
      * @param env the environment to test in
      */
-    @Disabled
     @OtterTest
-    void testRecoverableSelfIss(@NonNull final TestEnvironment env) {
+    void testManualSelfIssRecovery(@NonNull final TestEnvironment env) {
         final Network network = env.network();
+        final TimeManager timeManager = env.timeManager();
 
         network.addNodes(4);
 
-        network.start();
+        network.withConfigValue(StateConfig_.AUTOMATED_SELF_ISS_RECOVERY, false);
 
         final Node issNode = network.nodes().getFirst();
+
+        // Setup continuous assertions
+        assertContinuouslyThat(network.newLogResults().suppressingNode(issNode)).haveNoErrorLevelMessages();
+        assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
+        assertContinuouslyThat(network.newConsensusResults()).haveEqualCommonRounds();
+        assertContinuouslyThat(network.newConsensusResults().suppressingNode(issNode))
+                .haveConsistentRounds();
+        assertContinuouslyThat(network.newMarkerFileResults().suppressingNode(issNode))
+                .haveNoMarkerFilesExcept(IssType.OTHER_ISS);
+        assertContinuouslyThat(issNode.newMarkerFileResult())
+                // Can be limited further once https://github.com/hiero-ledger/hiero-consensus-node/issues/21666 is
+                // fixed
+                //                .hasNoMarkerFilesExcept(IssType.SELF_ISS);
+                .hasNoMarkerFilesExcept(IssType.OTHER_ISS, IssType.SELF_ISS);
+
+        network.start();
+
         issNode.triggerSelfIss();
+
+        env.timeManager()
+                .waitForCondition(
+                        () -> issNode.isInStatus(CATASTROPHIC_FAILURE),
+                        Duration.ofMinutes(2),
+                        "The ISS Node did not enter CATASTROPHIC_FAILURE in the time allowed.");
 
         final SingleNodePlatformStatusResult issNodeStatusResult = issNode.newPlatformStatusResult();
         assertThat(issNodeStatusResult)
@@ -52,7 +81,6 @@ public class IssTest {
         final SingleNodeLogResult issLogResult = issNode.newLogResult();
         assertThat(issLogResult.suppressingLoggerName(DefaultIssDetector.class)).hasNoErrorLevelMessages();
         issLogResult.clear();
-        assertThat(network.newLogResults().suppressingNode(issNode)).haveNoErrorLevelMessages();
 
         assertThat(network.newPlatformStatusResults().suppressingNode(issNode))
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
@@ -62,11 +90,89 @@ public class IssTest {
 
         env.timeManager()
                 .waitForCondition(
-                        issNode::isActive, Duration.ofSeconds(120), "Node did not become ACTIVE in the time allowed.");
+                        issNode::isActive,
+                        Duration.ofSeconds(120),
+                        "The ISS Node did not become ACTIVE in the time allowed.");
 
         assertThat(issNodeStatusResult)
                 .hasSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
         assertThat(issLogResult).hasNoErrorLevelMessages();
+
+        // Wait for SELF_ISS marker file on the ISS node (max 2 minutes)
+        final MarkerFilesStatus issMarkerFilesStatus =
+                issNode.newMarkerFileResult().status();
+        timeManager.waitForConditionInRealTime(
+                () -> issMarkerFilesStatus.hasIssMarkerFileOfType(IssType.SELF_ISS), Duration.ofMinutes(2L));
+
+        // This functionality is currently unstable. Enable the check once
+        // https://github.com/hiero-ledger/hiero-consensus-node/issues/21684 has been fixed
+
+        //        // Wait for OTHER_ISS marker files on all other nodes (max 10 seconds each)
+        //        for (final SingleNodeMarkerFileResult result :
+        //                network.newMarkerFileResults().suppressingNode(issNode).results()) {
+        //            timeManager.waitForConditionInRealTime(() ->
+        // result.status().hasISSMarkerFileOfType(IssType.OTHER_ISS),
+        //                    Duration.ofSeconds(10L));
+        //        }
+    }
+
+    /**
+     * Triggers a recoverable self ISS and verifies that the node shuts itself down
+     *
+     * @param env the environment to test in
+     */
+    @OtterTest(requires = Capability.SINGLE_NODE_JVM_SHUTDOWN)
+    void testAutomatedSelfIssRecovery(@NonNull final TestEnvironment env) {
+        final Network network = env.network();
+        final TimeManager timeManager = env.timeManager();
+
+        network.addNodes(4);
+        final Node issNode = network.nodes().getFirst();
+
+        network.withConfigValue(StateConfig_.AUTOMATED_SELF_ISS_RECOVERY, true);
+
+        // Setup continuous assertions
+        assertContinuouslyThat(network.newLogResults().suppressingNode(issNode)).haveNoErrorLevelMessages();
+        assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
+        assertContinuouslyThat(network.newConsensusResults()).haveEqualCommonRounds();
+        assertContinuouslyThat(network.newConsensusResults().suppressingNode(issNode))
+                .haveConsistentRounds();
+        assertContinuouslyThat(network.newMarkerFileResults().suppressingNode(issNode))
+                .haveNoMarkerFilesExcept(IssType.OTHER_ISS);
+        assertContinuouslyThat(issNode.newMarkerFileResult())
+                // Check can be enabled once https://github.com/hiero-ledger/hiero-consensus-node/issues/21666 is fixed
+                //                .hasNoMarkerFilesExcept(IssType.SELF_ISS);
+                .hasNoMarkerFilesExcept(IssType.OTHER_ISS, IssType.SELF_ISS);
+
+        network.start();
+
+        final SingleNodeLogResult issNodeLogResult = issNode.newLogResult();
+        assertThat(issNodeLogResult).hasNoErrorLevelMessages();
+
+        issNode.triggerSelfIss();
+
+        timeManager.waitForCondition(
+                () -> !issNode.isAlive(), Duration.ofSeconds(120), "Node did not shut down after ISS");
+
+        assertThat(issNodeLogResult
+                        .suppressingLoggerName(DefaultIssDetector.class)
+                        .suppressingLoggerName(SystemExitUtils.class))
+                .hasNoErrorLevelMessages();
+        issNodeLogResult.clear();
+
+        issNode.start();
+
+        timeManager.waitForCondition(
+                issNode::isActive, Duration.ofSeconds(120), "The ISS node did not become ACTIVE in the time allowed.");
+
+        assertThat(issNode.newPlatformStatusResult())
+                .hasSteps(
+                        target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING),
+                        target(ACTIVE)
+                                .requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING)
+                                .optionalInterim(CATASTROPHIC_FAILURE));
+
+        assertThat(issNodeLogResult).hasNoErrorLevelMessages();
     }
 
     /**
@@ -81,10 +187,19 @@ public class IssTest {
     @OtterTest
     void testCatastrophicIss(@NonNull final TestEnvironment env) {
         final Network network = env.network();
+        final TimeManager timeManager = env.timeManager();
 
         network.addNodes(4);
-
         network.withConfigValue(StateConfig_.HALT_ON_CATASTROPHIC_ISS, true);
+
+        // Setup continuous assertions
+        assertContinuouslyThat(network.newLogResults().suppressingLoggerName(DefaultIssDetector.class))
+                .haveNoErrorLevelMessages();
+        assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
+        assertContinuouslyThat(network.newConsensusResults())
+                .haveEqualCommonRounds()
+                .haveConsistentRounds();
+        assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFilesExcept(IssType.CATASTROPHIC_ISS);
 
         network.start();
 
@@ -94,7 +209,14 @@ public class IssTest {
                 .haveSteps(
                         target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING),
                         targets(CHECKING, CATASTROPHIC_FAILURE));
-        assertThat(network.newLogResults().suppressingLoggerName(DefaultIssDetector.class))
-                .haveNoErrorLevelMessages();
+
+        assertThat(network.newEventStreamResults()).haveEqualFiles();
+
+        // It can take a while (real time) until a marker file is created, therefore we wait for its presence
+        for (final SingleNodeMarkerFileResult result :
+                network.newMarkerFileResults().results()) {
+            timeManager.waitForConditionInRealTime(
+                    () -> result.status().hasIssMarkerFileOfType(IssType.CATASTROPHIC_ISS), Duration.ofMinutes(2L));
+        }
     }
 }
