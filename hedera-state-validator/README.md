@@ -194,7 +194,7 @@ Export all accounts to `/tmp/accounts`, limiting the number of objects per file 
 
 ```shell
 java -jar -DmaxObjPerFile=100000 ./validator-<version>.jar /path/to/round export --out=/path/to/result \
-  --service-name=AccountService --state-key=ACCOUNTS
+  --service-name=TokenService --state-key=ACCOUNTS
 ```
 
 ### Notes
@@ -218,7 +218,7 @@ java -jar -DmaxObjPerFile=100000 ./validator-<version>.jar /path/to/round export
 
 ```shell
 java -jar [-DmaxObjPerFile=<number>] [-DprettyPrint=true] ./validator-<version>.jar {path-to-state-round} sorted-export \
-  --out=<output-directory> 
+  --out=<output-directory>
   [--service-name=<service-name> --state-key=<state-key>]
 ```
 
@@ -226,21 +226,21 @@ java -jar [-DmaxObjPerFile=<number>] [-DprettyPrint=true] ./validator-<version>.
 
 Example entry:
 
-```json
+```
 {"k":"{
-  "accountNum": "1"
-}", "v":{
-  "accountId": {
-    "accountNum": "1"
-  },
-  "key": {
-    "ed25519": "CqjiEGTGHquG4qnBZFZbTnqaQUYQbgps0DqMOVoRDpI="
-  },
-  "expirationSecond": "1762348512",
-  "stakePeriodStart": "-1",
-  "stakeAtStartOfLastRewardedPeriod": "-1",
-  "autoRenewSeconds": "8000001"
-}}
+    \"accountNum\": \"1\"
+}", "v":"{
+    \"accountId\": {
+        \"accountNum\": \"1\"
+    },
+    \"key\": {
+        \"ed25519\": \"CqjiEGTGHquG4qnBZFZbTnqaQUYQbgps0DqMOVoRDpI=\"
+    },
+    \"expirationSecond\": \"1769026993\",
+    \"stakePeriodStart\": \"-1\",
+    \"stakeAtStartOfLastRewardedPeriod\": \"-1\",
+    \"autoRenewSeconds\": \"8000001\"
+}"}
 ```
 
 where `k` is a key, and `v` is a value.
@@ -278,7 +278,7 @@ java -jar ./validator-<version>.jar {path-to-state-round} compact
 
 ```shell
 java -jar ./validator-<version>.jar {path-to-state-round} apply-blocks --block-stream-dir=<path-to-block-stream-files> \
- --node-id=<self-id> \ 
+ --node-id=<self-id> \
  [--out=<path to output directory>] [--expected-hash=<hash of the target state>] [--target-round=<target round>]
 ```
 
