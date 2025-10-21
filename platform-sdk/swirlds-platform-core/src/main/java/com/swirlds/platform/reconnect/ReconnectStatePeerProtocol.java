@@ -310,7 +310,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
      *
      * @param connection the connection to use for the reconnect
      */
-    private void learner(final Connection connection) {
+    private void learner(final Connection connection) throws NetworkProtocolException {
         try {
 
             final MerkleNodeState consensusState = swirldStateManager.getConsensusState();
@@ -329,7 +329,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
                             true,
                             connection.getSelfId().id(),
                             connection.getOtherId().id(),
-                            //      TODO is this correct?
                             platformStateFacade.roundOf(consensusState))
                     .toString());
 
@@ -363,10 +362,16 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
                                         + NetworkUtils.formatException(e),
                                 ReconnectFailurePayload.CauseOfFailure.SOCKET)
                         .toString());
-            } else if (connection != null) {
-                connection.disconnect();
+            } else {
+                // For compatibility with past code, though not quite sure why
+                // it would disconnect on any other exception that is not a socket one
+                if (connection != null) {
+                    connection.disconnect();
+                }
             }
-            throw new RuntimeException(e);
+            // Throwing a NetworkProtocolException makes initiateFailed() method to execute.
+            // That should release the permit and allow another peer protocol to execute.
+            throw new NetworkProtocolException(e);
         }
     }
 
