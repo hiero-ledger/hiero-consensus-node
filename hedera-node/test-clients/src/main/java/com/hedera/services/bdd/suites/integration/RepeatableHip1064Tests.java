@@ -743,7 +743,7 @@ public class RepeatableHip1064Tests {
             final List<Block> latestNBlocksUF = new ArrayList<>();
             try (final var stream = Files.walk(spec.getNetworkNodes().getFirst().getExternalPath(BLOCK_STREAMS_DIR))) {
                 // take files snapshot (so we don't include other block files that may be coming through)
-                final var blockPathsSnapshot = stream.filter(BlockStreamAccess::isBlockFile)
+                final var blockPathsSnapshot = stream.filter(p -> BlockStreamAccess.isBlockFile(p, true))
                         .sorted(comparing(BlockStreamAccess::extractBlockNumber))
                         .toList();
                 final var numFiles = Math.min(blockPathsSnapshot.size(), numBlocks);
