@@ -147,7 +147,9 @@ public class ReadableStoreFactory {
         // Clpr service
         newMap.put(
                 ReadableClprLedgerConfigurationStore.class,
-                new StoreEntry(ClprService.NAME, ReadableClprLedgerConfigurationStoreImpl::new));
+                new StoreEntry(
+                        ClprService.NAME,
+                        (states, entityCounters) -> new ReadableClprLedgerConfigurationStoreImpl(states)));
         return Collections.unmodifiableMap(newMap);
     }
 

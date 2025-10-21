@@ -110,7 +110,9 @@ public class WritableStoreFactory {
         // ClprService
         newMap.put(
                 WritableClprLedgerConfigurationStore.class,
-                new StoreEntry(ClprService.NAME, WritableClprLedgerConfigurationStoreImpl::new));
+                new StoreEntry(
+                        ClprService.NAME,
+                        (states, entityCounters) -> new WritableClprLedgerConfigurationStoreImpl(states)));
         return Collections.unmodifiableMap(newMap);
     }
 
@@ -121,8 +123,8 @@ public class WritableStoreFactory {
     /**
      * Constructor of {@code WritableStoreFactory}
      *
-     * @param state       the {@link State} to use
-     * @param serviceName the name of the service to create stores for
+     * @param state          the {@link State} to use
+     * @param serviceName    the name of the service to create stores for
      * @param entityCounters the {@link WritableEntityCounters} to use
      * @throws NullPointerException     if one of the arguments is {@code null}
      * @throws IllegalArgumentException if the service name is unknown
