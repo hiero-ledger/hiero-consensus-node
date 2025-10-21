@@ -1250,10 +1250,10 @@ public final class VirtualNodeCache implements FastCopyable, SelfSerializable {
             final ConcurrentArray<Mutation<K, V>> array,
             final Map<K, Mutation<K, V>> index,
             @NonNull final VirtualMapConfig virtualMapConfig) {
-        array.parallelTraverse(
-                getCleaningPool(virtualMapConfig),
-                element -> index.compute(element.key, (key, mutation) -> {
-                    if (mutation == null || element.equals(mutation)) {
+        array.parallelTraverse(getCleaningPool(virtualMapConfig), element -> {
+            if (element.notFiltered()) {
+                index.compute(element.key, (key, mutation) -> {
+                    if ((mutation == null) || element.equals(mutation)) {
                         // Already removed for a more recent mutation
                         return null;
                     }
@@ -1264,7 +1264,9 @@ public final class VirtualNodeCache implements FastCopyable, SelfSerializable {
                         }
                     }
                     return mutation;
-                }));
+                });
+            }
+        });
     }
 
     /**
