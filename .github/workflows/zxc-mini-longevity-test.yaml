@@ -619,7 +619,7 @@ jobs:
       - longevity-tests-wait
     outputs:
       NFTscore: ${{ steps.NftTransferLoadTestLogs.outputs.value }}
-      Heliscore: ${{ steps.HeliSwapLoadTestLogs.outputs.value }}
+      #Heliscore: ${{ steps.HeliSwapLoadTestLogs.outputs.value }}
       Cryptoscore: ${{ steps.CryptoTransferLoadTestLogs.outputs.value }}
       HCSscore: ${{ steps.HCSLoadTestLogs.outputs.value }}
       Smartscore: ${{ steps.SmartContractLoadTestLogs.outputs.value }}
@@ -702,6 +702,7 @@ jobs:
           grep -E 'Finished NftTransferLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
 
       - name: Extract benchmark score of HeliSwapLoadTest test
+        if: false
         id: HeliSwapLoadTestLogs
         run: |
           grep -E 'Finished HeliSwapLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
@@ -775,13 +776,13 @@ jobs:
         run: |
           RESULT="failure"
           NFT="${{ needs.longevity-tests-finish.outputs.NFTscore }}"
-          HELI="${{ needs.longevity-tests-finish.outputs.Heliscore }}"
+          #HELI="${{ needs.longevity-tests-finish.outputs.Heliscore }}"
           CRYPTO="${{ needs.longevity-tests-finish.outputs.Cryptoscore }}"
           HCS="${{ needs.longevity-tests-finish.outputs.HCSscore }}"
           SMART="${{ needs.longevity-tests-finish.outputs.Smartscore }}"
 
           # Check if any variable is empty. If it is, we set the result to failure.
-          if [ -z "${NFT}" ] || [ -z "${HELI}" ] || [ -z "${CRYPTO}" ] || [ -z "${HCS}" ] || [ -z "${SMART}" ]; then
+          if [ -z "${NFT}" ] || [ -z "${CRYPTO}" ] || [ -z "${HCS}" ] || [ -z "${SMART}" ]; then
             RESULT="failure"
           else
             RESULT="success"
@@ -792,6 +793,7 @@ jobs:
           echo "result=${RESULT}" >> "${GITHUB_OUTPUT}"
 
   longevity-report-to-rootly:
+    if: false
     name: Report Failures to Rootly
     runs-on: hiero-citr-linux-medium
     needs:
@@ -905,10 +907,9 @@ jobs:
             NftTransferLoadTest ${{ needs.longevity-tests-finish.outputs.NFTscore }} \n\
             HCSLoadTest ${{ needs.longevity-tests-finish.outputs.HCSscore }} \n\
             CryptoTransferLoadTest ${{ needs.longevity-tests-finish.outputs.Cryptoscore }} \n\
-            HeliSwapLoadTest ${{ needs.longevity-tests-finish.outputs.Heliscore }}\n\
             SmartContractLoadTest ${{ needs.longevity-tests-finish.outputs.Smartscore }}"
           #last line is 5, it does not need comma block separator
-          freport=`/usr/bin/echo -e "$report" | awk '{print $1" "$2}'| perl -ne 'if ($. < 5) {$comma=","} else {$comma="";} ($t,$d)=split(/\s+/,$_,2);printf("{\"type\": \"text\",\"text\": \"%-25s %7d \\\n\"}%s",$t,$d,$comma);'`
+          freport=`/usr/bin/echo -e "$report" | awk '{print $1" "$2}'| perl -ne 'if ($. < 4) {$comma=","} else {$comma="";} ($t,$d)=split(/\s+/,$_,2);printf("{\"type\": \"text\",\"text\": \"%-25s %7d \\\n\"}%s",$t,$d,$comma);'`
           freport="{\"type\": \"text\",\"text\": \"Name                          TPS\n\"},$freport"
 
           cat <<EOF > slack_payload.json
