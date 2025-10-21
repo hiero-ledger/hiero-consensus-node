@@ -162,7 +162,8 @@ public class NetworkBehavior {
         updateToxin(connectionKey, latencyToxin);
     }
 
-    private void setBandwidthLimit(@NonNull final ConnectionKey connectionKey, @NonNull final ConnectionData newConnectionData) {
+    private void setBandwidthLimit(
+            @NonNull final ConnectionKey connectionKey, @NonNull final ConnectionData newConnectionData) {
         log.debug(
                 "Setting bandwidth between sender {} and receiver {} to {}",
                 connectionKey.sender(),
@@ -172,16 +173,12 @@ public class NetworkBehavior {
         updateToxin(connectionKey, bandwidthToxin);
     }
 
-    private void updateToxin(
-            @NonNull final ConnectionKey connectionKey,
-            @NonNull final Toxin toxin) {
+    private void updateToxin(@NonNull final ConnectionKey connectionKey, @NonNull final Toxin toxin) {
         updateToxinSingleStream(connectionKey, toxin);
         updateToxinSingleStream(connectionKey.reverted(), toxin.downstream());
     }
 
-    private void updateToxinSingleStream(
-            @NonNull final ConnectionKey connectionKey,
-            @NonNull final Toxin toxin) {
+    private void updateToxinSingleStream(@NonNull final ConnectionKey connectionKey, @NonNull final Toxin toxin) {
         final Proxy proxy = proxies.get(connectionKey);
         if (proxy == null) {
             throw new IllegalStateException("No proxy found for sender %s and receiver %s"

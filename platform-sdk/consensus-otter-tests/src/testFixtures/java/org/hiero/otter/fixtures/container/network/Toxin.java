@@ -149,7 +149,8 @@ public abstract class Toxin {
         @Override
         @NonNull
         public Map<String, Integer> attributes() {
-            return Map.of("latency", (int) latency.toMillis(), "jitter", (int) (latency.toMillis() * jitter.value * 0.01));
+            return Map.of(
+                    "latency", (int) latency.toMillis(), "jitter", (int) (latency.toMillis() * jitter.value * 0.01));
         }
 
         /**

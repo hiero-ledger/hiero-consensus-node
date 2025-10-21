@@ -120,8 +120,8 @@ public class SingleNodeReconnectResultImpl implements SingleNodeReconnectResult 
             return new ReconnectFailureNotification(
                     parsePayload(ReconnectFailurePayload.class, message), logEntry.nodeId());
         } else if (message.contains(ReconnectStartPayload.class.getName())) {
-            return new ReconnectStartNotification(
-                    parsePayload(ReconnectStartPayload.class, message), logEntry.nodeId());
+            final ReconnectStartPayload payload = parsePayload(ReconnectStartPayload.class, message);
+            return payload.isReceiving() ? new ReconnectStartNotification(payload, logEntry.nodeId()) : null;
         } else if (message.contains(SynchronizationCompletePayload.class.getName())) {
             return new SynchronizationCompleteNotification(
                     parsePayload(SynchronizationCompletePayload.class, message), logEntry.nodeId());

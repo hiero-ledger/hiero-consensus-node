@@ -484,7 +484,8 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public void setBandwidthForAllConnections(@NonNull final Node sender, @NonNull final BandwidthLimit bandwidthLimit) {
+    public void setBandwidthForAllConnections(
+            @NonNull final Node sender, @NonNull final BandwidthLimit bandwidthLimit) {
         log.info("Setting bandwidth for all connections from node {} to {}", sender.selfId(), bandwidthLimit);
         for (final Node receiver : nodes()) {
             if (!receiver.equals(sender)) {

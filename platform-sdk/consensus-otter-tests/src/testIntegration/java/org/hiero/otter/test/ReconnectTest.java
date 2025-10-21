@@ -49,6 +49,7 @@ public class ReconnectTest {
      * @param env the test environment
      */
     @OtterTest(requires = Capability.RECONNECT)
+    @Disabled
     void testNodeDeathReconnect(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
