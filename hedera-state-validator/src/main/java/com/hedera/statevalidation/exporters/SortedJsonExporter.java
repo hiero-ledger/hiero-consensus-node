@@ -2,7 +2,7 @@
 package com.hedera.statevalidation.exporters;
 
 import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
-import static com.hedera.statevalidation.ExportCommand.MAX_OBJ_PER_FILE;
+import static com.hedera.statevalidation.SortedExportCommand.MAX_OBJ_PER_FILE;
 import static com.hedera.statevalidation.exporters.JsonExporter.write;
 
 import com.hedera.hapi.platform.state.SingletonType;
@@ -13,9 +13,9 @@ import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.statevalidation.StateIds;
 import com.swirlds.base.utility.Pair;
-import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.state.merkle.StateUtils;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
@@ -35,6 +35,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.LongStream;
 
 /**
@@ -54,6 +55,9 @@ public class SortedJsonExporter {
     private final Map<Integer, Set<Pair<Long, Bytes>>> keysByExpectedStateIds;
     private final Map<Integer, Pair<String, String>> nameByStateId;
 
+    private final AtomicLong objectsProcessed = new AtomicLong(0);
+    private long totalNumber;
+
     public SortedJsonExporter(File resultDir, MerkleNodeState state, String serviceName, String stateKeyName) {
         this(resultDir, state, List.of(Pair.of(serviceName, stateKeyName)));
     }
@@ -65,9 +69,9 @@ public class SortedJsonExporter {
         keysByExpectedStateIds = new HashMap<>();
         nameByStateId = new HashMap<>();
         serviceNameStateKeyList.forEach(p -> {
-            int stateId = StateUtils.stateIdFor(p.left(), p.right());
+            int stateId = StateIds.stateIdFor(p.left(), p.right());
             final Comparator<Pair<Long, Bytes>> comparator;
-            if (stateId < StateKey.KeyOneOfType.RECORDCACHE_I_TRANSACTIONRECEIPTQUEUE.protoOrdinal()) {
+            if (stateId < StateKey.KeyOneOfType.RECORDCACHE_I_TRANSACTION_RECEIPTS.protoOrdinal()) {
                 comparator = (key1, key2) -> {
                     ReadableSequentialData keyData1 = key1.right().toReadableSequentialData();
                     keyData1.readVarInt(false); // read tag
@@ -109,6 +113,8 @@ public class SortedJsonExporter {
     public void export() {
         final long startTimestamp = System.currentTimeMillis();
         final VirtualMap vm = (VirtualMap) state.getRoot();
+        totalNumber = vm.size();
+        System.out.println("Collecting keys from the state...");
         collectKeys(vm);
         keysByExpectedStateIds.forEach((key, values) -> {
             if (values.isEmpty()) {
@@ -119,7 +125,7 @@ public class SortedJsonExporter {
 
         List<CompletableFuture<Void>> futures = traverseVmInParallel();
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-        System.out.println("Export time: " + (System.currentTimeMillis() - startTimestamp) + "ms");
+        System.out.println("Export time: " + ((System.currentTimeMillis() - startTimestamp) / 1000) + " seconds");
         executorService.close();
     }
 
@@ -200,6 +206,10 @@ public class SortedJsonExporter {
                     emptyFile = false;
                 } catch (ParseException e) {
                     throw new RuntimeException(e);
+                }
+                long currentObjCount = objectsProcessed.incrementAndGet();
+                if (currentObjCount % MAX_OBJ_PER_FILE == 0) {
+                    System.out.printf("%s objects of %s are processed\n", currentObjCount, totalNumber);
                 }
             }
         } catch (IOException e) {

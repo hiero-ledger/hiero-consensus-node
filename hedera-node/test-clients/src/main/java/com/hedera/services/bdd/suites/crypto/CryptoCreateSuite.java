@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -189,6 +190,7 @@ public class CryptoCreateSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> createAnAccountWithStakingFields() {
         return hapiTest(
                 cryptoCreate("civilianWORewardStakingNode")
@@ -766,6 +768,7 @@ public class CryptoCreateSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> createAnAccountWithNoMaxAutoAssocAndBalance() {
         double v13PriceUsd = 0.05;
 
@@ -948,6 +951,7 @@ public class CryptoCreateSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> createAnAccountWithEVMAddressAliasAndECKey() {
         return hapiTest(newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE), withOpContext((spec, opLog) -> {
             final var ecdsaKey = spec.registry().getKey(SECP_256K1_SOURCE_KEY);

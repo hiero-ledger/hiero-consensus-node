@@ -2,58 +2,51 @@
 package org.hiero.otter.fixtures.turtle;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.AVERAGE_NETWORK_DELAY;
-import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.STANDARD_DEVIATION_NETWORK_DELAY;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.common.test.fixtures.WeightGenerator;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
-import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
+import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
+import org.hiero.otter.fixtures.internal.network.ConnectionKey;
+import org.hiero.otter.fixtures.logging.context.ContextAwareThreadFactory;
+import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
+import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContextScope;
+import org.hiero.otter.fixtures.network.Topology.ConnectionData;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
+import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 
 /**
  * An implementation of {@link Network} that is based on the Turtle framework.
  */
-public class TurtleNetwork extends AbstractNetwork implements TurtleTimeManager.TimeTickReceiver {
+public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
 
     private static final Logger log = LogManager.getLogger();
-
-    private static final Duration DEFAULT_START_TIMEOUT = Duration.ofSeconds(30);
-    private static final Duration DEFAULT_FREEZE_TIMEOUT = Duration.ofSeconds(30);
-    private static final Duration DEFAULT_SHUTDOWN_TIMEOUT = Duration.ZERO;
 
     private final Randotron randotron;
     private final TurtleTimeManager timeManager;
     private final TurtleLogging logging;
     private final Path rootOutputDirectory;
-    private final List<TurtleNode> nodes = new ArrayList<>();
     private final TurtleTransactionGenerator transactionGenerator;
-    private final List<Node> publicNodes = Collections.unmodifiableList(nodes);
+    private final SimulatedNetwork simulatedNetwork;
 
     private ExecutorService executorService;
-    private SimulatedNetwork simulatedNetwork;
 
     /**
      * Constructor for TurtleNetwork.
@@ -63,19 +56,22 @@ public class TurtleNetwork extends AbstractNetwork implements TurtleTimeManager.
      * @param logging              the logging utility
      * @param rootOutputDirectory  the directory where the node output will be stored, like saved state and so on
      * @param transactionGenerator the transaction generator that generates a steady flow of transactions to all nodes
+     * @param useRandomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
      */
     public TurtleNetwork(
             @NonNull final Randotron randotron,
             @NonNull final TurtleTimeManager timeManager,
             @NonNull final TurtleLogging logging,
             @NonNull final Path rootOutputDirectory,
-            @NonNull final TurtleTransactionGenerator transactionGenerator) {
-        super(DEFAULT_START_TIMEOUT, DEFAULT_FREEZE_TIMEOUT, DEFAULT_SHUTDOWN_TIMEOUT);
+            @NonNull final TurtleTransactionGenerator transactionGenerator,
+            final boolean useRandomNodeIds) {
+        super(randotron, useRandomNodeIds);
         this.randotron = requireNonNull(randotron);
         this.timeManager = requireNonNull(timeManager);
         this.logging = requireNonNull(logging);
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);
         this.transactionGenerator = requireNonNull(transactionGenerator);
+        this.simulatedNetwork = new SimulatedNetwork(randotron);
     }
 
     /**
@@ -92,15 +88,6 @@ public class TurtleNetwork extends AbstractNetwork implements TurtleTimeManager.
      */
     @Override
     @NonNull
-    protected byte[] createFreezeTransaction(@NonNull final Instant freezeTime) {
-        return TransactionFactory.createFreezeTransaction(freezeTime).toByteArray();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
     protected TransactionGenerator transactionGenerator() {
         return transactionGenerator;
     }
@@ -109,59 +96,55 @@ public class TurtleNetwork extends AbstractNetwork implements TurtleTimeManager.
      * {@inheritDoc}
      */
     @Override
+    protected void onConnectionsChanged(@NonNull final Map<ConnectionKey, ConnectionData> connections) {
+        simulatedNetwork.setConnections(connections);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     @NonNull
-    public List<Node> addNodes(final int count, @NonNull final WeightGenerator weightGenerator) {
-        throwIfInState(State.RUNNING, "Cannot add nodes after the network has been started.");
-        throwIfInState(State.SHUTDOWN, "Cannot add nodes after the network has been started.");
-        if (!nodes.isEmpty()) {
-            throw new UnsupportedOperationException("Adding nodes incrementally is not supported yet.");
+    protected TurtleNode doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
+        simulatedNetwork.addNode(nodeId);
+        final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
+        return new TurtleNode(randotron, timeManager, nodeId, keysAndCerts, simulatedNetwork, logging, outputDir);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    protected InstrumentedNode doCreateInstrumentedNode(
+            @NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
+        simulatedNetwork.addNode(nodeId);
+        final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
+        return new InstrumentedTurtleNode(
+                randotron, timeManager, nodeId, keysAndCerts, simulatedNetwork, logging, outputDir);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void preStartHook(@NonNull final Roster roster) {
+        final int size = nodes().size();
+        executorService = NodeLoggingContext.wrap(Executors.newFixedThreadPool(
+                Math.min(size, Runtime.getRuntime().availableProcessors()), new ContextAwareThreadFactory()));
+
+        // The saved state was generated with the same seed; without advancing time,
+        // all nodes would start simultaneously, and the saved state would lie in their future.
+        final boolean runFromState =
+                nodes().stream().map(TurtleNode.class::cast).anyMatch(TurtleNode::startFromSavedState);
+        if (runFromState) {
+            timeManager.advanceTime(Duration.ofHours(1));
         }
-
-        executorService = Executors.newFixedThreadPool(
-                Math.min(count, Runtime.getRuntime().availableProcessors()));
-
-        final RandomRosterBuilder rosterBuilder = RandomRosterBuilder.create(randotron)
-                .withSize(count)
-                .withWeightGenerator(weightGenerator)
-                .withRealKeysEnabled(true);
-        final Roster roster = rosterBuilder.build();
-
-        simulatedNetwork =
-                new SimulatedNetwork(randotron, roster, AVERAGE_NETWORK_DELAY, STANDARD_DEVIATION_NETWORK_DELAY);
-
-        final List<TurtleNode> nodeList = roster.rosterEntries().stream()
-                .map(entry -> NodeId.newBuilder().id(entry.nodeId()).build())
-                .sorted(Comparator.comparing(NodeId::id))
-                .map(nodeId -> createTurtleNode(nodeId, roster, rosterBuilder.getPrivateKeys(nodeId)))
-                .toList();
-        nodes.addAll(nodeList);
-
-        return publicNodes;
     }
 
-    private TurtleNode createTurtleNode(
-            @NonNull final NodeId nodeId, @NonNull final Roster roster, @NonNull final KeysAndCerts privateKeys) {
-        final Path outputDir = rootOutputDirectory.resolve("node-" + nodeId.id());
-        return new TurtleNode(
-                randotron, timeManager.time(), nodeId, roster, privateKeys, simulatedNetwork, logging, outputDir);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    @NonNull
-    public InstrumentedNode addInstrumentedNode() {
-        throw new UnsupportedOperationException("Adding instrumented nodes is not implemented yet.");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public List<Node> nodes() {
-        return publicNodes;
+    protected void doSendQuiescenceCommand(@NonNull final QuiescenceCommand command, @NonNull final Duration timeout) {
+        nodes().forEach(node -> node.sendQuiescenceCommand(command));
     }
 
     /**
@@ -169,17 +152,24 @@ public class TurtleNetwork extends AbstractNetwork implements TurtleTimeManager.
      */
     @Override
     public void tick(@NonNull final Instant now) {
-        if (state != State.RUNNING) {
+        if (lifecycle != Lifecycle.RUNNING) {
             return;
         }
 
         simulatedNetwork.tick(now);
-        transactionGenerator.tick(now, nodes);
+        transactionGenerator.tick(now, nodes());
 
         // Iteration order over nodes does not need to be deterministic -- nodes are not permitted to communicate with
         // each other during the tick phase, and they run on separate threads to boot.
-        CompletableFuture.allOf(nodes.stream()
-                        .map(node -> CompletableFuture.runAsync(() -> node.tick(now), executorService))
+        CompletableFuture.allOf(nodes().stream()
+                        .map(node -> {
+                            final TurtleNode turtleNode = (TurtleNode) node;
+                            try (final LoggingContextScope ignored = NodeLoggingContext.install(
+                                    Long.toString(turtleNode.selfId().id()))) {
+                                return CompletableFuture.runAsync(
+                                        NodeLoggingContext.wrap(() -> turtleNode.tick(now)), executorService);
+                            }
+                        })
                         .toArray(CompletableFuture[]::new))
                 .join();
     }
@@ -187,15 +177,11 @@ public class TurtleNetwork extends AbstractNetwork implements TurtleTimeManager.
     /**
      * Shuts down the network and cleans up resources. Once this method is called, the network cannot be started again.
      * This method is idempotent and can be called multiple times without any side effects.
-     *
-     * @throws InterruptedException if the thread is interrupted while the network is being destroyed
      */
-    void destroy() throws InterruptedException {
+    void destroy() {
         log.info("Destroying network...");
         transactionGenerator.stop();
-        for (final TurtleNode node : nodes) {
-            node.destroy();
-        }
+        nodes().forEach(node -> ((TurtleNode) node).destroy());
         if (executorService != null) {
             executorService.shutdownNow();
         }

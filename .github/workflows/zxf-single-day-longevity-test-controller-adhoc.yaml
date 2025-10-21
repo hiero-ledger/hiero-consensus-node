@@ -5,19 +5,15 @@ on:
     inputs:
       test-asset:
         required: true
-        default: "SDLT2"
-        description: "Performance test on given Longevity Machine (SDLT2)"
+        default: "AdHocSD8"
+        description: "Test on given Longevity Machine (AdHoc5, AdHoc6, AdHoc7, AdHocSD8, AdHocSD9)"
         type: choice
         options:
           - AdHoc5
           - AdHoc6
           - AdHoc7
-          - SDLT2
-      ref:
-        required: true
-        default: "main"
-        description: "Version of hiero-consensus-node: branch, tag, commit"
-        type: string
+          - AdHocSD8
+          - AdHocSD9
       nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
         required: true
         default: "100000"
@@ -61,6 +57,11 @@ on:
         default: true
         type: boolean
         description: "If true, skip tag and notifications"
+      delete-namespace:
+        required: false
+        default: true
+        type: boolean
+        description: "If true, automatically delete namespace when done"
 
 defaults:
   run:
@@ -88,13 +89,13 @@ jobs:
       - name: Checkout Consensus Node
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ github.ref }}
 
       - name: Verify Tag
         id: verify-tag
         env:
           PROMOTED_GREP_PATTERN: "build-(.{5})" # Pattern to match build tags (e.g., build-12345)
-          CHECK_TAG: "${{ inputs.ref }}"
+          CHECK_TAG: "${{ github.ref }}"
         run: |
           # Ensure the tag that we received is a build tag
           # if the tag is a build tag then we can parse out the build number (the last 5 characters)
@@ -114,28 +115,30 @@ jobs:
             echo "Ref: ${CHECK_TAG}" >> "${GITHUB_STEP_SUMMARY}"
           fi
 
-  run-single-day-longevity-nlg-test:
-    name: Performance Test
+  run-single-day-longevity-test:
+    name: Longevity Test
     needs:
       - verify-tag
-    uses: ./.github/workflows/zxc-single-day-longevity-nlg-test.yaml
+    uses: ./.github/workflows/zxc-single-day-longevity-test.yaml
     if: ${{ needs.verify-tag.result == 'success' || inputs.disable-notifications == true }}
     with:
       test-asset: "${{ inputs.test-asset }}"
-      ref: "${{ inputs.ref }}"
-      solo-version: "${{ vars.CITR_SOLO_VERSION }}"
+      ref: "${{ github.ref }}"
+      solo-version: "${{ vars.ADHOC_SOLO_VERSION }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
       add-settings: "${{ inputs.add-settings }}"
+      delete-namespace: ${{ inputs.delete-namespace }}
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+      rootly-api-token: ${{ secrets.ROOTLY_API_TOKEN }}
 
   tag-sdlt-result:
     name: Tag SDLT Result
     runs-on: hiero-citr-linux-medium
     needs:
-      - run-single-day-longevity-nlg-test
+      - run-single-day-longevity-test
       - verify-tag
     if: ${{ inputs.disable-notifications != true }}
     steps:
@@ -149,7 +152,7 @@ jobs:
         with:
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           fetch-depth: "0"
-          ref: ${{ inputs.ref }}
+          ref: ${{ github.ref }}
 
       - name: Import GPG Key
         id: gpg_importer
@@ -163,9 +166,16 @@ jobs:
 
       - name: Tag SDLT Result
         run: |
-          RESULT="${{ needs.run-single-day-longevity-nlg-test.outputs.result }}"
+          RESULT="${{ needs.run-single-day-longevity-test.outputs.result }}"
           BUILD_NUM="${{ needs.verify-tag.outputs.build-number }}"
 
+          # Skip tagging if no build number is found
+          if [ -z "$BUILD_NUM" ]; then
+            echo "No build number found. Skipping tagging step." >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+
+          # Populate the SDLT tag name and message
           if [ "$RESULT" == "success" ]; then
             TAG_NAME="sdlt-pass-${BUILD_NUM}"
             MSG="Single Day Longevity Test passed for build-${BUILD_NUM}"
@@ -193,6 +203,7 @@ jobs:
       commit-author: ${{ steps.find-commit-author-slack.outputs.commit-author }}
       commit-email: ${{ steps.find-commit-author-slack.outputs.commit-email }}
       slack-user-id: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}
+      commit: ${{ steps.find-commit-author-slack.outputs.commit }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -209,7 +220,7 @@ jobs:
         id: find-commit-author-slack
         continue-on-error: true
         env:
-          BUILD_TAG: ${{ inputs.ref }}
+          BUILD_TAG: ${{ github.ref }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
         run: |
           # Extract the commit and user information from the build tag
@@ -227,6 +238,7 @@ jobs:
             echo "Found slack user for email: ${EMAIL}"
             SLACK_USER_ID="<@${SLACK_USER_ID}>"
           fi
+          echo "commit=${COMMIT}" >> "${GITHUB_OUTPUT}"
           echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
           echo "commit-author=${AUTHOR}" >> "${GITHUB_OUTPUT}"
           echo "commit-email=${EMAIL}" >> "${GITHUB_OUTPUT}"
@@ -237,11 +249,11 @@ jobs:
     needs:
       - verify-tag
       - tag-sdlt-result
-      - run-single-day-longevity-nlg-test
+      - run-single-day-longevity-test
       - get-commit-info
     if: ${{ (needs.verify-tag.result == 'success' &&
       needs.tag-sdlt-result.result == 'success' &&
-      needs.run-single-day-longevity-nlg-test.outputs.result == 'success' &&
+      needs.run-single-day-longevity-test.outputs.result == 'success' &&
       needs.get-commit-info.result == 'success') &&
       inputs.disable-notifications != true && !cancelled() }}
     steps:
@@ -266,7 +278,7 @@ jobs:
                       "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": ":tada: SDLT - Single Day Longevity Test (${{ inputs.ref }}) Passed",
+                        "text": ":tada: SDLT - Single Day Longevity Test (${{ github.ref }}) Passed",
                         "emoji": true
                       }
                     },
@@ -290,11 +302,11 @@ jobs:
                         },
                         {
                           "type": "plain_text",
-                          "text": "Run Single Day Performance Test"
+                          "text": "Run Single Day Longevity Test"
                         },
                         {
                           "type": "plain_text",
-                          "text": "${{ needs.run-single-day-longevity-nlg-test.outputs.result  }}"
+                          "text": "${{ needs.run-single-day-longevity-test.outputs.result  }}"
                         },
                         {
                           "type": "plain_text",
@@ -322,7 +334,7 @@ jobs:
                         },
                         {
                           "type": "mrkdwn",
-                          "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref }}>"
+                          "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref }}>"
                         },
                         {
                           "type": "mrkdwn",
@@ -360,13 +372,15 @@ jobs:
     runs-on: hiero-citr-linux-medium
     needs:
       - verify-tag
-      - run-single-day-longevity-nlg-test
+      - run-single-day-longevity-test
       - tag-sdlt-result
       - get-commit-info
+      - report-success
     if: ${{ (needs.verify-tag.result != 'success' ||
       needs.tag-sdlt-result.result != 'success' ||
-      needs.run-single-day-longevity-nlg-test.outputs.result != 'success' ||
-      needs.get-commit-info.result != 'success') &&
+      needs.run-single-day-longevity-test.outputs.result != 'success' ||
+      needs.get-commit-info.result != 'success' ||
+      needs.report-success.result != 'success') &&
       inputs.disable-notifications != true && !cancelled() && always() }}
 
     steps:
@@ -379,7 +393,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: "0"
-          ref: ${{ inputs.ref }}
+          ref: ${{ github.ref }}
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Collect run logs in a log file
@@ -406,6 +420,61 @@ jobs:
         with:
           path: run.log
 
+      - name: Set Create-Alert Flag
+        id: set-alert-flag
+        run: |
+          CREATE_ALERT="false"
+          if [[ "${{ needs.verify-tag.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.tag-sdlt-result.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.get-commit-info.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.report-success.result }}" =~ ^(cancelled|failure)$ ]]; then
+            CREATE_ALERT="true"
+          fi
+          echo "create=${CREATE_ALERT}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build Rootly Summary
+        id: rootly-summary
+        run: |
+          summary="The AdHoc SDLT Job Failed"
+          echo "summary=${summary}" >> "${GITHUB_OUTPUT}"
+          {
+            echo 'details<<EOF'
+            echo "------------------------------------"
+            echo "Status of each job:"
+            echo "- Verify Tag: ${{ needs.verify-tag.result }}"
+            echo "- Run Single Day Longevity Test: ${{ needs.run-single-day-longevity-test.outputs.result }}"
+            echo "- Tag SDLT Result: ${{ needs.tag-sdlt-result.result }}"
+            echo "- Get Commit Info: ${{ needs.get-commit-info.result }}"
+            echo "- Report Success: ${{ needs.report-success.result }}"
+            echo "------------------------------------"
+            echo "Commit information:"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.get-commit-info.outputs.commit }}>"
+            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+            echo EOF
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Log Rootly Summary
+        run: |
+          echo "## Rootly Summary:"
+          echo "### Summary: ${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.rootly-summary.outputs.details }}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Create Rootly Alert
+        if: ${{ steps.set-alert-flag.outputs.create == 'true' }}
+        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
+        continue-on-error: true
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          summary: ${{ steps.rootly-summary.outputs.summary }}
+          details: ${{ steps.rootly-summary.outputs.details }}
+          notification_target_type: "Service"
+          notification_target: "CI/CD Workflows"
+          set_as_noise: "true"
+          alert_urgency: "Medium"
+          environments: "CITR"
+          external_id: ${{ github.run_id }}
+          external_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
       - name: Build Slack Payload Message
         id: payload
         run: |
@@ -419,7 +488,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": ":grey_exclamation: SDLT - Single Day Longevity Test (${{ inputs.ref }}) Failed",
+                      "text": ":grey_exclamation: SDLT - Single Day Longevity Test (${{ github.ref }}) Failed",
                       "emoji": true
                     }
                   },
@@ -443,11 +512,11 @@ jobs:
                       },
                       {
                         "type": "plain_text",
-                        "text": "Run Single Day Performance Test"
+                        "text": "Run Single Day Longevity Test"
                       },
                       {
                         "type": "plain_text",
-                        "text": "${{ needs.run-single-day-longevity-nlg-test.outputs.result }}"
+                        "text": "${{ needs.run-single-day-longevity-test.outputs.result }}"
                       },
                       {
                         "type": "plain_text",
@@ -483,7 +552,7 @@ jobs:
                       },
                       {
                         "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref }}>"
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref }}>"
                       },
                       {
                         "type": "mrkdwn",

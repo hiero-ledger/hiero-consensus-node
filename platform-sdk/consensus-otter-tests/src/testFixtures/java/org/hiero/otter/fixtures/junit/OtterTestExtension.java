@@ -5,13 +5,13 @@ import static java.util.Objects.requireNonNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 import org.hiero.otter.fixtures.Capability;
+import org.hiero.otter.fixtures.OtterSpecs;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
@@ -128,8 +128,7 @@ public class OtterTestExtension
      * @param extensionContext the current extension context; never {@code null}
      */
     @Override
-    public void preDestroyTestInstance(@NonNull final ExtensionContext extensionContext)
-            throws IOException, InterruptedException {
+    public void preDestroyTestInstance(@NonNull final ExtensionContext extensionContext) {
         final TestEnvironment testEnvironment =
                 (TestEnvironment) extensionContext.getStore(EXTENSION_NAMESPACE).remove(ENVIRONMENT_KEY);
         if (testEnvironment != null) {
@@ -263,11 +262,15 @@ public class OtterTestExtension
      */
     @NonNull
     private TestEnvironment createTurtleTestEnvironment(@NonNull final ExtensionContext extensionContext) {
+        final Optional<OtterSpecs> otterSpecs =
+                AnnotationSupport.findAnnotation(extensionContext.getElement(), OtterSpecs.class);
+        final boolean randomNodeIds = otterSpecs.map(OtterSpecs::randomNodeIds).orElse(true);
+
         final Optional<TurtleSpecs> turtleSpecs =
                 AnnotationSupport.findAnnotation(extensionContext.getElement(), TurtleSpecs.class);
         final long randomSeed = turtleSpecs.map(TurtleSpecs::randomSeed).orElse(0L);
 
-        return new TurtleTestEnvironment(randomSeed);
+        return new TurtleTestEnvironment(randomSeed, randomNodeIds);
     }
 
     /**
@@ -279,7 +282,11 @@ public class OtterTestExtension
      */
     @NonNull
     private TestEnvironment createContainerTestEnvironment(@NonNull final ExtensionContext extensionContext) {
-        return new ContainerTestEnvironment();
+        final Optional<OtterSpecs> otterSpecs =
+                AnnotationSupport.findAnnotation(extensionContext.getElement(), OtterSpecs.class);
+        final boolean randomNodeIds = otterSpecs.map(OtterSpecs::randomNodeIds).orElse(true);
+
+        return new ContainerTestEnvironment(randomNodeIds);
     }
 
     /**

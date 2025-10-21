@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.hevm;
 
-import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -99,7 +98,6 @@ public class HederaEVM extends EVM {
 
         final OpsDurationCounter opsDurationCounter = FrameUtils.opsDurationCounter(frame);
         final OpsDurationSchedule opsDurationSchedule = opsDurationCounter.schedule();
-        final long[] opsDurationByOpCode = opsDurationSchedule.opsDurationByOpCode();
         final long opsDurationMultiplier = opsDurationSchedule.opsGasBasedDurationMultiplier();
         final long opsDurationDenominator = opsDurationSchedule.multipliersDenominator();
 
@@ -214,14 +212,11 @@ public class HederaEVM extends EVM {
                  ** As the code is in a while loop it is difficult to isolate.  We will need to maintain these changes
                  ** against new versions of the EVM class.
                  */
-                final var opsDurationUnitsCost = opsDurationByOpCode[opcode] == 0
+                final var opCodeCost = opsDurationSchedule.opCodeCost(opcode);
+                final var opsDurationUnitsCost = opCodeCost == 0
                         ? result.getGasCost() * opsDurationMultiplier / opsDurationDenominator
-                        : opsDurationByOpCode[opcode];
-
-                if (!opsDurationCounter.tryConsumeOpsDurationUnits(opsDurationUnitsCost)) {
-                    frame.setExceptionalHaltReason(Optional.of(CustomExceptionalHaltReason.OPS_DURATION_LIMIT_REACHED));
-                    frame.setState(State.EXCEPTIONAL_HALT);
-                }
+                        : opCodeCost;
+                opsDurationCounter.recordOpsDurationUnitsConsumed(opsDurationUnitsCost);
             }
 
             if (frame.getState() == State.CODE_EXECUTING) {

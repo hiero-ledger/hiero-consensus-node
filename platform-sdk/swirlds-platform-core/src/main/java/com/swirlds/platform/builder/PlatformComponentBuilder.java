@@ -6,7 +6,6 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import static com.swirlds.platform.gui.internal.BrowserWindowManager.getPlatforms;
 import static com.swirlds.platform.state.iss.IssDetector.DO_NOT_IGNORE_ROUNDS;
 
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.common.threading.manager.AdHocThreadManager;
 import com.swirlds.component.framework.component.ComponentWiring;
@@ -30,8 +29,6 @@ import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.event.preconsensus.PcesFileManager;
 import com.swirlds.platform.event.preconsensus.PcesUtilities;
-import com.swirlds.platform.event.resubmitter.DefaultTransactionResubmitter;
-import com.swirlds.platform.event.resubmitter.TransactionResubmitter;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
 import com.swirlds.platform.event.stream.DefaultConsensusEventStream;
 import com.swirlds.platform.event.validation.DefaultEventSignatureValidator;
@@ -61,28 +58,21 @@ import com.swirlds.platform.state.signer.DefaultStateSigner;
 import com.swirlds.platform.state.signer.StateSigner;
 import com.swirlds.platform.state.snapshot.DefaultStateSnapshotManager;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
+import com.swirlds.platform.system.DefaultPlatformMonitor;
 import com.swirlds.platform.system.Platform;
+import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.SystemExitUtils;
-import com.swirlds.platform.system.status.DefaultStatusStateMachine;
-import com.swirlds.platform.system.status.StatusStateMachine;
 import com.swirlds.platform.util.MetricsDocUtils;
 import com.swirlds.platform.wiring.components.Gossip;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
+import java.util.ServiceLoader;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.crypto.PlatformSigner;
-import org.hiero.consensus.event.FutureEventBuffer;
-import org.hiero.consensus.event.creator.impl.DefaultEventCreationManager;
-import org.hiero.consensus.event.creator.impl.EventCreationManager;
-import org.hiero.consensus.event.creator.impl.EventCreator;
-import org.hiero.consensus.event.creator.impl.signing.DefaultSelfEventSigner;
-import org.hiero.consensus.event.creator.impl.signing.SelfEventSigner;
-import org.hiero.consensus.event.creator.impl.stale.DefaultStaleEventDetector;
-import org.hiero.consensus.event.creator.impl.stale.StaleEventDetector;
-import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
+import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.model.event.CesEvent;
 
 /**
@@ -111,21 +101,18 @@ public class PlatformComponentBuilder {
     private InternalEventValidator internalEventValidator;
     private EventDeduplicator eventDeduplicator;
     private EventSignatureValidator eventSignatureValidator;
-    private SelfEventSigner selfEventSigner;
     private StateGarbageCollector stateGarbageCollector;
     private OrphanBuffer orphanBuffer;
-    private EventCreationManager eventCreationManager;
+    private EventCreatorModule eventCreator;
     private ConsensusEngine consensusEngine;
     private ConsensusEventStream consensusEventStream;
     private SignedStateSentinel signedStateSentinel;
-    private StatusStateMachine statusStateMachine;
+    private PlatformMonitor platformMonitor;
     private TransactionPrehandler transactionPrehandler;
     private InlinePcesWriter inlinePcesWriter;
     private IssDetector issDetector;
     private IssHandler issHandler;
     private Gossip gossip;
-    private StaleEventDetector staleEventDetector;
-    private TransactionResubmitter transactionResubmitter;
     private StateHasher stateHasher;
     private StateSnapshotManager stateSnapshotManager;
     private HashLogger hashLogger;
@@ -134,7 +121,6 @@ public class PlatformComponentBuilder {
     private StateSigner stateSigner;
     private TransactionHandler transactionHandler;
     private LatestCompleteStateNotifier latestCompleteStateNotifier;
-    private FutureEventBuffer futureEventBuffer;
 
     private SwirldsPlatform swirldsPlatform;
 
@@ -385,38 +371,6 @@ public class PlatformComponentBuilder {
     }
 
     /**
-     * Provide a self event signer in place of the platform's default self event signer.
-     *
-     * @param selfEventSigner the self event signer to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withSelfEventSigner(@NonNull final SelfEventSigner selfEventSigner) {
-        throwIfAlreadyUsed();
-        if (this.selfEventSigner != null) {
-            throw new IllegalStateException("Self event signer has already been set");
-        }
-        this.selfEventSigner = Objects.requireNonNull(selfEventSigner);
-        return this;
-    }
-
-    /**
-     * Build the self event signer if it has not yet been built. If one has been provided via
-     * {@link #withSelfEventSigner(SelfEventSigner)}, that signer will be used. If this method is called more than once,
-     * only the first call will build the self event signer. Otherwise, the default signer will be created and
-     * returned.
-     *
-     * @return the self event signer
-     */
-    @NonNull
-    public SelfEventSigner buildSelfEventSigner() {
-        if (selfEventSigner == null) {
-            selfEventSigner = new DefaultSelfEventSigner(blocks.keysAndCerts());
-        }
-        return selfEventSigner;
-    }
-
-    /**
      * Build the orphan buffer if it has not yet been built. If one has been provided via
      * {@link #withOrphanBuffer(OrphanBuffer)}, that orphan buffer will be used. If this method is called more than
      * once, only the first call will build the orphan buffer. Otherwise, the default orphan buffer will be created and
@@ -453,50 +407,47 @@ public class PlatformComponentBuilder {
     }
 
     /**
-     * Provide an event creation manager in place of the platform's default event creation manager.
+     * Provide an event creator in place of the platform's default event creator.
      *
-     * @param eventCreationManager the event creation manager to use
+     * @param eventCreator the event creator to use
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withEventCreationManager(@NonNull final EventCreationManager eventCreationManager) {
+    public PlatformComponentBuilder withEventCreator(@NonNull final EventCreatorModule eventCreator) {
         throwIfAlreadyUsed();
-        if (this.eventCreationManager != null) {
+        if (this.eventCreator != null) {
             throw new IllegalStateException("Event creation manager has already been set");
         }
-        this.eventCreationManager = Objects.requireNonNull(eventCreationManager);
+        this.eventCreator = Objects.requireNonNull(eventCreator);
         return this;
     }
 
     /**
-     * Build the event creation manager if it has not yet been built. If one has been provided via
-     * {@link #withEventCreationManager(EventCreationManager)}, that manager will be used. If this method is called more
-     * than once, only the first call will build the event creation manager. Otherwise, the default manager will be
-     * created and returned.
+     * Build the event creator if it has not yet been built. If one has been provided via
+     * {@link #withEventCreator(EventCreatorModule)}, that creator will be used. If this method is called more than once,
+     * only the first call will build the event creator. Otherwise, the default creator will be created and returned.
      *
-     * @return the event creation manager
+     * @return the event creator
      */
     @NonNull
-    public EventCreationManager buildEventCreationManager() {
-        if (eventCreationManager == null) {
-            final EventCreator eventCreator = new TipsetEventCreator(
-                    blocks.platformContext().getConfiguration(),
-                    blocks.platformContext().getMetrics(),
-                    blocks.platformContext().getTime(),
-                    blocks.secureRandomSupplier().get(),
-                    data -> new PlatformSigner(blocks.keysAndCerts()).sign(data),
-                    blocks.rosterHistory().getCurrentRoster(),
-                    blocks.selfId(),
-                    blocks.execution());
-
-            eventCreationManager = new DefaultEventCreationManager(
-                    blocks.platformContext().getConfiguration(),
-                    blocks.platformContext().getMetrics(),
-                    blocks.platformContext().getTime(),
-                    blocks.execution(),
-                    eventCreator);
+    public EventCreatorModule buildEventCreator() {
+        if (eventCreator == null) {
+            eventCreator = ServiceLoader.load(EventCreatorModule.class).stream()
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalStateException("No EventCreatorModule implementation found!"))
+                    .get();
         }
-        return eventCreationManager;
+        eventCreator.initialize(
+                blocks.platformContext().getConfiguration(),
+                blocks.platformContext().getMetrics(),
+                blocks.platformContext().getTime(),
+                blocks.secureRandomSupplier().get(),
+                blocks.keysAndCerts(),
+                blocks.rosterHistory().getCurrentRoster(),
+                blocks.selfId(),
+                blocks.execution(),
+                blocks.execution());
+        return eventCreator;
     }
 
     /**
@@ -574,35 +525,35 @@ public class PlatformComponentBuilder {
     }
 
     /**
-     * Provide a status state machine in place of the platform's default status state machine.
+     * Provide a platform monitor in place of the platform's default platform monitor.
      *
-     * @param statusStateMachine the status state machine to use
+     * @param platformMonitor the platform monitor to use
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withStatusStateMachine(@NonNull final StatusStateMachine statusStateMachine) {
+    public PlatformComponentBuilder withPlatformMonitor(@NonNull final PlatformMonitor platformMonitor) {
         throwIfAlreadyUsed();
-        if (this.statusStateMachine != null) {
+        if (this.platformMonitor != null) {
             throw new IllegalStateException("Status state machine has already been set");
         }
-        this.statusStateMachine = Objects.requireNonNull(statusStateMachine);
+        this.platformMonitor = Objects.requireNonNull(platformMonitor);
         return this;
     }
 
     /**
-     * Build the status state machine if it has not yet been built. If one has been provided via
-     * {@link #withStatusStateMachine(StatusStateMachine)}, that state machine will be used. If this method is called
-     * more than once, only the first call will build the status state machine. Otherwise, the default state machine
+     * Build the platform monitor if it has not yet been built. If one has been provided via
+     * {@link #withPlatformMonitor(PlatformMonitor)}, that platform monitor will be used. If this method is called
+     * more than once, only the first call will build the platform monitor. Otherwise, the default platform monitor
      * will be created and returned.
      *
-     * @return the status state machine
+     * @return the platform monitor
      */
     @NonNull
-    public StatusStateMachine buildStatusStateMachine() {
-        if (statusStateMachine == null) {
-            statusStateMachine = new DefaultStatusStateMachine(blocks.platformContext());
+    public PlatformMonitor buildPlatformMonitor() {
+        if (platformMonitor == null) {
+            platformMonitor = new DefaultPlatformMonitor(blocks.platformContext(), blocks.selfId());
         }
-        return statusStateMachine;
+        return platformMonitor;
     }
 
     /**
@@ -815,82 +766,9 @@ public class PlatformComponentBuilder {
     public IssHandler buildIssHandler() {
         if (issHandler == null) {
             issHandler = new DefaultIssHandler(
-                    blocks.platformContext(),
-                    ignored -> {
-                        // FUTURE WORK: Previously this lambda was needed in order to stop gossip.
-                        // Now that gossip pays attention to the platform status, it will naturally
-                        // halt without needing to be stopped here. This should eventually be cleaned up.
-                    },
-                    SystemExitUtils::handleFatalError,
-                    blocks.issScratchpad());
+                    blocks.platformContext(), SystemExitUtils::handleFatalError, blocks.issScratchpad());
         }
         return issHandler;
-    }
-
-    /**
-     * Provide a stale event detector in place of the platform's default stale event detector.
-     *
-     * @param staleEventDetector the stale event detector to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withStaleEventDetector(@NonNull final StaleEventDetector staleEventDetector) {
-        throwIfAlreadyUsed();
-        if (this.staleEventDetector != null) {
-            throw new IllegalStateException("Stale event detector has already been set");
-        }
-        this.staleEventDetector = Objects.requireNonNull(staleEventDetector);
-        return this;
-    }
-
-    /**
-     * Build the stale event detector if it has not yet been built. If one has been provided via
-     * {@link #withStaleEventDetector(StaleEventDetector)}, that detector will be used. If this method is called more
-     * than once, only the first call will build the stale event detector. Otherwise, the default detector will be
-     * created and returned.
-     *
-     * @return the stale event detector
-     */
-    @NonNull
-    public StaleEventDetector buildStaleEventDetector() {
-        if (staleEventDetector == null) {
-            final PlatformContext context = blocks.platformContext();
-            staleEventDetector = new DefaultStaleEventDetector(context.getMetrics(), blocks.selfId());
-        }
-        return staleEventDetector;
-    }
-
-    /**
-     * Provide a transaction resubmitter in place of the platform's default transaction resubmitter.
-     *
-     * @param transactionResubmitter the transaction resubmitter to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withTransactionResubmitter(
-            @NonNull final TransactionResubmitter transactionResubmitter) {
-        throwIfAlreadyUsed();
-        if (this.transactionResubmitter != null) {
-            throw new IllegalStateException("Transaction resubmitter has already been set");
-        }
-        this.transactionResubmitter = Objects.requireNonNull(transactionResubmitter);
-        return this;
-    }
-
-    /**
-     * Build the transaction resubmitter if it has not yet been built. If one has been provided via
-     * {@link #withTransactionResubmitter(TransactionResubmitter)}, that resubmitter will be used. If this method is
-     * called more than once, only the first call will build the transaction resubmitter. Otherwise, the default
-     * resubmitter will be created and returned.
-     *
-     * @return the transaction resubmitter
-     */
-    @NonNull
-    public TransactionResubmitter buildTransactionResubmitter() {
-        if (transactionResubmitter == null) {
-            transactionResubmitter = new DefaultTransactionResubmitter(blocks.platformContext());
-        }
-        return transactionResubmitter;
     }
 
     /**
@@ -1204,21 +1082,5 @@ public class PlatformComponentBuilder {
             latestCompleteStateNotifier = new DefaultLatestCompleteStateNotifier();
         }
         return latestCompleteStateNotifier;
-    }
-
-    /**
-     * Provide a future event buffer in place of the platform's default future event buffer.
-     *
-     * @param futureEventBuffer the future event buffer to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withFutureEventBuffer(@NonNull final FutureEventBuffer futureEventBuffer) {
-        throwIfAlreadyUsed();
-        if (this.futureEventBuffer != null) {
-            throw new IllegalStateException("Future event buffer has already been set");
-        }
-        this.futureEventBuffer = Objects.requireNonNull(futureEventBuffer);
-        return this;
     }
 }

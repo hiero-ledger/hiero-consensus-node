@@ -13,12 +13,15 @@ import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.node.internal.network.BlockNodeConfig;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
 import org.hiero.block.api.BlockItemSet;
 import org.hiero.block.api.PublishStreamRequest;
+import org.hiero.block.api.PublishStreamRequest.EndStream;
 import org.hiero.block.api.PublishStreamResponse;
 import org.hiero.block.api.PublishStreamResponse.BlockAcknowledgement;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream;
@@ -70,18 +73,28 @@ public abstract class BlockNodeCommunicationTestBase {
         return PublishStreamRequest.newBuilder().blockItems(itemSet).build();
     }
 
-    protected ConfigProvider createConfigProvider() {
+    @NonNull
+    protected static PublishStreamRequest createRequest(final EndStream.Code endCode) {
+        final EndStream endStream = EndStream.newBuilder().endCode(endCode).build();
+        return PublishStreamRequest.newBuilder().endStream(endStream).build();
+    }
+
+    protected TestConfigBuilder createDefaultConfigProvider() {
         final var configPath = Objects.requireNonNull(
                         BlockNodeCommunicationTestBase.class.getClassLoader().getResource("bootstrap/"))
                 .getPath();
         assertThat(Files.exists(Path.of(configPath))).isTrue();
 
-        final var config = HederaTestConfigBuilder.create()
+        return HederaTestConfigBuilder.create()
                 .withValue("blockStream.writerMode", "FILE_AND_GRPC")
                 .withValue("blockNode.blockNodeConnectionFileDir", configPath)
                 .withValue("blockStream.blockItemBatchSize", BATCH_SIZE)
-                .getOrCreateConfig();
-        return () -> new VersionedConfigImpl(config, 1L);
+                .withValue("blockNode.highLatencyEventsBeforeSwitching", 3)
+                .withValue("blockNode.highLatencyThresholdMs", 500);
+    }
+
+    protected ConfigProvider createConfigProvider(final TestConfigBuilder configBuilder) {
+        return () -> new VersionedConfigImpl(configBuilder.getOrCreateConfig(), 1L);
     }
 
     protected static BlockItem newBlockHeaderItem() {
@@ -111,5 +124,17 @@ public abstract class BlockNodeCommunicationTestBase {
         return BlockItem.newBuilder()
                 .blockProof(BlockProof.newBuilder().build())
                 .build();
+    }
+
+    protected static BlockNodeConfig newBlockNodeConfig(final String host, final int port, final int priority) {
+        return BlockNodeConfig.newBuilder()
+                .address(host)
+                .port(port)
+                .priority(priority)
+                .build();
+    }
+
+    protected static BlockNodeConfig newBlockNodeConfig(final int port, final int priority) {
+        return newBlockNodeConfig("localhost", port, priority);
     }
 }

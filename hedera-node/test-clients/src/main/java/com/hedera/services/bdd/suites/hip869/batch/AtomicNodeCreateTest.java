@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.hip869.batch;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.endpointFor;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
@@ -65,7 +66,6 @@ import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.Spliterators;
 import java.util.stream.Collectors;
@@ -75,11 +75,12 @@ import org.hiero.consensus.model.roster.Address;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of NodeCreateTest. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
-public class AtomicNodeCreateTest {
+class AtomicNodeCreateTest {
 
     public static final String ED_25519_KEY = "ed25519Alias";
     public static List<ServiceEndpoint> GOSSIP_ENDPOINTS_FQDNS = Arrays.asList(
@@ -99,8 +100,6 @@ public class AtomicNodeCreateTest {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
 
         gossipCertificates = generateX509Certificates(2);
@@ -351,6 +350,7 @@ public class AtomicNodeCreateTest {
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
             overrides = {"nodes.gossipFqdnRestricted"})
+    @Tag(MATS)
     final Stream<DynamicTest> allFieldsSetHappyCaseForDomains() throws CertificateEncodingException {
         final var nodeCreate = canonicalNodeCreate();
         return hapiTest(
@@ -674,6 +674,7 @@ public class AtomicNodeCreateTest {
     }
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+    @Tag(MATS)
     final Stream<DynamicTest> createNodeWorkWithSysAdminPayer() throws CertificateEncodingException {
         return hapiTest(
                 newKeyNamed("adminKey"),

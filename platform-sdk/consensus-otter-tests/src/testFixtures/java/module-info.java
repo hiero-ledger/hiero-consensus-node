@@ -2,8 +2,10 @@
 module org.hiero.otter.fixtures {
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
+    requires transitive com.swirlds.base;
     requires transitive com.swirlds.common.test.fixtures;
     requires transitive com.swirlds.common;
+    requires transitive com.swirlds.component.framework;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.logging;
     requires transitive com.swirlds.metrics.api;
@@ -23,20 +25,20 @@ module org.hiero.otter.fixtures {
     requires transitive org.junit.jupiter.api;
     requires transitive org.testcontainers;
     requires com.hedera.node.app.hapi.utils;
-    requires com.hedera.node.config;
     requires com.swirlds.base.test.fixtures;
-    requires com.swirlds.base;
-    requires com.swirlds.component.framework;
     requires com.swirlds.config.extensions;
-    requires com.swirlds.merkledb;
     requires com.swirlds.platform.core.test.fixtures;
-    requires org.hiero.base.crypto;
     requires org.hiero.consensus.utility;
+    requires com.fasterxml.jackson.annotation;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.databind;
+    requires com.fasterxml.jackson.dataformat.yaml;
     requires com.fasterxml.jackson.datatype.jsr310;
+    requires com.github.dockerjava.api;
     requires io.grpc.protobuf;
     requires java.net.http;
+    requires org.antlr.antlr4.runtime;
+    requires org.apache.commons.lang3;
     requires org.junit.jupiter.params;
     requires org.junit.platform.commons;
     requires static com.github.spotbugs.annotations;
@@ -45,6 +47,7 @@ module org.hiero.otter.fixtures {
     exports org.hiero.otter.fixtures.assertions;
     exports org.hiero.otter.fixtures.junit;
     exports org.hiero.otter.fixtures.logging;
+    exports org.hiero.otter.fixtures.network;
     exports org.hiero.otter.fixtures.result;
     exports org.hiero.otter.fixtures.container.proto;
     exports org.hiero.otter.fixtures.app;
@@ -55,4 +58,6 @@ module org.hiero.otter.fixtures {
     exports org.hiero.otter.fixtures.util;
     exports org.hiero.otter.fixtures.container.utils to
             org.hiero.consensus.otter.docker.app;
+    exports org.hiero.otter.fixtures.network.utils;
+    exports org.hiero.otter.fixtures.app.state;
 }

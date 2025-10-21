@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.hip551;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
@@ -36,23 +37,18 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.transactions.token.HapiTokenCreate;
 import com.hedera.services.bdd.spec.transactions.token.HapiTokenMint;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 
-@HapiTestLifecycle
-public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
+class AtomicBatchEndToEndCryptoAndTokenServiceTests {
     private static final double BASE_FEE_BATCH_TRANSACTION = 0.001;
     private static final String FT_FOR_END_TO_END = "ftForEndToEnd";
     private static final String NFT_FOR_END_TO_END = "nftForEndToEnd";
@@ -69,11 +65,6 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
     private static final String newAdminKey = "newAdminKey";
     private static final String supplyKey = "supplyKey";
 
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle lifecycle) {
-        lifecycle.overrideInClass(Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-    }
-
     @Nested
     @DisplayName("Token and Crypto Service operations in Atomic Batch")
     class TokenAndCryptoServiceOperationsInAtomicBatch {
@@ -81,7 +72,7 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
         // Token Treasury Management test cases
         @HapiTest
         @DisplayName("Transfer all Token Supply and Delete Token and Treasury Accounts Successfully in Atomic Batch")
-        public Stream<DynamicTest> transferAllTokenSupplyAndDeleteTokenAndTreasuryAccountSuccessInAtomicBatch() {
+        Stream<DynamicTest> transferAllTokenSupplyAndDeleteTokenAndTreasuryAccountSuccessInAtomicBatch() {
 
             // delete token inner transaction
             final var deleteToken = tokenDelete(FT_FOR_END_TO_END)
@@ -132,7 +123,7 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
 
         @HapiTest
         @DisplayName("Delete One Token and Transfer Second Token from Treasury Account Successfully in Atomic Batch")
-        public Stream<DynamicTest> deleteTokenAndTransferOtherTokenFromTreasuryAccountSuccessInAtomicBatch() {
+        Stream<DynamicTest> deleteTokenAndTransferOtherTokenFromTreasuryAccountSuccessInAtomicBatch() {
 
             // delete token inner transaction
             final var deleteToken = tokenDelete(FT_FOR_END_TO_END)
@@ -174,7 +165,7 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
 
         @HapiTest
         @DisplayName("Token Transfer from Treasury Account after Token is Deleted Fails in Atomic Batch")
-        public Stream<DynamicTest> tokenTransferAfterTokenDeletedFromTreasuryAccountFailsInAtomicBatch() {
+        Stream<DynamicTest> tokenTransferAfterTokenDeletedFromTreasuryAccountFailsInAtomicBatch() {
 
             // delete token inner transaction
             final var deleteToken = tokenDelete(FT_FOR_END_TO_END)
@@ -213,7 +204,7 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
 
         @HapiTest
         @DisplayName("Token Transfer from Treasury Account with Insufficient Token Balance Fails in Atomic Batch")
-        public Stream<DynamicTest> tokenTransferFromTreasuryAccountWithInsufficientBalanceFailsInAtomicBatch() {
+        Stream<DynamicTest> tokenTransferFromTreasuryAccountWithInsufficientBalanceFailsInAtomicBatch() {
 
             // transfer token from treasury to receiver associated account
             final var transferTokenFromTreasuryWithBalance = cryptoTransfer(
@@ -251,7 +242,7 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
 
         @HapiTest
         @DisplayName("Token Transfer from Treasury Account with Zero Token Balance Fails in Atomic Batch")
-        public Stream<DynamicTest> tokenTransferFromTreasuryAccountWithZeroBalanceFailsInAtomicBatch() {
+        Stream<DynamicTest> tokenTransferFromTreasuryAccountWithZeroBalanceFailsInAtomicBatch() {
 
             // transfer token from treasury to receiver associated account
             final var transferTokenFromTreasuryWithBalance = cryptoTransfer(
@@ -289,7 +280,7 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
 
         @HapiTest
         @DisplayName("Update Token Treasury Account and Token Transfer from new Treasury Success in Atomic Batch")
-        public Stream<DynamicTest> updateTokenTreasuryAndTokenTransferSuccessInAtomicBatch() {
+        Stream<DynamicTest> updateTokenTreasuryAndTokenTransferSuccessInAtomicBatch() {
 
             // update token inner transaction
             final var updateTokenTreasury = tokenUpdate(FT_FOR_END_TO_END)
@@ -333,7 +324,7 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
         @HapiTest
         @DisplayName(
                 "Update Token Treasury with Account without Free Auto-association Slots and Token Transfer from new Treasury Fails in Atomic Batch")
-        public Stream<DynamicTest> updateTokenTreasuryWithoutFreeAutoAssociationsAndTokenTransferFailsInAtomicBatch() {
+        Stream<DynamicTest> updateTokenTreasuryWithoutFreeAutoAssociationsAndTokenTransferFailsInAtomicBatch() {
 
             // update token inner transaction
             final var updateTokenTreasury = tokenUpdate(FT_FOR_END_TO_END)
@@ -384,7 +375,7 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
         @HapiTest
         @DisplayName(
                 "Update Token Treasury with Account with Zero Auto-association Slots and Token Transfer from new Treasury Fails in Atomic Batch")
-        public Stream<DynamicTest> updateTokenTreasuryWithZeroFreeAutoAssociationsAndTokenTransferFailsInAtomicBatch() {
+        Stream<DynamicTest> updateTokenTreasuryWithZeroFreeAutoAssociationsAndTokenTransferFailsInAtomicBatch() {
 
             // update token inner transaction
             final var updateTokenTreasury = tokenUpdate(FT_FOR_END_TO_END)
@@ -428,8 +419,7 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
         @HapiTest
         @DisplayName(
                 "Update Token Treasury Account and Token Transfer from new Treasury with Update Signed by the old Treasury Fails in Atomic Batch")
-        public Stream<DynamicTest>
-                updateTokenTreasuryAndTokenTransferWithUpdateSignedByOldTreasuryFailsInAtomicBatch() {
+        Stream<DynamicTest> updateTokenTreasuryAndTokenTransferWithUpdateSignedByOldTreasuryFailsInAtomicBatch() {
 
             // update token inner transaction
             final var updateTokenTreasury = tokenUpdate(FT_FOR_END_TO_END)
@@ -472,8 +462,7 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
         @HapiTest
         @DisplayName(
                 "Update Token Treasury Account and Token Transfer from new Treasury with Transfer Signed by the old Treasury Fails in Atomic Batch")
-        public Stream<DynamicTest>
-                updateTokenTreasuryAndTokenTransferWithTransferSignedByOldTreasuryFailsInAtomicBatch() {
+        Stream<DynamicTest> updateTokenTreasuryAndTokenTransferWithTransferSignedByOldTreasuryFailsInAtomicBatch() {
 
             // update token inner transaction
             final var updateTokenTreasury = tokenUpdate(FT_FOR_END_TO_END)
@@ -517,7 +506,7 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
 
         @HapiTest
         @DisplayName("Update Token Treasury Account and Token Transfer from old Treasury Fails in Atomic Batch")
-        public Stream<DynamicTest> updateTokenTreasuryAndTokenTransferFromOldTreasuryFailsInAtomicBatch() {
+        Stream<DynamicTest> updateTokenTreasuryAndTokenTransferFromOldTreasuryFailsInAtomicBatch() {
 
             // update token inner transaction
             final var updateTokenTreasury = tokenUpdate(FT_FOR_END_TO_END)
@@ -562,8 +551,7 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
         @HapiTest
         @DisplayName(
                 "Update Token Treasury Account and Token Transfer from new Treasury with Update Not Signed by the Admin Key Fails in Atomic Batch")
-        public Stream<DynamicTest>
-                updateTokenTreasuryAndTokenTransferWithUpdateNotSignedByAdminKeyFailsInAtomicBatch() {
+        Stream<DynamicTest> updateTokenTreasuryAndTokenTransferWithUpdateNotSignedByAdminKeyFailsInAtomicBatch() {
 
             // update token inner transaction
             final var updateTokenTreasury = tokenUpdate(FT_FOR_END_TO_END)
@@ -608,8 +596,7 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
         @HapiTest
         @DisplayName(
                 "Update Token Treasury Account and Token Transfer from new Treasury with Update Not Signed by the New Treasury Key Fails in Atomic Batch")
-        public Stream<DynamicTest>
-                updateTokenTreasuryAndTokenTransferWithUpdateNotSignedByNewTreasuryKeyFailsInAtomicBatch() {
+        Stream<DynamicTest> updateTokenTreasuryAndTokenTransferWithUpdateNotSignedByNewTreasuryKeyFailsInAtomicBatch() {
 
             // update token inner transaction
             final var updateTokenTreasury = tokenUpdate(FT_FOR_END_TO_END)
@@ -651,7 +638,8 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
 
         @HapiTest
         @DisplayName("Update Token Admin Key And Update Treasury Account Success in Atomic Batch")
-        public Stream<DynamicTest> updateTokenAdminKeyAndTreasuryAccountSuccessInAtomicBatch() {
+        @Tag(MATS)
+        Stream<DynamicTest> updateTokenAdminKeyAndTreasuryAccountSuccessInAtomicBatch() {
 
             // update token inner transactions
             final var updateTokenAdminKey = tokenUpdate(FT_FOR_END_TO_END)
@@ -692,7 +680,7 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
 
         @HapiTest
         @DisplayName("Update Token Admin Key And Update Treasury Account Signed by Old Admin Key Fails in Atomic Batch")
-        public Stream<DynamicTest> updateTokenAdminKeyAndTreasuryAccountSignedByOldAdminKeyFailsInAtomicBatch() {
+        Stream<DynamicTest> updateTokenAdminKeyAndTreasuryAccountSignedByOldAdminKeyFailsInAtomicBatch() {
 
             // update token inner transactions
             final var updateTokenAdminKey = tokenUpdate(FT_FOR_END_TO_END)
@@ -734,7 +722,7 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
 
         @HapiTest
         @DisplayName("Update Token Admin Key And Update Treasury Account Signed by Old Treasury Fails in Atomic Batch")
-        public Stream<DynamicTest> updateTokenAdminKeyAndTreasuryAccountSignedByOldTreasuryFailsInAtomicBatch() {
+        Stream<DynamicTest> updateTokenAdminKeyAndTreasuryAccountSignedByOldTreasuryFailsInAtomicBatch() {
 
             // update token inner transactions
             final var updateTokenAdminKey = tokenUpdate(FT_FOR_END_TO_END)
@@ -777,8 +765,7 @@ public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
         @HapiTest
         @DisplayName(
                 "Update Token Admin Key And Update Treasury Account Signed by Old Admin Key and Old Treasury Fails in Atomic Batch")
-        public Stream<DynamicTest>
-                updateTokenAdminKeyAndTreasuryAccountSignedByOldAdminAndTreasuryFailsInAtomicBatch() {
+        Stream<DynamicTest> updateTokenAdminKeyAndTreasuryAccountSignedByOldAdminAndTreasuryFailsInAtomicBatch() {
 
             // update token inner transactions
             final var updateTokenAdminKey = tokenUpdate(FT_FOR_END_TO_END)

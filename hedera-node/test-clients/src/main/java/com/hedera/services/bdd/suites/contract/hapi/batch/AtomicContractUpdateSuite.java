@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hapi.batch;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
@@ -61,7 +62,7 @@ import org.junit.jupiter.api.Tag;
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
 @Tag(SMART_CONTRACT)
-public class AtomicContractUpdateSuite {
+class AtomicContractUpdateSuite {
 
     private static final long ONE_DAY = 60L * 60L * 24L;
     public static final String ADMIN_KEY = "adminKey";
@@ -74,17 +75,12 @@ public class AtomicContractUpdateSuite {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled",
-                "true",
-                "atomicBatch.maxNumberOfTransactions",
-                "50",
-                "contracts.throttle.throttleByGas",
-                "false"));
+        testLifecycle.overrideInClass(Map.of("contracts.throttle.throttleByGas", "false"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> updateStakingFieldsWorks() {
         return hapiTest(
                 uploadInitCode(CONTRACT),
@@ -438,6 +434,7 @@ public class AtomicContractUpdateSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> updateDoesNotChangeBytecode() {
         // HSCS-DCPR-001
         final var simpleStorageContract = "SimpleStorage";

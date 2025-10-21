@@ -9,6 +9,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.Return
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Category;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
+import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.config.data.ContractsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
@@ -21,12 +22,13 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class HasScheduleCapacityTranslator extends AbstractCallTranslator<HssCallAttempt> {
+    private static final int EXPIRY_INDEX = 0;
+    private static final int GAS_LIMIT_INDEX = 1;
 
     public static final SystemContractMethod HAS_SCHEDULE_CAPACITY = SystemContractMethod.declare(
                     "hasScheduleCapacity(uint256,uint256)", ReturnTypes.BOOL)
+            .withModifier(SystemContractMethod.Modifier.VIEW)
             .withCategories(Category.SCHEDULE);
-    //    private static final int EXPIRY_SECOND_INDEX = 0;
-    //    private static final int GAS_LIMIT_INDEX = 1;
 
     @Inject
     public HasScheduleCapacityTranslator(
@@ -48,15 +50,9 @@ public class HasScheduleCapacityTranslator extends AbstractCallTranslator<HssCal
 
     @Override
     public Call callFrom(@NonNull final HssCallAttempt attempt) {
-        // read parameters
         final var call = HAS_SCHEDULE_CAPACITY.decodeCall(attempt.inputBytes());
-        //        final BigInteger expirySecond = call.get(EXPIRY_SECOND_INDEX);
-        //        final BigInteger gasLimit = call.get(GAS_LIMIT_INDEX);
-        // TODO should be implemented with:
-        //  HIP-1215 https://github.com/hiero-ledger/hiero-improvement-proposals/blob/main/HIP/hip-1215.md
-        //  Issue #20032 https://github.com/hiero-ledger/hiero-consensus-node/issues/20032
-        //  call hasScheduleCapacity when it will be implemented
-
-        return new HasScheduleCapacityCallStub(attempt);
+        final long expiry = ConversionUtils.asLongLimitedToZeroOrMax(call.get(EXPIRY_INDEX));
+        final long gasLimit = ConversionUtils.asLongLimitedToZeroOrMax(call.get(GAS_LIMIT_INDEX));
+        return new HasScheduleCapacityCall(attempt, expiry, gasLimit);
     }
 }

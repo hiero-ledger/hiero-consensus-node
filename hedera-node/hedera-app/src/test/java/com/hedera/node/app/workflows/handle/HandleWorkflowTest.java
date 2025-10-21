@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.atLeastOnce;
@@ -20,14 +21,12 @@ import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.ParentEventReference;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
-import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
@@ -62,6 +61,7 @@ import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
@@ -79,6 +79,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class HandleWorkflowTest {
+
     private static final Instant NOW = Instant.ofEpochSecond(1_234_567L, 890);
     private static final Timestamp BLOCK_TIME = new Timestamp(1_234_567L, 890);
 
@@ -122,16 +123,10 @@ class HandleWorkflowTest {
     private ImmediateStateChangeListener immediateStateChangeListener;
 
     @Mock
-    private BoundaryStateChangeListener boundaryStateChangeListener;
-
-    @Mock
     private OpWorkflowMetrics opWorkflowMetrics;
 
     @Mock
     private ThrottleServiceManager throttleServiceManager;
-
-    @Mock
-    private SemanticVersion version;
 
     @Mock
     private InitTrigger initTrigger;
@@ -193,7 +188,7 @@ class HandleWorkflowTest {
         final var eventFromPresentCreator = mock(ConsensusEvent.class);
         final var eventFromMissingCreator = mock(ConsensusEvent.class);
         given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(any())).willReturn(platformStateReadableSingletonState);
+        given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
         given(platformStateReadableSingletonState.get())
                 .willReturn(PlatformState.newBuilder().latestFreezeRound(0L).build());
         given(eventFromMissingCreator.getEventCore()).willReturn(eventCore);
@@ -221,7 +216,7 @@ class HandleWorkflowTest {
     @Test
     void writesEachMigrationStateChangeWithBlockTimestamp() {
         given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(any())).willReturn(platformStateReadableSingletonState);
+        given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
 
         given(round.iterator()).willReturn(List.of(event).iterator());
         given(event.getConsensusTimestamp()).willReturn(NOW);
@@ -243,7 +238,7 @@ class HandleWorkflowTest {
     @Test
     void writeEventHeaderWithNoParentEvents() {
         given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(any())).willReturn(platformStateReadableSingletonState);
+        given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
 
         // Setup event with no parents
         given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
@@ -287,7 +282,7 @@ class HandleWorkflowTest {
     @Test
     void writeEventHeaderWithParentEventsInCurrentBlock() {
         given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(any())).willReturn(platformStateReadableSingletonState);
+        given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
 
         // Create event hash and parent hash
         Hash eventHash = CryptoRandomUtils.randomHash();
@@ -344,7 +339,7 @@ class HandleWorkflowTest {
     @Test
     void writeEventHeaderWithParentEventsNotInCurrentBlock() {
         given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(any())).willReturn(platformStateReadableSingletonState);
+        given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
 
         // Create event hash and parent hash
         Hash eventHash = CryptoRandomUtils.randomHash();
@@ -403,7 +398,7 @@ class HandleWorkflowTest {
     @Test
     void writeEventHeaderWithMixedParentEvents() {
         given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(any())).willReturn(platformStateReadableSingletonState);
+        given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
 
         // Create event hash and parent hashes
         Hash eventHash = CryptoRandomUtils.randomHash();
@@ -515,13 +510,14 @@ class HandleWorkflowTest {
                 null,
                 nodeRewardManager,
                 platformStateFacade,
-                blockBufferService);
+                blockBufferService,
+                Map.of());
     }
 
     @Test
     void startRoundShouldCallEnsureNewBlocksPermitted() {
         given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(any())).willReturn(platformStateReadableSingletonState);
+        given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
 
         // Mock the round iterator and event
         final NodeId creatorId = NodeId.of(0);

@@ -18,6 +18,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
+import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
@@ -35,6 +36,7 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
 
 /**
@@ -49,6 +51,7 @@ public class TransactionProcessor {
     private final CustomMessageCallProcessor messageCall;
     private final ContractCreationProcessor contractCreation;
     private final FeatureFlags featureFlags;
+    private final CodeFactory codeFactory;
 
     public TransactionProcessor(
             @NonNull final FrameBuilder frameBuilder,
@@ -56,13 +59,15 @@ public class TransactionProcessor {
             @NonNull final CustomGasCharging gasCharging,
             @NonNull final CustomMessageCallProcessor messageCall,
             @NonNull final ContractCreationProcessor contractCreation,
-            @NonNull final FeatureFlags featureFlags) {
+            @NonNull final FeatureFlags featureFlags,
+            @NonNull final CodeFactory codeFactory) {
         this.frameBuilder = requireNonNull(frameBuilder);
         this.frameRunner = requireNonNull(frameRunner);
         this.gasCharging = requireNonNull(gasCharging);
         this.messageCall = requireNonNull(messageCall);
         this.contractCreation = requireNonNull(contractCreation);
         this.featureFlags = requireNonNull(featureFlags);
+        this.codeFactory = codeFactory;
     }
 
     /**
@@ -120,8 +125,10 @@ public class TransactionProcessor {
             @NonNull final Configuration config,
             @NonNull final OpsDurationCounter opsDurationCounter,
             @NonNull final InvolvedParties parties) {
-        final var gasCharges =
-                gasCharging.chargeForGas(parties.sender(), parties.relayer(), context, updater, transaction);
+        // If it is hook dispatch, skip gas charging because gas is pre-paid in cryptoTransfer already
+        final var gasCharges = transaction.isHookDispatch()
+                ? GasCharges.NONE
+                : gasCharging.chargeForGas(parties.sender(), parties.relayer(), context, updater, transaction);
         final var initialFrame = frameBuilder.buildInitialFrameWith(
                 transaction,
                 updater,
@@ -131,20 +138,25 @@ public class TransactionProcessor {
                 featureFlags,
                 parties.sender().getAddress(),
                 parties.receiverAddress(),
-                gasCharges.intrinsicGas());
+                gasCharges.intrinsicGas(),
+                codeFactory);
 
         // Compute the result of running the frame to completion
         final var result = frameRunner.runToCompletion(
                 transaction.gasLimit(), parties.senderId(), initialFrame, tracer, messageCall, contractCreation);
 
-        // Maybe refund some of the charged fees before committing
-        gasCharging.maybeRefundGiven(
-                transaction.unusedGas(result.gasUsed()),
-                gasCharges.relayerAllowanceUsed(),
-                parties.sender(),
-                parties.relayer(),
-                context,
-                updater);
+        // Maybe refund some of the charged fees before committing if not a hook dispatch
+        // Note that for hook dispatch, gas is charged during cryptoTransfer and will not be refunded once
+        // hook is executed
+        if (!transaction.isHookDispatch()) {
+            gasCharging.maybeRefundGiven(
+                    transaction.unusedGas(result.gasUsed()),
+                    gasCharges.relayerAllowanceUsed(),
+                    parties.sender(),
+                    parties.relayer(),
+                    context,
+                    updater);
+        }
         initialFrame.getSelfDestructs().forEach(updater::deleteAccount);
 
         // Tries to commit and return the original result; returns a fees-only result on resource exhaustion
@@ -157,9 +169,9 @@ public class TransactionProcessor {
             @NonNull final Configuration config) {
         try {
             return computeInvolvedParties(transaction, updater, config);
-        } catch (HandleException e) {
+        } catch (final HandleException e) {
             throw e;
-        } catch (Exception e) {
+        } catch (final Exception e) {
             throw new HandleException(INVALID_TRANSACTION_BODY);
         }
     }
@@ -179,7 +191,7 @@ public class TransactionProcessor {
                 }
             }
             return result;
-        } catch (ResourceExhaustedException e) {
+        } catch (final ResourceExhaustedException e) {
             updater.revert();
             final var sender = updater.getHederaAccount(transaction.senderId());
             return resourceExhaustionFrom(

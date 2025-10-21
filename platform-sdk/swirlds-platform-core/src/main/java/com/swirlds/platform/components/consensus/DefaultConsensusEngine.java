@@ -11,10 +11,9 @@ import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.event.linking.ConsensusLinker;
-import com.swirlds.platform.event.linking.InOrderLinker;
 import com.swirlds.platform.freeze.FreezeCheckHolder;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.metrics.AddedEventMetrics;
+import com.swirlds.platform.metrics.ConsensusEngineMetrics;
 import com.swirlds.platform.metrics.ConsensusMetrics;
 import com.swirlds.platform.metrics.ConsensusMetricsImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -39,7 +38,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
     /**
      * Stores non-ancient events and manages linking and unlinking.
      */
-    private final InOrderLinker linker;
+    private final ConsensusLinker linker;
 
     /** Buffers events until needed by the consensus algorithm based on their birth round */
     private final FutureEventBuffer futureEventBuffer;
@@ -51,7 +50,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
     private final int roundsNonAncient;
 
-    private final AddedEventMetrics eventAddedMetrics;
+    private final ConsensusEngineMetrics metrics;
 
     private final FreezeRoundController freezeRoundController;
 
@@ -80,7 +79,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
                 .getConfigData(ConsensusConfig.class)
                 .roundsNonAncient();
 
-        eventAddedMetrics = new AddedEventMetrics(selfId, platformContext.getMetrics());
+        metrics = new ConsensusEngineMetrics(selfId, platformContext.getMetrics());
         this.freezeRoundController = new FreezeRoundController(freezeChecker);
     }
 
@@ -117,6 +116,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         eventsToAdd.add(consensusRelevantEvent);
 
         final List<ConsensusRound> allConsensusRounds = new ArrayList<>();
+        final List<PlatformEvent> staleEvents = new ArrayList<>();
 
         while (!eventsToAdd.isEmpty()) {
             final PlatformEvent eventToAdd = eventsToAdd.poll();
@@ -133,7 +133,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             // check if we have found init judges after adding the event
             final boolean waitingForJudgesAfterAdd = consensus.waitingForInitJudges();
 
-            eventAddedMetrics.eventAdded(linkedEvent);
+            metrics.eventAdded(linkedEvent);
 
             if (waitingForJudgesAfterAdd) {
                 // If we haven't found all the init judges yet, we should return an empty output.
@@ -172,14 +172,22 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             // If consensus is reached, we need to process the last event window and add any events released
             // from the future event buffer to the consensus algorithm.
             final EventWindow eventWindow = allConsensusRounds.getLast().getEventWindow();
-            linker.setEventWindow(eventWindow);
+            // We update the linker with the latest event window.
+            // This will also return any ancient events that were previously linked.
+            // Some of these ancient events may be stale, so we will add them to the stale events list.
+            final List<EventImpl> ancientEvents = linker.setEventWindow(eventWindow);
+            ancientEvents.stream()
+                    .filter(e -> !e.isConsensus())
+                    .map(EventImpl::getBaseEvent)
+                    .forEach(staleEvents::add);
             eventsToAdd.addAll(futureEventBuffer.updateEventWindow(eventWindow));
         }
 
         // If multiple rounds reach consensus and multiple rounds are in the freeze period,
         // we need to freeze on the first one. this means discarding the rest of the rounds.
         final List<ConsensusRound> modifiedRounds = freezeRoundController.filterAndModify(allConsensusRounds);
-        return new ConsensusEngineOutput(modifiedRounds, preConsensusEvents);
+        staleEvents.forEach(metrics::reportStaleEvent);
+        return new ConsensusEngineOutput(modifiedRounds, preConsensusEvents, staleEvents);
     }
 
     /**

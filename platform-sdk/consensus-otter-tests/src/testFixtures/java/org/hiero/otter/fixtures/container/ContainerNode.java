@@ -5,18 +5,21 @@ import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseD
 import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_CONTROL_PORT;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.EVENT_STREAM_DIRECTORY;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.HASHSTREAM_LOG_PATH;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.METRICS_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.NODE_COMMUNICATION_PORT;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.SWIRLDS_LOG_PATH;
+import static org.hiero.otter.fixtures.internal.AbstractNetwork.NODE_IDENTIFIER_FORMAT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.google.protobuf.ByteString;
+import com.google.protobuf.Empty;
 import com.google.protobuf.ProtocolStringList;
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.hedera.hapi.platform.state.NodeId;
+import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.ManagedChannel;
@@ -28,43 +31,54 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.otter.fixtures.AsyncNodeActions;
 import org.hiero.otter.fixtures.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.Node;
-import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.ProtobufConverter;
+import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.app.OtterTransaction;
+import org.hiero.otter.fixtures.app.services.consistency.ConsistencyServiceConfig;
 import org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
 import org.hiero.otter.fixtures.container.proto.InitRequest;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
 import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc;
 import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc.NodeCommunicationServiceStub;
+import org.hiero.otter.fixtures.container.proto.PingResponse;
 import org.hiero.otter.fixtures.container.proto.PlatformStatusChange;
+import org.hiero.otter.fixtures.container.proto.QuiescenceRequest;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
 import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
+import org.hiero.otter.fixtures.container.utils.ContainerConstants;
+import org.hiero.otter.fixtures.container.utils.ContainerUtils;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
+import org.hiero.otter.fixtures.internal.result.SingleNodeEventStreamResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodeMarkerFileResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodeReconnectResultImpl;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
+import org.hiero.otter.fixtures.result.SingleNodeEventStreamResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
-import org.jetbrains.annotations.NotNull;
 import org.testcontainers.containers.Container.ExecResult;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
@@ -76,10 +90,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
     private static final Logger log = LogManager.getLogger();
 
-    private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(1);
-
-    private final Roster roster;
-    private final KeysAndCerts keysAndCerts;
+    /** The time manager to use for this node */
+    private final TimeManager timeManager;
 
     /** The image used to run the consensus node. */
     private final ContainerImage container;
@@ -99,9 +111,6 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     /** The gRPC service used to communicate with the consensus node */
     private NodeCommunicationServiceGrpc.NodeCommunicationServiceBlockingStub nodeCommBlockingStub;
 
-    /** An instance of asynchronous actions this node can perform with the default time. */
-    private final AsyncNodeActions defaultAsyncAction = withTimeout(DEFAULT_TIMEOUT);
-
     /** The configuration of this node */
     private final ContainerNodeConfiguration nodeConfiguration;
 
@@ -111,11 +120,13 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     /** A collector of the various test run related events stored as strongly typed objects use for assertions. */
     private final NodeResultsCollector resultsCollector;
 
+    /** A source of randomness for the node */
+    private final Random random;
+
     /**
      * Constructor for the {@link ContainerNode} class.
      *
      * @param selfId the unique identifier for this node
-     * @param roster the roster of the network
      * @param keysAndCerts the keys for the node
      * @param network the network this node is part of
      * @param dockerImage the Docker image to use for this node
@@ -123,22 +134,23 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      */
     public ContainerNode(
             @NonNull final NodeId selfId,
-            @NonNull final Roster roster,
+            @NonNull final TimeManager timeManager,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final Network network,
             @NonNull final ImageFromDockerfile dockerImage,
             @NonNull final Path outputDirectory) {
-        super(selfId, getWeight(roster, selfId));
+        super(selfId, keysAndCerts);
 
-        this.roster = requireNonNull(roster, "roster must not be null");
-        this.keysAndCerts = requireNonNull(keysAndCerts, "keysAndCerts must not be null");
         this.localOutputDirectory = requireNonNull(outputDirectory, "outputDirectory must not be null");
+        this.timeManager = requireNonNull(timeManager, "timeManager must not be null");
 
         this.resultsCollector = new NodeResultsCollector(selfId);
         this.nodeConfiguration = new ContainerNodeConfiguration(() -> lifeCycle);
+        this.random = new SecureRandom();
 
         container = new ContainerImage(dockerImage, network, selfId);
         container.start();
+
         containerControlChannel = ManagedChannelBuilder.forAddress(
                         container.getHost(), container.getMappedPort(CONTAINER_CONTROL_PORT))
                 .maxInboundMessageSize(32 * 1024 * 1024)
@@ -155,72 +167,171 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     }
 
     /**
-     * Utility method that calculated the weight of the node based in the specified roster.
-     *
-     * @param roster the roster to use for the lookup
-     * @param nodeId the id of the node whose weight to lookup
-     * @return the node's weight
+     * {@inheritDoc}
      */
-    private static long getWeight(@NonNull final Roster roster, @NonNull final NodeId nodeId) {
-        return roster.rosterEntries().stream()
-                .filter(entry -> entry.nodeId() == nodeId.id())
-                .findFirst()
-                .map(RosterEntry::weight)
-                .orElseThrow(() -> new IllegalArgumentException("Node ID not found in roster"));
+    @NonNull
+    @Override
+    public SingleNodeEventStreamResult newEventStreamResult() {
+        final Path eventStreamDir = localOutputDirectory.resolve(ContainerConstants.EVENT_STREAM_DIRECTORY);
+        downloadEventStreamFiles(localOutputDirectory);
+        return new SingleNodeEventStreamResultImpl(
+                selfId, eventStreamDir, configuration().current(), newReconnectResult());
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void killImmediately() {
-        defaultAsyncAction.killImmediately();
+    protected void doStart(@NonNull final Duration timeout) {
+        throwIfInLifecycle(LifeCycle.RUNNING, "Node has already been started.");
+        throwIfInLifecycle(LifeCycle.DESTROYED, "Node has already been destroyed.");
+
+        log.info("Starting node {}...", selfId);
+
+        if (savedStateDirectory != null) {
+            final StateCommonConfig stateCommonConfig =
+                    configuration().current().getConfigData(StateCommonConfig.class);
+            ContainerUtils.copySavedStateToContainer(container, selfId, stateCommonConfig, savedStateDirectory);
+        }
+
+        final InitRequest initRequest = InitRequest.newBuilder()
+                .setSelfId(ProtobufConverter.toLegacy(selfId))
+                .build();
+        //noinspection ResultOfMethodCallIgnored
+        containerControlBlockingStub.init(initRequest);
+
+        final StartRequest startRequest = StartRequest.newBuilder()
+                .setRoster(ProtobufConverter.fromPbj(roster()))
+                .setKeysAndCerts(KeysAndCertsConverter.toProto(keysAndCerts))
+                .setVersion(ProtobufConverter.fromPbj(version))
+                .putAllOverriddenProperties(nodeConfiguration.overriddenProperties())
+                .build();
+
+        // Blocking stub for communicating with the consensus node
+        nodeCommBlockingStub = NodeCommunicationServiceGrpc.newBlockingStub(nodeCommChannel);
+
+        final NodeCommunicationServiceStub stub = NodeCommunicationServiceGrpc.newStub(nodeCommChannel);
+        stub.start(startRequest, new StreamObserver<>() {
+            @Override
+            public void onNext(final EventMessage value) {
+                receivedEvents.add(value);
+            }
+
+            @Override
+            public void onError(@NonNull final Throwable error) {
+                /*
+                 * After a call to killImmediately() the server forcibly closes the stream and the
+                 * client receives an INTERNAL error. This is expected and must *not* fail the test.
+                 * Only report unexpected errors that occur while the node is still running.
+                 */
+                if ((lifeCycle == RUNNING) && !isExpectedError(error)) {
+                    final String message = String.format("gRPC error from node %s", selfId);
+                    fail(message, error);
+                }
+            }
+
+            private static boolean isExpectedError(final @NonNull Throwable error) {
+                if (error instanceof final StatusRuntimeException sre) {
+                    final Code code = sre.getStatus().getCode();
+                    return code == Code.UNAVAILABLE || code == Code.CANCELLED || code == Code.INTERNAL;
+                }
+                return false;
+            }
+
+            @Override
+            public void onCompleted() {
+                if (lifeCycle != DESTROYED && lifeCycle != SHUTDOWN) {
+                    fail("Node " + selfId + " has closed the connection while running the test");
+                }
+            }
+        });
+
+        lifeCycle = RUNNING;
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
-        defaultAsyncAction.startSyntheticBottleneck(delayPerRound);
+    @SuppressWarnings("ResultOfMethodCallIgnored")
+    protected void doKillImmediately(@NonNull final Duration timeout) {
+        log.info("Killing node {} immediately...", selfId);
+        try {
+            // Mark the node as shutting down *before* sending the request to avoid race
+            // conditions with the stream observer receiving an error.
+            lifeCycle = SHUTDOWN;
+
+            final KillImmediatelyRequest request = KillImmediatelyRequest.getDefaultInstance();
+            // Unary call – will throw if server returns an error.
+            containerControlBlockingStub.withDeadlineAfter(timeout).killImmediately(request);
+            platformStatus = null;
+
+            log.info("Node {} has been killed", selfId);
+        } catch (final Exception e) {
+            fail("Failed to kill node %d immediately".formatted(selfId.id()), e);
+        }
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void stopSyntheticBottleneck() {
-        defaultAsyncAction.stopSyntheticBottleneck();
+    @SuppressWarnings("ResultOfMethodCallIgnored")
+    protected void doStartSyntheticBottleneck(@NonNull final Duration delayPerRound, @NonNull final Duration timeout) {
+        log.info("Starting synthetic bottleneck on node {}", selfId);
+        nodeCommBlockingStub
+                .withDeadlineAfter(timeout)
+                .syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
+                        .setSleepMillisPerRound(delayPerRound.toMillis())
+                        .build());
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void start() {
-        defaultAsyncAction.start();
+    @SuppressWarnings("ResultOfMethodCallIgnored")
+    protected void doStopSyntheticBottleneck(@NonNull final Duration timeout) {
+        log.info("Stopping synthetic bottleneck on node {}", selfId);
+        nodeCommBlockingStub
+                .withDeadlineAfter(timeout)
+                .syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
+                        .setSleepMillisPerRound(0)
+                        .build());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @SuppressWarnings("ResultOfMethodCallIgnored")
+    @Override
+    protected void doSendQuiescenceCommand(@NonNull final QuiescenceCommand command, @NonNull final Duration timeout) {
+        log.info("Sending quiescence command {} on node {}", command, selfId);
+        final org.hiero.otter.fixtures.container.proto.QuiescenceCommand dto =
+                switch (command) {
+                    case QUIESCE -> org.hiero.otter.fixtures.container.proto.QuiescenceCommand.QUIESCE;
+                    case BREAK_QUIESCENCE ->
+                        org.hiero.otter.fixtures.container.proto.QuiescenceCommand.BREAK_QUIESCENCE;
+                    case DONT_QUIESCE -> org.hiero.otter.fixtures.container.proto.QuiescenceCommand.DONT_QUIESCE;
+                };
+        nodeCommBlockingStub
+                .withDeadlineAfter(timeout)
+                .quiescenceCommandUpdate(
+                        QuiescenceRequest.newBuilder().setCommand(dto).build());
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public AsyncNodeActions withTimeout(@NonNull final Duration timeout) {
-        return new ContainerAsyncNodeActions(timeout);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void submitTransaction(@NonNull final byte[] transaction) {
-        throwIfIn(INIT, "Node has not been started yet.");
-        throwIfIn(SHUTDOWN, "Node has been shut down.");
-        throwIfIn(DESTROYED, "Node has been destroyed.");
+    public void submitTransaction(@NonNull final OtterTransaction transaction) {
+        throwIfInLifecycle(INIT, "Node has not been started yet.");
+        throwIfInLifecycle(SHUTDOWN, "Node has been shut down.");
+        throwIfInLifecycle(DESTROYED, "Node has been destroyed.");
 
         try {
             final TransactionRequest request = TransactionRequest.newBuilder()
-                    .setPayload(ByteString.copyFrom(transaction))
+                    .setPayload(transaction.toByteString())
                     .build();
 
             final TransactionRequestAnswer answer = nodeCommBlockingStub.submitTransaction(request);
@@ -236,8 +347,22 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      * {@inheritDoc}
      */
     @Override
+    public boolean isAlive() {
+        final PingResponse response =
+                containerControlBlockingStub.nodePing(Empty.newBuilder().build());
+        if (!response.getAlive()) {
+            lifeCycle = SHUTDOWN;
+            platformStatus = null;
+        }
+        return response.getAlive();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     @NonNull
-    public NodeConfiguration configuration() {
+    public ContainerNodeConfiguration configuration() {
         return nodeConfiguration;
     }
 
@@ -274,7 +399,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     @Override
     @NonNull
     public SingleNodePcesResult newPcesResult() {
-        throwIfNotIn(SHUTDOWN, "Node must be in the shutdown state to retrieve PCES results.");
+        throwIsNotInLifecycle(SHUTDOWN, "Node must be in the shutdown state to retrieve PCES results.");
 
         final Configuration configuration = nodeConfiguration.current();
         try {
@@ -319,7 +444,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      */
     @Override
     @NonNull
-    public @NotNull SingleNodeReconnectResult newReconnectResult() {
+    public SingleNodeReconnectResult newReconnectResult() {
         return new SingleNodeReconnectResultImpl(selfId, newPlatformStatusResult(), newLogResult());
     }
 
@@ -340,27 +465,113 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     void destroy() {
         try {
             // copy logs from container to the local filesystem
-            final Path logPath = Path.of("build", "container", "node-" + selfId.id(), "output");
-            Files.createDirectories(logPath.resolve("swirlds-hashstream"));
-
-            container.copyFileFromContainer(
-                    CONTAINER_APP_WORKING_DIR + "/output/swirlds.log",
-                    logPath.resolve("swirlds.log").toString());
-            container.copyFileFromContainer(
-                    CONTAINER_APP_WORKING_DIR + "/output/swirlds-hashstream/swirlds-hashstream.log",
-                    logPath.resolve("swirlds-hashstream/swirlds-hashstream.log").toString());
+            final Path localOutputDirectory =
+                    Path.of("build", "container", NODE_IDENTIFIER_FORMAT.formatted(selfId.id()));
+            downloadConsensusFiles(localOutputDirectory);
+            downloadConsistencyServiceFiles(localOutputDirectory);
         } catch (final IOException e) {
-            throw new UncheckedIOException("Failed to copy logs from container", e);
+            throw new UncheckedIOException("Failed to copy files from container", e);
         }
 
         if (lifeCycle == RUNNING) {
             log.info("Destroying container of node {}...", selfId);
             containerControlChannel.shutdownNow();
+            nodeCommChannel.shutdownNow();
             container.stop();
         }
         resultsCollector.destroy();
         platformStatus = null;
         lifeCycle = DESTROYED;
+    }
+
+    private void downloadEventStreamFiles(@NonNull final Path localOutputDirectory) {
+        try {
+            Files.createDirectories(localOutputDirectory.resolve(EVENT_STREAM_DIRECTORY));
+            final Configuration configuration = nodeConfiguration.current();
+            final EventConfig eventConfig = configuration.getConfigData(EventConfig.class);
+
+            // Use Docker cp command to copy the entire directory
+            final String containerId = container.getContainerId();
+            final ProcessBuilder processBuilder = new ProcessBuilder(
+                    "docker", "cp", containerId + ":" + eventConfig.eventsLogDir(), localOutputDirectory.toString());
+            final Process process = processBuilder.start();
+            process.waitFor();
+        } catch (final IOException e) {
+            throw new UncheckedIOException("Failed to copy event stream files from container", e);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while copying event stream files from container", e);
+        }
+    }
+
+    private void downloadConsensusFiles(@NonNull final Path localOutputDirectory) throws IOException {
+        Files.createDirectories(localOutputDirectory.resolve("output/swirlds-hashstream"));
+        Files.createDirectories(localOutputDirectory.resolve("data/stats"));
+
+        copyFileFromContainerIfExists(localOutputDirectory, SWIRLDS_LOG_PATH);
+        copyFileFromContainerIfExists(localOutputDirectory, HASHSTREAM_LOG_PATH);
+        copyFileFromContainerIfExists(localOutputDirectory, METRICS_PATH.formatted(selfId.id()));
+    }
+
+    private void downloadConsistencyServiceFiles(@NonNull final Path localOutputDirectory) {
+        final StateCommonConfig stateConfig = nodeConfiguration.current().getConfigData(StateCommonConfig.class);
+        final ConsistencyServiceConfig consistencyServiceConfig =
+                nodeConfiguration.current().getConfigData(ConsistencyServiceConfig.class);
+
+        final Path historyFileDirectory = stateConfig
+                .savedStateDirectory()
+                .resolve(consistencyServiceConfig.historyFileDirectory())
+                .resolve(Long.toString(selfId.id()));
+
+        final Path historyFilePath = historyFileDirectory.resolve(consistencyServiceConfig.historyFileName());
+        copyFileFromContainerIfExists(
+                localOutputDirectory, historyFilePath.toString(), consistencyServiceConfig.historyFileName());
+    }
+
+    private void copyFileFromContainerIfExists(
+            @NonNull final Path localOutputDirectory, @NonNull final String relativePath) {
+        copyFileFromContainerIfExists(localOutputDirectory, relativePath, relativePath);
+    }
+
+    private void copyFileFromContainerIfExists(
+            @NonNull final Path localOutputDirectory,
+            @NonNull final String relativeSourcePath,
+            @NonNull final String relativeTargetPath) {
+        final String containerPath = CONTAINER_APP_WORKING_DIR + relativeSourcePath;
+        final String localPath =
+                localOutputDirectory.resolve(relativeTargetPath).toString();
+
+        try {
+            final ExecResult result = container.execInContainer("test", "-f", containerPath);
+            if (result.getExitCode() == 0) {
+                container.copyFileFromContainer(containerPath, localPath);
+            } else {
+                log.warn("File not found in node {}: {}", selfId.id(), containerPath);
+            }
+        } catch (final IOException e) {
+            log.warn("Failed to check if file exists in node {}: {}", selfId.id(), containerPath, e);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("Interrupted while checking if file exists in node {}: {}", selfId.id(), containerPath, e);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    protected TimeManager timeManager() {
+        return timeManager;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    protected Random random() {
+        return random;
     }
 
     /**
@@ -378,7 +589,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 case MARKER_FILE_ADDED -> {
                     final ProtocolStringList markerFiles =
                             event.getMarkerFileAdded().getMarkerFileNameList();
-                    log.info("Received marker file event from {}: {}", selfId, markerFiles);
+                    log.info("Received marker file event from node {}: {}", selfId, markerFiles);
                     resultsCollector.addMarkerFiles(markerFiles);
                 }
                 default -> log.warn("Received unexpected event: {}", event);
@@ -386,142 +597,10 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         }
     }
 
-    /**
-     * Container-specific implementation of {@link AsyncNodeActions}.
-     */
-    private class ContainerAsyncNodeActions implements AsyncNodeActions {
-
-        private final Duration timeout;
-
-        /**
-         * Constructor for the {@link ContainerAsyncNodeActions} class.
-         *
-         * @param timeout the duration to wait for actions to complete
-         */
-        public ContainerAsyncNodeActions(@NonNull final Duration timeout) {
-            this.timeout = timeout;
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public void start() {
-            throwIfIn(LifeCycle.RUNNING, "Node has already been started.");
-            throwIfIn(LifeCycle.DESTROYED, "Node has already been destroyed.");
-
-            log.info("Starting node {}...", selfId);
-
-            final InitRequest initRequest = InitRequest.newBuilder()
-                    .setSelfId(ProtobufConverter.fromPbj(selfId))
-                    .build();
-            //noinspection ResultOfMethodCallIgnored
-            containerControlBlockingStub.init(initRequest);
-
-            final StartRequest startRequest = StartRequest.newBuilder()
-                    .setRoster(ProtobufConverter.fromPbj(roster))
-                    .setKeysAndCerts(KeysAndCertsConverter.toProto(keysAndCerts))
-                    .setVersion(ProtobufConverter.fromPbj(version))
-                    .putAllOverriddenProperties(nodeConfiguration.overriddenProperties())
-                    .build();
-
-            // Blocking stub for communicating with the consensus node
-            nodeCommBlockingStub = NodeCommunicationServiceGrpc.newBlockingStub(nodeCommChannel);
-
-            final NodeCommunicationServiceStub stub = NodeCommunicationServiceGrpc.newStub(nodeCommChannel);
-            stub.start(startRequest, new StreamObserver<>() {
-                @Override
-                public void onNext(final EventMessage value) {
-                    receivedEvents.add(value);
-                }
-
-                @Override
-                public void onError(@NonNull final Throwable error) {
-                    /*
-                     * After a call to killImmediately() the server forcibly closes the stream and the
-                     * client receives an INTERNAL error. This is expected and must *not* fail the test.
-                     * Only report unexpected errors that occur while the node is still running.
-                     */
-                    if ((lifeCycle == RUNNING) && !isExpectedError(error)) {
-                        final String message = String.format("gRPC error from node %s", selfId);
-                        fail(message, error);
-                    }
-                }
-
-                private static boolean isExpectedError(final @NonNull Throwable error) {
-                    if (error instanceof final StatusRuntimeException sre) {
-                        final Code code = sre.getStatus().getCode();
-                        return code == Code.UNAVAILABLE || code == Code.CANCELLED || code == Code.INTERNAL;
-                    }
-                    return false;
-                }
-
-                @Override
-                public void onCompleted() {
-                    if (lifeCycle != DESTROYED && lifeCycle != SHUTDOWN) {
-                        fail("Node " + selfId + " has closed the connection while running the test");
-                    }
-                }
-            });
-
-            lifeCycle = RUNNING;
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        @SuppressWarnings("ResultOfMethodCallIgnored") // ignoring the Empty answer from killImmediately
-        public void killImmediately() {
-            log.info("Killing node {} immediately...", selfId);
-            try {
-                // Mark the node as shutting down *before* sending the request to avoid race
-                // conditions with the stream observer receiving an error.
-                lifeCycle = SHUTDOWN;
-
-                final KillImmediatelyRequest request = KillImmediatelyRequest.getDefaultInstance();
-                // Unary call – will throw if server returns an error.
-                containerControlBlockingStub.withDeadlineAfter(timeout).killImmediately(request);
-            } catch (final Exception e) {
-                fail("Failed to kill node %d immediately".formatted(selfId.id()), e);
-            }
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        @SuppressWarnings("ResultOfMethodCallIgnored") // ignoring the Empty answer from killImmediately
-        public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
-            log.info("Starting synthetic bottleneck on node {}", selfId);
-            //noinspection ResultOfMethodCallIgnored
-            nodeCommBlockingStub
-                    .withDeadlineAfter(timeout)
-                    .syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
-                            .setSleepMillisPerRound(delayPerRound.toMillis())
-                            .build());
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        @SuppressWarnings("ResultOfMethodCallIgnored") // ignoring the Empty answer from killImmediately
-        public void stopSyntheticBottleneck() {
-            log.info("Stopping synthetic bottleneck on node {}", selfId);
-            //noinspection ResultOfMethodCallIgnored
-            nodeCommBlockingStub
-                    .withDeadlineAfter(timeout)
-                    .syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
-                            .setSleepMillisPerRound(0)
-                            .build());
-        }
-    }
-
     private void handlePlatformChange(@NonNull final EventMessage value) {
         final PlatformStatusChange change = value.getPlatformStatusChange();
         final String statusName = change.getNewStatus();
-        log.info("Received platform status change from {}: {}", selfId, statusName);
+        log.info("Received platform status change from node {}: {}", selfId, statusName);
         try {
             final PlatformStatus newStatus = PlatformStatus.valueOf(statusName);
             platformStatus = newStatus;

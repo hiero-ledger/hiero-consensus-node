@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip551.contracts.precompile;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
@@ -33,9 +34,10 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
-public class AtomicBatchScheduleTest {
+class AtomicBatchScheduleTest {
 
     private static final String DEFAULT_BATCH_OPERATOR = "defaultBatchOperator";
 
@@ -43,11 +45,7 @@ public class AtomicBatchScheduleTest {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        // enable atomic batch
-        testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled", "true",
-                "atomicBatch.maxNumberOfTransactions", "50",
-                "contracts.throttle.throttleByGas", "false"));
+        testLifecycle.overrideInClass(Map.of("contracts.throttle.throttleByGas", "false"));
         // create default batch operator
         testLifecycle.doAdhoc(cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
@@ -57,7 +55,7 @@ public class AtomicBatchScheduleTest {
      */
     @HapiTest
     @DisplayName("Atomic cannot get scheduled info for non-existent fungible create schedule")
-    public Stream<DynamicTest> atomicCannotGetScheduledInfoForNonExistentFungibleCreateSchedule(
+    Stream<DynamicTest> atomicCannotGetScheduledInfoForNonExistentFungibleCreateSchedule(
             @NonNull @Contract(contract = "GetScheduleInfo", creationGas = 5_000_000) final SpecContract contract) {
         return hapiTest(withOpContext((spec, log) -> {
             final var callOp = contract.call(
@@ -75,7 +73,8 @@ public class AtomicBatchScheduleTest {
      */
     @HapiTest
     @DisplayName("Atomic can successfully schedule a create fungible token operation")
-    public Stream<DynamicTest> atomicScheduledCreateToken(
+    @Tag(MATS)
+    Stream<DynamicTest> atomicScheduledCreateToken(
             @NonNull @Contract(contract = "HIP756Contract", creationGas = 4_000_000L, isImmutable = true)
                     final SpecContract contract,
             @NonNull @Account final SpecAccount treasury,

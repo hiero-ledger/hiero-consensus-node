@@ -8,12 +8,14 @@ import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubK
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.explicitFromHeadlong;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_LOG;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_NODE_COMMS_LOG;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ensureDir;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.TargetNetworkType.EMBEDDED_NETWORK;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
+import static com.hedera.services.bdd.spec.keys.SigControl.ED25519_ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
@@ -22,6 +24,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.BYTES_4K;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTransactionID;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.timeUntilNextPeriod;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileAppend;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
@@ -41,6 +44,7 @@ import static com.hedera.services.bdd.spec.utilops.streams.LogContainmentOp.Cont
 import static com.hedera.services.bdd.spec.utilops.streams.LogContainmentOp.Containment.DOES_NOT_CONTAIN;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion.ALL_TX_IDS;
 import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
+import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.EXCHANGE_RATE_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.FEE_SCHEDULE;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -193,6 +197,7 @@ import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import com.swirlds.config.api.converter.ConfigConverter;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -229,6 +234,7 @@ import java.util.function.DoubleConsumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.LongConsumer;
+import java.util.function.LongFunction;
 import java.util.function.ObjIntConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -237,6 +243,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 import org.apache.logging.log4j.Logger;
 import org.bouncycastle.jcajce.provider.asymmetric.ec.BCECPrivateKey;
 import org.hiero.base.utility.CommonUtils;
@@ -282,6 +289,67 @@ public class UtilVerbs {
                         "staking.startThreshold", "" + 0,
                         "staking.rewardBalanceThreshold", "" + 0),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, STAKING_REWARD, ONE_MILLION_HBARS)));
+    }
+
+    /**
+     * Returns an operation that will either create a new account with the given name, or
+     * look up the account with the given number and ensure it has the desired balance.
+     * <p>
+     * If the account is created, the {@code onCreation} callback will be executed so that
+     * any additional setup can be done (e.g., saving the new account's key to the yahcli
+     * working directory).
+     * @param name the name of the account to create or fund
+     * @param number if the account is expected to exist, its number
+     * @param desiredBalance the desired balance of the named account
+     * @param keyLoader a function that, given an account number, will load its private key
+     * @param onCreation a callback to be executed if the account is created
+     * @return the operation
+     */
+    public static SpecOperation fundOrCreateEd25519Account(
+            @NonNull final String name,
+            @Nullable final Long number,
+            final long desiredBalance,
+            @NonNull final LongFunction<PrivateKey> keyLoader,
+            @NonNull final Consumer<HapiSpec> onCreation) {
+        requireNonNull(onCreation);
+        return doingContextual(spec -> {
+            if (number == null) {
+                final var creation = cryptoCreate(name)
+                        .balance(desiredBalance)
+                        .keyShape(ED25519_ON)
+                        .hasRetryPrecheckFrom(BUSY)
+                        .advertisingCreation();
+                allRunFor(spec, creation);
+                onCreation.accept(spec);
+            } else {
+                final var accountId = spec.accountIdFactory().apply(number);
+                final var idLiteral = asAccountString(accountId);
+                final var lookup = getAccountInfo(idLiteral);
+                allRunFor(spec, lookup);
+                final var info = lookup.getResponse().getCryptoGetInfo().getAccountInfo();
+                final var privateKey = keyLoader.apply(number);
+                if (privateKey instanceof EdDSAPrivateKey edDSAPrivateKey) {
+                    final var publicKey = Key.newBuilder()
+                            .setEd25519(ByteString.copyFrom(edDSAPrivateKey.getAbyte()))
+                            .build();
+                    Assertions.assertEquals(
+                            publicKey,
+                            info.getKey(),
+                            String.format("Account %s had a different key than expected", idLiteral));
+                    spec.registry().saveKey(name, publicKey);
+                    spec.registry().saveAccountId(name, accountId);
+                    spec.keys().incorporate(name, edDSAPrivateKey);
+                    if (info.getBalance() < desiredBalance) {
+                        allRunFor(
+                                spec,
+                                cryptoTransfer(
+                                        tinyBarsFromTo(DEFAULT_PAYER, name, (desiredBalance - info.getBalance()))));
+                    }
+                } else {
+                    Assertions.fail("Account expected to have an Ed25519 key, was " + privateKey.getAlgorithm());
+                }
+            }
+        });
     }
 
     /**
@@ -430,6 +498,20 @@ public class UtilVerbs {
     public static LogContainmentOp assertHgcaaLogDoesNotContain(
             @NonNull final NodeSelector selector, @NonNull final String pattern, @NonNull final Duration delay) {
         return new LogContainmentOp(selector, APPLICATION_LOG, DOES_NOT_CONTAIN, pattern, delay);
+    }
+
+    /**
+     * Returns an operation that delays for the given time and then validates that the selected nodes'
+     * block node comms logs do not contain the given pattern.
+     *
+     * @param selector the selector for the node whose log to validate
+     * @param pattern the pattern that must be present
+     * @param delay the delay before validation
+     * @return the operation that validates the logs of the target network
+     */
+    public static LogContainmentOp assertBlockNodeCommsLogDoesNotContain(
+            @NonNull final NodeSelector selector, @NonNull final String pattern, @NonNull final Duration delay) {
+        return new LogContainmentOp(selector, BLOCK_NODE_COMMS_LOG, DOES_NOT_CONTAIN, pattern, delay);
     }
 
     /**
@@ -2728,7 +2810,32 @@ public class UtilVerbs {
     }
 
     /**
-     * Asserts that a sequence of log messages appears in the specified node's log within a timeframe.
+     * Asserts that a sequence of log messages appears in the specified node's block node comms log within a timeframe.
+     *
+     * @param selector the node selector
+     * @param startTimeSupplier supplier for the start time of the timeframe
+     * @param timeframe the duration of the timeframe window to search for messages
+     * @param waitTimeout the duration to wait for messages to appear
+     * @param patterns the sequence of patterns to look for
+     * @return a new LogContainmentTimeframeOp
+     */
+    public static LogContainmentTimeframeOp assertBlockNodeCommsLogContainsTimeframe(
+            @NonNull final NodeSelector selector,
+            @NonNull final Supplier<Instant> startTimeSupplier,
+            @NonNull final Duration timeframe,
+            @NonNull final Duration waitTimeout,
+            @NonNull final String... patterns) {
+        return new LogContainmentTimeframeOp(
+                selector,
+                ExternalPath.BLOCK_NODE_COMMS_LOG,
+                Arrays.asList(patterns),
+                startTimeSupplier,
+                timeframe,
+                waitTimeout);
+    }
+
+    /**
+     * Asserts that a sequence of log messages appears in the specified node's block node comms log within a timeframe.
      *
      * @param selector the node selector
      * @param startTimeSupplier supplier for the start time of the timeframe
@@ -2744,104 +2851,30 @@ public class UtilVerbs {
             @NonNull final Duration waitTimeout,
             @NonNull final String... patterns) {
         return new LogContainmentTimeframeOp(
-                selector,
-                ExternalPath.APPLICATION_LOG,
-                Arrays.asList(patterns),
-                startTimeSupplier,
-                timeframe,
-                waitTimeout);
+                selector, APPLICATION_LOG, Arrays.asList(patterns), startTimeSupplier, timeframe, waitTimeout);
     }
 
-    public static void getTransactionDurationMetrics() {
-        withOpContext((spec, opLog) -> allRunFor(spec, doAdhoc(() -> getTransactionMetrics().stream()
-                .filter(metric -> metric.contains("transaction"))
-                .forEach(opLog::info))));
-    }
-
-    public static void getPrecompileDurationMetrics() {
-        withOpContext((spec, opLog) -> allRunFor(spec, doAdhoc(() -> getTransactionMetrics().stream()
-                .filter(metric -> metric.contains("precompile"))
-                .forEach(opLog::info))));
-    }
-
-    public static void getSystemContractDurationMetrics() {
-        withOpContext((spec, opLog) -> allRunFor(spec, doAdhoc(() -> getTransactionMetrics().stream()
-                .filter(metric -> metric.contains("system_contract"))
-                .forEach(opLog::info))));
-    }
-
-    public static void getEvmOpsDurationMetrics() {
-        withOpContext((spec, opLog) -> allRunFor(spec, doAdhoc(() -> getTransactionMetrics().stream()
-                .filter(metric -> metric.contains("ops"))
-                .forEach(opLog::info))));
-    }
-
-    public static CustomSpecAssert throttleUsagePercentageWithin(final double expectedPercentage) {
-        return throttleUsagePercentageWithin(expectedPercentage, 0.1);
-    }
-
-    public static CustomSpecAssert throttleUsagePercentageWithin(
-            final double expectedPercentage, final double allowedPercentDiff) {
+    public static CustomSpecAssert valueIsInRange(
+            final double value, final double lowerBoundInclusive, final double upperBoundExclusive) {
         return assertionsHold((spec, opLog) -> {
-            final var actualPercentage = getOpsDurationValue(spec);
-            assertEquals(
-                    expectedPercentage,
-                    actualPercentage,
-                    (allowedPercentDiff / 100.0) * expectedPercentage,
+            assertTrue(
+                    value >= lowerBoundInclusive && value < upperBoundExclusive,
                     String.format(
-                            "%s Throttle bucket filled more than %.2f percent different than expected!",
-                            sdec(actualPercentage, 4), allowedPercentDiff));
+                            "A value of %s was expected to be in range <%s, %s), but it wasn't.",
+                            value, lowerBoundInclusive, upperBoundExclusive));
         });
     }
 
-    public static CustomSpecAssert throttleUsagePercentageMoreThanThreshold(
-            final double amount, final double threshold) {
-        return assertionsHold((spec, opLog) -> {
-            assertTrue(
-                    amount > threshold,
-                    String.format("%s Throttle bucket filled is not greater than %s!", amount, threshold));
-        });
-    }
-
-    public static CustomSpecAssert throttleUsagePercentageLessThreshold(final double amount, final double threshold) {
-        return assertionsHold((spec, opLog) -> {
-            assertTrue(
-                    amount < threshold,
-                    String.format("%s Throttle bucket filled is not less than %s!", amount, threshold));
-        });
-    }
-
-    public static CustomSpecAssert burstIncreasesThroughputBy(final long pre, final long post, final long delta) {
-        return assertionsHold((spec, opLog) -> {
-            assertTrue(
-                    (pre + delta) < post,
-                    String.format("post value: %s is not %s greater than pre value: %s", post, delta, pre));
-        });
-    }
-
-    public static Double getOpsDurationValue(HapiSpec spec) {
-        final var metrics = getDurationThrottleMetrics(spec);
+    public static Double getOpsDurationThrottlePercentUsed(HapiSpec spec) {
+        final var metrics = getOpsDurationThrottlePercentUsedMetrics(spec);
         assertFalse(metrics.isEmpty(), "No throttle metrics found!");
         final var latestThrottleMetric = metrics.getLast();
         return Double.parseDouble(latestThrottleMetric.split(" ")[1]);
     }
 
-    private static List<String> getTransactionMetrics() {
-        final var list = new ArrayList<String>();
-        withOpContext((spec, opLog) -> allRunFor(
-                spec,
-                doAdhoc(() -> list.addAll(spec.prometheusClient()
-                        .getTransactionMetrics(spec.targetNetworkOrThrow()
-                                .nodes()
-                                .getFirst()
-                                .metadata()
-                                .prometheusPort())))));
-        return list;
-    }
-
-    private static List<String> getDurationThrottleMetrics(final HapiSpec spec) {
+    private static List<String> getOpsDurationThrottlePercentUsedMetrics(final HapiSpec spec) {
         return spec.prometheusClient()
-                .getThrottleDurationMetrics(spec.targetNetworkOrThrow()
+                .getOpsDurationThrottlePercentUsedMetrics(spec.targetNetworkOrThrow()
                         .nodes()
                         .getFirst()
                         .metadata()

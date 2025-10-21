@@ -6,7 +6,6 @@ import static org.hyperledger.besu.evm.MainnetEVMs.registerShanghaiOperations;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 
-import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEVM;
 import com.hedera.node.app.service.contract.impl.hevm.OpsDurationSchedule;
@@ -21,7 +20,6 @@ import org.bouncycastle.util.encoders.Hex;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.EvmSpecVersion;
-import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.frame.BlockValues;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.frame.MessageFrame.State;
@@ -60,31 +58,11 @@ class HederaEVMTest {
                 EvmConfiguration.DEFAULT,
                 EvmSpecVersion.defaultVersion());
 
-        // Scenario 1: less than required ops duration limit
-        final var insufficientOpsDurationThrottle = OpsDurationCounter.withInitiallyAvailableUnits(
-                opsDurationSchedule, expectedOpsDurationUnitsConsumed - 1L);
-        final var frame = prepareTestFrame(loopIterations, insufficientOpsDurationThrottle);
-        hederaEvm.runToHalt(frame, OperationTracer.NO_TRACING);
-        assertEquals(State.EXCEPTIONAL_HALT, frame.getState());
-        assertEquals(
-                CustomExceptionalHaltReason.OPS_DURATION_LIMIT_REACHED,
-                frame.getExceptionalHaltReason().get());
-
-        // Scenario 2: exactly the required amount is available
-        final var exactOpsDurationThrottle =
-                OpsDurationCounter.withInitiallyAvailableUnits(opsDurationSchedule, expectedOpsDurationUnitsConsumed);
+        final var exactOpsDurationThrottle = OpsDurationCounter.withSchedule(opsDurationSchedule);
         final var exactFrame = prepareTestFrame(loopIterations, exactOpsDurationThrottle);
         hederaEvm.runToHalt(exactFrame, OperationTracer.NO_TRACING);
         assertEquals(expectedOpsDurationUnitsConsumed, exactOpsDurationThrottle.opsDurationUnitsConsumed());
         assertTrue(exactFrame.getRevertReason().isEmpty());
-
-        // Scenario 3: more ops duration units available than necessary
-        final var excessOpsDurationThrottle = OpsDurationCounter.withInitiallyAvailableUnits(
-                opsDurationSchedule, expectedOpsDurationUnitsConsumed + 1L);
-        final var excessFrame = prepareTestFrame(loopIterations, excessOpsDurationThrottle);
-        hederaEvm.runToHalt(excessFrame, OperationTracer.NO_TRACING);
-        assertEquals(expectedOpsDurationUnitsConsumed, excessOpsDurationThrottle.opsDurationUnitsConsumed());
-        assertTrue(excessFrame.getRevertReason().isEmpty());
     }
 
     private MessageFrame prepareTestFrame(final int loopIterations, final OpsDurationCounter opsDurationCounter) {
@@ -101,7 +79,7 @@ class HederaEVMTest {
                 .jump(33) // Loop
                 .toString();
 
-        final var code = CodeFactory.createCode(Bytes.fromHexString(byteCodeBuilder), 0, false);
+        final var code = TestHelpers.CODE_FACTORY.createCode(Bytes.fromHexString(byteCodeBuilder), false);
 
         final var frame = MessageFrame.builder()
                 .type(MessageFrame.Type.MESSAGE_CALL)
@@ -121,7 +99,7 @@ class HederaEVMTest {
                 .isStatic(false)
                 .maxStackSize(100)
                 .completer(unused -> {})
-                .blockHashLookup(unused -> {
+                .blockHashLookup((unusedFrame, unused) -> {
                     throw new IllegalStateException();
                 })
                 .contextVariables(Map.of(OPS_DURATION_COUNTER, opsDurationCounter))

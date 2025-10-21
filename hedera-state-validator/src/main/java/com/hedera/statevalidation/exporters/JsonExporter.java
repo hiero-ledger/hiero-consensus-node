@@ -14,8 +14,8 @@ import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.state.merkle.StateUtils;
+import com.hedera.statevalidation.StateIds;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
@@ -31,6 +31,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * This class exports the state into JSON file(s)
@@ -54,6 +55,9 @@ public class JsonExporter {
 
     private final boolean allStates;
 
+    private final AtomicLong objectsProcessed = new AtomicLong(0);
+    private long totalNumber;
+
     public JsonExporter(File resultDir, MerkleNodeState state, String serviceName, String stateKeyName) {
         this.resultDir = resultDir;
         this.state = state;
@@ -67,7 +71,7 @@ public class JsonExporter {
             expectedStateId = -1;
         } else {
             requireNonNull(serviceName);
-            expectedStateId = StateUtils.stateIdFor(serviceName, stateKeyName);
+            expectedStateId = StateIds.stateIdFor(serviceName, stateKeyName);
         }
         executorService = Executors.newVirtualThreadPerTaskExecutor();
     }
@@ -75,14 +79,16 @@ public class JsonExporter {
     public void export() {
         final long startTimestamp = System.currentTimeMillis();
         final VirtualMap vm = (VirtualMap) state.getRoot();
+        System.out.println("Start exporting state");
         List<CompletableFuture<Void>> futures = traverseVmInParallel(vm);
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-        System.out.println("Export time: " + (System.currentTimeMillis() - startTimestamp) + "ms");
+        System.out.println("Export time: " + ((System.currentTimeMillis() - startTimestamp) / 1000) + " seconds");
         executorService.close();
     }
 
     private List<CompletableFuture<Void>> traverseVmInParallel(final VirtualMap virtualMap) {
         VirtualMapMetadata metadata = virtualMap.getMetadata();
+        totalNumber = metadata.getSize();
         List<CompletableFuture<Void>> futures = new ArrayList<>();
         for (int i = 0; i < writingParallelism; i++) {
             String fileName;
@@ -133,10 +139,21 @@ public class JsonExporter {
                     } else { // kv
                         write(
                                 writer,
-                                "{\"p\":%d,\"k\":%s, \"v\":%s}\n"
-                                        .formatted(path, keyToJson(stateKey.key()), valueToJson(stateValue.value())));
+                                "{\"p\":%d, \"k\":\"%s\", \"v\":\"%s\"}\n"
+                                        .formatted(
+                                                path,
+                                                keyToJson(stateKey.key())
+                                                        .replace("\\", "\\\\")
+                                                        .replace("\"", "\\\""),
+                                                valueToJson(stateValue.value())
+                                                        .replace("\\", "\\\\")
+                                                        .replace("\"", "\\\"")));
                     }
                     emptyFile = false;
+                    long currentObjCount = objectsProcessed.incrementAndGet();
+                    if (currentObjCount % MAX_OBJ_PER_FILE == 0) {
+                        System.out.printf("%s objects of %s are processed\n", currentObjCount, totalNumber);
+                    }
                 } catch (ParseException e) {
                     throw new RuntimeException(e);
                 }

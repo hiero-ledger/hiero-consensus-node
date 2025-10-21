@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip551.contracts.precompile;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecContract.VARIANT_16C;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
@@ -28,9 +29,10 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
-public class AtomicBatchAddress16cTest {
+class AtomicBatchAddress16cTest {
 
     private static final String DEFAULT_BATCH_OPERATOR = "defaultBatchOperator";
 
@@ -38,8 +40,6 @@ public class AtomicBatchAddress16cTest {
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         // enable atomic batch
         testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled", "true",
-                "atomicBatch.maxNumberOfTransactions", "50",
                 "contracts.throttle.throttleByGas", "false",
                 "contracts.systemContract.hts.addresses", "359,364"));
         // create default batch operator
@@ -51,7 +51,7 @@ public class AtomicBatchAddress16cTest {
      */
     @HapiTest
     @DisplayName("when using atomic getTokenKey should return metadata key")
-    public Stream<DynamicTest> atomicSucceedToGetTokenKey(
+    Stream<DynamicTest> atomicSucceedToGetTokenKey(
             @Contract(contract = "NumericContract16c", creationGas = 1_000_000L, variant = VARIANT_16C)
                     final SpecContract numericContract,
             @NonFungibleToken(
@@ -69,7 +69,8 @@ public class AtomicBatchAddress16cTest {
      * TokenMetadataTest
      */
     @HapiTest
-    public Stream<DynamicTest> atomicTestUpdateMetadata(
+    @Tag(MATS)
+    Stream<DynamicTest> atomicTestUpdateMetadata(
             @Contract(contract = "CreateTokenVersioned", creationGas = 5_000_000L, variant = VARIANT_16C)
                     final SpecContract contractTarget,
             @FungibleToken(name = "fungibleToken", initialSupply = 1_000L, maxSupply = 1_200L)

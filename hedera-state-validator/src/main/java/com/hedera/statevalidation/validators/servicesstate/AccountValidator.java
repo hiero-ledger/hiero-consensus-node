@@ -2,29 +2,26 @@
 package com.hedera.statevalidation.validators.servicesstate;
 
 import static com.hedera.statevalidation.validators.ParallelProcessingUtil.VALIDATOR_FORK_JOIN_POOL;
-import static com.swirlds.state.merkle.StateUtils.extractStateKeyValueStateId;
-import static com.swirlds.state.merkle.StateUtils.stateIdFor;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.hapi.platform.state.StateValue;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
+import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.impl.TokenServiceImpl;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
-import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.statevalidation.parameterresolver.ReportResolver;
 import com.hedera.statevalidation.parameterresolver.StateResolver;
-import com.hedera.statevalidation.reporting.Report;
 import com.hedera.statevalidation.reporting.SlackReportGenerator;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.threading.manager.AdHocThreadManager;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
+import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.StateKeyUtils;
+import com.swirlds.state.merkle.StateValue;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapMigration;
@@ -36,7 +33,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-@ExtendWith({StateResolver.class, ReportResolver.class, SlackReportGenerator.class})
+@ExtendWith({StateResolver.class, SlackReportGenerator.class})
 @Tag("account")
 public class AccountValidator {
 
@@ -48,7 +45,7 @@ public class AccountValidator {
     final long TOTAL_tHBAR_SUPPLY = 5_000_000_000_000_000_000L;
 
     @Test
-    void validate(DeserializedSignedState deserializedState, Report report) throws InterruptedException {
+    void validate(DeserializedSignedState deserializedState) throws InterruptedException {
         final MerkleNodeState merkleNodeState =
                 deserializedState.reservedSignedState().get().getState();
 
@@ -58,7 +55,7 @@ public class AccountValidator {
         final ReadableEntityIdStore entityCounters =
                 new ReadableEntityIdStoreImpl(merkleNodeState.getReadableStates(EntityIdService.NAME));
         final ReadableKVState<AccountID, Account> accounts =
-                merkleNodeState.getReadableStates(TokenServiceImpl.NAME).get(V0490TokenSchema.ACCOUNTS_KEY);
+                merkleNodeState.getReadableStates(TokenServiceImpl.NAME).get(V0490TokenSchema.ACCOUNTS_STATE_ID);
 
         assertNotNull(accounts);
         assertNotNull(entityCounters);
@@ -69,16 +66,17 @@ public class AccountValidator {
         AtomicLong accountsCreated = new AtomicLong(0L);
         AtomicLong totalBalance = new AtomicLong(0L);
 
-        final int targetStateId = stateIdFor(TokenServiceImpl.NAME, V0490TokenSchema.ACCOUNTS_KEY);
+        final int accountStateId = V0490TokenSchema.ACCOUNTS_STATE_ID;
 
         InterruptableConsumer<Pair<Bytes, Bytes>> handler = pair -> {
             final Bytes keyBytes = pair.left();
             final Bytes valueBytes = pair.right();
-            final int readKeyStateId = extractStateKeyValueStateId(keyBytes);
-            final int readValueStateId = extractStateKeyValueStateId(valueBytes);
-            if ((readKeyStateId == targetStateId) && (readValueStateId == targetStateId)) {
+            final int readKeyStateId = StateKeyUtils.extractStateIdFromStateKeyOneOf(keyBytes);
+            final int readValueStateId = StateValue.extractStateIdFromStateValueOneOf(valueBytes);
+            if ((readKeyStateId == accountStateId) && (readValueStateId == accountStateId)) {
                 try {
-                    final StateValue stateValue = StateValue.PROTOBUF.parse(valueBytes);
+                    final com.hedera.hapi.platform.state.StateValue stateValue =
+                            com.hedera.hapi.platform.state.StateValue.PROTOBUF.parse(valueBytes);
                     final Account account = stateValue.value().as();
                     final long tinybarBalance = account.tinybarBalance();
                     assertTrue(tinybarBalance >= 0);

@@ -3,8 +3,8 @@ package com.hedera.node.app.workflows.standalone;
 
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
-import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY;
-import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_KEY;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.hedera.node.app.spi.AppContext.Gossip.UNAVAILABLE_GOSSIP;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
 import static com.hedera.node.app.util.FileUtilities.createFileID;
@@ -45,9 +45,6 @@ import com.hedera.node.app.fixtures.state.FakeServiceMigrator;
 import com.hedera.node.app.fixtures.state.FakeServicesRegistry;
 import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.hapi.utils.EntityType;
-import com.hedera.node.app.ids.AppEntityIdFactory;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.records.BlockRecordService;
@@ -57,6 +54,11 @@ import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
+import com.hedera.node.app.service.entityid.impl.EntityIdServiceImpl;
+import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
@@ -70,9 +72,9 @@ import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.AppContextImpl;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
 import com.hedera.node.app.throttle.AppThrottleFactory;
@@ -91,10 +93,9 @@ import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -144,6 +145,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  */
 @ExtendWith(MockitoExtension.class)
 public class TransactionExecutorsTest {
+
     private static final long GAS = 400_000L;
     private static final long EXPECTED_LUCKY_NUMBER = 42L;
     private static final EntityIdFactory idFactory = new AppEntityIdFactory(DEFAULT_CONFIG);
@@ -227,7 +229,7 @@ public class TransactionExecutorsTest {
     void usesOverrideBlockhashOpAsExpected() {
         final var state = genesisState(Map.of());
         final var writableStates = state.getWritableStates(BlockRecordService.NAME);
-        final var blockInfoSingleton = writableStates.<BlockInfo>getSingleton(BLOCK_INFO_STATE_KEY);
+        final var blockInfoSingleton = writableStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID);
         blockInfoSingleton.put(requireNonNull(blockInfoSingleton.get())
                 .copyBuilder()
                 .lastBlockNumber(666L)
@@ -414,7 +416,7 @@ public class TransactionExecutorsTest {
                 TEST_PLATFORM_STATE_FACADE);
         // Create a node
         final var nodeWritableStates = state.getWritableStates(AddressBookService.NAME);
-        final var nodes = nodeWritableStates.<EntityNumber, Node>get(NODES_KEY);
+        final var nodes = nodeWritableStates.<EntityNumber, Node>get(NODES_STATE_ID);
         nodes.put(
                 new EntityNumber(0),
                 Node.newBuilder()
@@ -423,10 +425,10 @@ public class TransactionExecutorsTest {
         ((CommittableWritableStates) nodeWritableStates).commit();
         final var writableStates = state.getWritableStates(FileService.NAME);
         final var readableStates = state.getReadableStates(AddressBookService.NAME);
-        final var entityIdStore = new WritableEntityIdStore(state.getWritableStates(EntityIdService.NAME));
+        final var entityIdStore = new WritableEntityIdStoreImpl(state.getWritableStates(EntityIdService.NAME));
         entityIdStore.adjustEntityCount(EntityType.NODE, 1);
         final var nodeStore = new ReadableNodeStoreImpl(readableStates, entityIdStore);
-        final var files = writableStates.<FileID, File>get(V0490FileSchema.BLOBS_KEY);
+        final var files = writableStates.<FileID, File>get(V0490FileSchema.FILES_STATE_ID);
         genesisContentProviders(nodeStore, config).forEach((fileNum, provider) -> {
             final var fileId = createFileID(fileNum, config);
             files.put(
@@ -443,7 +445,7 @@ public class TransactionExecutorsTest {
                 .ed25519(config.getConfigData(BootstrapConfig.class).genesisPublicKey())
                 .build();
         final var accounts =
-                state.getWritableStates(TokenService.NAME).<AccountID, Account>get(V0490TokenSchema.ACCOUNTS_KEY);
+                state.getWritableStates(TokenService.NAME).<AccountID, Account>get(V0490TokenSchema.ACCOUNTS_STATE_ID);
         // Create the system accounts
         for (int i = 1, n = ledgerConfig.numSystemAccounts(); i <= n; i++) {
             final var accountId = AccountID.newBuilder().accountNum(i).build();
@@ -490,7 +492,7 @@ public class TransactionExecutorsTest {
             @NonNull final AppContext appContext, @NonNull final ServicesRegistry servicesRegistry) {
         // Register all service schema RuntimeConstructable factories before platform init
         Set.of(
-                        new EntityIdService(),
+                        new EntityIdServiceImpl(),
                         new ConsensusServiceImpl(),
                         new ContractServiceImpl(appContext, NO_OP_METRICS),
                         new FileServiceImpl(),

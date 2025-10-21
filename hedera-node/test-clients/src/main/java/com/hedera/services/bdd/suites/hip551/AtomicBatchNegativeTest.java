@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.hip551;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -26,8 +27,11 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.explicit;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.systemContractDelete;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.systemContractUndelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
@@ -58,6 +62,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoAddLiveHash;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoDeleteLiveHash;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_KEY_SET_ON_NON_INNER_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_LIST_CONTAINS_DUPLICATES;
@@ -78,6 +84,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MISSING_BATCH_KEY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
@@ -87,35 +94,26 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
+import com.hederahashgraph.api.proto.java.CryptoAddLiveHashTransactionBody;
+import com.hederahashgraph.api.proto.java.CryptoDeleteLiveHashTransactionBody;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.TokenType;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 
-@HapiTestLifecycle
 public class AtomicBatchNegativeTest {
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-    }
 
     @Nested
     @DisplayName("Order and Execution - NEGATIVE")
@@ -526,6 +524,7 @@ public class AtomicBatchNegativeTest {
 
         @LeakyHapiTest(requirement = {THROTTLE_OVERRIDES})
         @DisplayName("Verify inner transaction front end throttle leaks capacity")
+        @Tag(MATS)
         public Stream<DynamicTest> frontEndThrottleLeaksCapacity() {
             final var batchOperator = "batchOperator";
             final var contract = "CalldataSize";
@@ -808,6 +807,20 @@ public class AtomicBatchNegativeTest {
                                             .signedByPayerAnd("batchOperator"))
                             .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST));
         }
+
+        @HapiTest
+        @DisplayName("schedule transactions are blacklisted in atomic batch")
+        public Stream<DynamicTest> scheduleBlackList() {
+            return hapiTest(
+                    cryptoCreate("batchOperator"),
+                    atomicBatch(scheduleCreate("schedule", cryptoCreate("foo")).batchKey("batchOperator"))
+                            .payingWith("batchOperator")
+                            .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST),
+                    scheduleCreate("schedule", cryptoCreate("foo")),
+                    atomicBatch(scheduleSign("schedule").batchKey("batchOperator"))
+                            .payingWith("batchOperator")
+                            .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST));
+        }
     }
 
     @Nested
@@ -944,7 +957,7 @@ public class AtomicBatchNegativeTest {
                             .payingWith("batchOperator")
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateChargedUsdForGasOnlyForInnerTxn("ethCall", "batchTxn", 0.015, 5),
+                    validateChargedUsdForGasOnlyForInnerTxn("ethCall", "batchTxn", 0.00183, 5),
                     getAliasedAccountInfo(SECP_256K1_SOURCE_KEY)
                             .has(accountWith().nonce(1L)),
                     getTxnRecord("ethCall")
@@ -955,6 +968,7 @@ public class AtomicBatchNegativeTest {
 
         @HapiTest
         @DisplayName("Nonce gets updated after successful contract call inside batch")
+        @Tag(MATS)
         final Stream<DynamicTest> nonceUpdatedAfterSuccessfulInternalCall() {
             final var internalCalleeContract = "InternalCallee";
             final var externalFunction = "externalFunction";
@@ -1015,20 +1029,6 @@ public class AtomicBatchNegativeTest {
         return hapiTest(
                 cryptoCreate(batchOperator),
                 atomicBatch(innerCryptoTxn).payingWith(batchOperator).hasPrecheck(INVALID_NODE_ACCOUNT_ID));
-    }
-
-    @HapiTest
-    @DisplayName("schedule transactions are blacklisted in atomic batch")
-    public Stream<DynamicTest> scheduleBlackList() {
-        return hapiTest(
-                cryptoCreate("batchOperator"),
-                atomicBatch(scheduleCreate("schedule", cryptoCreate("foo")).batchKey("batchOperator"))
-                        .payingWith("batchOperator")
-                        .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST),
-                scheduleCreate("schedule", cryptoCreate("foo")),
-                atomicBatch(scheduleSign("schedule").batchKey("batchOperator"))
-                        .payingWith("batchOperator")
-                        .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST));
     }
 
     /**
@@ -1142,5 +1142,87 @@ public class AtomicBatchNegativeTest {
                                         .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT))
                         .payingWith(batchOperator)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
+    }
+
+    @HapiTest
+    public Stream<DynamicTest> systemDeleteWillFail() {
+        final var batchOperator = "batchOperator";
+        final var payer = "payer";
+        final var contract = "Logs";
+        return hapiTest(
+                cryptoCreate(batchOperator),
+                cryptoCreate(payer),
+                uploadInitCode(contract),
+                contractCreate(contract).adminKey(payer),
+                atomicBatch(systemContractDelete(contract).batchKey(batchOperator))
+                        .payingWith(batchOperator)
+                        .hasPrecheck(NOT_SUPPORTED));
+    }
+
+    @HapiTest
+    public Stream<DynamicTest> systemUndeleteWillFail() {
+        final var batchOperator = "batchOperator";
+        final var payer = "payer";
+        final var contract = "Logs";
+        return hapiTest(
+                cryptoCreate(batchOperator),
+                cryptoCreate(payer),
+                uploadInitCode(contract),
+                contractCreate(contract).adminKey(payer),
+                atomicBatch(systemContractUndelete(contract).batchKey(batchOperator))
+                        .payingWith(batchOperator)
+                        .hasPrecheck(NOT_SUPPORTED));
+    }
+
+    @HapiTest
+    public Stream<DynamicTest> addLiveHashIsUnsupported() {
+        final var batchOperator = "batchOperator";
+        return hapiTest(
+                cryptoCreate(batchOperator),
+                atomicBatch(explicit(
+                                        CryptoAddLiveHash,
+                                        (spec, b) -> b.setCryptoAddLiveHash(
+                                                CryptoAddLiveHashTransactionBody.getDefaultInstance()))
+                                .batchKey(batchOperator))
+                        .payingWith(batchOperator)
+                        .hasPrecheck(NOT_SUPPORTED));
+    }
+
+    @HapiTest
+    public Stream<DynamicTest> deleteLiveHashIsUnsupported() {
+        final var batchOperator = "batchOperator";
+        return hapiTest(
+                cryptoCreate(batchOperator),
+                atomicBatch(explicit(
+                                        CryptoDeleteLiveHash,
+                                        (spec, b) -> b.setCryptoDeleteLiveHash(
+                                                CryptoDeleteLiveHashTransactionBody.getDefaultInstance()))
+                                .batchKey(batchOperator))
+                        .payingWith(batchOperator)
+                        .hasPrecheck(NOT_SUPPORTED));
+    }
+
+    @HapiTest
+    @DisplayName(value = "Duplicated txn inside batch")
+    public Stream<DynamicTest> duplicatedTxnInBatch() {
+        final var batchOperator = "batchOperator";
+        final var innerTxnId = "innerId";
+
+        return hapiTest(
+                usableTxnIdNamed(innerTxnId),
+                cryptoCreate(batchOperator).balance(ONE_HBAR),
+                // submit first txn
+                atomicBatch(cryptoCreate("account")
+                                .balance(ONE_HBAR)
+                                .txnId(innerTxnId)
+                                .batchKey(batchOperator))
+                        .payingWith(batchOperator),
+                // duplicate inside batch
+                atomicBatch(cryptoCreate("account")
+                                .balance(ONE_HBAR)
+                                .txnId(innerTxnId)
+                                .batchKey(batchOperator))
+                        .payingWith(batchOperator)
+                        .hasPrecheck(DUPLICATE_TRANSACTION));
     }
 }

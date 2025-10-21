@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.hip869.batch;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.endpointFor;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asDnsServiceEndpoint;
@@ -62,23 +63,21 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 @DisplayName("updateNode")
 @HapiTestLifecycle
-public class AtomicNodeUpdateTest {
+class AtomicNodeUpdateTest {
 
     private static List<X509Certificate> gossipCertificates;
     private static final String BATCH_OPERATOR = "batchOperator";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
 
         gossipCertificates = generateX509Certificates(2);
@@ -250,6 +249,7 @@ public class AtomicNodeUpdateTest {
     }
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+    @Tag(MATS)
     final Stream<DynamicTest> updateMultipleFieldsWork() throws CertificateEncodingException {
         final var proxyWebEndpoint = toPbj(endpointFor("grpc.web.proxy.com", 123));
         final var updateOp = nodeUpdate("testNode")

@@ -31,11 +31,11 @@ import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
 import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.history.impl.HistoryServiceImpl;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.services.OrderedServiceMigrator;
 import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.node.app.state.ConsensusStateEventHandlerImpl;
@@ -43,7 +43,6 @@ import com.hedera.node.app.tss.TssBlockHashSigner;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
@@ -63,7 +62,6 @@ import com.swirlds.platform.config.legacy.ConfigurationException;
 import com.swirlds.platform.config.legacy.LegacyConfigProperties;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -71,9 +69,11 @@ import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.util.BootstrapUtils;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
 import java.time.InstantSource;
 import java.util.List;
 import java.util.Optional;
@@ -91,6 +91,7 @@ import org.hiero.base.crypto.CryptographyProvider;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.transaction.TransactionLimits;
 
@@ -190,8 +191,13 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
     }
 
     @Override
-    public @NonNull List<Bytes> getTransactionsForEvent() {
+    public @NonNull List<TimestampedTransaction> getTransactionsForEvent() {
         return hederaOrThrow().getTransactionsForEvent();
+    }
+
+    @Override
+    public void reportUnhealthyDuration(@NonNull final Duration duration) {
+        hederaOrThrow().reportUnhealthyDuration(duration);
     }
 
     @Override
@@ -314,12 +320,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 RecycleBin.create(metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
         ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler = hedera.newConsensusStateEvenHandler();
         final PlatformContext platformContext = PlatformContext.create(
-                platformConfig,
-                Time.getCurrent(),
-                metrics,
-                FileSystemManager.create(platformConfig),
-                recycleBin,
-                merkleCryptography);
+                platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
         final Optional<AddressBook> maybeDiskAddressBook = loadLegacyAddressBook();
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
@@ -386,9 +387,6 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 .withExecutionLayer(hedera);
         final var platform = platformBuilder.build();
         hedera.init(platform, selfId);
-
-        // Initialize block node connections before starting the platform
-        hedera.initializeBlockNodeConnections();
 
         platform.start();
         hedera.run();

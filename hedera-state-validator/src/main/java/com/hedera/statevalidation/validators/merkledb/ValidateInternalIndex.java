@@ -13,8 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.statevalidation.merkledb.reflect.MemoryIndexDiskKeyValueStoreW;
 import com.hedera.statevalidation.parameterresolver.StateResolver;
 import com.swirlds.merkledb.MerkleDbDataSource;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
@@ -63,7 +63,7 @@ public class ValidateInternalIndex {
 
         final ForkJoinTask<?> inMemoryTask;
         if (pathToHashRam != null) {
-            inMemoryHashThreshold = dataSource.getTableConfig().getHashesRamToDiskThreshold();
+            inMemoryHashThreshold = dataSource.getHashesRamToDiskThreshold();
             assertTrue(
                     pathToHashRam.size() <= inMemoryHashThreshold,
                     "The size of the pathToHashRam should be less than or equal to the in memory hash threshold");

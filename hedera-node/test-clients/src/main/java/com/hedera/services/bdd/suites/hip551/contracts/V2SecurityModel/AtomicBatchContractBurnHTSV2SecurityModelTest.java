@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.hip551.contracts.V2SecurityModel;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -77,9 +78,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
-public class AtomicBatchContractBurnHTSV2SecurityModelTest {
+class AtomicBatchContractBurnHTSV2SecurityModelTest {
     private static final String DEFAULT_BATCH_OPERATOR = "defaultBatchOperator";
 
     private static final long GAS_TO_OFFER = 2_000_000L;
@@ -131,10 +133,7 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled", "true",
-                "atomicBatch.maxNumberOfTransactions", "50",
-                "contracts.throttle.throttleByGas", "false"));
+        testLifecycle.overrideInClass(Map.of("contracts.throttle.throttleByGas", "false"));
         testLifecycle.doAdhoc(
                 uploadInitCode(MIXED_BURN_TOKEN),
                 uploadInitCode(MINT_CONTRACT),
@@ -232,6 +231,7 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> V2Security004FungibleTokenBurnPositiveCase4() {
         final var amountToBurn = 5L;
         final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
@@ -702,6 +702,7 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> V2SecurityBurnTokenWithFullPrefixAndPartialPrefixKeys() {
         final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
         final AtomicReference<Address> fungibleAddress2 = new AtomicReference<>();

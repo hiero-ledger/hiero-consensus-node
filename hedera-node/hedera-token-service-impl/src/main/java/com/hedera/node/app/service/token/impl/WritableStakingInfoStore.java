@@ -6,8 +6,8 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
-import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -36,7 +36,7 @@ public class WritableStakingInfoStore extends ReadableStakingInfoStoreImpl {
         super(states, entityCounters);
         requireNonNull(states);
 
-        this.stakingInfoState = states.get(V0490TokenSchema.STAKING_INFO_KEY);
+        this.stakingInfoState = states.get(V0490TokenSchema.STAKING_INFOS_STATE_ID);
         this.entityCounters = requireNonNull(entityCounters);
     }
 

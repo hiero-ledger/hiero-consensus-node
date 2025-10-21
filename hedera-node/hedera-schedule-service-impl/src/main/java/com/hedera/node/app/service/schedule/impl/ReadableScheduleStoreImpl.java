@@ -12,10 +12,10 @@ import com.hedera.hapi.node.state.schedule.ScheduledCounts;
 import com.hedera.hapi.node.state.schedule.ScheduledOrder;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
 import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.service.entityid.ReadableEntityCounters;
 import com.hedera.node.app.service.schedule.ReadableScheduleStore;
 import com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema;
 import com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema;
-import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -27,6 +27,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  *
  */
 public class ReadableScheduleStoreImpl implements ReadableScheduleStore {
+
     private static final String NULL_STATE_IN_CONSTRUCTOR_MESSAGE =
             "Null states instance passed to ReadableScheduleStore constructor, possible state corruption.";
 
@@ -46,11 +47,11 @@ public class ReadableScheduleStoreImpl implements ReadableScheduleStore {
             @NonNull final ReadableStates states, @NonNull final ReadableEntityCounters entityCounters) {
         requireNonNull(states, NULL_STATE_IN_CONSTRUCTOR_MESSAGE);
         this.entityCounters = requireNonNull(entityCounters);
-        schedulesById = states.get(V0490ScheduleSchema.SCHEDULES_BY_ID_KEY);
-        scheduledCounts = states.get(V0570ScheduleSchema.SCHEDULED_COUNTS_KEY);
-        scheduledOrders = states.get(V0570ScheduleSchema.SCHEDULED_ORDERS_KEY);
-        scheduledUsages = states.get(V0570ScheduleSchema.SCHEDULED_USAGES_KEY);
-        scheduleIdByStringHash = states.get(V0570ScheduleSchema.SCHEDULE_ID_BY_EQUALITY_KEY);
+        schedulesById = states.get(V0490ScheduleSchema.SCHEDULES_BY_ID_STATE_ID);
+        scheduledCounts = states.get(V0570ScheduleSchema.SCHEDULED_COUNTS_STATE_ID);
+        scheduledOrders = states.get(V0570ScheduleSchema.SCHEDULED_ORDERS_STATE_ID);
+        scheduledUsages = states.get(V0570ScheduleSchema.SCHEDULED_USAGES_STATE_ID);
+        scheduleIdByStringHash = states.get(V0570ScheduleSchema.SCHEDULE_ID_BY_EQUALITY_STATE_ID);
     }
 
     /**

@@ -2,7 +2,7 @@
 package com.hedera.node.app.info;
 
 import static com.hedera.node.app.info.NodeInfoImpl.fromRosterEntry;
-import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_KEY;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -10,9 +10,9 @@ import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.schemas.V0590EntityIdSchema;
 import com.hedera.node.app.service.addressbook.AddressBookService;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.ConfigProvider;
@@ -41,6 +41,7 @@ import org.apache.logging.log4j.Logger;
  */
 @Singleton
 public class StateNetworkInfo implements NetworkInfo {
+
     private static final Logger log = LogManager.getLogger(StateNetworkInfo.class);
     private final long selfId;
     private final Bytes ledgerId;
@@ -138,7 +139,7 @@ public class StateNetworkInfo implements NetworkInfo {
      */
     private Map<Long, NodeInfo> nodeInfosFrom(@NonNull final State state) {
         final var entityCounts = state.getReadableStates(EntityIdService.NAME)
-                .<EntityCounts>getSingleton(V0590EntityIdSchema.ENTITY_COUNTS_KEY);
+                .<EntityCounts>getSingleton(V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID);
         final var nodeInfos = new LinkedHashMap<Long, NodeInfo>();
         if (requireNonNull(entityCounts.get()).numNodes() == 0) {
             // If there are no nodes in state, we can only fall back to the genesis network assets
@@ -160,7 +161,7 @@ public class StateNetworkInfo implements NetworkInfo {
             }
         } else {
             final ReadableKVState<EntityNumber, Node> nodes =
-                    state.getReadableStates(AddressBookService.NAME).get(NODES_KEY);
+                    state.getReadableStates(AddressBookService.NAME).get(NODES_STATE_ID);
             final var hederaConfig = configuration.getConfigData(HederaConfig.class);
             for (final var rosterEntry : activeRoster.rosterEntries()) {
                 // At genesis the node store is derived from the roster, hence must have info for every

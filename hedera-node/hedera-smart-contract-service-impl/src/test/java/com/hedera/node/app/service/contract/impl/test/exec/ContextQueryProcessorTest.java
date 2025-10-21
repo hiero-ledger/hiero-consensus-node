@@ -17,7 +17,7 @@ import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.infra.HevmStaticTransactionFactory;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;

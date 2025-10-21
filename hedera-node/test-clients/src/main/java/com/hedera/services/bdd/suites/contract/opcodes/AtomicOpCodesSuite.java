@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.opcodes;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isOneOfLiteral;
@@ -61,10 +62,11 @@ import org.hyperledger.besu.crypto.Hash;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 // Wrapping the most important tests from this package with an atomic batch
 @HapiTestLifecycle
-public class AtomicOpCodesSuite {
+class AtomicOpCodesSuite {
 
     private static final String BATCH_OPERATOR = "batchOperator";
     private static final String CREATE_CONTRACT = "FactoryContract";
@@ -89,8 +91,6 @@ public class AtomicOpCodesSuite {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
         testLifecycle.overrideInClass(Map.of("contracts.evm.version", "v0.50"));
         testLifecycle.doAdhoc(
@@ -99,6 +99,7 @@ public class AtomicOpCodesSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> payableCreate2WorksAsExpected() {
         final var contract = "PayableCreate2Deploy";
         AtomicReference<String> tcMirrorAddr2 = new AtomicReference<>();
@@ -355,7 +356,7 @@ public class AtomicOpCodesSuite {
     static SpecContract gasPriceContract;
 
     @HapiTest
-    public Stream<DynamicTest> getGasPrice() {
+    Stream<DynamicTest> getGasPrice() {
         return hapiTest(gasPriceContract
                 .call("getTxGasPrice")
                 .wrappedInBatchOperation(BATCH_OPERATOR)
@@ -366,7 +367,7 @@ public class AtomicOpCodesSuite {
     }
 
     @HapiTest
-    public Stream<DynamicTest> getLastGasPrice() {
+    Stream<DynamicTest> getLastGasPrice() {
         return hapiTest(
                 gasPriceContract
                         .call("getLastTxGasPrice")
@@ -390,6 +391,7 @@ public class AtomicOpCodesSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> chainIdWorks() {
         final var defaultChainId = BigInteger.valueOf(295L);
         final var devChainId = BigInteger.valueOf(298L);
