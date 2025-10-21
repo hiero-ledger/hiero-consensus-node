@@ -172,12 +172,12 @@ jobs:
           else
             echo "No major or minor version bump detected. Skipping release branch creation."
           fi
-          
+
           # If this is an alpha flag we do not want to create a release branch
           if [[ "${ALPHA_FLAG}" == "true" ]]; then
             CREATE_RELEASE_BRANCH=false
           fi
-          
+
           if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
             echo "Dry run enabled. Skipping release branch creation."
           # Create and push the release branch if CREATE_RELEASE_BRANCH is true
