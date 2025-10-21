@@ -275,38 +275,34 @@ public final class StateUtils {
         }
     }
 
+    /**
+     * Resolves a state identifier from the given service name and state key.
+     *
+     * @param serviceName the name of the service (e.g., "TokenService", "FileService")
+     * @param stateKey the key identifying the state within the service (e.g., "ACCOUNTS", "FILES")
+     * @return the proto ordinal of the matching state identifier
+     * @throws IllegalArgumentException if no state ID is found for the given service name and state key
+     */
     public static int stateIdFor(@NonNull final String serviceName, @NonNull final String stateKey) {
         Objects.requireNonNull(serviceName);
         Objects.requireNonNull(stateKey);
 
-        int stateId = singletonStateIdFor(serviceName, stateKey);
+        final String searchKey = serviceName.toUpperCase() + "_I_" + stateKey.toUpperCase();
 
-        if (stateId > 0) {
-            return stateId;
-        }
-
-        return stateIdFromStateKey(serviceName, stateKey);
-    }
-
-    private static int singletonStateIdFor(@NonNull final String serviceName, @NonNull final String stateKey) {
+        // First try singleton types
         for (final SingletonType singleton : SingletonType.values()) {
-            final String name = singleton.name();
-            if (name.equals(serviceName.toUpperCase() + "_I_" + stateKey.toUpperCase())) {
+            if (singleton.name().equals(searchKey)) {
                 return singleton.protoOrdinal();
             }
         }
 
-        return -1;
-    }
-
-    private static int stateIdFromStateKey(@NonNull final String serviceName, @NonNull final String stateKey) {
+        // Then try state key types
         for (final StateKey.KeyOneOfType key : StateKey.KeyOneOfType.values()) {
-            final String name = key.name();
-            if (name.equals(serviceName.toUpperCase() + "_I_" + stateKey.toUpperCase())) {
+            if (key.name().equals(searchKey)) {
                 return key.protoOrdinal();
             }
         }
 
-        return -1;
+        throw new IllegalArgumentException(String.format("No state ID found for %s.%s", serviceName, stateKey));
     }
 }
