@@ -46,10 +46,12 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
@@ -195,7 +197,7 @@ public class Hip1195StorageTest {
                                 mappingSlot,
                                 LambdaMappingEntry.newBuilder()
                                         .key(Bytes.wrap(keyMirror.get()))
-                                        .value(Bytes.wrap(new byte[] {(byte) 0x01}))
+                                        .value(Bytes.wrap(new byte[]{(byte) 0x01}))
                                         .build())
                         .signedBy(DEFAULT_PAYER, "ownerAccount")),
                 viewAccount("ownerAccount", (Account a) -> {
@@ -213,12 +215,12 @@ public class Hip1195StorageTest {
                 withOpContext((spec, opLog) -> payerMirror.set(
                         unhex(asHexedSolidityAddress(spec.registry().getAccountID(DEFAULT_PAYER))))),
                 sourcing(() -> accountLambdaSStore("accountWithStorage", 214L)
-                        .putSlot(Bytes.wrap(new byte[] {0x01}), Bytes.wrap(new byte[] {0x02}))
+                        .putSlot(Bytes.wrap(new byte[]{0x01}), Bytes.wrap(new byte[]{0x02}))
                         .putMappingEntry(
                                 mappingSlot,
                                 LambdaMappingEntry.newBuilder()
                                         .key(Bytes.wrap(payerMirror.get()))
-                                        .value(Bytes.wrap(new byte[] {(byte) 0x01}))
+                                        .value(Bytes.wrap(new byte[]{(byte) 0x01}))
                                         .build())
                         .signedBy(DEFAULT_PAYER, "accountWithStorage")),
                 viewAccount("accountWithStorage", (Account a) -> {
@@ -241,7 +243,7 @@ public class Hip1195StorageTest {
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
                 // Change the hook storage's zero slot to 0x01 so that the hook returns true
                 accountLambdaSStore(OWNER, 124L)
-                        .putSlot(Bytes.EMPTY, Bytes.wrap(new byte[] {(byte) 0x01}))
+                        .putSlot(Bytes.EMPTY, Bytes.wrap(new byte[]{(byte) 0x01}))
                         .signedBy(DEFAULT_PAYER, OWNER),
                 // now the transfer works
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
@@ -256,17 +258,17 @@ public class Hip1195StorageTest {
         final var passHash32 = Bytes.wrap(keccak256(org.apache.tuweni.bytes.Bytes.wrap(passcode.getBytes(UTF_8)))
                 .toArray());
         final var correctPassword =
-                ByteString.copyFrom(encodeParametersForConstructor(new Object[] {passcode}, STRING_ABI));
+                ByteString.copyFrom(encodeParametersForConstructor(new Object[]{passcode}, STRING_ABI));
         final var wrongPassword =
-                ByteString.copyFrom(encodeParametersForConstructor(new Object[] {"wrong password"}, STRING_ABI));
+                ByteString.copyFrom(encodeParametersForConstructor(new Object[]{"wrong password"}, STRING_ABI));
 
         return hapiTest(
                 cryptoCreate(OWNER).withHooks(accountAllowanceHook(124L, STORAGE_SET_SLOT_HOOK.name())),
                 // gets rejected because the return value from the allow function is false bye default
-                //                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
-                //                        .withPreHookFor(OWNER, 124L, 25_000L, "")
-                //                        .signedBy(DEFAULT_PAYER)
-                //                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 124L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
                 // update the required pass code in the hook.
                 // Since the contract uses a keccak256 hash of the passcode, we store that in the slot 0
                 accountLambdaSStore(OWNER, 124L)
@@ -274,20 +276,20 @@ public class Hip1195StorageTest {
                         .signedBy(DEFAULT_PAYER, OWNER),
                 // since the contract calls abi.decode on the input bytes, we need to pass in the encoded
                 // parameters
-                //                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
-                //                        .withPreHookFor(OWNER, 124L, 25_000L, wrongPassword)
-                //                        .signedBy(DEFAULT_PAYER)
-                //                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 124L, 25_000L, wrongPassword)
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
                 // submitting the correct encoded passcode works
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 25_000L, correctPassword)
                         .signedBy(DEFAULT_PAYER)
                         .via("storageSetTxn"),
                 // since it resets the storage slots we should not be able to do another transfer
-                //                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
-                //                        .withPreHookFor(OWNER, 124L, 25_000L, correctPassword)
-                //                        .signedBy(DEFAULT_PAYER)
-                //                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 124L, 25_000L, correctPassword)
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
                 expectContractStateChangesSidecarFor(
                         "storageSetTxn",
                         1,
@@ -321,7 +323,7 @@ public class Hip1195StorageTest {
                                 mappingSlot,
                                 LambdaMappingEntry.newBuilder()
                                         .key(minimalKey(Bytes.wrap(defaultPayerMirror.get())))
-                                        .value(Bytes.wrap(new byte[] {(byte) 0x01}))
+                                        .value(Bytes.wrap(new byte[]{(byte) 0x01}))
                                         .build())
                         .signedBy(DEFAULT_PAYER, OWNER)),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
