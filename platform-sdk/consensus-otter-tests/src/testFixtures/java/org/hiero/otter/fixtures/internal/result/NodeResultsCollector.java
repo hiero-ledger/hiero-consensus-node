@@ -38,10 +38,10 @@ public class NodeResultsCollector {
     private final List<StructuredLog> logEntries = new ArrayList<>();
     private final List<LogSubscriber> logSubscribers = new CopyOnWriteArrayList<>();
     private final List<MarkerFileSubscriber> markerFileSubscribers = new CopyOnWriteArrayList<>();
+    private final MarkerFilesStatus markerFilesStatus = new MarkerFilesStatus();
 
     // This class may be used in a multi-threaded context, so we use volatile to ensure visibility of state changes
     private volatile boolean destroyed = false;
-    private volatile MarkerFilesStatus markerFilesStatus = MarkerFilesStatus.INITIAL_STATUS;
 
     /**
      * Creates a new instance of {@link NodeResultsCollector}.
@@ -202,6 +202,7 @@ public class NodeResultsCollector {
      *
      * @param startIndex the index to start from
      * @param suppressedLogMarkers the set of {@link Marker} that should be ignored in the logs
+     * @param suppressedLoggerNames the set of logger names that should be ignored in the logs
      * @return the list of log entries
      */
     @NonNull
@@ -243,7 +244,7 @@ public class NodeResultsCollector {
     public void addMarkerFiles(@NonNull final List<String> markerFileNames) {
         requireNonNull(markerFilesStatus);
         if (!destroyed && !markerFileNames.isEmpty()) {
-            this.markerFilesStatus = markerFilesStatus.withMarkerFiles(markerFileNames);
+            markerFilesStatus.updateWithMarkerFiles(markerFileNames);
             markerFileSubscribers.removeIf(subscriber ->
                     subscriber.onNewMarkerFile(nodeId, markerFilesStatus) == SubscriberAction.UNSUBSCRIBE);
         }
