@@ -205,9 +205,9 @@ public enum BlockStreamAccess {
         }
 
         // Check for marker file
-        final var markerFile =
-                path.resolveSibling(name.replace(".blk.gz", ".mf").replace(".blk", ".mf"));
-        return Files.exists(markerFile) || !checkForMarkerFiles;
+        return !checkForMarkerFiles
+                || Files.exists(
+                        path.resolveSibling(name.replace(".blk.gz", ".mf").replace(".blk", ".mf")));
     }
 
     /**
