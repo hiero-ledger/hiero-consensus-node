@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.atLeastOnce;
@@ -185,16 +184,11 @@ class HandleWorkflowTest {
     private HandleWorkflow subject;
 
     @Test
-    void onlySkipsEventWithMissingCreator() {
+    void doesntSkipEventWithMissingCreator() {
         final var presentCreatorId = NodeId.of(1L);
         final var missingCreatorId = NodeId.of(2L);
         final var eventFromPresentCreator = mock(ConsensusEvent.class);
         final var eventFromMissingCreator = mock(ConsensusEvent.class);
-        given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
-        given(platformStateReadableSingletonState.get())
-                .willReturn(PlatformState.newBuilder().latestFreezeRound(0L).build());
-        given(eventFromMissingCreator.getEventCore()).willReturn(eventCore);
         given(round.iterator())
                 .willReturn(List.of(eventFromMissingCreator, eventFromPresentCreator)
                         .iterator());
@@ -203,6 +197,7 @@ class HandleWorkflowTest {
         given(networkInfo.nodeInfo(presentCreatorId.id())).willReturn(mock(NodeInfo.class));
         given(networkInfo.nodeInfo(missingCreatorId.id())).willReturn(null);
         given(eventFromPresentCreator.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(eventFromMissingCreator.consensusTransactionIterator()).willReturn(emptyIterator());
         given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(12345L));
         given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
 
@@ -211,6 +206,7 @@ class HandleWorkflowTest {
         subject.handleRound(state, round, txns -> {});
 
         verify(eventFromPresentCreator).consensusTransactionIterator();
+        verify(eventFromMissingCreator).consensusTransactionIterator();
         verify(recordCache).resetRoundReceipts();
         verify(recordCache)
                 .commitReceipts(any(), any(), same(immediateStateChangeListener), same(blockStreamManager), any());
@@ -218,9 +214,6 @@ class HandleWorkflowTest {
 
     @Test
     void writesEachMigrationStateChangeWithBlockTimestamp() {
-        given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
-
         given(round.iterator()).willReturn(List.of(event).iterator());
         given(event.getConsensusTimestamp()).willReturn(NOW);
         given(systemTransactions.firstReservedSystemTimeFor(any())).willReturn(NOW);
@@ -240,10 +233,6 @@ class HandleWorkflowTest {
 
     @Test
     void writeEventHeaderWithNoParentEvents() {
-        given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
-        givenPositiveFreezeRound();
-
         // Setup event with no parents
         given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
         given(event.allParentsIterator())
@@ -285,10 +274,6 @@ class HandleWorkflowTest {
 
     @Test
     void writeEventHeaderWithParentEventsInCurrentBlock() {
-        given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
-        givenPositiveFreezeRound();
-
         // Create event hash and parent hash
         Hash eventHash = CryptoRandomUtils.randomHash();
         Hash parentHash = CryptoRandomUtils.randomHash();
@@ -343,10 +328,6 @@ class HandleWorkflowTest {
 
     @Test
     void writeEventHeaderWithParentEventsNotInCurrentBlock() {
-        given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
-        givenPositiveFreezeRound();
-
         // Create event hash and parent hash
         Hash eventHash = CryptoRandomUtils.randomHash();
         Hash parentHash = CryptoRandomUtils.randomHash();
@@ -403,10 +384,6 @@ class HandleWorkflowTest {
 
     @Test
     void writeEventHeaderWithMixedParentEvents() {
-        given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
-        givenPositiveFreezeRound();
-
         // Create event hash and parent hashes
         Hash eventHash = CryptoRandomUtils.randomHash();
         Hash parentInBlockHash = CryptoRandomUtils.randomHash();
@@ -523,10 +500,6 @@ class HandleWorkflowTest {
 
     @Test
     void startRoundShouldCallEnsureNewBlocksPermitted() {
-        given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
-        givenPositiveFreezeRound();
-
         // Mock the round iterator and event
         final NodeId creatorId = NodeId.of(0);
         final Hash eventHash = CryptoRandomUtils.randomHash();
