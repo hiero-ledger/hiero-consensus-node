@@ -46,7 +46,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -124,7 +124,7 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             @NonNull final ReadableStoreFactory readableStoreFactory,
             @NonNull final NodeInfo creatorInfo,
             @NonNull final Stream<Transaction> transactions,
-            @NonNull final Consumer<StateSignatureTransaction> stateSignatureTxnCallback) {
+            @NonNull final BiConsumer<StateSignatureTransaction, Bytes> stateSignatureTxnCallback) {
 
         requireNonNull(readableStoreFactory);
         requireNonNull(creatorInfo);
@@ -161,12 +161,12 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
     @Override
     @NonNull
     public PreHandleResult preHandleTransaction(
-            @NonNull final NodeInfo creatorInfo,
+            @Nullable final NodeInfo creatorInfo,
             @NonNull final ReadableStoreFactory storeFactory,
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final Bytes serializedSignedTx,
             @Nullable PreHandleResult previousResult,
-            @NonNull final Consumer<StateSignatureTransaction> stateSignatureTransactionCallback,
+            @NonNull final BiConsumer<StateSignatureTransaction, Bytes> stateSignatureTransactionCallback,
             @NonNull final InnerTransaction innerTransaction) {
         // 0. Ignore the previous result if it was computed using different node configuration
         if (!wasComputedWithCurrentNodeConfiguration(previousResult)) {
@@ -191,10 +191,16 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
                 // In particular, a null transaction info means we already know the transaction's final failure status
                 return previousResult;
             }
+            final var isStateSig = txInfo.functionality() == HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
+            if (creatorInfo == null || isStateSig) {
+                final var bytes = txInfo.serializedSignedTx();
+                if (isStateSig) {
+                    stateSignatureTransactionCallback.accept(txInfo.txBody().stateSignatureTransaction(), bytes);
+                } else {
+                    stateSignatureTransactionCallback.accept(null, bytes);
+                }
 
-            if (txInfo.functionality() == HederaFunctionality.STATE_SIGNATURE_TRANSACTION) {
-                stateSignatureTransactionCallback.accept(txInfo.txBody().stateSignatureTransaction());
-                return PreHandleResult.stateSignatureTransactionEncountered(txInfo);
+                return PreHandleResult.shortCircuitingTransaction(txInfo);
             }
 
             // But we still re-check for node diligence failures

@@ -13,7 +13,7 @@ import com.hedera.node.app.workflows.InnerTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -40,7 +40,7 @@ public interface PreHandleWorkflow {
             @NonNull final ReadableStoreFactory readableStoreFactory,
             @NonNull final NodeInfo creatorInfo,
             @NonNull final Stream<Transaction> transactions,
-            @NonNull final Consumer<StateSignatureTransaction> stateSignatureTxnCallback);
+            @NonNull final BiConsumer<StateSignatureTransaction, Bytes> stateSignatureTxnCallback);
 
     /**
      * Starts the pre-handle transaction workflow for a single transaction.
@@ -59,12 +59,12 @@ public interface PreHandleWorkflow {
      */
     @NonNull
     PreHandleResult preHandleTransaction(
-            @NonNull NodeInfo creatorInfo,
+            @Nullable NodeInfo creatorInfo,
             @NonNull ReadableStoreFactory storeFactory,
             @NonNull ReadableAccountStore accountStore,
             @NonNull Bytes serializedSignedTx,
             @Nullable PreHandleResult maybeReusableResult,
-            @NonNull Consumer<StateSignatureTransaction> stateSignatureTxnCallback,
+            @NonNull BiConsumer<StateSignatureTransaction, Bytes> stateSignatureTxnCallback,
             @NonNull InnerTransaction innerTransaction);
 
     /**
@@ -84,7 +84,7 @@ public interface PreHandleWorkflow {
             @NonNull ReadableAccountStore accountStore,
             @NonNull Bytes serializedSignedTx,
             @Nullable PreHandleResult maybeReusableResult,
-            @NonNull Consumer<StateSignatureTransaction> stateSignatureTxnCallback) {
+            @NonNull BiConsumer<StateSignatureTransaction, Bytes> stateSignatureTxnCallback) {
         final var result = preHandleTransaction(
                 creatorInfo,
                 storeFactory,
@@ -115,7 +115,7 @@ public interface PreHandleWorkflow {
                         accountStore,
                         innerTxns.get(i),
                         useInnerResults ? maybeReusableResult.innerResults().get(i) : null,
-                        ignore -> {},
+                        (ignore, ignored) -> {},
                         InnerTransaction.YES);
                 if (result.innerResults() != null) {
                     result.innerResults().add(innerResult);
@@ -139,10 +139,10 @@ public interface PreHandleWorkflow {
      */
     @NonNull
     default PreHandleResult getCurrentPreHandleResult(
-            @NonNull final NodeInfo creator,
+            @Nullable final NodeInfo creator,
             @NonNull final ConsensusTransaction platformTxn,
             @NonNull final ReadableStoreFactory storeFactory,
-            @NonNull final Consumer<StateSignatureTransaction> stateSignatureTxnCallback) {
+            @NonNull final BiConsumer<StateSignatureTransaction, Bytes> stateSignatureTxnCallback) {
         final var metadata = platformTxn.getMetadata();
         final PreHandleResult previousResult;
         if (metadata instanceof PreHandleResult result) {
@@ -155,7 +155,7 @@ public interface PreHandleWorkflow {
             // always sets the metadata to a PreHandleResult
             log.error(
                     "Received transaction without PreHandleResult metadata from node {} (was {})",
-                    creator.nodeId(),
+                    creator != null ? creator.nodeId() : null,
                     metadata);
             previousResult = null;
         }

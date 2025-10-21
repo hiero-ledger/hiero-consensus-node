@@ -55,7 +55,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import java.time.Instant;
 import java.util.Map;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -139,7 +139,7 @@ class ParentTxnTest {
     private TransactionChecker transactionChecker;
 
     @Mock
-    private Consumer<StateSignatureTransaction> stateSignatureTxnCallback;
+    private BiConsumer<StateSignatureTransaction, Bytes> stateSignatureTxnCallback;
 
     @BeforeEach
     void setUp() {

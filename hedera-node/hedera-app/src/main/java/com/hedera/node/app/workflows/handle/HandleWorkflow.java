@@ -63,7 +63,6 @@ import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.HederaRecordCache.DueDiligenceFailure;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
-import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.store.StoreFactoryImpl;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
@@ -81,6 +80,7 @@ import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.types.StreamMode;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
@@ -98,6 +98,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -362,78 +363,51 @@ public class HandleWorkflow {
             final int receiptEntriesBatchSize,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         boolean transactionsDispatched = false;
-        final var storeFactory = new ReadableStoreFactory(state);
-        final var platformStateStore = storeFactory.getStore(ReadablePlatformStateStore.class);
         for (final var event : round) {
             if (streamMode != RECORDS) {
                 writeEventHeader(event);
             }
 
             final var creator = networkInfo.nodeInfo(event.getCreatorId().id());
-            TransactionStrategy strategy = TransactionStrategy.HANDLE;
-            if (event.getEventCore().birthRound() <= platformStateStore.getLatestFreezeRound()) {
-                strategy = TransactionStrategy.TRANSACTION_ONLY;
-                if (streamMode != RECORDS) {
-                    // Include all transactions from the event in the block stream, BUT NO TRANSACTION RESULTS. We can't
-                    // process transactions submitted prior to a freeze round without a potential ISS
-                    final var iter = event.consensusTransactionIterator();
-                    while (iter.hasNext()) {
-                        final var currentTxn = iter.next();
-                        final var txnToWrite = BlockItem.newBuilder()
-                                .signedTransaction(currentTxn.getApplicationTransaction())
-                                .build();
-                        blockStreamManager.writeItem(txnToWrite);
-                    }
-                }
-            } else if (creator == null) {
-                // We were given an event for a node that does not exist in the address book and was not from
-                // a strictly earlier birth round number prior to the last freeze round number. This will be logged
-                // as a warning, as this should never happen, and we will skip the event. The platform should
-                // guarantee that we never receive an event that isn't associated with the address book, and every
-                // node in the address book must have an account ID, since you cannot delete an account belonging
-                // to a node, and you cannot change the address book non-deterministically.
-                logger.warn(
-                        "Received event with birth round {}, last freeze round is {}, from node {} "
-                                + "which is not in the address book",
-                        event.getEventCore().birthRound(),
-                        platformStateStore.getLatestFreezeRound(),
-                        event.getCreatorId());
-                continue;
-            }
 
-            final Consumer<StateSignatureTransaction> simplifiedStateSignatureTxnCallback = txn -> {
-                final var scopedTxn = new ScopedSystemTransaction<>(event.getCreatorId(), event.getBirthRound(), txn);
-                stateSignatureTxnCallback.accept(scopedTxn);
+            final BiConsumer<StateSignatureTransaction, Bytes> simplifiedStateSignatureTxnCallback = (txn, bytes) -> {
+                if (txn != null) {
+                    final var scopedTxn =
+                            new ScopedSystemTransaction<>(event.getCreatorId(), event.getBirthRound(), txn);
+                    stateSignatureTxnCallback.accept(scopedTxn);
+                }
+
+                final var txnItem =
+                        BlockItem.newBuilder().signedTransaction(bytes).build();
+                blockStreamManager.writeItem(txnItem);
             };
 
-            if (strategy == TransactionStrategy.HANDLE) {
-                // log start of event to transaction state log
-                logStartEvent(event, creator);
-                // handle each transaction of the event
-                for (final var it = event.consensusTransactionIterator(); it.hasNext(); ) {
-                    final var platformTxn = it.next();
-                    try {
-                        transactionsDispatched |= handlePlatformTransaction(
-                                state,
-                                creator,
-                                platformTxn,
-                                event.getEventCore().birthRound(),
-                                simplifiedStateSignatureTxnCallback);
-                    } catch (final Exception e) {
-                        logger.fatal(
-                                "Possibly CATASTROPHIC failure while running the handle workflow. "
-                                        + "While this node may not die right away, it is in a bad way, most likely fatally.",
-                                e);
-                    }
+            // log start of event to transaction state log
+            logStartEvent(event, creator);
+            // handle each transaction of the event
+            for (final var it = event.consensusTransactionIterator(); it.hasNext(); ) {
+                final var platformTxn = it.next();
+                try {
+                    transactionsDispatched |= handlePlatformTransaction(
+                            state,
+                            creator,
+                            platformTxn,
+                            event.getEventCore().birthRound(),
+                            simplifiedStateSignatureTxnCallback);
+                } catch (final Exception e) {
+                    logger.fatal(
+                            "Possibly CATASTROPHIC failure while running the handle workflow. "
+                                    + "While this node may not die right away, it is in a bad way, most likely fatally.",
+                            e);
                 }
-                recordCache.maybeCommitReceiptsBatch(
-                        state,
-                        round.getConsensusTimestamp(),
-                        immediateStateChangeListener,
-                        receiptEntriesBatchSize,
-                        blockStreamManager,
-                        streamMode);
             }
+            recordCache.maybeCommitReceiptsBatch(
+                    state,
+                    round.getConsensusTimestamp(),
+                    immediateStateChangeListener,
+                    receiptEntriesBatchSize,
+                    blockStreamManager,
+                    streamMode);
         }
         final boolean isGenesis =
                 switch (streamMode) {
@@ -506,10 +480,10 @@ public class HandleWorkflow {
      */
     private boolean handlePlatformTransaction(
             @NonNull final State state,
-            @NonNull final NodeInfo creator,
+            @Nullable final NodeInfo creator,
             @NonNull final ConsensusTransaction txn,
             final long eventBirthRound,
-            @NonNull final Consumer<StateSignatureTransaction> stateSignatureTxnCallback) {
+            @NonNull final BiConsumer<StateSignatureTransaction, Bytes> stateSignatureTxnCallback) {
         final var handleStart = System.nanoTime();
 
         // Always use platform-assigned time for user transaction, c.f. https://hips.hedera.com/hip/hip-993

@@ -234,7 +234,7 @@ public record PreHandleResult(
      * Creates a new {@link PreHandleResult} when encountering a {@link com.hedera.hapi.platform.event.StateSignatureTransaction}.
      */
     @NonNull
-    public static PreHandleResult stateSignatureTransactionEncountered(@NonNull final TransactionInfo txInfo) {
+    public static PreHandleResult shortCircuitingTransaction(@NonNull final TransactionInfo txInfo) {
         return new PreHandleResult(
                 null, null, Status.SO_FAR_SO_GOOD, UNKNOWN, txInfo, null, null, null, null, null, UNKNOWN_VERSION);
     }
