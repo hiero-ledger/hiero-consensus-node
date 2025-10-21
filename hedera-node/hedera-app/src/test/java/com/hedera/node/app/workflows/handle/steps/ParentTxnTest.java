@@ -30,6 +30,7 @@ import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.PairedStreamBuilder;
+import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.records.BlockRecordManager;
@@ -88,6 +89,9 @@ class ParentTxnTest {
 
     @Mock
     private PreHandleResult preHandleResult;
+
+    @Mock
+    private AppFeeCharging appFeeCharging;
 
     @Mock
     private PreHandleWorkflow preHandleWorkflow;
@@ -264,6 +268,7 @@ class ParentTxnTest {
                 authorizer,
                 networkInfo,
                 feeManager,
+                appFeeCharging,
                 dispatchProcessor,
                 serviceScopeLookup,
                 exchangeRateManager,

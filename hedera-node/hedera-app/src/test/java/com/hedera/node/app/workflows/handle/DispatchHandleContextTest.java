@@ -80,6 +80,7 @@ import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.FeeCalculator;
+import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.ResourcePriceCalculator;
@@ -184,6 +185,9 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
 
     @Mock
     private FeeAccumulator feeAccumulator;
+
+    @Mock
+    private FeeCharging feeCharging;
 
     @Mock
     private TransactionChecker transactionChecker;
@@ -315,7 +319,8 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
 
     @Test
     void delegatesFeeChargingForPayer() {
-        given(feeAccumulator.chargeFee(payerId, 123L, null)).willReturn(new Fees(0, 123L, 0));
+        given(creatorInfo.accountId()).willReturn(AccountID.DEFAULT);
+        given(feeCharging.charge(eq(subject), any(), eq(new Fees(0, 123L, 0)))).willReturn(new Fees(0, 123L, 0));
 
         assertTrue(subject.tryToChargePayer(123L));
     }
@@ -328,8 +333,8 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
 
     @Test
     void delegatesFeeChargingForOtherAccount() {
-        given(feeAccumulator.chargeFee(AccountID.DEFAULT, 123L, null)).willReturn(new Fees(0, 122L, 0));
-
+        given(creatorInfo.accountId()).willReturn(AccountID.DEFAULT);
+        given(feeCharging.charge(eq(subject), any(), eq(new Fees(0, 123L, 0)))).willReturn(new Fees(0, 122L, 0));
         assertFalse(subject.tryToCharge(AccountID.DEFAULT, 123L));
     }
 
@@ -337,7 +342,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     void delegatesRefunding() {
         subject.refundBestEffort(payerId, 123L);
 
-        verify(feeAccumulator).refundFee(payerId, 123L);
+        verify(feeCharging).refund(subject, new Fees(0, 123L, 0));
     }
 
     @Test
@@ -419,6 +424,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
             blockRecordManager,
             resourcePriceCalculator,
             feeManager,
+            feeCharging,
             storeFactory,
             payerId,
             verifier,
@@ -444,7 +450,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         for (int i = 0; i < allArgs.length; i++) {
             final var index = i;
             // Skip signatureMapSize, payerKey, preHandleResults and batchInnerTxnPreHandler
-            if (index == 2 || index == 4 || index == 24 || index == 25) {
+            if (index == 2 || index == 4 || index == 25 || index == 26) {
                 continue;
             }
             assertThatThrownBy(() -> {
@@ -827,6 +833,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                 blockRecordManager,
                 resourcePriceCalculator,
                 feeManager,
+                feeCharging,
                 storeFactory,
                 payerId,
                 verifier,

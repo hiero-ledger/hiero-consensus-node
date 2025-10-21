@@ -24,6 +24,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
+import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -39,7 +40,6 @@ import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.DispatchOptions.PropagateFeeChargingStrategy;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
-import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
@@ -127,7 +127,7 @@ class ChildDispatchFactoryTest {
     private TransactionChecker transactionChecker;
 
     @Mock
-    private DeduplicationCache deduplicationCache;
+    private AppFeeCharging appFeeCharging;
 
     private ChildDispatchFactory subject;
 
@@ -144,6 +144,7 @@ class ChildDispatchFactoryTest {
                 authorizer,
                 networkInfo,
                 feeManager,
+                appFeeCharging,
                 dispatchProcessor,
                 serviceScopeLookup,
                 exchangeRateManager,

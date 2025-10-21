@@ -105,7 +105,7 @@ public class ContractGetInfoSuite {
     }
 
     @HapiTest
-    @DisplayName("Inner Txs payer/signer gets charged for all gas used, should pass")
+    @DisplayName("Inner txs payer/signer gets charged for all gas used after INNER_TRANSACTION_FAILED")
     public Stream<DynamicTest> userPaysTheGasUsed() {
         final var batchOperator = "batchOperator";
         final var payer = "payer";
