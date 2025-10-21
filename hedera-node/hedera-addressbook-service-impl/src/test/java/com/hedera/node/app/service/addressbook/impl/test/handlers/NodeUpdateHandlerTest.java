@@ -384,6 +384,33 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
+    void handleAccountUpdateWorkAsExpected() {
+        final var updateAccountId = AccountID.newBuilder().accountNum(5L).build();
+        txn = new NodeUpdateBuilder()
+                .withNodeId(1L)
+                .withAccountId(updateAccountId)
+                .withAdminKey(key)
+                .build();
+        given(handleContext.body()).willReturn(txn);
+        refreshStoresWithMoreNodeInWritable();
+        createAccountNodeRelStoreWithCurrentAccountNodeRel();
+        given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
+        final var config = HederaTestConfigBuilder.create().getOrCreateConfig();
+        given(handleContext.configuration()).willReturn(config);
+        given(handleContext.storeFactory()).willReturn(storeFactory);
+        given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
+        given(accountStore.contains(updateAccountId)).willReturn(true);
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(handleContext.attributeValidator()).willReturn(validator);
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+        final var updatedNode = writableStore.get(1L);
+        assertNotNull(updatedNode);
+        assertEquals(1, updatedNode.nodeId());
+        assertEquals(updateAccountId, updatedNode.accountId());
+    }
+
+    @Test
     void updateWithRelatedAccountFail() {
         final var relatedAccountId = AccountID.newBuilder().accountNum(4).build();
         txn = new NodeUpdateBuilder()
