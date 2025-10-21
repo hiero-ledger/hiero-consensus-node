@@ -480,7 +480,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
             }
 
             final var md = stateMetadata.get(stateId);
-            if (md == null || md.stateDefinition().singleton()) {
+            if (md == null || !md.stateDefinition().onDisk()) {
                 throw new IllegalArgumentException("Unknown k/v state ID '" + stateId + ";");
             }
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
-import static org.apache.logging.log4j.Level.WARN;
+import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -39,6 +39,15 @@ public class BirthRoundFreezeTest {
 
         // Setup simulation
         network.addNodes(4);
+
+        // Setup continuous assertions
+        assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
+        assertContinuouslyThat(network.newConsensusResults())
+                .haveEqualCommonRounds()
+                .haveConsistentRounds();
+        assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
+        assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
+
         network.start();
 
         // Wait for 30 seconds
@@ -65,11 +74,8 @@ public class BirthRoundFreezeTest {
         network.shutdown();
 
         // Validations
-        assertThat(network.newLogResults()).haveNoMessagesWithLevelHigherThan(WARN);
-
         assertThat(network.newConsensusResults())
                 .haveAdvancedSinceRound(freezeRound)
-                .haveEqualCommonRounds()
                 .haveBirthRoundSplit(postFreezeShutdownTime, freezeRound);
 
         assertThat(network.newPcesResults()).haveBirthRoundSplit(postFreezeShutdownTime, freezeRound);

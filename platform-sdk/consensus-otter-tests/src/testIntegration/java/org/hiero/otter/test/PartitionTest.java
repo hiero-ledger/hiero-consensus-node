@@ -7,6 +7,7 @@ import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
 import static org.hiero.consensus.model.status.PlatformStatus.OBSERVING;
 import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
+import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
@@ -75,6 +76,14 @@ public class PartitionTest {
             network.addNode().weight(Math.round(TOTAL_WEIGHTS * weightFraction));
         }
 
+        // Setup continuous assertions
+        assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
+        assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
+        assertContinuouslyThat(network.newConsensusResults())
+                .haveEqualCommonRounds()
+                .haveConsistentRounds();
+        assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
+
         network.start();
 
         final List<Node> nodesToPartition =
@@ -107,11 +116,10 @@ public class PartitionTest {
                 .max(Long::compareTo)
                 .orElseThrow();
 
-        assertThat(network.newLogResults()).haveNoErrorLevelMessages();
         assertThat(network.newConsensusResults()).haveAdvancedSinceRound(maxPartitionRoundReached);
         assertThat(networkStatusResults).haveSteps(target(ACTIVE));
-        assertThat(network.newMarkerFileResults()).haveNoMarkerFiles();
-        assertThat(network.newReconnectResults()).haveNoReconnects();
+
+        assertThat(network.newEventStreamResults()).haveEqualFiles();
     }
 
     private void throwIfInvalidArguments(

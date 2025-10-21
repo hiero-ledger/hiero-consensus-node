@@ -99,9 +99,12 @@ jobs:
           BUILD_PROMO_PATTERN: ${{ env.PROMOTED_GREP_PATTERN }}
           BUILD_PATTERN: ${{ env.BUILD_GREP_PATTERN }}
           RC_TAG: ${{ inputs.rc-tag || '' }}
+          DEFAULT_BRANCH_NAME: "main"
         run: |
           # Check if the tag exists and if so grab its commit id
+          echo "::group::Check for XTS Candidate Tag"
           if [[ -n "${RC_TAG}" ]]; then
+            echo "::group::Use RC Tag"
             echo "::debug::Using RC Tag: ${RC_TAG}"
             XTS_COMMIT=$(git rev-list -n 1 "${RC_TAG}") >/dev/null 2>&1
             XTS_COMMIT_FOUND="${?}"
@@ -114,7 +117,9 @@ jobs:
             fi
 
             COMMIT_LIST="$(git log -n 1 --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${XTS_COMMIT}")"
+            echo "::endgroup::" # Use RC Tag
           else
+            echo "::group::Use XTS Candidate Tag"
             set +e
             XTS_COMMIT="$(git rev-list -n 1 "${XTS_CANDIDATE_TAG}")" >/dev/null 2>&1
             XTS_COMMIT_FOUND="${?}"
@@ -153,27 +158,47 @@ jobs:
               LATEST_PROMOTED_BUILD_COMMIT="$(git rev-list -n 1 "${LATEST_PROMOTED_BUILD_TAG}")"
               COMMIT_LIST="$(git log --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${LATEST_PROMOTED_BUILD_COMMIT}..${XTS_COMMIT}")"
             fi
+            echo "::endgroup::" # Use XTS Candidate Tag
+          fi
+          echo "::endgroup::" # Check for XTS Candidate Tag
+
+          echo "::group::Check if XTS COMMIT is on default branch"
+          # Determine which branch the commit belongs to
+          XTS_COMMIT_BRANCHES="$(git branch -r --contains "${XTS_COMMIT}" | sed 's/^[ *]*//')"
+          echo "::debug::XTS_COMMIT_BRANCHES=${XTS_COMMIT_BRANCHES}"
+
+          XTS_COMMIT_BRANCH="${DEFAULT_BRANCH_NAME}"
+          COMMIT_ON_DEFAULT_BRANCH=0
+
+          # Check if the commit on the default branch
+          if echo "${XTS_COMMIT_BRANCHES}" | grep -qE "(^|/)${DEFAULT_BRANCH_NAME}$"; then
+            echo "::debug::Commit ${XTS_COMMIT} found on main branch."
+          else
+            echo "::debug::Commit ${XTS_COMMIT} not found on main branch, determining actual branch."
+            COMMIT_ON_DEFAULT_BRANCH=1
+            XTS_COMMIT_BRANCH="$(
+              git name-rev --name-only --refs="refs/remotes/*" "${XTS_COMMIT}" \
+              | sed 's~^.*origin/~~' \
+              | sed 's/~.*//'
+            )"
           fi
 
+          # Print branch debug info
+          echo "::debug::XTS_COMMIT_BRANCH=${XTS_COMMIT_BRANCH}"
+          echo "::debug::COMMIT_ON_DEFAULT_BRANCH=${COMMIT_ON_DEFAULT_BRANCH}"
+          echo "::endgroup::" # XTS COMMIT is on default branch
+
+          echo "::group::Get XTS Commit Information"
           # Get the short commit id
           XTS_SHORT_COMMIT="$(git rev-parse --short "${XTS_COMMIT}")"
           echo "::debug::XTS_SHORT_COMMIT=${XTS_SHORT_COMMIT}"
 
-          # Get the branch name for the commit
-          XTS_COMMIT_BRANCH="$(git name-rev --name-only --refs="refs/remotes/*" "${XTS_COMMIT}" | sed 's~^.*origin/~~' | sed 's/~.*//')"
-          echo "::debug::XTS_COMMIT_BRANCH=${XTS_COMMIT_BRANCH}"
-
-          # Check if the tag exists on the main branch
-          COMMIT_ON_DEFAULT_BRANCH=0
-          if [[ "${XTS_COMMIT_BRANCH}" != "main" ]]; then
-            COMMIT_ON_DEFAULT_BRANCH=1
-          fi
-          echo "::debug::COMMIT_ON_DEFAULT_BRANCH=${COMMIT_ON_DEFAULT_BRANCH}"
-
           # Get commit author
           AUTHOR_NAME="$(git log -1 --format='%an' "${XTS_COMMIT}")"
           AUTHOR_EMAIL="$(git log -1 --format='%ae' "${XTS_COMMIT}")"
+          echo "::endgroup::" # Get XTS Commit Information
 
+          echo "::group::Set Outputs"
           # If the tag exists on the Main Branch set the output variables as appropriate
           # Otherwise cancel out
           if [[ "${COMMIT_ON_DEFAULT_BRANCH}" -eq 0 ]]; then
@@ -208,6 +233,7 @@ jobs:
             echo "::debug::Commit ${XTS_COMMIT} not found on main branch. Cancelling out."
             gh run cancel "${{ github.run_id }}"
           fi
+          echo "::endgroup::" # Set Outputs
 
   xts-timing-sensitive-tests:
     name: XTS Timing Sensitive Tests
