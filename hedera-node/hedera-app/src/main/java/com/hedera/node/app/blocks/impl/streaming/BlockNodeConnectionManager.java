@@ -114,8 +114,9 @@ public class BlockNodeConnectionManager {
      */
     private final List<BlockNodeConfig> availableBlockNodes = new ArrayList<>();
 
-    private Map<BlockNodeConfig, Http2ClientProtocolConfig> http2ClientProtocolConfigs = new ConcurrentHashMap<>();
-    private Map<BlockNodeConfig, GrpcClientProtocolConfig> grpcClientProtocolConfigs = new ConcurrentHashMap<>();
+    private final Map<BlockNodeConfig, Http2ClientProtocolConfig> http2ClientProtocolConfigs =
+            new ConcurrentHashMap<>();
+    private final Map<BlockNodeConfig, GrpcClientProtocolConfig> grpcClientProtocolConfigs = new ConcurrentHashMap<>();
     /**
      * Flag that indicates if this connection manager is active or not. In this case, being active means it is actively
      * processing blocks and attempting to send them to a block node.
@@ -152,7 +153,7 @@ public class BlockNodeConnectionManager {
     /**
      * The directory containing the block node connection configuration file.
      */
-    private Path blockNodeConfigDirectory;
+    private final Path blockNodeConfigDirectory;
     /**
      * The file name of the block node configuration file.
      */
