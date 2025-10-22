@@ -1953,7 +1953,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final Map<BlockNodeConfig, BlockNodeConnection> connections = connections();
         final List<BlockNodeConfig> availableNodes = availableNodes();
 
-        final BlockNodeConfig newConnectionConfig = new BlockNodeConfig("::1", 50211, 1);
+        final BlockNodeConfig newConnectionConfig = new BlockNodeConfig("::1", 50211, 1, null);
         final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
         doReturn(newConnectionConfig).when(newConnection).getNodeConfig();
 
@@ -1975,7 +1975,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final Map<BlockNodeConfig, BlockNodeConnection> connections = connections();
         final List<BlockNodeConfig> availableNodes = availableNodes();
 
-        final BlockNodeConfig newConnectionConfig = new BlockNodeConfig("invalid.hostname.for.test", 50211, 1);
+        final BlockNodeConfig newConnectionConfig = new BlockNodeConfig("invalid.hostname.for.test", 50211, 1, null);
         final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
         doReturn(newConnectionConfig).when(newConnection).getNodeConfig();
 
@@ -2042,21 +2042,21 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     void testPriorityBasedSelection_multiplePriority0Nodes_randomSelection() {
         // Setup: Create multiple nodes with priority 0 and some with lower priorities
         final List<BlockNodeConfig> blockNodes = List.of(
-                new BlockNodeConfig("pbj-unit-test-host", 8080, 0), // Priority 0
-                new BlockNodeConfig("pbj-unit-test-host", 8081, 0), // Priority 0
-                new BlockNodeConfig("pbj-unit-test-host", 8082, 0), // Priority 0
-                new BlockNodeConfig("pbj-unit-test-host", 8083, 0), // Priority 0
-                new BlockNodeConfig("pbj-unit-test-host", 8084, 0), // Priority 0
-                new BlockNodeConfig("pbj-unit-test-host", 8085, 0), // Priority 0
-                new BlockNodeConfig("pbj-unit-test-host", 8086, 0), // Priority 0
-                new BlockNodeConfig("pbj-unit-test-host", 8087, 0), // Priority 0
-                new BlockNodeConfig("pbj-unit-test-host", 8088, 0), // Priority 0
-                new BlockNodeConfig("pbj-unit-test-host", 8089, 0), // Priority 0
-                new BlockNodeConfig("pbj-unit-test-host", 8090, 1), // Priority 1
-                new BlockNodeConfig("pbj-unit-test-host", 8091, 2), // Priority 2
-                new BlockNodeConfig("pbj-unit-test-host", 8092, 2), // Priority 2
-                new BlockNodeConfig("pbj-unit-test-host", 8093, 3), // Priority 3
-                new BlockNodeConfig("pbj-unit-test-host", 8094, 3) // Priority 3
+                new BlockNodeConfig("pbj-unit-test-host", 8080, 0, null), // Priority 0
+                new BlockNodeConfig("pbj-unit-test-host", 8081, 0, null), // Priority 0
+                new BlockNodeConfig("pbj-unit-test-host", 8082, 0, null), // Priority 0
+                new BlockNodeConfig("pbj-unit-test-host", 8083, 0, null), // Priority 0
+                new BlockNodeConfig("pbj-unit-test-host", 8084, 0, null), // Priority 0
+                new BlockNodeConfig("pbj-unit-test-host", 8085, 0, null), // Priority 0
+                new BlockNodeConfig("pbj-unit-test-host", 8086, 0, null), // Priority 0
+                new BlockNodeConfig("pbj-unit-test-host", 8087, 0, null), // Priority 0
+                new BlockNodeConfig("pbj-unit-test-host", 8088, 0, null), // Priority 0
+                new BlockNodeConfig("pbj-unit-test-host", 8089, 0, null), // Priority 0
+                new BlockNodeConfig("pbj-unit-test-host", 8090, 1, null), // Priority 1
+                new BlockNodeConfig("pbj-unit-test-host", 8091, 2, null), // Priority 2
+                new BlockNodeConfig("pbj-unit-test-host", 8092, 2, null), // Priority 2
+                new BlockNodeConfig("pbj-unit-test-host", 8093, 3, null), // Priority 3
+                new BlockNodeConfig("pbj-unit-test-host", 8094, 3, null) // Priority 3
                 );
 
         // Track which priority 0 nodes get selected over multiple runs
@@ -2101,9 +2101,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     void testPriorityBasedSelection_onlyLowerPriorityNodesAvailable() {
         // Setup: All priority 0 nodes are unavailable, only lower priority nodes available
         final List<BlockNodeConfig> blockNodes = List.of(
-                new BlockNodeConfig("pbj-unit-test-host", 8080, 1), // Priority 1
-                new BlockNodeConfig("pbj-unit-test-host", 8081, 2), // Priority 2
-                new BlockNodeConfig("pbj-unit-test-host", 8082, 3) // Priority 3
+                new BlockNodeConfig("pbj-unit-test-host", 8080, 1, null), // Priority 1
+                new BlockNodeConfig("pbj-unit-test-host", 8081, 2, null), // Priority 2
+                new BlockNodeConfig("pbj-unit-test-host", 8082, 3, null) // Priority 3
                 );
 
         final BlockNodeConnectionManager manager = createConnectionManager(blockNodes);
@@ -2127,11 +2127,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     void testPriorityBasedSelection_mixedPrioritiesWithSomeUnavailable() {
         // Setup: Mix of priorities where some priority 0 nodes are already connected
         final List<BlockNodeConfig> allBlockNodes = List.of(
-                new BlockNodeConfig("pbj-unit-test-host", 8080, 0), // Priority 0 - will be unavailable
-                new BlockNodeConfig("pbj-unit-test-host", 8081, 0), // Priority 0 - available
-                new BlockNodeConfig("pbj-unit-test-host", 8082, 0), // Priority 0 - available
-                new BlockNodeConfig("pbj-unit-test-host", 8083, 1), // Priority 1
-                new BlockNodeConfig("pbj-unit-test-host", 8084, 2) // Priority 2
+                new BlockNodeConfig("pbj-unit-test-host", 8080, 0, null), // Priority 0 - will be unavailable
+                new BlockNodeConfig("pbj-unit-test-host", 8081, 0, null), // Priority 0 - available
+                new BlockNodeConfig("pbj-unit-test-host", 8082, 0, null), // Priority 0 - available
+                new BlockNodeConfig("pbj-unit-test-host", 8083, 1, null), // Priority 1
+                new BlockNodeConfig("pbj-unit-test-host", 8084, 2, null) // Priority 2
                 );
 
         final BlockNodeConnectionManager manager = createConnectionManager(allBlockNodes);
@@ -2165,11 +2165,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     void testPriorityBasedSelection_allPriority0NodesUnavailable() {
         // Setup: All priority 0 nodes are connected, lower priority nodes available
         final List<BlockNodeConfig> allBlockNodes = List.of(
-                new BlockNodeConfig("pbj-unit-test-host", 8080, 0), // Priority 0 - unavailable
-                new BlockNodeConfig("pbj-unit-test-host", 8081, 0), // Priority 0 - unavailable
-                new BlockNodeConfig("pbj-unit-test-host", 8082, 1), // Priority 1 - available
-                new BlockNodeConfig("pbj-unit-test-host", 8083, 1), // Priority 1 - available
-                new BlockNodeConfig("pbj-unit-test-host", 8084, 2) // Priority 2 - available
+                new BlockNodeConfig("pbj-unit-test-host", 8080, 0, null), // Priority 0 - unavailable
+                new BlockNodeConfig("pbj-unit-test-host", 8081, 0, null), // Priority 0 - unavailable
+                new BlockNodeConfig("pbj-unit-test-host", 8082, 1, null), // Priority 1 - available
+                new BlockNodeConfig("pbj-unit-test-host", 8083, 1, null), // Priority 1 - available
+                new BlockNodeConfig("pbj-unit-test-host", 8084, 2, null) // Priority 2 - available
                 );
 
         final BlockNodeConnectionManager manager = createConnectionManager(allBlockNodes);
