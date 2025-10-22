@@ -929,6 +929,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
         @Test
         @DisplayName("getMerkleProof for non-existent path")
         void getMerkleProof_nonExistentPath() {
+            virtualMapState.getHash();
             assertThat(virtualMapState.getMerkleProof(777)).isNull();
         }
 
