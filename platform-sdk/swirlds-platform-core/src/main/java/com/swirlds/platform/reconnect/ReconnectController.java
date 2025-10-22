@@ -291,7 +291,7 @@ public class ReconnectController implements Runnable {
                     failedReconnectsInARow,
                     reconnectConfig.maximumReconnectFailuresBeforeShutdown());
             if (throwable != null) {
-                logger.error(
+                logger.warn(
                         EXCEPTION.getMarker(),
                         () -> new ReconnectFailurePayload(
                                 "Unexpected exception during reconnect", CauseOfFailure.ERROR),
