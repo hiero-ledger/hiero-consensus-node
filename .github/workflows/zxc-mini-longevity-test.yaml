@@ -449,7 +449,7 @@ jobs:
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods -o=custom-columns=NODE:.spec.nodeName,NAME:.metadata.name | grep -v -w NODE |\
             perl -ne "if (/^([^\s]+)\s+([^\s]+)\s*$/) {print \"[\$1\](${{ steps.set-k8s-cluster.outputs.grafana-url }}&from=${start_date}&var-nodename=\$1) \$2\n\"}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
-      - name: Start Longevity test
+      - name: Start ScriptedLoadTest test
         run: |
           #FIXME: to parameterize
           run_NLGDparams="${{ inputs.run_NLGDparams }}" # e.g. -Dbenchmark.maxtps=8000
@@ -471,7 +471,102 @@ jobs:
             ${NLGargs} -tt ${{ inputs.nlg-time }}m > client.log 2>&1 &"
           sleep 30
 
-      - name: Wait for Longevity
+      - name: Wait for last finished sequential test (SmartContractLoadTest)
+        run: |
+          set +x
+          set +e
+
+          check_status() {
+           logfile=$1
+           ec=2 # continue
+           grep -E 'Finished SmartContractLoadTest' ${logfile} >/dev/null
+           if [ ${?} -eq 0 ]
+           then
+              echo "Test SmartContractLoadTest finished, exiting..."
+              ec=0
+           fi
+
+           grep -E 'ERROR com.hedera.benchmark.*LoadTest - Setup|ERROR com.hedera.benchmark.*LoadTest - Test failed' ${logfile}
+           if [ ${?} -eq 0 ]
+           then
+              echo "ERROR: Wrong config/environment"
+              tail "${logfile}"
+              ec=1
+           fi
+
+           return ${ec}
+          }
+
+          sleep 60
+
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator | awk '{print $1}')"
+
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
+
+          counter=0
+          start_time=`date +%s`
+          max_counter=${{ env.TIMEOUT_6H_LIMIT }}
+
+          ec=2
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+          isRunning=${?}
+
+          while [ \( ${isRunning} -eq 0 \) -a \( ${counter} -le ${max_counter} \) ]
+          do
+
+           sleep 60
+           current_time=$(date +%s)
+           counter=$(expr "${current_time}" - "${start_time}")
+           counter=$(expr "${counter}" \/ 60)
+
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
+           tail -n 1 client.log
+
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+           isRunning=${?}
+
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished SmartContractLoadTest' /app/client.log" > client_state.log
+           check_status client_state.log
+           ec=${?}
+           if [ ${ec} -lt 2 ] #any terminal states 0 or 1, ec=2 is to continue
+           then
+             break
+           fi
+          done
+
+          if [ -f "${{ github.workspace }}"/report/client.log ]
+          then
+            rm -rf "${{ github.workspace }}"/report/*
+          fi
+
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
+
+          check_status "${{ github.workspace }}"/report/client.log
+          ec=${?}
+
+          if [ ${ec} -eq 2 ]
+          then
+            echo "Continue to wait in next Runner ..."
+            ec=0
+          fi
+
+          tail "${{ github.workspace }}"/report/client.log
+          echo "Finished, exit code=${ec}"
+          exit ${ec}
+
+      - name: Start Reconnect
+        run: |
+          set +x
+          set +e
+
+          downtime=60
+          warmtime=60
+          NofLoops=1
+
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator | awk '{print $1}')"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/profileReconnectLoopK8s.sh "${{ steps.set-namespace.outputs.namespace }}" ${downtime} ${warmtime} ${NofLoops}
+
+      - name: Wait for ScriptedLoadTest
         run: |
           set +x
           set +e
