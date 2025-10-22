@@ -612,6 +612,7 @@ public class BlockNodeConnectionManager {
         nodeStats.clear();
         availableBlockNodes.clear();
         http2ClientProtocolConfigs.clear();
+        grpcClientProtocolConfigs.clear();
     }
 
     private void closeAllConnections() {
