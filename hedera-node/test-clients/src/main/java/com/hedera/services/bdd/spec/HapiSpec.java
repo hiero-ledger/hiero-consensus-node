@@ -11,6 +11,7 @@ import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension
 import static com.hedera.services.bdd.junit.hedera.BlockNodeNetwork.BLOCK_NODE_LOCAL_PORT;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.support.StreamFileAccess.STREAM_FILE_ACCESS;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiSpec.SpecStatus.ERROR;
 import static com.hedera.services.bdd.spec.HapiSpec.SpecStatus.FAILED;
 import static com.hedera.services.bdd.spec.HapiSpec.SpecStatus.FAILED_AS_EXPECTED;
@@ -960,10 +961,6 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
                 }
             }
         });
-    }
-
-    private String asAccountString(final com.hedera.hapi.node.base.AccountID accountID) {
-        return String.format("%d.%d.%d", accountID.shardNum(), accountID.realmNum(), accountID.accountNum());
     }
 
     private void buildRemoteNetwork() {

@@ -372,6 +372,10 @@ public interface HapiPropertySource {
         return asEntityString(account.getShardNum(), account.getRealmNum(), account.getAccountNum());
     }
 
+    static String asAccountString(final com.hedera.hapi.node.base.AccountID accountID) {
+        return asEntityString(accountID.shardNum(), accountID.realmNum(), accountID.accountNumOrThrow());
+    }
+
     static String asAliasableAccountString(final AccountID account) {
         if (account.getAlias().isEmpty()) {
             return asAccountString(account);

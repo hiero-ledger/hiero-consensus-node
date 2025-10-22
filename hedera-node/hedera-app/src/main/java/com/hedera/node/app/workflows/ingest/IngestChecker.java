@@ -244,7 +244,7 @@ public final class IngestChecker {
         final var lastReservedSystemEntity =
                 configuration.getConfigData(LedgerConfig.class).numReservedSystemEntities();
         if (nodeAccount.tinybarBalance() < 1
-                && payerAccount.accountIdOrThrow().accountNum() > lastReservedSystemEntity) {
+                && payerAccount.accountIdOrThrow().accountNumOrThrow() > lastReservedSystemEntity) {
             throw new PreCheckException(NODE_ACCOUNT_HAS_ZERO_BALANCE);
         }
     }
@@ -574,10 +574,5 @@ public final class IngestChecker {
         if (payerKeyVerification.failed()) {
             throw new PreCheckException(INVALID_SIGNATURE);
         }
-    }
-
-    public static boolean isSystemAccount(@NonNull Account account) {
-        requireNonNull(account);
-        return account.accountIdOrThrow().accountNumOrThrow() <= 1000L;
     }
 }
