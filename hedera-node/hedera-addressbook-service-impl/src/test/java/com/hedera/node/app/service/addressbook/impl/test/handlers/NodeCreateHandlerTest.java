@@ -578,7 +578,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
 
     @Test
     void preHandleWorksWhenAdminKeyValid() throws PreCheckException {
-        mockPayerLookup(anotherKey, payerId, accountStore);
+        mockAccountLookup(anotherKey, payerId, accountStore);
         txn = new NodeCreateBuilder().withAdminKey(key).build(payerId);
         final var context = new FakePreHandleContext(accountStore, txn);
         subject.preHandle(context);
@@ -589,7 +589,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
 
     @Test
     void preHandleFailedWhenAdminKeyInValid() throws PreCheckException {
-        mockPayerLookup(anotherKey, payerId, accountStore);
+        mockAccountLookup(anotherKey, payerId, accountStore);
         txn = new NodeCreateBuilder().withAdminKey(invalidKey).build(payerId);
         final var context = new FakePreHandleContext(accountStore, txn);
         assertThrowsPreCheck(() -> subject.preHandle(context), INVALID_ADMIN_KEY);

@@ -502,7 +502,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
             }
 
             final var md = stateMetadata.get(stateId);
-            if (md == null || md.stateDefinition().singleton()) {
+            if (md == null || !md.stateDefinition().onDisk()) {
                 throw new IllegalArgumentException("Unknown k/v state ID '%d'".formatted(stateId));
             }
 

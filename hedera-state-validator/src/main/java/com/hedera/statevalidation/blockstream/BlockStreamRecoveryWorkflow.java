@@ -1,20 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.blockstream;
 
-import static com.hedera.services.bdd.junit.support.validators.block.BlockStreamUtils.*;
 import static com.hedera.statevalidation.ApplyBlocksCommand.DEFAULT_TARGET_ROUND;
-import static com.hedera.statevalidation.blockstream.BlockStreamUtils.mapKeyFor;
-import static com.hedera.statevalidation.blockstream.BlockStreamUtils.mapValueFor;
-import static com.hedera.statevalidation.blockstream.BlockStreamUtils.queuePushFor;
-import static com.hedera.statevalidation.blockstream.BlockStreamUtils.singletonPutFor;
-import static com.hedera.statevalidation.parameterresolver.StateResolver.PLATFORM_CONTEXT;
 import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.StateChanges;
-import com.hedera.statevalidation.parameterresolver.StateResolver;
+import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
+import com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils;
+import com.hedera.statevalidation.util.PlatformContextHelper;
+import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.state.signed.SignedState;
@@ -41,11 +38,12 @@ public class BlockStreamRecoveryWorkflow {
     private final long targetRound;
     private final Path outputPath;
     private final String expectedRootHash;
-    private static final long SHARD = 0;
-    private static final long REALM = 0;
 
     public BlockStreamRecoveryWorkflow(
-            MerkleNodeState state, long targetRound, Path outputPath, String expectedRootHash) {
+            @NonNull final MerkleNodeState state,
+            long targetRound,
+            @NonNull final Path outputPath,
+            @NonNull final String expectedRootHash) {
         this.state = state;
         this.targetRound = targetRound;
         this.outputPath = outputPath;
@@ -53,23 +51,30 @@ public class BlockStreamRecoveryWorkflow {
     }
 
     public static void applyBlocks(
-            Path blockStreamDirectory, NodeId selfId, long targetRound, Path outputPath, String expectedHash)
+            @NonNull final Path blockStreamDirectory,
+            @NonNull final NodeId selfId,
+            long targetRound,
+            @NonNull final Path outputPath,
+            @NonNull final String expectedHash)
             throws IOException {
-        DeserializedSignedState deserializedSignedState = null;
+        final DeserializedSignedState deserializedSignedState;
         try {
-            deserializedSignedState = StateResolver.initState();
+            deserializedSignedState = StateUtils.getDeserializedSignedState();
         } catch (ConstructableRegistryException e) {
             throw new RuntimeException(e);
         }
-        MerkleNodeState state =
+        final MerkleNodeState state =
                 deserializedSignedState.reservedSignedState().get().getState();
-        final var blocks = BlockStreamUtils.readBlocks(blockStreamDirectory, false);
+        final var blocks = BlockStreamAccess.readBlocks(blockStreamDirectory, false);
         final BlockStreamRecoveryWorkflow workflow =
                 new BlockStreamRecoveryWorkflow(state, targetRound, outputPath, expectedHash);
-        workflow.applyBlocks(blocks, selfId, PLATFORM_CONTEXT);
+        workflow.applyBlocks(blocks, selfId, PlatformContextHelper.getPlatformContext());
     }
 
-    public void applyBlocks(@NonNull final Stream<Block> blocks, NodeId selfId, PlatformContext platformContext) {
+    public void applyBlocks(
+            @NonNull final Stream<Block> blocks,
+            @NonNull final NodeId selfId,
+            @NonNull final PlatformContext platformContext) {
         AtomicBoolean foundStartingRound = new AtomicBoolean();
         final long initRound = DEFAULT_PLATFORM_STATE_FACADE.roundOf(state);
         final long firstRoundToApply = initRound + 1;
@@ -161,7 +166,7 @@ public class BlockStreamRecoveryWorkflow {
         for (int i = 0; i < n; i++) {
             final var stateChange = stateChanges.stateChanges().get(i);
 
-            final var stateName = stateNameOf(stateChange.stateId());
+            final var stateName = BlockStreamUtils.stateNameOf(stateChange.stateId());
             final var delimIndex = stateName.indexOf('.');
             if (delimIndex == -1) {
                 throw new RuntimeException("State name '" + stateName + "' is not in the correct format");
@@ -175,22 +180,25 @@ public class BlockStreamRecoveryWorkflow {
                 }
                 case SINGLETON_UPDATE -> {
                     final var singletonState = writableStates.getSingleton(stateChange.stateId());
-                    final var singleton = singletonPutFor(stateChange.singletonUpdateOrThrow());
+                    final var singleton = BlockStreamUtils.singletonPutFor(stateChange.singletonUpdateOrThrow());
                     singletonState.put(singleton);
                 }
                 case MAP_UPDATE -> {
                     final var mapState = writableStates.get(stateChange.stateId());
-                    final var key = mapKeyFor(stateChange.mapUpdateOrThrow().keyOrThrow());
-                    final var value = mapValueFor(stateChange.mapUpdateOrThrow().valueOrThrow());
+                    final var key = BlockStreamUtils.mapKeyFor(
+                            stateChange.mapUpdateOrThrow().keyOrThrow());
+                    final var value = BlockStreamUtils.mapValueFor(
+                            stateChange.mapUpdateOrThrow().valueOrThrow());
                     mapState.put(key, value);
                 }
                 case MAP_DELETE -> {
                     final var mapState = writableStates.get(stateChange.stateId());
-                    mapState.remove(mapKeyFor(stateChange.mapDeleteOrThrow().keyOrThrow()));
+                    mapState.remove(BlockStreamUtils.mapKeyFor(
+                            stateChange.mapDeleteOrThrow().keyOrThrow()));
                 }
                 case QUEUE_PUSH -> {
                     final var queueState = writableStates.getQueue(stateChange.stateId());
-                    queueState.add(queuePushFor(stateChange.queuePushOrThrow()));
+                    queueState.add(BlockStreamUtils.queuePushFor(stateChange.queuePushOrThrow()));
                 }
                 case QUEUE_POP -> {
                     final var queueState = writableStates.getQueue(stateChange.stateId());
