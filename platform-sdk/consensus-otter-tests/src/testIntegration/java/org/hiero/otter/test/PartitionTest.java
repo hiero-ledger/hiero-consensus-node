@@ -11,7 +11,6 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
-import com.swirlds.common.utility.Threshold;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
@@ -24,10 +23,10 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.network.utils.QuorumCalculator;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /**
@@ -40,14 +39,14 @@ public class PartitionTest {
      *
      * @return the arguments for the parameterized test
      */
-    public static Stream<Arguments> strongMinorityPartitions() {
+    public static Stream<List<Double>> weightDistributions() {
         return Stream.of(
                 // Min Stake profile
-                Arguments.of(List.of(.3225, .2925, .05, .335), List.of(2, 3)),
+                List.of(.3225, .2925, .05, .335),
                 // Similar stake profile
-                Arguments.of(List.of(.2625, .2375, .255, .245), List.of(1, 3)),
+                List.of(.2625, .2375, .255, .245),
                 // Uneven stake profile
-                Arguments.of(List.of(.0625, .3200, .3175, .3000), List.of(2, 3)));
+                List.of(.0625, .3200, .3175, .3000));
     }
 
     /**
@@ -56,18 +55,15 @@ public class PartitionTest {
      * upon partition healing.
      *
      * @param weightFractions the fractions of total network weight for every node in the network - must sum to 1.0
-     * @param partitionIndices the indices of the nodes to partition from the rest of the network, which must
      * constitute
      * @param env the environment to test in a strong minority but not a supermajority
      */
     @OtterTest
     @ParameterizedTest
-    @MethodSource("strongMinorityPartitions")
+    @MethodSource("weightDistributions")
     void testStrongMinorityNetworkPartition(
-            @NonNull final List<Double> weightFractions,
-            @NonNull final List<Integer> partitionIndices,
-            @NonNull final TestEnvironment env) {
-        throwIfInvalidArguments(weightFractions, partitionIndices);
+            @NonNull final List<Double> weightFractions, @NonNull final TestEnvironment env) {
+        throwIfInvalidArguments(weightFractions);
 
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -86,8 +82,7 @@ public class PartitionTest {
 
         network.start();
 
-        final List<Node> nodesToPartition =
-                partitionIndices.stream().map(i -> network.nodes().get(i)).toList();
+        final List<Node> nodesToPartition = QuorumCalculator.smallestStrongMinority(network.nodes());
         network.createNetworkPartition(nodesToPartition);
 
         timeManager.waitFor(Duration.ofSeconds(5));
@@ -122,20 +117,11 @@ public class PartitionTest {
         assertThat(network.newEventStreamResults()).haveEqualFiles();
     }
 
-    private void throwIfInvalidArguments(
-            @NonNull final List<Double> weightFractions, @NonNull final List<Integer> partitionIndices) {
+    private void throwIfInvalidArguments(@NonNull final List<Double> weightFractions) {
         final double totalWeightFraction =
                 weightFractions.stream().mapToDouble(Double::doubleValue).sum();
         assertThat(totalWeightFraction)
                 .withFailMessage("weight fractions do not sum to 1.0")
                 .isCloseTo(1.0, within(0.0001));
-        final double partitionSum =
-                partitionIndices.stream().mapToDouble(weightFractions::get).sum();
-        assertThat(Threshold.STRONG_MINORITY.isSatisfiedBy(Math.round(TOTAL_WEIGHTS * partitionSum), TOTAL_WEIGHTS))
-                .withFailMessage("partition is not a strong minority")
-                .isTrue();
-        assertThat(Threshold.SUPER_MAJORITY.isSatisfiedBy(Math.round(TOTAL_WEIGHTS * partitionSum), TOTAL_WEIGHTS))
-                .withFailMessage("partition is a super majority")
-                .isFalse();
     }
 }

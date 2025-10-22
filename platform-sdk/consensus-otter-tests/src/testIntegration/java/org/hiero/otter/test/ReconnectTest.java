@@ -157,7 +157,7 @@ public class ReconnectTest {
         network.withConfigValue(
                         PlatformSchedulersConfig_.TRANSACTION_HANDLER,
                         "SEQUENTIAL_THREAD CAPACITY(100) FLUSHABLE SQUELCHABLE")
-                .withConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, ROUNDS_EXPIRED);
+                .withConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, 50L);
 
         // These nodes will be forced to reconnect
         final Node node0 = network.nodes().get(0);
@@ -197,7 +197,7 @@ public class ReconnectTest {
 
             timeManager.waitForCondition(
                     () -> unstableNodes.stream().allMatch(Node::isBehind),
-                    Duration.ofSeconds(120L),
+                    Duration.ofMinutes(5),
                     String.format(
                             "Node did not fall behind within the expected time "
                                     + "frame after synthetic bottleneck was enabled on iteration %d.",

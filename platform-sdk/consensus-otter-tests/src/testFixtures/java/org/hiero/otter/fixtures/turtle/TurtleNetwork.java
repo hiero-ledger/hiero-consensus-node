@@ -2,10 +2,12 @@
 package org.hiero.otter.fixtures.turtle;
 
 import static java.util.Objects.requireNonNull;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.test.fixtures.Randotron;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -31,6 +33,7 @@ import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContex
 import org.hiero.otter.fixtures.network.Topology.ConnectionData;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
+import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 
 /**
  * An implementation of {@link Network} that is based on the Turtle framework.
@@ -124,21 +127,38 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
                 randotron, timeManager, nodeId, keysAndCerts, simulatedNetwork, logging, outputDir);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     protected void preStartHook(@NonNull final Roster roster) {
         final int size = nodes().size();
         executorService = NodeLoggingContext.wrap(Executors.newFixedThreadPool(
                 Math.min(size, Runtime.getRuntime().availableProcessors()), new ContextAwareThreadFactory()));
 
-        // The saved state was generated with the same seed; without advancing time,
-        // all nodes would start simultaneously, and the saved state would lie in their future.
+        // Synchronize FakeTime for nodes starting from a saved state.
+        // This ensures time never goes backward when starting from saved state.
         final boolean runFromState =
                 nodes().stream().map(TurtleNode.class::cast).anyMatch(TurtleNode::startFromSavedState);
         if (runFromState) {
-            timeManager.advanceTime(Duration.ofHours(1));
+            synchronizeTimeWithSavedState();
+        }
+    }
+
+    /**
+     * Synchronizes FakeTime to the saved state's WALL_CLOCK_TIME plus one hour.
+     * This ensures time never goes backward when starting from a saved state, and is instantaneous.
+     */
+    private void synchronizeTimeWithSavedState() {
+        try {
+            final Instant requiredTime = OtterSavedStateUtils.loadSavedStateWallClockTime(savedStateDirectory)
+                    .plus(Duration.ofHours(1));
+            final Instant currentTime = timeManager.now();
+
+            if (currentTime.isBefore(requiredTime)) {
+                final Duration timeAdvance = Duration.between(currentTime, requiredTime);
+                log.info("Advancing TurtleTimeManager instantaneously by {} to match saved state time", timeAdvance);
+                timeManager.advanceTime(timeAdvance);
+            }
+        } catch (final IOException e) {
+            fail("Failed to synchronize TurtleTimeManager with saved state", e);
         }
     }
 
