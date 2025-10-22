@@ -475,7 +475,7 @@ jobs:
           details: ${{ steps.rootly-summary.outputs.details }}
           notification_target_type: "Service"
           notification_target: "CI/CD Workflows"
-          set_as_noise: "true"
+          set_as_noise: "false"
           alert_urgency: "Medium"
           environments: "CITR"
           external_id: ${{ github.run_id }}

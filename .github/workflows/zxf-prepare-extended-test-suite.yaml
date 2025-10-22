@@ -128,7 +128,7 @@ jobs:
             Please investigate the issue to ensure the commit is properly tagged for further testing and deployment processes.
           notification_target_type: "Service"
           notification_target: "CI/CD Workflows"
-          set_as_noise: "true"
+          set_as_noise: "false"
           alert_urgency: "High"
           environments: "CITR"
           external_id: ${{ github.run_id }}

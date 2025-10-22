@@ -263,6 +263,11 @@ message StateKey {
      */
     com.hedera.hapi.node.state.hooks.LambdaSlotKey ContractService_I_LAMBDA_STORAGE = 52;
 
+    /**
+     * A state identifier for account to node relationships.
+     */
+    proto.AccountID AddressBookService_I_ACCOUNT_NODE_REL = 53;
+
     // Queue states
     /**
      * Queue index for the round receipts queue.
@@ -318,12 +323,6 @@ message StateKey {
      * Queue index for the `159` upgrade file data.
      */
     uint64 FileService_I_UPGRADE_DATA_159 = 10010;
-
-    /**
-     * A state identifier for account to node relationships.
-     */
-    proto.AccountID AddressBookService_I_ACCOUNT_NODE_REL = 10011;
-
   }
 }
 
@@ -602,6 +601,11 @@ message StateValue {
     proto.SlotValue ContractService_I_LAMBDA_STORAGE = 52;
 
     /**
+     * A state identifier for account to node relationships.
+     */
+    com.hedera.hapi.platform.state.NodeId AddressBookService_I_ACCOUNT_NODE_REL = 53;
+
+    /**
      * Metadata of the round receipts queue.
      */
     proto.TransactionReceiptEntries RecordCache_I_TRANSACTION_RECEIPTS = 126;
@@ -665,12 +669,6 @@ message StateValue {
      * Metadata of the `159` upgrade file data queue.
      */
     proto.ProtoBytes FileService_I_UPGRADE_DATA_159 = 10010;
-
-    /**
-     * A state identifier for account to node relationships.
-     */
-    com.hedera.hapi.platform.state.NodeId AddressBookService_I_ACCOUNT_NODE_REL = 10011;
-
   }
 }
 
