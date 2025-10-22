@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXC: Block Node Explorer Regression"
+name: "ZXC: Block Node Regression"
 on:
   workflow_call:
     inputs:
