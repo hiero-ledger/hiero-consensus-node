@@ -142,7 +142,6 @@ class ReconnectControllerTest {
                 .setState(new TestVirtualMapState())
                 .buildWithFacade();
         testSignedState = signedStatePair.left();
-        testSignedState.init(platformContext);
         SignedStateFileReader.registerServiceStates(testSignedState);
         final SigSet sigSet = new SigSet();
 
