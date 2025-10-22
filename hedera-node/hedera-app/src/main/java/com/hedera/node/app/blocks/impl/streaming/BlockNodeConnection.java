@@ -23,6 +23,7 @@ import io.helidon.common.tls.Tls;
 import io.helidon.webclient.api.WebClient;
 import io.helidon.webclient.grpc.GrpcClientProtocolConfig;
 import java.io.UncheckedIOException;
+import io.helidon.webclient.http2.Http2ClientProtocolConfig;
 import io.helidon.webclient.spi.ProtocolConfig;
 import java.time.Duration;
 import java.time.Instant;
@@ -302,9 +303,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         final PbjGrpcClientConfig grpcConfig =
                 new PbjGrpcClientConfig(timeoutDuration, tls, Optional.of(""), "application/grpc");
 
-        var extractedGrpcConfig =
+        final GrpcClientProtocolConfig extractedGrpcConfig =
                 blockNodeConnectionManager.getGrpcClientProtocolConfigs().get(blockNodeConfig);
-        final var grpcProtocolConfig = (extractedGrpcConfig != null)
+        final GrpcClientProtocolConfig grpcProtocolConfig = (extractedGrpcConfig != null)
                 ? extractedGrpcConfig
                 : GrpcClientProtocolConfig.builder()
                         .abortPollTimeExpired(false)
@@ -313,7 +314,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         final List<ProtocolConfig> protocolConfigs = new ArrayList<>();
         protocolConfigs.add(grpcProtocolConfig);
-        var http2ClientProtocolConfig =
+        final Http2ClientProtocolConfig http2ClientProtocolConfig =
                 blockNodeConnectionManager.getHttp2ClientProtocolConfigs().get(blockNodeConfig);
         if (http2ClientProtocolConfig != null) {
             protocolConfigs.add(http2ClientProtocolConfig);
