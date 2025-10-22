@@ -13,12 +13,12 @@ import org.hiero.consensus.model.node.NodeId;
 public record ConnectionKey(@NonNull NodeId sender, @NonNull NodeId receiver) {
 
     /**
-     * Reverts the connection key by swapping the sender and receiver.
+     * Reverses the connection key by swapping the sender and receiver.
      *
      * @return a new ConnectionKey with sender and receiver swapped
      */
     @NonNull
-    public ConnectionKey reverted() {
+    public ConnectionKey reversed() {
         return new ConnectionKey(receiver, sender);
     }
 }

@@ -175,7 +175,7 @@ public class NetworkBehavior {
 
     private void updateToxin(@NonNull final ConnectionKey connectionKey, @NonNull final Toxin toxin) {
         updateToxinSingleStream(connectionKey, toxin);
-        updateToxinSingleStream(connectionKey.reverted(), toxin.downstream());
+        updateToxinSingleStream(connectionKey.reversed(), toxin.downstream());
     }
 
     private void updateToxinSingleStream(@NonNull final ConnectionKey connectionKey, @NonNull final Toxin toxin) {

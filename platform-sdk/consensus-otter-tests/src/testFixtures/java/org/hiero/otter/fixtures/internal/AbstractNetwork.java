@@ -392,7 +392,7 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public void removePartition(@NonNull final Partition partition) {
+    public void removeNetworkPartition(@NonNull final Partition partition) {
         log.info("Removing network partition...");
         final Set<Partition> allPartitions = networkPartitions();
         if (!allPartitions.contains(partition)) {
@@ -449,7 +449,7 @@ public abstract class AbstractNetwork implements Network {
         if (partition == null) {
             throw new IllegalArgumentException("Node is not isolated: " + node.selfId());
         }
-        removePartition(partition);
+        removeNetworkPartition(partition);
     }
 
     /**
@@ -469,16 +469,22 @@ public abstract class AbstractNetwork implements Network {
         log.info("Setting latency for all connections from node {} to range {}", sender.selfId(), latencyRange);
         for (final Node receiver : nodes()) {
             if (!receiver.equals(sender)) {
-                final long nanos = latencyRange.min().equals(latencyRange.max())
-                        ? latencyRange.max().toNanos()
-                        : random.nextLong(
-                                latencyRange.min().toNanos(), latencyRange.max().toNanos());
-                final LatencyOverride latencyOverride =
-                        new LatencyOverride(Duration.ofNanos(nanos), latencyRange.jitterPercent());
-                latencyOverrides.put(new ConnectionKey(sender.selfId(), receiver.selfId()), latencyOverride);
+                setLatencyRange(sender, receiver, latencyRange);
+                setLatencyRange(receiver, sender, latencyRange);
             }
         }
         updateConnections();
+    }
+
+    private void setLatencyRange(
+            @NonNull final Node sender, @NonNull final Node receiver, @NonNull final LatencyRange latencyRange) {
+        final long nanos = latencyRange.min().equals(latencyRange.max())
+                ? latencyRange.max().toNanos()
+                : random.nextLong(
+                        latencyRange.min().toNanos(), latencyRange.max().toNanos());
+        final LatencyOverride latencyOverride =
+                new LatencyOverride(Duration.ofNanos(nanos), latencyRange.jitterPercent());
+        latencyOverrides.put(new ConnectionKey(sender.selfId(), receiver.selfId()), latencyOverride);
     }
 
     /**
@@ -491,6 +497,7 @@ public abstract class AbstractNetwork implements Network {
         for (final Node receiver : nodes()) {
             if (!receiver.equals(sender)) {
                 bandwidthOverrides.put(new ConnectionKey(sender.selfId(), receiver.selfId()), bandwidthLimit);
+                bandwidthOverrides.put(new ConnectionKey(receiver.selfId(), sender.selfId()), bandwidthLimit);
             }
         }
         updateConnections();

@@ -187,7 +187,7 @@ public interface Network {
      *
      * @param partition the partition to remove
      */
-    void removePartition(@NonNull Partition partition);
+    void removeNetworkPartition(@NonNull Partition partition);
 
     /**
      * Gets all currently active partitions.
@@ -234,7 +234,7 @@ public interface Network {
     boolean isIsolated(@NonNull Node node);
 
     /**
-     * Sets the latency range for all connections from this node.
+     * Sets the latency range for all connections from and to this node.
      *
      * <p>This method sets the latency for all connections from the specified node to the given latency range. If a
      * connection already has a custom latency set, it will be overridden by this method.
@@ -245,7 +245,7 @@ public interface Network {
     void setLatencyForAllConnections(@NonNull Node node, @NonNull LatencyRange latencyRange);
 
     /**
-     * Sets the bandwidth limit for all connections from this node.
+     * Sets the bandwidth limit for all connections from and to this node.
      *
      * @param node the node for which to set the bandwidth limit
      * @param bandwidthLimit the bandwidth limit to apply to all connections

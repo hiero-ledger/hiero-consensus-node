@@ -238,6 +238,11 @@ public class ReconnectTest {
         Arrays.stream(nodesToThrottle).forEach(Node::stopSyntheticBottleneck);
     }
 
+    /**
+     * Tests that a node which goes through a failed reconnect attempt is able to recover and successfully reconnect.
+     *
+     * @param env the test environment
+     */
     @OtterTest(requires = Capability.RECONNECT)
     @Disabled
     void testReconnectSucceedsAfterFailure(@NonNull final TestEnvironment env) {
@@ -292,6 +297,11 @@ public class ReconnectTest {
                 "Node did not become ACTIVE within the expected time frame after restoring normal connectivity");
     }
 
+    /**
+     * Tests that a node which exceeds the maximum number of allowed failed reconnect attempts shuts down as expected.
+     *
+     * @param env the test environment
+     */
     @OtterTest(requires = {Capability.RECONNECT, Capability.SINGLE_NODE_JVM_SHUTDOWN})
     @Disabled
     void testNodeShutsDownAfterMaxFailedReconnects(@NonNull final TestEnvironment env) {
