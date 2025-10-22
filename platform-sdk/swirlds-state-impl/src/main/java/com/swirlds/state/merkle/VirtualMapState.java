@@ -12,6 +12,7 @@ import static com.swirlds.virtualmap.internal.Path.getParentPath;
 import static com.swirlds.virtualmap.internal.Path.getSiblingPath;
 import static com.swirlds.virtualmap.internal.Path.isRight;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.crypto.Cryptography.NULL_HASH;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -863,6 +864,10 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
 
     @Override
     public MerkleProof getMerkleProof(final long path) {
+        if (!virtualMap.isHashed()) {
+            throw new IllegalStateException("Cannot get Merkle proof for unhashed virtual map");
+        }
+
         VirtualLeafBytes<?> leafRecord = virtualMap.getRecords().findLeafRecord(path);
         if (leafRecord == null) {
             return null;
@@ -873,10 +878,12 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
 
         long currentPath = path;
         while (currentPath > 0) {
-            long siblingPath = getSiblingPath(currentPath);
-            boolean isSiblingRight = isRight(siblingPath);
-            siblingHashes.add(
-                    new SiblingHash(isSiblingRight, getHashForPath(siblingPath).copyToByteArray()));
+            final long siblingPath = getSiblingPath(currentPath);
+            final boolean isSiblingRight = isRight(siblingPath);
+            final Hash hashForPath = getHashForPath(siblingPath);
+            final Hash normalizedHashForPath = hashForPath == null ? NULL_HASH : hashForPath;
+
+            siblingHashes.add(new SiblingHash(isSiblingRight, normalizedHashForPath.copyToByteArray()));
 
             innerParentHashes.add(getHashForPath(currentPath).copyToByteArray());
 

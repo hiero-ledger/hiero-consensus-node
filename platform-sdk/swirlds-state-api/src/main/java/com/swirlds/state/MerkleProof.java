@@ -12,11 +12,9 @@ import java.util.List;
  * @param innerParentHashes a list of byte arrays representing inner parent hashes, where:
  *                          <ul>
  *                              <li><code>innerParentHashes.get(0)</code> is the hash of the Merkle leaf
- *                                  or the state item, depending on which is used.</li>
- *                              <li><code>innerParentHashes.get(n+1)</code> is computed as
- *                                  <code>Hash(innerParentHashes.get(n) [+] siblingHashes.get(n).hash())</code>,
- *                                  where the order of concatenation around <code>[+]</code> may be swapped
- *                                  depending on whether the sibling hash is a left or right child.</li>
+ *                              <li><code>innerParentHashes.get(1)</code> is a hash of a parent</li>
+ *                              <li><code>innerParentHashes.get(2)</code> is a hash of a grandparent</li>
+ *                              <li>and so on</li>
  *                          </ul>
  */
 public record MerkleProof(Bytes stateItem, List<SiblingHash> siblingHashes, List<byte[]> innerParentHashes) {}

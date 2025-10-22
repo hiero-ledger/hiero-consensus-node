@@ -3,7 +3,7 @@ package com.swirlds.state.merkle;
 
 import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfTag;
 import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfVarInt32;
-import static com.hedera.pbj.runtime.ProtoWriterTools.writeTag;
+import static com.hedera.pbj.runtime.ProtoWriterTools.writeDelimited;
 import static java.lang.StrictMath.toIntExact;
 import static java.util.Objects.requireNonNull;
 
@@ -136,19 +136,8 @@ public record StateItem(@NonNull Bytes key, @NonNull Bytes value) {
          * @throws IOException If there is a problem writing
          */
         public void write(@NonNull StateItem data, @NonNull final WritableSequentialData out) throws IOException {
-            // [2] - key
-            writeTag(out, FIELD_KEY);
-            // Write size
-            out.writeVarInt(toIntExact(data.key.length()), false);
-            // Write key
-            out.writeBytes(data.key);
-
-            // [3] - key
-            writeTag(out, FIELD_VALUE);
-            // Write size
-            out.writeVarInt(toIntExact(data.value.length()), false);
-            // Write value
-            out.writeBytes(data.value.toByteArray());
+            writeDelimited(out, FIELD_KEY, toIntExact(data.key.length()), v -> v.writeBytes(data.key));
+            writeDelimited(out, FIELD_VALUE, toIntExact(data.value.length()), v -> v.writeBytes(data.value));
         }
 
         /**

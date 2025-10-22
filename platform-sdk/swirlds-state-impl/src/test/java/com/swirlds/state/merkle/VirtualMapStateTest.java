@@ -8,6 +8,7 @@ import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
+import static org.hiero.base.crypto.Cryptography.NULL_HASH;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -15,6 +16,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.base.state.MutabilityException;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
@@ -932,7 +934,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
 
         @Test
         @DisplayName("getMerkleProof returns correct proof for kv")
-        void getMerkleProof_kv() throws com.hedera.pbj.runtime.ParseException {
+        void getMerkleProof_kv() throws ParseException {
             // Ensure the tree is hashed
             virtualMapState.getHash();
 
@@ -942,6 +944,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
 
             // Build expected state item content from the actual leaf record
             final VirtualMap vm = (VirtualMap) virtualMapState.getRoot();
+
             final VirtualLeafBytes leaf = vm.getRecords()
                     .findLeafRecord(StateUtils.getStateKeyForKv(FRUIT_STATE_ID, A_KEY, ProtoBytes.PROTOBUF));
             assertNotNull(leaf);
@@ -985,6 +988,13 @@ public class VirtualMapStateTest extends MerkleTestBase {
                     .isEqualTo(innerParentHashes.get(2));
         }
 
+        /**
+         * This is a method that has the same logic as {@code VirtualHasher.ChunkHashTask#hash(Hash, Hash)}
+         * We need it to make sure that sibling and inner parent hashes are computed correctly.
+         * @param left left hash
+         * @param right right hash
+         * @return combined hash
+         */
         static Hash hash(final byte[] left, final byte[] right) {
             try {
                 final MessageDigest md = MessageDigest.getInstance(Cryptography.DEFAULT_DIGEST_TYPE.algorithmName());
@@ -1002,7 +1012,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
 
         @Test
         @DisplayName("getMerkleProof returns correct proof for singleton")
-        void getMerkleProof_singleton() throws com.hedera.pbj.runtime.ParseException {
+        void getMerkleProof_singleton() throws ParseException {
             // Ensure the tree is hashed
             virtualMapState.getHash();
 
@@ -1060,7 +1070,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
 
         @Test
         @DisplayName("getMerkleProof returns correct proof for queue element")
-        void getMerkleProof_queue() throws com.hedera.pbj.runtime.ParseException {
+        void getMerkleProof_queue() throws ParseException {
             // Ensure the tree is hashed
             virtualMapState.getHash();
 
@@ -1114,6 +1124,38 @@ public class VirtualMapStateTest extends MerkleTestBase {
             assertThat(hash(innerParentHashes.get(2), siblingHashes.get(2).hash())
                             .copyToByteArray())
                     .isEqualTo(innerParentHashes.get(3));
+        }
+
+        @Test
+        @DisplayName("getMerkleProof for a state with a single leaf with no sibling")
+        void leaf_with_no_sibling() {
+            // releasing pre-created test fixtures, we're not going to need them
+            virtualMapState.release();
+            fruitVirtualMap.release();
+
+            // create and prepare a new state
+            virtualMapState = new TestVirtualMapState(new NoOpMetrics());
+            virtualMapState.init(
+                    new FakeTime(), new NoOpMetrics(), mock(MerkleCryptography.class), () -> GENESIS_ROUND);
+            setupFruitVirtualMap();
+            setupSingletonCountry();
+            virtualMap = (VirtualMap) virtualMapState.getRoot();
+            virtualMapState.initializeState(steamMetadata);
+
+            addSingletonState(virtualMap, countryMetadata, GHANA);
+
+            virtualMap.getHash();
+
+            MerkleProof merkleProof = virtualMapState.getMerkleProof(1);
+
+            assertThat(merkleProof.siblingHashes().size()).isEqualTo(1);
+            assertThat(merkleProof.siblingHashes().get(0).hash()).isEqualTo(NULL_HASH.copyToByteArray());
+        }
+
+        @Test
+        @DisplayName("getMerkleProof for the state which was not hashed previously")
+        void getMerkleProof_nonHashedMap() {
+            assertThrows(IllegalStateException.class, () -> virtualMapState.getMerkleProof(10));
         }
 
         private byte[] getHashBytes(int path) {
