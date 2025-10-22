@@ -46,12 +46,10 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
@@ -197,7 +195,7 @@ public class Hip1195StorageTest {
                                 mappingSlot,
                                 LambdaMappingEntry.newBuilder()
                                         .key(Bytes.wrap(keyMirror.get()))
-                                        .value(Bytes.wrap(new byte[]{(byte) 0x01}))
+                                        .value(Bytes.wrap(new byte[] {(byte) 0x01}))
                                         .build())
                         .signedBy(DEFAULT_PAYER, "ownerAccount")),
                 viewAccount("ownerAccount", (Account a) -> {
@@ -215,12 +213,12 @@ public class Hip1195StorageTest {
                 withOpContext((spec, opLog) -> payerMirror.set(
                         unhex(asHexedSolidityAddress(spec.registry().getAccountID(DEFAULT_PAYER))))),
                 sourcing(() -> accountLambdaSStore("accountWithStorage", 214L)
-                        .putSlot(Bytes.wrap(new byte[]{0x01}), Bytes.wrap(new byte[]{0x02}))
+                        .putSlot(Bytes.wrap(new byte[] {0x01}), Bytes.wrap(new byte[] {0x02}))
                         .putMappingEntry(
                                 mappingSlot,
                                 LambdaMappingEntry.newBuilder()
                                         .key(Bytes.wrap(payerMirror.get()))
-                                        .value(Bytes.wrap(new byte[]{(byte) 0x01}))
+                                        .value(Bytes.wrap(new byte[] {(byte) 0x01}))
                                         .build())
                         .signedBy(DEFAULT_PAYER, "accountWithStorage")),
                 viewAccount("accountWithStorage", (Account a) -> {
@@ -243,7 +241,7 @@ public class Hip1195StorageTest {
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
                 // Change the hook storage's zero slot to 0x01 so that the hook returns true
                 accountLambdaSStore(OWNER, 124L)
-                        .putSlot(Bytes.EMPTY, Bytes.wrap(new byte[]{(byte) 0x01}))
+                        .putSlot(Bytes.EMPTY, Bytes.wrap(new byte[] {(byte) 0x01}))
                         .signedBy(DEFAULT_PAYER, OWNER),
                 // now the transfer works
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
@@ -258,9 +256,9 @@ public class Hip1195StorageTest {
         final var passHash32 = Bytes.wrap(keccak256(org.apache.tuweni.bytes.Bytes.wrap(passcode.getBytes(UTF_8)))
                 .toArray());
         final var correctPassword =
-                ByteString.copyFrom(encodeParametersForConstructor(new Object[]{passcode}, STRING_ABI));
+                ByteString.copyFrom(encodeParametersForConstructor(new Object[] {passcode}, STRING_ABI));
         final var wrongPassword =
-                ByteString.copyFrom(encodeParametersForConstructor(new Object[]{"wrong password"}, STRING_ABI));
+                ByteString.copyFrom(encodeParametersForConstructor(new Object[] {"wrong password"}, STRING_ABI));
 
         return hapiTest(
                 cryptoCreate(OWNER).withHooks(accountAllowanceHook(124L, STORAGE_SET_SLOT_HOOK.name())),
@@ -323,7 +321,7 @@ public class Hip1195StorageTest {
                                 mappingSlot,
                                 LambdaMappingEntry.newBuilder()
                                         .key(minimalKey(Bytes.wrap(defaultPayerMirror.get())))
-                                        .value(Bytes.wrap(new byte[]{(byte) 0x01}))
+                                        .value(Bytes.wrap(new byte[] {(byte) 0x01}))
                                         .build())
                         .signedBy(DEFAULT_PAYER, OWNER)),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))

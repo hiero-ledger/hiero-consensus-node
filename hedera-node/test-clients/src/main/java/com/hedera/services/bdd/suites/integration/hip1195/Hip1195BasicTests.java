@@ -22,10 +22,13 @@ import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewContract;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.GLOBAL_WATCHER;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.integration.hip1195.Hip1195EnabledTest.OWNER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_IN_USE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_NOT_FOUND;
@@ -44,6 +47,7 @@ import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
+import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
@@ -670,5 +674,112 @@ public class Hip1195BasicTests {
                     assertEquals(4L, a.firstHookId());
                     assertEquals(1, a.numberHooksInUse());
                 }));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> cryptoCreateWithHookFeesScalesAsExpected() {
+        return hapiTest(
+                cryptoCreate("payer").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("accountWithHook")
+                        .withHooks(accountAllowanceHook(400L, TRUE_ALLOWANCE_HOOK.name()))
+                        .via("accountWithHookCreation")
+                        .balance(ONE_HBAR)
+                        .payingWith("payer"),
+                // One hook price 1 USD and cryptoCreate price 0.05 USD
+                validateChargedUsd("accountWithHookCreation", 1.05),
+                cryptoCreate("accountWithMultipleHooks")
+                        .withHooks(
+                                accountAllowanceHook(401L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(402L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(403L, TRUE_ALLOWANCE_HOOK.name()))
+                        .via("accountWithMultipleHooksCreation")
+                        .payingWith("payer"),
+                validateChargedUsd("accountWithMultipleHooksCreation", 3.05));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> cryptoUpdateWithHookFeesScalesAsExpected() {
+        return hapiTest(
+                cryptoCreate("payer").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("accountWithHook")
+                        .withHooks(accountAllowanceHook(400L, TRUE_ALLOWANCE_HOOK.name()))
+                        .balance(ONE_HBAR)
+                        .payingWith("payer"),
+                cryptoUpdate("accountWithHook")
+                        .removingHook(400L)
+                        .withHooks(
+                                accountAllowanceHook(401L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(402L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(403L, TRUE_ALLOWANCE_HOOK.name()))
+                        .blankMemo()
+                        .via("hookUpdates")
+                        .payingWith("payer"),
+                // hook creations and deletions are 1 USD each, and cryptoUpdate is 0.00022 USD
+                validateChargedUsd("hookUpdates", 4.00022));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> contractUpdateWithHookFeesScalesAsExpected() {
+        return hapiTest(
+                cryptoCreate("payer").balance(ONE_HUNDRED_HBARS),
+                uploadInitCode("CreateTrivial"),
+                contractCreate("CreateTrivial")
+                        .withHooks(accountAllowanceHook(400L, TRUE_ALLOWANCE_HOOK.name()))
+                        .gas(5_000_000L)
+                        .via("contractWithHookCreation")
+                        .payingWith("payer"),
+                // One hook price 1 USD and contractCreate price 0.74 USD
+                validateChargedUsd("contractWithHookCreation", 1.74),
+                contractCreate("CreateTrivial")
+                        .withHooks(
+                                accountAllowanceHook(400L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(401L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(402L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(403L, TRUE_ALLOWANCE_HOOK.name()))
+                        .gas(5_000_000L)
+                        .via("contractsWithHookCreation")
+                        .payingWith("payer"),
+                // One hook price 1 USD and contractCreate price 0.74 USD
+                validateChargedUsd("contractsWithHookCreation", 4.74),
+                contractUpdate("CreateTrivial")
+                        .removingHook(400L)
+                        .withHooks(
+                                accountAllowanceHook(404L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(405L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(406L, TRUE_ALLOWANCE_HOOK.name()))
+                        .blankMemo()
+                        .via("hookUpdates")
+                        .payingWith("payer"),
+                // hook creations and deletions are 1 USD each, and contractUpdate is 0.026 USD
+                validateChargedUsd("hookUpdates", 4.026));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hookExecutionFeeDoesntScaleWithMultipleHooks() {
+        return hapiTest(
+                newKeyNamed("supplyKey"),
+                cryptoCreate(OWNER)
+                        .withHooks(
+                                accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name())),
+                tokenCreate("token")
+                        .treasury(OWNER)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .supplyKey("supplyKey")
+                        .withCustom(fixedHbarFee(1L, GENESIS))
+                        .initialSupply(10L)
+                        .maxSupply(1000L),
+                mintToken("token", 10),
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 124L, 25_000L, "")
+                        .payingWith(OWNER)
+                        .via("feeTxn"),
+                validateChargedUsd("feeTxn", 0.05),
+                cryptoTransfer(TokenMovement.moving(1, "token").between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 123L, 25_000L, "")
+                        .withPrePostHookFor(OWNER, 124L, 25_000L, "")
+                        .payingWith(OWNER)
+                        .via("feeTxn2"),
+                validateChargedUsd("feeTxn2", 0.05));
     }
 }

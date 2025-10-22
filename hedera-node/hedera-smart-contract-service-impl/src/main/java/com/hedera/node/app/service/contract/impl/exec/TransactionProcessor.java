@@ -148,7 +148,7 @@ public class TransactionProcessor {
         // Maybe refund some of the charged fees before committing if not a hook dispatch
         // Note that for hook dispatch, gas is charged during cryptoTransfer and will not be refunded once
         // hook is executed
-        if (transaction.hookOwnerAddress() != null) {
+        if (transaction.hookOwnerAddress() == null) {
             gasCharging.maybeRefundGiven(
                     transaction.unusedGas(result.gasUsed()),
                     gasCharges.relayerAllowanceUsed(),
