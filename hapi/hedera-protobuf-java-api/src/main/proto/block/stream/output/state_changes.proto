@@ -61,7 +61,6 @@ import "services/state/hints/hints_types.proto";
 import "services/state/history/history_types.proto";
 import "services/state/entity/entity_counts.proto";
 import "services/auxiliary/hints/crs_publication.proto";
-import "services/state/primitives.proto";
 
 /**
  * A set of state changes.

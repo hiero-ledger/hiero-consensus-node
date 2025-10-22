@@ -462,7 +462,6 @@ public class NodeUpdateTest {
                         .hasKnownStatus(INVALID_SERVICE_ENDPOINT));
     }
 
-    @HapiTest
     @LeakyHapiTest(overrides = {"nodes.updateAccountIdAllowed"})
     final Stream<DynamicTest> restrictNodeAccountDeletion() throws CertificateEncodingException {
         final var adminKey = "adminKey";
@@ -484,7 +483,10 @@ public class NodeUpdateTest {
                 cryptoDelete(account).hasKnownStatus(ACCOUNT_IS_LINKED_TO_A_NODE),
 
                 // update the new node account id
-                nodeUpdate(node).accountId(secondAccount).signedByPayerAnd(adminKey),
+                nodeUpdate(node)
+                        .accountId(secondAccount)
+                        .payingWith(secondAccount)
+                        .signedBy(secondAccount, adminKey),
 
                 // verify now we can delete the old node account, and can't delete the new node account
                 cryptoDelete(account),
