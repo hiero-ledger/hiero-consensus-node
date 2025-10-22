@@ -49,14 +49,13 @@ import org.apache.logging.log4j.Logger;
 @Singleton
 public class BlockBufferService {
     private static final Logger logger = LogManager.getLogger(BlockBufferService.class);
-    private static final int DEFAULT_BUFFER_SIZE = 150;
-
     private static final Duration DEFAULT_WORKER_INTERVAL = Duration.ofSeconds(1);
+    private static final int DEFAULT_BUFFER_SIZE = 150;
 
     /**
      * Buffer that stores recent blocks. This buffer is unbounded, however it is technically capped because back
      * pressure will prevent blocks from being created. Generally speaking, the buffer should contain only blocks that
-     * are recent (that is within the configured {@link BlockBufferConfig#blockTtl() TTL}) and have yet to be
+     * are recent (that are within the configured {@link BlockBufferConfig#maxBufferedBlocks() number}) and have yet to be
      * acknowledged. There may be cases where older blocks still exist in the buffer if they are unacknowledged, but
      * once they are acknowledged they will be pruned the next time {@link #openBlock(long)} is invoked.
      */
@@ -213,23 +212,18 @@ public class BlockBufferService {
     }
 
     /**
-     * @return the current TTL for items in the block buffer
+     * @return the configured maximum number of buffered blocks
      */
-    private Duration blockBufferTtl() {
-        return configProvider
+    private int maxBufferedBlocks() {
+        final int maxBufferedBlocks = configProvider
                 .getConfiguration()
                 .getConfigData(BlockBufferConfig.class)
-                .blockTtl();
-    }
-
-    /**
-     * @return the block period duration (i.e. the amount of time a single block represents)
-     */
-    private Duration blockPeriod() {
-        return configProvider
-                .getConfiguration()
-                .getConfigData(BlockStreamConfig.class)
-                .blockPeriod();
+                .maxBufferedBlocks();
+        if (maxBufferedBlocks <= 0) {
+            return DEFAULT_BUFFER_SIZE;
+        } else {
+            return maxBufferedBlocks;
+        }
     }
 
     /**
@@ -457,6 +451,49 @@ public class BlockBufferService {
             return;
         }
 
+        final int capacity = maxBufferedBlocks();
+        boolean saturated;
+        int sizeSnapshot;
+
+        synchronized (blockBuffer) {
+            sizeSnapshot = blockBuffer.size();
+            saturated = sizeSnapshot >= capacity;
+            if (saturated) {
+                final long earliest = earliestBlockNumber.get();
+                if (earliest != Long.MIN_VALUE && highestAckedBlockNumber.get() >= earliest) {
+                    // Remove the earliest block to make space if it has been acknowledged
+                    blockBuffer.remove(earliest);
+                    // Advance the earliest pointer to the next present block number if possible
+                    long next = earliest + 1;
+                    final long lastProduced = lastProducedBlockNumber.get();
+                    while (next <= lastProduced && !blockBuffer.containsKey(next)) {
+                        next++;
+                    }
+                    if (next <= lastProduced && blockBuffer.containsKey(next)) {
+                        earliestBlockNumber.set(next);
+                    } else {
+                        earliestBlockNumber.set(Long.MIN_VALUE);
+                    }
+                    // Recalculate saturation after removal
+                    sizeSnapshot = blockBuffer.size();
+                    saturated = sizeSnapshot >= capacity;
+                }
+            }
+        }
+
+        if (saturated) {
+            // Proactively enable backpressure to block this thread without waiting for worker
+            final PruneResult pruningResult = new PruneResult(
+                    capacity, sizeSnapshot, sizeSnapshot, 0, earliestBlockNumber.get(), lastProducedBlockNumber.get());
+            lastPruningResult = pruningResult;
+            enableBackPressure(pruningResult);
+        } else {
+            // If not saturated anymore but a CF exists, release it
+            disableBackPressure();
+            blockStreamMetrics.recordBackPressureDisabled();
+            return;
+        }
+
         final CompletableFuture<Boolean> cf = backpressureCompletableFutureRef.get();
         if (cf != null && !cf.isDone()) {
             try {
@@ -568,17 +605,9 @@ public class BlockBufferService {
      * manner.
      */
     private @NonNull PruneResult pruneBuffer() {
-        final Duration ttl = blockBufferTtl();
-        final Instant cutoffInstant = Instant.now().minus(ttl);
         final Iterator<Map.Entry<Long, BlockState>> it = blockBuffer.entrySet().iterator();
         final long highestBlockAcked = highestAckedBlockNumber.get();
-        /*
-        Calculate the ideal max buffer size. This is calculated as the block buffer TTL (e.g. 5 minutes) divided by the
-        block period (e.g. 2 seconds). This gives us an ideal number of blocks in the buffer.
-         */
-        final Duration blockPeriod = blockPeriod();
-        final long idealMaxBufferSize =
-                blockPeriod.isZero() || blockPeriod.isNegative() ? DEFAULT_BUFFER_SIZE : ttl.dividedBy(blockPeriod);
+        final int maxBufferSize = maxBufferedBlocks();
         int numPruned = 0;
         int numChecked = 0;
         int numPendingAck = 0;
@@ -598,8 +627,8 @@ public class BlockBufferService {
             }
 
             if (!isBackpressureEnabled()) {
-                // If backpressure is disabled, remove blocks based solely on TTL
-                if (closedTimestamp.isBefore(cutoffInstant)) {
+                // If backpressure is disabled, remove blocks based solely on the max buffer size
+                if (blockBuffer.size() > maxBufferSize) {
                     it.remove();
                     ++numPruned;
                 } else {
@@ -613,17 +642,17 @@ public class BlockBufferService {
                 }
             } else if (block.blockNumber() <= highestBlockAcked) {
                 // this block is eligible for pruning if it is old enough
-                if (closedTimestamp.isBefore(cutoffInstant)) {
+                if (blockBuffer.size() > maxBufferSize) {
                     it.remove();
                     ++numPruned;
                 } else {
-                    // keep track of earliest remaining block
+                    // keep track of the earliest remaining block
                     newEarliestBlock = Math.min(newEarliestBlock, blockNum);
                     newLatestBlock = Math.max(newLatestBlock, blockNum);
                 }
             } else {
                 ++numPendingAck;
-                // keep track of earliest remaining block
+                // keep track of the earliest remaining block
                 newEarliestBlock = Math.min(newEarliestBlock, blockNum);
                 newLatestBlock = Math.max(newLatestBlock, blockNum);
             }
@@ -638,8 +667,7 @@ public class BlockBufferService {
         blockStreamMetrics.recordBufferOldestBlock(newEarliestBlock == Long.MIN_VALUE ? -1 : newEarliestBlock);
         blockStreamMetrics.recordBufferNewestBlock(newLatestBlock);
 
-        return new PruneResult(
-                idealMaxBufferSize, numChecked, numPendingAck, numPruned, newEarliestBlock, newLatestBlock);
+        return new PruneResult(maxBufferSize, numChecked, numPendingAck, numPruned, newEarliestBlock, newLatestBlock);
     }
 
     /**
