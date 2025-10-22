@@ -114,6 +114,113 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(grpcServiceClient);
     }
 
+    /**
+     * Tests TimeoutException handling during pipeline creation.
+     * Uses mocks to simulate a timeout without actually waiting, making the test fast.
+     */
+    @Test
+    void testCreateRequestPipeline_timeoutException() throws Exception {
+        // Create a mock Future that will throw TimeoutException when get() is called
+        @SuppressWarnings("unchecked")
+        final Future<Object> mockFuture = mock(Future.class);
+        when(mockFuture.get(anyLong(), any(TimeUnit.class))).thenThrow(new TimeoutException("Simulated timeout"));
+
+        // Mock the executor to return our mock future
+        final ExecutorService mockPipelineExecutor = mock(ExecutorService.class);
+        doReturn(mockFuture).when(mockPipelineExecutor).submit(any(Runnable.class));
+
+        // Use reflection to replace the pipelineExecutor with the mock
+        final Field executorField = BlockNodeConnection.class.getDeclaredField("pipelineExecutor");
+        executorField.setAccessible(true);
+        executorField.set(connection, mockPipelineExecutor);
+
+        // Attempt to create pipeline - should timeout and throw
+        final RuntimeException exception = catchRuntimeException(() -> connection.createRequestPipeline());
+
+        assertThat(exception).isNotNull();
+        assertThat(exception.getMessage()).contains("Pipeline creation timed out");
+        assertThat(exception.getCause()).isInstanceOf(TimeoutException.class);
+
+        // Verify timeout was detected and recorded
+        verify(mockFuture).get(anyLong(), any(TimeUnit.class));
+        verify(mockFuture).cancel(true);
+        verify(metrics).recordPipelineOperationTimeout();
+
+        // Connection should still be UNINITIALIZED since pipeline creation failed
+        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.UNINITIALIZED);
+    }
+
+    /**
+     * Tests InterruptedException handling during pipeline creation.
+     * Uses mocks to simulate an interruption without actually waiting, making the test fast.
+     */
+    @Test
+    void testCreateRequestPipeline_interruptedException() throws Exception {
+        // Create a mock Future that will throw InterruptedException when get() is called
+        @SuppressWarnings("unchecked")
+        final Future<Object> mockFuture = mock(Future.class);
+        when(mockFuture.get(anyLong(), any(TimeUnit.class))).thenThrow(new InterruptedException("Simulated interruption"));
+
+        // Mock the executor to return our mock future
+        final ExecutorService mockPipelineExecutor = mock(ExecutorService.class);
+        doReturn(mockFuture).when(mockPipelineExecutor).submit(any(Runnable.class));
+
+        // Use reflection to replace the pipelineExecutor with the mock
+        final Field executorField = BlockNodeConnection.class.getDeclaredField("pipelineExecutor");
+        executorField.setAccessible(true);
+        executorField.set(connection, mockPipelineExecutor);
+
+        // Attempt to create pipeline - should handle interruption and throw
+        final RuntimeException exception = catchRuntimeException(() -> connection.createRequestPipeline());
+
+        assertThat(exception).isNotNull();
+        assertThat(exception.getMessage()).contains("Interrupted while creating pipeline");
+        assertThat(exception.getCause()).isInstanceOf(InterruptedException.class);
+
+        // Verify interruption was handled
+        verify(mockFuture).get(anyLong(), any(TimeUnit.class));
+
+        // Connection should still be UNINITIALIZED since pipeline creation failed
+        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.UNINITIALIZED);
+    }
+
+    /**
+     * Tests ExecutionException handling during pipeline creation.
+     * Uses mocks to simulate an execution error without actually waiting, making the test fast.
+     */
+    @Test
+    void testCreateRequestPipeline_executionException() throws Exception {
+        // Create a mock Future that will throw ExecutionException when get() is called
+        @SuppressWarnings("unchecked")
+        final Future<Object> mockFuture = mock(Future.class);
+        when(mockFuture.get(anyLong(), any(TimeUnit.class)))
+                .thenThrow(new java.util.concurrent.ExecutionException("Simulated execution error", 
+                        new RuntimeException("Underlying cause")));
+
+        // Mock the executor to return our mock future
+        final ExecutorService mockPipelineExecutor = mock(ExecutorService.class);
+        doReturn(mockFuture).when(mockPipelineExecutor).submit(any(Runnable.class));
+
+        // Use reflection to replace the pipelineExecutor with the mock
+        final Field executorField = BlockNodeConnection.class.getDeclaredField("pipelineExecutor");
+        executorField.setAccessible(true);
+        executorField.set(connection, mockPipelineExecutor);
+
+        // Attempt to create pipeline - should handle execution exception and throw
+        final RuntimeException exception = catchRuntimeException(() -> connection.createRequestPipeline());
+
+        assertThat(exception).isNotNull();
+        assertThat(exception.getMessage()).contains("Error creating pipeline");
+        assertThat(exception.getCause()).isInstanceOf(RuntimeException.class);
+        assertThat(exception.getCause().getMessage()).isEqualTo("Underlying cause");
+
+        // Verify execution exception was handled
+        verify(mockFuture).get(anyLong(), any(TimeUnit.class));
+
+        // Connection should still be UNINITIALIZED since pipeline creation failed
+        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.UNINITIALIZED);
+    }
+
     @Test
     void testUpdatingConnectionState() {
         final ConnectionState preUpdateState = connection.getConnectionState();
