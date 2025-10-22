@@ -866,7 +866,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
 
     @Override
     public MerkleProof getMerkleProof(final long path) {
-        if (!virtualMap.isHashed()) {
+        if (!isHashed()) {
             throw new IllegalStateException("Cannot get Merkle proof for unhashed virtual map");
         }
 
