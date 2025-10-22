@@ -2428,4 +2428,57 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         connectionManager = new BlockNodeConnectionManager(disabledProvider, bufferService, metrics);
         sharedExecutorServiceHandle.set(connectionManager, executorService);
     }
+
+    @Test
+    void forcefulTaskClosesActiveAndReschedulesIt() throws Exception {
+        // Prepare the real instance state using VarHandles (avoid using them on the spy)
+        final BlockNodeConnectionManager real = connectionManager;
+        ((AtomicBoolean) isManagerActiveHandle.get(real)).set(true);
+
+        final BlockNodeConnection oldActive = mock(BlockNodeConnection.class);
+        final BlockNodeConfig oldCfg = newBlockNodeConfig("pbj-unit-test-host", 8080, 1);
+        doReturn(oldCfg).when(oldActive).getNodeConfig();
+
+        final BlockNodeConnection candidate = mock(BlockNodeConnection.class);
+        final BlockNodeConfig newCfg = newBlockNodeConfig("pbj-unit-test-host", 8081, 0);
+        doReturn(newCfg).when(candidate).getNodeConfig();
+
+        // Set the active connection on the real instance
+        ((AtomicReference<BlockNodeConnection>) activeConnectionRefHandle.get(real)).set(oldActive);
+
+        // Spy the manager so we can capture scheduleConnectionAttempt args without further VarHandle usage
+        connectionManager = org.mockito.Mockito.spy(real);
+
+        doReturn(true).when(candidate).updateConnectionState(ConnectionState.ACTIVE);
+        doReturn(123L).when(bufferService).getLastBlockNumberProduced();
+
+        final var cfgCaptor = org.mockito.ArgumentCaptor.forClass(BlockNodeConfig.class);
+        final var delayCaptor = org.mockito.ArgumentCaptor.forClass(Duration.class);
+        org.mockito.Mockito.doNothing()
+                .when(connectionManager)
+                .scheduleConnectionAttempt(cfgCaptor.capture(), delayCaptor.capture(), org.mockito.Mockito.isNull());
+
+        final Class<?>[] declared = BlockNodeConnectionManager.class.getDeclaredClasses();
+        Class<?> taskClass = null;
+        for (final Class<?> c : declared) {
+            if (c.getSimpleName().equals("BlockNodeConnectionTask")) {
+                taskClass = c;
+                break;
+            }
+        }
+        assertThat(taskClass).isNotNull();
+        final var ctor = taskClass.getDeclaredConstructor(
+                BlockNodeConnectionManager.class, BlockNodeConnection.class, Duration.class, Long.class, boolean.class);
+        ctor.setAccessible(true);
+        final Runnable task = (Runnable) ctor.newInstance(connectionManager, candidate, Duration.ZERO, null, true);
+
+        task.run();
+
+        verify(oldActive).close(true);
+        verify(connectionManager)
+                .scheduleConnectionAttempt(
+                        any(BlockNodeConfig.class), any(Duration.class), org.mockito.Mockito.isNull());
+        assertThat(cfgCaptor.getValue()).isEqualTo(oldCfg);
+        assertThat(delayCaptor.getValue()).isEqualTo(Duration.ofSeconds(180));
+    }
 }
