@@ -200,7 +200,7 @@ final class TurtleInMemoryLogTest {
             final TimeManager timeManager = env.timeManager();
 
             // Spin up 4 nodes
-            final List<Node> nodes = network.addNodes(4);
+            network.addNodes(4);
             network.start();
 
             // Let the nodes run for a bit to generate log messages

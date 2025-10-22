@@ -157,10 +157,10 @@ final class TurtleSwirdsLogTest {
             final long nodeId2 = node2.selfId().id();
             final long nodeId3 = node3.selfId().id();
 
-            final Path log0 = Path.of("build/turtle/node-" + nodeId0 + "/output/swirlds.log");
-            final Path log1 = Path.of("build/turtle/node-" + nodeId1 + "/output/swirlds.log");
-            final Path log2 = Path.of("build/turtle/node-" + nodeId2 + "/output/swirlds.log");
-            final Path log3 = Path.of("build/turtle/node-" + nodeId3 + "/output/swirlds.log");
+            final Path log0 = Path.of(String.format(LOG_DIR, nodeId0), LOG_FILENAME);
+            final Path log1 = Path.of(String.format(LOG_DIR, nodeId1), LOG_FILENAME);
+            final Path log2 = Path.of(String.format(LOG_DIR, nodeId2), LOG_FILENAME);
+            final Path log3 = Path.of(String.format(LOG_DIR, nodeId3), LOG_FILENAME);
 
             // Wait for initial log files to be created
             awaitFile(log0, Duration.ofSeconds(5L));
