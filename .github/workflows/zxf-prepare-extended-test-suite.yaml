@@ -113,7 +113,7 @@ jobs:
             echo "Commit not yet tagged in XTS flow. Proceeding to tag for XTS." >> "${GITHUB_STEP_SUMMARY}"
             echo "xts-checks-required=true" >> "${GITHUB_OUTPUT}"
           fi
-          
+
           # Log dry-run status
           if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
             echo "Dry run enabled. The workflow will not create a tag." >> "${GITHUB_STEP_SUMMARY}"
