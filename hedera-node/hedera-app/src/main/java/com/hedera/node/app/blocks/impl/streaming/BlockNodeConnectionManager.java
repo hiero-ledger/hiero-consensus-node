@@ -1174,10 +1174,18 @@ public class BlockNodeConnectionManager {
         connections.remove(connection.getNodeConfig());
     }
 
+    /**
+     * Gets the HTTP/2 client protocol configurations for all block nodes.
+     * @return a map of BlockNodeConfig to Http2ClientProtocolConfig
+     */
     public Map<BlockNodeConfig, Http2ClientProtocolConfig> getHttp2ClientProtocolConfigs() {
         return http2ClientProtocolConfigs;
     }
 
+    /**
+     * Gets the gRPC client protocol configurations for all block nodes.
+     * @return a map of BlockNodeConfig to GrpcClientProtocolConfig
+     */
     public Map<BlockNodeConfig, GrpcClientProtocolConfig> getGrpcClientProtocolConfigs() {
         return grpcClientProtocolConfigs;
     }
