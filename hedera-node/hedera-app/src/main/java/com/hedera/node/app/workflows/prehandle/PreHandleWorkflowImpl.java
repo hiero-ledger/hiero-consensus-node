@@ -124,12 +124,12 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             @NonNull final ReadableStoreFactory readableStoreFactory,
             @NonNull final NodeInfo creatorInfo,
             @NonNull final Stream<Transaction> transactions,
-            @NonNull final BiConsumer<StateSignatureTransaction, Bytes> stateSignatureTxnCallback) {
+            @NonNull final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback) {
 
         requireNonNull(readableStoreFactory);
         requireNonNull(creatorInfo);
         requireNonNull(transactions);
-        requireNonNull(stateSignatureTxnCallback);
+        requireNonNull(shortCircuitTxnCallback);
 
         // Used for looking up payer account information.
         final var accountStore = readableStoreFactory.getStore(ReadableAccountStore.class);
@@ -143,7 +143,7 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
                         accountStore,
                         tx.getApplicationTransaction(),
                         null,
-                        stateSignatureTxnCallback);
+                        shortCircuitTxnCallback);
                 tx.setMetadata(result);
             } catch (final Exception unexpectedException) {
                 // If some random exception happened, then we should not charge the node for it. Instead,
@@ -166,7 +166,7 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final Bytes serializedSignedTx,
             @Nullable PreHandleResult previousResult,
-            @NonNull final BiConsumer<StateSignatureTransaction, Bytes> stateSignatureTransactionCallback,
+            @NonNull final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback,
             @NonNull final InnerTransaction innerTransaction) {
         // 0. Ignore the previous result if it was computed using different node configuration
         if (!wasComputedWithCurrentNodeConfiguration(previousResult)) {
@@ -195,9 +195,9 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             if (creatorInfo == null || isStateSig) {
                 final var bytes = txInfo.serializedSignedTx();
                 if (isStateSig) {
-                    stateSignatureTransactionCallback.accept(txInfo.txBody().stateSignatureTransaction(), bytes);
+                    shortCircuitTxnCallback.accept(txInfo.txBody().stateSignatureTransaction(), bytes);
                 } else {
-                    stateSignatureTransactionCallback.accept(null, bytes);
+                    shortCircuitTxnCallback.accept(null, bytes);
                 }
 
                 return PreHandleResult.shortCircuitingTransaction(txInfo);

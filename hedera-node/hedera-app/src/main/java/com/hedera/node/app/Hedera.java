@@ -980,7 +980,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             return;
         }
 
-        final BiConsumer<StateSignatureTransaction, Bytes> simplifiedStateSignatureTxnCallback = (txn, ignored) -> {
+        final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback = (txn, ignored) -> {
             final var scopedTxn = new ScopedSystemTransaction<>(event.getCreatorId(), event.getBirthRound(), txn);
             stateSignatureTxnCallback.accept(scopedTxn);
         };
@@ -989,8 +989,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         event.forEachTransaction(transactions::add);
         daggerApp
                 .preHandleWorkflow()
-                .preHandle(
-                        readableStoreFactory, creatorInfo, transactions.stream(), simplifiedStateSignatureTxnCallback);
+                .preHandle(readableStoreFactory, creatorInfo, transactions.stream(), shortCircuitTxnCallback);
     }
 
     public void onNewRecoveredState() {

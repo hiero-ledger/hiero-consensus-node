@@ -168,7 +168,8 @@ public class ParentTxnFactory {
      * @param creatorInfo the node information of the creator
      * @param platformTxn the transaction itself
      * @param consensusNow the current consensus time
-     * @param stateSignatureTxnCallback a callback to be called when encountering a {@link StateSignatureTransaction}
+     * @param shortCircuitTxnCallback A callback to be called when encountering any short-circuiting
+     *                                transaction type
      * @return the new top-level transaction, or {@code null} if the transaction is not parseable
      */
     public @Nullable ParentTxn createTopLevelTxn(
@@ -176,7 +177,7 @@ public class ParentTxnFactory {
             @Nullable final NodeInfo creatorInfo,
             @NonNull final ConsensusTransaction platformTxn,
             @NonNull final Instant consensusNow,
-            @NonNull final BiConsumer<StateSignatureTransaction, Bytes> stateSignatureTxnCallback) {
+            @NonNull final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback) {
         requireNonNull(state);
         requireNonNull(platformTxn);
         requireNonNull(consensusNow);
@@ -184,7 +185,7 @@ public class ParentTxnFactory {
         final var stack = createRootSavepointStack(state);
         final var readableStoreFactory = new ReadableStoreFactory(stack);
         final var preHandleResult = preHandleWorkflow.getCurrentPreHandleResult(
-                creatorInfo, platformTxn, readableStoreFactory, stateSignatureTxnCallback);
+                creatorInfo, platformTxn, readableStoreFactory, shortCircuitTxnCallback);
         final var txnInfo = preHandleResult.txInfo();
         if (txnInfo == null) {
             log.error(

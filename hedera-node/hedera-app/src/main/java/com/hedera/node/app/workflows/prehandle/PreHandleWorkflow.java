@@ -33,14 +33,15 @@ public interface PreHandleWorkflow {
      * @param readableStoreFactory the {@link ReadableStoreFactory} that is used for looking up stores
      * @param creatorInfo The {@link AccountID} of the node that created these transactions
      * @param transactions An {@link Stream} over all transactions to pre-handle
-     * @param stateSignatureTxnCallback A callback to be called when encountering a {@link StateSignatureTransaction}
+     * @param shortCircuitTxnCallback A callback to be called when encountering any short-circuiting
+     *                                transaction type
      * @throws NullPointerException if one of the arguments is {@code null}
      */
     void preHandle(
             @NonNull final ReadableStoreFactory readableStoreFactory,
             @NonNull final NodeInfo creatorInfo,
             @NonNull final Stream<Transaction> transactions,
-            @NonNull final BiConsumer<StateSignatureTransaction, Bytes> stateSignatureTxnCallback);
+            @NonNull final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback);
 
     /**
      * Starts the pre-handle transaction workflow for a single transaction.
@@ -52,8 +53,8 @@ public interface PreHandleWorkflow {
      * @param accountStore The {@link ReadableAccountStore} based on the current state
      * @param serializedSignedTx The {@link Transaction} to pre-handle
      * @param maybeReusableResult The result of a previous call to the same method that may,
-     * @param stateSignatureTxnCallback A callback to be called when encountering a {@link StateSignatureTransaction}
-     * depending on changes in state, be reusable for this call
+     * @param shortCircuitTxnCallback A callback to be called when encountering any short-circuiting
+     *                                transaction type
      * @param innerTransaction Whether the transaction is an inner transaction
      * @return The {@link PreHandleResult} of running pre-handle
      */
@@ -64,7 +65,7 @@ public interface PreHandleWorkflow {
             @NonNull ReadableAccountStore accountStore,
             @NonNull Bytes serializedSignedTx,
             @Nullable PreHandleResult maybeReusableResult,
-            @NonNull BiConsumer<StateSignatureTransaction, Bytes> stateSignatureTxnCallback,
+            @NonNull BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback,
             @NonNull InnerTransaction innerTransaction);
 
     /**
@@ -75,7 +76,8 @@ public interface PreHandleWorkflow {
      * @param accountStore the account store
      * @param serializedSignedTx the serialized {@link SignedTransaction} to be verified
      * @param maybeReusableResult the previous result of pre-handle
-     * @param stateSignatureTxnCallback the callback to be called when encountering a {@link StateSignatureTransaction}
+     * @param shortCircuitTxnCallback A callback to be called when encountering any short-circuiting
+     *                                transaction type
      * @return the verification data for the transaction
      */
     default PreHandleResult preHandleAllTransactions(
@@ -84,14 +86,14 @@ public interface PreHandleWorkflow {
             @NonNull ReadableAccountStore accountStore,
             @NonNull Bytes serializedSignedTx,
             @Nullable PreHandleResult maybeReusableResult,
-            @NonNull BiConsumer<StateSignatureTransaction, Bytes> stateSignatureTxnCallback) {
+            @NonNull BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback) {
         final var result = preHandleTransaction(
                 creatorInfo,
                 storeFactory,
                 accountStore,
                 serializedSignedTx,
                 maybeReusableResult,
-                stateSignatureTxnCallback,
+                shortCircuitTxnCallback,
                 InnerTransaction.NO);
         // If the transaction is an atomic batch, we need to pre-handle all inner transactions as well
         // and add their results to the outer transaction's pre-handle result
@@ -134,7 +136,8 @@ public interface PreHandleWorkflow {
      * @param creator      the node that created the transaction
      * @param platformTxn  the transaction to be verified
      * @param storeFactory the store factory
-     * @param stateSignatureTxnCallback a callback to be called when encountering a {@link StateSignatureTransaction}
+     * @param shortCircuitTxnCallback A callback to be called when encountering any short-circuiting
+     *                                transaction type
      * @return the verification data for the transaction
      */
     @NonNull
@@ -142,14 +145,20 @@ public interface PreHandleWorkflow {
             @Nullable final NodeInfo creator,
             @NonNull final ConsensusTransaction platformTxn,
             @NonNull final ReadableStoreFactory storeFactory,
-            @NonNull final BiConsumer<StateSignatureTransaction, Bytes> stateSignatureTxnCallback) {
+            @NonNull final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback) {
         final var metadata = platformTxn.getMetadata();
         final PreHandleResult previousResult;
         if (metadata instanceof PreHandleResult result) {
             previousResult = result;
         } else {
-            // For state signature transactions, or transactions with a null creator, it's possible for the prehandle
-            // result to be null. In these cases we also set the previous result to null and continue forward
+            // This should be impossible since the Platform contract guarantees that
+            // ConsensusStateEventHandler.onPreHandle() is always called before
+            // ConsensusStateEventHandler.onHandleTransaction(); and our preHandle() implementation always sets the
+            // metadata to a PreHandleResult
+            log.error(
+                    "Received transaction without PreHandleResult metadata from node {} (was {})",
+                    (creator != null) ? creator.nodeId() : null,
+                    metadata);
             previousResult = null;
         }
         // We do not know how long transactions are kept in memory. Clearing metadata to avoid keeping it for too long.
@@ -160,6 +169,6 @@ public interface PreHandleWorkflow {
                 storeFactory.getStore(ReadableAccountStore.class),
                 platformTxn.getApplicationTransaction(),
                 previousResult,
-                stateSignatureTxnCallback);
+                shortCircuitTxnCallback);
     }
 }

@@ -141,7 +141,7 @@ class ParentTxnTest {
     private TransactionChecker transactionChecker;
 
     @Mock
-    private BiConsumer<StateSignatureTransaction, Bytes> stateSignatureTxnCallback;
+    private BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback;
 
     @BeforeEach
     void setUp() {
@@ -155,7 +155,7 @@ class ParentTxnTest {
 
         final var factory = createUserTxnFactory();
         final var subject =
-                factory.createTopLevelTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback);
+                factory.createTopLevelTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, shortCircuitTxnCallback);
 
         assertSame(CONSENSUS_CREATE_TOPIC, subject.functionality());
         assertSame(CONSENSUS_NOW, subject.consensusNow());
@@ -178,19 +178,18 @@ class ParentTxnTest {
         given(txnInfo.functionality()).willReturn(STATE_SIGNATURE_TRANSACTION);
 
         final var factory = createUserTxnFactory();
-        assertNull(
-                factory.createTopLevelTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback));
+        assertNull(factory.createTopLevelTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, shortCircuitTxnCallback));
     }
 
     @Test
     void returnsNullForNullCreator() {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(BLOCKS_CONFIG, 1));
         given(preHandleWorkflow.getCurrentPreHandleResult(
-                        eq(null), eq(PLATFORM_TXN), any(ReadableStoreFactory.class), eq(stateSignatureTxnCallback)))
+                        eq(null), eq(PLATFORM_TXN), any(ReadableStoreFactory.class), eq(shortCircuitTxnCallback)))
                 .willReturn(preHandleResult);
         final var factory = createUserTxnFactory();
 
-        assertNull(factory.createTopLevelTxn(state, null, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback));
+        assertNull(factory.createTopLevelTxn(state, null, PLATFORM_TXN, CONSENSUS_NOW, shortCircuitTxnCallback));
     }
 
     @Test
@@ -214,7 +213,7 @@ class ParentTxnTest {
 
         final var factory = createUserTxnFactory();
         final var subject =
-                factory.createTopLevelTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback);
+                factory.createTopLevelTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, shortCircuitTxnCallback);
 
         final var dispatch = factory.createDispatch(subject, ExchangeRateSet.DEFAULT);
 
@@ -248,7 +247,7 @@ class ParentTxnTest {
 
         final var factory = createUserTxnFactory();
         final var subject =
-                factory.createTopLevelTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback);
+                factory.createTopLevelTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, shortCircuitTxnCallback);
 
         final var dispatch = factory.createDispatch(subject, ExchangeRateSet.DEFAULT);
 
@@ -288,7 +287,7 @@ class ParentTxnTest {
                         any(NodeInfo.class),
                         eq(PLATFORM_TXN),
                         any(ReadableStoreFactory.class),
-                        eq(stateSignatureTxnCallback)))
+                        eq(shortCircuitTxnCallback)))
                 .willReturn(preHandleResult);
         given(preHandleResult.txInfo()).willReturn(txnInfo);
     }

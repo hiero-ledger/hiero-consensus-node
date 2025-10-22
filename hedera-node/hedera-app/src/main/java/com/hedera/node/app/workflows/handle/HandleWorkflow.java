@@ -364,7 +364,7 @@ public class HandleWorkflow {
 
             final var creator = networkInfo.nodeInfo(event.getCreatorId().id());
 
-            final BiConsumer<StateSignatureTransaction, Bytes> simplifiedStateSignatureTxnCallback = (txn, bytes) -> {
+            final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback = (txn, bytes) -> {
                 if (txn != null) {
                     final var scopedTxn =
                             new ScopedSystemTransaction<>(event.getCreatorId(), event.getBirthRound(), txn);
@@ -383,11 +383,7 @@ public class HandleWorkflow {
                 final var platformTxn = it.next();
                 try {
                     transactionsDispatched |= handlePlatformTransaction(
-                            state,
-                            creator,
-                            platformTxn,
-                            event.getEventCore().birthRound(),
-                            simplifiedStateSignatureTxnCallback);
+                            state, creator, platformTxn, event.getEventCore().birthRound(), shortCircuitTxnCallback);
                 } catch (final Exception e) {
                     logger.fatal(
                             "Possibly CATASTROPHIC failure while running the handle workflow. "
@@ -470,6 +466,8 @@ public class HandleWorkflow {
      * @param creator the {@link NodeInfo} of the creator of the transaction
      * @param txn the {@link ConsensusTransaction} to be handled
      * @param eventBirthRound the birth round of the event that this transaction belongs to
+     * @param shortCircuitTxnCallback A callback to be called when encountering any short-circuiting
+     *                                transaction type
      * @return {@code true} if the transaction was a user transaction, {@code false} if a system transaction
      */
     private boolean handlePlatformTransaction(
@@ -477,7 +475,7 @@ public class HandleWorkflow {
             @Nullable final NodeInfo creator,
             @NonNull final ConsensusTransaction txn,
             final long eventBirthRound,
-            @NonNull final BiConsumer<StateSignatureTransaction, Bytes> stateSignatureTxnCallback) {
+            @NonNull final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback) {
         final var handleStart = System.nanoTime();
 
         // Always use platform-assigned time for user transaction, c.f. https://hips.hedera.com/hip/hip-993
@@ -529,7 +527,7 @@ public class HandleWorkflow {
         }
 
         final var topLevelTxn =
-                parentTxnFactory.createTopLevelTxn(state, creator, txn, consensusNow, stateSignatureTxnCallback);
+                parentTxnFactory.createTopLevelTxn(state, creator, txn, consensusNow, shortCircuitTxnCallback);
         if (topLevelTxn == null) {
             return false;
         } else if (streamMode != BLOCKS && startsNewRecordFile) {
