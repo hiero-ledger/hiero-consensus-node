@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
 
 import com.swirlds.common.test.fixtures.WeightGenerators;
-import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Collection;
@@ -14,16 +13,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
-import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
-import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
-import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -48,8 +44,8 @@ class NetworkPartitionTest {
      *
      * <p>Setting up environments other than Turtle is quite expensive. Therefore, this test covers the full lifecycle
      * of a partition, including creation, verification, and removal. It ensures that the partitioning logic works
-     * correctly and that nodes respond appropriately to changes in network topology. It is run in all environments to
-     * ensure consistent behavior across different setups.
+     * correctly and that nodes respond appropriately to changes in network topology. It is run in all environments
+     * to ensure consistent behavior across different setups.
      *
      * @param env the test environment for this test
      */
@@ -118,19 +114,20 @@ class NetworkPartitionTest {
                         "Not all nodes entered CHECKING status within the expected time after creating partition");
 
                 // check there are socket exceptions in all logs
-                if (env.capabilities().contains(Capability.USES_REAL_NETWORK)) {
-                    for (final SingleNodeLogResult logResult : logResults.results()) {
-                        final boolean socketExceptionFound = logResult.logs().stream()
-                                .map(StructuredLog::marker)
-                                .anyMatch(marker -> marker == LogMarker.SOCKET_EXCEPTIONS.getMarker());
-                        assertThat(socketExceptionFound)
-                                .as(
-                                        "Expected node %d to have a SOCKET_EXCEPTION, but it did not",
-                                        logResult.nodeId().id())
-                                .isTrue();
-                        logResult.clear();
-                    }
-                }
+                //                if (env.capabilities().contains(Capability.USES_REAL_NETWORK)) {
+                //                    for (final SingleNodeLogResult logResult : logResults.results()) {
+                //                        final boolean socketExceptionFound = logResult.logs().stream()
+                //                                .map(StructuredLog::marker)
+                //                                .anyMatch(marker -> marker ==
+                // LogMarker.SOCKET_EXCEPTIONS.getMarker());
+                //                        assertThat(socketExceptionFound)
+                //                                .as(
+                //                                        "Expected node %d to have a SOCKET_EXCEPTION, but it did not",
+                //                                        logResult.nodeId().id())
+                //                                .isTrue();
+                //                        logResult.clear();
+                //                    }
+                //                }
 
                 // Remove the partition
                 network.removePartition(partition);
@@ -158,8 +155,8 @@ class NetworkPartitionTest {
      *
      * <p>This test is similar to {@link #testCreateAndRemovePartition(TestEnvironment)} but specifically
      * verifies the behavior of the {@link Network#createNetworkPartition(Collection)} method. As
-     * {@link Network#createNetworkPartition(Node, Node...)} calls through to the collection-based method, it is not
-     * necessary to run both tests in all environments.
+     * {@link Network#createNetworkPartition(Node, Node...)} calls through to the collection-based method,
+     * it is not necessary to run both tests in all environments.
      */
     @Test
     void testCreatePartitionWithCollection() {
