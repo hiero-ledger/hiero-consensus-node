@@ -284,11 +284,6 @@ public class ReconnectController implements Runnable {
                     throwable);
             SystemExitUtils.exitSystem(SystemExitCode.RECONNECT_FAILURE);
         } else {
-            logger.warn(
-                    RECONNECT.getMarker(),
-                    "Reconnect retry ({}/{}) failed with error",
-                    failedReconnectsInARow,
-                    reconnectConfig.maximumReconnectFailuresBeforeShutdown());
             if (throwable != null) {
                 logger.warn(
                         EXCEPTION.getMarker(),
@@ -298,7 +293,9 @@ public class ReconnectController implements Runnable {
             }
             logger.info(
                     RECONNECT.getMarker(),
-                    "Reconnect will wait for {} until next retry",
+                    "Reconnect (try {} of {}) failed with error. Will try again after {}.",
+                    failedReconnectsInARow,
+                    reconnectConfig.maximumReconnectFailuresBeforeShutdown(),
                     reconnectConfig.minimumTimeBetweenReconnects());
             Thread.sleep(reconnectConfig.minimumTimeBetweenReconnects().toMillis());
         }

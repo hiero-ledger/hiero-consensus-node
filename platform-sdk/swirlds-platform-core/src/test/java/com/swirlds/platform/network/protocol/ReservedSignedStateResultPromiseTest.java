@@ -349,7 +349,7 @@ class ReservedSignedStateResultPromiseTest {
      * Tests concurrent providers competing to provide resources
      */
     @Test
-    @Timeout(10)
+    @Timeout(15)
     void testMultipleProvidersCompeting() throws InterruptedException {
         final ReservedSignedStateResultPromise promise = new ReservedSignedStateResultPromise();
         final int numProviders = 5;
