@@ -154,7 +154,7 @@ public class FeeCalculatorImpl implements FeeCalculator {
             usage.addBpt(BASIC_QUERY_HEADER + BASIC_TX_ID_SIZE);
             usage.addBpr(BASIC_QUERY_RES_HEADER);
         }
-        this.simpleFeesSchedule = requireNonNull(simpleFeesSchedule);
+        this.simpleFeesSchedule = simpleFeesSchedule;
         this.currentRate = fromPbj(currentRate);
         this.sigUsage = new SigUsage(0, 0, 0);
 
