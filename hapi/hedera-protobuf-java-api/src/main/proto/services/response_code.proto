@@ -1888,6 +1888,7 @@ enum ResponseCodeEnum {
      * The HookCall set in the transaction is invalid
      */
     INVALID_HOOK_CALL = 522;
+
     /**
      *  Hooks are not supported to be used in TokenAirdrop transactions
      */
@@ -1903,4 +1904,12 @@ enum ResponseCodeEnum {
      * consensus node.
      */
     ACCOUNT_IS_LINKED_TO_A_NODE = 524;
+
+    /**
+     * This operation cannot be completed because the target
+     * account has a zero balance.<br/>
+     * Node accounts require a positive balance. The transaction may be
+     * resubmitted once the account has been funded..
+     */
+    NODE_ACCOUNT_HAS_ZERO_BALANCE = 525;
 }

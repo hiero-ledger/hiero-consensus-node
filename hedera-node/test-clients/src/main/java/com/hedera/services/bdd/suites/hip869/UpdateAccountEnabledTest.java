@@ -13,9 +13,11 @@ import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFu
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
@@ -23,12 +25,14 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_IS_LINKED_TO_A_NODE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NODE_ACCOUNT_HAS_ZERO_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -44,6 +48,7 @@ import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
@@ -144,19 +149,27 @@ public class UpdateAccountEnabledTest {
     @Tag(MATS)
     final Stream<DynamicTest> updateAccountIdWork() throws CertificateEncodingException {
         final var nodeAccount = "nodeAccount";
+        final var nodeAccount2 = "nodeAccount2";
+        AtomicLong newAccountNum = new AtomicLong();
         return hapiTest(
                 newKeyNamed("adminKey"),
                 cryptoCreate(nodeAccount),
+                cryptoCreate(nodeAccount2).exposingCreatedIdTo(id -> newAccountNum.set(id.getAccountNum())),
                 nodeCreate("testNode", nodeAccount)
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
-                nodeUpdate("testNode").adminKey("adminKey").accountId("1000"),
+                nodeUpdate("testNode")
+                        .adminKey("adminKey")
+                        .signedByPayerAnd(nodeAccount2, "adminKey")
+                        .accountId(nodeAccount2),
                 withOpContext((spec, log) -> allRunFor(
                         spec,
                         viewNode(
                                 "testNode",
                                 node -> assertEquals(
-                                        1000, node.accountId().accountNum(), "Node accountId should be updated")))));
+                                        newAccountNum.get(),
+                                        node.accountId().accountNum(),
+                                        "Node accountId should be updated")))));
     }
 
     @Tag(ONLY_SUBPROCESS)
@@ -350,5 +363,30 @@ public class UpdateAccountEnabledTest {
                 // clear nodes from state
                 nodeDelete(node1).signedByPayerAnd(adminKey),
                 nodeDelete(node2).signedByPayerAnd(adminKey));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> nodeUpdateWithZeroBalanceAccount() throws CertificateEncodingException {
+        final var adminKey = "adminKey";
+        final var account = "account";
+        final var zeroBalanceAccount = "zeroBalanceAccount";
+        final var node = "testNode";
+        return hapiTest(
+                cryptoCreate(account),
+                cryptoCreate(zeroBalanceAccount).balance(0L),
+                newKeyNamed(adminKey),
+                nodeCreate(node, account)
+                        .adminKey("adminKey")
+                        .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
+                // Verify node update with zero balance account will fail
+                nodeUpdate(node)
+                        .accountId(zeroBalanceAccount)
+                        .signedByPayerAnd(zeroBalanceAccount, adminKey)
+                        .hasKnownStatus(NODE_ACCOUNT_HAS_ZERO_BALANCE),
+                // Fund the account and try again
+                cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, zeroBalanceAccount)),
+                nodeUpdate(node).accountId(zeroBalanceAccount).signedByPayerAnd(zeroBalanceAccount, adminKey),
+                // clear nodes from state
+                nodeDelete(node).signedByPayerAnd(adminKey));
     }
 }
