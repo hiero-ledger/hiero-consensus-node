@@ -9,18 +9,20 @@ import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.hiero.base.crypto.Cryptography.NULL_HASH;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.state.MerkleProof;
 import com.swirlds.state.SiblingHash;
 import com.swirlds.state.StateChangeListener;
@@ -1116,9 +1118,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
             fruitVirtualMap.release();
 
             // create and prepare a new state
-            virtualMapState = new TestVirtualMapState(new NoOpMetrics());
-            virtualMapState.init(
-                    new FakeTime(), new NoOpMetrics(), mock(MerkleCryptography.class), () -> GENESIS_ROUND);
+            virtualMapState = new TestVirtualMapState();
             setupFruitVirtualMap();
             setupSingletonCountry();
             virtualMap = (VirtualMap) virtualMapState.getRoot();
