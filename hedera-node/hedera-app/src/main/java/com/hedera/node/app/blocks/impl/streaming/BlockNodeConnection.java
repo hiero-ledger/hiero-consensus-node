@@ -227,13 +227,38 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     public synchronized void createRequestPipeline() {
         if (requestPipelineRef.get() == null) {
-            blockStreamPublishServiceClient = createNewGrpcClient();
-            final Pipeline<? super PublishStreamRequest> pipeline =
-                    blockStreamPublishServiceClient.publishBlockStream(this);
-            requestPipelineRef.set(pipeline);
-            logWithContext(logger, DEBUG, this, "Request pipeline initialized.");
-            updateConnectionState(ConnectionState.PENDING);
-            blockStreamMetrics.recordConnectionOpened();
+            // Execute entire pipeline creation (including gRPC client creation) with timeout
+            // to prevent blocking on network operations
+            final Future<?> future = pipelineExecutor.submit(() -> {
+                blockStreamPublishServiceClient = createNewGrpcClient();
+                final Pipeline<? super PublishStreamRequest> pipeline =
+                        blockStreamPublishServiceClient.publishBlockStream(this);
+                requestPipelineRef.set(pipeline);
+            });
+
+            try {
+                future.get(pipelineOperationTimeout.toMillis(), TimeUnit.MILLISECONDS);
+                logWithContext(logger, DEBUG, this, "Request pipeline initialized.");
+                updateConnectionState(ConnectionState.PENDING);
+                blockStreamMetrics.recordConnectionOpened();
+            } catch (final TimeoutException e) {
+                future.cancel(true);
+                logWithContext(
+                        logger,
+                        DEBUG,
+                        this,
+                        "Pipeline creation timed out after {}ms",
+                        pipelineOperationTimeout.toMillis());
+                blockStreamMetrics.recordPipelineOperationTimeout();
+                throw new RuntimeException("Pipeline creation timed out", e);
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logWithContext(logger, DEBUG, this, "Interrupted while creating pipeline", e);
+                throw new RuntimeException("Interrupted while creating pipeline", e);
+            } catch (final ExecutionException e) {
+                logWithContext(logger, DEBUG, this, "Error creating pipeline", e.getCause());
+                throw new RuntimeException("Error creating pipeline", e.getCause());
+            }
         } else {
             logWithContext(logger, DEBUG, this, "Request pipeline already available.");
         }
@@ -713,8 +738,10 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     }
                 } catch (final InterruptedException e) {
                     Thread.currentThread().interrupt(); // Restore interrupt status
+                    logWithContext(logger, DEBUG, this, "Interrupted while waiting for pipeline.onNext()", e);
                     throw new RuntimeException("Interrupted while waiting for pipeline.onNext()", e);
                 } catch (final ExecutionException e) {
+                    logWithContext(logger, DEBUG, this, "Error executing pipeline.onNext()", e.getCause());
                     throw new RuntimeException("Error executing pipeline.onNext()", e.getCause());
                 }
 
