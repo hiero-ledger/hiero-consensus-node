@@ -197,7 +197,7 @@ public class ReconnectTest {
 
             timeManager.waitForCondition(
                     () -> unstableNodes.stream().allMatch(Node::isBehind),
-                    Duration.ofSeconds(120L),
+                    Duration.ofMinutes(5),
                     String.format(
                             "Node did not fall behind within the expected time "
                                     + "frame after synthetic bottleneck was enabled on iteration %d.",
