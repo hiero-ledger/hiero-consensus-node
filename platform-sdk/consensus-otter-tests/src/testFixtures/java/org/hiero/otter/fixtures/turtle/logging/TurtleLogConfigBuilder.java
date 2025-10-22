@@ -163,6 +163,7 @@ public final class TurtleLogConfigBuilder {
 
         builder.add(builder.newLogger("org.hiero.otter", Level.INFO)
                 .add(builder.newAppenderRef("Console"))
+                .add(builder.newAppenderRef("PerNodeRouting"))
                 .addAttribute("additivity", false));
 
         Configurator.reconfigure(builder.build());

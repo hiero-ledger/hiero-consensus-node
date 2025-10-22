@@ -29,7 +29,11 @@ public final class StaticPlatformBuilder {
     private static final Logger logger = LogManager.getLogger(StaticPlatformBuilder.class);
 
     // @formatter:off
-    private static final String STARTUP_MESSAGE =
+    /**
+     * Standard startup message logged when a node begins initialization.
+     * Used in both production environments and test frameworks.
+     */
+    public static final String STARTUP_MESSAGE =
             """
               //////////////////////
              // Node is Starting //
