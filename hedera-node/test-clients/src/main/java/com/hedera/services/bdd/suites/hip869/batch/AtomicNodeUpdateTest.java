@@ -336,7 +336,8 @@ class AtomicNodeUpdateTest {
                         asServiceEndpoint("127.0.0.3:60")))
                 .serviceEndpoint(List.of(asServiceEndpoint("127.0.1.1:60"), asServiceEndpoint("127.0.1.2:60")))
                 .gossipCaCertificate(gossipCertificates.getLast().getEncoded())
-                .grpcCertificateHash("grpcCert".getBytes());
+                .grpcCertificateHash("grpcCert".getBytes())
+                .signedByPayerAnd("adminKey", "adminKey2", nodeUpdateAccount);
         return hapiTest(
                 overriding("nodes.updateAccountIdAllowed", "true"),
                 newKeyNamed("adminKey"),

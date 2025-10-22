@@ -5,7 +5,6 @@ import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.endpointFor;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asDnsServiceEndpoint;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asServiceEndpoint;
 import static com.hedera.services.bdd.spec.HapiPropertySource.invalidServiceEndpoint;
@@ -55,9 +54,11 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hederahashgraph.api.proto.java.AccountID;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -271,24 +272,28 @@ public class NodeUpdateTest {
             reason = NEEDS_STATE_ACCESS,
             overrides = {"nodes.updateAccountIdAllowed"})
     final Stream<DynamicTest> updateAccountIdWork() throws CertificateEncodingException {
+        final var newAccount = "newAccount";
+        AtomicReference<AccountID> newAccountId = new AtomicReference<>();
         final var updateOp = nodeUpdate("testNode")
                 .adminKey("adminKey2")
                 .signedBy(DEFAULT_PAYER, "adminKey", "adminKey2")
                 .description("updated description")
-                .accountId("100")
+                .accountId(newAccount)
                 .gossipEndpoint(List.of(
                         asServiceEndpoint("127.0.0.1:60"),
                         asServiceEndpoint("127.0.0.2:60"),
                         asServiceEndpoint("127.0.0.3:60")))
                 .serviceEndpoint(List.of(asServiceEndpoint("127.0.1.1:60"), asServiceEndpoint("127.0.1.2:60")))
                 .gossipCaCertificate(gossipCertificates.getLast().getEncoded())
-                .grpcCertificateHash("grpcCert".getBytes());
+                .grpcCertificateHash("grpcCert".getBytes())
+                .signedByPayerAnd("adminKey", "adminKey2", newAccount);
         final var nodeAccount = "nodeAccount";
         return hapiTest(
                 overriding("nodes.updateAccountIdAllowed", "true"),
                 newKeyNamed("adminKey"),
                 newKeyNamed("adminKey2"),
                 cryptoCreate(nodeAccount),
+                cryptoCreate(newAccount).exposingCreatedIdTo(newAccountId::set),
                 nodeCreate("testNode", nodeAccount)
                         .description("description to be changed")
                         .adminKey("adminKey")
@@ -320,7 +325,7 @@ public class NodeUpdateTest {
                             node.grpcCertificateHash(),
                             "Node grpcCertificateHash should be updated");
                     assertEquals(toPbj(updateOp.getAdminKey()), node.adminKey(), "Node adminKey should be updated");
-                    assertEquals(toPbj(asAccount(spec, 100)), node.accountId(), "Node accountId should be updated");
+                    assertEquals(toPbj(newAccountId.get()), node.accountId(), "Node accountId should be updated");
                 }))));
     }
 

@@ -36,6 +36,7 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
@@ -88,6 +89,9 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
 
     @Mock
     private AttributeValidator validator;
+
+    @Mock
+    private Account account;
 
     private final AccountID newAccountId = idFactory.newAccountId(53);
     private TransactionBody txn;
@@ -362,19 +366,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .withAdminKey(key)
                 .withDeclineReward(true)
                 .build();
-        given(handleContext.body()).willReturn(txn);
-        refreshStoresWithMoreNodeInWritable();
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 12)
-                .withValue("nodes.maxGossipEndpoint", 4)
-                .withValue("nodes.maxServiceEndpoint", 3)
-                .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(config);
-        given(handleContext.storeFactory()).willReturn(storeFactory);
-        given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
-        given(accountStore.contains(accountId)).willReturn(true);
-        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
-        given(handleContext.attributeValidator()).willReturn(validator);
+        setupHandle();
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
         final var updatedNode = writableStore.get(1L);
@@ -412,6 +404,8 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
         given(accountStore.contains(updateAccountId)).willReturn(true);
+        given(accountStore.getAccountById(updateAccountId)).willReturn(account);
+        given(account.tinybarBalance()).willReturn(10L);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(handleContext.attributeValidator()).willReturn(validator);
 
@@ -438,6 +432,8 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
         given(accountStore.contains(relatedAccountId)).willReturn(true);
+        given(accountStore.getAccountById(relatedAccountId)).willReturn(account);
+        given(account.tinybarBalance()).willReturn(10L);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(handleContext.attributeValidator()).willReturn(validator);
 
@@ -875,6 +871,8 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(accountStore.contains(newAccountId)).willReturn(true);
+        given(accountStore.getAccountById(newAccountId)).willReturn(account);
+        given(account.tinybarBalance()).willReturn(10L);
         given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
 
         createAccountNodeRelStoreWithCurrentAccountNodeRel();
@@ -937,6 +935,9 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
         given(accountStore.contains(accountId)).willReturn(true);
+        given(accountStore.getAccountById(any())).willReturn(account);
+        given(account.tinybarBalance()).willReturn(10L);
+
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
     }
 
