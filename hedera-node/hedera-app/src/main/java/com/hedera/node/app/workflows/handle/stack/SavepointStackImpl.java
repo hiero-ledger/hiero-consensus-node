@@ -42,9 +42,6 @@ import com.hedera.node.app.workflows.handle.stack.savepoints.FirstChildSavepoint
 import com.hedera.node.app.workflows.handle.stack.savepoints.FirstRootSavepoint;
 import com.hedera.node.app.workflows.handle.stack.savepoints.FollowingSavepoint;
 import com.hedera.node.config.types.StreamMode;
-import com.swirlds.base.time.Time;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
@@ -59,7 +56,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.function.LongSupplier;
 import org.hiero.base.crypto.Hash;
 
 /**
@@ -194,15 +190,6 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         setupFirstSavepoint(category);
         baseBuilder = peek().createBuilder(reversingBehavior, category, customizer, streamMode, true);
         presetIdsAllowed = false;
-    }
-
-    @Override
-    public void init(
-            @NonNull Time time,
-            @NonNull Metrics metrics,
-            @NonNull MerkleCryptography merkleCryptography,
-            @NonNull LongSupplier roundSupplier) {
-        state.init(time, metrics, merkleCryptography, roundSupplier);
     }
 
     @Override

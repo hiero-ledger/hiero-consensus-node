@@ -26,6 +26,7 @@ import java.security.KeyStoreException;
 import java.security.cert.CertificateEncodingException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -34,6 +35,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -84,6 +86,7 @@ import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
+import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -127,6 +130,8 @@ public abstract class AbstractNetwork implements Network {
     private final boolean useRandomNodeIds;
 
     protected Lifecycle lifecycle = Lifecycle.INIT;
+
+    protected Path savedStateDirectory;
 
     protected WeightGenerator weightGenerator = WeightGenerators.REAL_NETWORK_GAUSSIAN;
 
@@ -215,9 +220,16 @@ public abstract class AbstractNetwork implements Network {
         try {
             final List<NodeId> nodeIds =
                     IntStream.range(0, count).mapToObj(i -> getNextNodeId()).toList();
-            return CryptoStatic.generateKeysAndCerts(nodeIds, null).entrySet().stream()
-                    .map(entry -> doCreateNode(entry.getKey(), entry.getValue()))
-                    .toList();
+            final List<Node> nodes = new ArrayList<>(nodeIds.size());
+            for (final Entry<NodeId, KeysAndCerts> entry :
+                    CryptoStatic.generateKeysAndCerts(nodeIds, null).entrySet()) {
+                final Node node = doCreateNode(entry.getKey(), entry.getValue());
+                if (savedStateDirectory != null) {
+                    node.startFromSavedState(savedStateDirectory);
+                }
+                nodes.add(node);
+            }
+            return nodes;
         } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
             throw new RuntimeException("Exception while generating KeysAndCerts", e);
         }
@@ -852,7 +864,9 @@ public abstract class AbstractNetwork implements Network {
 
     @Override
     public void savedStateDirectory(@NonNull final Path savedStateDirectory) {
-        nodes().forEach(node -> node.startFromSavedState(savedStateDirectory));
+        final Path resolvedPath = OtterSavedStateUtils.findSaveState(requireNonNull(savedStateDirectory));
+        this.savedStateDirectory = resolvedPath;
+        nodes().forEach(node -> node.startFromSavedState(resolvedPath));
     }
 
     /**
