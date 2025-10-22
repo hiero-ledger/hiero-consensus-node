@@ -452,7 +452,7 @@ class NetworkIsolationTest {
             assertThat(remainingPartition.nodes()).containsExactlyInAnyOrder(node4, node5);
 
             // Remove the regular partition
-            network.removePartition(regularPartition);
+            network.removeNetworkPartition(regularPartition);
 
             // This should merge the remaining partitions, leaving only the isolated node
             assertThat(network.isIsolated(node3)).isTrue();
