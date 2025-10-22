@@ -11,6 +11,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LoggerContext;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
@@ -63,8 +64,11 @@ class TurtleConsoleOutputTest {
 
         try {
             // Redirect System.out BEFORE creating the test environment
-            // (Log4j ConsoleAppender captures System.out reference during initialization)
             System.setOut(captureOut);
+
+            // Force Log4j to reconfigure so ConsoleAppender picks up the new System.out
+            final LoggerContext context = (LoggerContext) LogManager.getContext(false);
+            context.reconfigure();
 
             final TestEnvironment env = new TurtleTestEnvironment();
             try {
