@@ -365,10 +365,6 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
         final var feeCtx = mock(FeeContext.class);
         readableStore = mock(ReadableTopicStore.class);
         given(feeCtx.body()).willReturn(txn);
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("fees.simpleFeesEnabled", false)
-                .getOrCreateConfig();
-        given(feeCtx.configuration()).willReturn(config);
 
         final var feeCalcFactory = mock(FeeCalculatorFactory.class);
         final var feeCalc = mock(FeeCalculator.class);
