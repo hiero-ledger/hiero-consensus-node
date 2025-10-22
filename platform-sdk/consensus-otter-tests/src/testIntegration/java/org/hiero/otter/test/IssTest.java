@@ -150,6 +150,8 @@ public class IssTest {
                 //                .hasNoMarkerFilesExcept(IssType.SELF_ISS);
                 .hasNoMarkerFilesExcept(IssType.OTHER_ISS, IssType.SELF_ISS);
 
+        network.start();
+
         final SingleNodeLogResult issNodeLogResult = issNode.newLogResult();
         assertThat(issNodeLogResult).hasNoErrorLevelMessages();
 
