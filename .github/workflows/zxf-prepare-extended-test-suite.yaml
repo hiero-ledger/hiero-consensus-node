@@ -73,7 +73,6 @@ jobs:
 
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        if: ${{ steps.validate-input.outputs.commit_on_dev == 'true'}}
         with:
           fetch-depth: "0"
           ref: ${{ inputs.ref }}
@@ -138,7 +137,7 @@ jobs:
     needs:
       - validate-input-ref
       - tag-for-xts
-    if: ${{ needs.validate-input-ref.result == 'failure' || needs.tag-for-xts.result == 'failure' }}
+    if: ${{ (needs.validate-input-ref.result == 'failure' || needs.tag-for-xts.result == 'failure') && !cancelled() && always() }}
     steps:
       - name: Report Failure (Rootly)
         uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
@@ -185,6 +184,10 @@ jobs:
                       "text": {
                         "type": "mrkdwn",
                         "text": "*Source Commit*: \n<${{ github.server_url }}/${{ github.repository }}/commit/${{ inputs.ref }}>"
+                      },
+                      "text", {
+                        "type": "mrkdwn",
+                        "text": "*Workflow Run*: \n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
                       }
                     }
                   ]
