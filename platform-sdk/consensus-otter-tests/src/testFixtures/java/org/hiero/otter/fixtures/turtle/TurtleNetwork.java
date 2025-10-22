@@ -148,8 +148,8 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
      */
     private void synchronizeTimeWithSavedState() {
         try {
-            final Instant requiredTime =
-                    OtterSavedStateUtils.loadSavedStateWallClockTime(savedStateDirectory, Duration.ofHours(1));
+            final Instant requiredTime = OtterSavedStateUtils.loadSavedStateWallClockTime(savedStateDirectory)
+                    .plus(Duration.ofHours(1));
             final Instant currentTime = timeManager.now();
 
             if (currentTime.isBefore(requiredTime)) {

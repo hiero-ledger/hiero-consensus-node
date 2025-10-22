@@ -13,7 +13,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.node.NodeId;
@@ -145,25 +144,22 @@ public class OtterSavedStateUtils {
     }
 
     /**
-     * Loads the WALL_CLOCK_TIME from the saved state metadata file and adds the specified time offset.
+     * Loads the WALL_CLOCK_TIME from the saved state metadata file.
      *
      * <p>This method:
      * <ol>
      *     <li>Locates the saved state directory (relative or absolute path)</li>
      *     <li>Finds the stateMetadata.txt file within the saved state structure</li>
-     *     <li>Parses the WALL_CLOCK_TIME field</li>
-     *     <li>Adds the specified number of hours to ensure time moves forward</li>
+     *     <li>Parses the WALL_CLOCK_TIME field and returns it</li>
      * </ol>
      *
      * @param savedStateDirectory the path to the saved state directory
-     * @param timeOffset the duration to add to the WALL_CLOCK_TIME
      * @return the computed start instant (WALL_CLOCK_TIME + offset)
      * @throws IllegalArgumentException if the saved state directory does not exist
      * @throws IOException if an I/O error occurs while reading the metadata file
      */
     @NonNull
-    public static Instant loadSavedStateWallClockTime(
-            @NonNull final Path savedStateDirectory, final Duration timeOffset) throws IOException {
+    public static Instant loadSavedStateWallClockTime(@NonNull final Path savedStateDirectory) throws IOException {
         requireNonNull(savedStateDirectory);
 
         // Locate stateMetadata.txt within the saved state
@@ -179,8 +175,7 @@ public class OtterSavedStateUtils {
         }
 
         final SavedStateMetadata metadata = SavedStateMetadata.parse(metadataFile);
-        final Instant wallClockTime = metadata.wallClockTime();
-        return wallClockTime.plus(timeOffset);
+        return metadata.wallClockTime();
     }
 
     /**
