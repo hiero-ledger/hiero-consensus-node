@@ -1017,14 +1017,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 return;
             }
 
-            for (; ; ) {
-                final BlockItem item = block.blockItem(itemIndex);
+            BlockItem item;
 
-                if (item == null) {
-                    // We attempted to get the next item in the block, but it doesn't exist yet
-                    break;
-                }
-
+            while ((item = block.blockItem(itemIndex)) != null) {
                 if (itemIndex == 0) {
                     logWithContext(logger, TRACE, "Starting to process items for block {}", block.blockNumber());
                 }
