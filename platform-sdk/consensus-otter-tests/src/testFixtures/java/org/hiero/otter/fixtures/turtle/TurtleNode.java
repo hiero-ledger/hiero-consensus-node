@@ -161,8 +161,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         try (final LoggingContextScope ignored = installNodeContext()) {
             throwIfInLifecycle(RUNNING, "Node has already been started.");
             throwIfInLifecycle(DESTROYED, "Node has already been destroyed.");
+
             // Log the startup message using the same STARTUP marker and message as production nodes
-            // Note: The STARTUP message will appear in swirlds.log when the logging system is fully configured
             log.info(LogMarker.STARTUP.getMarker(), "\n\n" + StaticPlatformBuilder.STARTUP_MESSAGE + "\n");
             if (savedStateDirectory != null) {
                 try {
