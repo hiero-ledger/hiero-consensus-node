@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.turtle;
 
 import static java.util.Objects.requireNonNull;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.test.fixtures.Randotron;
@@ -147,8 +148,8 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
      */
     private void synchronizeTimeWithSavedState() {
         try {
-            final Instant requiredTime = OtterSavedStateUtils.loadSavedStateWallClockTime(
-                    savedStateDirectory.getFileName().toString(), 1L);
+            final Instant requiredTime =
+                    OtterSavedStateUtils.loadSavedStateWallClockTime(savedStateDirectory, Duration.ofHours(1));
             final Instant currentTime = timeManager.now();
 
             if (currentTime.isBefore(requiredTime)) {
@@ -157,8 +158,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
                 timeManager.advanceTime(timeAdvance);
             }
         } catch (final IOException e) {
-            // Log warning but don't fail - saved state might not have metadata in all scenarios
-            log.warn("Failed to synchronize TurtleTimeManager with saved state", e);
+            fail("Failed to synchronize TurtleTimeManager with saved state", e);
         }
     }
 

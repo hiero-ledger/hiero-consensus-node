@@ -22,8 +22,8 @@ import org.hiero.otter.fixtures.app.OtterApp;
 /**
  * Utility methods for Otter to handle saved states
  * <p>
- * This class provides helper functions to find saved state directories and copy them to output locations,
- * renaming subdirectories as needed for test scenarios.
+ * This class provides helper functions to find saved state directories and copy them to output locations, renaming
+ * subdirectories as needed for test scenarios.
  */
 public class OtterSavedStateUtils {
     /** Name of the version file */
@@ -40,7 +40,7 @@ public class OtterSavedStateUtils {
      * Finds the path to a saved state directory within the test resources.
      *
      * @param savedStateDirectory the path of the saved state directory, either relative to
-     *                            {@code consensus-otter-tests/saved-states} or an absolute path
+     * {@code consensus-otter-tests/saved-states} or an absolute path
      * @return the {@link Path} to the saved state directory
      * @throws IllegalArgumentException if the directory does not exist
      */
@@ -110,14 +110,13 @@ public class OtterSavedStateUtils {
     }
 
     /**
-     * Retrieves the application version from either the system property or a version file.
-     * First attempts to read from the {@code app.version} system property. If not set,
-     * searches for the {@link #VERSION_FILE_NAME} file by traversing up to 5 parent directories
-     * from the current working directory. If neither is available or cannot be parsed,
-     * returns {@link SemanticVersion#DEFAULT}.
+     * Retrieves the application version from either the system property or a version file. First attempts to read from
+     * the {@code app.version} system property. If not set, searches for the {@link #VERSION_FILE_NAME} file by
+     * traversing up to 5 parent directories from the current working directory. If neither is available or cannot be
+     * parsed, returns {@link SemanticVersion#DEFAULT}.
      * <p>
-     * The expected version format is "major.minor.patch" or "major.minor.patch-qualifier"
-     * (e.g., "0.58.0" or "0.58.0-SNAPSHOT"). The qualifier portion, if present, is ignored.
+     * The expected version format is "major.minor.patch" or "major.minor.patch-qualifier" (e.g., "0.58.0" or
+     * "0.58.0-SNAPSHOT"). The qualifier portion, if present, is ignored.
      *
      * @return the semantic version parsed from the system property or version file, or the default version
      * @throws RuntimeException if the version file is not found within 5 parent directories
@@ -156,45 +155,37 @@ public class OtterSavedStateUtils {
      *     <li>Adds the specified number of hours to ensure time moves forward</li>
      * </ol>
      *
-     * @param savedStateDirectory the path to the saved state directory, either relative to
-     *                            {@code consensus-otter-tests/saved-states} or an absolute path
-     * @param hoursOffset the number of hours to add to the WALL_CLOCK_TIME
+     * @param savedStateDirectory the path to the saved state directory
+     * @param timeOffset the duration to add to the WALL_CLOCK_TIME
      * @return the computed start instant (WALL_CLOCK_TIME + offset)
      * @throws IllegalArgumentException if the saved state directory does not exist
      * @throws IOException if an I/O error occurs while reading the metadata file
      */
     @NonNull
-    public static Instant loadSavedStateWallClockTime(@NonNull final String savedStateDirectory, final long hoursOffset)
-            throws IOException {
+    public static Instant loadSavedStateWallClockTime(
+            @NonNull final Path savedStateDirectory, final Duration timeOffset) throws IOException {
         requireNonNull(savedStateDirectory);
 
-        // Find the saved state directory
-        final Path stateDir = findSaveState(Path.of(savedStateDirectory));
-
         // Locate stateMetadata.txt within the saved state
-        // The stateMetadata.txt is inside: savedState/OtterApp/<node-id>/<round>/<node-id>/stateMetadata.txt
-        // We need to search for it recursively
-        final Path metadataFile = Files.find(
-                        stateDir,
-                        Integer.MAX_VALUE,
-                        (path, basicFileAttributes) -> basicFileAttributes.isRegularFile()
-                                && path.getFileName().toString().equals(SavedStateMetadata.FILE_NAME))
-                .findFirst()
-                .orElseThrow(
-                        () -> new IOException("stateMetadata.txt not found in saved state directory: " + stateDir));
+        // The structure is: stateDir/OtterApp/<nodeId>/<swirldId>/<roundNumber>/stateMetadata.txt
+        // Since there's only one node's state, we can find the first metadata file
+        final Path metadataFile;
+        try (final var stream = Files.walk(savedStateDirectory, 5)) {
+            metadataFile = stream.filter(Files::isRegularFile)
+                    .filter(p -> p.getFileName().toString().equals(SavedStateMetadata.FILE_NAME))
+                    .findFirst()
+                    .orElseThrow(() -> new IOException(
+                            "stateMetadata.txt not found in saved state directory: " + savedStateDirectory));
+        }
 
-        // Parse the metadata
         final SavedStateMetadata metadata = SavedStateMetadata.parse(metadataFile);
-
-        // Add the offset to the WALL_CLOCK_TIME
         final Instant wallClockTime = metadata.wallClockTime();
-
-        return wallClockTime.plus(Duration.ofHours(hoursOffset));
+        return wallClockTime.plus(timeOffset);
     }
 
     /**
-     * Parses a version string in "major.minor.patch" format into a {@link SemanticVersion}.
-     * Supports optional qualifiers (e.g., "0.58.0-SNAPSHOT") which are ignored.
+     * Parses a version string in "major.minor.patch" format into a {@link SemanticVersion}. Supports optional
+     * qualifiers (e.g., "0.58.0-SNAPSHOT") which are ignored.
      *
      * @param versionString the version string to parse (e.g., "0.58.0" or "0.58.0-SNAPSHOT")
      * @return the parsed semantic version, or {@link SemanticVersion#DEFAULT} if parsing fails
