@@ -6,13 +6,12 @@ import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.node.app.HederaStateRoot;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.lifecycle.StateMetadata;
@@ -34,16 +33,16 @@ import com.swirlds.state.test.fixtures.MapReadableKVState;
 import com.swirlds.state.test.fixtures.MapReadableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
+import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 import org.hiero.base.constructable.ConstructableIgnored;
 import org.hiero.base.crypto.Hash;
 
@@ -73,7 +72,7 @@ public class FakeState implements MerkleNodeState {
 
     @Override
     public MerkleNode getRoot() {
-        return new HederaStateRoot().getRoot();
+        return new TestVirtualMapState().getRoot();
     }
 
     /**
@@ -265,11 +264,10 @@ public class FakeState implements MerkleNodeState {
 
     @Override
     public void init(
-            Time time,
-            Configuration configuration,
-            Metrics metrics,
-            MerkleCryptography merkleCryptography,
-            LongSupplier roundSupplier) {
+            final @NonNull Time time,
+            final @NonNull Metrics metrics,
+            final @NonNull MerkleCryptography merkleCryptography,
+            final LongSupplier roundSupplier) {
         // no-op
     }
 
@@ -284,13 +282,37 @@ public class FakeState implements MerkleNodeState {
     }
 
     @Override
-    public <T extends MerkleNode> void putServiceStateIfAbsent(
-            @NonNull StateMetadata<?, ?> md, @NonNull Supplier<T> nodeSupplier, @NonNull Consumer<T> nodeInitializer) {
+    public void unregisterService(@NonNull final String serviceName) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void unregisterService(@NonNull String serviceName) {
+    public long kvPath(final int stateId, @NonNull final Bytes key) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public long singletonPath(final int stateId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Hash getHashForPath(long path) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public long queueElementPath(final int stateId, @NonNull final Bytes expectedValue) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void initializeState(@NonNull final StateMetadata<?, ?> md) {
+        // do nothing
+    }
+
+    @Override
+    public MerkleNodeState loadSnapshot(@NonNull final Path targetPath) {
         throw new UnsupportedOperationException();
     }
 }

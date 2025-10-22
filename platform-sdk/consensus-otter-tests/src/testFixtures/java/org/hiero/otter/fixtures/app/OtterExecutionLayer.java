@@ -1,14 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.ExecutionLayer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
+import java.util.Random;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.hiero.otter.fixtures.TransactionFactory;
 
@@ -22,14 +27,28 @@ public class OtterExecutionLayer implements ExecutionLayer {
     /** the transaction pool, stores transactions that should be sumbitted to the network */
     private final TransactionPoolNexus transactionPool;
 
-    public OtterExecutionLayer(@NonNull final Metrics metrics) {
-        transactionPool = new TransactionPoolNexus(getTransactionLimits(), TX_QUEUE_SIZE, metrics);
+    private final Random random;
+
+    /**
+     * Constructs a new OtterExecutionLayer.
+     *
+     * @param random  the source of randomness for populating signature transaction nonce values.
+     * @param metrics the metrics system to use
+     * @param time    the source of time to use
+     */
+    public OtterExecutionLayer(@NonNull final Random random, @NonNull final Metrics metrics, @NonNull final Time time) {
+        this.random = requireNonNull(random);
+        transactionPool = new TransactionPoolNexus(getTransactionLimits(), TX_QUEUE_SIZE, metrics, time);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void submitStateSignature(@NonNull final StateSignatureTransaction transaction) {
-        transactionPool.submitPriorityTransaction(Bytes.wrap(
-                TransactionFactory.createStateSignatureTransaction(transaction).toByteArray()));
+        transactionPool.submitPriorityTransaction(
+                Bytes.wrap(TransactionFactory.createStateSignatureTransaction(random.nextLong(), transaction)
+                        .toByteArray()));
     }
 
     /**
@@ -41,22 +60,34 @@ public class OtterExecutionLayer implements ExecutionLayer {
         return transactionPool.submitApplicationTransaction(Bytes.wrap(transaction));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @NonNull
     @Override
-    public List<Bytes> getTransactionsForEvent() {
+    public List<TimestampedTransaction> getTransactionsForEvent() {
         return transactionPool.getTransactionsForEvent();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean hasBufferedSignatureTransactions() {
         return transactionPool.hasBufferedSignatureTransactions();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void newPlatformStatus(@NonNull final PlatformStatus platformStatus) {
         transactionPool.updatePlatformStatus(platformStatus);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void reportUnhealthyDuration(@NonNull final Duration duration) {
         transactionPool.reportUnhealthyDuration(duration);

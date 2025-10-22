@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.hedera.protobuf.java.api {
-    exports org.hiero.block.api.protoc;
     exports com.hedera.hapi.block.stream.input.protoc;
     exports com.hedera.hapi.block.stream.output.protoc;
     exports com.hedera.hapi.block.stream.trace.protoc;
@@ -16,6 +15,7 @@ module com.hedera.protobuf.java.api {
     exports com.hedera.services.stream.proto;
     exports com.hederahashgraph.api.proto.java;
     exports com.hederahashgraph.service.proto.java;
+    exports org.hiero.hapi.support.fees.protoc;
 
     requires transitive com.google.common;
     requires transitive com.google.protobuf;

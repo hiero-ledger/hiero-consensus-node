@@ -37,7 +37,6 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.TextFormat;
 import com.hedera.hapi.node.hooks.HookExtensionPoint;
 import com.hedera.hapi.node.hooks.LambdaEvmHook;
-import com.hedera.hapi.node.hooks.PureEvmHook;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
@@ -165,29 +164,7 @@ public class TxnUtils {
      * @param hookContract the name of the contract to use as the hook
      * @return the factory
      */
-    public static Function<HapiSpec, com.hedera.hapi.node.hooks.HookCreationDetails> pureAccountAllowanceHook(
-            final long hookId, @NonNull final String hookContract) {
-        return spec -> {
-            final var registry = spec.registry();
-            final var hookSpec = com.hedera.hapi.node.hooks.EvmHookSpec.newBuilder()
-                    .contractId(toPbj(registry.getContractId(hookContract)))
-                    .build();
-            return com.hedera.hapi.node.hooks.HookCreationDetails.newBuilder()
-                    .hookId(hookId)
-                    .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
-                    .pureEvmHook(PureEvmHook.newBuilder().spec(hookSpec))
-                    .build();
-        };
-    }
-
-    /**
-     * Returns a factory for a pure EVM {@link HookExtensionPoint#ACCOUNT_ALLOWANCE_HOOK} at the given id, using
-     * the given contract as the hook contract.
-     * @param hookId the id of the hook to create
-     * @param hookContract the name of the contract to use as the hook
-     * @return the factory
-     */
-    public static Function<HapiSpec, com.hedera.hapi.node.hooks.HookCreationDetails> lambdaAccountAllowanceHook(
+    public static Function<HapiSpec, com.hedera.hapi.node.hooks.HookCreationDetails> accountAllowanceHook(
             final long hookId, @NonNull final String hookContract) {
         return spec -> {
             final var registry = spec.registry();

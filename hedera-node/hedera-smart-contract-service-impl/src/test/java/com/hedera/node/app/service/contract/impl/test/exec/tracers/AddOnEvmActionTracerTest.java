@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.tracers;
 
 import static com.hedera.hapi.streams.ContractActionType.CALL;
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptySet;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
@@ -119,8 +120,9 @@ class AddOnEvmActionTracerTest {
 
     @Test
     void delegatesTraceEndTransaction() {
-        subject.traceEndTransaction(worldView, transaction, true, Bytes.EMPTY, emptyList(), 1L, 2L);
-        verify(addOnTracer).traceEndTransaction(worldView, transaction, true, Bytes.EMPTY, emptyList(), 1L, 2L);
+        subject.traceEndTransaction(worldView, transaction, true, Bytes.EMPTY, emptyList(), 1L, emptySet(), 2L);
+        verify(addOnTracer)
+                .traceEndTransaction(worldView, transaction, true, Bytes.EMPTY, emptyList(), 1L, emptySet(), 2L);
     }
 
     @Test

@@ -89,6 +89,8 @@ module com.hedera.node.hapi {
     exports org.hiero.block.api.codec;
     exports org.hiero.block.api.protoc;
     exports com.hedera.hapi.platform.state.legacy;
+    exports org.hiero.hapi.support.fees;
+    exports org.hiero.hapi.support.fees.protoc;
 
     // for testing against Google protobuf
     opens com.hedera.hapi.block.stream.input.protoc;
@@ -107,6 +109,9 @@ module com.hedera.node.hapi {
             org.assertj.core;
     opens com.hedera.hapi.node.token to
             org.assertj.core;
+
+    exports com.hedera.hapi.services.auxiliary.hints.legacy;
+    exports com.hedera.hapi.services.auxiliary.history.legacy;
 
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.google.common;

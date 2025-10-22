@@ -6,9 +6,12 @@ module com.hedera.state.validator {
     requires com.hedera.node.app.service.consensus;
     requires com.hedera.node.app.service.contract.impl;
     requires com.hedera.node.app.service.contract;
+    requires com.hedera.node.app.service.entityid.impl;
+    requires com.hedera.node.app.service.entityid;
     requires com.hedera.node.app.service.file.impl;
     requires com.hedera.node.app.service.file;
     requires com.hedera.node.app.service.network.admin.impl;
+    requires com.hedera.node.app.service.roster.impl;
     requires com.hedera.node.app.service.schedule.impl;
     requires com.hedera.node.app.service.schedule;
     requires com.hedera.node.app.service.token.impl;
@@ -21,6 +24,7 @@ module com.hedera.state.validator {
     requires com.hedera.node.hapi;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.base;
+    requires com.swirlds.cli;
     requires com.swirlds.common;
     requires com.swirlds.config.api;
     requires com.swirlds.config.extensions;
@@ -34,9 +38,9 @@ module com.hedera.state.validator {
     requires org.hiero.base.concurrent;
     requires org.hiero.base.crypto;
     requires org.hiero.base.utility;
+    requires org.hiero.consensus.model;
     requires com.fasterxml.jackson.databind;
     requires com.github.spotbugs.annotations;
-    requires com.google.gson;
     requires info.picocli;
     requires org.apache.logging.log4j;
     requires org.junit.jupiter.api;

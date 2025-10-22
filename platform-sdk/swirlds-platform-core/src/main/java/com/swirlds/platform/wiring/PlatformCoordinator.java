@@ -23,14 +23,16 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
+import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.StatusStateMachine;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import org.hiero.consensus.event.creator.impl.EventCreationManager;
+import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.roster.RosterHistory;
 
 /**
@@ -83,7 +85,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
 
         // Phase 0: flush the status state machine.
         // When reconnecting, this will force us to adopt a status that will halt event creation and gossip.
-        components.statusStateMachineWiring().flush();
+        components.platformMonitorWiring().flush();
 
         // Phase 1: squelch
         // Break cycles in the system. Flush squelched components just in case there is a task being executed when
@@ -128,7 +130,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
                 .inject(NoInput.getInstance());
         components
                 .eventCreationManagerWiring()
-                .getInputWire(EventCreationManager::clear)
+                .getInputWire(EventCreatorModule::clear)
                 .inject(NoInput.getInstance());
         components.branchDetectorWiring().getInputWire(BranchDetector::clear).inject(NoInput.getInstance());
         components.branchReporterWiring().getInputWire(BranchReporter::clear).inject(NoInput.getInstance());
@@ -189,19 +191,6 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
                 .issDetectorWiring()
                 .getInputWire(IssDetector::signalEndOfPreconsensusReplay)
                 .put(NoInput.getInstance());
-    }
-
-    /**
-     * Get the status action submitter.
-     *
-     * @return the status action submitter
-     */
-    @NonNull
-    public StatusActionSubmitter getStatusActionSubmitter() {
-        return action -> components
-                .statusStateMachineWiring()
-                .getInputWire(StatusStateMachine::submitStatusAction)
-                .put(action);
     }
 
     /**
@@ -274,8 +263,8 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
      */
     public void submitStatusAction(@NonNull final PlatformStatusAction action) {
         components
-                .statusStateMachineWiring()
-                .getInputWire(StatusStateMachine::submitStatusAction)
+                .platformMonitorWiring()
+                .getInputWire(PlatformMonitor::submitStatusAction)
                 .put(action);
     }
 
@@ -355,5 +344,19 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
                 .stateSignatureCollectorWiring()
                 .getInputWire(StateSignatureCollector::addReservedState)
                 .put(reservedSignedState);
+    }
+
+    /**
+     * @see EventCreatorModule#quiescenceCommand(QuiescenceCommand)
+     */
+    public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
+        components
+                .platformMonitorWiring()
+                .getInputWire(PlatformMonitor::quiescenceCommand)
+                .inject(quiescenceCommand);
+        components
+                .eventCreationManagerWiring()
+                .getInputWire(EventCreatorModule::quiescenceCommand)
+                .inject(quiescenceCommand);
     }
 }

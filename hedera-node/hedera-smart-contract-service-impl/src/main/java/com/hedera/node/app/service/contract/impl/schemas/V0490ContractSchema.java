@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.schemas;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.contract.Bytecode;
@@ -18,7 +20,7 @@ import java.util.Set;
  * the first release of the modularized contract service, this schema defines states to create
  * for both the contract storage and bytecode.
  */
-public class V0490ContractSchema extends Schema {
+public class V0490ContractSchema extends Schema<SemanticVersion> {
 
     private static final int MAX_BYTECODES = 50_000;
     private static final int MAX_STORAGE_ENTRIES = 1_000_000;
@@ -33,7 +35,7 @@ public class V0490ContractSchema extends Schema {
     public static final int BYTECODE_STATE_ID = StateKey.KeyOneOfType.CONTRACTSERVICE_I_BYTECODE.protoOrdinal();
 
     public V0490ContractSchema() {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
     /**

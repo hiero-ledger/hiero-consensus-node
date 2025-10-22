@@ -78,6 +78,21 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
     }
 
     /**
+     * Verifies that at least one log message with the specified marker exists.
+     *
+     * @param marker the marker to check
+     * @return this assertion object for method chaining
+     */
+    public SingleNodeLogResultAssert hasMessageWithMarker(@NonNull final LogMarker marker) {
+        isNotNull();
+        final boolean matchFound = actual.logs().stream().anyMatch(log -> marker.getMarker() == log.marker());
+        if (!matchFound) {
+            failWithMessage("Expected to find a message with marker '%s', but did not", marker);
+        }
+        return this;
+    }
+
+    /**
      * Verifies that no log messages with a level higher than the specified level exist.
      *
      * @param level the maximum log level to allow
@@ -101,8 +116,46 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
      *
      * @return this assertion object for method chaining
      */
+    @NonNull
     public SingleNodeLogResultAssert hasNoErrorLevelMessages() {
         return hasNoMessagesWithLevelHigherThan(Level.WARN);
+    }
+
+    /**
+     * Verifies that at least one log message contains the specified substring.
+     *
+     * @param expectedMessage the substring to search for in log messages
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public SingleNodeLogResultAssert hasMessageContaining(@NonNull final String expectedMessage) {
+        isNotNull();
+        final List<StructuredLog> logs = actual.logs().stream()
+                .filter(log -> log.message().contains(expectedMessage))
+                .toList();
+        if (logs.isEmpty()) {
+            failWithMessage("Expected to find a message containing '%s', but did not", expectedMessage);
+        }
+        return this;
+    }
+
+    /**
+     * Verifies that no log message contains the specified substring.
+     *
+     * @param searchString the substring that should not be present
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public SingleNodeLogResultAssert hasNoMessageContaining(@NonNull final String searchString) {
+        isNotNull();
+        final List<StructuredLog> logs = actual.logs().stream()
+                .filter(log -> log.message().contains(searchString))
+                .toList();
+        if (!logs.isEmpty()) {
+            final String message = String.format("Expected to find no message containing '%s'", searchString);
+            failWithMessage(message, logs);
+        }
+        return this;
     }
 
     /**
