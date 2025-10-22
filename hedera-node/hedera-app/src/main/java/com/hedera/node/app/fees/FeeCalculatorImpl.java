@@ -97,7 +97,7 @@ public class FeeCalculatorImpl implements FeeCalculator {
         requireNonNull(txBody);
         requireNonNull(payerKey);
         this.feeData = fromPbj(feeData);
-        this.simpleFeesSchedule = simpleFeesSchedule;
+        this.simpleFeesSchedule = requireNonNull(simpleFeesSchedule);
         this.currentRate = fromPbj(currentRate);
         if (numVerifications < 0) {
             throw new IllegalArgumentException("numVerifications must be >= 0");
