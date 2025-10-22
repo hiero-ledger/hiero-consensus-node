@@ -32,7 +32,7 @@ class QuiescenceTest {
      */
     @ParameterizedTest
     @MethodSource("environments")
-    void testIsolateAndRejoinSingleNode(@NonNull final TestEnvironment env) {
+    void testQuiescence(@NonNull final TestEnvironment env) {
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
