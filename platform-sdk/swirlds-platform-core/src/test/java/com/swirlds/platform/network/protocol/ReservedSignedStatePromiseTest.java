@@ -39,7 +39,7 @@ class ReservedSignedStatePromiseTest {
         final Thread consumer = new Thread(() -> {
             try {
                 consumerStarted.countDown();
-                try (final LockedResource<ReservedSignedState> resource = promise.await()) {
+                try (final LockedResource<ReservedSignedState> resource = promise.awaitResolution()) {
                     consumedState.set(resource.getResource());
                 }
                 consumerFinished.countDown();
@@ -55,7 +55,7 @@ class ReservedSignedStatePromiseTest {
 
         // Acquire permit and provide
         assertTrue(promise.acquire(), "Should be able to acquire permit when consumer is waiting");
-        promise.provide(mockState);
+        promise.resolveWithValue(mockState);
 
         // Wait for consumer to finish
         assertTrue(consumerFinished.await(2, TimeUnit.SECONDS), "Consumer should finish");
@@ -88,7 +88,7 @@ class ReservedSignedStatePromiseTest {
         final Thread consumer = new Thread(() -> {
             try {
                 consumerReady.countDown();
-                try (final LockedResource<ReservedSignedState> resource = promise.await()) {
+                try (final LockedResource<ReservedSignedState> resource = promise.awaitResolution()) {
                     assertNotNull(resource.getResource());
                 }
                 testComplete.countDown();
@@ -110,7 +110,7 @@ class ReservedSignedStatePromiseTest {
                 if (promise.acquire()) {
                     acquireCount.incrementAndGet();
                     try {
-                        promise.provide(mockState);
+                        promise.resolveWithValue(mockState);
                     } catch (final InterruptedException e) {
                         Thread.currentThread().interrupt();
                     }
@@ -144,7 +144,7 @@ class ReservedSignedStatePromiseTest {
         final Thread consumer = new Thread(() -> {
             try {
                 consumerReady.countDown();
-                try (final LockedResource<ReservedSignedState> resource = promise.await()) {
+                try (final LockedResource<ReservedSignedState> resource = promise.awaitResolution()) {
                     assertNotNull(resource.getResource());
                 }
                 testComplete.countDown();
@@ -178,7 +178,7 @@ class ReservedSignedStatePromiseTest {
                 Thread.sleep(50);
                 if (promise.acquire()) {
                     secondProviderSucceeded.set(true);
-                    promise.provide(mockState);
+                    promise.resolveWithValue(mockState);
                 }
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -206,7 +206,7 @@ class ReservedSignedStatePromiseTest {
         final Thread consumer = new Thread(() -> {
             try {
                 consumerStarted.countDown();
-                promise.await();
+                promise.awaitResolution();
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -246,7 +246,7 @@ class ReservedSignedStatePromiseTest {
         final Thread consumer = new Thread(() -> {
             try {
                 for (int i = 0; i < numCycles; i++) {
-                    try (final LockedResource<ReservedSignedState> resource = promise.await()) {
+                    try (final LockedResource<ReservedSignedState> resource = promise.awaitResolution()) {
                         assertNotNull(resource.getResource());
                         consumedCount.incrementAndGet();
                     }
@@ -267,7 +267,7 @@ class ReservedSignedStatePromiseTest {
                         Thread.sleep(10);
                     }
                     final ReservedSignedState mockState = ReservedSignedState.createNullReservation();
-                    promise.provide(mockState);
+                    promise.resolveWithValue(mockState);
                 }
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -287,7 +287,7 @@ class ReservedSignedStatePromiseTest {
      */
     @Test
     @Timeout(5)
-    void testProvideBlocksUntilConsumerReleases() throws InterruptedException {
+    void testResolveWithValueBlocksUntilConsumerReleases() throws InterruptedException {
         final ReservedSignedStatePromise promise = new ReservedSignedStatePromise();
         final ReservedSignedState mockState = ReservedSignedState.createNullReservation();
         final AtomicBoolean providerFinished = new AtomicBoolean(false);
@@ -299,7 +299,7 @@ class ReservedSignedStatePromiseTest {
         final Thread consumer = new Thread(() -> {
             try {
                 consumerStarted.countDown();
-                final LockedResource<ReservedSignedState> resource = promise.await();
+                final LockedResource<ReservedSignedState> resource = promise.awaitResolution();
                 resourceRef.set(resource);
 
                 // Hold the resource for a bit
@@ -329,7 +329,7 @@ class ReservedSignedStatePromiseTest {
             try {
                 providerStarted.countDown();
                 assertTrue(promise.acquire(), "Should acquire permit");
-                promise.provide(mockState); // This will block until consumer releases
+                promise.resolveWithValue(mockState); // This will block until consumer releases
                 providerFinished.set(true);
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -360,7 +360,7 @@ class ReservedSignedStatePromiseTest {
         final Thread consumer = new Thread(() -> {
             try {
                 for (int i = 0; i < numResources; i++) {
-                    try (final LockedResource<ReservedSignedState> resource = promise.await()) {
+                    try (final LockedResource<ReservedSignedState> resource = promise.awaitResolution()) {
                         assertNotNull(resource.getResource());
                         consumedCount.incrementAndGet();
                     }
@@ -382,7 +382,7 @@ class ReservedSignedStatePromiseTest {
                         if (providedCount.get() < numResources) {
                             try {
                                 final ReservedSignedState mockState = ReservedSignedState.createNullReservation();
-                                promise.provide(mockState);
+                                promise.resolveWithValue(mockState);
                                 providedCount.incrementAndGet();
                                 provided++;
                             } catch (final InterruptedException e) {
@@ -411,7 +411,7 @@ class ReservedSignedStatePromiseTest {
      */
     @Test
     @Timeout(5)
-    void testAwaitWithNullReservation() throws InterruptedException {
+    void testAwaitResolutionWithNullReservation() throws InterruptedException {
         final ReservedSignedStatePromise promise = new ReservedSignedStatePromise();
         final ReservedSignedState nullReservation = ReservedSignedState.createNullReservation();
         final AtomicReference<ReservedSignedState> consumedState = new AtomicReference<>();
@@ -420,7 +420,7 @@ class ReservedSignedStatePromiseTest {
         // Start consumer
         final Thread consumer = new Thread(() -> {
             try {
-                try (final LockedResource<ReservedSignedState> resource = promise.await()) {
+                try (final LockedResource<ReservedSignedState> resource = promise.awaitResolution()) {
                     consumedState.set(resource.getResource());
                 }
                 consumerFinished.countDown();
@@ -434,7 +434,7 @@ class ReservedSignedStatePromiseTest {
 
         // Provide null reservation
         assertTrue(promise.acquire(), "Should acquire permit");
-        promise.provide(nullReservation);
+        promise.resolveWithValue(nullReservation);
 
         assertTrue(consumerFinished.await(2, TimeUnit.SECONDS), "Consumer should finish");
         assertNotNull(consumedState.get(), "Consumer should receive the reservation");

@@ -16,6 +16,7 @@ import com.swirlds.logging.legacy.payload.ReconnectFailurePayload;
 import com.swirlds.logging.legacy.payload.ReconnectFailurePayload.CauseOfFailure;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.network.protocol.ReservedSignedStatePromise;
+import com.swirlds.platform.network.protocol.ReservedSignedStatePromise.ReservedStateOrExceptionResource;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
@@ -41,7 +42,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.concurrent.locks.locked.LockedResource;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterRetriever;
@@ -207,9 +207,13 @@ public class ReconnectController implements Runnable {
         // Once the transferred is complete this peerReservedSignedStatePromise will be notified and this code will be
         // unblocked
         logger.info(RECONNECT.getMarker(), "Waiting for a state to be obtained from a peer");
-        try (final LockedResource<ReservedSignedState> reservedStateResource =
-                        requireNonNull(peerReservedSignedStatePromise.await());
-                final ReservedSignedState reservedState = requireNonNull(reservedStateResource.getResource())) {
+        try (final ReservedStateOrExceptionResource reservedStateResource =
+                        requireNonNull(peerReservedSignedStatePromise.awaitResolution());
+                final ReservedSignedState reservedState = reservedStateResource.getResource()) {
+            if (reservedState == null && reservedStateResource.getException() != null) {
+                return AttemptReconnectResult.error(reservedStateResource.getException());
+            }
+
             logger.info(RECONNECT.getMarker(), "A state was obtained from a peer");
             signedStateValidator.validate(
                     reservedState.get(),
@@ -269,7 +273,7 @@ public class ReconnectController implements Runnable {
     /**
      * Kills the node if we reached the max reconnect retries, otherwise wait until minimumTimeBetweenReconnects
      */
-    private void exitIfMaxRetriesOrWait(final int failedReconnectsInARow, final Throwable throwable)
+    private void exitIfMaxRetriesOrWait(final int failedReconnectsInARow, final @Nullable Throwable throwable)
             throws InterruptedException {
         if (failedReconnectsInARow >= reconnectConfig.maximumReconnectFailuresBeforeShutdown()) {
             logger.error(
@@ -285,8 +289,18 @@ public class ReconnectController implements Runnable {
                     RECONNECT.getMarker(),
                     "Reconnect retry ({}/{}) failed with error",
                     failedReconnectsInARow,
-                    reconnectConfig.maximumReconnectFailuresBeforeShutdown(),
-                    throwable);
+                    reconnectConfig.maximumReconnectFailuresBeforeShutdown());
+            if (throwable != null) {
+                logger.error(
+                        EXCEPTION.getMarker(),
+                        () -> new ReconnectFailurePayload(
+                                "Unexpected exception during reconnect", CauseOfFailure.ERROR),
+                        throwable);
+            }
+            logger.info(
+                    RECONNECT.getMarker(),
+                    "Reconnect will wait for {} until next retry",
+                    reconnectConfig.minimumTimeBetweenReconnects());
             Thread.sleep(reconnectConfig.minimumTimeBetweenReconnects().toMillis());
         }
     }
