@@ -143,7 +143,7 @@ public class FeeCalculatorImpl implements FeeCalculator {
             final CongestionMultipliers congestionMultipliers,
             final ReadableStoreFactory storeFactory,
             final HederaFunctionality functionality,
-            FeeSchedule simpleFeesSchedule) {
+            @NonNull final FeeSchedule simpleFeesSchedule) {
         if (feeData == null) {
             this.feeData = null;
             this.usage = null;
@@ -154,7 +154,7 @@ public class FeeCalculatorImpl implements FeeCalculator {
             usage.addBpt(BASIC_QUERY_HEADER + BASIC_TX_ID_SIZE);
             usage.addBpr(BASIC_QUERY_RES_HEADER);
         }
-        this.simpleFeesSchedule = simpleFeesSchedule;
+        this.simpleFeesSchedule = requireNonNull(simpleFeesSchedule);
         this.currentRate = fromPbj(currentRate);
         this.sigUsage = new SigUsage(0, 0, 0);
 
