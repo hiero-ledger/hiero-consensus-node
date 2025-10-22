@@ -32,6 +32,7 @@ public class QuorumCalculator {
      *
      * @param nodes the list of nodes to partition
      * @return the subset with minimum total weight that forms a strong minority but not a majority
+     * @throws NullPointerException if {@code nodes} is {@code null}
      * @throws IllegalArgumentException if no valid partition exists (e.g., all partitions that are strong minorities
      *                                  are also majorities)
      */
@@ -46,6 +47,7 @@ public class QuorumCalculator {
      *
      * @param nodes the list of nodes to partition
      * @return the subset with minimum total weight that forms a majority but not a super majority
+     * @throws NullPointerException if {@code nodes} is {@code null}
      * @throws IllegalArgumentException if no valid partition exists (e.g., all partitions that are majorities
      *                                  are also super majorities)
      */
@@ -60,6 +62,7 @@ public class QuorumCalculator {
      *
      * @param nodes the list of nodes to partition
      * @return the subset with minimum total weight that forms a super majority
+     * @throws NullPointerException if {@code nodes} is {@code null}
      * @throws IllegalArgumentException if no valid partition exists
      */
     @NonNull
@@ -68,11 +71,12 @@ public class QuorumCalculator {
     }
 
     /**
-     * Calculates the largest subset of nodes by weight that is sub-strong (weight < 1/3 of total weight).
-     * A sub-strong partition does NOT satisfy the strong minority threshold.
+     * Calculates the largest subset of nodes by weight that is a sub-strong minority (weight < 1/3 of total weight).
+     * A sub-strong minority does NOT satisfy the strong minority threshold.
      *
      * @param nodes the list of nodes to partition
-     * @return the subset with maximum total weight that is sub-strong (weight < 1/3)
+     * @return the subset with maximum total weight that is a sub-strong minority (weight < 1/3)
+     * @throws NullPointerException if {@code nodes} is {@code null}
      * @throws IllegalArgumentException if no valid partition exists (e.g., all non-empty partitions are strong minorities)
      */
     @NonNull
@@ -89,6 +93,7 @@ public class QuorumCalculator {
      * @param upperThreshold the threshold that must NOT be satisfied (null if no upper bound)
      * @param goal whether to minimize or maximize the partition weight
      * @return the subset with optimal weight that satisfies the conditions
+     * @throws NullPointerException if {@code nodes} is {@code null}
      * @throws IllegalArgumentException if no valid partition exists
      */
     @NonNull
