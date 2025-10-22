@@ -287,7 +287,7 @@ public class HintsContext {
             signatures.put(partyId, signature);
             final var weight = nodeWeights.getOrDefault(nodeId, 0L);
             final var totalWeight = weightOfSignatures.addAndGet(weight);
-            // For block hash signing, always require strictly greater than threshold (> 1/2 consensus)
+            // For block hash signing, always require strictly greater than threshold
             final boolean reachedThreshold = totalWeight > thresholdWeight;
             if (reachedThreshold && completed.compareAndSet(false, true)) {
                 final var aggregatedSignature =
