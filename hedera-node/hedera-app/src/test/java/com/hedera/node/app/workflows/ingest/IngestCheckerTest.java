@@ -348,7 +348,7 @@ class IngestCheckerTest extends AppTestBase {
         @Test
         void throwsIfNodeAccountNotFound() {
             when(accountStore.getAccountById(any())).thenReturn(null);
-            assertThatThrownBy(() -> subject.verifyNodeAccountBalance(storeFactory, payerAccount))
+            assertThatThrownBy(() -> subject.verifyNodeAccountBalance(storeFactory, payerAccount, configuration))
                     .isInstanceOf(PreCheckException.class)
                     .hasFieldOrPropertyWithValue("responseCode", INVALID_NODE_ACCOUNT);
         }
@@ -360,7 +360,7 @@ class IngestCheckerTest extends AppTestBase {
             // Simulate non-system account
             when(payerAccount.accountIdOrThrow())
                     .thenReturn(AccountID.newBuilder().accountNum(2000L).build());
-            assertThatThrownBy(() -> subject.verifyNodeAccountBalance(storeFactory, payerAccount))
+            assertThatThrownBy(() -> subject.verifyNodeAccountBalance(storeFactory, payerAccount, configuration))
                     .isInstanceOf(PreCheckException.class)
                     .hasFieldOrPropertyWithValue("responseCode", NODE_ACCOUNT_HAS_ZERO_BALANCE);
         }
@@ -369,7 +369,7 @@ class IngestCheckerTest extends AppTestBase {
         void succeedsIfNodeAccountHasBalance() {
             when(accountStore.getAccountById(any())).thenReturn(nodeAccount);
             when(nodeAccount.tinybarBalance()).thenReturn(100L);
-            assertThatCode(() -> subject.verifyNodeAccountBalance(storeFactory, payerAccount))
+            assertThatCode(() -> subject.verifyNodeAccountBalance(storeFactory, payerAccount, configuration))
                     .doesNotThrowAnyException();
         }
     }

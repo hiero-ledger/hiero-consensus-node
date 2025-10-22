@@ -73,6 +73,7 @@ import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.hedera.node.config.Utils;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.HooksConfig;
+import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
@@ -231,7 +232,8 @@ public final class IngestChecker {
         }
     }
 
-    public void verifyNodeAccountBalance(ReadableStoreFactory storeFactory, Account payerAccount)
+    public void verifyNodeAccountBalance(
+            final ReadableStoreFactory storeFactory, final Account payerAccount, final Configuration configuration)
             throws PreCheckException {
         final var accountStore = storeFactory.getStore(ReadableAccountStore.class);
         final var nodeAccount =
@@ -239,7 +241,10 @@ public final class IngestChecker {
         if (nodeAccount == null) {
             throw new PreCheckException(INVALID_NODE_ACCOUNT);
         }
-        if (nodeAccount.tinybarBalance() < 1 && !isSystemAccount(payerAccount)) {
+        final var lastReservedSystemEntity =
+                configuration.getConfigData(LedgerConfig.class).numReservedSystemEntities();
+        if (nodeAccount.tinybarBalance() < 1
+                && payerAccount.accountIdOrThrow().accountNum() > lastReservedSystemEntity) {
             throw new PreCheckException(NODE_ACCOUNT_HAS_ZERO_BALANCE);
         }
     }
@@ -332,7 +337,7 @@ public final class IngestChecker {
             logger.warn("Payer account {} has no key, indicating a problem with state", txInfo.payerID());
             throw new PreCheckException(UNAUTHORIZED);
         }
-        verifyNodeAccountBalance(storeFactory, payer);
+        verifyNodeAccountBalance(storeFactory, payer, configuration);
 
         // 6. Verify payer's signatures
         verifyPayerSignature(txInfo, payer, configuration);

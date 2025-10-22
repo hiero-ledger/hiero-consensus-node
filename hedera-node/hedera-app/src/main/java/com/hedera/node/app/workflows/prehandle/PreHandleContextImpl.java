@@ -520,6 +520,13 @@ public class PreHandleContextImpl implements PreHandleContext {
         return context;
     }
 
+    /**
+     *  Gets the key for the given account. This doesn't work for aliases.
+     *
+     * @param accountID The ID of the account whose key is to be fetched
+     * @return The key for the account
+     * @throws PreCheckException if the account does not exist or is deleted
+     */
     @Override
     public Key getAccountKey(@NonNull final AccountID accountID) throws PreCheckException {
         requireNonNull(accountID);

@@ -229,7 +229,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                                 // This should never happen, because the account is checked in the pure checks
                                 throw new PreCheckException(PAYER_ACCOUNT_NOT_FOUND);
                             }
-                            ingestChecker.verifyNodeAccountBalance(storeFactory, payer);
+                            ingestChecker.verifyNodeAccountBalance(storeFactory, payer, configuration);
 
                             // 3.iv Calculate costs
                             final var queryFees = handler.computeFees(context).totalFee();
