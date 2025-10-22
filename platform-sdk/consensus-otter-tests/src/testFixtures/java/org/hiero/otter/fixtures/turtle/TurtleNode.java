@@ -366,7 +366,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             }
 
             assert executionLayer != null; // executionLayer must be initialized
-            executionLayer.submitApplicationTransaction(transaction.toByteArray());
+            executionLayer.submitApplicationTransaction(OtterTransaction.PROTOBUF.toBytes(transaction).toByteArray());
         }
     }
 
