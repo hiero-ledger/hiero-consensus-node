@@ -957,35 +957,33 @@ public class VirtualMapStateTest extends MerkleTestBase {
             assertThat(parsedStateItem.key()).isEqualTo(leaf.keyBytes());
             assertThat(parsedStateItem.value()).isEqualTo(leaf.valueBytes());
 
-            List<SiblingHash> siblingHashes = proof.siblingHashes();
+            final List<SiblingHash> siblingHashes = proof.siblingHashes();
 
             // Siblings along the path from leaf(5) -> internal(2)
             assertThat(siblingHashes.size()).isEqualTo(2);
 
-            assertThat(siblingHashes.get(0).hash()).isEqualTo(getHashBytes(6));
+            assertThat(siblingHashes.get(0).hash()).isEqualTo(getHash(6));
             assertTrue(siblingHashes.get(0).isRight());
 
-            assertThat(siblingHashes.get(1).hash()).isEqualTo(getHashBytes(1));
+            assertThat(siblingHashes.get(1).hash()).isEqualTo(getHash(1));
             assertFalse(siblingHashes.get(1).isRight());
 
             // Parent hashes leaf(5) -> internal(2) -> root(0)
-            List<byte[]> innerParentHashes = proof.innerParentHashes();
+            final List<Hash> innerParentHashes = proof.innerParentHashes();
             // hash of leaf (Apple, 5)
-            assertThat(innerParentHashes.get(0)).isEqualTo(getHashBytes(5));
+            assertThat(innerParentHashes.get(0)).isEqualTo(getHash(5));
             // hash of internal(2)
-            assertThat(innerParentHashes.get(1)).isEqualTo(getHashBytes(2));
+            assertThat(innerParentHashes.get(1)).isEqualTo(getHash(2));
             // root hash
-            assertThat(innerParentHashes.get(2)).isEqualTo(virtualMap.getHash().copyToByteArray());
+            assertThat(innerParentHashes.get(2)).isEqualTo(virtualMap.getHash());
 
             // Verify hashes
 
             // hash(5) + hash (6) == hash(2)
-            assertThat(hash(innerParentHashes.get(0), siblingHashes.get(0).hash())
-                            .copyToByteArray())
+            assertThat(hash(innerParentHashes.get(0), siblingHashes.get(0).hash()))
                     .isEqualTo(innerParentHashes.get(1));
             // hash(1) + hash (2) == root hash
-            assertThat(hash(siblingHashes.get(1).hash(), innerParentHashes.get(1))
-                            .copyToByteArray())
+            assertThat(hash(siblingHashes.get(1).hash(), innerParentHashes.get(1)))
                     .isEqualTo(innerParentHashes.get(2));
         }
 
@@ -996,14 +994,14 @@ public class VirtualMapStateTest extends MerkleTestBase {
          * @param right right hash
          * @return combined hash
          */
-        static Hash hash(final byte[] left, final byte[] right) {
+        static Hash hash(final Hash left, final Hash right) {
             try {
                 final MessageDigest md = MessageDigest.getInstance(Cryptography.DEFAULT_DIGEST_TYPE.algorithmName());
                 md.reset();
                 // Unique value to make sure internal node hashes are different from leaf hashes
                 md.update((byte) 0x02);
-                md.update(left);
-                md.update(right);
+                md.update(left.copyToByteArray());
+                md.update(right.copyToByteArray());
 
                 return new Hash(md.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
             } catch (NoSuchAlgorithmException e) {
@@ -1037,35 +1035,32 @@ public class VirtualMapStateTest extends MerkleTestBase {
             final List<SiblingHash> siblingHashes = proof.siblingHashes();
             assertThat(siblingHashes.size()).isEqualTo(3);
             // Siblings along the path from leaf(7) -> internal(3) -> internal(1)
-            assertThat(siblingHashes.get(0).hash()).isEqualTo(getHashBytes(8));
+            assertThat(siblingHashes.get(0).hash()).isEqualTo(getHash(8));
             assertTrue(siblingHashes.get(0).isRight());
 
-            assertThat(siblingHashes.get(1).hash()).isEqualTo(getHashBytes(4));
+            assertThat(siblingHashes.get(1).hash()).isEqualTo(getHash(4));
             assertTrue(siblingHashes.get(1).isRight());
 
-            assertThat(siblingHashes.get(2).hash()).isEqualTo(getHashBytes(2));
+            assertThat(siblingHashes.get(2).hash()).isEqualTo(getHash(2));
             assertTrue(siblingHashes.get(2).isRight());
 
-            final List<byte[]> innerParentHashes = proof.innerParentHashes();
+            final List<Hash> innerParentHashes = proof.innerParentHashes();
             // leaf hash, then internal(3), then internal(1), then root
-            assertThat(innerParentHashes.get(0)).isEqualTo(getHashBytes(7));
-            assertThat(innerParentHashes.get(1)).isEqualTo(getHashBytes(3));
-            assertThat(innerParentHashes.get(2)).isEqualTo(getHashBytes(1));
-            assertThat(innerParentHashes.get(3)).isEqualTo(getHashBytes(0));
+            assertThat(innerParentHashes.get(0)).isEqualTo(getHash(7));
+            assertThat(innerParentHashes.get(1)).isEqualTo(getHash(3));
+            assertThat(innerParentHashes.get(2)).isEqualTo(getHash(1));
+            assertThat(innerParentHashes.get(3)).isEqualTo(getHash(0));
 
             // Verify hashes
 
             // hash(7) + hash (8) == hash(3)
-            assertThat(hash(innerParentHashes.get(0), siblingHashes.get(0).hash())
-                            .copyToByteArray())
+            assertThat(hash(innerParentHashes.get(0), siblingHashes.get(0).hash()))
                     .isEqualTo(innerParentHashes.get(1));
             // hash(3) + hash (4) == hash(1)
-            assertThat(hash(innerParentHashes.get(1), siblingHashes.get(1).hash())
-                            .copyToByteArray())
+            assertThat(hash(innerParentHashes.get(1), siblingHashes.get(1).hash()))
                     .isEqualTo(innerParentHashes.get(2));
             // hash(1) + hash (2) == root hash
-            assertThat(hash(innerParentHashes.get(2), siblingHashes.get(2).hash())
-                            .copyToByteArray())
+            assertThat(hash(innerParentHashes.get(2), siblingHashes.get(2).hash()))
                     .isEqualTo(innerParentHashes.get(3));
         }
 
@@ -1095,35 +1090,32 @@ public class VirtualMapStateTest extends MerkleTestBase {
             final List<SiblingHash> siblingHashes = proof.siblingHashes();
             assertThat(siblingHashes.size()).isEqualTo(3);
             // Path from leaf(10) -> internal(4) -> internal(1)
-            assertThat(siblingHashes.get(0).hash()).isEqualTo(getHashBytes(9));
+            assertThat(siblingHashes.get(0).hash()).isEqualTo(getHash(9));
             assertFalse(siblingHashes.get(0).isRight());
 
-            assertThat(siblingHashes.get(1).hash()).isEqualTo(getHashBytes(3));
+            assertThat(siblingHashes.get(1).hash()).isEqualTo(getHash(3));
             assertFalse(siblingHashes.get(1).isRight());
 
-            assertThat(siblingHashes.get(2).hash()).isEqualTo(getHashBytes(2));
+            assertThat(siblingHashes.get(2).hash()).isEqualTo(getHash(2));
             assertTrue(siblingHashes.get(2).isRight());
 
-            final List<byte[]> innerParentHashes = proof.innerParentHashes();
+            final List<Hash> innerParentHashes = proof.innerParentHashes();
             // leaf hash, then internal(4), then internal(1), then root
-            assertThat(innerParentHashes.get(0)).isEqualTo(getHashBytes(10));
-            assertThat(innerParentHashes.get(1)).isEqualTo(getHashBytes(4));
-            assertThat(innerParentHashes.get(2)).isEqualTo(getHashBytes(1));
-            assertThat(innerParentHashes.get(3)).isEqualTo(getHashBytes(0));
+            assertThat(innerParentHashes.get(0)).isEqualTo(getHash(10));
+            assertThat(innerParentHashes.get(1)).isEqualTo(getHash(4));
+            assertThat(innerParentHashes.get(2)).isEqualTo(getHash(1));
+            assertThat(innerParentHashes.get(3)).isEqualTo(getHash(0));
 
             // Verify hashes
 
             // hash(7) + hash (8) == hash(3)
-            assertThat(hash(siblingHashes.get(0).hash(), innerParentHashes.get(0))
-                            .copyToByteArray())
+            assertThat(hash(siblingHashes.get(0).hash(), innerParentHashes.get(0)))
                     .isEqualTo(innerParentHashes.get(1));
             // hash(3) + hash (4) == hash(1)
-            assertThat(hash(siblingHashes.get(1).hash(), innerParentHashes.get(1))
-                            .copyToByteArray())
+            assertThat(hash(siblingHashes.get(1).hash(), innerParentHashes.get(1)))
                     .isEqualTo(innerParentHashes.get(2));
             // hash(1) + hash (2) == root hash
-            assertThat(hash(innerParentHashes.get(2), siblingHashes.get(2).hash())
-                            .copyToByteArray())
+            assertThat(hash(innerParentHashes.get(2), siblingHashes.get(2).hash()))
                     .isEqualTo(innerParentHashes.get(3));
         }
 
@@ -1150,7 +1142,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
             MerkleProof merkleProof = virtualMapState.getMerkleProof(1);
 
             assertThat(merkleProof.siblingHashes().size()).isEqualTo(1);
-            assertThat(merkleProof.siblingHashes().get(0).hash()).isEqualTo(NULL_HASH.copyToByteArray());
+            assertThat(merkleProof.siblingHashes().get(0).hash()).isEqualTo(NULL_HASH);
         }
 
         @Test
@@ -1159,8 +1151,8 @@ public class VirtualMapStateTest extends MerkleTestBase {
             assertThrows(IllegalStateException.class, () -> virtualMapState.getMerkleProof(10));
         }
 
-        private byte[] getHashBytes(int path) {
-            return virtualMapState.getHashForPath(path).copyToByteArray();
+        private Hash getHash(int path) {
+            return virtualMapState.getHashForPath(path);
         }
     }
 

@@ -874,7 +874,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
         }
 
         final List<SiblingHash> siblingHashes = new ArrayList<>();
-        final List<byte[]> innerParentHashes = new ArrayList<>();
+        final List<Hash> innerParentHashes = new ArrayList<>();
 
         long currentPath = path;
         while (currentPath > 0) {
@@ -883,9 +883,9 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
             final Hash hashForPath = getHashForPath(siblingPath);
             final Hash normalizedHashForPath = hashForPath == null ? NULL_HASH : hashForPath;
 
-            siblingHashes.add(new SiblingHash(isSiblingRight, normalizedHashForPath.copyToByteArray()));
+            siblingHashes.add(new SiblingHash(isSiblingRight, normalizedHashForPath));
 
-            innerParentHashes.add(getHashForPath(currentPath).copyToByteArray());
+            innerParentHashes.add(getHashForPath(currentPath));
 
             currentPath = getParentPath(currentPath);
         }
@@ -893,7 +893,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
         assert virtualMap.getHash() != null;
 
         // add root hash
-        innerParentHashes.add(virtualMap.getHash().copyToByteArray());
+        innerParentHashes.add(virtualMap.getHash());
 
         StateItem stateItem = new StateItem(leafRecord.keyBytes(), leafRecord.valueBytes());
         return new MerkleProof(CODEC.toBytes(stateItem), siblingHashes, innerParentHashes);

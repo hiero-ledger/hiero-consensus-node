@@ -3,6 +3,7 @@ package com.swirlds.state;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
+import org.hiero.base.crypto.Hash;
 
 /**
  * Represents a Merkle proof containing all necessary information to verify a state item.
@@ -17,4 +18,4 @@ import java.util.List;
  *                              <li>and so on</li>
  *                          </ul>
  */
-public record MerkleProof(Bytes stateItem, List<SiblingHash> siblingHashes, List<byte[]> innerParentHashes) {}
+public record MerkleProof(Bytes stateItem, List<SiblingHash> siblingHashes, List<Hash> innerParentHashes) {}
