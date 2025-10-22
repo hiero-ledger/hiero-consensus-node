@@ -1856,6 +1856,29 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(protoConfig).isNotNull();
         assertThat(protoConfig.nodes().getFirst().hasHttp2ClientProtocolConfig())
                 .isTrue();
-        assertThat(protoConfig.nodes().getFirst().hasGrpcClientProtocolConfig()).isTrue();
+    }
+
+    @Test
+    void extractOptionalHttp2ClientProtocolConfig_populatesMap() {
+        final var url = Objects.requireNonNull(
+                BlockNodeCommunicationTestBase.class.getClassLoader().getResource("bootstrap/block-nodes.json"));
+        final var dir = Path.of(url.getPath()).getParent();
+        blockNodeConfigDirectoryHandle.set(connectionManager, dir);
+        final var nodes = invoke_extractBlockNodesConfigurations(dir.toString());
+        assertThat(nodes).isNotEmpty();
+        final var http2Configs = connectionManager.getHttp2ClientProtocolConfigs();
+        assertThat(http2Configs).containsKeys(nodes.get(0));
+    }
+
+    @Test
+    void extractOptionalGrpcClientProtocolConfig_handlesAbsentConfigGracefully() {
+        final var url = Objects.requireNonNull(
+                BlockNodeCommunicationTestBase.class.getClassLoader().getResource("bootstrap/block-nodes.json"));
+        final var dir = Path.of(url.getPath()).getParent();
+        blockNodeConfigDirectoryHandle.set(connectionManager, dir);
+        final var nodes = invoke_extractBlockNodesConfigurations(dir.toString());
+        assertThat(nodes).hasSizeGreaterThan(1);
+        final var grpcConfigs = connectionManager.getGrpcClientProtocolConfigs();
+        assertThat(grpcConfigs.containsKey(nodes.get(1))).isFalse();
     }
 }
