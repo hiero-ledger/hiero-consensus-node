@@ -184,33 +184,6 @@ public final class FeeManager {
             this.simpleFeesSchedule = schedule;
             return SUCCESS;
         } catch (final BufferUnderflowException | ParseException ex) {
-            this.simpleFeesSchedule = org.hiero.hapi.support.fees.FeeSchedule.DEFAULT
-                    .copyBuilder()
-                    .extras(
-                            makeExtraDef(Extra.BYTES, 1),
-                            makeExtraDef(Extra.KEYS, 2),
-                            makeExtraDef(Extra.SIGNATURES, 3),
-                            makeExtraDef(Extra.CUSTOM_FEE, 500))
-                    .node(NodeFee.DEFAULT
-                            .copyBuilder()
-                            .baseFee(1)
-                            .extras(makeExtraIncluded(Extra.BYTES, 1024), makeExtraIncluded(Extra.SIGNATURES, 1))
-                            .build())
-                    .network(NetworkFee.DEFAULT.copyBuilder().multiplier(2).build())
-                    .services(makeService(
-                            "Consensus",
-                            makeServiceFee(CONSENSUS_CREATE_TOPIC, 11, makeExtraIncluded(Extra.KEYS, 1)),
-                            makeServiceFee(CONSENSUS_UPDATE_TOPIC, 12, makeExtraIncluded(Extra.KEYS, 1)),
-                            makeServiceFee(CONSENSUS_DELETE_TOPIC, 13, makeExtraIncluded(Extra.KEYS, 1)),
-                            makeServiceFee(
-                                    CONSENSUS_SUBMIT_MESSAGE,
-                                    14,
-                                    makeExtraIncluded(Extra.SIGNATURES, 1),
-                                    makeExtraIncluded(Extra.KEYS, 1),
-                                    makeExtraIncluded(Extra.BYTES, 1024),
-                                    makeExtraIncluded(Extra.CUSTOM_FEE, 0))))
-                    .build();
-
             return ResponseCodeEnum.FEE_SCHEDULE_FILE_PART_UPLOADED;
         }
     }
