@@ -16,6 +16,7 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.Threshold;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.logging.legacy.LogMarker;
+import com.swirlds.platform.TimestampCollector.Position;
 import com.swirlds.platform.consensus.AncestorSearch;
 import com.swirlds.platform.consensus.CandidateWitness;
 import com.swirlds.platform.consensus.ConsensusConfig;
@@ -293,6 +294,10 @@ public class ConsensusImpl implements Consensus {
     @Override
     public List<ConsensusRound> addEvent(@NonNull final EventImpl event) {
         try {
+            final int index = event.getBaseEvent().getIndex();
+            if (index > 0) {
+                TimestampCollector.timestamp(Position.CONSENSUS_ADDED, index);
+            }
             recentEvents.add(event);
             // set its round to undefined so that it gets calculated
             event.setRoundCreated(ConsensusConstants.ROUND_UNDEFINED);
@@ -387,6 +392,10 @@ public class ConsensusImpl implements Consensus {
         DeGen.calculateDeGen(event);
         // find the roundCreated, and store it using event.setRoundCreated()
         round(event);
+        final int index = event.getBaseEvent().getIndex();
+        if (index > 0) {
+            TimestampCollector.timestamp(Position.ROUND_CALCULATED, index);
+        }
         consensusMetrics.addedEvent(event);
 
         // force it to memoize for this event now, to avoid deep recursion of these methods later
@@ -397,6 +406,10 @@ public class ConsensusImpl implements Consensus {
         }
 
         event.setWitness(true);
+        final int witnessIndex = event.getBaseEvent().getIndex();
+        if (witnessIndex > 0) {
+            TimestampCollector.timestamp(Position.WITNESS_DETECTED, witnessIndex);
+        }
 
         if (rounds.getElectionRoundNumber() <= event.getRoundCreated()) {
             if (rounds.getElectionRoundNumber() == event.getRoundCreated()) {
@@ -564,6 +577,10 @@ public class ConsensusImpl implements Consensus {
             if (countingVote.isSupermajority()) {
                 // we've decided one famous event. Set it as famous.
                 candidateWitness.fameDecided(votingWitness.getVote(candidateWitness));
+                final int fameIndex = candidateWitness.getWitness().getBaseEvent().getIndex();
+                if (fameIndex > 0) {
+                    TimestampCollector.timestamp(Position.FAME_DECIDED, fameIndex);
+                }
                 if (roundElections.isDecided()) {
                     // this round has been decided
                     consensusMetrics.lastFamousInRound(candidateWitness.getWitness());
@@ -880,6 +897,13 @@ public class ConsensusImpl implements Consensus {
             lastConsensusTime = EventUtils.getLastTransTime(e.getBaseEvent());
             numConsensus++;
             consensusMetrics.consensusReached(e);
+
+
+            final int index = e.getBaseEvent().getIndex();
+            if (index > 0) {
+                TimestampCollector.timestamp(Position.CONSENSUS_REACHED, index);
+            }
+
         }
     }
 

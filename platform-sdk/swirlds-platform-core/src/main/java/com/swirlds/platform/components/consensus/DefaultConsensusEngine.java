@@ -8,6 +8,7 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.Consensus;
 import com.swirlds.platform.ConsensusImpl;
+import com.swirlds.platform.TimestampCollector;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.event.linking.ConsensusLinker;
@@ -108,6 +109,10 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         if (consensusRelevantEvent == null) {
             // The event is either a future event or an ancient event.
             // If it is a future event, it will be added later when the event window is updated.
+            final int index = event.getIndex();
+            if (index > 0) {
+                TimestampCollector.timestamp(TimestampCollector.Position.FUTURE_BUFFER_ENTERED, index);
+            }
             return ConsensusEngineOutput.emptyInstance();
         }
 
@@ -180,7 +185,14 @@ public class DefaultConsensusEngine implements ConsensusEngine {
                     .filter(e -> !e.isConsensus())
                     .map(EventImpl::getBaseEvent)
                     .forEach(staleEvents::add);
-            eventsToAdd.addAll(futureEventBuffer.updateEventWindow(eventWindow));
+            final List<PlatformEvent> releasedEvents = futureEventBuffer.updateEventWindow(eventWindow);
+            for (final PlatformEvent releasedEvent : releasedEvents) {
+                final int index = releasedEvent.getIndex();
+                if (index > 0) {
+                    TimestampCollector.timestamp(TimestampCollector.Position.FUTURE_BUFFER_RELEASED, index);
+                }
+            }
+            eventsToAdd.addAll(releasedEvents);
         }
 
         // If multiple rounds reach consensus and multiple rounds are in the freeze period,

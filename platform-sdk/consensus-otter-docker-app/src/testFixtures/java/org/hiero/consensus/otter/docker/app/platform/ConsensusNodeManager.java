@@ -19,6 +19,7 @@ import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.TimestampCollector;
 import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
@@ -262,7 +263,8 @@ public class ConsensusNodeManager {
      * @param command the quiescence command to send, must not be {@code null}
      */
     public void sendQuiescenceCommand(@NonNull final QuiescenceCommand command) {
-        this.quiescenceCommand = command;
-        platform.quiescenceCommand(command);
+        TimestampCollector.store();
+//        this.quiescenceCommand = command;
+//        platform.quiescenceCommand(command);
     }
 }

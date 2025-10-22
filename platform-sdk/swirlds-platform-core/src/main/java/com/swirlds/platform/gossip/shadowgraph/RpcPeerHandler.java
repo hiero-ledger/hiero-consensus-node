@@ -9,6 +9,8 @@ import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.base.time.Time;
 import com.swirlds.logging.legacy.LogMarker;
+import com.swirlds.platform.TimestampCollector;
+import com.swirlds.platform.TimestampCollector.Position;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.permits.SyncGuard;
 import com.swirlds.platform.gossip.rpc.GossipRpcReceiver;
@@ -411,6 +413,16 @@ public class RpcPeerHandler implements GossipRpcReceiver {
     private void handleIncomingSyncEvent(@NonNull final GossipEvent gossipEvent) {
         final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
         platformEvent.setSenderId(peerId);
+
+
+        final long count = TimestampCollector.COUNTER.incrementAndGet();
+        if (count % TimestampCollector.GAP == 0) {
+            final int index = (int) (count / TimestampCollector.GAP);
+            platformEvent.setIndex(index);
+            TimestampCollector.timestamp(Position.GOSSIP_ENTERED, index);
+        }
+
+
         this.intakeEventCounter.eventEnteredIntakePipeline(peerId);
         eventHandler.accept(platformEvent);
     }

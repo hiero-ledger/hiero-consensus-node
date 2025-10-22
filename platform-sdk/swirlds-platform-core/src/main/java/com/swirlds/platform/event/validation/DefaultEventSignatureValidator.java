@@ -9,6 +9,7 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.metrics.api.LongAccumulator;
+import com.swirlds.platform.TimestampCollector;
 import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -158,6 +159,10 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
         }
 
         if (isSignatureValid(event)) {
+            final int index = event.getIndex();
+            if (index > 0) {
+                TimestampCollector.timestamp(TimestampCollector.Position.SIGNATURE_VALIDATED, index);
+            }
             return event;
         } else {
             intakeEventCounter.eventExitedIntakePipeline(event.getSenderId());

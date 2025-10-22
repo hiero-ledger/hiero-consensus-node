@@ -469,6 +469,11 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                     Path.of("build", "container", NODE_IDENTIFIER_FORMAT.formatted(selfId.id()));
             downloadConsensusFiles(localOutputDirectory);
             downloadConsistencyServiceFiles(localOutputDirectory);
+
+
+            downloadTimestampFile(localOutputDirectory);
+
+
         } catch (final IOException e) {
             throw new UncheckedIOException("Failed to copy files from container", e);
         }
@@ -482,6 +487,10 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         resultsCollector.destroy();
         platformStatus = null;
         lifeCycle = DESTROYED;
+    }
+
+    private void downloadTimestampFile(final Path localOutputDirectory) {
+        copyFileFromContainerIfExists(localOutputDirectory, "timestamps.csv");
     }
 
     private void downloadEventStreamFiles(@NonNull final Path localOutputDirectory) {

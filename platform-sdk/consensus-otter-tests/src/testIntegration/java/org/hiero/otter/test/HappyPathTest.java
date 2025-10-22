@@ -13,6 +13,7 @@ import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
@@ -29,7 +30,7 @@ public class HappyPathTest {
      * @param env the test environment for this test
      */
     @OtterTest
-    void testHappyPath(@NonNull final TestEnvironment env) {
+    void testHappyPath(@NonNull final TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
@@ -52,12 +53,15 @@ public class HappyPathTest {
         env.transactionGenerator().start();
 
         // Wait for 5 seconds
-        timeManager.waitFor(Duration.ofSeconds(5L));
+        timeManager.waitFor(Duration.ofSeconds(20L));
 
         // Validations
         assertThat(network.newPlatformStatusResults())
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
 
         assertThat(network.newEventStreamResults()).haveEqualFiles();
+
+
+        network.nodes().getFirst().sendQuiescenceCommand(QuiescenceCommand.DONT_QUIESCE);
     }
 }
