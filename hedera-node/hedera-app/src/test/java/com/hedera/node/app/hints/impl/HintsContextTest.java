@@ -57,11 +57,11 @@ class HintsContextTest {
     @BeforeEach
     void setUp() {
         lenient().when(configProvider.get()).thenReturn(configuration);
-        lenient().when(configuration.getConfigData(TssConfig.class)).thenReturn(defaultConfig(2));
+        lenient().when(configuration.getConfigData(TssConfig.class)).thenReturn(defaultConfig());
         subject = new HintsContext(library, configProvider);
     }
 
-    private static TssConfig defaultConfig(final int divisor) {
+    private static TssConfig defaultConfig() {
         return new TssConfig(
                 Duration.ofSeconds(60),
                 Duration.ofSeconds(300),
@@ -74,7 +74,8 @@ class HintsContextTest {
                 false,
                 false,
                 false,
-                divisor);
+                false,
+                2);
     }
 
     @Test
