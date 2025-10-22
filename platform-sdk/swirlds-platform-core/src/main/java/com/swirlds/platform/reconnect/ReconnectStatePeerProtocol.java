@@ -12,8 +12,6 @@ import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.metrics.extensions.CountPerSecond;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
-import com.swirlds.logging.legacy.payload.ReconnectFailurePayload;
-import com.swirlds.logging.legacy.payload.ReconnectFailurePayload.CauseOfFailure;
 import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.platform.Utilities;
@@ -21,7 +19,6 @@ import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.NetworkProtocolException;
-import com.swirlds.platform.network.NetworkUtils;
 import com.swirlds.platform.network.protocol.PeerProtocol;
 import com.swirlds.platform.network.protocol.ReservedSignedStatePromise;
 import com.swirlds.platform.state.SwirldStateManager;
@@ -311,7 +308,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
      *
      * @param connection the connection to use for the reconnect
      */
-    private void learner(final Connection connection) throws NetworkProtocolException {
+    private void learner(final Connection connection) {
         try {
 
             final MerkleNodeState consensusState = swirldStateManager.getConsensusState();
@@ -326,7 +323,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
                     createStateFromVirtualMap);
 
             logger.info(RECONNECT.getMarker(), () -> new ReconnectStartPayload(
-                            "Starting learner in role of the receiver.",
+                            "Starting reconnect in role of the receiver.",
                             true,
                             connection.getSelfId().id(),
                             connection.getOtherId().id(),
@@ -336,7 +333,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
             final ReservedSignedState reservedSignedState = learner.execute();
 
             logger.info(RECONNECT.getMarker(), () -> new ReconnectFinishPayload(
-                            "Finished learner in the role of the receiver.",
+                            "Finished reconnect in the role of the receiver.",
                             true,
                             connection.getSelfId().id(),
                             connection.getOtherId().id(),
@@ -349,43 +346,28 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
             logger.info(
                     RECONNECT.getMarker(),
                     """
-                            Information for state received during learner:
+                            Information for state received during reconnect:
                             {}""",
                     () -> platformStateFacade.getInfoString(
                             reservedSignedState.get().getState(), debugHashDepth));
 
-            reservedSignedStatePromise.provide(reservedSignedState);
+            reservedSignedStatePromise.resolveWithValue(reservedSignedState);
 
-        } catch (final RuntimeException | InterruptedException e) {
-            if (Utilities.isOrCausedBySocketException(e)) {
-                logger.error(
-                        EXCEPTION.getMarker(),
-                        () -> new ReconnectFailurePayload(
-                                        "Got socket exception while receiving a signed state! "
-                                                + NetworkUtils.formatException(e),
-                                        ReconnectFailurePayload.CauseOfFailure.SOCKET)
-                                .toString(),
-                        e);
-                // We don't close the connection in this case since being a socket exception the connection might be
-                // already closed
-            } else {
-                logger.warn(
-                        EXCEPTION.getMarker(),
-                        () -> new ReconnectFailurePayload(
-                                        "Got an unexpected exception while receiving a signed state! ",
-                                        CauseOfFailure.ERROR)
-                                .toString(),
-                        e);
+        } catch (final RuntimeException e) {
+            if (!Utilities.isOrCausedBySocketException(e)) {
                 // We are closing the connection as we don't know the state in which is in
                 // it might contain non-read bytes.
                 if (connection != null) {
                     connection.disconnect();
                 }
             }
+            try {
+                reservedSignedStatePromise.resolveWithException(e);
+            } catch (InterruptedException ie) {
+                reservedSignedStatePromise.release();
+            }
+        } catch (InterruptedException e) {
             reservedSignedStatePromise.release();
-            // Throwing a NetworkProtocolException makes initiateFailed() method to execute.
-            // That should release the permit and allow another peer protocol to execute. REVIEW it does not!
-            throw new NetworkProtocolException(e);
         }
     }
 

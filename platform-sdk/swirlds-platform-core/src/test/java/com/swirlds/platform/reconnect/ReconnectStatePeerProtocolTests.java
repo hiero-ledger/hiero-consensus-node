@@ -311,7 +311,7 @@ class ReconnectStatePeerProtocolTests {
 
             t = new Thread(() -> {
                 try {
-                    reservedSignedStatePromise.await();
+                    reservedSignedStatePromise.awaitResolution();
                 } catch (InterruptedException ie) {
 
                 }

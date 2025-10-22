@@ -6,6 +6,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.concurrent.locks.locked.LockedResource;
+import org.hiero.base.exceptions.NotImplementedException;
 
 /**
  * This class wraps a {@link BlockingResourceProvider} to manage access to a {@link ReservedSignedState}.
@@ -18,16 +19,26 @@ public class ReservedSignedStatePromise {
     /**
      * The underlying blocking resource provider for the reserved signed state
      */
-    private final BlockingResourceProvider<ReservedSignedState> provider = new BlockingResourceProvider<>();
+    private final BlockingResourceProvider<Value> provider = new BlockingResourceProvider<>();
 
     /**
-     * Provides a reserved signed state to waiting consumers.
+     * Resolves the promise with a reserved signed state.
      *
-     * @param currentReservedSignedState the reserved signed state to provide
+     * @param value the reserved signed state to provide
      * @throws InterruptedException if the thread is interrupted while providing
      */
-    public void provide(@NonNull final ReservedSignedState currentReservedSignedState) throws InterruptedException {
-        this.provider.provide(currentReservedSignedState);
+    public void resolveWithValue(@NonNull final ReservedSignedState value) throws InterruptedException {
+        this.provider.provide(new Value(value, null));
+    }
+
+    /**
+     * Resolves the promise with an exception.
+     *
+     * @param exception the exception to throw when resolving provide
+     * @throws InterruptedException if the thread is interrupted while providing
+     */
+    public void resolveWithException(@NonNull final RuntimeException exception) throws InterruptedException {
+        this.provider.provide(new Value(null, exception));
     }
 
     /**
@@ -56,13 +67,51 @@ public class ReservedSignedStatePromise {
     }
 
     /**
-     * Waits for and retrieves the reserved signed state.
+     * Waits for a value or an exception depending on what was provided.
      *
      * @return the reserved signed state
      * @throws RuntimeException if the thread is interrupted while waiting
      */
     @Nullable
-    public LockedResource<ReservedSignedState> await() throws InterruptedException {
-        return provider.waitForResource();
+    public ReservedStateOrExceptionResource awaitResolution() throws InterruptedException {
+        final var obtainedResource = provider.waitForResource();
+        return obtainedResource == null ? null : new ReservedStateOrExceptionResource(obtainedResource);
+    }
+
+    private record Value(ReservedSignedState reservedSignedState, RuntimeException throwable) {}
+
+    public static class ReservedStateOrExceptionResource implements LockedResource<ReservedSignedState> {
+        private final RuntimeException throwable;
+        ReservedSignedState value;
+
+        private ReservedStateOrExceptionResource(LockedResource<Value> lockedResource) {
+            this.value = lockedResource.getResource() == null
+                    ? null
+                    : lockedResource.getResource().reservedSignedState();
+            this.throwable = lockedResource.getResource() == null
+                    ? null
+                    : lockedResource.getResource().throwable();
+        }
+
+        @Nullable
+        @Override
+        public ReservedSignedState getResource() {
+            return value;
+        }
+
+        @Nullable
+        public Exception getException() {
+            return throwable;
+        }
+
+        @Override
+        public void setResource(@Nullable final ReservedSignedState resource) {
+            throw new NotImplementedException();
+        }
+
+        @Override
+        public void close() {
+            value.close();
+        }
     }
 }
