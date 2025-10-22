@@ -234,7 +234,7 @@ public class SwirldsPlatform implements Platform {
                 swirldStateManager,
                 savedStateController,
                 blocks.consensusStateEventHandler(),
-                blocks.reservedSignedStatePromise(),
+                blocks.reservedSignedStateResultPromise(),
                 selfId,
                 blocks.fallenBehindMonitor(),
                 new DefaultSignedStateValidator(platformContext, platformStateFacade));

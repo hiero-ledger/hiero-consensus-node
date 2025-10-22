@@ -29,7 +29,7 @@ import com.swirlds.platform.network.protocol.HeartbeatProtocol;
 import com.swirlds.platform.network.protocol.Protocol;
 import com.swirlds.platform.network.protocol.ProtocolRunnable;
 import com.swirlds.platform.network.protocol.ReconnectStateSyncProtocol;
-import com.swirlds.platform.network.protocol.ReservedSignedStatePromise;
+import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise;
 import com.swirlds.platform.network.protocol.SyncProtocol;
 import com.swirlds.platform.network.protocol.rpc.RpcProtocol;
 import com.swirlds.platform.reconnect.FallenBehindMonitor;
@@ -94,7 +94,7 @@ public class SyncGossipModular implements Gossip {
      * @param platformStateFacade           the facade to access the platform state
      * @param createStateFromVirtualMap     a function to instantiate the state object from a Virtual Map
      * @param fallenBehindMonitor           an instance of the fallenBehind Monitor which tracks if the node has fallen behind
-     * @param reservedSignedStatePromise a mechanism to get a SignedState or block while it is not available
+     * @param reservedSignedStateResultPromise a mechanism to get a SignedState or block while it is not available
      */
     public SyncGossipModular(
             @NonNull final PlatformContext platformContext,
@@ -109,7 +109,7 @@ public class SyncGossipModular implements Gossip {
             @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
-            @NonNull final ReservedSignedStatePromise reservedSignedStatePromise) {
+            @NonNull final ReservedSignedStateResultPromise reservedSignedStateResultPromise) {
 
         final RosterEntry selfEntry = RosterUtils.getRosterEntry(roster, selfId.id());
         final X509Certificate selfCert = RosterUtils.fetchGossipCaCertificate(selfEntry);
@@ -188,7 +188,11 @@ public class SyncGossipModular implements Gossip {
         }
 
         final ReconnectStateSyncProtocol reconnectStateSyncProtocol = createStateSyncProtocol(
-                platformContext, threadManager, latestCompleteState, platformStateFacade, reservedSignedStatePromise);
+                platformContext,
+                threadManager,
+                latestCompleteState,
+                platformStateFacade,
+                reservedSignedStateResultPromise);
         this.protocols = ImmutableList.of(
                 HeartbeatProtocol.create(platformContext, this.network.getNetworkMetrics()),
                 reconnectStateSyncProtocol,
@@ -215,7 +219,7 @@ public class SyncGossipModular implements Gossip {
             @NonNull final ThreadManager threadManager,
             @NonNull final Supplier<ReservedSignedState> latestCompleteState,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final ReservedSignedStatePromise reservedSignedStatePromise) {
+            @NonNull final ReservedSignedStateResultPromise reservedSignedStateResultPromise) {
 
         final ReconnectConfig reconnectConfig =
                 platformContext.getConfiguration().getConfigData(ReconnectConfig.class);
@@ -234,7 +238,7 @@ public class SyncGossipModular implements Gossip {
                 reconnectMetrics,
                 fallenBehindMonitor,
                 platformStateFacade,
-                reservedSignedStatePromise,
+                reservedSignedStateResultPromise,
                 swirldStateManager,
                 createStateFromVirtualMap);
     }

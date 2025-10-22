@@ -38,7 +38,7 @@ public class ReconnectStateSyncProtocol implements Protocol {
     private final Time time;
     private final PlatformContext platformContext;
     private final AtomicReference<PlatformStatus> platformStatus = new AtomicReference<>(PlatformStatus.STARTING_UP);
-    private final ReservedSignedStatePromise reservedSignedStatePromise;
+    private final ReservedSignedStateResultPromise reservedSignedStateResultPromise;
     private final SwirldStateManager swirldStateManager;
     private final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap;
 
@@ -51,7 +51,7 @@ public class ReconnectStateSyncProtocol implements Protocol {
             @NonNull final ReconnectMetrics reconnectMetrics,
             @NonNull final FallenBehindMonitor fallenBehindManager,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final ReservedSignedStatePromise reservedSignedStatePromise,
+            @NonNull final ReservedSignedStateResultPromise reservedSignedStateResultPromise,
             @NonNull final SwirldStateManager swirldStateManager,
             @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
 
@@ -64,7 +64,7 @@ public class ReconnectStateSyncProtocol implements Protocol {
         this.fallenBehindManager = Objects.requireNonNull(fallenBehindManager);
         this.platformStateFacade = platformStateFacade;
         this.time = Objects.requireNonNull(platformContext.getTime());
-        this.reservedSignedStatePromise = Objects.requireNonNull(reservedSignedStatePromise);
+        this.reservedSignedStateResultPromise = Objects.requireNonNull(reservedSignedStateResultPromise);
         this.swirldStateManager = Objects.requireNonNull(swirldStateManager);
         this.createStateFromVirtualMap = Objects.requireNonNull(createStateFromVirtualMap);
     }
@@ -87,7 +87,7 @@ public class ReconnectStateSyncProtocol implements Protocol {
                 platformStatus::get,
                 time,
                 platformStateFacade,
-                reservedSignedStatePromise,
+                reservedSignedStateResultPromise,
                 swirldStateManager,
                 createStateFromVirtualMap);
     }

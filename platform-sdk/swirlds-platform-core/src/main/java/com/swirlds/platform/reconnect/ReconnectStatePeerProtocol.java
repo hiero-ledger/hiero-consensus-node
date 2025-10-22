@@ -20,7 +20,7 @@ import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.NetworkProtocolException;
 import com.swirlds.platform.network.protocol.PeerProtocol;
-import com.swirlds.platform.network.protocol.ReservedSignedStatePromise;
+import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -81,7 +81,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
 
     private final Time time;
     private final PlatformContext platformContext;
-    private final ReservedSignedStatePromise reservedSignedStatePromise;
+    private final ReservedSignedStateResultPromise reservedSignedStateResultPromise;
     private final SwirldStateManager swirldStateManager;
     private final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap;
 
@@ -96,7 +96,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
      * @param platformStatusSupplier     provides the platform status
      * @param time                       the time object to use
      * @param platformStateFacade        provides access to the platform state
-     * @param reservedSignedStatePromise a mechanism to get a SignedState or block while it is not available
+     * @param reservedSignedStateResultPromise a mechanism to get a SignedState or block while it is not available
      * @param createStateFromVirtualMap  a function to instantiate the state object from a Virtual Map
      */
     public ReconnectStatePeerProtocol(
@@ -111,7 +111,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
             @NonNull final Supplier<PlatformStatus> platformStatusSupplier,
             @NonNull final Time time,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final ReservedSignedStatePromise reservedSignedStatePromise,
+            @NonNull final ReservedSignedStateResultPromise reservedSignedStateResultPromise,
             @NonNull final SwirldStateManager swirldStateManager,
             @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
 
@@ -125,7 +125,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
         this.fallenBehindMonitor = Objects.requireNonNull(fallenBehindMonitor);
         this.platformStatusSupplier = Objects.requireNonNull(platformStatusSupplier);
         this.platformStateFacade = Objects.requireNonNull(platformStateFacade);
-        this.reservedSignedStatePromise = Objects.requireNonNull(reservedSignedStatePromise);
+        this.reservedSignedStateResultPromise = Objects.requireNonNull(reservedSignedStateResultPromise);
         this.swirldStateManager = Objects.requireNonNull(swirldStateManager);
         this.createStateFromVirtualMap = Objects.requireNonNull(createStateFromVirtualMap);
         Objects.requireNonNull(time);
@@ -165,7 +165,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
         }
 
         // if a permit is acquired, it will be released by either initiateFailed or runProtocol
-        final boolean acquiredPermit = reservedSignedStatePromise.acquire();
+        final boolean acquiredPermit = reservedSignedStateResultPromise.acquire();
         if (acquiredPermit) {
             initiatedBy = InitiatedBy.SELF;
         }
@@ -177,7 +177,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
      */
     @Override
     public void initiateFailed() {
-        reservedSignedStatePromise.release();
+        reservedSignedStateResultPromise.release();
         initiatedBy = InitiatedBy.NO_ONE;
     }
 
@@ -234,7 +234,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
         // this can happen if we fall behind while we are teaching
         // in this case, we want to finish teaching before we start learning
         // so we acquire the learner permit and release it when we are done teaching
-        if (!reservedSignedStatePromise.tryBlock()) {
+        if (!reservedSignedStateResultPromise.tryBlock()) {
             reconnectRejected();
             return false;
         }
@@ -243,7 +243,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
         final boolean reconnectPermittedByThrottle = teacherThrottle.initiateReconnect(peerId);
         if (!reconnectPermittedByThrottle) {
             reconnectRejected();
-            reservedSignedStatePromise.release();
+            reservedSignedStateResultPromise.release();
             return false;
         }
 
@@ -271,7 +271,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
         teacherState = null;
         teacherThrottle.reconnectAttemptFinished();
         // cancel the permit acquired in shouldAccept() so that we can start learning if we need to
-        reservedSignedStatePromise.release();
+        reservedSignedStateResultPromise.release();
     }
 
     /**
@@ -351,7 +351,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
                     () -> platformStateFacade.getInfoString(
                             reservedSignedState.get().getState(), debugHashDepth));
 
-            reservedSignedStatePromise.resolveWithValue(reservedSignedState);
+            reservedSignedStateResultPromise.resolveWithValue(reservedSignedState);
 
         } catch (final RuntimeException e) {
             if (!Utilities.isOrCausedBySocketException(e)) {
@@ -362,12 +362,12 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
                 }
             }
             try {
-                reservedSignedStatePromise.resolveWithException(e);
+                reservedSignedStateResultPromise.resolveWithException(e);
             } catch (InterruptedException ie) {
-                reservedSignedStatePromise.release();
+                reservedSignedStateResultPromise.release();
             }
         } catch (InterruptedException e) {
-            reservedSignedStatePromise.release();
+            reservedSignedStateResultPromise.release();
         }
     }
 
@@ -394,7 +394,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
             teacherThrottle.reconnectAttemptFinished();
             teacherState = null;
             // cancel the permit acquired in shouldAccept() so that we can start learning if we need to
-            reservedSignedStatePromise.release();
+            reservedSignedStateResultPromise.release();
         }
     }
 

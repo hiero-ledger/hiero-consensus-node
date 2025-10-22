@@ -32,7 +32,7 @@ import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.protocol.PeerProtocol;
 import com.swirlds.platform.network.protocol.Protocol;
 import com.swirlds.platform.network.protocol.ReconnectStateSyncProtocol;
-import com.swirlds.platform.network.protocol.ReservedSignedStatePromise;
+import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
@@ -61,7 +61,7 @@ class ReconnectStatePeerProtocolTests {
 
     private ReconnectStateTeacherThrottle teacherThrottle;
     private ReconnectMetrics reconnectMetrics;
-    private ReservedSignedStatePromise reservedSignedStatePromise;
+    private ReservedSignedStateResultPromise reservedSignedStateResultPromise;
 
     private static Stream<Arguments> initiateParams() {
         return Stream.of(
@@ -116,8 +116,8 @@ class ReconnectStatePeerProtocolTests {
 
     @BeforeEach
     void setup() {
-        reservedSignedStatePromise = mock(ReservedSignedStatePromise.class);
-        when(reservedSignedStatePromise.tryBlock()).thenReturn(true);
+        reservedSignedStateResultPromise = mock(ReservedSignedStateResultPromise.class);
+        when(reservedSignedStateResultPromise.tryBlock()).thenReturn(true);
 
         teacherThrottle = mock(ReconnectStateTeacherThrottle.class);
         when(teacherThrottle.initiateReconnect(any())).thenReturn(true);
@@ -137,7 +137,7 @@ class ReconnectStatePeerProtocolTests {
     @ParameterizedTest
     @MethodSource("initiateParams")
     void shouldInitiateTest(final InitiateParams params) {
-        when(reservedSignedStatePromise.acquire()).thenReturn(params.getsPermit);
+        when(reservedSignedStateResultPromise.acquire()).thenReturn(params.getsPermit);
 
         final List<NodeId> neighborsForReconnect = LongStream.range(0L, 10L)
                 .filter(id -> id != PEER_ID.id() || params.isReconnectNeighbor)
@@ -161,7 +161,7 @@ class ReconnectStatePeerProtocolTests {
                 reconnectMetrics,
                 fallenBehindManager,
                 TEST_PLATFORM_STATE_FACADE,
-                reservedSignedStatePromise,
+                reservedSignedStateResultPromise,
                 mock(SwirldStateManager.class),
                 a -> null);
         reconnectProtocol.updatePlatformStatus(ACTIVE);
@@ -205,7 +205,7 @@ class ReconnectStatePeerProtocolTests {
                 reconnectMetrics,
                 fallenBehindManager,
                 TEST_PLATFORM_STATE_FACADE,
-                reservedSignedStatePromise,
+                reservedSignedStateResultPromise,
                 mock(SwirldStateManager.class),
                 a -> null);
         reconnectProtocol.updatePlatformStatus(ACTIVE);
@@ -244,7 +244,7 @@ class ReconnectStatePeerProtocolTests {
                 () -> ACTIVE,
                 Time.getCurrent(),
                 TEST_PLATFORM_STATE_FACADE,
-                reservedSignedStatePromise,
+                reservedSignedStateResultPromise,
                 mock(SwirldStateManager.class),
                 a -> null);
         final SignedState signedState = spy(new RandomSignedStateGenerator().build());
@@ -266,7 +266,7 @@ class ReconnectStatePeerProtocolTests {
                 () -> ACTIVE,
                 Time.getCurrent(),
                 TEST_PLATFORM_STATE_FACADE,
-                reservedSignedStatePromise,
+                reservedSignedStateResultPromise,
                 mock(SwirldStateManager.class),
                 a -> null);
 
@@ -287,7 +287,7 @@ class ReconnectStatePeerProtocolTests {
         try {
             final FallenBehindMonitor fallenBehindManager = mock(FallenBehindMonitor.class);
             when(fallenBehindManager.isBehindPeer(any())).thenReturn(false);
-            ReservedSignedStatePromise reservedSignedStatePromise = new ReservedSignedStatePromise();
+            ReservedSignedStateResultPromise reservedSignedStateResultPromise = new ReservedSignedStateResultPromise();
 
             final PlatformContext platformContext =
                     TestPlatformContextBuilder.create().build();
@@ -301,17 +301,17 @@ class ReconnectStatePeerProtocolTests {
                     reconnectMetrics,
                     fallenBehindManager,
                     TEST_PLATFORM_STATE_FACADE,
-                    reservedSignedStatePromise,
+                    reservedSignedStateResultPromise,
                     mock(SwirldStateManager.class),
                     a -> null);
             reconnectProtocol.updatePlatformStatus(ACTIVE);
             assertFalse(
-                    reservedSignedStatePromise.acquire(),
+                    reservedSignedStateResultPromise.acquire(),
                     "the while loop should have acquired the permit, so it should not be available");
 
             t = new Thread(() -> {
                 try {
-                    reservedSignedStatePromise.awaitResolution();
+                    reservedSignedStateResultPromise.awaitResolution();
                 } catch (InterruptedException ie) {
 
                 }
@@ -322,7 +322,8 @@ class ReconnectStatePeerProtocolTests {
             assertFalse(
                     reconnectProtocol.createPeerInstance(PEER_ID).shouldInitiate(),
                     "we expect that a reconnect should not be initiated because of FallenBehindMonitor");
-            assertTrue(reservedSignedStatePromise.acquire(), "a permit should still be available for other peers");
+            assertTrue(
+                    reservedSignedStateResultPromise.acquire(), "a permit should still be available for other peers");
 
         } catch (InterruptedException e) {
             fail();
@@ -334,14 +335,14 @@ class ReconnectStatePeerProtocolTests {
     @Test
     @DisplayName("Aborted Learner")
     void abortedLearner() {
-        when(reservedSignedStatePromise.acquire()).thenReturn(true);
+        when(reservedSignedStateResultPromise.acquire()).thenReturn(true);
         final ValueReference<Boolean> permitCancelled = new ValueReference<>(false);
         doAnswer(invocation -> {
                     assertFalse(permitCancelled.getValue(), "permit should only be cancelled once");
                     permitCancelled.setValue(true);
                     return null;
                 })
-                .when(reservedSignedStatePromise)
+                .when(reservedSignedStateResultPromise)
                 .release();
 
         final FallenBehindMonitor fallenBehindManager = mock(FallenBehindMonitor.class);
@@ -360,7 +361,7 @@ class ReconnectStatePeerProtocolTests {
                 reconnectMetrics,
                 fallenBehindManager,
                 TEST_PLATFORM_STATE_FACADE,
-                reservedSignedStatePromise,
+                reservedSignedStateResultPromise,
                 mock(SwirldStateManager.class),
                 a -> null);
         reconnectProtocol.updatePlatformStatus(ACTIVE);
@@ -405,7 +406,7 @@ class ReconnectStatePeerProtocolTests {
                 reconnectMetrics,
                 fallenBehindManager,
                 TEST_PLATFORM_STATE_FACADE,
-                reservedSignedStatePromise,
+                reservedSignedStateResultPromise,
                 mock(SwirldStateManager.class),
                 a -> null);
         reconnectProtocol.updatePlatformStatus(ACTIVE);
@@ -443,7 +444,7 @@ class ReconnectStatePeerProtocolTests {
                 reconnectMetrics,
                 fallenBehindManager,
                 TEST_PLATFORM_STATE_FACADE,
-                reservedSignedStatePromise,
+                reservedSignedStateResultPromise,
                 mock(SwirldStateManager.class),
                 a -> null);
         reconnectProtocol.updatePlatformStatus(ACTIVE);
@@ -474,7 +475,7 @@ class ReconnectStatePeerProtocolTests {
                 reconnectMetrics,
                 fallenBehindManager,
                 TEST_PLATFORM_STATE_FACADE,
-                reservedSignedStatePromise,
+                reservedSignedStateResultPromise,
                 mock(SwirldStateManager.class),
                 a -> null);
         reconnectProtocol.updatePlatformStatus(CHECKING);
@@ -501,30 +502,30 @@ class ReconnectStatePeerProtocolTests {
                 reconnectMetrics,
                 mock(FallenBehindMonitor.class),
                 TEST_PLATFORM_STATE_FACADE,
-                reservedSignedStatePromise,
+                reservedSignedStateResultPromise,
                 mock(SwirldStateManager.class),
                 a -> null);
         reconnectProtocol.updatePlatformStatus(ACTIVE);
         final PeerProtocol peerProtocol = reconnectProtocol.createPeerInstance(NodeId.of(0));
         assertTrue(peerProtocol.shouldAccept());
 
-        verify(reservedSignedStatePromise, times(1)).tryBlock();
-        verify(reservedSignedStatePromise, times(0)).release();
+        verify(reservedSignedStateResultPromise, times(1)).tryBlock();
+        verify(reservedSignedStateResultPromise, times(0)).release();
 
         peerProtocol.acceptFailed();
 
-        verify(reservedSignedStatePromise, times(1)).tryBlock();
-        verify(reservedSignedStatePromise, times(1)).release();
+        verify(reservedSignedStateResultPromise, times(1)).tryBlock();
+        verify(reservedSignedStateResultPromise, times(1)).release();
 
         assertTrue(peerProtocol.shouldAccept());
 
-        verify(reservedSignedStatePromise, times(2)).tryBlock();
-        verify(reservedSignedStatePromise, times(1)).release();
+        verify(reservedSignedStateResultPromise, times(2)).tryBlock();
+        verify(reservedSignedStateResultPromise, times(1)).release();
 
         assertThrows(Exception.class, () -> peerProtocol.runProtocol(mock(Connection.class)));
 
-        verify(reservedSignedStatePromise, times(2)).tryBlock();
-        verify(reservedSignedStatePromise, times(2)).release();
+        verify(reservedSignedStateResultPromise, times(2)).tryBlock();
+        verify(reservedSignedStateResultPromise, times(2)).release();
     }
 
     @Test
@@ -534,7 +535,7 @@ class ReconnectStatePeerProtocolTests {
         when(signedState.isComplete()).thenReturn(true);
         signedState.reserve("test");
 
-        when(reservedSignedStatePromise.tryBlock()).thenReturn(false);
+        when(reservedSignedStateResultPromise.tryBlock()).thenReturn(false);
 
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
@@ -548,14 +549,14 @@ class ReconnectStatePeerProtocolTests {
                 reconnectMetrics,
                 mock(FallenBehindMonitor.class),
                 TEST_PLATFORM_STATE_FACADE,
-                reservedSignedStatePromise,
+                reservedSignedStateResultPromise,
                 mock(SwirldStateManager.class),
                 a -> null);
         reconnectProtocol.updatePlatformStatus(ACTIVE);
         final PeerProtocol peerProtocol = reconnectProtocol.createPeerInstance(NodeId.of(0));
         assertFalse(peerProtocol.shouldAccept());
 
-        verify(reservedSignedStatePromise, times(1)).tryBlock();
-        verify(reservedSignedStatePromise, times(0)).release();
+        verify(reservedSignedStateResultPromise, times(1)).tryBlock();
+        verify(reservedSignedStateResultPromise, times(0)).release();
     }
 }

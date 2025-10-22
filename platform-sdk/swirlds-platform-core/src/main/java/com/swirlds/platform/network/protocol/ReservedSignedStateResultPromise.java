@@ -6,7 +6,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.concurrent.locks.locked.LockedResource;
-import org.hiero.base.exceptions.NotImplementedException;
 
 /**
  * This class wraps a {@link BlockingResourceProvider} to manage access to a {@link ReservedSignedState}.
@@ -15,11 +14,11 @@ import org.hiero.base.exceptions.NotImplementedException;
  * in case they fail to provide a value with release so that other producers might be able to do so.
  * Consumers can await for the value to be provided, blocking until so.
  */
-public class ReservedSignedStatePromise {
+public class ReservedSignedStateResultPromise {
     /**
      * The underlying blocking resource provider for the reserved signed state
      */
-    private final BlockingResourceProvider<Value> provider = new BlockingResourceProvider<>();
+    private final BlockingResourceProvider<ReservedSignedStateResult> provider = new BlockingResourceProvider<>();
 
     /**
      * Resolves the promise with a reserved signed state.
@@ -28,7 +27,7 @@ public class ReservedSignedStatePromise {
      * @throws InterruptedException if the thread is interrupted while providing
      */
     public void resolveWithValue(@NonNull final ReservedSignedState value) throws InterruptedException {
-        this.provider.provide(new Value(value, null));
+        this.provider.provide(new ReservedSignedStateResult(value, null));
     }
 
     /**
@@ -38,7 +37,7 @@ public class ReservedSignedStatePromise {
      * @throws InterruptedException if the thread is interrupted while providing
      */
     public void resolveWithException(@NonNull final RuntimeException exception) throws InterruptedException {
-        this.provider.provide(new Value(null, exception));
+        this.provider.provide(new ReservedSignedStateResult(null, exception));
     }
 
     /**
@@ -73,45 +72,21 @@ public class ReservedSignedStatePromise {
      * @throws RuntimeException if the thread is interrupted while waiting
      */
     @Nullable
-    public ReservedStateOrExceptionResource awaitResolution() throws InterruptedException {
-        final var obtainedResource = provider.waitForResource();
-        return obtainedResource == null ? null : new ReservedStateOrExceptionResource(obtainedResource);
+    public LockedResource<ReservedSignedStateResult> awaitResolution() throws InterruptedException {
+        return provider.waitForResource();
     }
 
-    private record Value(ReservedSignedState reservedSignedState, RuntimeException throwable) {}
-
-    public static class ReservedStateOrExceptionResource implements LockedResource<ReservedSignedState> {
-        private final RuntimeException throwable;
-        ReservedSignedState value;
-
-        private ReservedStateOrExceptionResource(LockedResource<Value> lockedResource) {
-            this.value = lockedResource.getResource() == null
-                    ? null
-                    : lockedResource.getResource().reservedSignedState();
-            this.throwable = lockedResource.getResource() == null
-                    ? null
-                    : lockedResource.getResource().throwable();
-        }
-
-        @Nullable
-        @Override
-        public ReservedSignedState getResource() {
-            return value;
-        }
-
-        @Nullable
-        public Exception getException() {
-            return throwable;
-        }
-
-        @Override
-        public void setResource(@Nullable final ReservedSignedState resource) {
-            throw new NotImplementedException();
-        }
-
+    public record ReservedSignedStateResult(ReservedSignedState reservedSignedState, RuntimeException throwable)
+            implements AutoCloseable {
         @Override
         public void close() {
-            value.close();
+            if (reservedSignedState != null) {
+                reservedSignedState.close();
+            }
+        }
+
+        public boolean isError() {
+            return this.reservedSignedState() == null && this.throwable() != null;
         }
     }
 }
