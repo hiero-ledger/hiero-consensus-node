@@ -90,6 +90,11 @@ import org.hiero.otter.fixtures.util.SecureRandomBuilder;
  */
 public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.TimeTickReceiver {
     private static final Logger log = LogManager.getLogger();
+    /**
+     * Logger for startup messages that should appear in per-node logs (uses platform package to bypass org.hiero.otter
+     * exclusion)
+     */
+    private static final Logger startupLogger = LogManager.getLogger("com.swirlds.platform.node.startup");
 
     private final Randotron randotron;
     private final TurtleTimeManager timeManager;
@@ -163,7 +168,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             throwIfInLifecycle(DESTROYED, "Node has already been destroyed.");
 
             // Log the startup message using the same STARTUP marker and message as production nodes
-            log.info(LogMarker.STARTUP.getMarker(), "\n\n" + StaticPlatformBuilder.STARTUP_MESSAGE + "\n");
+            // Uses a platform logger to ensure it routes through per-node appenders
+            startupLogger.info(LogMarker.STARTUP.getMarker(), "\n\n" + StaticPlatformBuilder.STARTUP_MESSAGE + "\n");
             if (savedStateDirectory != null) {
                 try {
                     OtterSavedStateUtils.copySaveState(selfId, savedStateDirectory, outputDirectory);
