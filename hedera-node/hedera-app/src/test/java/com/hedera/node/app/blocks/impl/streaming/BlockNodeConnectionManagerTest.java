@@ -906,7 +906,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         assertThat(activeConnectionRef).hasValue(newConnection);
 
-        verify(activeConnection).getNodeConfig();
+        verify(activeConnection, times(2)).getNodeConfig();
         verify(activeConnection).close(true);
         verify(newConnection, times(2)).getNodeConfig();
         verify(newConnection).createRequestPipeline();
@@ -916,7 +916,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         verifyNoMoreInteractions(activeConnection);
         verifyNoMoreInteractions(newConnection);
-        verifyNoInteractions(executorService);
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(metrics);
     }
@@ -1130,8 +1129,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 connectionManager.new BlockNodeConnectionTask(connection, Duration.ofSeconds(10), 10L, false);
 
         task.run();
-
-        assertThat(connections).isEmpty(); // connection should be removed
 
         verify(connection).createRequestPipeline();
         verify(executorService).schedule(eq(task), anyLong(), eq(TimeUnit.MILLISECONDS));

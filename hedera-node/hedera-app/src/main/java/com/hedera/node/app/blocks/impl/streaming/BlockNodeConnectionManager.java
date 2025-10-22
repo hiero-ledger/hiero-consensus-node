@@ -146,7 +146,7 @@ public class BlockNodeConnectionManager {
     /**
      * The directory containing the block node connection configuration file.
      */
-    private final Path blockNodeConfigDirectory;
+    private Path blockNodeConfigDirectory;
     /**
      * The file name of the block node configuration file.
      */
@@ -1136,9 +1136,10 @@ public class BlockNodeConnectionManager {
                                         "Scheduled previously active connection in {} ms due to forced switch.",
                                         delay.toMillis());
                             } catch (final Exception e) {
-                                logger.debug(
+                                logger.error(
                                         "Failed to schedule reschedule for previous active connection after forced switch.",
                                         e);
+                                connections.remove(connection.getNodeConfig());
                             }
                         }
                     } catch (final RuntimeException e) {
@@ -1191,6 +1192,7 @@ public class BlockNodeConnectionManager {
                 synchronized (availableBlockNodes) {
                     if (!availableBlockNodes.contains(connection.getNodeConfig())) {
                         logWithContext(DEBUG, "Node no longer available, skipping reschedule.");
+                        connections.remove(connection.getNodeConfig());
                         return;
                     }
                 }
