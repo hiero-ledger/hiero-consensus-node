@@ -243,9 +243,6 @@ public class ReconnectController implements Runnable {
         final Hash reconnectHash = signedState.getState().getHash();
         final MerkleNodeState state = signedState.getState();
         final SemanticVersion creationSoftwareVersion = platformStateFacade.creationSoftwareVersionOf(state);
-        // It's important to call init() before loading the signed state. The loading process makes copies
-        // of the state, and we want to be sure that the first state in the chain of copies has been initialized.
-        signedState.init(platformContext);
         consensusStateEventHandler.onStateInitialized(state, platform, InitTrigger.RECONNECT, creationSoftwareVersion);
 
         if (!Objects.equals(signedState.getState().getHash(), reconnectHash)) {
