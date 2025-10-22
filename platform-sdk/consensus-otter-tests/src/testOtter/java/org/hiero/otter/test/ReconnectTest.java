@@ -24,6 +24,7 @@ import java.util.stream.IntStream;
 import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
+import org.hiero.otter.fixtures.OtterSpecs;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
@@ -31,7 +32,6 @@ import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SubscriberAction;
-import org.junit.jupiter.api.Disabled;
 
 /**
  * Tests the reconnect functionality of a node that has fallen behind in the consensus rounds. The test ensures that the
@@ -249,7 +249,6 @@ public class ReconnectTest {
      * @param env the test environment
      */
     @OtterTest(requires = Capability.RECONNECT)
-    @Disabled
     void testReconnectSucceedsAfterFailure(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -280,7 +279,7 @@ public class ReconnectTest {
         enableSyntheticBottleneck(Duration.ofMinutes(10), nodeToReconnect);
         timeManager.waitForCondition(
                 nodeToReconnect::isBehind,
-                Duration.ofSeconds(120L),
+                Duration.ofMinutes(5),
                 "Node did not enter BEHIND status within the expected time "
                         + "frame after synthetic bottleneck was enabled");
 
@@ -308,7 +307,6 @@ public class ReconnectTest {
      * @param env the test environment
      */
     @OtterTest(requires = {Capability.RECONNECT, Capability.SINGLE_NODE_JVM_SHUTDOWN})
-    @Disabled
     void testNodeShutsDownAfterMaxFailedReconnects(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -325,7 +323,8 @@ public class ReconnectTest {
                         "SEQUENTIAL_THREAD CAPACITY(100) FLUSHABLE SQUELCHABLE")
                 .withConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, ROUNDS_EXPIRED)
                 .withConfigValue(ReconnectConfig_.ASYNC_STREAM_TIMEOUT, Duration.ofSeconds(1))
-                .withConfigValue(ReconnectConfig_.MAXIMUM_RECONNECT_FAILURES_BEFORE_SHUTDOWN, maxFailedReconnects);
+                .withConfigValue(ReconnectConfig_.MAXIMUM_RECONNECT_FAILURES_BEFORE_SHUTDOWN, maxFailedReconnects)
+                .withConfigValue(ReconnectConfig_.MINIMUM_TIME_BETWEEN_RECONNECTS, Duration.ofMillis(10));
 
         network.start();
 
@@ -358,5 +357,62 @@ public class ReconnectTest {
                 () -> !nodeToReconnect.isAlive(),
                 Duration.ofMinutes(2L),
                 "Node did not shut down within the expected time frame after exceeding the maximum number of failed reconnects.");
+    }
+
+    @OtterTest(requires = {Capability.RECONNECT, Capability.SINGLE_NODE_JVM_SHUTDOWN})
+    @OtterSpecs(randomNodeIds = false)
+    void testIsolateNodeWhileReconnectingAndRestore(@NonNull final TestEnvironment env) throws InterruptedException {
+        final Network network = env.network();
+        final TimeManager timeManager = env.timeManager();
+
+        network.addNodes(5);
+
+        final int maxFailedReconnects = 3;
+
+        // For this test to work, we need to lower the limit for the transaction handler component
+        // With the new limit set, once the transaction handler has 100 pending transactions, the node will stop
+        // gossipping and stop creating events. This will cause the node to go into the checking state.
+        network.withConfigValue(
+                        PlatformSchedulersConfig_.TRANSACTION_HANDLER,
+                        "SEQUENTIAL_THREAD CAPACITY(100) FLUSHABLE SQUELCHABLE")
+                .withConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, ROUNDS_EXPIRED)
+                .withConfigValue(ReconnectConfig_.ASYNC_STREAM_TIMEOUT, Duration.ofSeconds(1))
+                .withConfigValue(ReconnectConfig_.MAXIMUM_RECONNECT_FAILURES_BEFORE_SHUTDOWN, maxFailedReconnects)
+                .withConfigValue(ReconnectConfig_.MINIMUM_TIME_BETWEEN_RECONNECTS, Duration.ofMillis(10));
+
+        network.start();
+
+        final Node nodeToReconnect = network.nodes().getLast();
+
+        nodeToReconnect.newLogResult().subscribe(logEntry -> {
+            if (logEntry.message().contains("Starting reconnect in role of the receiver.")) {
+                network.isolate(nodeToReconnect);
+                return SubscriberAction.UNSUBSCRIBE;
+            }
+            return SubscriberAction.CONTINUE;
+        });
+
+        enableSyntheticBottleneck(Duration.ofMinutes(10), nodeToReconnect);
+        timeManager.waitForCondition(
+                nodeToReconnect::isBehind,
+                Duration.ofSeconds(120L),
+                "Node did not enter BEHIND status within the expected time "
+                        + "frame after synthetic bottleneck was enabled");
+
+        network.setBandwidthForAllConnections(nodeToReconnect, BandwidthLimit.ofKilobytesPerSecond(1));
+
+        disableSyntheticBottleneck(nodeToReconnect);
+
+        timeManager.waitForCondition(
+                () -> nodeToReconnect.newReconnectResult().numFailedReconnects() > 0,
+                Duration.ofMinutes(2L),
+                "Node did not record the expected number of failed reconnect attempts within the expected time frame.");
+
+        network.restoreConnectivity();
+        timeManager.waitForCondition(
+                nodeToReconnect::isActive,
+                Duration.ofMinutes(2L),
+                "Node did not become ACTIVE within the expected time frame after restoring normal connectivity");
+        Thread.sleep(Duration.ofMinutes(3));
     }
 }
