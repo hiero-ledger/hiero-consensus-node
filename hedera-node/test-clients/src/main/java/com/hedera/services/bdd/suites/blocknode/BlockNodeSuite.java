@@ -80,7 +80,7 @@ public class BlockNodeSuite {
                         Duration.ofSeconds(30),
                         Duration.ofSeconds(30),
                         // Blocks are accumulating in buffer without being sent
-                        "No active connections available for streaming block")),
+                        "saturation=10.0%")),
                 waitUntilNextBlocks(2).withBackgroundTraffic(true),
                 // Create block-nodes.json to establish connection
                 doingContextual((spec) -> {

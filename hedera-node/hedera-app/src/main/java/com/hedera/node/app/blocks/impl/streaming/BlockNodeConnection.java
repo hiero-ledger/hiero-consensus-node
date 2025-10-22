@@ -606,7 +606,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         if (skipBlockNumber == activeBlockNumber) {
             final long nextBlock = skipBlockNumber + 1;
             if (streamingBlockNumber.compareAndSet(activeBlockNumber, nextBlock)) {
-                logWithContext(logger, DEBUG, "Received SkipBlock response; skipping to block {}", nextBlock);
+                logWithContext(logger, DEBUG, this, "Received SkipBlock response; skipping to block {}", nextBlock);
                 return;
             }
         }
@@ -614,6 +614,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         logWithContext(
                 logger,
                 DEBUG,
+                this,
                 "Received SkipBlock response (blockToSkip={}), but we've moved on to another block. Ignoring skip request",
                 skipBlockNumber);
     }
@@ -779,7 +780,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         try {
             closePipeline(callOnComplete);
-            logWithContext(logger, DEBUG, "Connection successfully closed.");
+            logWithContext(logger, DEBUG, this, "Connection successfully closed.");
         } catch (final RuntimeException e) {
             logger.warn(formatLogMessage("Error occurred while attempting to close connection.", this), e);
         } finally {
@@ -981,7 +982,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         @Override
         public void run() {
-            logWithContext(logger, INFO, "Worker thread started");
+            logWithContext(logger, INFO, BlockNodeConnection.this, "Worker thread started");
             while (true) {
                 try {
                     if (connectionState.get().isTerminal()) {
@@ -998,9 +999,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     Thread.sleep(connectionWorkerSleepMillis());
                 } catch (final InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    logWithContext(logger, WARN, "Worker loop was interrupted");
+                    logWithContext(logger, WARN, BlockNodeConnection.this, "Worker loop was interrupted");
                 } catch (final Exception e) {
-                    logWithContext(logger, WARN, "Error caught in connection worker loop", e);
+                    logWithContext(logger, WARN, BlockNodeConnection.this, "Error caught in connection worker loop", e);
                 }
             }
 
@@ -1021,7 +1022,12 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
             while ((item = block.blockItem(itemIndex)) != null) {
                 if (itemIndex == 0) {
-                    logWithContext(logger, TRACE, "Starting to process items for block {}", block.blockNumber());
+                    logWithContext(
+                            logger,
+                            TRACE,
+                            BlockNodeConnection.this,
+                            "Starting to process items for block {}",
+                            block.blockNumber());
                 }
 
                 final int itemSize = item.protobufSize();
@@ -1041,6 +1047,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                         logWithContext(
                                 logger,
                                 ERROR,
+                                BlockNodeConnection.this,
                                 "!!! FATAL: Request would contain a block item that is too big to send (block={}, itemIndex={}, expectedRequestSize={}, maxAllowed={}). Closing connection.",
                                 block.blockNumber(),
                                 itemIndex,
@@ -1072,11 +1079,12 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 // for the current block so we can move to the next block.
                 final long nextBlockNumber = block.blockNumber() + 1;
                 if (streamingBlockNumber.compareAndSet(block.blockNumber(), nextBlockNumber)) {
-                    logWithContext(logger, TRACE, "Advancing to block {}", nextBlockNumber);
+                    logWithContext(logger, TRACE, BlockNodeConnection.this, "Advancing to block {}", nextBlockNumber);
                 } else {
                     logWithContext(
                             logger,
                             TRACE,
+                            BlockNodeConnection.this,
                             "Tried to advance to block {} but the block to stream was updated externally",
                             nextBlockNumber);
                 }
@@ -1106,10 +1114,16 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     return true;
                 }
             } catch (final UncheckedIOException e) {
-                logWithContext(logger, DEBUG, "UncheckedIOException caught in connection worker thread", e);
+                logWithContext(
+                        logger,
+                        DEBUG,
+                        BlockNodeConnection.this,
+                        "UncheckedIOException caught in connection worker thread",
+                        e);
                 handleStreamFailureWithoutOnComplete();
             } catch (final Exception e) {
-                logWithContext(logger, DEBUG, "Exception caught in connection worker thread", e);
+                logWithContext(
+                        logger, DEBUG, BlockNodeConnection.this, "Exception caught in connection worker thread", e);
                 handleStreamFailure();
             }
 
@@ -1148,7 +1162,12 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             if (logger.isTraceEnabled()) {
                 final long oldBlock = block == null ? -1 : block.blockNumber();
                 logWithContext(
-                        logger, TRACE, "Worker switching from block {} to block {}", oldBlock, latestActiveBlockNumber);
+                        logger,
+                        TRACE,
+                        BlockNodeConnection.this,
+                        "Worker switching from block {} to block {}",
+                        oldBlock,
+                        latestActiveBlockNumber);
             }
             block = blockBufferService.getBlockState(latestActiveBlockNumber);
             pendingRequestBytes = BYTES_PADDING;
