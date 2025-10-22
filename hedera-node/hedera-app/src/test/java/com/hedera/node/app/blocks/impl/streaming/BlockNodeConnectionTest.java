@@ -159,7 +159,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         // Create a mock Future that will throw InterruptedException when get() is called
         @SuppressWarnings("unchecked")
         final Future<Object> mockFuture = mock(Future.class);
-        when(mockFuture.get(anyLong(), any(TimeUnit.class))).thenThrow(new InterruptedException("Simulated interruption"));
+        when(mockFuture.get(anyLong(), any(TimeUnit.class)))
+                .thenThrow(new InterruptedException("Simulated interruption"));
 
         // Mock the executor to return our mock future
         final ExecutorService mockPipelineExecutor = mock(ExecutorService.class);
@@ -194,8 +195,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         @SuppressWarnings("unchecked")
         final Future<Object> mockFuture = mock(Future.class);
         when(mockFuture.get(anyLong(), any(TimeUnit.class)))
-                .thenThrow(new java.util.concurrent.ExecutionException("Simulated execution error", 
-                        new RuntimeException("Underlying cause")));
+                .thenThrow(new java.util.concurrent.ExecutionException(
+                        "Simulated execution error", new RuntimeException("Underlying cause")));
 
         // Mock the executor to return our mock future
         final ExecutorService mockPipelineExecutor = mock(ExecutorService.class);

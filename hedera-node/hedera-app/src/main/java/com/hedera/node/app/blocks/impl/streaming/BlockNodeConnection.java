@@ -235,7 +235,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                         blockStreamPublishServiceClient.publishBlockStream(this);
                 requestPipelineRef.set(pipeline);
             });
-            
+
             try {
                 future.get(pipelineOperationTimeout.toMillis(), TimeUnit.MILLISECONDS);
                 logWithContext(logger, DEBUG, this, "Request pipeline initialized.");
@@ -253,20 +253,10 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 throw new RuntimeException("Pipeline creation timed out", e);
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
-                logWithContext(
-                        logger,
-                        DEBUG,
-                        this,
-                        "Interrupted while creating pipeline",
-                        e);
+                logWithContext(logger, DEBUG, this, "Interrupted while creating pipeline", e);
                 throw new RuntimeException("Interrupted while creating pipeline", e);
             } catch (final ExecutionException e) {
-                logWithContext(
-                        logger,
-                        DEBUG,
-                        this,
-                        "Error creating pipeline",
-                        e.getCause());
+                logWithContext(logger, DEBUG, this, "Error creating pipeline", e.getCause());
                 throw new RuntimeException("Error creating pipeline", e.getCause());
             }
         } else {
@@ -748,20 +738,10 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     }
                 } catch (final InterruptedException e) {
                     Thread.currentThread().interrupt(); // Restore interrupt status
-                    logWithContext(
-                            logger,
-                            DEBUG,
-                            this,
-                            "Interrupted while waiting for pipeline.onNext()",
-                            e);
+                    logWithContext(logger, DEBUG, this, "Interrupted while waiting for pipeline.onNext()", e);
                     throw new RuntimeException("Interrupted while waiting for pipeline.onNext()", e);
                 } catch (final ExecutionException e) {
-                    logWithContext(
-                            logger,
-                            DEBUG,
-                            this,
-                            "Error executing pipeline.onNext()",
-                            e.getCause());
+                    logWithContext(logger, DEBUG, this, "Error executing pipeline.onNext()", e.getCause());
                     throw new RuntimeException("Error executing pipeline.onNext()", e.getCause());
                 }
 

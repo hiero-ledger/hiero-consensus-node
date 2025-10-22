@@ -181,7 +181,6 @@ Pipeline operations (`onNext()`, `onComplete()`, and pipeline creation) are pote
   - A `RuntimeException` is thrown with the underlying `TimeoutException`
   - The connection remains in UNINITIALIZED state
   - The connection manager's error handling will schedule a retry with exponential backoff
-
 - **onNext() timeout**: When sending block items via `sendRequest()`, the operation is submitted to the connection's dedicated executor and the calling thread blocks waiting for completion with a timeout. If the operation does not complete within the configured timeout period:
   - The Future is cancelled to interrupt the blocked operation
   - The timeout metric is incremented
@@ -189,7 +188,6 @@ Pipeline operations (`onNext()`, `onComplete()`, and pipeline creation) are pote
   - The connection follows standard failure handling with exponential backoff retry
   - The connection manager will select a different block node for the next attempt if one is available
   - `TimeoutException` is caught and handled internally
-
 - **onComplete() timeout**: When closing the stream via `closePipeline()`, the operation is submitted to the same dedicated executor with the same timeout mechanism. If the operation does not complete within the configured timeout period:
   - The Future is cancelled to interrupt the blocked operation
   - The timeout metric is incremented
