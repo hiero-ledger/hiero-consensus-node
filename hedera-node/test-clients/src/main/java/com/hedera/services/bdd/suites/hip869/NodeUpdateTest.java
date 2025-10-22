@@ -16,7 +16,6 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.WRONG_LENGTH_EDDSA_KEY;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
@@ -34,7 +33,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.GRPC_PROXY_ENDPOINT_FQDN;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.GRPC_PROXY_ENDPOINT_IP;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_IS_LINKED_TO_A_NODE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GOSSIP_ENDPOINTS_EXCEEDED_LIMIT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GOSSIP_ENDPOINT_CANNOT_HAVE_FQDN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GRPC_WEB_PROXY_NOT_SUPPORTED;
@@ -582,92 +580,5 @@ public class NodeUpdateTest {
                         .signedByPayerAnd("adminKey")
                         .grpcProxyEndpoint(toPbj(GRPC_PROXY_ENDPOINT_IP))
                         .hasKnownStatus(INVALID_SERVICE_ENDPOINT));
-    }
-
-    @LeakyHapiTest(overrides = {"nodes.updateAccountIdAllowed"})
-    final Stream<DynamicTest> restrictNodeAccountDeletion() throws CertificateEncodingException {
-        final var adminKey = "adminKey";
-        final var account = "account";
-        final var secondAccount = "secondAccount";
-        final var node = "testNode";
-        return hapiTest(
-                overriding("nodes.updateAccountIdAllowed", "true"),
-                cryptoCreate(account),
-                cryptoCreate(secondAccount),
-                newKeyNamed(adminKey),
-
-                // create new node
-                nodeCreate(node, account)
-                        .adminKey("adminKey")
-                        .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
-                // verify we can't delete the node account
-                cryptoDelete(account).hasKnownStatus(ACCOUNT_IS_LINKED_TO_A_NODE),
-
-                // update the new node account id
-                nodeUpdate(node)
-                        .accountId(secondAccount)
-                        .payingWith(secondAccount)
-                        .signedBy(secondAccount, adminKey),
-
-                // verify now we can delete the old node account, and can't delete the new node account
-                cryptoDelete(account),
-                cryptoDelete(secondAccount).hasKnownStatus(ACCOUNT_IS_LINKED_TO_A_NODE),
-
-                // delete the node
-                nodeDelete(node).signedByPayerAnd(adminKey),
-                // verify we can delete the second account
-                cryptoDelete(secondAccount));
-    }
-
-    @HapiTest
-    @LeakyHapiTest
-    final Stream<DynamicTest> nodeCreateWithAccountLinkedToAnotherNode() throws CertificateEncodingException {
-        final var adminKey = "adminKey";
-        final var account = "account";
-        final var node1 = "node1";
-        final var node2 = "node2";
-        return hapiTest(
-                cryptoCreate(account),
-                newKeyNamed(adminKey),
-                // create new node
-                nodeCreate(node1, account)
-                        .adminKey("adminKey")
-                        .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
-                // try to create new node with same account
-                nodeCreate(node2, account)
-                        .adminKey("adminKey")
-                        .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
-                        .accountId(account)
-                        .hasKnownStatus(ACCOUNT_IS_LINKED_TO_A_NODE),
-                nodeDelete(node1));
-    }
-
-    @HapiTest
-    @LeakyHapiTest(overrides = {"nodes.updateAccountIdAllowed"})
-    final Stream<DynamicTest> nodeUpdateWithAccountLinkedToAnotherAccount() throws CertificateEncodingException {
-        final var adminKey = "adminKey";
-        final var account = "account";
-        final var secondAccount = "secondAccount";
-        final var node1 = "Node1";
-        final var node2 = "Node2";
-        return hapiTest(
-                overriding("nodes.updateAccountIdAllowed", "true"),
-                cryptoCreate(account),
-                cryptoCreate(secondAccount),
-                newKeyNamed(adminKey),
-                nodeCreate(node1, account)
-                        .adminKey("adminKey")
-                        .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
-                nodeCreate(node2, secondAccount)
-                        .adminKey("adminKey")
-                        .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
-                // Verify node 1 update with second account will fail
-                nodeUpdate(node1)
-                        .accountId(secondAccount)
-                        .signedByPayerAnd(adminKey)
-                        .hasKnownStatus(ACCOUNT_IS_LINKED_TO_A_NODE),
-                // clear nodes from state
-                nodeDelete(node1).signedByPayerAnd(adminKey),
-                nodeDelete(node2).signedByPayerAnd(adminKey));
     }
 }

@@ -12,6 +12,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.WRONG_LENGTH_EDDSA_KEY;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
@@ -24,6 +25,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.NONSENSE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_ADMIN;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_IS_LINKED_TO_A_NODE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GOSSIP_ENDPOINTS_EXCEEDED_LIMIT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GOSSIP_ENDPOINT_CANNOT_HAVE_FQDN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GRPC_WEB_PROXY_NOT_SUPPORTED;
@@ -668,6 +670,28 @@ public class NodeCreateTest {
                         .grpcWebProxyEndpoint(ServiceEndpoint.getDefaultInstance())
                         .description("newNode")
                         .hasKnownStatus(INVALID_SERVICE_ENDPOINT));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> nodeCreateWithAccountLinkedToAnotherNode() throws CertificateEncodingException {
+        final var adminKey = "adminKey";
+        final var account = "account";
+        final var node1 = "node1";
+        final var node2 = "node2";
+        return hapiTest(
+                cryptoCreate(account),
+                newKeyNamed(adminKey),
+                // create new node
+                nodeCreate(node1, account)
+                        .adminKey("adminKey")
+                        .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
+                // try to create new node with same account
+                nodeCreate(node2, account)
+                        .adminKey("adminKey")
+                        .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
+                        .accountId(account)
+                        .hasKnownStatus(ACCOUNT_IS_LINKED_TO_A_NODE),
+                nodeDelete(node1));
     }
 
     private static void assertEqualServiceEndpoints(

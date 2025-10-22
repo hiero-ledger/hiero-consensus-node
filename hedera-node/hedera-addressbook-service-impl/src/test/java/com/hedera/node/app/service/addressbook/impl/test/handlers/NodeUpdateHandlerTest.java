@@ -876,6 +876,9 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(accountStore.contains(newAccountId)).willReturn(true);
 
+        createAccountNodeRelStoreWithCurrentAccountNodeRel();
+        given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
+
         // Execute the method
         assertDoesNotThrow(() -> subject.handle(handleContext));
 
