@@ -11,6 +11,7 @@ import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransaction
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -24,6 +25,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -43,7 +45,7 @@ public class HintsContext {
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
     private final HintsLibrary library;
-    private final TssConfig tssConfig;
+    private final Supplier<Configuration> configProvider;
 
     @Nullable
     private Bytes crs;
@@ -57,9 +59,9 @@ public class HintsContext {
     private long schemeId;
 
     @Inject
-    public HintsContext(@NonNull final HintsLibrary library, @NonNull final TssConfig tssConfig) {
+    public HintsContext(@NonNull final HintsLibrary library, @NonNull final Supplier<Configuration> configProvider) {
         this.library = requireNonNull(library);
-        this.tssConfig = requireNonNull(tssConfig);
+        this.configProvider = requireNonNull(configProvider);
     }
 
     /**
@@ -177,6 +179,7 @@ public class HintsContext {
             totalWeight += nodePartyId.partyWeight();
             nodeWeights.put(nodePartyId.nodeId(), nodePartyId.partyWeight());
         }
+        final var tssConfig = configProvider.get().getConfigData(TssConfig.class);
         final int divisor = tssConfig.signingThresholdDivisor();
         if (divisor <= 0) {
             throw new IllegalArgumentException("signingThresholdDivisor must be > 0");
@@ -284,9 +287,8 @@ public class HintsContext {
             signatures.put(partyId, signature);
             final var weight = nodeWeights.getOrDefault(nodeId, 0L);
             final var totalWeight = weightOfSignatures.addAndGet(weight);
-            final boolean reachedThreshold = tssConfig.strictSigningThreshold()
-                    ? (totalWeight > thresholdWeight)
-                    : (totalWeight >= thresholdWeight);
+            // For block hash signing, always require strictly greater than threshold
+            final boolean reachedThreshold = totalWeight > thresholdWeight;
             if (reachedThreshold && completed.compareAndSet(false, true)) {
                 final var aggregatedSignature =
                         library.aggregateSignatures(crs, aggregationKey, verificationKey, signatures);
