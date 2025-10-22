@@ -27,6 +27,7 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import com.hedera.node.internal.network.BlockNodeConnectionInfo;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -987,7 +988,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final Map<BlockNodeConfig, BlockNodeConnection> connections = connections();
         final List<BlockNodeConfig> availableNodes = availableNodes();
 
-        final BlockNodeConfig newConnectionConfig = new BlockNodeConfig("::1", 50211, 1, null);
+        final BlockNodeConfig newConnectionConfig = new BlockNodeConfig("::1", 50211, 1, null, null);
         final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
         doReturn(newConnectionConfig).when(newConnection).getNodeConfig();
 
@@ -1008,7 +1009,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final Map<BlockNodeConfig, BlockNodeConnection> connections = connections();
         final List<BlockNodeConfig> availableNodes = availableNodes();
 
-        final BlockNodeConfig newConnectionConfig = new BlockNodeConfig("invalid.hostname.for.test", 50211, 1, null);
+        final BlockNodeConfig newConnectionConfig =
+                new BlockNodeConfig("invalid.hostname.for.test", 50211, 1, null, null);
         final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
         doReturn(newConnectionConfig).when(newConnection).getNodeConfig();
 
@@ -1842,5 +1844,18 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final ConfigProvider disabledProvider = () -> new VersionedConfigImpl(config, 1L);
         connectionManager = new BlockNodeConnectionManager(disabledProvider, bufferService, metrics);
         sharedExecutorServiceHandle.set(connectionManager, executorService);
+    }
+
+    @Test
+    void parsesBootstrapBlockNodesJsonWithBlockNodeConfigCodec() throws Exception {
+        final var url = Objects.requireNonNull(
+                BlockNodeCommunicationTestBase.class.getClassLoader().getResource("bootstrap/block-nodes.json"));
+        final var dirPath = Path.of(url.getPath());
+        final byte[] jsonConfig = Files.readAllBytes(dirPath);
+        final BlockNodeConnectionInfo protoConfig = BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(jsonConfig));
+        assertThat(protoConfig).isNotNull();
+        assertThat(protoConfig.nodes().getFirst().hasHttp2ClientProtocolConfig())
+                .isTrue();
+        assertThat(protoConfig.nodes().getFirst().hasGrpcClientProtocolConfig()).isTrue();
     }
 }

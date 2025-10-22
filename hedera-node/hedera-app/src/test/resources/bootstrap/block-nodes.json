@@ -1,6 +1,27 @@
 {
   "nodes": [
-    { "address": "localhost", "port": 8080, "priority": 0 },
+    {
+      "address": "localhost",
+      "port": 40840,
+      "priority": 1,
+      "http2ClientProtocolConfig": {
+        "flowControlBlockTimeout": "PT30S",
+        "initialWindowSize": 65535,
+        "maxFrameSize": 16384,
+        "maxHeaderListSize": "-1",
+        "name": "h2",
+        "ping": false,
+        "pingTimeout": "PT0.5S",
+        "priorKnowledge": false
+      },
+      "grpcClientProtocolConfig": {
+        "abortPollTimeExpired": false,
+        "heartbeatPeriod": "PT0S",
+        "initBufferSize": 2048,
+        "name": "grpc",
+        "pollWaitTime": "PT10S"
+      }
+    },
     { "address": "localhost", "port": 8081, "priority": 1 }
   ]
 }

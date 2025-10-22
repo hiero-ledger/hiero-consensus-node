@@ -18,6 +18,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import io.helidon.webclient.grpc.GrpcClientProtocolConfig;
 import io.helidon.webclient.http2.Http2ClientProtocolConfig;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -100,6 +101,7 @@ public class BlockNodeConnectionManager {
     private final List<BlockNodeConfig> availableBlockNodes = new ArrayList<>();
 
     private Map<BlockNodeConfig, Http2ClientProtocolConfig> http2ClientProtocolConfigs = new ConcurrentHashMap<>();
+    private Map<BlockNodeConfig, GrpcClientProtocolConfig> grpcClientProtocolConfigs = new ConcurrentHashMap<>();
     /**
      * Flag that indicates if this connection manager is active or not. In this case, being active means it is actively
      * processing blocks and attempting to send them to a block node.
@@ -246,6 +248,7 @@ public class BlockNodeConnectionManager {
             final byte[] jsonConfig = Files.readAllBytes(configPath);
             final BlockNodeConnectionInfo protoConfig = BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(jsonConfig));
             extractOptionalHttp2ClientProtocolConfig(protoConfig);
+            extractOptionalGrpcClientProtocolConfig(protoConfig);
             return protoConfig.nodes();
         } catch (final IOException | ParseException e) {
             logger.info(
@@ -303,6 +306,46 @@ public class BlockNodeConnectionManager {
                     }
                 }
                 http2ClientProtocolConfigs.put(config, builder.build());
+            }
+        }
+    }
+
+    private void extractOptionalGrpcClientProtocolConfig(BlockNodeConnectionInfo protoConfig) {
+        for (BlockNodeConfig config : protoConfig.nodes()) {
+            if (config.hasGrpcClientProtocolConfig()) {
+                com.hedera.node.internal.network.GrpcClientProtocolConfig protocolConfig =
+                        config.grpcClientProtocolConfig();
+                GrpcClientProtocolConfig.Builder builder = GrpcClientProtocolConfig.builder();
+                if (protocolConfig != null) {
+                    if (protocolConfig.abortPollTimeExpired() != null) {
+                        builder.abortPollTimeExpired(protocolConfig.abortPollTimeExpired());
+                    }
+                    if (protocolConfig.heartbeatPeriod() != null) {
+                        try {
+                            builder.heartbeatPeriod(Duration.parse(protocolConfig.heartbeatPeriod()));
+                        } catch (DateTimeParseException e) {
+                            logger.info(
+                                    "Unable to parse GrpcClientProtocolConfig heartbeatPeriod: {}",
+                                    protocolConfig.heartbeatPeriod());
+                        }
+                    }
+                    if (protocolConfig.initBufferSize() != null) {
+                        builder.initBufferSize(protocolConfig.initBufferSize());
+                    }
+                    if (protocolConfig.name() != null) {
+                        builder.name(protocolConfig.name());
+                    }
+                    if (protocolConfig.pollWaitTime() != null) {
+                        try {
+                            builder.pollWaitTime(Duration.parse(protocolConfig.pollWaitTime()));
+                        } catch (DateTimeParseException e) {
+                            logger.info(
+                                    "Unable to parse GrpcClientProtocolConfig pollWaitTime: {}",
+                                    protocolConfig.pollWaitTime());
+                        }
+                    }
+                }
+                grpcClientProtocolConfigs.put(config, builder.build());
             }
         }
     }
@@ -1133,5 +1176,9 @@ public class BlockNodeConnectionManager {
 
     public Map<BlockNodeConfig, Http2ClientProtocolConfig> getHttp2ClientProtocolConfigs() {
         return http2ClientProtocolConfigs;
+    }
+
+    public Map<BlockNodeConfig, GrpcClientProtocolConfig> getGrpcClientProtocolConfigs() {
+        return grpcClientProtocolConfigs;
     }
 }
