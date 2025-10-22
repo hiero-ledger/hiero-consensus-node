@@ -73,7 +73,6 @@ import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.hedera.node.config.Utils;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.HooksConfig;
-import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
@@ -235,16 +234,14 @@ public final class IngestChecker {
     public void verifyNodeAccountBalance(
             final ReadableStoreFactory storeFactory, final Account payerAccount, final Configuration configuration)
             throws PreCheckException {
+        final var hederaConfig = configuration.getConfigData(HederaConfig.class);
         final var accountStore = storeFactory.getStore(ReadableAccountStore.class);
         final var nodeAccount =
                 accountStore.getAccountById(networkInfo.selfNodeInfo().accountId());
         if (nodeAccount == null) {
             throw new PreCheckException(INVALID_NODE_ACCOUNT);
         }
-        final var lastReservedSystemEntity =
-                configuration.getConfigData(LedgerConfig.class).numReservedSystemEntities();
-        if (nodeAccount.tinybarBalance() < 1
-                && payerAccount.accountIdOrThrow().accountNumOrThrow() > lastReservedSystemEntity) {
+        if (nodeAccount.tinybarBalance() < 1 && !isSystemAccount(payerAccount, hederaConfig.firstUserEntity())) {
             throw new PreCheckException(NODE_ACCOUNT_HAS_ZERO_BALANCE);
         }
     }
@@ -574,5 +571,9 @@ public final class IngestChecker {
         if (payerKeyVerification.failed()) {
             throw new PreCheckException(INVALID_SIGNATURE);
         }
+    }
+
+    private boolean isSystemAccount(final Account account, final long systemAccountThreshold) {
+        return account.accountIdOrThrow().accountNumOrThrow() < systemAccountThreshold;
     }
 }
