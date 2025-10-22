@@ -480,7 +480,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
             }
 
             final var md = stateMetadata.get(stateId);
-            if (md == null || md.stateDefinition().singleton()) {
+            if (md == null || !md.stateDefinition().onDisk()) {
                 throw new IllegalArgumentException("Unknown k/v state ID '" + stateId + ";");
             }
 
@@ -842,6 +842,14 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
     @Override
     public long kvPath(final int stateId, @NonNull final Bytes key) {
         return virtualMap.getRecords().findPath(StateKeyUtils.kvKey(stateId, key));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Hash getHashForPath(long path) {
+        return virtualMap.getRecords().findHash(path);
     }
 
     /**

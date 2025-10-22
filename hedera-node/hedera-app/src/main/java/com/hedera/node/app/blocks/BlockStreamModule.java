@@ -29,9 +29,7 @@ public interface BlockStreamModule {
     @Singleton
     static BlockBufferService provideBlockBufferService(
             @NonNull final ConfigProvider configProvider, @NonNull final BlockStreamMetrics blockStreamMetrics) {
-        final BlockBufferService bufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        bufferService.start();
-        return bufferService;
+        return new BlockBufferService(configProvider, blockStreamMetrics);
     }
 
     @Provides
@@ -43,6 +41,7 @@ public interface BlockStreamModule {
         final BlockNodeConnectionManager manager =
                 new BlockNodeConnectionManager(configProvider, blockBufferService, blockStreamMetrics);
         blockBufferService.setBlockNodeConnectionManager(manager);
+        manager.start();
         return manager;
     }
 

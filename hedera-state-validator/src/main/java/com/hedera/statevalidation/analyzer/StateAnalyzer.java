@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.analyzer;
 
-import static com.hedera.statevalidation.validators.ParallelProcessingUtil.processObjects;
+import static com.hedera.statevalidation.util.ParallelProcessingUtils.processObjects;
 import static com.swirlds.base.units.UnitConstants.BYTES_TO_MEBIBYTES;
 import static java.math.RoundingMode.HALF_UP;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
-import com.hedera.statevalidation.merkledb.reflect.BucketIterator;
-import com.hedera.statevalidation.merkledb.reflect.MemoryIndexDiskKeyValueStoreW;
-import com.hedera.statevalidation.reporting.Report;
-import com.hedera.statevalidation.reporting.StorageReport;
-import com.hedera.statevalidation.validators.Utils.LongCountArray;
+import com.hedera.statevalidation.report.Report;
+import com.hedera.statevalidation.report.StorageReport;
+import com.hedera.statevalidation.util.LongCountArray;
+import com.hedera.statevalidation.util.reflect.BucketIterator;
+import com.hedera.statevalidation.util.reflect.MemoryIndexDiskKeyValueStoreAccessor;
 import com.swirlds.merkledb.KeyRange;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.collections.LongList;
@@ -43,7 +43,7 @@ public final class StateAnalyzer {
             @NonNull final Report report, @NonNull final MerkleDbDataSource vds) {
         updateReport(
                 report,
-                new MemoryIndexDiskKeyValueStoreW<>(vds.getPathToKeyValue()).getFileCollection(),
+                new MemoryIndexDiskKeyValueStoreAccessor(vds.getPathToKeyValue()).getFileCollection(),
                 vds.getPathToDiskLocationLeafNodes().size(),
                 Report::setPathToKeyValueReport,
                 VirtualLeafBytes::parseFrom);
@@ -66,7 +66,7 @@ public final class StateAnalyzer {
     public static void analyzePathToHashStorage(@NonNull final Report report, @NonNull final MerkleDbDataSource vds) {
         updateReport(
                 report,
-                new MemoryIndexDiskKeyValueStoreW<>(vds.getHashStoreDisk()).getFileCollection(),
+                new MemoryIndexDiskKeyValueStoreAccessor(vds.getHashStoreDisk()).getFileCollection(),
                 vds.getPathToDiskLocationInternalNodes().size(),
                 Report::setPathToHashReport,
                 VirtualHashRecord::parseFrom);
@@ -112,35 +112,30 @@ public final class StateAnalyzer {
                 while (dataIterator.next()) {
                     try {
                         final Object dataItemData = deserializer.apply(dataIterator.getDataItemData());
-                        if (dataItemData
-                                instanceof @SuppressWarnings("DeconstructionCanBeUsed") VirtualHashRecord hashRecord) {
-                            final long path = hashRecord.path();
-                            final int itemSize = hashRecord.hash().getSerializedLength() + /*path*/ Long.BYTES;
+                        switch (dataItemData) {
+                            case @SuppressWarnings("DeconstructionCanBeUsed") VirtualHashRecord hashRecord -> {
+                                final long path = hashRecord.path();
+                                final int itemSize = hashRecord.hash().getSerializedLength() + /*path*/ Long.BYTES;
 
-                            updateStats(
-                                    path, itemSize, indexSize, itemCountByPath, wastedSpaceInBytes, duplicateItemCount);
-                        } else if (dataItemData instanceof @SuppressWarnings("rawtypes") VirtualLeafBytes leafRecord) {
-                            final long path = leafRecord.path();
-                            final SerializableDataOutputStream outputStream =
-                                    new SerializableDataOutputStream(arrayOutputStream);
-                            outputStream.writeByteArray(leafRecord.keyBytes().toByteArray());
-                            int itemSize = outputStream.size();
-                            arrayOutputStream.reset();
-                            outputStream.writeByteArray(leafRecord.valueBytes().toByteArray());
-                            itemSize += outputStream.size() + /*path*/ Long.BYTES;
-                            arrayOutputStream.reset();
-
-                            updateStats(
-                                    path, itemSize, indexSize, itemCountByPath, wastedSpaceInBytes, duplicateItemCount);
-                        } else if (dataItemData instanceof ParsedBucket parsedBucket) {
-                            var bucketIterator = new BucketIterator(parsedBucket);
-                            while (bucketIterator.hasNext()) {
-                                final ParsedBucket.BucketEntry entry = bucketIterator.next();
-                                final long path = entry.getValue();
+                                updateStats(
+                                        path,
+                                        itemSize,
+                                        indexSize,
+                                        itemCountByPath,
+                                        wastedSpaceInBytes,
+                                        duplicateItemCount);
+                            }
+                            case @SuppressWarnings("rawtypes") VirtualLeafBytes leafRecord -> {
+                                final long path = leafRecord.path();
                                 final SerializableDataOutputStream outputStream =
                                         new SerializableDataOutputStream(arrayOutputStream);
-                                outputStream.writeByteArray(entry.getKeyBytes().toByteArray());
-                                final int itemSize = outputStream.size() + /*path*/ Long.BYTES;
+                                outputStream.writeByteArray(
+                                        leafRecord.keyBytes().toByteArray());
+                                int itemSize = outputStream.size();
+                                arrayOutputStream.reset();
+                                outputStream.writeByteArray(
+                                        leafRecord.valueBytes().toByteArray());
+                                itemSize += outputStream.size() + /*path*/ Long.BYTES;
                                 arrayOutputStream.reset();
 
                                 updateStats(
@@ -151,8 +146,28 @@ public final class StateAnalyzer {
                                         wastedSpaceInBytes,
                                         duplicateItemCount);
                             }
-                        } else {
-                            throw new UnsupportedOperationException("Unsupported data item type");
+                            case ParsedBucket parsedBucket -> {
+                                var bucketIterator = new BucketIterator(parsedBucket);
+                                while (bucketIterator.hasNext()) {
+                                    final ParsedBucket.BucketEntry entry = bucketIterator.next();
+                                    final long path = entry.getValue();
+                                    final SerializableDataOutputStream outputStream =
+                                            new SerializableDataOutputStream(arrayOutputStream);
+                                    outputStream.writeByteArray(
+                                            entry.getKeyBytes().toByteArray());
+                                    final int itemSize = outputStream.size() + /*path*/ Long.BYTES;
+                                    arrayOutputStream.reset();
+
+                                    updateStats(
+                                            path,
+                                            itemSize,
+                                            indexSize,
+                                            itemCountByPath,
+                                            wastedSpaceInBytes,
+                                            duplicateItemCount);
+                                }
+                            }
+                            default -> throw new UnsupportedOperationException("Unsupported data item type");
                         }
                     } catch (Exception e) {
                         failure.incrementAndGet();
