@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
+import static com.swirlds.common.test.fixtures.WeightGenerators.TOTAL_NETWORK_WEIGHT;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.BEHIND;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
@@ -12,7 +13,6 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig_;
-import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.platform.consensus.ConsensusConfig_;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -56,9 +56,9 @@ public class ReconnectTest {
 
         // Setup simulation
 
-        // Add more than 3 nodes with balanced weights so that one node can be taken down without halting consensus
-        network.weightGenerator(WeightGenerators.BALANCED);
-        network.addNodes(4);
+        // Add nodes such that one node can be taken down without halting consensus
+        IntStream.range(0, 4).forEach(i -> network.addNode().weight(Math.round(.25 * TOTAL_NETWORK_WEIGHT)));
+        network.addNode().weight(0);
 
         // Set the rounds non-ancient and expired to smaller values to allow nodes to fall behind quickly
         network.withConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, ROUNDS_EXPIRED);
@@ -157,7 +157,7 @@ public class ReconnectTest {
         network.withConfigValue(
                         PlatformSchedulersConfig_.TRANSACTION_HANDLER,
                         "SEQUENTIAL_THREAD CAPACITY(100) FLUSHABLE SQUELCHABLE")
-                .withConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, ROUNDS_EXPIRED);
+                .withConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, 50L);
 
         // These nodes will be forced to reconnect
         final Node node0 = network.nodes().get(0);
@@ -197,7 +197,7 @@ public class ReconnectTest {
 
             timeManager.waitForCondition(
                     () -> unstableNodes.stream().allMatch(Node::isBehind),
-                    Duration.ofSeconds(120L),
+                    Duration.ofMinutes(5),
                     String.format(
                             "Node did not fall behind within the expected time "
                                     + "frame after synthetic bottleneck was enabled on iteration %d.",
@@ -222,8 +222,14 @@ public class ReconnectTest {
         // Allow the nodes to run for a short time after completing the last reconnect cycle
         timeManager.waitFor(Duration.ofSeconds(5L));
 
+        // Validations
+        assertThat(network.newLogResults()).haveNoErrorLevelMessages();
+        assertThat(network.newConsensusResults()).haveConsistentRounds().haveEqualCommonRounds();
+
         for (final Node node : Set.of(node0, node1, node2)) {
-            assertThat(node.newReconnectResult()).hasExactSuccessfulReconnects(numReconnectCycles);
+            assertThat(node.newReconnectResult())
+                    .hasExactSuccessfulReconnects(numReconnectCycles)
+                    .hasNoFailedReconnects();
         }
 
         assertThat(network.newPlatformStatusResults().suppressingNodes(node0, node1, node2))
