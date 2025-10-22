@@ -41,6 +41,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.assertj.core.data.Percentage;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -68,6 +69,8 @@ import org.hiero.otter.fixtures.internal.result.MultipleNodeReconnectResultsImpl
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology;
 import org.hiero.otter.fixtures.network.Topology.ConnectionData;
+import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
+import org.hiero.otter.fixtures.network.utils.LatencyRange;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeEventStreamResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
@@ -81,6 +84,7 @@ import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * An abstract base class for a network implementation that provides common functionality shared by the different
@@ -117,6 +121,8 @@ public abstract class AbstractNetwork implements Network {
 
     private final Random random;
     private final Map<NodeId, PartitionImpl> networkPartitions = new HashMap<>();
+    private final Map<ConnectionKey, LatencyOverride> latencyOverrides = new HashMap<>();
+    private final Map<ConnectionKey, BandwidthLimit> bandwidthOverrides = new HashMap<>();
     private final Topology topology;
     private final boolean useRandomNodeIds;
 
@@ -386,7 +392,7 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public void removePartition(@NonNull final Partition partition) {
+    public void removeNetworkPartition(@NonNull final Partition partition) {
         log.info("Removing network partition...");
         final Set<Partition> allPartitions = networkPartitions();
         if (!allPartitions.contains(partition)) {
@@ -443,7 +449,7 @@ public abstract class AbstractNetwork implements Network {
         if (partition == null) {
             throw new IllegalArgumentException("Node is not isolated: " + node.selfId());
         }
-        removePartition(partition);
+        removeNetworkPartition(partition);
     }
 
     /**
@@ -456,11 +462,55 @@ public abstract class AbstractNetwork implements Network {
     }
 
     /**
+     *  {@inheritDoc}
+     */
+    @Override
+    public void setLatencyForAllConnections(@NonNull final Node sender, @NonNull final LatencyRange latencyRange) {
+        log.info("Setting latency for all connections from node {} to range {}", sender.selfId(), latencyRange);
+        for (final Node receiver : nodes()) {
+            if (!receiver.equals(sender)) {
+                setLatencyRange(sender, receiver, latencyRange);
+                setLatencyRange(receiver, sender, latencyRange);
+            }
+        }
+        updateConnections();
+    }
+
+    private void setLatencyRange(
+            @NonNull final Node sender, @NonNull final Node receiver, @NonNull final LatencyRange latencyRange) {
+        final long nanos = latencyRange.min().equals(latencyRange.max())
+                ? latencyRange.max().toNanos()
+                : random.nextLong(
+                        latencyRange.min().toNanos(), latencyRange.max().toNanos());
+        final LatencyOverride latencyOverride =
+                new LatencyOverride(Duration.ofNanos(nanos), latencyRange.jitterPercent());
+        latencyOverrides.put(new ConnectionKey(sender.selfId(), receiver.selfId()), latencyOverride);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void setBandwidthForAllConnections(
+            @NonNull final Node sender, @NonNull final BandwidthLimit bandwidthLimit) {
+        log.info("Setting bandwidth for all connections from node {} to {}", sender.selfId(), bandwidthLimit);
+        for (final Node receiver : nodes()) {
+            if (!receiver.equals(sender)) {
+                bandwidthOverrides.put(new ConnectionKey(sender.selfId(), receiver.selfId()), bandwidthLimit);
+                bandwidthOverrides.put(new ConnectionKey(receiver.selfId(), sender.selfId()), bandwidthLimit);
+            }
+        }
+        updateConnections();
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override
     public void restoreConnectivity() {
         networkPartitions.clear();
+        latencyOverrides.clear();
+        bandwidthOverrides.clear();
         updateConnections();
     }
 
@@ -554,6 +604,16 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Network withConfigValue(@NonNull final String key, @NonNull final String value) {
+        requireNodesBeforeConfigChange();
+        nodes().forEach(node -> node.configuration().set(key, value));
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NotNull Network withConfigValue(@NotNull final String key, @NotNull final Duration value) {
         requireNodesBeforeConfigChange();
         nodes().forEach(node -> node.configuration().set(key, value));
         return this;
@@ -833,6 +893,15 @@ public abstract class AbstractNetwork implements Network {
                 if (getNetworkPartitionContaining(sender) != getNetworkPartitionContaining(receiver)) {
                     connectionData = connectionData.withConnected(false);
                 }
+                final LatencyOverride latencyOverride = latencyOverrides.get(key);
+                if (latencyOverride != null) {
+                    connectionData =
+                            connectionData.withLatencyAndJitter(latencyOverride.latency(), latencyOverride.jitter());
+                }
+                final BandwidthLimit bandwidthOverride = bandwidthOverrides.get(key);
+                if (bandwidthOverride != null) {
+                    connectionData = connectionData.withBandwidthLimit(bandwidthOverride);
+                }
                 // add other effects (e.g., clique, latency) on connections here
                 connections.put(key, connectionData);
             }
@@ -952,4 +1021,6 @@ public abstract class AbstractNetwork implements Network {
             return nodes.size();
         }
     }
+
+    private record LatencyOverride(@NonNull Duration latency, @NonNull Percentage jitter) {}
 }
