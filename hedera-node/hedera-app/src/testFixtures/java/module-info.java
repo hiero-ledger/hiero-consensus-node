@@ -10,7 +10,6 @@ open module com.hedera.node.app.test.fixtures {
     requires transitive com.hedera.node.config;
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
-    requires transitive com.swirlds.base;
     requires transitive com.swirlds.common;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
@@ -25,6 +24,7 @@ open module com.hedera.node.app.test.fixtures {
     requires com.hedera.node.app.service.entityid;
     requires com.hedera.node.app.service.token;
     requires com.hedera.node.config.test.fixtures;
+    requires com.swirlds.base;
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.merkledb.test.fixtures;
     requires com.swirlds.platform.core.test.fixtures;
@@ -33,5 +33,4 @@ open module com.hedera.node.app.test.fixtures {
     requires org.apache.logging.log4j;
     requires org.assertj.core;
     requires org.junit.jupiter.api;
-    requires static transitive com.github.spotbugs.annotations;
 }

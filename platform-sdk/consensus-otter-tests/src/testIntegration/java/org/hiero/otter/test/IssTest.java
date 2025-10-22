@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
+import static com.swirlds.common.test.fixtures.WeightGenerators.TOTAL_NETWORK_WEIGHT;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.CATASTROPHIC_FAILURE;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
@@ -126,10 +127,15 @@ public class IssTest {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
-        network.addNodes(4);
-        final Node issNode = network.nodes().getFirst();
+        network.addNode().weight(Math.round(.35 * TOTAL_NETWORK_WEIGHT));
+        network.addNode().weight(Math.round(.15 * TOTAL_NETWORK_WEIGHT));
+        network.addNode().weight(Math.round(.35 * TOTAL_NETWORK_WEIGHT));
+        network.addNode().weight(0);
+        network.addNode().weight(Math.round(.15 * TOTAL_NETWORK_WEIGHT));
 
         network.withConfigValue(StateConfig_.AUTOMATED_SELF_ISS_RECOVERY, true);
+
+        final Node issNode = network.nodes().getLast();
 
         // Setup continuous assertions
         assertContinuouslyThat(network.newLogResults().suppressingNode(issNode)).haveNoErrorLevelMessages();
@@ -189,7 +195,12 @@ public class IssTest {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
-        network.addNodes(4);
+        network.addNode().weight(Math.round(.35 * TOTAL_NETWORK_WEIGHT));
+        network.addNode().weight(Math.round(.15 * TOTAL_NETWORK_WEIGHT));
+        network.addNode().weight(Math.round(.35 * TOTAL_NETWORK_WEIGHT));
+        network.addNode().weight(0);
+        network.addNode().weight(Math.round(.15 * TOTAL_NETWORK_WEIGHT));
+
         network.withConfigValue(StateConfig_.HALT_ON_CATASTROPHIC_ISS, true);
 
         // Setup continuous assertions

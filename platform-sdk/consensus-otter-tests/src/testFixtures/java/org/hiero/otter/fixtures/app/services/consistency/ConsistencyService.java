@@ -174,7 +174,7 @@ public class ConsistencyService implements OtterService {
      * {@inheritDoc}
      */
     @Override
-    public void onRoundComplete(@NotNull final Round round) {
+    public void onRoundComplete(@NonNull final WritableStates writableStates, @NotNull final Round round) {
         roundHistory.onRoundComplete();
     }
 
