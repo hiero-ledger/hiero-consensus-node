@@ -75,6 +75,6 @@ public class FakeFeeCalculator implements FeeCalculator {
 
     @Override
     public @NonNull FeeSchedule getSimpleFeesSchedule() {
-        return null;
+        return FeeSchedule.DEFAULT;
     }
 }
