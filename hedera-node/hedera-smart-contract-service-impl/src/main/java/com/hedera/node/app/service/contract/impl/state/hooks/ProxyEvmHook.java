@@ -87,6 +87,11 @@ public class ProxyEvmHook extends AbstractProxyEvmAccount {
                 : asAccountId(hookId.entityIdOrThrow().contractIdOrThrow());
     }
 
+    @Override
+    public boolean isRegularAccount() {
+        return false;
+    }
+
     private static AccountID asAccountId(final ContractID contractID) {
         return AccountID.newBuilder()
                 .shardNum(contractID.shardNum())

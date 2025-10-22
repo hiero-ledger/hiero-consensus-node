@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.operations;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
+import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Objects;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
@@ -25,6 +27,7 @@ public class CustomDelegateCallOperation extends DelegateCallOperation implement
 
     /**
      * Constructor for custom delegate call operations.
+     *
      * @param gasCalculator the gas calculator to use
      * @param addressChecks checks against addresses reserved for Hedera
      * @param featureFlags current evm module feature flags
@@ -33,8 +36,8 @@ public class CustomDelegateCallOperation extends DelegateCallOperation implement
             @NonNull final GasCalculator gasCalculator,
             @NonNull final AddressChecks addressChecks,
             @NonNull final FeatureFlags featureFlags) {
-        super(Objects.requireNonNull(gasCalculator));
-        this.addressChecks = Objects.requireNonNull(addressChecks);
+        super(requireNonNull(gasCalculator));
+        this.addressChecks = requireNonNull(addressChecks);
         this.featureFlags = featureFlags;
     }
 
@@ -60,9 +63,23 @@ public class CustomDelegateCallOperation extends DelegateCallOperation implement
 
     @Override
     public OperationResult execute(@NonNull final MessageFrame frame, @NonNull final EVM evm) {
-        if (FrameUtils.isHookExecution(frame)) {
+        // Prevent delegate calls during hook execution. The only exception is calls to system contracts.
+        if (FrameUtils.isHookExecution(frame) && !isRedirectFromNativeEntity(frame)) {
             return new OperationResult(0, ExceptionalHaltReason.INVALID_OPERATION);
         }
         return BasicCustomCallOperation.super.executeChecked(frame, evm);
+    }
+
+    /**
+     * Determines if the delegate call is being redirected from a native Hedera entity account
+     * (i.e., a regular account, token facade, or schedule transaction facade).
+     *
+     * @param frame the current message frame
+     * @return true if the call is redirected from a native entity, false otherwise
+     */
+    private boolean isRedirectFromNativeEntity(@NonNull final MessageFrame frame) {
+        final var updater = (ProxyWorldUpdater) frame.getWorldUpdater();
+        final var recipient = requireNonNull(updater.getHederaAccount(frame.getRecipientAddress()));
+        return recipient.isTokenFacade() || recipient.isScheduleTxnFacade() || recipient.isRegularAccount();
     }
 }

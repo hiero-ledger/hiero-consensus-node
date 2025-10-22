@@ -259,14 +259,13 @@ public class FrameUtils {
         if (!isDelegateCall(frame)) {
             return CallType.DIRECT_OR_PROXY_REDIRECT;
         }
-        final var recipient = frame.getRecipientAddress();
         // Evaluate whether the recipient is either a token or on the permitted callers list.
         // This determines if we should treat this as a delegate call.
         // We accept delegates if the entity redirect contract calls us.
         final CallType viableType;
-        if (isExpectedEntityType(frame, recipient, expectedEntityType)) {
+        if (isExpectedEntityType(frame, expectedEntityType)) {
             viableType = CallType.DIRECT_OR_PROXY_REDIRECT;
-        } else if (isQualifiedDelegate(recipient, frame)) {
+        } else if (isQualifiedDelegate(frame.getRecipientAddress(), frame)) {
             viableType = CallType.QUALIFIED_DELEGATE;
         } else {
             return CallType.UNQUALIFIED_DELEGATE;
@@ -323,17 +322,14 @@ public class FrameUtils {
     /**
      * Returns true if the given recipient address to the frame is of the expected entity type.
      * @param frame current message frame
-     * @param address address to check
      * @param expectedEntity expected entity type
      * @return true if the address is of the expected entity type
      */
-    private static boolean isExpectedEntityType(
-            final MessageFrame frame, final Address address, final EntityType expectedEntity) {
+    private static boolean isExpectedEntityType(final MessageFrame frame, final EntityType expectedEntity) {
         requireNonNull(frame);
-        requireNonNull(address);
-
+        final var recipientAddress = frame.getRecipientAddress();
         final var updater = (ProxyWorldUpdater) frame.getWorldUpdater();
-        final var recipient = updater.getHederaAccount(address);
+        final var recipient = updater.getHederaAccount(recipientAddress);
         if (recipient != null) {
             return switch (expectedEntity) {
                 case TOKEN -> recipient.isTokenFacade();

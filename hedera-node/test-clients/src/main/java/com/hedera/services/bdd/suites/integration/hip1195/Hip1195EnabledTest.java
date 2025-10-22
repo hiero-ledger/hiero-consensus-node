@@ -20,7 +20,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
-import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.encodeParametersForCall;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.encodeParametersForConstructor;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHtsFeeInheritingRoyaltyCollector;
@@ -71,14 +70,12 @@ import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
@@ -164,7 +161,7 @@ public class Hip1195EnabledTest {
                                 mappingSlot,
                                 LambdaMappingEntry.newBuilder()
                                         .key(Bytes.wrap(payerMirror.get()))
-                                        .value(Bytes.wrap(new byte[]{(byte) 0x01}))
+                                        .value(Bytes.wrap(new byte[] {(byte) 0x01}))
                                         .build())
                         .signedBy(DEFAULT_PAYER, OWNER)),
                 cryptoTransfer(TokenMovement.moving(10, "token").between(PAYER, OWNER))
@@ -197,7 +194,7 @@ public class Hip1195EnabledTest {
                                 mappingSlot,
                                 LambdaMappingEntry.newBuilder()
                                         .key(Bytes.wrap(payerMirror.get()))
-                                        .value(Bytes.wrap(new byte[]{(byte) 0x01}))
+                                        .value(Bytes.wrap(new byte[] {(byte) 0x01}))
                                         .build())
                         .signedBy(DEFAULT_PAYER, OWNER)),
                 // DELEGATECALL executes the target code in the caller's storage context
@@ -239,7 +236,7 @@ public class Hip1195EnabledTest {
                                 mappingSlot,
                                 LambdaMappingEntry.newBuilder()
                                         .key(Bytes.wrap(payerMirror.get()))
-                                        .value(Bytes.wrap(new byte[]{(byte) 0x01}))
+                                        .value(Bytes.wrap(new byte[] {(byte) 0x01}))
                                         .build())
                         .signedBy(DEFAULT_PAYER, OWNER)),
                 // STATICCALL is read-only. The low-level self-call returns ok=false,
@@ -653,9 +650,9 @@ public class Hip1195EnabledTest {
                         .fee(ONE_HBAR)
                         .via(txnFromTreasury),
                 cryptoTransfer(
-                        movingUnique(westWindArt, 1L).between(amelie, alice),
-                        moving(200, usdc).distributing(alice, amelie, "receiverUsdc"),
-                        movingHbar(10 * ONE_HUNDRED_HBARS).between(alice, amelie))
+                                movingUnique(westWindArt, 1L).between(amelie, alice),
+                                moving(200, usdc).distributing(alice, amelie, "receiverUsdc"),
+                                movingHbar(10 * ONE_HUNDRED_HBARS).between(alice, amelie))
                         .withPreHookFor("AMELIE", 124L, 25_000L, "")
                         .signedBy(amelie, alice)
                         .payingWith(amelie)
@@ -832,16 +829,21 @@ public class Hip1195EnabledTest {
                     final var token = spec.registry().getTokenID("nftToken").getTokenNum();
                     tokenMirror.set(ByteString.copyFrom(asSolidityAddress(spec, token)));
                 }),
-                sourcing(() -> cryptoTransfer(TokenMovement.movingUnique("nftToken", 1L).between(PAYER, OWNER))
-                        .withNftReceiverPreHookFor(OWNER, 127L, 5_000_000L,
-                                ByteString.copyFrom(encodeParametersForCall(new Object[]{
-                                        asHeadlongAddress(tokenMirror.get().toByteArray())}, ADDRESS_ABI)))
+                tokenAssociate(OWNER, "nftToken"),
+                sourcing(() -> cryptoTransfer(
+                                TokenMovement.movingUnique("nftToken", 1L).between(PAYER, OWNER))
+                        .withNftReceiverPreHookFor(
+                                OWNER,
+                                127L,
+                                5_000_000L,
+                                ByteString.copyFrom(encodeParametersForConstructor(
+                                        new Object[] {
+                                            asHeadlongAddress(tokenMirror.get().toByteArray())
+                                        },
+                                        ADDRESS_ABI)))
                         .payingWith(PAYER)
-                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("tokenRedirectTxn")),
-                getTxnRecord("tokenRedirectTxn")
-                        .andAllChildRecords()
-                        .logged(),
+                getTxnRecord("tokenRedirectTxn").andAllChildRecords().logged(),
                 getAccountInfo(OWNER).logged());
     }
 
@@ -872,7 +874,7 @@ public class Hip1195EnabledTest {
                                 mappingSlot,
                                 LambdaMappingEntry.newBuilder()
                                         .key(Bytes.wrap(payerMirror.get()))
-                                        .value(Bytes.wrap(new byte[]{(byte) 0x01}))
+                                        .value(Bytes.wrap(new byte[] {(byte) 0x01}))
                                         .build())
                         .signedBy(DEFAULT_PAYER, OWNER)),
                 cryptoTransfer(TokenMovement.movingUnique("nftToken", 1L).between(PAYER, OWNER))
@@ -915,7 +917,7 @@ public class Hip1195EnabledTest {
                                 mappingSlot,
                                 LambdaMappingEntry.newBuilder()
                                         .key(Bytes.wrap(payerMirror.get()))
-                                        .value(Bytes.wrap(new byte[]{(byte) 0x01}))
+                                        .value(Bytes.wrap(new byte[] {(byte) 0x01}))
                                         .build())
                         .signedBy(DEFAULT_PAYER, OWNER)),
                 cryptoTransfer(TokenMovement.movingUnique("nftToken", 1L).between(PAYER, OWNER))
