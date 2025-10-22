@@ -758,7 +758,6 @@ jobs:
             RESULT="success"
           fi
 
-          SVC="CITR SDLT"
           echo "## Single Day Longevity Result" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "result=${RESULT}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "result=${RESULT}" >> "${GITHUB_OUTPUT}"
