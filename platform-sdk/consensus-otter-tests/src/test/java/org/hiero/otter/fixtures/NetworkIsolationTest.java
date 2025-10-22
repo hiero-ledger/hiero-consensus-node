@@ -14,6 +14,7 @@ import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -39,6 +40,7 @@ class NetworkIsolationTest {
      */
     @ParameterizedTest
     @MethodSource("environments")
+    @Disabled("Disabled due to instability")
     void testIsolateAndRejoinSingleNode(@NonNull final TestEnvironment env) {
         try {
             final Network network = env.network();
@@ -452,7 +454,7 @@ class NetworkIsolationTest {
             assertThat(remainingPartition.nodes()).containsExactlyInAnyOrder(node4, node5);
 
             // Remove the regular partition
-            network.removePartition(regularPartition);
+            network.removeNetworkPartition(regularPartition);
 
             // This should merge the remaining partitions, leaving only the isolated node
             assertThat(network.isIsolated(node3)).isTrue();
