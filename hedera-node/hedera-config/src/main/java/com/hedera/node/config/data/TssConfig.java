@@ -27,5 +27,4 @@ public record TssConfig(
         // to give express consent for breaking the address book chain of trust
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean forceHandoffs,
         // Denominator used to compute signing threshold: totalWeight / signingThresholdDivisor
-        // For block hash signing, this must always be 2 to ensure > 1/2 consensus
         @ConfigProperty(defaultValue = "2") @Min(1) @NetworkProperty int signingThresholdDivisor) {}
