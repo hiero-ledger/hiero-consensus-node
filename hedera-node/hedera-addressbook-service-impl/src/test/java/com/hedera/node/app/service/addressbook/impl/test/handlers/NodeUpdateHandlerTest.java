@@ -875,6 +875,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(accountStore.contains(newAccountId)).willReturn(true);
+        given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
 
         createAccountNodeRelStoreWithCurrentAccountNodeRel();
         given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
