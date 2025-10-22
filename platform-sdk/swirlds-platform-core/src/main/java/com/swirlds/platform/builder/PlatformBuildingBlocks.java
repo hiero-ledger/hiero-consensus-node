@@ -11,7 +11,7 @@ import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.freeze.FreezeCheckHolder;
 import com.swirlds.platform.gossip.IntakeEventCounter;
-import com.swirlds.platform.network.protocol.ReservedSignedStatePromise;
+import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise;
 import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
@@ -84,7 +84,7 @@ import org.hiero.consensus.roster.RosterHistory;
  *                                               with the execution layer
  * @param createStateFromVirtualMap              a function to instantiate the state object from a Virtual Map
  * @param fallenBehindMonitor                    an instance of the fallenBehind Monitor which tracks if the node has fallen behind
- * @param reservedSignedStatePromise             a shared data structure that Gossip and the ReconnectController will use provide
+ * @param reservedSignedStateResultPromise             a shared data structure that Gossip and the ReconnectController will use provide
  *                                               and obtain a reference to a ReservedSignedState
  */
 public record PlatformBuildingBlocks(
@@ -118,7 +118,7 @@ public record PlatformBuildingBlocks(
         @NonNull ExecutionLayer execution,
         @NonNull Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
         @NonNull FallenBehindMonitor fallenBehindMonitor,
-        @NonNull ReservedSignedStatePromise reservedSignedStatePromise) {
+        @NonNull ReservedSignedStateResultPromise reservedSignedStateResultPromise) {
     public PlatformBuildingBlocks {
         requireNonNull(platformComponents);
         requireNonNull(platformContext);
@@ -147,6 +147,6 @@ public record PlatformBuildingBlocks(
         requireNonNull(execution);
         requireNonNull(createStateFromVirtualMap);
         requireNonNull(fallenBehindMonitor);
-        requireNonNull(reservedSignedStatePromise);
+        requireNonNull(reservedSignedStateResultPromise);
     }
 }

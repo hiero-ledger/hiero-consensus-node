@@ -27,7 +27,7 @@ import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.components.SavedStateController;
-import com.swirlds.platform.network.protocol.ReservedSignedStatePromise;
+import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
@@ -87,7 +87,7 @@ class ReconnectControllerTest {
     private SwirldStateManager swirldStateManager;
     private SavedStateController savedStateController;
     private ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
-    private ReservedSignedStatePromise peerReservedSignedStatePromise;
+    private ReservedSignedStateResultPromise peerReservedSignedStateResultPromise;
     private FallenBehindMonitor fallenBehindMonitor;
     private NodeId selfId;
 
@@ -180,7 +180,7 @@ class ReconnectControllerTest {
         fallenBehindMonitor = new FallenBehindMonitor(NUM_NODES - 1, 0.5);
 
         // Create real ReservedSignedStatePromise
-        peerReservedSignedStatePromise = new ReservedSignedStatePromise();
+        peerReservedSignedStateResultPromise = new ReservedSignedStateResultPromise();
 
         // Create the signed state validator
         signedStateValidator = mock(SignedStateValidator.class);
@@ -213,7 +213,7 @@ class ReconnectControllerTest {
                 swirldStateManager,
                 savedStateController,
                 consensusStateEventHandler,
-                peerReservedSignedStatePromise,
+                peerReservedSignedStateResultPromise,
                 selfId,
                 fallenBehindMonitor,
                 signedStateValidator);
@@ -242,8 +242,8 @@ class ReconnectControllerTest {
                 Thread.sleep(50);
 
                 // Acquire permit and provide state
-                assertTrue(peerReservedSignedStatePromise.acquire(), "Should acquire permit");
-                peerReservedSignedStatePromise.resolveWithValue(testReservedSignedState);
+                assertTrue(peerReservedSignedStateResultPromise.acquire(), "Should acquire permit");
+                peerReservedSignedStateResultPromise.resolveWithValue(testReservedSignedState);
 
                 // Wait a bit to ensure reconnect completes
                 Thread.sleep(200);
@@ -297,15 +297,15 @@ class ReconnectControllerTest {
 
                 // First reconnect - acquire and provide
                 Thread.sleep(100);
-                assertTrue(peerReservedSignedStatePromise.acquire(), "First acquire should succeed");
-                peerReservedSignedStatePromise.resolveWithValue(testReservedSignedState);
+                assertTrue(peerReservedSignedStateResultPromise.acquire(), "First acquire should succeed");
+                peerReservedSignedStateResultPromise.resolveWithValue(testReservedSignedState);
                 stateProvidedLatch.countDown();
 
                 // Wait for reconnect to complete
                 Thread.sleep(200);
 
                 // Try to acquire again - should fail because promise was consumed
-                secondAcquireFailed.set(!peerReservedSignedStatePromise.acquire());
+                secondAcquireFailed.set(!peerReservedSignedStateResultPromise.acquire());
                 reconnectCompleteLatch.countDown();
 
                 controller.stopReconnectLoop();
@@ -387,15 +387,15 @@ class ReconnectControllerTest {
 
                 // First attempt - will fail validation
                 Thread.sleep(100);
-                assertTrue(peerReservedSignedStatePromise.acquire());
+                assertTrue(peerReservedSignedStateResultPromise.acquire());
                 final ReservedSignedState firstAttempt = testSignedState.reserve("first");
-                peerReservedSignedStatePromise.resolveWithValue(firstAttempt);
+                peerReservedSignedStateResultPromise.resolveWithValue(firstAttempt);
 
                 // Second attempt - will succeed
                 Thread.sleep(250);
-                assertTrue(peerReservedSignedStatePromise.acquire());
+                assertTrue(peerReservedSignedStateResultPromise.acquire());
                 final ReservedSignedState secondAttempt = testSignedState.reserve("second");
-                peerReservedSignedStatePromise.resolveWithValue(secondAttempt);
+                peerReservedSignedStateResultPromise.resolveWithValue(secondAttempt);
 
                 Thread.sleep(200);
                 controller.stopReconnectLoop();
@@ -501,8 +501,8 @@ class ReconnectControllerTest {
 
                 // Provide state
                 Thread.sleep(100);
-                if (peerReservedSignedStatePromise.acquire()) {
-                    peerReservedSignedStatePromise.resolveWithValue(testReservedSignedState);
+                if (peerReservedSignedStateResultPromise.acquire()) {
+                    peerReservedSignedStateResultPromise.resolveWithValue(testReservedSignedState);
                 }
 
                 Thread.sleep(200);
@@ -544,8 +544,8 @@ class ReconnectControllerTest {
                 assertTrue(fallenBehindMonitor.hasFallenBehind());
 
                 Thread.sleep(100);
-                assertTrue(peerReservedSignedStatePromise.acquire());
-                peerReservedSignedStatePromise.resolveWithValue(testReservedSignedState);
+                assertTrue(peerReservedSignedStateResultPromise.acquire());
+                peerReservedSignedStateResultPromise.resolveWithValue(testReservedSignedState);
 
                 // Wait for reconnect to complete
                 Thread.sleep(300);
@@ -608,8 +608,8 @@ class ReconnectControllerTest {
                 fallenBehindMonitor.report(NodeId.of(2));
 
                 Thread.sleep(100);
-                assertTrue(peerReservedSignedStatePromise.acquire());
-                peerReservedSignedStatePromise.resolveWithValue(testReservedSignedState);
+                assertTrue(peerReservedSignedStateResultPromise.acquire());
+                peerReservedSignedStateResultPromise.resolveWithValue(testReservedSignedState);
 
                 Thread.sleep(200);
                 controller.stopReconnectLoop();
@@ -653,8 +653,8 @@ class ReconnectControllerTest {
                 fallenBehindMonitor.report(NodeId.of(2));
 
                 Thread.sleep(100);
-                assertTrue(peerReservedSignedStatePromise.acquire());
-                peerReservedSignedStatePromise.resolveWithValue(testReservedSignedState);
+                assertTrue(peerReservedSignedStateResultPromise.acquire());
+                peerReservedSignedStateResultPromise.resolveWithValue(testReservedSignedState);
 
                 Thread.sleep(200);
                 controller.stopReconnectLoop();
@@ -701,8 +701,8 @@ class ReconnectControllerTest {
                 fallenBehindMonitor.report(NodeId.of(2));
 
                 Thread.sleep(100);
-                assertTrue(peerReservedSignedStatePromise.acquire());
-                peerReservedSignedStatePromise.resolveWithValue(testReservedSignedState);
+                assertTrue(peerReservedSignedStateResultPromise.acquire());
+                peerReservedSignedStateResultPromise.resolveWithValue(testReservedSignedState);
 
                 Thread.sleep(200);
                 controller.stopReconnectLoop();
@@ -763,8 +763,8 @@ class ReconnectControllerTest {
                 // Simulate 5 failed reconnect attempts (matching maximumReconnectFailuresBeforeShutdown)
                 for (int i = 0; i < 5; i++) {
                     Thread.sleep(500);
-                    assertTrue(peerReservedSignedStatePromise.acquire());
-                    peerReservedSignedStatePromise.resolveWithValue(testSignedState.reserve("retry" + i));
+                    assertTrue(peerReservedSignedStateResultPromise.acquire());
+                    peerReservedSignedStateResultPromise.resolveWithValue(testSignedState.reserve("retry" + i));
                     signedStateIvoked.acquire();
                 }
 
@@ -814,7 +814,7 @@ class ReconnectControllerTest {
                 swirldStateManager,
                 savedStateController,
                 consensusStateEventHandler,
-                peerReservedSignedStatePromise,
+                peerReservedSignedStateResultPromise,
                 selfId,
                 fallenBehindMonitor,
                 signedStateValidator);
@@ -891,7 +891,7 @@ class ReconnectControllerTest {
                 swirldStateManager,
                 savedStateController,
                 consensusStateEventHandler,
-                peerReservedSignedStatePromise,
+                peerReservedSignedStateResultPromise,
                 selfId,
                 fallenBehindMonitor,
                 signedStateValidator);

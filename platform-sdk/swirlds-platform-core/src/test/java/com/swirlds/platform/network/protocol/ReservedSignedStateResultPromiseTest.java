@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise.ReservedSignedStateResult;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -19,9 +20,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
 /**
- * Test class for {@link ReservedSignedStatePromise}
+ * Test class for {@link ReservedSignedStateResultPromise}
  */
-class ReservedSignedStatePromiseTest {
+class ReservedSignedStateResultPromiseTest {
 
     /**
      * Tests that a single provider can successfully provide a resource and a consumer can retrieve it
@@ -29,9 +30,9 @@ class ReservedSignedStatePromiseTest {
     @Test
     @Timeout(5)
     void testSingleProviderAndConsumer() throws InterruptedException {
-        final ReservedSignedStatePromise promise = new ReservedSignedStatePromise();
+        final ReservedSignedStateResultPromise promise = new ReservedSignedStateResultPromise();
         final ReservedSignedState mockState = ReservedSignedState.createNullReservation();
-        final AtomicReference<ReservedSignedState> consumedState = new AtomicReference<>();
+        final AtomicReference<ReservedSignedStateResult> consumedState = new AtomicReference<>();
         final CountDownLatch consumerStarted = new CountDownLatch(1);
         final CountDownLatch consumerFinished = new CountDownLatch(1);
 
@@ -39,7 +40,7 @@ class ReservedSignedStatePromiseTest {
         final Thread consumer = new Thread(() -> {
             try {
                 consumerStarted.countDown();
-                try (final LockedResource<ReservedSignedState> resource = promise.awaitResolution()) {
+                try (final LockedResource<ReservedSignedStateResult> resource = promise.awaitResolution()) {
                     consumedState.set(resource.getResource());
                 }
                 consumerFinished.countDown();
@@ -59,7 +60,8 @@ class ReservedSignedStatePromiseTest {
 
         // Wait for consumer to finish
         assertTrue(consumerFinished.await(2, TimeUnit.SECONDS), "Consumer should finish");
-        assertEquals(mockState, consumedState.get(), "Consumer should receive the provided state");
+        assertEquals(
+                mockState, consumedState.get().reservedSignedState(), "Consumer should receive the provided state");
     }
 
     /**
@@ -67,7 +69,7 @@ class ReservedSignedStatePromiseTest {
      */
     @Test
     void testAcquireFailsWhenNoConsumerWaiting() {
-        final ReservedSignedStatePromise promise = new ReservedSignedStatePromise();
+        final ReservedSignedStateResultPromise promise = new ReservedSignedStateResultPromise();
         assertFalse(promise.acquire(), "Should not be able to acquire permit when no consumer is waiting");
     }
 
@@ -77,7 +79,7 @@ class ReservedSignedStatePromiseTest {
     @Test
     @Timeout(5)
     void testOnlyOneProviderCanAcquire() throws InterruptedException {
-        final ReservedSignedStatePromise promise = new ReservedSignedStatePromise();
+        final ReservedSignedStateResultPromise promise = new ReservedSignedStateResultPromise();
         final ReservedSignedState mockState = ReservedSignedState.createNullReservation();
         final AtomicInteger acquireCount = new AtomicInteger(0);
         final CountDownLatch consumerReady = new CountDownLatch(1);
@@ -88,7 +90,7 @@ class ReservedSignedStatePromiseTest {
         final Thread consumer = new Thread(() -> {
             try {
                 consumerReady.countDown();
-                try (final LockedResource<ReservedSignedState> resource = promise.awaitResolution()) {
+                try (final LockedResource<ReservedSignedStateResult> resource = promise.awaitResolution()) {
                     assertNotNull(resource.getResource());
                 }
                 testComplete.countDown();
@@ -132,7 +134,7 @@ class ReservedSignedStatePromiseTest {
     @Test
     @Timeout(5)
     void testReleasePermitAllowsAnotherProviderToAcquire() throws InterruptedException {
-        final ReservedSignedStatePromise promise = new ReservedSignedStatePromise();
+        final ReservedSignedStateResultPromise promise = new ReservedSignedStateResultPromise();
         final ReservedSignedState mockState = ReservedSignedState.createNullReservation();
         final CountDownLatch consumerReady = new CountDownLatch(1);
         final CountDownLatch firstProviderAcquired = new CountDownLatch(1);
@@ -144,7 +146,7 @@ class ReservedSignedStatePromiseTest {
         final Thread consumer = new Thread(() -> {
             try {
                 consumerReady.countDown();
-                try (final LockedResource<ReservedSignedState> resource = promise.awaitResolution()) {
+                try (final LockedResource<ReservedSignedStateResult> resource = promise.awaitResolution()) {
                     assertNotNull(resource.getResource());
                 }
                 testComplete.countDown();
@@ -196,7 +198,7 @@ class ReservedSignedStatePromiseTest {
     @Test
     @Timeout(5)
     void testTryBlockPreventsAcquire() throws InterruptedException {
-        final ReservedSignedStatePromise promise = new ReservedSignedStatePromise();
+        final ReservedSignedStateResultPromise promise = new ReservedSignedStateResultPromise();
 
         // Block the permit before consumer starts waiting
         assertTrue(promise.tryBlock(), "Should be able to block the permit");
@@ -237,7 +239,7 @@ class ReservedSignedStatePromiseTest {
     @Test
     @Timeout(10)
     void testMultipleSequentialCycles() throws InterruptedException {
-        final ReservedSignedStatePromise promise = new ReservedSignedStatePromise();
+        final ReservedSignedStateResultPromise promise = new ReservedSignedStateResultPromise();
         final int numCycles = 5;
         final AtomicInteger consumedCount = new AtomicInteger(0);
         final CountDownLatch allCyclesComplete = new CountDownLatch(1);
@@ -246,7 +248,7 @@ class ReservedSignedStatePromiseTest {
         final Thread consumer = new Thread(() -> {
             try {
                 for (int i = 0; i < numCycles; i++) {
-                    try (final LockedResource<ReservedSignedState> resource = promise.awaitResolution()) {
+                    try (final LockedResource<ReservedSignedStateResult> resource = promise.awaitResolution()) {
                         assertNotNull(resource.getResource());
                         consumedCount.incrementAndGet();
                     }
@@ -288,18 +290,18 @@ class ReservedSignedStatePromiseTest {
     @Test
     @Timeout(5)
     void testResolveWithValueBlocksUntilConsumerReleases() throws InterruptedException {
-        final ReservedSignedStatePromise promise = new ReservedSignedStatePromise();
+        final ReservedSignedStateResultPromise promise = new ReservedSignedStateResultPromise();
         final ReservedSignedState mockState = ReservedSignedState.createNullReservation();
         final AtomicBoolean providerFinished = new AtomicBoolean(false);
         final CountDownLatch consumerStarted = new CountDownLatch(1);
         final CountDownLatch providerStarted = new CountDownLatch(1);
-        final AtomicReference<LockedResource<ReservedSignedState>> resourceRef = new AtomicReference<>();
+        final AtomicReference<LockedResource<ReservedSignedStateResult>> resourceRef = new AtomicReference<>();
 
         // Consumer that holds the resource for a while
         final Thread consumer = new Thread(() -> {
             try {
                 consumerStarted.countDown();
-                final LockedResource<ReservedSignedState> resource = promise.awaitResolution();
+                final LockedResource<ReservedSignedStateResult> resource = promise.awaitResolution();
                 resourceRef.set(resource);
 
                 // Hold the resource for a bit
@@ -349,7 +351,7 @@ class ReservedSignedStatePromiseTest {
     @Test
     @Timeout(10)
     void testMultipleProvidersCompeting() throws InterruptedException {
-        final ReservedSignedStatePromise promise = new ReservedSignedStatePromise();
+        final ReservedSignedStateResultPromise promise = new ReservedSignedStateResultPromise();
         final int numProviders = 5;
         final int numResources = 10;
         final AtomicInteger providedCount = new AtomicInteger(0);
@@ -360,7 +362,7 @@ class ReservedSignedStatePromiseTest {
         final Thread consumer = new Thread(() -> {
             try {
                 for (int i = 0; i < numResources; i++) {
-                    try (final LockedResource<ReservedSignedState> resource = promise.awaitResolution()) {
+                    try (final LockedResource<ReservedSignedStateResult> resource = promise.awaitResolution()) {
                         assertNotNull(resource.getResource());
                         consumedCount.incrementAndGet();
                     }
@@ -412,15 +414,15 @@ class ReservedSignedStatePromiseTest {
     @Test
     @Timeout(5)
     void testAwaitResolutionWithNullReservation() throws InterruptedException {
-        final ReservedSignedStatePromise promise = new ReservedSignedStatePromise();
+        final ReservedSignedStateResultPromise promise = new ReservedSignedStateResultPromise();
         final ReservedSignedState nullReservation = ReservedSignedState.createNullReservation();
-        final AtomicReference<ReservedSignedState> consumedState = new AtomicReference<>();
+        final AtomicReference<ReservedSignedStateResult> consumedState = new AtomicReference<>();
         final CountDownLatch consumerFinished = new CountDownLatch(1);
 
         // Start consumer
         final Thread consumer = new Thread(() -> {
             try {
-                try (final LockedResource<ReservedSignedState> resource = promise.awaitResolution()) {
+                try (final LockedResource<ReservedSignedStateResult> resource = promise.awaitResolution()) {
                     consumedState.set(resource.getResource());
                 }
                 consumerFinished.countDown();
@@ -438,6 +440,6 @@ class ReservedSignedStatePromiseTest {
 
         assertTrue(consumerFinished.await(2, TimeUnit.SECONDS), "Consumer should finish");
         assertNotNull(consumedState.get(), "Consumer should receive the reservation");
-        assertTrue(consumedState.get().isNull(), "Reservation should wrap null");
+        assertTrue(consumedState.get().reservedSignedState().isNull(), "Reservation should wrap null");
     }
 }

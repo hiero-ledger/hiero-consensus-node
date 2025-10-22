@@ -15,12 +15,11 @@ import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.logging.legacy.payload.ReconnectFailurePayload;
 import com.swirlds.logging.legacy.payload.ReconnectFailurePayload.CauseOfFailure;
 import com.swirlds.platform.components.SavedStateController;
-import com.swirlds.platform.network.protocol.ReservedSignedStatePromise;
-import com.swirlds.platform.network.protocol.ReservedSignedStatePromise.ReservedStateOrExceptionResource;
+import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise;
+import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise.ReservedSignedStateResult;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateValidationData;
 import com.swirlds.platform.state.signed.SignedStateValidator;
@@ -42,6 +41,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.locks.locked.LockedResource;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterRetriever;
@@ -58,7 +58,7 @@ import org.hiero.consensus.roster.RosterRetriever;
  * Callers are responsible to call this in a separated thread.
  *
  * @see FallenBehindMonitor
- * @see ReservedSignedStatePromise
+ * @see ReservedSignedStateResultPromise
  * @see PlatformCoordinator
  */
 public class ReconnectController implements Runnable {
@@ -75,7 +75,7 @@ public class ReconnectController implements Runnable {
     private final SwirldStateManager swirldStateManager;
     private final SavedStateController savedStateController;
     private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
-    private final ReservedSignedStatePromise peerReservedSignedStatePromise;
+    private final ReservedSignedStateResultPromise peerReservedSignedStateResultPromise;
     private final NodeId selfId;
     private final ReconnectConfig reconnectConfig;
     private final Time time;
@@ -93,14 +93,14 @@ public class ReconnectController implements Runnable {
             @NonNull final SwirldStateManager swirldStateManager,
             @NonNull final SavedStateController savedStateController,
             @NonNull final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler,
-            @NonNull final ReservedSignedStatePromise peerReservedSignedStatePromise,
+            @NonNull final ReservedSignedStateResultPromise peerReservedSignedStateResultPromise,
             @NonNull final NodeId selfId,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final SignedStateValidator signedStateValidator) {
         this.platformStateFacade = requireNonNull(platformStateFacade);
         this.roster = requireNonNull(roster);
         this.platformCoordinator = requireNonNull(platformCoordinator);
-        this.peerReservedSignedStatePromise = requireNonNull(peerReservedSignedStatePromise);
+        this.peerReservedSignedStateResultPromise = requireNonNull(peerReservedSignedStateResultPromise);
         this.fallenBehindMonitor = requireNonNull(fallenBehindMonitor);
         this.signedStateValidator = requireNonNull(signedStateValidator);
         this.merkleCryptography = requireNonNull(merkleCryptography);
@@ -207,24 +207,26 @@ public class ReconnectController implements Runnable {
         // Once the transferred is complete this peerReservedSignedStatePromise will be notified and this code will be
         // unblocked
         logger.info(RECONNECT.getMarker(), "Waiting for a state to be obtained from a peer");
-        try (final ReservedStateOrExceptionResource reservedStateResource =
-                        requireNonNull(peerReservedSignedStatePromise.awaitResolution());
-                final ReservedSignedState reservedState = reservedStateResource.getResource()) {
-            if (reservedState == null && reservedStateResource.getException() != null) {
-                return AttemptReconnectResult.error(reservedStateResource.getException());
+        try (final LockedResource<ReservedSignedStateResult> reservedStateResource =
+                        requireNonNull(peerReservedSignedStateResultPromise.awaitResolution());
+                final ReservedSignedStateResult result = requireNonNull(reservedStateResource.getResource())) {
+            if (result.isError()) {
+                return AttemptReconnectResult.error(result.throwable());
             }
 
             logger.info(RECONNECT.getMarker(), "A state was obtained from a peer");
             signedStateValidator.validate(
-                    reservedState.get(),
+                    result.reservedSignedState().get(),
                     roster,
                     new SignedStateValidationData(currentState, roster, platformStateFacade));
             logger.info(RECONNECT.getMarker(), "The state obtained from a peer was validated");
 
-            SignedStateFileReader.registerServiceStates(reservedState.get());
-            loadState(reservedState.get());
+            SignedStateFileReader.registerServiceStates(
+                    result.reservedSignedState().get());
+            loadState(result.reservedSignedState().get());
             // Notify any listeners that the reconnect has been completed
-            platformCoordinator.sendReconnectCompleteNotification(reservedState.get());
+            platformCoordinator.sendReconnectCompleteNotification(
+                    result.reservedSignedState().get());
             return AttemptReconnectResult.ok();
         } catch (final RuntimeException e) {
             return AttemptReconnectResult.error(e);

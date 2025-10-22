@@ -810,7 +810,7 @@ public class PlatformComponentBuilder {
                     blocks.platformStateFacade(),
                     blocks.createStateFromVirtualMap(),
                     blocks.fallenBehindMonitor(),
-                    blocks.reservedSignedStatePromise());
+                    blocks.reservedSignedStateResultPromise());
         }
         return gossip;
     }
