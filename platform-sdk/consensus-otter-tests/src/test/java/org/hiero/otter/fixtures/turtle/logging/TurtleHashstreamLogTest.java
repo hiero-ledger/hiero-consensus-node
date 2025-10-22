@@ -10,6 +10,7 @@ import static org.awaitility.Awaitility.await;
 
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -54,7 +55,7 @@ final class TurtleHashstreamLogTest {
      */
     @ParameterizedTest
     @ValueSource(ints = {1, 4})
-    void testNodesLogAllAllowedMarkers(final int numNodes) throws Exception {
+    void testNodesLogAllAllowedMarkers(final int numNodes) throws IOException {
         final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();

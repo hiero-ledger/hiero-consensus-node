@@ -59,7 +59,7 @@ final class TurtleInMemoryLogTest {
      */
     @ParameterizedTest
     @ValueSource(ints = {1, 4})
-    void testNodesLogAllMarkers(final int numNodes) throws Exception {
+    void testNodesLogAllMarkers(final int numNodes) {
         final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
@@ -132,7 +132,7 @@ final class TurtleInMemoryLogTest {
      * only contain logs with that node's ID, ensuring logs are not mixed between nodes.
      */
     @Test
-    void testPerNodeLogTracking() throws Exception {
+    void testPerNodeLogTracking() {
         final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
@@ -193,7 +193,7 @@ final class TurtleInMemoryLogTest {
      * </ul>
      */
     @Test
-    void testNetworkLogResults() throws Exception {
+    void testNetworkLogResults() {
         final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
@@ -240,7 +240,7 @@ final class TurtleInMemoryLogTest {
      * </ul>
      */
     @Test
-    void testLogsAddedContinuously() throws Exception {
+    void testLogsAddedContinuously() {
         final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();

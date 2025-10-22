@@ -9,6 +9,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
@@ -16,6 +18,8 @@ import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.Test;
 
 class TurtleConsoleOutputTest {
+
+    private static final Logger log = LogManager.getLogger();
 
     /**
      * Pattern for parsing log messages.
@@ -71,6 +75,9 @@ class TurtleConsoleOutputTest {
                 network.addNodes(4);
                 network.start();
 
+                System.out.println("Hello Otter!");
+                log.info("Hello Hiero!");
+
                 // Wait 5 seconds
                 timeManager.waitFor(Duration.ofSeconds(5L));
 
@@ -100,6 +107,12 @@ class TurtleConsoleOutputTest {
             assertThat(consoleOutput)
                     .as("Console output should contain 'Destroying network...' message")
                     .contains("Destroying network...");
+            assertThat(consoleOutput)
+                    .as("Console output should contain 'Hello Otter!' message")
+                    .contains("Hello Otter!");
+            assertThat(consoleOutput)
+                    .as("Console output should contain 'Hello Hiero!' message")
+                    .contains("Hello Hiero!");
 
             // Parse each line and verify log messages follow the expected pattern
             final String[] lines = consoleOutput.split("\n");
