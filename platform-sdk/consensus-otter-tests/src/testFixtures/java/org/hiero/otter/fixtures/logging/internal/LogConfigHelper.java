@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Set;
 import org.apache.logging.log4j.Level;
@@ -44,7 +45,7 @@ import org.hiero.consensus.model.node.NodeId;
 public final class LogConfigHelper {
 
     /** Markers that are allowed in swirlds.log & console. */
-    private static final Set<LogMarker> ALLOWED_MARKERS = EnumSet.of(
+    public static final Set<LogMarker> ALLOWED_MARKERS = Collections.unmodifiableSet(EnumSet.of(
             EXCEPTION,
             ERROR,
             TESTING_EXCEPTIONS,
@@ -58,7 +59,7 @@ public final class LogConfigHelper {
             STATE_TO_DISK,
             DEMO_INFO,
             TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT,
-            MERKLE_DB);
+            MERKLE_DB));
 
     private static final Set<LogMarker> IGNORED_CONSOLE_MARKERS = Set.of(STARTUP, MERKLE_DB, VIRTUAL_MERKLE_STATS);
 
