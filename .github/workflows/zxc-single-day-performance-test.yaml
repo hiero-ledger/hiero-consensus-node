@@ -58,9 +58,6 @@ on:
       slack-report-webhook:
         required: true
         description: "Slack webhook for SDPT outputs notifications"
-      rootly-api-token:
-        required: true
-        description: "The rootly api token used for reporting"
     outputs:
       result:
         description: "Result of the SDPT Run"

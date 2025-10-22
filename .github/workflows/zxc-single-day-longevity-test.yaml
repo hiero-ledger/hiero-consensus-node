@@ -796,7 +796,7 @@ jobs:
             echo 'summary<<EOF'
             echo "------------------------------------"
             echo "Status of each jobs:"
-            echo "- Longevity Tests Start: ${{ needs.longevity-tests-finish.result }}"
+            echo "- Longevity Tests Start: ${{ needs.longevity-tests-start.result }}"
             echo "- Longevity Tests Wait: ${{ needs.longevity-tests-wait.result }}"
             echo "- Longevity Tests Finish: ${{ needs.longevity-tests-finish.result }}"
             echo "- Single Day Longevity Test Result: ${{ needs.single-day-longevity-test-result.result }}"
