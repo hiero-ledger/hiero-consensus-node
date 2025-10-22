@@ -65,6 +65,12 @@ message BlockNodeConfig {
      * If present, these settings SHALL override defaults when creating the WebClient.
      */
     Http2ClientProtocolConfig http2ClientProtocolConfig = 4;
+
+    /**
+     * Optional Grpc client protocol configuration for this block node connection.
+     * If present, these settings SHALL override defaults when creating the WebClient.
+     */
+    GrpcClientProtocolConfig grpcClientProtocolConfig = 5;
 }
 
 
@@ -115,6 +121,38 @@ message Http2ClientProtocolConfig {
    * Prior knowledge of HTTP/2 capabilities of the server.
    */
   google.protobuf.BoolValue prior_knowledge = 8;
+}
+
+message GrpcClientProtocolConfig {
+  /**
+   * Whether to continue retrying after a poll wait timeout expired or not. If a read operation timeouts out and this
+   * flag is set to false, the event is logged and the client will retry. Otherwise, an exception is thrown.
+   */
+  google.protobuf.BoolValue abort_poll_time_expired = 1;
+
+  /**
+   * How often to send a heartbeat (HTTP/2 ping) to check if the connection is still alive. This is useful for
+   * long-running, streaming gRPC calls. It is turned off by default but can be enabled by setting the period to a value
+   * greater than 0. ISO-8601 duration string (e.g., "PT0S").
+   */
+  google.protobuf.StringValue heartbeat_period = 2;
+
+  /**
+   * Initial buffer size used to serialize gRPC request payloads. Buffers shall grow according to the payload size, but
+   * setting this initial buffer size to a larger value may improve performance for certain applications.
+   */
+  google.protobuf.Int32Value init_buffer_size = 3;
+
+  /**
+   * Name identifying this client protocol. Defaults to type.
+   */
+  google.protobuf.StringValue name = 4;
+
+  /**
+   * How long to wait for the next HTTP/2 data frame to arrive in underlying stream. Whether this is a fatal error or
+   * not is controlled by abort_poll_time_expired(). ISO-8601 duration string (e.g., "PT10S").
+   */
+  google.protobuf.StringValue poll_wait_time = 5;
 }
 
 /**

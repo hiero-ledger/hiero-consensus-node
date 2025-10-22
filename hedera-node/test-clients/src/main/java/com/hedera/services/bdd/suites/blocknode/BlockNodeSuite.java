@@ -87,8 +87,8 @@ public class BlockNodeSuite {
                     // Create a new block-nodes.json file at runtime with localhost and the correct port
                     final var node0Port = spec.getBlockNodePortById(0);
                     List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
-                    blockNodes.add(
-                            new com.hedera.node.internal.network.BlockNodeConfig("localhost", node0Port, 0, null));
+                    blockNodes.add(new com.hedera.node.internal.network.BlockNodeConfig(
+                            "localhost", node0Port, 0, null, null));
                     BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
                     try {
                         // Write the config to this consensus node's block-nodes.json
@@ -116,7 +116,8 @@ public class BlockNodeSuite {
                 // Update block-nodes.json to have an invalid entry
                 doingContextual((spec) -> {
                     List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
-                    blockNodes.add(new com.hedera.node.internal.network.BlockNodeConfig("26dsfg2364", 1234, 0, null));
+                    blockNodes.add(
+                            new com.hedera.node.internal.network.BlockNodeConfig("26dsfg2364", 1234, 0, null, null));
                     BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
                     try {
                         // Write the config to this consensus node's block-nodes.json
@@ -196,8 +197,8 @@ public class BlockNodeSuite {
                     // Create a new block-nodes.json file at runtime with localhost and the correct port
                     final var node0Port = spec.getBlockNodePortById(0);
                     List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
-                    blockNodes.add(
-                            new com.hedera.node.internal.network.BlockNodeConfig("localhost", node0Port, 0, null));
+                    blockNodes.add(new com.hedera.node.internal.network.BlockNodeConfig(
+                            "localhost", node0Port, 0, null, null));
                     BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
                     try {
                         // Write the config to this consensus node's block-nodes.json

@@ -237,10 +237,14 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         final PbjGrpcClientConfig grpcConfig =
                 new PbjGrpcClientConfig(timeoutDuration, tls, Optional.of(""), "application/grpc");
 
-        final var grpcProtocolConfig = GrpcClientProtocolConfig.builder()
-                .abortPollTimeExpired(false)
-                .pollWaitTime(timeoutDuration)
-                .build();
+        var extractedGrpcConfig =
+                blockNodeConnectionManager.getGrpcClientProtocolConfigs().get(blockNodeConfig);
+        final var grpcProtocolConfig = (extractedGrpcConfig != null)
+                ? extractedGrpcConfig
+                : GrpcClientProtocolConfig.builder()
+                        .abortPollTimeExpired(false)
+                        .pollWaitTime(timeoutDuration)
+                        .build();
 
         final List<ProtocolConfig> protocolConfigs = new ArrayList<>();
         protocolConfigs.add(grpcProtocolConfig);
