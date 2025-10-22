@@ -1,4 +1,8 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state;
+
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.platform.state.QueueState;
 import com.hedera.hapi.platform.state.SingletonType;
@@ -13,14 +17,10 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.state.merkle.StateValue.StateValueCodec;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
 /**
  * Verifies binary compatibility between swirlds-impl protos and HAPI-generated PBJ objects/codecs.
@@ -103,7 +103,8 @@ public class ProtoObjectEquivalenceTest {
 
         // default inner (QueueState default is 0,0) still should match
         final QueueState pbjQueueDefault = QueueState.DEFAULT;
-        final StateValue pbjValueDefault = StateValue.newBuilder().queueState(pbjQueueDefault).build();
+        final StateValue pbjValueDefault =
+                StateValue.newBuilder().queueState(pbjQueueDefault).build();
         final com.swirlds.state.merkle.StateValue<QueueState> swValueDefault =
                 new com.swirlds.state.merkle.StateValue<>(QUEUE_STATE_ID, pbjQueueDefault);
         final byte[] swBytesDefault = encode(swCodec, swValueDefault);
