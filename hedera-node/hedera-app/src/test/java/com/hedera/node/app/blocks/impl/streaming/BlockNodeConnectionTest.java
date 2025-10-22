@@ -99,6 +99,20 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void buildsGrpcClientWithExtractedProtocolConfigsWhenPresent() {
+        // Provide a pre-extracted GrpcClientProtocolConfig via manager
+        final var helidonGrpcCfg = io.helidon.webclient.grpc.GrpcClientProtocolConfig.builder()
+                .abortPollTimeExpired(true)
+                .build();
+        when(connectionManager.getGrpcClientProtocolConfigs()).thenReturn(java.util.Map.of(nodeConfig, helidonGrpcCfg));
+
+        connection.createRequestPipeline();
+
+        verify(connectionManager).getGrpcClientProtocolConfigs();
+        verify(grpcServiceClient).publishBlockStream(connection);
+    }
+
+    @Test
     void testCreateRequestPipeline_alreadyExists() {
         connection.createRequestPipeline();
         connection.createRequestPipeline();
