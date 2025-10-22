@@ -52,11 +52,12 @@ jobs:
         run: |
           if git merge-base --is-ancestor "${COMMIT_ID}" main >/dev/null 2>&1; then
             echo "commit_on_dev=true" >> $GITHUB_OUTPUT
+            echo "## Commit ${{ inputs.ref }} is present on main branch." | tee -a "${GITHUB_SUMMARY}"
           else
             echo "::error title=Branch Alignment::The provided commit (${COMMIT_ID}) is not present on the main branch."
             echo "commit_on_dev=false" >> $GITHUB_OUTPUT
-            echo "## Commit ${{ inputs.ref }} not on main branch."
-            echo "Skipping job: Tag for XTS promotion"
+            echo "## Commit ${{ inputs.ref }} not on main branch." | tee -a "${GITHUB_SUMMARY}"
+            echo "Skipping job: Tag for XTS promotion" | tee -a "${GITHUB_SUMMARY}"
           fi
 
   tag-for-xts:
@@ -106,9 +107,16 @@ jobs:
 
           # if the strings are not empty than the commit has been tagged.
           if [[ -n "${XTS_CANDIDATE_TAGGED}" || -n "${XTS_PASS_TAGGED}" || -n "${BUILD_PROMOTED_TAGGED}" ]]; then
-            gh run cancel ${{ github.run_id }}
+            echo "Commit already tagged in XTS flow. Skipping remaining steps." | tee -a "${GITHUB_SUMMARY}"
+            echo "xts-checks-required=false" >> $GITHUB_OUTPUT
           else
+            echo "Commit not yet tagged in XTS flow. Proceeding to tag for XTS." | tee -a "${GITHUB_SUMMARY}"
             echo "xts-checks-required=true" >> $GITHUB_OUTPUT
+          fi
+          
+          # Log dry-run status
+          if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
+            echo "Dry run enabled. The workflow will not create a tag." | tee -a "${GITHUB_SUMMARY}"
           fi
 
       # move the tag if successful
