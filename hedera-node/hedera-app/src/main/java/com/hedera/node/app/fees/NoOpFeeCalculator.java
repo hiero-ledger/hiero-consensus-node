@@ -65,7 +65,7 @@ public class NoOpFeeCalculator implements FeeCalculator {
     @Override
     @NonNull
     public FeeSchedule getSimpleFeesSchedule() {
-        return null;
+        return FeeSchedule.DEFAULT;
     }
 
     @NonNull
