@@ -26,7 +26,6 @@ import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.ForkJoinWorkerThread;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
-import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -159,6 +158,7 @@ public final class VirtualHasher {
         void setOut(final ChunkHashTask out) {
             this.out = out;
             if (out != null) {
+                out.initInputs();
                 out.preloadHashChunkNeeded();
             }
             send();
@@ -193,7 +193,7 @@ public final class VirtualHasher {
         private final int height;
 
         // Hash inputs, at least two
-        private final Hash[] ins;
+        private Hash[] ins;
 
         // No need to have it atomic, this flag is set/checked on a single thread in hashImpl()
         private boolean chunkPreloaded = false;
@@ -205,13 +205,18 @@ public final class VirtualHasher {
             super(pool, 1 + (1 << height) + 1);
             this.path = path;
             this.height = height;
-            this.ins = new Hash[1 << height];
         }
 
         @Override
         public void complete() {
-            assert Arrays.stream(ins).allMatch(Objects::isNull);
+            assert (ins == null) || Arrays.stream(ins).allMatch(Objects::isNull);
             super.complete();
+        }
+
+        void initInputs() {
+            if (ins == null) {
+                ins = new Hash[1 << height];
+            }
         }
 
         void preloadHashChunkNeeded() {
