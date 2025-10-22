@@ -379,7 +379,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         connectionManager.scheduleConnectionAttempt(connection.getNodeConfig(), Duration.ofSeconds(2), 100L);
 
-        assertThat(logCaptor.warnLogs())
+        assertThat(logCaptor.errorLogs())
                 .anyMatch(msg -> msg.contains("Failed to schedule connection task for block node."));
 
         verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(2_000L), eq(TimeUnit.MILLISECONDS));

@@ -20,9 +20,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.base.state.MutabilityException;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.state.MerkleProof;
 import com.swirlds.state.SiblingHash;
 import com.swirlds.state.StateChangeListener;
@@ -48,7 +46,6 @@ import java.util.EnumSet;
 import java.util.List;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.crypto.config.CryptoConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -71,8 +68,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
      */
     @BeforeEach
     void setUp() {
-        virtualMapState = new TestVirtualMapState(new NoOpMetrics());
-        virtualMapState.init(new FakeTime(), new NoOpMetrics(), mock(MerkleCryptography.class), () -> GENESIS_ROUND);
+        virtualMapState = new TestVirtualMapState();
     }
 
     @Nested
@@ -711,11 +707,6 @@ public class VirtualMapStateTest extends MerkleTestBase {
             final var writableStates = virtualMapState.getWritableStates(FIRST_SERVICE);
             writableStates.getQueue(STEAM_STATE_ID).add(ART);
             ((CommittableWritableStates) writableStates).commit();
-
-            final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(ConfigurationBuilder.create()
-                    .withConfigDataType(CryptoConfig.class)
-                    .build());
-            virtualMapState.init(new FakeTime(), new NoOpMetrics(), merkleCryptography, () -> GENESIS_ROUND);
         }
 
         @Test
@@ -801,9 +792,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
             fruitVirtualMap.release();
 
             // create and prepare a new state
-            virtualMapState = new TestVirtualMapState(new NoOpMetrics());
-            virtualMapState.init(
-                    new FakeTime(), new NoOpMetrics(), mock(MerkleCryptography.class), () -> GENESIS_ROUND);
+            virtualMapState = new TestVirtualMapState();
             setupFruitVirtualMap();
             setupSingletonCountry();
             virtualMap = (VirtualMap) virtualMapState.getRoot();
