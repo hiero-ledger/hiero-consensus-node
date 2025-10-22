@@ -18,6 +18,8 @@ option java_package = "com.hedera.node.internal.network.legacy";
 // <<<pbj.java_package = "com.hedera.node.internal.network">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
+import "google/protobuf/wrappers.proto";
+
 /**
  * A single block node connection configuration.<br/>
  *
@@ -57,6 +59,62 @@ message BlockNodeConfig {
    * node SHALL connect to a node in the next-highest available priority group.
    */
     int32 priority = 3;
+
+    /**
+     * Optional HTTP/2 client protocol configuration for this block node connection.
+     * If present, these settings SHALL override defaults when creating the WebClient.
+     */
+    Http2ClientProtocolConfig http2ClientProtocolConfig = 4;
+}
+
+
+/**
+ * Optional HTTP/2 client protocol configuration for a specific block node connection.
+ * If present, these values SHALL be used to configure the HTTP/2 protocol for the WebClient connecting
+ * to the corresponding block node.
+ */
+message Http2ClientProtocolConfig {
+  /**
+   * Timeout for blocking while waiting for window update when window is depleted.
+   * ISO-8601 duration string (e.g., "PT15S").
+   */
+  google.protobuf.StringValue flow_control_block_timeout = 1;
+
+  /**
+   * Configure INITIAL_WINDOW_SIZE setting for new HTTP/2 connections.
+   */
+  google.protobuf.Int32Value initial_window_size = 2;
+
+  /**
+   * Configure initial MAX_FRAME_SIZE setting for new HTTP/2 connections.
+   */
+  google.protobuf.Int32Value max_frame_size = 3;
+
+  /**
+   * Configure initial MAX_HEADER_LIST_SIZE setting for new HTTP/2 connections.
+   */
+  google.protobuf.Int64Value max_header_list_size = 4;
+
+  /**
+   * Name of this HTTP/2 protocol configuration. Default is "h2".
+   */
+  google.protobuf.StringValue name = 5;
+
+  /**
+   * Check healthiness of cached connections with HTTP/2.0 ping frame.
+   */
+  google.protobuf.BoolValue ping = 6;
+
+  /**
+   * Timeout for ping probe used for checking healthiness of cached connections.
+   * ISO-8601 duration string (e.g., "PT0.5S").
+   */
+  google.protobuf.StringValue ping_timeout = 7;
+
+  /**
+   * Prior knowledge of HTTP/2 capabilities of the server.
+   */
+  google.protobuf.BoolValue prior_knowledge = 8;
 }
 
 /**

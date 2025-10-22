@@ -18,6 +18,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import io.helidon.webclient.http2.Http2ClientProtocolConfig;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URI;
@@ -31,6 +32,7 @@ import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -96,6 +98,8 @@ public class BlockNodeConnectionManager {
      * startup from the configuration file(s) on disk.
      */
     private final List<BlockNodeConfig> availableBlockNodes = new ArrayList<>();
+
+    private Map<BlockNodeConfig, Http2ClientProtocolConfig> http2ClientProtocolConfigs = new ConcurrentHashMap<>();
     /**
      * Flag that indicates if this connection manager is active or not. In this case, being active means it is actively
      * processing blocks and attempting to send them to a block node.
@@ -241,17 +245,65 @@ public class BlockNodeConnectionManager {
 
             final byte[] jsonConfig = Files.readAllBytes(configPath);
             final BlockNodeConnectionInfo protoConfig = BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(jsonConfig));
-
-            // Convert proto config to internal config objects
-            return protoConfig.nodes().stream()
-                    .map(node -> new BlockNodeConfig(node.address(), node.port(), node.priority()))
-                    .toList();
+            extractOptionalHttp2ClientProtocolConfig(protoConfig);
+            return protoConfig.nodes();
         } catch (final IOException | ParseException e) {
             logger.info(
                     "Failed to read or parse block node configuration from {}. Continuing without block node connections.",
                     configPath,
                     e);
             return List.of();
+        }
+    }
+
+    private void extractOptionalHttp2ClientProtocolConfig(BlockNodeConnectionInfo protoConfig) {
+        for (BlockNodeConfig config : protoConfig.nodes()) {
+            if (config.hasHttp2ClientProtocolConfig()) {
+                com.hedera.node.internal.network.Http2ClientProtocolConfig protocolConfig =
+                        config.http2ClientProtocolConfig();
+                Http2ClientProtocolConfig.Builder builder = Http2ClientProtocolConfig.builder();
+                if (protocolConfig != null) {
+                    if (protocolConfig.flowControlBlockTimeout() != null) {
+                        try {
+                            Duration flowControlBlockTimeout = Duration.parse(protocolConfig.flowControlBlockTimeout());
+                            builder.flowControlBlockTimeout(flowControlBlockTimeout);
+                        } catch (DateTimeParseException e) {
+                            logger.info(
+                                    "Unable to parse Http2ClientProtocolConfig flowControlBlockTimeout: {}",
+                                    protocolConfig.flowControlBlockTimeout());
+                        }
+                    }
+                    if (protocolConfig.initialWindowSize() != null) {
+                        builder.initialWindowSize(protocolConfig.initialWindowSize());
+                    }
+                    if (protocolConfig.maxFrameSize() != null) {
+                        builder.maxFrameSize(protocolConfig.maxFrameSize());
+                    }
+                    if (protocolConfig.maxHeaderListSize() != null) {
+                        builder.maxHeaderListSize(protocolConfig.maxHeaderListSize());
+                    }
+                    if (protocolConfig.name() != null) {
+                        builder.name(protocolConfig.name());
+                    }
+                    if (protocolConfig.ping() != null) {
+                        builder.ping(protocolConfig.ping());
+                    }
+                    if (protocolConfig.pingTimeout() != null) {
+                        try {
+                            Duration pingTimeout = Duration.parse(protocolConfig.pingTimeout());
+                            builder.pingTimeout(pingTimeout);
+                        } catch (DateTimeParseException e) {
+                            logger.info(
+                                    "Unable to parse Http2ClientProtocolConfig pingTimeout: {}",
+                                    protocolConfig.pingTimeout());
+                        }
+                    }
+                    if (protocolConfig.priorKnowledge() != null) {
+                        builder.priorKnowledge(protocolConfig.priorKnowledge());
+                    }
+                }
+                http2ClientProtocolConfigs.put(config, builder.build());
+            }
         }
     }
 
@@ -388,6 +440,7 @@ public class BlockNodeConnectionManager {
         activeConnectionRef.set(null);
         nodeStats.clear();
         availableBlockNodes.clear();
+        http2ClientProtocolConfigs.clear();
     }
 
     private void closeAllConnections() {
@@ -1076,5 +1129,9 @@ public class BlockNodeConnectionManager {
 
         // Remove from connections map
         connections.remove(connection.getNodeConfig());
+    }
+
+    public Map<BlockNodeConfig, Http2ClientProtocolConfig> getHttp2ClientProtocolConfigs() {
+        return http2ClientProtocolConfigs;
     }
 }
