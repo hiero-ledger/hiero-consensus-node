@@ -25,10 +25,10 @@ echo "NFT transfer started. Working for warmtime=$warmtime ..."
 
 sleep $warmtime
 
-while [ \( $? -ne 0 \) -a \( $counter -le $NofLoops \) ]
+while [ $counter -le $NofLoops ]
 do
-  echo "Loop: $counter"
   counter=`expr $counter + 1`
+  echo "Loop: $counter"
 
   echo "Stopping java "
 
@@ -57,7 +57,7 @@ do
     if [ $? -eq 0 ]
     then
       echo "ERROR!!! Unknown bucket field. STOP-ing and exiting.."
-      $k exec $LEARNER_POD -c root-container -- su - hedera -c bash -c "ps -aef | grep -w java | grep -v grep | awk '{print \$2}' | xargs kill -9"
+      $k exec $LEARNER_POD -c root-container -- su - hedera -c bash -c "ps -aef | grep -w java | grep -v grep | awk '{print \$2}' | xargs kill -15"
       exit 13
     fi
 
@@ -78,7 +78,7 @@ do
     if [ $? -eq 0 ]
     then
       echo "ERROR!!! Unknown bucket field. STOP-ing and exiting.."
-      $k exec $LEARNER_POD -c root-container -- su - hedera -c bash -c "ps -aef | grep -w java | grep -v grep | awk '{print \$2}' | xargs kill -9"
+      $k exec $LEARNER_POD -c root-container -- su - hedera -c bash -c "ps -aef | grep -w java | grep -v grep | awk '{print \$2}' | xargs kill -15"
       exit 13
     fi
     grep 'Now in ACTIVE' $LEARNER_LOG_LOCAL >/dev/null
