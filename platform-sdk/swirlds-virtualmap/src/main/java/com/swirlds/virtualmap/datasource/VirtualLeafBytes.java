@@ -8,7 +8,6 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.ProtoWriterTools;
-import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
@@ -240,7 +239,7 @@ public class VirtualLeafBytes<V> {
     }
 
     // Output size must be at least getSizeInBytesForHashing()
-    public void writeToForHashing(final WritableMessageDigest out) {
+    public void writeToForHashing(final WritableSequentialData out) {
         // The 0x00 prefix byte is added to all leaf hashes in the Hiero Merkle tree,
         // so that there is a clear guaranteed domain separation of hash space between leaves and internal nodes.
         out.writeByte((byte) 0x00);
