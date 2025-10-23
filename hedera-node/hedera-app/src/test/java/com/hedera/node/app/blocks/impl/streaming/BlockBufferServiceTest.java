@@ -1440,7 +1440,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .withValue("blockStream.buffer.isBufferPersistenceEnabled", true)
                 .withValue("blockStream.buffer.bufferDirectory", testDir)
                 .withValue("blockStream.maxReadDepth", Integer.MAX_VALUE)
-                .withValue("blockStream.maxReadBytesSize", 100000)
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
