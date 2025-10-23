@@ -137,7 +137,7 @@ public class TransactionDispatcher {
     @NonNull
     private TransactionHandler getHandler(@NonNull final TransactionBody txBody) {
         return switch (txBody.data().kind()) {
-            case CLPR_SET_REMOTE_CONFIGURATION -> handlers.clprSetLedgerConfigurationHandler();
+            case CLPR_SET_LEDGER_CONFIGURATION -> handlers.clprSetLedgerConfigurationHandler();
 
             case CONSENSUS_CREATE_TOPIC -> handlers.consensusCreateTopicHandler();
             case CONSENSUS_UPDATE_TOPIC -> handlers.consensusUpdateTopicHandler();

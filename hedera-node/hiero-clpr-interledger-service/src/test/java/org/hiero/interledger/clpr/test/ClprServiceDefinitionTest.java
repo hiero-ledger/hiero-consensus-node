@@ -24,7 +24,7 @@ class ClprServiceDefinitionTest {
         Assertions.assertThat(methods)
                 .containsExactlyInAnyOrder(
                         new RpcMethodDefinition<>(
-                                "setRemoteLedgerConfiguration", Transaction.class, TransactionResponse.class),
+                                "setLedgerConfiguration", Transaction.class, TransactionResponse.class),
                         new RpcMethodDefinition<>("getLedgerConfiguration", Query.class, Response.class));
     }
 }

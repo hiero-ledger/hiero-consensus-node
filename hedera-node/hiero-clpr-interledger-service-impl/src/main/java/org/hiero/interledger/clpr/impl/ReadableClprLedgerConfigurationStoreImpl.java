@@ -4,6 +4,7 @@ package org.hiero.interledger.clpr.impl;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.interledger.clpr.impl.schemas.V0650ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID;
 
+import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -19,15 +20,18 @@ import org.hiero.interledger.clpr.ReadableClprLedgerConfigurationStore;
 public class ReadableClprLedgerConfigurationStoreImpl implements ReadableClprLedgerConfigurationStore {
 
     private final ReadableKVState<ClprLedgerId, ClprLedgerConfiguration> ledgerConfigurations;
+    private final ReadableEntityCounters entityCounters;
 
     /**
      * Create a new {@link ReadableClprLedgerConfigurationStore} instance.
      *
      * @param states The state to use.
      */
-    public ReadableClprLedgerConfigurationStoreImpl(@NonNull final ReadableStates states) {
+    public ReadableClprLedgerConfigurationStoreImpl(
+            @NonNull final ReadableStates states, @NonNull final ReadableEntityCounters entityCounters) {
         requireNonNull(states);
         ledgerConfigurations = states.get(CLPR_LEDGER_CONFIGURATIONS_STATE_ID);
+        this.entityCounters = requireNonNull(entityCounters);
     }
 
     @Override

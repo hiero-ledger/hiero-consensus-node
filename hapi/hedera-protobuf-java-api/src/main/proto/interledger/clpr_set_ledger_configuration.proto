@@ -26,7 +26,7 @@ import "interledger/state/clpr/clpr_ledger.proto";
  * Register a ledger for CLPR based interledger communication.
  *
  */
-message ClprSetRemoteLedgerConfigurationTransactionBody {
+message ClprSetLedgerConfigurationTransactionBody {
     /**
      * The ledger configuration to set.
      */

@@ -5,7 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import org.hiero.hapi.interledger.clpr.ClprSetRemoteLedgerConfigurationTransactionBody;
+import org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 
@@ -42,13 +42,13 @@ public class ClprStateProofManager {
     }
 
     /**
-     * Validates the signature and state proof within the given {@link ClprSetRemoteLedgerConfigurationTransactionBody}.
+     * Validates the signature and state proof within the given {@link ClprSetLedgerConfigurationTransactionBody}.
      * In this case the configuration for validating the state proof and signature are in the content being proven.
      *
      * @param configTxn The transaction body containing the state proof of the ledger configuration to validate.
      * @return {@code true} if the state proof is valid, otherwise {@code false}.
      */
-    public boolean validateStateProof(@NonNull final ClprSetRemoteLedgerConfigurationTransactionBody configTxn) {
+    public boolean validateStateProof(@NonNull final ClprSetLedgerConfigurationTransactionBody configTxn) {
         // TODO: Implement the logic to validate the state proof and the signature on the state proof.
         return true;
     }

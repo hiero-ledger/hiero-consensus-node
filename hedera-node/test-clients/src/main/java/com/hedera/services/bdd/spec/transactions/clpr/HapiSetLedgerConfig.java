@@ -2,7 +2,7 @@
 package com.hedera.services.bdd.spec.transactions.clpr;
 
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bannerWith;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprSetRemoteLedgerConfig;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprSetLedgerConfig;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static java.util.stream.Collectors.toList;
 
@@ -20,13 +20,13 @@ import java.util.List;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.hapi.interledger.clpr.protoc.ClprSetRemoteLedgerConfigurationTransactionBody;
+import org.hiero.hapi.interledger.clpr.protoc.ClprSetLedgerConfigurationTransactionBody;
 import org.hiero.hapi.interledger.state.clpr.protoc.ClprEndpoint;
 import org.hiero.hapi.interledger.state.clpr.protoc.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.protoc.ClprLedgerId;
 
-public class HapiSetRemoteLedgerConfig extends HapiTxnOp<HapiSetRemoteLedgerConfig> {
-    static final Logger log = LogManager.getLogger(HapiSetRemoteLedgerConfig.class);
+public class HapiSetLedgerConfig extends HapiTxnOp<HapiSetLedgerConfig> {
+    static final Logger log = LogManager.getLogger(HapiSetLedgerConfig.class);
 
     private final String ledgerId;
     private Timestamp timestamp; // active timestamp
@@ -34,50 +34,49 @@ public class HapiSetRemoteLedgerConfig extends HapiTxnOp<HapiSetRemoteLedgerConf
 
     private boolean advertiseCreation = false;
 
-    public HapiSetRemoteLedgerConfig(final String ledgerId) {
+    public HapiSetLedgerConfig(final String ledgerId) {
         this.ledgerId = ledgerId;
     }
 
-    public HapiSetRemoteLedgerConfig timestamp(final Timestamp timestamp) {
+    public HapiSetLedgerConfig timestamp(final Timestamp timestamp) {
         this.timestamp = timestamp;
         return this;
     }
 
-    public HapiSetRemoteLedgerConfig endpoints(final List<ClprEndpoint> endpoints) {
+    public HapiSetLedgerConfig endpoints(final List<ClprEndpoint> endpoints) {
         this.endpoints = new ArrayList<>(endpoints);
         return this;
     }
 
-    public HapiSetRemoteLedgerConfig advertisingCreation() {
+    public HapiSetLedgerConfig advertisingCreation() {
         advertiseCreation = true;
         return this;
     }
 
     @Override
     public HederaFunctionality type() {
-        return ClprSetRemoteLedgerConfig;
+        return ClprSetLedgerConfig;
     }
 
     @Override
-    protected HapiSetRemoteLedgerConfig self() {
+    protected HapiSetLedgerConfig self() {
         return this;
     }
 
     @Override
     protected Consumer<TransactionBody.Builder> opBodyDef(final HapiSpec spec) throws Throwable {
-        final ClprSetRemoteLedgerConfigurationTransactionBody opBody = spec.txns()
-                .<ClprSetRemoteLedgerConfigurationTransactionBody,
-                        ClprSetRemoteLedgerConfigurationTransactionBody.Builder>
-                        body(ClprSetRemoteLedgerConfigurationTransactionBody.class, b -> {
-                    b.setLedgerConfiguration(ClprLedgerConfiguration.newBuilder()
-                            .setLedgerId(ClprLedgerId.newBuilder()
-                                    .setLedgerId(ByteString.copyFromUtf8(ledgerId))
-                                    .build())
-                            .setTimestamp(timestamp)
-                            .addAllEndpoints(endpoints)
-                            .build());
-                });
-        return b -> b.setClprSetRemoteConfiguration(opBody);
+        final ClprSetLedgerConfigurationTransactionBody opBody = spec.txns()
+                .<ClprSetLedgerConfigurationTransactionBody, ClprSetLedgerConfigurationTransactionBody.Builder>body(
+                        ClprSetLedgerConfigurationTransactionBody.class, b -> {
+                            b.setLedgerConfiguration(ClprLedgerConfiguration.newBuilder()
+                                    .setLedgerId(ClprLedgerId.newBuilder()
+                                            .setLedgerId(ByteString.copyFromUtf8(ledgerId))
+                                            .build())
+                                    .setTimestamp(timestamp)
+                                    .addAllEndpoints(endpoints)
+                                    .build());
+                        });
+        return b -> b.setClprSetLedgerConfiguration(opBody);
     }
 
     @Override
@@ -88,7 +87,7 @@ public class HapiSetRemoteLedgerConfig extends HapiTxnOp<HapiSetRemoteLedgerConf
 
         try {
             final TransactionBody txn = CommonUtils.extractTransactionBody(txnSubmitted);
-            spec.registry().saveRemoteLedgerConfig(txn.getClprSetRemoteConfiguration());
+            spec.registry().saveRemoteLedgerConfig(txn.getClprSetLedgerConfiguration());
         } catch (final Exception impossible) {
             throw new IllegalStateException(impossible);
         }

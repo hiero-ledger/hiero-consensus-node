@@ -5,11 +5,15 @@ import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
@@ -18,7 +22,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
-import org.hiero.hapi.interledger.clpr.ClprSetRemoteLedgerConfigurationTransactionBody;
+import org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody;
 import org.hiero.hapi.interledger.state.clpr.ClprEndpoint;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
@@ -45,25 +49,51 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
     @Mock
     private ClprStateProofManager stateProofManager;
 
+    @Mock
+    private NetworkInfo networkInfo;
+
+    @Mock
+    private NodeInfo creatorInfo;
+
+    @Mock
+    private NodeInfo selfNodeInfo;
+
     private ClprSetLedgerConfigurationHandler subject;
 
     @BeforeEach
     public void setUp() {
         setupHandlerBase();
-        subject = new ClprSetLedgerConfigurationHandler(stateProofManager);
+        subject = new ClprSetLedgerConfigurationHandler(stateProofManager, networkInfo);
+        given(preHandleContext.creatorInfo()).willReturn(creatorInfo);
+        given(networkInfo.selfNodeInfo()).willReturn(selfNodeInfo);
+        given(creatorInfo.nodeId()).willReturn(1L);
+        given(selfNodeInfo.nodeId()).willReturn(0L);
     }
 
     @Test
-    public void prehandleHappyPath() throws PreCheckException {
+    public void prehandleHappyPath() {
         final var txn = newTxnBuilder().withClprLedgerConfig(remoteClprConfig).build();
         given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
-        given(stateProofManager.validateStateProof(any(ClprSetRemoteLedgerConfigurationTransactionBody.class)))
+        given(stateProofManager.validateStateProof(any(ClprSetLedgerConfigurationTransactionBody.class)))
                 .willReturn(true);
-        given(pureChecksContext.body()).willReturn(txn);
-        subject.pureChecks(pureChecksContext);
-
         given(preHandleContext.body()).willReturn(txn);
-        subject.preHandle(preHandleContext);
+
+        assertThatCode(() -> subject.preHandle(preHandleContext)).doesNotThrowAnyException();
+    }
+
+    @Test
+    public void prehandleHappyPathLocal() {
+        // Given a transaction from the self-node
+        given(creatorInfo.nodeId()).willReturn(0L);
+        final var txn = newTxnBuilder().withClprLedgerConfig(remoteClprConfig).build();
+        given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
+        given(preHandleContext.body()).willReturn(txn);
+
+        // Then pre-handling succeeds without calling state proof validation
+        assertThatCode(() -> subject.preHandle(preHandleContext)).doesNotThrowAnyException();
+
+        // Verify state proof validation was never called for local transactions
+        verify(stateProofManager, never()).validateStateProof(any());
     }
 
     @Test
@@ -124,7 +154,7 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
     public void preHandleStateProofInvalid() {
         final var txn = newTxnBuilder().withClprLedgerConfig(remoteClprConfig).build();
         given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
-        given(stateProofManager.validateStateProof(any(ClprSetRemoteLedgerConfigurationTransactionBody.class)))
+        given(stateProofManager.validateStateProof(any(ClprSetLedgerConfigurationTransactionBody.class)))
                 .willReturn(false);
         given(preHandleContext.body()).willReturn(txn);
 
@@ -187,11 +217,11 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
                     .endpoints(localEndpoints)
                     .timestamp(timestamp)
                     .build();
-            final var bodyInternals = ClprSetRemoteLedgerConfigurationTransactionBody.newBuilder()
+            final var bodyInternals = ClprSetLedgerConfigurationTransactionBody.newBuilder()
                     .ledgerConfiguration(localClprConfig)
                     .build();
             return TransactionBody.newBuilder()
-                    .clprSetRemoteConfiguration(bodyInternals)
+                    .clprSetLedgerConfiguration(bodyInternals)
                     .build();
         }
     }
