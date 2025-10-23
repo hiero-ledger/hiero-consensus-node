@@ -4,7 +4,6 @@ package org.hiero.interledger.clpr.impl;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.interledger.clpr.impl.schemas.V0650ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID;
 
-import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -24,18 +23,15 @@ public class WritableClprLedgerConfigurationStoreImpl extends ReadableClprLedger
     private static final Logger logger = LogManager.getLogger(WritableClprLedgerConfigurationStoreImpl.class);
 
     private final WritableKVState<ClprLedgerId, ClprLedgerConfiguration> ledgerConfigurationsMutable;
-    private final WritableEntityCounters entityCounters;
 
     /**
      * Create a new {@link WritableClprLedgerConfigurationStoreImpl} instance.
      *
      * @param states The state to use.
      */
-    public WritableClprLedgerConfigurationStoreImpl(
-            @NonNull final WritableStates states, @NonNull final WritableEntityCounters entityCounters) {
-        super(states, entityCounters);
+    public WritableClprLedgerConfigurationStoreImpl(@NonNull final WritableStates states) {
+        super(states);
         ledgerConfigurationsMutable = states.get(CLPR_LEDGER_CONFIGURATIONS_STATE_ID);
-        this.entityCounters = entityCounters;
     }
 
     @Override
