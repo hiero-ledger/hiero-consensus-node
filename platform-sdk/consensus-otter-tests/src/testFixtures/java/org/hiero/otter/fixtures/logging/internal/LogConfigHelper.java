@@ -65,7 +65,7 @@ public final class LogConfigHelper {
 
     /** Default pattern for text-based appenders. */
     public static final String DEFAULT_PATTERN =
-            "%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] }%notEmpty{[%marker] }%-5level %logger{36} - %msg %n";
+            "%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %notEmpty{[%marker] }%-5level %logger{36} - %msg %n";
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -162,7 +162,7 @@ public final class LogConfigHelper {
      * @return a composite {@link ComponentBuilder} that suppresses unwanted markers
      */
     @NonNull
-    public static ComponentBuilder<?> creatIgnoreMarkerFilters(
+    public static ComponentBuilder<?> createIgnoreMarkerFilters(
             @NonNull final ConfigurationBuilder<BuiltConfiguration> builder) {
         final ComponentBuilder<?> ignoredMarkerFilters = builder.newComponent("Filters");
         for (final LogMarker marker : IGNORED_CONSOLE_MARKERS) {

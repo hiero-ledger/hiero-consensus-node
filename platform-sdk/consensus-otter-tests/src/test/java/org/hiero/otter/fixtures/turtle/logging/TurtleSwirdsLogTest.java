@@ -10,10 +10,12 @@ import static org.awaitility.Awaitility.await;
 
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import org.apache.logging.log4j.LogManager;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterAssertions;
@@ -61,7 +63,7 @@ final class TurtleSwirdsLogTest {
      */
     @ParameterizedTest
     @ValueSource(ints = {1, 4})
-    void testNodesLogAllAllowedMarkers(final int numNodes) throws Exception {
+    void testBasicSwirldsLogFunctionality(final int numNodes) throws IOException {
         final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
@@ -69,6 +71,11 @@ final class TurtleSwirdsLogTest {
 
             final List<Node> nodes = network.addNodes(numNodes);
             network.start();
+
+            // Generate log messages in the test. These should not appear in the log.
+            System.out.println("Hello Otter!");
+            LogManager.getLogger().info("Hello Hiero!");
+            LogManager.getLogger("com.acme.ExternalOtterTest").info("Hello World!");
 
             // Let the nodes run for a bit to generate log messages
             timeManager.waitFor(Duration.ofSeconds(5L));
@@ -118,6 +125,19 @@ final class TurtleSwirdsLogTest {
                 assertThat(logContent)
                         .as("Log should NOT contain TRACE level messages")
                         .doesNotContainPattern("\\bTRACE\\b");
+
+                // Test Message Verification
+
+                // Verify that our test log messages do NOT appear in the log
+                assertThat(logContent)
+                        .as("Log should NOT contain test log message 'Hello Otter!'")
+                        .doesNotContain("Hello Otter!");
+                assertThat(logContent)
+                        .as("Log should NOT contain test log message 'Hello Hiero!'")
+                        .doesNotContain("Hello Hiero!");
+                assertThat(logContent)
+                        .as("Log should NOT contain test log message 'Hello World!'")
+                        .doesNotContain("Hello World!");
             }
         } finally {
             env.destroy();
@@ -131,7 +151,7 @@ final class TurtleSwirdsLogTest {
      * then checking that only that node's log contains the restart messages while other nodes' logs don't.
      */
     @Test
-    void testPerNodeLogRouting() throws Exception {
+    void testPerNodeLogRouting() throws IOException {
         final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
@@ -157,10 +177,10 @@ final class TurtleSwirdsLogTest {
             final long nodeId2 = node2.selfId().id();
             final long nodeId3 = node3.selfId().id();
 
-            final Path log0 = Path.of("build/turtle/node-" + nodeId0 + "/output/swirlds.log");
-            final Path log1 = Path.of("build/turtle/node-" + nodeId1 + "/output/swirlds.log");
-            final Path log2 = Path.of("build/turtle/node-" + nodeId2 + "/output/swirlds.log");
-            final Path log3 = Path.of("build/turtle/node-" + nodeId3 + "/output/swirlds.log");
+            final Path log0 = Path.of(String.format(LOG_DIR, nodeId0), LOG_FILENAME);
+            final Path log1 = Path.of(String.format(LOG_DIR, nodeId1), LOG_FILENAME);
+            final Path log2 = Path.of(String.format(LOG_DIR, nodeId2), LOG_FILENAME);
+            final Path log3 = Path.of(String.format(LOG_DIR, nodeId3), LOG_FILENAME);
 
             // Wait for initial log files to be created
             awaitFile(log0, Duration.ofSeconds(5L));
