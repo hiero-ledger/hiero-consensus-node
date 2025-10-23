@@ -58,9 +58,6 @@ on:
       slack-report-webhook:
         required: true
         description: "Slack webhook for SDPT outputs notifications"
-      rootly-api-token:
-        required: true
-        description: "The rootly api token used for reporting"
     outputs:
       result:
         description: "Result of the SDPT Run"
@@ -1254,8 +1251,8 @@ jobs:
 
           echo "result=${RESULT}" >> "${GITHUB_OUTPUT}"
 
-          echo "### Single Day Performance Result" >> "${GITHUB_STEP_SUMMARY}"
-          echo "result=${RESULT}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Single Day Performance Result" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "result=${RESULT}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
   delete-namespace:
     name: Delete namespace
@@ -1333,23 +1330,8 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Check Test Asset
-        id: check-test-asset
-        run: |
-          ADHOC="false"
-          if [[ "${{ inputs.test-asset }}" =~ ^AdHoc(SD)?[0-9]+$ ]]; then
-            ADHOC="true"
-          fi
-          echo "is-adhoc=${ADHOC}" >> "${GITHUB_OUTPUT}"
-
-      - name: Set Rootly Service Name
-        id: set-rootly-service
-        run: |
-          ROOTLY_SERVICE_NAME="CITR SDPT"
-          echo "service=${ROOTLY_SERVICE_NAME}" >> "${GITHUB_OUTPUT}"
-
       - name: Build Rootly Summary
-        id: rootly-summary
+        id: summary
         run: |
           title="The Single Day Performance Test workflow failed (SDPT ${{ inputs.test-asset }} - ${{ inputs.ref }})"
           echo "title=${title}" >> "${GITHUB_OUTPUT}"
@@ -1373,32 +1355,11 @@ jobs:
             echo EOF
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Log Rootly Summary
+      - name: Log Summary
         run: |
           echo "## Rootly Summary" >> "${GITHUB_STEP_SUMMARY}"
-          echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "### Rootly Service" >> "${GITHUB_STEP_SUMMARY}"
-          echo "${{ steps.set-rootly-service.outputs.service }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "### AdHoc Run?" >> "${GITHUB_STEP_SUMMARY}"
-          echo "${{ steps.check-test-asset.outputs.is-adhoc }}" >> "${GITHUB_STEP_SUMMARY}"
-
-      - name: Create Rootly Alert
-        id: rootly-alert
-        if: ${{ steps.check-test-asset.outputs.is-adhoc == 'false' }}
-        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
-        continue-on-error: true
-        with:
-          api_key: ${{ secrets.rootly-api-token}}
-          summary: ${{ steps.rootly-summary.outputs.title }}
-          details: ${{ steps.rootly-summary.outputs.summary }}
-          notification_target_type: "Service"
-          notification_target: ${{ steps.set-rootly-service.outputs.service }}
-          set_as_noise: "true"
-          alert_urgency: "High"
-          external_id: ${{ github.run_id }}
-          external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          environments: "CITR"
+          echo "### Title: ${{ steps.summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
 
   performance-report-to-slack:
     runs-on: hiero-citr-linux-medium

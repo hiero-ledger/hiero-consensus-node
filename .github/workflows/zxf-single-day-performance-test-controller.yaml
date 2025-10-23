@@ -74,7 +74,6 @@ jobs:
       delete-namespace: true
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
-      rootly-api-token: ${{ secrets.ROOTLY_API_TOKEN }}
 
   tag-sdpt-result:
     name: Tag SDPT Result
@@ -403,7 +402,7 @@ jobs:
           details: ${{ steps.rootly-summary.outputs.summary }}
           notification_target_type: "Service"
           notification_target: ${{ steps.set-service.outputs.service }}
-          set_as_noise: "true"
+          set_as_noise: "false"
           alert_urgency: "High"
           environments: "CITR"
           external_id: ${{ github.run_id }}
