@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.test.exec.operations;
 
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.INVALID_ADDRESS_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertSameResult;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_GAS;
 import static org.mockito.ArgumentMatchers.any;
@@ -13,9 +14,11 @@ import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomSelfDestructOperation;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomSelfDestructOperation.UseEIP6780Semantics;
+import com.hedera.node.app.service.contract.impl.exec.utils.InvalidAddressContext;
 import com.hedera.node.app.service.contract.impl.state.AbstractProxyEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.ArrayDeque;
 import java.util.Optional;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
@@ -89,6 +92,8 @@ class CustomSelfDestructOperationTest {
         given(frame.getRecipientAddress()).willReturn(TBD);
         given(frame.getRemainingGas()).willReturn(123L);
         given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
+        given(frame.getMessageFrameStack()).willReturn(new ArrayDeque<>());
+        given(frame.getContextVariable(INVALID_ADDRESS_CONTEXT_VARIABLE)).willReturn(new InvalidAddressContext());
         given(addressChecks.isSystemAccount(BENEFICIARY)).willReturn(true);
         given(gasCalculator.selfDestructOperationGasCost(null, INHERITANCE)).willReturn(123L);
         given(gasCalculator.selfDestructOperationGasCost(null, Wei.ZERO)).willReturn(123L);
