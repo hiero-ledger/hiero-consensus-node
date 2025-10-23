@@ -10,7 +10,6 @@ import java.time.Duration;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TestEnvironment;
@@ -19,8 +18,6 @@ import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.Test;
 
 class TurtleConsoleOutputTest {
-
-    private static final Logger log = LogManager.getLogger();
 
     /**
      * Pattern for parsing log messages.
@@ -56,7 +53,7 @@ class TurtleConsoleOutputTest {
     }
 
     @Test
-    void testBasicConsoleOutputDuringStartup() {
+    void testBasicConsoleOutput() {
         // Capture console output
         final ByteArrayOutputStream consoleCapture = new ByteArrayOutputStream();
         final PrintStream originalOut = System.out;
@@ -80,7 +77,8 @@ class TurtleConsoleOutputTest {
                 network.start();
 
                 System.out.println("Hello Otter!");
-                log.info("Hello Hiero!");
+                LogManager.getLogger().info("Hello Hiero!");
+                LogManager.getLogger("com.acme.ExternalOtterTest").info("Hello World!");
 
                 // Wait 5 seconds
                 timeManager.waitFor(Duration.ofSeconds(5L));
@@ -117,6 +115,9 @@ class TurtleConsoleOutputTest {
             assertThat(consoleOutput)
                     .as("Console output should contain 'Hello Hiero!' message")
                     .contains("Hello Hiero!");
+            assertThat(consoleOutput)
+                    .as("Console output should contain 'Hello World!' message")
+                    .contains("Hello World!");
 
             // Parse each line and verify log messages follow the expected pattern
             final String[] lines = consoleOutput.split("\n");
@@ -137,11 +138,6 @@ class TurtleConsoleOutputTest {
                     assertThat(logLevel)
                             .as("Log message should have INFO or higher level: %s", line)
                             .isIn("INFO", "WARN", "ERROR", "FATAL");
-
-                    // Verify logger is from org.hiero.otter.fixtures package
-                    assertThat(loggerName)
-                            .as("Logger should be from org.hiero.otter.fixtures package: %s", line)
-                            .startsWith("org.hiero.otter.fixtures");
                 }
             }
 

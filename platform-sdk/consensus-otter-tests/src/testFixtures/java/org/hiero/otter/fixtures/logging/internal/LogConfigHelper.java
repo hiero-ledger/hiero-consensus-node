@@ -162,7 +162,7 @@ public final class LogConfigHelper {
      * @return a composite {@link ComponentBuilder} that suppresses unwanted markers
      */
     @NonNull
-    public static ComponentBuilder<?> creatIgnoreMarkerFilters(
+    public static ComponentBuilder<?> createIgnoreMarkerFilters(
             @NonNull final ConfigurationBuilder<BuiltConfiguration> builder) {
         final ComponentBuilder<?> ignoredMarkerFilters = builder.newComponent("Filters");
         for (final LogMarker marker : IGNORED_CONSOLE_MARKERS) {
