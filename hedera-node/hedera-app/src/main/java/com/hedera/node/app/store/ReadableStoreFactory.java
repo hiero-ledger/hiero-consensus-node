@@ -12,7 +12,9 @@ import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.ReadableBlockRecordStore;
 import com.hedera.node.app.service.addressbook.AddressBookService;
+import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.service.addressbook.impl.ReadableAccountNodeRelStoreImpl;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.consensus.ConsensusService;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
@@ -117,7 +119,13 @@ public class ReadableStoreFactory {
                 ReadableBlockRecordStore.class,
                 new StoreEntry(
                         BlockRecordService.NAME, (states, entityCounters) -> new ReadableBlockRecordStore(states)));
+        // Address book
         newMap.put(ReadableNodeStore.class, new StoreEntry(AddressBookService.NAME, ReadableNodeStoreImpl::new));
+        newMap.put(
+                ReadableAccountNodeRelStore.class,
+                new StoreEntry(
+                        AddressBookService.NAME,
+                        (states, entityCounters) -> new ReadableAccountNodeRelStoreImpl(states)));
         // Platform
         newMap.put(
                 ReadablePlatformStateStore.class,

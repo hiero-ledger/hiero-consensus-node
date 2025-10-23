@@ -137,7 +137,7 @@ class DocExamplesTest {
         network.addNodes(4);
 
         // Set up monitoring before starting the network
-        assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds();
+        assertContinuouslyThat(network.newConsensusResults()).haveEqualCommonRounds();
 
         assertContinuouslyThat(network.newLogResults().suppressingLogMarker(STARTUP))
                 .haveNoErrorLevelMessages();

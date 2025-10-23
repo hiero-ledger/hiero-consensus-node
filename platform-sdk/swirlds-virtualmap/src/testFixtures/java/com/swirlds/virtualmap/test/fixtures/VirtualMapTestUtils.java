@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.test.fixtures;
 
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
@@ -66,13 +66,12 @@ public final class VirtualMapTestUtils {
         }
     }
 
-    public static Hash hash(VirtualLeafBytes rec) {
-        final byte[] arr = new byte[rec.getSizeInBytesForHashing()];
-        rec.writeToForHashing(BufferedData.wrap(arr));
+    public static Hash hash(final VirtualLeafBytes<?> rec) {
         try {
             final MessageDigest md = MessageDigest.getInstance(Cryptography.DEFAULT_DIGEST_TYPE.algorithmName());
-            md.update(arr);
-            return new Hash(md.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
+            final WritableMessageDigest wmd = new WritableMessageDigest(md);
+            rec.writeToForHashing(wmd);
+            return new Hash(wmd.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
         } catch (final NoSuchAlgorithmException e) {
             throw new CryptographyException(e);
         }

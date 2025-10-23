@@ -50,8 +50,6 @@ import com.swirlds.config.api.validation.annotation.Min;
  *      -Xmx80g, and familyThrottlePercent is 5.0, the threshold will be set to 4Gb. If both familyThrottlePercent
  *      and familyThrottleThreshold are set, familyThrottleThreshold is used, and familyThrottlePercent is
  *      ignored
- * @param validateMigrationEnabled
- *      Feature flag to enable validation during migration to the single Virtual Map (see {@code MerkleStateRoot}).
  */
 @ConfigData("virtualMap")
 public record VirtualMapConfig(
@@ -65,8 +63,7 @@ public record VirtualMapConfig(
         @Min(1) @ConfigProperty(defaultValue = "20") int flushInterval,
         @Min(-1) @ConfigProperty(defaultValue = "1000000000") long copyFlushCandidateThreshold,
         @Min(-1) @Max(100) @ConfigProperty(defaultValue = "10.0") double familyThrottlePercent,
-        @Min(-1) @ConfigProperty(defaultValue = "-1") long familyThrottleThreshold,
-        @ConfigProperty(defaultValue = "false") boolean validateMigrationEnabled) {
+        @Min(-1) @ConfigProperty(defaultValue = "-1") long familyThrottleThreshold) {
 
     private static final double UNIT_FRACTION_PERCENT = 100.0;
 

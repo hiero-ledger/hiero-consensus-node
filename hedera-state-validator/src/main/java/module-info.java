@@ -22,14 +22,12 @@ module com.hedera.state.validator {
     requires com.hedera.node.app;
     requires com.hedera.node.config;
     requires com.hedera.node.hapi;
-    requires com.hedera.node.test.clients;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.base;
     requires com.swirlds.cli;
     requires com.swirlds.common;
     requires com.swirlds.config.api;
     requires com.swirlds.config.extensions;
-    requires com.swirlds.logging;
     requires com.swirlds.merkledb;
     requires com.swirlds.metrics.api;
     requires com.swirlds.platform.core;

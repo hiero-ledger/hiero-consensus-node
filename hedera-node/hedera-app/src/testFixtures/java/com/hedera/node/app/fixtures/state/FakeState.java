@@ -7,11 +7,9 @@ import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.MerkleProof;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.lifecycle.StateMetadata;
@@ -42,7 +40,6 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.LongSupplier;
 import org.hiero.base.constructable.ConstructableIgnored;
 import org.hiero.base.crypto.Hash;
 
@@ -263,15 +260,6 @@ public class FakeState implements MerkleNodeState {
     }
 
     @Override
-    public void init(
-            final @NonNull Time time,
-            final @NonNull Metrics metrics,
-            final @NonNull MerkleCryptography merkleCryptography,
-            final LongSupplier roundSupplier) {
-        // no-op
-    }
-
-    @Override
     public void setHash(Hash hash) {
         // no-op
     }
@@ -293,6 +281,16 @@ public class FakeState implements MerkleNodeState {
 
     @Override
     public long singletonPath(final int stateId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Hash getHashForPath(long path) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public MerkleProof getMerkleProof(long path) {
         throw new UnsupportedOperationException();
     }
 

@@ -39,7 +39,7 @@ public class CheckingRecoveryTest {
         // Setup simulation
 
         // Add more than 3 nodes with balanced weights so that one node can be lost without halting consensus
-        network.weightGenerator(WeightGenerators.BALANCED);
+        network.weightGenerator(WeightGenerators.BALANCED_REAL_WEIGHT);
         network.addNodes(4);
         // For this test to work, we need to lower the limit for the transaction handler component
         // With the new limit set, once the transaction handler has 100 pending transactions, the node will stop
@@ -47,7 +47,14 @@ public class CheckingRecoveryTest {
         network.withConfigValue(
                 PlatformSchedulersConfig_.TRANSACTION_HANDLER, "SEQUENTIAL_THREAD CAPACITY(100) FLUSHABLE SQUELCHABLE");
 
-        assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds();
+        // Setup continuous assertions
+        assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
+        assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
+        assertContinuouslyThat(network.newConsensusResults())
+                .haveEqualCommonRounds()
+                .haveConsistentRounds();
+        assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
+
         network.start();
 
         // Run the nodes for some time

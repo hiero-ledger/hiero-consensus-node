@@ -6,8 +6,7 @@ import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
 import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.logging.legacy.LogMarker;
+import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
@@ -15,8 +14,6 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -32,7 +29,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.StackTrace;
 import org.hiero.base.concurrent.AbstractTask;
 import org.hiero.base.crypto.Cryptography;
-import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.Hash;
 
 /**
@@ -88,13 +84,8 @@ public final class VirtualHasher {
     /**
      * This thread-local gets a message digest that can be used for hashing on a per-thread basis.
      */
-    private static final ThreadLocal<MessageDigest> MESSAGE_DIGEST_THREAD_LOCAL = ThreadLocal.withInitial(() -> {
-        try {
-            return MessageDigest.getInstance(Cryptography.DEFAULT_DIGEST_TYPE.algorithmName());
-        } catch (final NoSuchAlgorithmException e) {
-            throw new CryptographyException(e, LogMarker.EXCEPTION);
-        }
-    });
+    private static final ThreadLocal<WritableMessageDigest> MESSAGE_DIGEST_THREAD_LOCAL =
+            ThreadLocal.withInitial(() -> new WritableMessageDigest(Cryptography.DEFAULT_DIGEST_TYPE.buildDigest()));
 
     /**
      * A function to look up clean hashes by path during hashing. This function is stored in
@@ -130,15 +121,15 @@ public final class VirtualHasher {
     }
 
     public static Hash hashInternal(final Hash left, final Hash right) {
-        final MessageDigest md = MESSAGE_DIGEST_THREAD_LOCAL.get();
-        md.reset();
+        final WritableMessageDigest wmd = MESSAGE_DIGEST_THREAD_LOCAL.get();
+        wmd.reset();
         // Unique value to make sure internal node hashes are different from leaf hashes
-        md.update((byte) 0x02);
-        left.getBytes().writeTo(md);
-        if (right != NO_PATH2_HASH) {
-            right.getBytes().writeTo(md);
+        wmd.writeByte((byte) 0x02);
+        left.getBytes().writeTo(wmd);
+        if (right != NO_PATH2_HASH) { // use identity check rather than equals
+            right.getBytes().writeTo(wmd);
         }
-        return new Hash(md.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
+        return new Hash(wmd.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
     }
 
     // A task that can supply hashes to other tasks. There are two hash producer task
@@ -319,15 +310,6 @@ public final class VirtualHasher {
     // null hash
     class LeafHashTask extends HashProducingTask {
 
-        // Future work: modify hashing pool thread factory to use custom threads with all
-        // resources available. It should be faster than using thread locals
-        private static final ThreadLocal<byte[]> BYTE_ARRAY_THREAD_LOCAL = ThreadLocal.withInitial(() -> new byte[256]);
-
-        // Future work: modify hashing pool thread factory to use custom threads with all
-        // resources available. It should be faster than using thread locals
-        private static final ThreadLocal<BufferedData> BUFFERED_DATA_THREAD_LOCAL =
-                ThreadLocal.withInitial(() -> BufferedData.wrap(BYTE_ARRAY_THREAD_LOCAL.get()));
-
         // Leaf path
         private final long path;
 
@@ -355,19 +337,9 @@ public final class VirtualHasher {
         @Override
         protected boolean onExecute() {
             if (leaf != null) {
-                final int leafSizeInBytes = leaf.getSizeInBytesForHashing();
-                byte[] arr = BYTE_ARRAY_THREAD_LOCAL.get();
-                BufferedData buf = BUFFERED_DATA_THREAD_LOCAL.get();
-                if (buf.length() < leafSizeInBytes) {
-                    arr = new byte[leafSizeInBytes];
-                    BYTE_ARRAY_THREAD_LOCAL.set(arr);
-                    buf = BufferedData.wrap(arr);
-                    BUFFERED_DATA_THREAD_LOCAL.set(buf);
-                }
-                leaf.writeToForHashing(buf);
-                final MessageDigest md = MESSAGE_DIGEST_THREAD_LOCAL.get();
-                md.update(arr, 0, Math.toIntExact(buf.position()));
-                final Hash hash = new Hash(md.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
+                final WritableMessageDigest wmd = MESSAGE_DIGEST_THREAD_LOCAL.get();
+                leaf.writeToForHashing(wmd);
+                final Hash hash = new Hash(wmd.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
                 listener.onLeafHashed(leaf);
                 out.setHash(path, hash);
             } else {
