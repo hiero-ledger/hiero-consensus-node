@@ -38,9 +38,4 @@ message BlockFooter {
   /** The root hash of the state merkle tree for the version of state at the beginning of the current block
    */
   bytes start_of_block_state_root_hash = 3;
-
-  /**
-   * The root hash of the state merkle tree for the version of state at the end of the current block
-   */
-  bytes end_of_block_state_root_hash = 4;
 }
