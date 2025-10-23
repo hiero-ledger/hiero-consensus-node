@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
 import static org.hiero.otter.fixtures.internal.InstrumentedClasses.INSTRUMENTED_EVENT_CREATOR;
 
-import com.swirlds.base.time.Time;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.config.ModuleConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -53,7 +53,7 @@ public class InstrumentedTurtleNode extends TurtleNode implements InstrumentedNo
     @Override
     public void ping(@NonNull final String message) {
         try (final LoggingContextScope ignored = installNodeContext()) {
-            throwIfNotIn(LifeCycle.RUNNING, "Cannot ping a node that is not running");
+            throwIsNotInLifecycle(RUNNING, "Cannot ping a node that is not running");
             log.info("Sending ping '{}' to node {}", message, selfId);
             assert otterApp != null;
             otterApp.handlePing(message);

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
 import static org.hiero.otter.fixtures.internal.InstrumentedClasses.INSTRUMENTED_EVENT_CREATOR;
 
 import com.swirlds.platform.config.ModuleConfig_;
@@ -48,7 +49,7 @@ public class InstrumentedContainerNode extends ContainerNode implements Instrume
     @SuppressWarnings("ResultOfMethodCallIgnored")
     @Override
     public void ping(@NonNull final String message) {
-        throwIfNotIn(LifeCycle.RUNNING, "Cannot ping a node that is not running");
+        throwIsNotInLifecycle(RUNNING, "Cannot ping a node that is not running");
         log.info("Sending ping '{}' to node {}", message, selfId);
         final PingRequest request = PingRequest.newBuilder().setMessage(message).build();
         nodeCommBlockingStub.ping(request);

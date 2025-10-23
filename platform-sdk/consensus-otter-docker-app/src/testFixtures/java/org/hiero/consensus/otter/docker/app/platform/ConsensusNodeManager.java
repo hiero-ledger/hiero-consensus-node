@@ -125,7 +125,7 @@ public class ConsensusNodeManager {
         final PlatformContext platformContext = PlatformContext.create(
                 platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
 
-        otterApp = new OtterApp(version);
+        otterApp = new OtterApp(legacySelfId, version);
 
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
@@ -264,7 +264,6 @@ public class ConsensusNodeManager {
     public void sendQuiescenceCommand(@NonNull final QuiescenceCommand command) {
         this.quiescenceCommand = command;
         platform.quiescenceCommand(command);
-        otterApp.updateSyntheticBottleneck(millisToSleepPerRound);
     }
 
     /**

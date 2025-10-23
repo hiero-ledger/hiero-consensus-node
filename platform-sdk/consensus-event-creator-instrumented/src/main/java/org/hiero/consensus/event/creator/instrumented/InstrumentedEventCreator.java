@@ -21,6 +21,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
@@ -128,6 +129,11 @@ public class InstrumentedEventCreator implements EventCreatorModule {
     @Override
     public void reportSyncRoundLag(@NonNull final Double lag) {
         delegate.reportSyncRoundLag(lag);
+    }
+
+    @Override
+    public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
+        delegate.quiescenceCommand(quiescenceCommand);
     }
 
     /**

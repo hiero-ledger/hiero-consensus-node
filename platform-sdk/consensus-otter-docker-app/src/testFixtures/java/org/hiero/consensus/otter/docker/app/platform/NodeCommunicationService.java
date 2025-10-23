@@ -29,7 +29,6 @@ import org.hiero.consensus.otter.docker.app.OutboundDispatcher;
 import org.hiero.otter.fixtures.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
-import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc;
 import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc.NodeCommunicationServiceImplBase;
 import org.hiero.otter.fixtures.container.proto.PingRequest;
 import org.hiero.otter.fixtures.container.proto.QuiescenceRequest;
@@ -291,9 +290,9 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
         }
 
         wrapWithErrorHandling(responseObserver, () -> {
-        consensusNodeManager.handlePing(request.getMessage());
-        responseObserver.onNext(Empty.getDefaultInstance());
-        responseObserver.onCompleted();
+            consensusNodeManager.handlePing(request.getMessage());
+            responseObserver.onNext(Empty.getDefaultInstance());
+            responseObserver.onCompleted();
         });
     }
 

@@ -218,7 +218,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
                     .build();
 
-            otterApp = new OtterApp(version);
+            otterApp = new OtterApp(selfId, version);
 
             final HashedReservedSignedState reservedState = loadInitialState(
                     recycleBin,

@@ -21,7 +21,7 @@ class InstrumentedNodeTest {
      * @return a stream of {@link TestEnvironment} instances
      */
     public static Stream<TestEnvironment> environments() {
-        return Stream.of(new TurtleTestEnvironment(RANDOM_SEED), new ContainerTestEnvironment());
+        return Stream.of(new TurtleTestEnvironment(), new ContainerTestEnvironment());
     }
 
     @ParameterizedTest
@@ -45,8 +45,8 @@ class InstrumentedNodeTest {
                     .hasMessageContaining("InstrumentedEventCreator created")
                     .hasMessageContaining("Ping message received: Hello Hiero!");
             assertThat(network.newLogResults().suppressingNode(instrumentedNode))
-                    .haveNoMessagesContaining("InstrumentedEventCreator created")
-                    .haveNoMessagesContaining("Ping message received: Hello Hiero!");
+                    .haveNoMessageContaining("InstrumentedEventCreator created")
+                    .haveNoMessageContaining("Ping message received: Hello Hiero!");
         } finally {
             env.destroy();
         }
