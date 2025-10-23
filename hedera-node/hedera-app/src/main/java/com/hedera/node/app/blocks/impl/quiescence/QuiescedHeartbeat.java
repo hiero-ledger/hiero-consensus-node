@@ -112,7 +112,6 @@ public class QuiescedHeartbeat {
             final var tct = probe.findTct();
             // If a non-null TCT is found, set it on the controller
             if (tct != null) {
-                log.info("Setting next target consensus time to {}", tct);
                 controller.setNextTargetConsensusTime(tct);
             }
             final var commandNow = controller.getQuiescenceStatus();

@@ -623,8 +623,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
     public void accept(@NonNull final PlatformEvent event) {
         requireNonNull(event);
         if (quiescenceEnabled && daggerApp != null) {
-            logger.info("!!! Got a stale event");
             daggerApp.quiescenceController().staleEvent(event);
+            // If this is a self-created event, decrement in-flight counts by stale transactions that landed
             if (event.getCreatorId().equals(platform.getSelfId())) {
                 ((IngestWorkflowImpl) daggerApp.ingestWorkflow()).countLanded(event.transactionIterator());
             }
@@ -1017,6 +1017,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                         readableStoreFactory, creatorInfo, transactions.stream(), simplifiedStateSignatureTxnCallback);
         if (quiescenceEnabled) {
             daggerApp.quiescenceController().onPreHandle(transactions);
+            // If this is a self-created event, decrement in-flight counts by the transactions that landed
             if (event.getCreatorId().equals(platform.getSelfId())) {
                 ((IngestWorkflowImpl) daggerApp.ingestWorkflow()).countLanded(event.transactionIterator());
             }
