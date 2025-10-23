@@ -17,8 +17,16 @@ import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.junit.jupiter.api.Test;
 
+/**
+ * Tests to verify console output in the Container-based test environment. This test validates the output on
+ * the host machine that runs the test, not the output inside the containers.
+ */
 class ContainerConsoleOutputTest {
 
+    /**
+     * Test basic console output capturing and log message verification.
+     * The output should contain expected log messages from the Otter framework and user log statements.
+     */
     @Test
     void testBasicConsoleOutput() {
         // Capture console output
@@ -65,8 +73,10 @@ class ContainerConsoleOutputTest {
                     .as("Console output should contain 'Random seed:' entry")
                     .doesNotContain("Random seed:"); // Turtle environment only
             assertThat(consoleOutput)
-                    .as("Console output should contain 'Random seed:' entry")
-                    .contains("testcontainers");
+                    .as("Console output should contain 'testcontainers' entry")
+                    .contains("testcontainers"); // Container environment only
+
+            // Verify presence of key log messages from Otter framework
             assertThat(consoleOutput)
                     .as("Console output should contain 'Starting network...' message")
                     .contains("Starting network...");
@@ -79,6 +89,8 @@ class ContainerConsoleOutputTest {
             assertThat(consoleOutput)
                     .as("Console output should contain 'Destroying network...' message")
                     .contains("Destroying network...");
+
+            // Verify presence of user log messages
             assertThat(consoleOutput)
                     .as("Console output should contain 'Hello Otter!' message")
                     .contains("Hello Otter!");
