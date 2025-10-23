@@ -180,6 +180,11 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             }
 
             final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
+            try {
+                getMetricsProvider().removePlatformMetrics(selfId);
+            } catch (final InterruptedException | IllegalArgumentException e) {
+                // ignore, this is just a fallback in case an earlier test didn't clean up properly
+            }
             final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
             final FileSystemManager fileSystemManager = FileSystemManager.create(currentConfiguration);
             final RecycleBin recycleBin = RecycleBin.create(
