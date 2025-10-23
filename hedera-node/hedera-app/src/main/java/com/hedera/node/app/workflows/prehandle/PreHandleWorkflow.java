@@ -81,7 +81,7 @@ public interface PreHandleWorkflow {
      * @return the verification data for the transaction
      */
     default PreHandleResult preHandleAllTransactions(
-            @NonNull NodeInfo creatorInfo,
+            @Nullable NodeInfo creatorInfo,
             @NonNull ReadableStoreFactory storeFactory,
             @NonNull ReadableAccountStore accountStore,
             @NonNull Bytes serializedSignedTx,
@@ -148,7 +148,9 @@ public interface PreHandleWorkflow {
             @NonNull final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback) {
         final var metadata = platformTxn.getMetadata();
         final PreHandleResult previousResult;
-        if (metadata instanceof PreHandleResult result) {
+        if (metadata == null) {
+            previousResult = PreHandleResult.shortCircuitingTransaction(null);
+        } else if (metadata instanceof PreHandleResult result) {
             previousResult = result;
         } else {
             // This should be impossible since the Platform contract guarantees that
