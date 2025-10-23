@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.turtle.logging;
+package org.hiero.otter.fixtures.container.logging;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.otter.fixtures.logging.LogMessageParser.extractLogLevel;
@@ -14,10 +14,10 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
+import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.junit.jupiter.api.Test;
 
-class TurtleConsoleOutputTest {
+class ContainerConsoleOutputTest {
 
     @Test
     void testBasicConsoleOutput() {
@@ -34,7 +34,7 @@ class TurtleConsoleOutputTest {
             final LoggerContext context = (LoggerContext) LogManager.getContext(false);
             context.reconfigure();
 
-            final TestEnvironment env = new TurtleTestEnvironment();
+            final TestEnvironment env = new ContainerTestEnvironment();
             try {
                 final Network network = env.network();
                 final TimeManager timeManager = env.timeManager();
@@ -63,10 +63,10 @@ class TurtleConsoleOutputTest {
             // Verify that the console output contains expected log messages
             assertThat(consoleOutput)
                     .as("Console output should contain 'Random seed:' entry")
-                    .contains("Random seed:");
+                    .doesNotContain("Random seed:");  // Turtle environment only
             assertThat(consoleOutput)
                     .as("Console output should contain 'Random seed:' entry")
-                    .doesNotContain("testcontainers");  // Container environment only
+                    .contains("testcontainers");
             assertThat(consoleOutput)
                     .as("Console output should contain 'Starting network...' message")
                     .contains("Starting network...");
