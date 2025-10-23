@@ -5,6 +5,5 @@ import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
 public interface HederaGasCalculator extends GasCalculator {
-    public long transactionIntrinsicGasCost(
-            final Bytes payload, final boolean isContractCreate, final long baselineCost);
+    long transactionIntrinsicGasCost(final Bytes payload, final boolean isContractCreate, final long baselineCost);
 }

@@ -157,7 +157,7 @@ public class TransactionExecutorsTest {
     private static final com.esaulpaugh.headlong.abi.Function GET_LAST_BLOCKHASH_FUNCTION =
             new com.esaulpaugh.headlong.abi.Function("getLastBlockHash()", "(bytes32)");
     private static final String EXPECTED_TRACE_START =
-            "{\"pc\":0,\"op\":96,\"gas\":\"0x5c838\",\"gasCost\":\"0x3\",\"memSize\":0,\"depth\":1,\"refund\":0,\"opName\":\"PUSH1\"}";
+            "{\"pc\":0,\"op\":\"0x60\",\"gas\":378936,\"gasCost\":3,\"memSize\":0,\"depth\":1,\"refund\":0,\"opName\":\"PUSH1\"}";
     private static final NodeInfo DEFAULT_NODE_INFO =
             new NodeInfoImpl(0, idFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY, List.of(), true, null);
 
