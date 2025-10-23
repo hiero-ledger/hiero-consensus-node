@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.turtle.gossip;
 
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
+import static org.hiero.otter.fixtures.network.utils.BandwidthLimit.UNLIMITED_BANDWIDTH;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 
@@ -36,7 +37,6 @@ import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.Topology.ConnectionData;
-import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -77,7 +77,7 @@ class SimulatedGossipTests {
         // We can safely choose large numbers because time is simulated
         final Duration averageDelay = Duration.ofMillis(randotron.nextInt(1, 1_000_000));
         final ConnectionData connectionData =
-                new ConnectionData(true, averageDelay, Percentage.withPercentage(10.0), BandwidthLimit.UNLIMITED);
+                new ConnectionData(true, averageDelay, Percentage.withPercentage(10.0), UNLIMITED_BANDWIDTH);
         final Map<ConnectionKey, ConnectionData> connections = new HashMap<>();
         for (final NodeId sender : nodeIds) {
             for (final NodeId receiver : nodeIds) {
