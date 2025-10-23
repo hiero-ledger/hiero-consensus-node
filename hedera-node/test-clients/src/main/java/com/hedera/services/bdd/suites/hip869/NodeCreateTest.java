@@ -121,7 +121,7 @@ public class NodeCreateTest {
         return hapiTest(
                 cryptoCreate(nodeAccount),
                 nodeCreate("nodeCreate", nodeAccount)
-                        .setNode("4") // exclude 1.2.3
+                        .setNode("4") // exclude nodes 1-3
                         .adminKey(NONSENSE_KEY)
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
                         .hasKnownStatus(KEY_REQUIRED));
