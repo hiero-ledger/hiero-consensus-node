@@ -473,12 +473,13 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             throw new UncheckedIOException("Failed to copy files from container", e);
         }
 
-        if (lifeCycle == RUNNING) {
-            log.info("Destroying container of node {}...", selfId);
-            containerControlChannel.shutdownNow();
-            nodeCommChannel.shutdownNow();
+        log.info("Destroying container of node {}...", selfId);
+        containerControlChannel.shutdownNow();
+        nodeCommChannel.shutdownNow();
+        if (container.isRunning()) {
             container.stop();
         }
+
         resultsCollector.destroy();
         platformStatus = null;
         lifeCycle = DESTROYED;
