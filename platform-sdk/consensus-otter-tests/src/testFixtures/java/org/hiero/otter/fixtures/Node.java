@@ -141,6 +141,12 @@ public interface Node {
      */
     void weight(long weight);
 
+    /**
+     * Sets the keys and certificates of the node. These signing certificates will become part of the new roster. This
+     * method can only be called while the node is not running.
+     *
+     * @param keysAndCerts the new keys and certificates
+     */
     void keysAndCerts(KeysAndCerts keysAndCerts);
 
     /**

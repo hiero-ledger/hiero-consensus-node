@@ -81,6 +81,7 @@ import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * An abstract base class for a network implementation that provides common functionality shared by the different
@@ -123,6 +124,8 @@ public abstract class AbstractNetwork implements Network {
     protected Lifecycle lifecycle = Lifecycle.INIT;
 
     protected WeightGenerator weightGenerator = WeightGenerators.REAL_NETWORK_GAUSSIAN;
+
+    protected Roster roster;
 
     @Nullable
     private PartitionImpl remainingNetworkPartition;
@@ -190,6 +193,14 @@ public abstract class AbstractNetwork implements Network {
             throw new IllegalStateException("Cannot set node weight when there are no nodes in the network.");
         }
         nodes().forEach(n -> n.weight(weight));
+    }
+
+    @Override
+    public @NotNull Roster roster() {
+        if (lifecycle == Lifecycle.INIT) {
+            throw new IllegalStateException("The roster is not available before the network is started.");
+        }
+        return roster;
     }
 
     /**
@@ -274,7 +285,7 @@ public abstract class AbstractNetwork implements Network {
         throwIfInLifecycle(Lifecycle.RUNNING, "Network is already running.");
         log.info("Starting network...");
 
-        final Roster roster = createRoster();
+        roster = createRoster();
         preStartHook(roster);
 
         lifecycle = Lifecycle.RUNNING;
