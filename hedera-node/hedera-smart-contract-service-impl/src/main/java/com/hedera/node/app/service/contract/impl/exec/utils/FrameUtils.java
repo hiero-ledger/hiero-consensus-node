@@ -37,6 +37,7 @@ public class FrameUtils {
     public static final String SYSTEM_CONTRACT_GAS_CALCULATOR_CONTEXT_VARIABLE = "systemContractGasCalculator";
     public static final String PENDING_CREATION_BUILDER_CONTEXT_VARIABLE = "pendingCreationBuilder";
     public static final String OPS_DURATION_COUNTER = "opsDurationCounter";
+    public static final String INVALID_ADDRESS_CONTEXT_VARIABLE = "invalidAddressContext";
     public static final String HOOK_OWNER_ADDRESS = "hookOwnerAddress";
 
     public enum EntityType {
@@ -385,6 +386,15 @@ public class FrameUtils {
      */
     public static Address hookOwnerAddress(@NonNull final MessageFrame frame) {
         return initialFrameOf(frame).getContextVariable(HOOK_OWNER_ADDRESS);
+    }
+
+    /**
+     * Returns the {@link InvalidAddressContext} associated with the initial parent frame of the given frame.
+     * @param frame the frame of interest
+     * @return InvalidAddressContext
+     */
+    public static InvalidAddressContext invalidAddressContext(@NonNull final MessageFrame frame) {
+        return initialFrameOf(frame).getContextVariable(INVALID_ADDRESS_CONTEXT_VARIABLE);
     }
 
     /**

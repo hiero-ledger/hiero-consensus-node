@@ -12,6 +12,7 @@ import com.swirlds.logging.legacy.LogMarker;
 import java.time.Duration;
 import java.util.List;
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterAssertions;
@@ -59,7 +60,7 @@ final class TurtleInMemoryLogTest {
      */
     @ParameterizedTest
     @ValueSource(ints = {1, 4})
-    void testNodesLogAllMarkers(final int numNodes) throws Exception {
+    void testBasicInMemoryLogging(final int numNodes) {
         final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
@@ -67,6 +68,11 @@ final class TurtleInMemoryLogTest {
 
             final List<Node> nodes = network.addNodes(numNodes);
             network.start();
+
+            // Generate log messages in the test. These should not appear in the log.
+            System.out.println("Hello Otter!");
+            LogManager.getLogger().info("Hello Hiero!");
+            LogManager.getLogger("com.acme.ExternalOtterTest").info("Hello World!");
 
             // Let the nodes run for a bit to generate log messages
             timeManager.waitFor(Duration.ofSeconds(5L));
@@ -119,6 +125,19 @@ final class TurtleInMemoryLogTest {
                 assertThat(hasTraceLogs)
                         .as("Node %d in-memory log should NOT contain TRACE level messages", nodeId)
                         .isFalse();
+
+                // Test Message Verification
+
+                // Verify that our test log messages do NOT appear in the log
+                OtterAssertions.assertThat(logResult)
+                        .as("Log should NOT contain test log message 'Hello Otter!'")
+                        .hasNoMessageContaining("Hello Otter!");
+                OtterAssertions.assertThat(logResult)
+                        .as("Log should NOT contain test log message 'Hello Hiero!'")
+                        .hasNoMessageContaining("Hello Hiero!");
+                OtterAssertions.assertThat(logResult)
+                        .as("Log should NOT contain test log message 'Hello World!'")
+                        .hasNoMessageContaining("Hello World!");
             }
         } finally {
             env.destroy();
@@ -132,7 +151,7 @@ final class TurtleInMemoryLogTest {
      * only contain logs with that node's ID, ensuring logs are not mixed between nodes.
      */
     @Test
-    void testPerNodeLogTracking() throws Exception {
+    void testPerNodeLogTracking() {
         final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
@@ -193,14 +212,14 @@ final class TurtleInMemoryLogTest {
      * </ul>
      */
     @Test
-    void testNetworkLogResults() throws Exception {
+    void testNetworkLogResults() {
         final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
 
             // Spin up 4 nodes
-            final List<Node> nodes = network.addNodes(4);
+            network.addNodes(4);
             network.start();
 
             // Let the nodes run for a bit to generate log messages
@@ -240,7 +259,7 @@ final class TurtleInMemoryLogTest {
      * </ul>
      */
     @Test
-    void testLogsAddedContinuously() throws Exception {
+    void testLogsAddedContinuously() {
         final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
