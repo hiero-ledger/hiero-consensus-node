@@ -847,7 +847,7 @@ jobs:
           details: "${{ steps.rootly-summary.outputs.summary }}"
           notification_target_type: "Service"
           notification_target: ${{ steps.set-rootly-service.outputs.service }}
-          set_as_noise: "true"
+          set_as_noise: "false"
           alert_urgency: "High"
           external_id: ${{ github.run_id }}
           external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

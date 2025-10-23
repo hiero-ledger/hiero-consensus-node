@@ -10,10 +10,12 @@ import static org.awaitility.Awaitility.await;
 
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import org.apache.logging.log4j.LogManager;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterAssertions;
@@ -54,7 +56,7 @@ final class TurtleHashstreamLogTest {
      */
     @ParameterizedTest
     @ValueSource(ints = {1, 4})
-    void testNodesLogAllAllowedMarkers(final int numNodes) throws Exception {
+    void testBasicHashstreamLogFunctionality(final int numNodes) throws IOException {
         final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
@@ -63,6 +65,11 @@ final class TurtleHashstreamLogTest {
             final List<Node> nodes = network.addNodes(numNodes);
 
             network.start();
+
+            // Generate log messages in the test. These should not appear in the log.
+            System.out.println("Hello Otter!");
+            LogManager.getLogger().info("Hello Hiero!");
+            LogManager.getLogger("com.acme.ExternalOtterTest").info("Hello World!");
 
             // Let the nodes run for a bit to generate log messages
             timeManager.waitFor(Duration.ofSeconds(5L));
@@ -112,6 +119,19 @@ final class TurtleHashstreamLogTest {
                 assertThat(logContent)
                         .as("Log should NOT contain TRACE level messages")
                         .doesNotContainPattern("\\bTRACE\\b");
+
+                // Test Message Verification
+
+                // Verify that our test log messages do NOT appear in the log
+                assertThat(logContent)
+                        .as("Log should NOT contain test log message 'Hello Otter!'")
+                        .doesNotContain("Hello Otter!");
+                assertThat(logContent)
+                        .as("Log should NOT contain test log message 'Hello Hiero!'")
+                        .doesNotContain("Hello Hiero!");
+                assertThat(logContent)
+                        .as("Log should NOT contain test log message 'Hello World!'")
+                        .doesNotContain("Hello World!");
             }
         } finally {
             env.destroy();
