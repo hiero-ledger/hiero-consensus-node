@@ -98,7 +98,6 @@ public class ReconnectStateLoader {
             final Hash reconnectHash = signedState.getState().getHash();
             final MerkleNodeState state = signedState.getState();
             final SemanticVersion creationSoftwareVersion = platformStateFacade.creationSoftwareVersionOf(state);
-            signedState.init(platformContext);
             consensusStateEventHandler.onStateInitialized(
                     state, platform, InitTrigger.RECONNECT, creationSoftwareVersion);
 

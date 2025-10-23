@@ -21,7 +21,6 @@ import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -52,7 +51,6 @@ class NetworkPartitionTest {
      */
     @ParameterizedTest
     @MethodSource("environments")
-    @Disabled
     void testCreateAndRemovePartition(@NonNull final TestEnvironment env) {
         try {
             final Network network = env.network();
@@ -132,7 +130,7 @@ class NetworkPartitionTest {
                 //                }
 
                 // Remove the partition
-                network.removePartition(partition);
+                network.removeNetworkPartition(partition);
 
                 // Verify all nodes are back in normal connectivity
                 assertThat(network.networkPartitions()).isEmpty();
@@ -408,10 +406,10 @@ class NetworkPartitionTest {
 
             // Create and then remove a partition
             final Partition partition = network.createNetworkPartition(nodes.get(0), nodes.get(1));
-            network.removePartition(partition);
+            network.removeNetworkPartition(partition);
 
             // Try to remove the same partition again - should throw exception
-            assertThatThrownBy(() -> network.removePartition(partition))
+            assertThatThrownBy(() -> network.removeNetworkPartition(partition))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Partition does not exist in the network");
         } finally {
@@ -504,7 +502,7 @@ class NetworkPartitionTest {
             assertThat(partition2.nodes()).containsExactlyInAnyOrder(node2, node3);
 
             // Remove one partition - should clear all partitions per implementation
-            network.removePartition(partition1);
+            network.removeNetworkPartition(partition1);
 
             // Verify all partitions are cleared
             assertThat(network.networkPartitions()).isEmpty();
