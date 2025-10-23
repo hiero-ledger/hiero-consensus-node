@@ -4,8 +4,6 @@ package com.hedera.services.bdd.suites.hip869;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
-import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.CLASSIC_FIRST_NODE_ACCOUNT_NUM;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.endpointFor;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asDnsServiceEndpoint;
@@ -14,7 +12,6 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.invalidServiceEndp
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.WRONG_LENGTH_EDDSA_KEY;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
@@ -23,7 +20,6 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ADDRESS_BOOK_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -39,14 +35,12 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GRPC_WEB_PROXY
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_IPV4_ADDRESS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_DESCRIPTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SERVICE_ENDPOINT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.KEY_REQUIRED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SERVICE_ENDPOINTS_EXCEEDED_LIMIT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UPDATE_NODE_ACCOUNT_NOT_ALLOWED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -61,14 +55,11 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hederahashgraph.api.proto.java.AccountID;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -139,85 +130,6 @@ public class NodeUpdateTest {
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 nodeUpdate("testNode").accountId("0.0.100").hasPrecheck(UPDATE_NODE_ACCOUNT_NOT_ALLOWED));
-    }
-
-    @Tag(ONLY_SUBPROCESS)
-    @LeakyHapiTest(overrides = {"nodes.updateAccountIdAllowed"})
-    final Stream<DynamicTest> updateAccountIdAndSubmitWithOld() {
-        final var nodeIdToUpdate = 1;
-        final var oldNodeAccountId = nodeIdToUpdate + CLASSIC_FIRST_NODE_ACCOUNT_NUM;
-        return hapiTest(
-                overriding("nodes.updateAccountIdAllowed", "true"),
-                cryptoCreate("newNodeAccount"),
-                // Node update works with nodeId not accountId,
-                // so we are updating the node we are submitting to
-                nodeUpdate(String.valueOf(nodeIdToUpdate))
-                        .accountId("newNodeAccount")
-                        .payingWith(DEFAULT_PAYER)
-                        .signedByPayerAnd(GENESIS),
-                cryptoCreate("foo")
-                        .setNode(oldNodeAccountId)
-                        .hasPrecheck(INVALID_NODE_ACCOUNT)
-                        .via("createTxn"),
-                // Assert that the transaction was not submitted and failed on ingest
-                getTxnRecord("createTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
-    }
-
-    @LeakyEmbeddedHapiTest(
-            reason = {NEEDS_STATE_ACCESS},
-            overrides = {"nodes.updateAccountIdAllowed"})
-    final Stream<DynamicTest> accountIdGetsUpdatedCorrectly() {
-        final AtomicReference<AccountID> initialAccountId = new AtomicReference<>();
-        final AtomicReference<AccountID> newAccountId = new AtomicReference<>();
-        return hapiTest(
-                overriding("nodes.updateAccountIdAllowed", "true"),
-                newKeyNamed("adminKey"),
-                cryptoCreate("initialNodeAccount").exposingCreatedIdTo(initialAccountId::set),
-                cryptoCreate("newNodeAccount").exposingCreatedIdTo(newAccountId::set),
-                sourcing(() -> {
-                    try {
-                        return nodeCreate("testNode")
-                                .adminKey("adminKey")
-                                .accountId(initialAccountId.get())
-                                .gossipCaCertificate(
-                                        gossipCertificates.getFirst().getEncoded());
-                    } catch (CertificateEncodingException e) {
-                        throw new RuntimeException(e);
-                    }
-                }),
-                sourcing(() -> nodeUpdate("testNode")
-                        .accountId("newNodeAccount")
-                        .signedByPayerAnd("newNodeAccount", "adminKey")),
-                sourcing(() -> viewNode("testNode", node -> {
-                    assertNotNull(node.accountId(), "Node accountId should not be null");
-                    assertNotNull(node.accountId().accountNum(), "Node accountNum should not be null");
-                    assertEquals(
-                            node.accountId().accountNum(), newAccountId.get().getAccountNum());
-                })));
-    }
-
-    @Disabled // enable when handling in-flight accountId update is supported
-    @Tag(ONLY_SUBPROCESS)
-    @LeakyHapiTest(overrides = {"nodes.updateAccountIdAllowed"})
-    final Stream<DynamicTest> accountIdUpdateInBatch() {
-        final var nodeIdToUpdate = 1;
-        final var oldNodeAccountId = nodeIdToUpdate + CLASSIC_FIRST_NODE_ACCOUNT_NUM;
-        return hapiTest(
-                overriding("nodes.updateAccountIdAllowed", "true"),
-                cryptoCreate("batchOperator"),
-                cryptoCreate("newNodeAccount"),
-                atomicBatch(
-                                nodeUpdate(String.valueOf(nodeIdToUpdate))
-                                        .accountId("newNodeAccount")
-                                        .payingWith(DEFAULT_PAYER)
-                                        .signedByPayerAnd(GENESIS)
-                                        .batchKey("batchOperator"),
-                                // check that the transaction after update passes,when the nodeAccountId is updated
-                                cryptoCreate("foo").batchKey("batchOperator").via("createTxn"))
-                        // Setting nodeId on the batch transaction
-                        // automatically sets it for the inner transactions as well
-                        .setNode(oldNodeAccountId)
-                        .payingWith("batchOperator"));
     }
 
     @HapiTest

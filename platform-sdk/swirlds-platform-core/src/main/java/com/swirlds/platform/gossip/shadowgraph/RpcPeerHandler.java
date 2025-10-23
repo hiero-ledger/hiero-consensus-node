@@ -196,7 +196,9 @@ public class RpcPeerHandler implements GossipRpcReceiver {
     // protocol thread (which is equivalent to read-thread)
     public void cleanup() {
         clearInternalState();
+        state.peerStillSendingEvents = false;
         sharedShadowgraphSynchronizer.deregisterPeerHandler(this);
+        this.syncMetrics.reportSyncPhase(peerId, SyncPhase.OUTSIDE_OF_RPC);
     }
 
     // HANDLE INCOMING MESSAGES - all done on dispatch thread
@@ -220,6 +222,10 @@ public class RpcPeerHandler implements GossipRpcReceiver {
      */
     @Override
     public void receiveTips(@NonNull final List<Boolean> remoteTipKnowledge) {
+
+        if (state.remoteSyncData == null) {
+            throw new IllegalStateException("Need sync data before receiving tips from " + peerId);
+        }
 
         // Add each tip they know to the known set
         final List<ShadowEvent> knownTips = getMyTipsTheyKnow(peerId, state.myTips, remoteTipKnowledge);
@@ -384,6 +390,10 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         syncMetrics.syncFinished();
     }
 
+    /**
+     * Marks state as finished for our side of the synchronization. It does NOT clear peerStillSendingEvents, this needs
+     * to be cleared explicitly either on disconnect or when remote side tells us to
+     */
     private void clearInternalState() {
         if (state.mySyncData != null) {
             syncGuard.onSyncCompleted(peerId);
