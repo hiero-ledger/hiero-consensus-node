@@ -670,7 +670,6 @@ public class HandleWorkflow {
             final var iteratorEnd = lastCheckableSecond >= consensusNow.getEpochSecond()
                     ? consensusNow
                     : executionStart.plusSeconds(maxSecsToCheck);
-            logger.info("Looking for executable schedules in [{}, {}]", executionStart, iteratorEnd);
             final var iter = scheduleService.executableTxns(
                     executionStart,
                     iteratorEnd,

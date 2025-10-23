@@ -16,8 +16,8 @@ import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.schedule.impl.ReadableScheduleStoreImpl;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import javax.annotation.Nullable;
 
 /**
  * A stateful probe that explores a {@link State} to find the earliest target consensus timestamp (TCT) that marks

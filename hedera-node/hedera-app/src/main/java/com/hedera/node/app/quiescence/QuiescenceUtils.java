@@ -6,16 +6,12 @@ import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Iterator;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.transaction.Transaction;
 
 /**
  * Utility methods for the quiescence feature.
  */
 public final class QuiescenceUtils {
-    private static final Logger logger = LogManager.getLogger(QuiescenceUtils.class);
-
     private QuiescenceUtils() {
         // Not to be instantiated
     }
@@ -52,7 +48,6 @@ public final class QuiescenceUtils {
             // that submitted it can be charged for it.
             return true;
         }
-        logger.info("Checking if {} is relevant", txInfo.functionality());
         return isRelevantTransaction(txInfo.txBody());
     }
 

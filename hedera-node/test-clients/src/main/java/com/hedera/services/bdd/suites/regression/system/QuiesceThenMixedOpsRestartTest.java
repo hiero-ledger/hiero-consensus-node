@@ -37,7 +37,7 @@ import org.junit.jupiter.api.Tag;
  * If quiescence is enabled, it also verifies that the network can quiesce and break quiescence.
  */
 @Tag(RESTART)
-public class MixedOpsRestartAndMaybeQuiesceTest implements LifecycleTest {
+public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
     private static final int MIXED_OPS_BURST_TPS = 50;
 
     @HapiTest
