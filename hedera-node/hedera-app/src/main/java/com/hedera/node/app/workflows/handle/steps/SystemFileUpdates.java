@@ -103,7 +103,7 @@ public class SystemFileUpdates {
         if (fileNum == filesConfig.feeSchedules()) {
             return feeManager.update(FileUtilities.getFileContent(state, fileID));
         } else if (fileNum == filesConfig.simpleFeesSchedules()) {
-            return feeManager.update(FileUtilities.getFileContent(state, fileID));
+            return feeManager.updateSimpleFees(FileUtilities.getFileContent(state, fileID));
         } else if (fileNum == filesConfig.exchangeRates()) {
             exchangeRateManager.update(FileUtilities.getFileContent(state, fileID), payer);
         } else if (fileNum == filesConfig.networkProperties()) {

@@ -59,7 +59,7 @@ import org.hiero.hapi.fees.apis.common.StandardFeeModel;
  * are currently omitted.
  */
 public class FeeModelRegistry {
-    private static final Map<String, FeeModel> registry = new LinkedHashMap<>();
+    private static final Map<HederaFunctionality, FeeModel> registry = new LinkedHashMap<>();
 
     private static void register(FeeModel feeModel) {
         registry.put(feeModel.getApi(), feeModel);
@@ -123,9 +123,9 @@ public class FeeModelRegistry {
     }
 
     public static FeeModel lookupModel(HederaFunctionality service) {
-        if (!registry.containsKey(service.protoName())) {
+        if (!registry.containsKey(service)) {
             throw new IllegalArgumentException("No registered model found for service " + service.protoName());
         }
-        return registry.get(service.protoName());
+        return registry.get(service);
     }
 }
