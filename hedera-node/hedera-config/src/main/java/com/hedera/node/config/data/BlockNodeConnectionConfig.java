@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.config.data;
 
+import com.hedera.node.config.NetworkProperty;
 import com.hedera.node.config.NodeProperty;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
@@ -20,6 +21,8 @@ import java.time.Duration;
  * @param highLatencyEventsBeforeSwitching number of consecutive high-latency events before considering switching nodes
  * @param maxBackoffDelay the maximum backoff delay for exponential backoff
  * @param grpcOverallTimeout single timeout configuration for gRPC Client construction, connectTimeout, readTimeout and pollWaitTime
+ * @param connectionWorkerSleepDuration the amount of time a connection worker will sleep between handling block items (should be less than {@link #maxRequestDelay})
+ * @param maxRequestDelay the maximum amount of time between sending a request to a block node
  */
 @ConfigData("blockNode")
 public record BlockNodeConnectionConfig(
@@ -34,4 +37,6 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "30s") @NodeProperty Duration highLatencyThreshold,
         @ConfigProperty(defaultValue = "5") @NodeProperty int highLatencyEventsBeforeSwitching,
         @ConfigProperty(defaultValue = "10s") @NodeProperty Duration maxBackoffDelay,
-        @ConfigProperty(defaultValue = "30s") @NodeProperty Duration grpcOverallTimeout) {}
+        @ConfigProperty(defaultValue = "30s") @NodeProperty Duration grpcOverallTimeout,
+        @ConfigProperty(defaultValue = "25ms") @NetworkProperty Duration connectionWorkerSleepDuration,
+        @ConfigProperty(defaultValue = "200ms") @NetworkProperty Duration maxRequestDelay) {}

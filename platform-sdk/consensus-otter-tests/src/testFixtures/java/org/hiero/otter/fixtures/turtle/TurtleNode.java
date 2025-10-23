@@ -21,10 +21,12 @@ import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.model.DeterministicWiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
+import com.swirlds.platform.builder.internal.StaticPlatformBuilder;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
@@ -88,6 +90,11 @@ import org.hiero.otter.fixtures.util.SecureRandomBuilder;
  */
 public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.TimeTickReceiver {
     private static final Logger log = LogManager.getLogger();
+    /**
+     * Logger for startup messages that should appear in per-node logs (uses platform package to bypass org.hiero.otter
+     * exclusion)
+     */
+    private static final Logger startupLogger = LogManager.getLogger("com.swirlds.platform.node.startup");
 
     private final Randotron randotron;
     private final TurtleTimeManager timeManager;
@@ -160,6 +167,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             throwIfInLifecycle(RUNNING, "Node has already been started.");
             throwIfInLifecycle(DESTROYED, "Node has already been destroyed.");
 
+            // Log the startup message using the same STARTUP marker and message as production nodes
+            // Uses a platform logger to ensure it routes through per-node appenders
+            startupLogger.info(LogMarker.STARTUP.getMarker(), "\n\n" + StaticPlatformBuilder.STARTUP_MESSAGE + "\n");
             if (savedStateDirectory != null) {
                 try {
                     OtterSavedStateUtils.copySaveState(selfId, savedStateDirectory, outputDirectory);
@@ -180,6 +190,11 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             }
 
             final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
+            try {
+                getMetricsProvider().removePlatformMetrics(selfId);
+            } catch (final InterruptedException | IllegalArgumentException e) {
+                // ignore, this is just a fallback in case an earlier test didn't clean up properly
+            }
             final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
             final FileSystemManager fileSystemManager = FileSystemManager.create(currentConfiguration);
             final RecycleBin recycleBin = RecycleBin.create(
@@ -291,6 +306,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
             platform = platformComponentBuilder.build();
             platformStatus = PlatformStatus.STARTING_UP;
+
             platform.start();
 
             quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
@@ -444,6 +460,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     public SingleNodeMarkerFileResult newMarkerFileResult() {
         return new SingleNodeMarkerFileResultImpl(resultsCollector);
     }
+
     /**
      * {@inheritDoc}
      */
