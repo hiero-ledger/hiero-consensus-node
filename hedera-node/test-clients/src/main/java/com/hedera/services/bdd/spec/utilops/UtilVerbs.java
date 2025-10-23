@@ -8,6 +8,7 @@ import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubK
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.explicitFromHeadlong;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_LOG;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_NODE_COMMS_LOG;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ensureDir;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
@@ -497,6 +498,20 @@ public class UtilVerbs {
     public static LogContainmentOp assertHgcaaLogDoesNotContain(
             @NonNull final NodeSelector selector, @NonNull final String pattern, @NonNull final Duration delay) {
         return new LogContainmentOp(selector, APPLICATION_LOG, DOES_NOT_CONTAIN, pattern, delay);
+    }
+
+    /**
+     * Returns an operation that delays for the given time and then validates that the selected nodes'
+     * block node comms logs do not contain the given pattern.
+     *
+     * @param selector the selector for the node whose log to validate
+     * @param pattern the pattern that must be present
+     * @param delay the delay before validation
+     * @return the operation that validates the logs of the target network
+     */
+    public static LogContainmentOp assertBlockNodeCommsLogDoesNotContain(
+            @NonNull final NodeSelector selector, @NonNull final String pattern, @NonNull final Duration delay) {
+        return new LogContainmentOp(selector, BLOCK_NODE_COMMS_LOG, DOES_NOT_CONTAIN, pattern, delay);
     }
 
     /**
@@ -2795,7 +2810,32 @@ public class UtilVerbs {
     }
 
     /**
-     * Asserts that a sequence of log messages appears in the specified node's log within a timeframe.
+     * Asserts that a sequence of log messages appears in the specified node's block node comms log within a timeframe.
+     *
+     * @param selector the node selector
+     * @param startTimeSupplier supplier for the start time of the timeframe
+     * @param timeframe the duration of the timeframe window to search for messages
+     * @param waitTimeout the duration to wait for messages to appear
+     * @param patterns the sequence of patterns to look for
+     * @return a new LogContainmentTimeframeOp
+     */
+    public static LogContainmentTimeframeOp assertBlockNodeCommsLogContainsTimeframe(
+            @NonNull final NodeSelector selector,
+            @NonNull final Supplier<Instant> startTimeSupplier,
+            @NonNull final Duration timeframe,
+            @NonNull final Duration waitTimeout,
+            @NonNull final String... patterns) {
+        return new LogContainmentTimeframeOp(
+                selector,
+                ExternalPath.BLOCK_NODE_COMMS_LOG,
+                Arrays.asList(patterns),
+                startTimeSupplier,
+                timeframe,
+                waitTimeout);
+    }
+
+    /**
+     * Asserts that a sequence of log messages appears in the specified node's block node comms log within a timeframe.
      *
      * @param selector the node selector
      * @param startTimeSupplier supplier for the start time of the timeframe
@@ -2811,12 +2851,7 @@ public class UtilVerbs {
             @NonNull final Duration waitTimeout,
             @NonNull final String... patterns) {
         return new LogContainmentTimeframeOp(
-                selector,
-                ExternalPath.APPLICATION_LOG,
-                Arrays.asList(patterns),
-                startTimeSupplier,
-                timeframe,
-                waitTimeout);
+                selector, APPLICATION_LOG, Arrays.asList(patterns), startTimeSupplier, timeframe, waitTimeout);
     }
 
     public static CustomSpecAssert valueIsInRange(
