@@ -295,7 +295,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         final SyncFallenBehindStatus behindStatus = sharedShadowgraphSynchronizer.hasFallenBehind(
                 state.mySyncData.eventWindow(), state.remoteSyncData.eventWindow(), peerId);
         if (behindStatus != SyncFallenBehindStatus.NONE_FALLEN_BEHIND) {
-            logger.info(
+            logger.trace(
                     LogMarker.RECONNECT.getMarker(),
                     "{} local ev={} remote ev={}",
                     behindStatus,
@@ -329,11 +329,6 @@ public class RpcPeerHandler implements GossipRpcReceiver {
                     latestShadowWindow.getEventWindow(), remoteEventWindow, peerId);
             if (behindStatus != SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
                 // we seem to be ok after all, let's wait for another sync to happen
-                logger.info(
-                        LogMarker.RECONNECT.getMarker(),
-                        "Latest event window is not really falling behind, will retry sync local ev={} remote ev={}",
-                        latestShadowWindow.getEventWindow(),
-                        remoteEventWindow);
                 return true;
             }
 
