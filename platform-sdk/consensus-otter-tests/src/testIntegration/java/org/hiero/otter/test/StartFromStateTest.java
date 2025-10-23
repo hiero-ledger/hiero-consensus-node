@@ -120,9 +120,9 @@ public class StartFromStateTest {
 
         network.start();
 
-        // Wait for 30 seconds
-        env.timeManager().waitFor(Duration.ofSeconds(30L));
-        final long lastRoundNum = network.newConsensusResults().results().stream().findAny().orElseThrow().lastRoundNum();
-        System.out.println("Last round number: " + lastRoundNum);
+        // Wait for the nodes to reach round 30
+        env.timeManager().waitForCondition(
+                () -> network.newConsensusResults().allNodesAdvancedToRound(30),
+                Duration.ofSeconds(30L));
     }
 }
