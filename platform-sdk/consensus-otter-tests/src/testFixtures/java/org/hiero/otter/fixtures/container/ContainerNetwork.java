@@ -25,9 +25,13 @@ import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.container.network.NetworkBehavior;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
+import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
+import org.hiero.otter.fixtures.internal.NodeProperties;
 import org.hiero.otter.fixtures.internal.RegularTimeManager;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.Topology.ConnectionData;
+import org.hiero.otter.fixtures.turtle.TurtleNodeConfiguration;
+import org.jetbrains.annotations.NotNull;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
@@ -48,7 +52,7 @@ public class ContainerNetwork extends AbstractNetwork {
 
     private ToxiproxyContainer toxiproxyContainer;
     private NetworkBehavior networkBehavior;
-    private boolean restartNodesOnSelfShutdown;
+    private final NodeProperties nodeProperties;
 
     /**
      * Constructor for {@link ContainerNetwork}.
@@ -69,6 +73,7 @@ public class ContainerNetwork extends AbstractNetwork {
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);
         this.dockerImage = new ImageFromDockerfile()
                 .withDockerfile(Path.of("..", "consensus-otter-docker-app", "build", "data", "Dockerfile"));
+        this.nodeProperties = new NodeProperties(new ContainerNodeConfiguration(() -> LifeCycle.INIT));
         transactionGenerator.setNodesSupplier(this::nodes);
     }
 
@@ -94,6 +99,15 @@ public class ContainerNetwork extends AbstractNetwork {
      * {@inheritDoc}
      */
     @Override
+    @NonNull
+    protected NodeProperties nodeProperties() {
+        return nodeProperties;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     protected void onConnectionsChanged(@NonNull final Map<ConnectionKey, ConnectionData> connections) {
         networkBehavior.onConnectionsChanged(nodes(), connections);
     }
@@ -107,6 +121,7 @@ public class ContainerNetwork extends AbstractNetwork {
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         final ContainerNode node =
                 new ContainerNode(nodeId, timeManager, keysAndCerts, network, dockerImage, outputDir);
+        node.applyNodeProperties(nodeProperties);
         timeManager.addTimeTickReceiver(node);
         return node;
     }
@@ -121,6 +136,7 @@ public class ContainerNetwork extends AbstractNetwork {
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         final InstrumentedContainerNode node =
                 new InstrumentedContainerNode(nodeId, timeManager, keysAndCerts, network, dockerImage, outputDir);
+        node.applyNodeProperties(nodeProperties);
         timeManager.addTimeTickReceiver(node);
         return node;
     }

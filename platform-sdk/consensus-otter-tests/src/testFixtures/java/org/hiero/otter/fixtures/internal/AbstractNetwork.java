@@ -131,8 +131,6 @@ public abstract class AbstractNetwork implements Network {
 
     protected Lifecycle lifecycle = Lifecycle.INIT;
 
-    protected Path savedStateDirectory;
-
     protected WeightGenerator weightGenerator = WeightGenerators.REAL_NETWORK_GAUSSIAN;
 
     @Nullable
@@ -171,6 +169,9 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     protected abstract TransactionGenerator transactionGenerator();
 
+    @NonNull
+    protected abstract NodeProperties nodeProperties();
+
     /**
      * {@inheritDoc}
      */
@@ -197,9 +198,7 @@ public abstract class AbstractNetwork implements Network {
         if (weight <= 0) {
             throw new IllegalArgumentException("Weight must be positive");
         }
-        if (nodes().isEmpty()) {
-            throw new IllegalStateException("Cannot set node weight when there are no nodes in the network.");
-        }
+        nodeProperties().weight(weight);
         nodes().forEach(n -> n.weight(weight));
     }
 
@@ -220,16 +219,8 @@ public abstract class AbstractNetwork implements Network {
         try {
             final List<NodeId> nodeIds =
                     IntStream.range(0, count).mapToObj(i -> getNextNodeId()).toList();
-            final List<Node> nodes = new ArrayList<>(nodeIds.size());
-            for (final Entry<NodeId, KeysAndCerts> entry :
-                    CryptoStatic.generateKeysAndCerts(nodeIds, null).entrySet()) {
-                final Node node = doCreateNode(entry.getKey(), entry.getValue());
-                if (savedStateDirectory != null) {
-                    node.startFromSavedState(savedStateDirectory);
-                }
-                nodes.add(node);
-            }
-            return nodes;
+            return CryptoStatic.generateKeysAndCerts(nodeIds, null).entrySet().stream()
+                    .map(e -> doCreateNode(e.getKey(), e.getValue())).toList();
         } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
             throw new RuntimeException("Exception while generating KeysAndCerts", e);
         }
@@ -474,7 +465,7 @@ public abstract class AbstractNetwork implements Network {
     }
 
     /**
-     *  {@inheritDoc}
+     * {@inheritDoc}
      */
     @Override
     public void setLatencyForAllConnections(@NonNull final Node sender, @NonNull final LatencyRange latencyRange) {
@@ -616,7 +607,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Network withConfigValue(@NonNull final String key, @NonNull final String value) {
-        requireNodesBeforeConfigChange();
+        nodeProperties().configuration().set(key, value);
         nodes().forEach(node -> node.configuration().set(key, value));
         return this;
     }
@@ -626,7 +617,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public @NotNull Network withConfigValue(@NotNull final String key, @NotNull final Duration value) {
-        requireNodesBeforeConfigChange();
+        nodeProperties().configuration().set(key, value);
         nodes().forEach(node -> node.configuration().set(key, value));
         return this;
     }
@@ -637,7 +628,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Network withConfigValue(@NonNull final String key, final int value) {
-        requireNodesBeforeConfigChange();
+        nodeProperties().configuration().set(key, value);
         nodes().forEach(node -> node.configuration().set(key, value));
         return this;
     }
@@ -648,7 +639,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Network withConfigValue(@NonNull final String key, final long value) {
-        requireNodesBeforeConfigChange();
+        nodeProperties().configuration().set(key, value);
         nodes().forEach(node -> node.configuration().set(key, value));
         return this;
     }
@@ -659,7 +650,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Network withConfigValue(@NonNull final String key, @NonNull final Path value) {
-        requireNodesBeforeConfigChange();
+        nodeProperties().configuration().set(key, value);
         nodes().forEach(node -> node.configuration().set(key, value));
         return this;
     }
@@ -670,15 +661,9 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Network withConfigValue(@NonNull final String key, final boolean value) {
-        requireNodesBeforeConfigChange();
+        nodeProperties().configuration().set(key, value);
         nodes().forEach(node -> node.configuration().set(key, value));
         return this;
-    }
-
-    private void requireNodesBeforeConfigChange() {
-        if (nodes().isEmpty()) {
-            throw new IllegalStateException("Cannot update configuration without nodes in the network.");
-        }
     }
 
     /**
@@ -710,6 +695,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void version(@NonNull final SemanticVersion version) {
+        nodeProperties().version(version);
         nodes().forEach(node -> node.version(version));
     }
 
@@ -718,6 +704,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void bumpConfigVersion() {
+        // TODO should this be set in NodeProperties?
         nodes().forEach(Node::bumpConfigVersion);
     }
 
@@ -865,7 +852,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     public void savedStateDirectory(@NonNull final Path savedStateDirectory) {
         final Path resolvedPath = OtterSavedStateUtils.findSaveState(requireNonNull(savedStateDirectory));
-        this.savedStateDirectory = resolvedPath;
+        nodeProperties().savedStateDirectory(resolvedPath);
         nodes().forEach(node -> node.startFromSavedState(resolvedPath));
     }
 
@@ -1037,4 +1024,5 @@ public abstract class AbstractNetwork implements Network {
     }
 
     private record LatencyOverride(@NonNull Duration latency, @NonNull Percentage jitter) {}
+
 }
