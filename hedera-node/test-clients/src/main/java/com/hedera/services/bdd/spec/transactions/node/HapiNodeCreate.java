@@ -4,6 +4,7 @@ package com.hedera.services.bdd.spec.transactions.node;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.endpointFor;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.asIdForKeyLookUp;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bannerWith;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.netOf;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -47,6 +48,7 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
     private final String nodeName;
     private Optional<AccountID> accountId = Optional.empty();
     private Optional<Long> accountNum = Optional.empty();
+    private Optional<String> account = Optional.empty();
     private Optional<String> description = Optional.empty();
     private List<ServiceEndpoint> gossipEndpoints =
             Arrays.asList(endpointFor("192.168.1.200", 123), endpointFor("192.168.1.201", 123));
@@ -94,6 +96,11 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
 
     public HapiNodeCreate accountId(final AccountID accountID) {
         this.accountId = Optional.of(accountID);
+        return this;
+    }
+
+    public HapiNodeCreate accountId(final String accountStr) {
+        this.account = Optional.of(accountStr);
         return this;
     }
 
@@ -194,6 +201,7 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
         final NodeCreateTransactionBody opBody = spec.txns()
                 .<NodeCreateTransactionBody, NodeCreateTransactionBody.Builder>body(
                         NodeCreateTransactionBody.class, builder -> {
+                            account.ifPresent(name -> builder.setAccountId(asIdForKeyLookUp(name, spec)));
                             accountId.ifPresent(builder::setAccountId);
                             accountNum.ifPresent(accountNum ->
                                     builder.setAccountId(asAccount(spec.shard(), spec.realm(), accountNum)));

@@ -51,11 +51,17 @@ public class FreezeTest {
             network.freeze();
             final long freezeRound =
                     network.nodes().getFirst().newConsensusResult().lastRoundNum();
-            final Instant postFreezeTime = timeManager.now();
-            assertThat(network.newConsensusResults()).haveLastRoundNum(freezeRound);
+
+            assertThat(network.newConsensusResults())
+                    .haveEqualCommonRounds()
+                    .haveConsistentRounds()
+                    .haveLastRoundNum(freezeRound);
 
             network.shutdown();
-            assertThat(network.newPcesResults()).haveMaxBirthRoundLessThanOrEqualTo(freezeRound);
+            final Instant postFreezeTime = timeManager.now();
+            assertThat(network.newPcesResults())
+                    .haveMaxBirthRoundLessThanOrEqualTo(freezeRound)
+                    .haveBirthRoundSplit(postFreezeTime, freezeRound);
             network.start();
 
             timeManager.waitForCondition(
@@ -63,7 +69,7 @@ public class FreezeTest {
                     Duration.ofSeconds(120),
                     "At least one node failed to advance 20 rounds past the freeze round in the time allowed");
 
-            assertThat(networkConsensusResults).haveBirthRoundSplit(postFreezeTime, freezeRound);
+            assertThat(network.newConsensusResults()).haveBirthRoundSplit(postFreezeTime, freezeRound);
             networkConsensusResults.clear();
         }
 

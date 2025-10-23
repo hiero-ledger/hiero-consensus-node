@@ -135,7 +135,8 @@ Path-to-KeyValue Storage:
 ```shell
 java -jar [-DmaxObjPerFile=<number>] [-DprettyPrint=true] ./validator-<version>.jar {path-to-state-round} export \
  --out=<output-directory> \
- [--service-name=<service-name> --state-key=<state-key>]
+ [--service-name=<service-name> --state-key=<state-key>] \
+ [--first-leaf-path=<first-leaf-path>] [--last-leaf-path=<last-leaf-path>]
 ```
 
 ### System Properties
@@ -152,6 +153,10 @@ java -jar [-DmaxObjPerFile=<number>] [-DprettyPrint=true] ./validator-<version>.
 - `--out` (or `-o`) - Directory where the exported JSON files are written (required). Must exist before invocation.
 - `--service-name` (or `-s`) - Name of the service to export. If omitted along with `--state-key`, exports all states.
 - `--state-key` (or `-k`) - Name of the state to export. If omitted along with `--service-name`, exports all states.
+- `--first-leaf-path` (or `-f`) - First leaf path in the export range (inclusive). If not specified, defaults to the actual first leaf path in the supplied state.
+  Must be within the range of actual leaf paths in the supplied state.
+- `--last-leaf-path` (or `-l`) - Last leaf path in the export range (inclusive). If not specified, defaults to the actual last leaf path in the supplied state.
+  Must be within the range of actual leaf paths in the supplied state.
 
 ### Output Format
 
@@ -218,8 +223,9 @@ java -jar -DmaxObjPerFile=100000 ./validator-<version>.jar /path/to/round export
 
 ```shell
 java -jar [-DmaxObjPerFile=<number>] [-DprettyPrint=true] ./validator-<version>.jar {path-to-state-round} sorted-export \
-  --out=<output-directory>
-  [--service-name=<service-name> --state-key=<state-key>]
+  --out=<output-directory> \
+  [--service-name=<service-name> --state-key=<state-key>] \
+  [--first-leaf-path=<first-leaf-path>] [--last-leaf-path=<last-leaf-path>]
 ```
 
 ### Output Format

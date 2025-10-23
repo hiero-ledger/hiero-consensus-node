@@ -48,6 +48,8 @@ public class JsonExporter {
     private final MerkleNodeState state;
     private final String serviceName;
     private final String stateKey;
+    private final long suppliedFirstLeafPath;
+    private final long suppliedLastLeafPath;
     private final ExecutorService executorService;
     private final int expectedStateId;
     private final int writingParallelism;
@@ -61,11 +63,15 @@ public class JsonExporter {
             @NonNull final File resultDir,
             @NonNull final MerkleNodeState state,
             @Nullable final String serviceName,
-            @Nullable final String stateKey) {
+            @Nullable final String stateKey,
+            long suppliedFirstLeafPath,
+            long suppliedLastLeafPath) {
         this.resultDir = resultDir;
         this.state = state;
         this.serviceName = serviceName;
         this.stateKey = stateKey;
+        this.suppliedFirstLeafPath = suppliedFirstLeafPath;
+        this.suppliedLastLeafPath = suppliedLastLeafPath;
 
         allStates = stateKey == null;
         writingParallelism =
@@ -90,7 +96,36 @@ public class JsonExporter {
     }
 
     private List<CompletableFuture<Void>> traverseVmInParallel(@NonNull final VirtualMap virtualMap) {
-        VirtualMapMetadata metadata = virtualMap.getMetadata();
+        final VirtualMapMetadata metadata = virtualMap.getMetadata();
+
+        // define the first path and last path
+        long firstLeafPath;
+        long lastLeafPath;
+
+        if (suppliedFirstLeafPath != -1) {
+            if (suppliedFirstLeafPath < metadata.getFirstLeafPath()
+                    || suppliedFirstLeafPath > metadata.getLastLeafPath()) {
+                throw new IllegalArgumentException("The supplied first leaf path (" + suppliedFirstLeafPath
+                        + ") must be within the range of actual leaf paths in the state ["
+                        + metadata.getFirstLeafPath() + ", " + metadata.getLastLeafPath() + "].");
+            }
+            firstLeafPath = suppliedFirstLeafPath;
+        } else {
+            firstLeafPath = metadata.getFirstLeafPath();
+        }
+
+        if (suppliedLastLeafPath != -1) {
+            if (suppliedLastLeafPath > metadata.getLastLeafPath()
+                    || suppliedLastLeafPath < metadata.getFirstLeafPath()) {
+                throw new IllegalArgumentException("The supplied last leaf path (" + suppliedLastLeafPath
+                        + ") must be within the range of actual leaf paths in the state ["
+                        + metadata.getFirstLeafPath() + ", " + metadata.getLastLeafPath() + "].");
+            }
+            lastLeafPath = suppliedLastLeafPath;
+        } else {
+            lastLeafPath = metadata.getLastLeafPath();
+        }
+
         totalNumber = metadata.getSize();
         List<CompletableFuture<Void>> futures = new ArrayList<>();
         for (int i = 0; i < writingParallelism; i++) {
@@ -101,9 +136,8 @@ public class JsonExporter {
                 fileName = String.format(SINGLE_STATE_TMPL, serviceName, stateKey, i + 1);
             }
 
-            long firstPath = metadata.getFirstLeafPath() + i * MAX_OBJ_PER_FILE;
-            long lastPath =
-                    Math.min(metadata.getFirstLeafPath() + (i + 1) * MAX_OBJ_PER_FILE, metadata.getLastLeafPath());
+            long firstPath = firstLeafPath + i * MAX_OBJ_PER_FILE;
+            long lastPath = Math.min(firstLeafPath + (i + 1) * MAX_OBJ_PER_FILE, lastLeafPath);
 
             futures.add(CompletableFuture.runAsync(() -> processRange(fileName, firstPath, lastPath), executorService));
         }

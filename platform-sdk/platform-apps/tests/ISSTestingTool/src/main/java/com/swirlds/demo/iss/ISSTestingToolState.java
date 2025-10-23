@@ -20,6 +20,7 @@ import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLA
 
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.primitives.ProtoString;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -71,12 +72,14 @@ public class ISSTestingToolState extends VirtualMapState<ISSTestingToolState> im
      */
     private List<PlannedLogError> plannedLogErrorList = new LinkedList<>();
 
-    public ISSTestingToolState(@NonNull Configuration configuration, @NonNull Metrics metrics) {
-        super(configuration, metrics);
+    public ISSTestingToolState(
+            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
+        super(configuration, metrics, time);
     }
 
-    public ISSTestingToolState(@NonNull final VirtualMap virtualMap) {
-        super(virtualMap);
+    public ISSTestingToolState(
+            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
+        super(virtualMap, metrics, time);
     }
 
     /**
@@ -96,19 +99,15 @@ public class ISSTestingToolState extends VirtualMapState<ISSTestingToolState> im
     }
 
     @Override
-    protected ISSTestingToolState newInstance(@NonNull final VirtualMap virtualMap) {
-        return new ISSTestingToolState(virtualMap);
+    protected ISSTestingToolState newInstance(
+            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
+        return new ISSTestingToolState(virtualMap, metrics, time);
     }
 
     public void initState(InitTrigger trigger, Platform platform) {
         throwIfImmutable();
 
         final PlatformContext platformContext = platform.getContext();
-        super.init(
-                platformContext.getTime(),
-                platformContext.getMetrics(),
-                platformContext.getMerkleCryptography(),
-                () -> DEFAULT_PLATFORM_STATE_FACADE.roundOf(this));
 
         final var schema = new V0680ISSTestingToolSchema();
         schema.statesToCreate().stream()
@@ -193,5 +192,13 @@ public class ISSTestingToolState extends VirtualMapState<ISSTestingToolState> im
 
     List<PlannedLogError> getPlannedLogErrorList() {
         return plannedLogErrorList;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected long getRound() {
+        return DEFAULT_PLATFORM_STATE_FACADE.roundOf(this);
     }
 }
