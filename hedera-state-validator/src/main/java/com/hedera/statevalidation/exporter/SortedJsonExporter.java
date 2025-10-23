@@ -51,6 +51,8 @@ public class SortedJsonExporter {
 
     private final File resultDir;
     private final MerkleNodeState state;
+    private final long suppliedFirstLeafPath;
+    private final long suppliedLastLeafPath;
     private final ExecutorService executorService;
     private final Map<Integer, Set<Pair<Long, Bytes>>> keysByExpectedStateIds;
     private final Map<Integer, Pair<String, String>> nameByStateId;
@@ -62,19 +64,25 @@ public class SortedJsonExporter {
             @NonNull final File resultDir,
             @NonNull final MerkleNodeState state,
             @Nullable final String serviceName,
-            @Nullable final String stateKey) {
-        this(resultDir, state, List.of(Pair.of(serviceName, stateKey)));
+            @Nullable final String stateKey,
+            long suppliedFirstLeafPath,
+            long suppliedLastLeafPath) {
+        this(resultDir, state, List.of(Pair.of(serviceName, stateKey)), suppliedFirstLeafPath, suppliedLastLeafPath);
     }
 
     public SortedJsonExporter(
             @NonNull final File resultDir,
             @NonNull final MerkleNodeState state,
-            @NonNull final List<Pair<String, String>> serviceNameStateKeyList) {
+            @NonNull final List<Pair<String, String>> serviceNameStateKeyList,
+            long suppliedFirstLeafPath,
+            long suppliedLastLeafPath) {
         this.resultDir = resultDir;
         this.state = state;
         this.keysByExpectedStateIds = new HashMap<>();
         this.nameByStateId = new HashMap<>();
         this.executorService = Executors.newVirtualThreadPerTaskExecutor();
+        this.suppliedFirstLeafPath = suppliedFirstLeafPath;
+        this.suppliedLastLeafPath = suppliedLastLeafPath;
 
         serviceNameStateKeyList.forEach(p -> {
             final int stateId = StateUtils.stateIdFor(p.left(), p.right());
@@ -138,26 +146,53 @@ public class SortedJsonExporter {
 
     private void collectKeys(@NonNull final VirtualMap vm) {
         final VirtualMapMetadata metadata = vm.getMetadata();
-        LongStream.range(metadata.getFirstLeafPath(), metadata.getLastLeafPath() + 1)
-                .parallel()
-                .forEach(path -> {
-                    final VirtualLeafBytes leafRecord = vm.getRecords().findLeafRecord(path);
-                    final Bytes keyBytes = leafRecord.keyBytes();
-                    final ReadableSequentialData keyData = keyBytes.toReadableSequentialData();
-                    final int tag = keyData.readVarInt(false);
-                    final int actualStateId = tag >> TAG_FIELD_OFFSET;
-                    if (actualStateId == 1) {
-                        // it's a singleton, additional read is required
-                        final int singletonStateId = keyData.readVarInt(false);
-                        if (keysByExpectedStateIds.containsKey(singletonStateId)) {
-                            keysByExpectedStateIds.get(singletonStateId).add(Pair.of(path, keyBytes));
-                        }
-                        return;
-                    }
-                    if (keysByExpectedStateIds.containsKey(actualStateId)) {
-                        keysByExpectedStateIds.get(actualStateId).add(Pair.of(path, keyBytes));
-                    }
-                });
+
+        // define the first path and last path
+        long firstLeafPath;
+        long lastLeafPath;
+
+        if (suppliedFirstLeafPath != -1) {
+            if (suppliedFirstLeafPath < metadata.getFirstLeafPath()
+                    || suppliedFirstLeafPath > metadata.getLastLeafPath()) {
+                throw new IllegalArgumentException("The supplied first leaf path (" + suppliedFirstLeafPath
+                        + ") must be within the range of actual leaf paths in the state ["
+                        + metadata.getFirstLeafPath() + ", " + metadata.getLastLeafPath() + "].");
+            }
+            firstLeafPath = suppliedFirstLeafPath;
+        } else {
+            firstLeafPath = metadata.getFirstLeafPath();
+        }
+
+        if (suppliedLastLeafPath != -1) {
+            if (suppliedLastLeafPath > metadata.getLastLeafPath()
+                    || suppliedLastLeafPath < metadata.getFirstLeafPath()) {
+                throw new IllegalArgumentException("The supplied last leaf path (" + suppliedLastLeafPath
+                        + ") must be within the range of actual leaf paths in the state ["
+                        + metadata.getFirstLeafPath() + ", " + metadata.getLastLeafPath() + "].");
+            }
+            lastLeafPath = suppliedLastLeafPath;
+        } else {
+            lastLeafPath = metadata.getLastLeafPath();
+        }
+
+        LongStream.range(firstLeafPath, lastLeafPath + 1).parallel().forEach(path -> {
+            final VirtualLeafBytes leafRecord = vm.getRecords().findLeafRecord(path);
+            final Bytes keyBytes = leafRecord.keyBytes();
+            final ReadableSequentialData keyData = keyBytes.toReadableSequentialData();
+            final int tag = keyData.readVarInt(false);
+            final int actualStateId = tag >> TAG_FIELD_OFFSET;
+            if (actualStateId == 1) {
+                // it's a singleton, additional read is required
+                final int singletonStateId = keyData.readVarInt(false);
+                if (keysByExpectedStateIds.containsKey(singletonStateId)) {
+                    keysByExpectedStateIds.get(singletonStateId).add(Pair.of(path, keyBytes));
+                }
+                return;
+            }
+            if (keysByExpectedStateIds.containsKey(actualStateId)) {
+                keysByExpectedStateIds.get(actualStateId).add(Pair.of(path, keyBytes));
+            }
+        });
     }
 
     private List<CompletableFuture<Void>> traverseVmInParallel() {
