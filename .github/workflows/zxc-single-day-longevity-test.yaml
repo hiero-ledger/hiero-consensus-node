@@ -273,9 +273,9 @@ jobs:
           if [ "${{ inputs.perf_analysis }}" == "true" ]
           then
             cd "${{ github.workspace }}"/pbj
-            git checkout 620-stringByteArray
+            git checkout v0.12.2
             cd pbj-core
-            echo "0.12.1-SNAPSHOTALEX" >version.txt
+            echo "0.12.2" >version.txt
            ./gradlew --no-daemon clean publishToMavenLocal
             cd ../..
           fi
