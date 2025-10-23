@@ -307,6 +307,7 @@ jobs:
       - name: Compile BN
         run: |
           cd "${{ github.workspace }}"/target_block_node
+          echo "com.hedera.pbj.grpc.helidon = FINER" >> block-node/app/src/main/resources/logging.properties
           ./gradlew block-node-app:distTar
           #produces ./block-node/app/build/distributions/block-node-app-0.18.0-SNAPSHOT.tar
 
