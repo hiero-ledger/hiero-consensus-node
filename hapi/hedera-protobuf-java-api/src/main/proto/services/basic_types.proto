@@ -1861,7 +1861,7 @@ enum HederaFunctionality {
     /**
      * Creates or updates a CLPR remote configuration.
      */
-    ClprSetRemoteLedgerConfig = 112;
+    ClprSetLedgerConfig = 112;
 }
 
 /**

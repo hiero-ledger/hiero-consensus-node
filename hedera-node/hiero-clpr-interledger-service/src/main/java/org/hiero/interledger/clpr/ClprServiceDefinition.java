@@ -20,7 +20,7 @@ public final class ClprServiceDefinition implements RpcServiceDefinition {
     public static final ClprServiceDefinition INSTANCE = new ClprServiceDefinition();
 
     private static final Set<RpcMethodDefinition<?, ?>> methods = Set.of(
-            new RpcMethodDefinition<>("setRemoteLedgerConfiguration", Transaction.class, TransactionResponse.class),
+            new RpcMethodDefinition<>("setLedgerConfiguration", Transaction.class, TransactionResponse.class),
             new RpcMethodDefinition<>("getLedgerConfiguration", Query.class, Response.class));
 
     private ClprServiceDefinition() {

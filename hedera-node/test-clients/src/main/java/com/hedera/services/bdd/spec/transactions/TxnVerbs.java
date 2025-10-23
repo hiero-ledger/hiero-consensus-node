@@ -35,7 +35,7 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.queries.crypto.ReferenceType;
-import com.hedera.services.bdd.spec.transactions.clpr.HapiSetRemoteLedgerConfig;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiSetLedgerConfig;
 import com.hedera.services.bdd.spec.transactions.consensus.HapiMessageSubmit;
 import com.hedera.services.bdd.spec.transactions.consensus.HapiTopicCreate;
 import com.hedera.services.bdd.spec.transactions.consensus.HapiTopicDelete;
@@ -843,7 +843,7 @@ public class TxnVerbs {
         return new HapiLambdaSStore(HookEntityId.EntityIdOneOfType.ACCOUNT_ID, account, hookId);
     }
 
-    public static HapiSetRemoteLedgerConfig clprSetRemoteLedgerConfig(String ledgerId) {
-        return new HapiSetRemoteLedgerConfig(ledgerId);
+    public static HapiSetLedgerConfig clprSetLedgerConfig(String ledgerId) {
+        return new HapiSetLedgerConfig(ledgerId);
     }
 }

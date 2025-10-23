@@ -194,7 +194,7 @@ public class HapiUtils {
     public static HederaFunctionality functionOf(final TransactionBody txn) throws UnknownHederaFunctionality {
         return switch (txn.data().kind()) {
             case ATOMIC_BATCH -> HederaFunctionality.ATOMIC_BATCH;
-            case CLPR_SET_REMOTE_CONFIGURATION -> HederaFunctionality.CLPR_SET_REMOTE_LEDGER_CONFIG;
+            case CLPR_SET_LEDGER_CONFIGURATION -> HederaFunctionality.CLPR_SET_LEDGER_CONFIG;
             case CONSENSUS_CREATE_TOPIC -> HederaFunctionality.CONSENSUS_CREATE_TOPIC;
             case CONSENSUS_UPDATE_TOPIC -> HederaFunctionality.CONSENSUS_UPDATE_TOPIC;
             case CONSENSUS_DELETE_TOPIC -> HederaFunctionality.CONSENSUS_DELETE_TOPIC;

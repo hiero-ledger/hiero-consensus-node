@@ -15,7 +15,7 @@ import org.hiero.interledger.clpr.WritableClprLedgerConfigurationStore;
 
 /**
  * A writable store that wraps a writable key-value state and supports operations required to create or update
- * CLPR ledger configuration as a result of setRemoteLedgerConfiguration transactions and updated configuration
+ * CLPR ledger configuration as a result of setLedgerConfiguration transactions and updated configuration
  * of this ledger through address book changes.
  */
 public class WritableClprLedgerConfigurationStoreImpl extends ReadableClprLedgerConfigurationStoreImpl

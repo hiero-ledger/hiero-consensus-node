@@ -35,9 +35,9 @@ service ClprService {
      * than what is currently in the state, this has no effect.
      * <p>
      * The request body MUST be a
-     * [ClprSetRemoteLedgerConfigurationTransactionBody](#org.hiero.hapi.interledger.clpr.ClprSetRemoteLedgerConfigurationTransactionBody)
+     * [ClprSetLedgerConfigurationTransactionBody](#org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody)
      */
-    rpc setRemoteLedgerConfiguration (proto.Transaction) returns (proto.TransactionResponse);
+    rpc setLedgerConfiguration (proto.Transaction) returns (proto.TransactionResponse);
 
     /**
      * Retrieves the CLPR ledger configuration of this ledger or for a
