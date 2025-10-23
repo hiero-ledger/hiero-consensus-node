@@ -9,6 +9,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_GET_NFT_INFOS;
 import static com.hedera.hapi.node.base.HederaFunctionality.TRANSACTION_GET_FAST_RECORD;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.hapi.fees.FeeScheduleUtils.isValid;
 
 import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
 import com.hedera.hapi.node.base.FeeComponents;
@@ -170,8 +171,13 @@ public final class FeeManager {
         try {
             final org.hiero.hapi.support.fees.FeeSchedule schedule =
                     org.hiero.hapi.support.fees.FeeSchedule.PROTOBUF.parse(bytes);
-            this.simpleFeesSchedule = schedule;
-            return SUCCESS;
+            if (isValid(schedule)) {
+                this.simpleFeesSchedule = schedule;
+                return SUCCESS;
+            } else {
+                logger.warn("Unable to validate fee schedule.");
+                return ResponseCodeEnum.FEE_SCHEDULE_FILE_PART_UPLOADED;
+            }
         } catch (final BufferUnderflowException | ParseException ex) {
             return ResponseCodeEnum.FEE_SCHEDULE_FILE_PART_UPLOADED;
         }

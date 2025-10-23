@@ -7,11 +7,11 @@ import static com.hedera.hapi.node.base.HederaFunctionality.FILE_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_GET_CONTENTS;
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_GET_INFO;
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_UPDATE;
+import static org.hiero.hapi.fees.FeeScheduleUtils.isValid;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
-import static org.hiero.hapi.fees.FeeScheduleUtils.validate;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -89,7 +89,7 @@ public class FileTests {
         params.put(Extra.SIGNATURES, 1L);
         params.put(Extra.BYTES, 500L);
         params.put(Extra.KEYS, 1L);
-        assertTrue(validate(feeSchedule), "Fee schedule failed validation");
+        assertTrue(isValid(feeSchedule), "Fee schedule failed validation");
         FeeResult fee = model.computeFee(params, feeSchedule);
         assertEquals(11 + 0 + (1 + 500 - 10) * 3, fee.total());
     }
@@ -112,7 +112,7 @@ public class FileTests {
         params.put(Extra.SIGNATURES, 1L);
         params.put(Extra.BYTES, 500L);
         params.put(Extra.KEYS, 1L);
-        assertTrue(validate(feeSchedule), "Fee schedule failed validation");
+        assertTrue(isValid(feeSchedule), "Fee schedule failed validation");
         FeeResult fee = model.computeFee(params, feeSchedule);
         assertEquals(11 + 0 + (1 + 500 - 10) * 3, fee.total());
     }

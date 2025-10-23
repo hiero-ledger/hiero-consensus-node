@@ -88,7 +88,7 @@ public class FeeScheduleUtils {
      * one service defined.
      * @param feeSchedule
      */
-    public static boolean validate(FeeSchedule feeSchedule) {
+    public static boolean isValid(FeeSchedule feeSchedule) {
         requireNonNull(feeSchedule);
         for (ExtraFeeDefinition def : feeSchedule.extras()) {
             // no negative values or greater than MAX long

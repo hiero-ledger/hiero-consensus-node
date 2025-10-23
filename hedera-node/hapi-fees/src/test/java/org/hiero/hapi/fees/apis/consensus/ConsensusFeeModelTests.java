@@ -5,11 +5,11 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOP
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_DELETE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_UPDATE_TOPIC;
+import static org.hiero.hapi.fees.FeeScheduleUtils.isValid;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
-import static org.hiero.hapi.fees.FeeScheduleUtils.validate;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -67,7 +67,7 @@ class ConsensusFeeModelTests {
         params.put(Extra.BYTES, 20L);
         //        params.put(Params.HasCustomFee, YesOrNo.NO);
 
-        assertTrue(validate(feeSchedule), "Fee schedule failed validation");
+        assertTrue(isValid(feeSchedule), "Fee schedule failed validation");
         FeeResult fee = model.computeFee(params, feeSchedule);
         // service base fee= 15
         // 5 keys - 1 included * key cost of 2 = 4*2 = 8
