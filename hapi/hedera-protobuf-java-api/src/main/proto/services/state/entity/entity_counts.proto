@@ -79,8 +79,4 @@ message EntityCounts {
    * The number of lambda hook storage slots in the network.
    */
   uint64 num_lambda_storage_slots = 15;
-  /**
-   * The number of account-node relations.
-   */
-  uint64 num_account_node_relations = 16;
 }
