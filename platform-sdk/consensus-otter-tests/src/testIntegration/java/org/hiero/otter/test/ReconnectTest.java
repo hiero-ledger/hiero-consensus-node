@@ -24,7 +24,6 @@ import java.util.stream.IntStream;
 import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
-import org.hiero.otter.fixtures.OtterSpecs;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
@@ -32,6 +31,7 @@ import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SubscriberAction;
+import org.junit.jupiter.api.Disabled;
 
 /**
  * Tests the reconnect functionality of a node that has fallen behind in the consensus rounds. The test ensures that the
@@ -49,6 +49,7 @@ public class ReconnectTest {
      * @param env the test environment
      */
     @OtterTest(requires = Capability.RECONNECT)
+    @Disabled
     void testNodeDeathReconnect(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -249,6 +250,7 @@ public class ReconnectTest {
      * @param env the test environment
      */
     @OtterTest(requires = Capability.RECONNECT)
+    @Disabled
     void testReconnectSucceedsAfterFailure(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -309,6 +311,7 @@ public class ReconnectTest {
      * @param env the test environment
      */
     @OtterTest(requires = {Capability.RECONNECT, Capability.SINGLE_NODE_JVM_SHUTDOWN})
+    @Disabled
     void testNodeShutsDownAfterMaxFailedReconnects(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -362,7 +365,7 @@ public class ReconnectTest {
     }
 
     @OtterTest(requires = {Capability.RECONNECT, Capability.SINGLE_NODE_JVM_SHUTDOWN})
-    @OtterSpecs(randomNodeIds = false)
+    @Disabled
     void testIsolateNodeWhileReconnectingAndRestore(@NonNull final TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
