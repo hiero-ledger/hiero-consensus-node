@@ -265,9 +265,14 @@ message StateKey {
     com.hedera.hapi.node.state.hooks.LambdaSlotKey ContractService_I_LAMBDA_STORAGE = 52;
 
     /**
+     * A state identifier for account to node relationships.
+     */
+    proto.AccountID AddressBookService_I_ACCOUNT_NODE_REL = 53;
+
+    /**
      * A state identifier for CLPR Ledger Configuration.
      */
-    org.hiero.hapi.interledger.state.clpr.ClprLedgerId ClprService_I_CONFIGURATIONS = 53;
+    org.hiero.hapi.interledger.state.clpr.ClprLedgerId ClprService_I_CONFIGURATIONS = 54;
 
     // Queue states
     /**
