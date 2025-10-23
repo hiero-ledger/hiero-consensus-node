@@ -11,7 +11,7 @@ import org.hiero.base.constructable.ConstructableRegistryException;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-class ReservedSignedStateResultTests {
+class ValueTests {
 
     @BeforeAll
     public static void setUp() throws ConstructableRegistryException {
