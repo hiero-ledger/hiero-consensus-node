@@ -15,9 +15,16 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.Test;
 
-public class NodeKeysAndCertsTest {
+/**
+ * Tests for verifying that the network roster correctly incorporates node parameters into the network roster.
+ */
+public class NetworkRosterTests {
+    /**
+     * Tests that when nodes are created with overridden keys and certificates, the network roster correctly reflects
+     * those certificates.
+     */
     @Test
-    void testSetIndividualNodeWeightsBeforeNetworkStarts()
+    void testCertificates()
             throws NoSuchAlgorithmException, KeyGeneratingException, NoSuchProviderException, CertificateEncodingException {
         final TurtleTestEnvironment env = new TurtleTestEnvironment();
         try {

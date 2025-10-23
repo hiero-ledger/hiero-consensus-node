@@ -128,6 +128,13 @@ public interface Network {
         return nodes().stream().mapToLong(Node::weight).sum();
     }
 
+    /**
+     * Gets the roster of the network. This method can only be called after the network has been started, because the
+     * roster is created during startup.
+     *
+     * @return the roster of the network
+     * @throws IllegalStateException if the network has not been started yet
+     */
     @NonNull
     Roster roster();
 
