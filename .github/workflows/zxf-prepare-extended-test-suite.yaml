@@ -27,9 +27,11 @@ env:
   PROMOTED_GREP_PATTERN: "build-.{5}"
 
 jobs:
-  tag-for-xts:
-    name: Tag for XTS promotion
+  validate-input-ref:
+    name: Validate Input Reference
     runs-on: hiero-citr-linux-medium
+    outputs:
+      commit-is-present: ${{ steps.validate-input.outputs.commit_on_dev }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -49,15 +51,29 @@ jobs:
           COMMIT_ID: ${{ inputs.ref }}
         run: |
           if git merge-base --is-ancestor "${COMMIT_ID}" main >/dev/null 2>&1; then
-            echo "commit_on_dev=true" >> $GITHUB_OUTPUT
+            echo "commit_on_dev=true" >> "${GITHUB_OUTPUT}"
+            echo "## Commit ${{ inputs.ref }} is present on main branch." >> "${GITHUB_STEP_SUMMARY}"
           else
             echo "::error title=Branch Alignment::The provided commit (${COMMIT_ID}) is not present on the main branch."
-            exit 1
+            echo "commit_on_dev=false" >> "${GITHUB_OUTPUT}"
+            echo "## Commit ${{ inputs.ref }} not on main branch." >> "${GITHUB_STEP_SUMMARY}"
+            echo "Skipping job: Tag for XTS promotion" >> "${GITHUB_STEP_SUMMARY}"
           fi
+
+  tag-for-xts:
+    name: Tag for XTS promotion
+    runs-on: hiero-citr-linux-medium
+    needs:
+      - validate-input-ref
+    if: ${{ needs.validate-input-ref.outputs.commit-is-present == 'true' }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
 
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        if: ${{ steps.validate-input.outputs.commit_on_dev == 'true'}}
         with:
           fetch-depth: "0"
           ref: ${{ inputs.ref }}
@@ -91,9 +107,16 @@ jobs:
 
           # if the strings are not empty than the commit has been tagged.
           if [[ -n "${XTS_CANDIDATE_TAGGED}" || -n "${XTS_PASS_TAGGED}" || -n "${BUILD_PROMOTED_TAGGED}" ]]; then
-            gh run cancel ${{ github.run_id }}
+            echo "Commit already tagged in XTS flow. Skipping remaining steps." >> "${GITHUB_STEP_SUMMARY}"
+            echo "xts-checks-required=false" >> "${GITHUB_OUTPUT}"
           else
-            echo "xts-checks-required=true" >> $GITHUB_OUTPUT
+            echo "Commit not yet tagged in XTS flow. Proceeding to tag for XTS." >> "${GITHUB_STEP_SUMMARY}"
+            echo "xts-checks-required=true" >> "${GITHUB_OUTPUT}"
+          fi
+
+          # Log dry-run status
+          if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
+            echo "Dry run enabled. The workflow will not create a tag." >> "${GITHUB_STEP_SUMMARY}"
           fi
 
       # move the tag if successful
@@ -116,8 +139,15 @@ jobs:
           git tag --annotate "${XTS_CANDIDATE_TAG}" --message "chore: tagging commit for XTS promotion"
           git push --set-upstream origin --tags
 
+  report-failures:
+    name: Report Failures
+    runs-on: hiero-citr-linux-medium
+    needs:
+      - validate-input-ref
+      - tag-for-xts
+    if: ${{ (needs.validate-input-ref.result == 'failure' || needs.tag-for-xts.result == 'failure') && !cancelled() && always() }}
+    steps:
       - name: Report Failure (Rootly)
-        if: ${{ !inputs.dry-run-enabled && !cancelled() && failure() && always() }}
         uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
         continue-on-error: true
         with:
@@ -135,7 +165,6 @@ jobs:
           external_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
       - name: Report Failure (Slack)
-        if: ${{ !inputs.dry-run-enabled && !cancelled() && failure() && always() }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}

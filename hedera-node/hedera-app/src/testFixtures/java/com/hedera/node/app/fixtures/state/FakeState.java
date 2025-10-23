@@ -9,6 +9,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.MerkleProof;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.lifecycle.StateMetadata;
@@ -285,6 +286,11 @@ public class FakeState implements MerkleNodeState {
 
     @Override
     public Hash getHashForPath(long path) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public MerkleProof getMerkleProof(long path) {
         throw new UnsupportedOperationException();
     }
 
