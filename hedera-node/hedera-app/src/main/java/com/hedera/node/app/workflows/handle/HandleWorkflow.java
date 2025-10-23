@@ -652,7 +652,7 @@ public class HandleWorkflow {
                     ? blockRecordManager.lastUsedConsensusTime()
                     : blockStreamManager.lastUsedConsensusTime();
             // If there were no user transactions preceding this scan for scheduled transactions,
-            // then advance to the current consensus time so execution times don't look e earlier
+            // then advance to the current consensus time so execution times don't look earlier
             // than scheduled times
             if (consensusNow.isAfter(lastTime)) {
                 lastTime = consensusNow;

@@ -63,9 +63,6 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
                 doWithStartupDuration("quiescence.tctDuration", duration -> sleepForSeconds(4 * duration.toSeconds())),
                 getAccountBalance("scheduledReceiver").hasTinyBars(42 * ONE_HBAR),
                 getTxnRecord("creation").scheduled().exposingTo(r -> {
-                    System.out.println("BOOP");
-                    System.out.println(r);
-                    System.out.println("BOOP");
                     final var expected = scheduleExpiry.get();
                     final var actual = asInstant(r.getConsensusTimestamp());
                     assertFalse(
