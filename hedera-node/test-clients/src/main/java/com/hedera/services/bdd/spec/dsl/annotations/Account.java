@@ -49,6 +49,4 @@ public @interface Account {
      * @return the maximum number of auto-associations
      */
     int maxAutoAssociations() default 0;
-
-    int numberHooksInUse() default 0;
 }
