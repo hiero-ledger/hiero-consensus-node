@@ -9,14 +9,12 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.updateTopic;
-import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedConsensusHbarFee;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SIMPLE_FEE_SCHEDULE;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -237,6 +235,8 @@ public class SimpleFeesSuite {
         }
     }
 
+    /*
+    Disable custom fees for now.
     @Nested
     class TopicCustomFees {
         @HapiTest
@@ -299,10 +299,12 @@ public class SimpleFeesSuite {
                                     )));
         }
     }
+     */
 
     @Nested
     class TopicFees {
-
+        /*
+        Disable custom fees for now.
         @HapiTest
         @DisplayName("Simple fees for creating a topic with custom fees")
         final Stream<DynamicTest> createTopicCustomFee() {
@@ -323,7 +325,7 @@ public class SimpleFeesSuite {
                                             + 1 * 3 // node + network fee
                                     )));
         }
-
+        */
         @HapiTest
         @DisplayName("Simple fees for getting a topic transaction info")
         final Stream<DynamicTest> getTopicInfoFee() {

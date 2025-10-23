@@ -67,12 +67,10 @@ public class FeeModelRegistry {
 
     static {
         register(new StandardFeeModel(CONSENSUS_CREATE_TOPIC, "Create a new topic"));
-        register(new StandardFeeModel(CONSENSUS_CREATE_TOPIC.protoName() + "CustomFees", "Create a new topic"));
         register(new StandardFeeModel(CONSENSUS_UPDATE_TOPIC, "Update topic"));
         register(new StandardFeeModel(CONSENSUS_DELETE_TOPIC, "Delete topic"));
         register(new StandardFeeModel(CONSENSUS_GET_TOPIC_INFO, "Get metadata for a topic"));
         register(new StandardFeeModel(CONSENSUS_SUBMIT_MESSAGE, "Submit message to topic"));
-        register(new StandardFeeModel(CONSENSUS_SUBMIT_MESSAGE.protoName() + "CustomFees", "Submit message to topic"));
 
         register(new StandardFeeModel(FILE_CREATE, "Create file"));
         register(new StandardFeeModel(FILE_APPEND, "Append to file"));
@@ -124,19 +122,10 @@ public class FeeModelRegistry {
         register(new StandardFeeModel(SCHEDULE_GET_INFO, "Get metadata for a scheduled transaction"));
     }
 
-    public static FeeModel lookupModel(HederaFunctionality service, boolean customFees) {
-        return lookupModel(service.protoName(), customFees);
-    }
-
     public static FeeModel lookupModel(HederaFunctionality service) {
-        return lookupModel(service.protoName(), false);
-    }
-
-    public static FeeModel lookupModel(String service, boolean customFees) {
-        var name = customFees ? service + "CustomFees" : service;
-        if (!registry.containsKey(name)) {
-            throw new IllegalArgumentException("No registered model found for service " + name);
+        if (!registry.containsKey(service.protoName())) {
+            throw new IllegalArgumentException("No registered model found for service " + service.protoName());
         }
-        return registry.get(name);
+        return registry.get(service.protoName());
     }
 }

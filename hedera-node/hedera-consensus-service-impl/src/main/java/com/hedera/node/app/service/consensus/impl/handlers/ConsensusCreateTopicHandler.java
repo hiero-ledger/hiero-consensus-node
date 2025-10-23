@@ -241,7 +241,7 @@ public class ConsensusCreateTopicHandler implements TransactionHandler {
         final var hasCustomFees =
                 !body.consensusCreateTopicOrThrow().customFees().isEmpty();
         final var subType = hasCustomFees ? SubType.TOPIC_CREATE_WITH_CUSTOM_FEES : SubType.DEFAULT;
-        final var entity = FeeModelRegistry.lookupModel(HederaFunctionality.CONSENSUS_CREATE_TOPIC, hasCustomFees);
+        final var entity = FeeModelRegistry.lookupModel(HederaFunctionality.CONSENSUS_CREATE_TOPIC);
         var createTopic = body.consensusCreateTopicOrThrow();
         var keyCount = createTopic.customFees().size();
         if (createTopic.hasAdminKey()) {
@@ -250,6 +250,7 @@ public class ConsensusCreateTopicHandler implements TransactionHandler {
         Map<Extra, Long> params = new HashMap<>();
         params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
         params.put(Extra.KEYS, (long) keyCount);
+        params.put(Extra.CUSTOM_FEE, hasCustomFees ? 1L : 0L);
         return entity.computeFee(
                 params, feeContext.feeCalculatorFactory().feeCalculator(subType).getSimpleFeesSchedule());
     }

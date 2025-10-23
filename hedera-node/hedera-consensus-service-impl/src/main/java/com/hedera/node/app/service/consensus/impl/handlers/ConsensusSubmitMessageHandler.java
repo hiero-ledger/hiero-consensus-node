@@ -545,10 +545,11 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
         final var topic =
                 feeContext.readableStore(ReadableTopicStore.class).getTopic(op.topicIDOrElse(TopicID.DEFAULT));
         final var hasCustomFees = topic != null && !topic.customFees().isEmpty();
-        final var entity = FeeModelRegistry.lookupModel(HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE, hasCustomFees);
+        final var entity = FeeModelRegistry.lookupModel(HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE);
         Map<Extra, Long> params = new HashMap<>();
         params.put(Extra.BYTES, msgSize);
         params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
+        params.put(Extra.CUSTOM_FEE, hasCustomFees ? 1L : 0L);
         return entity.computeFee(
                 params,
                 feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT).getSimpleFeesSchedule());

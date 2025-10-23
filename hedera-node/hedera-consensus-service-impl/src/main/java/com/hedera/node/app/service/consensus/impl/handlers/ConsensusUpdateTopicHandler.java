@@ -210,7 +210,7 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
 
     @Override
     public @NonNull FeeResult calculateFeeResult(@NonNull FeeContext feeContext) {
-        final var entity = FeeModelRegistry.lookupModel(HederaFunctionality.CONSENSUS_UPDATE_TOPIC, false);
+        final var entity = FeeModelRegistry.lookupModel(HederaFunctionality.CONSENSUS_UPDATE_TOPIC);
         Map<Extra, Long> params = new HashMap<>();
         params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
         params.put(Extra.KEYS, 0L);

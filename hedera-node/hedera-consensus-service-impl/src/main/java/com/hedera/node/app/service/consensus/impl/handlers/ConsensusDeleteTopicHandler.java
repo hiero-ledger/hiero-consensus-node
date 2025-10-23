@@ -125,7 +125,7 @@ public class ConsensusDeleteTopicHandler implements TransactionHandler {
 
     @Override
     public @NonNull FeeResult calculateFeeResult(@NonNull FeeContext feeContext) {
-        final var entity = FeeModelRegistry.lookupModel(HederaFunctionality.CONSENSUS_DELETE_TOPIC, false);
+        final var entity = FeeModelRegistry.lookupModel(HederaFunctionality.CONSENSUS_DELETE_TOPIC);
         Map<Extra, Long> params = new HashMap<>();
         params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
         return entity.computeFee(

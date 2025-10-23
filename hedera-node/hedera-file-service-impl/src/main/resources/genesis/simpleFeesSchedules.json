@@ -27,7 +27,7 @@
     { "name":  "CUSTOM_FEE_NON_FUNGIBLE_TOKENS", "fee": 3 },
     { "name":  "CREATED_AUTO_ASSOCIATIONS",      "fee": 3 },
     { "name":  "CREATED_ACCOUNTS",               "fee": 3 },
-    { "name":  "CUSTOM_FEE",                     "fee": 100000000 },
+    { "name":  "CUSTOM_FEE",                     "fee": 1 },
     { "name":  "GAS",                            "fee": 1 },
     { "name":  "ALLOWANCES",                     "fee": 2000 },
     { "name":  "AIRDROPS",                       "fee": 8800 }
@@ -75,14 +75,6 @@
           ]
         },
         {
-          "name": "ConsensusCreateTopicCustomFees",
-          "baseFee": 20000000000,
-          "extras": [
-            { "name": "SIGNATURES", "includedCount": 1 },
-            { "name": "KEYS", "includedCount": 0 }
-          ]
-        },
-        {
           "name": "ConsensusUpdateTopic",
           "baseFee": 3540000,
           "extras": [
@@ -93,14 +85,6 @@
         {
           "name": "ConsensusSubmitMessage",
           "baseFee": 1000000,
-          "extras": [
-            { "name": "SIGNATURES", "includedCount": 1 },
-            { "name": "BYTES",      "includedCount": 256 }
-          ]
-        },
-        {
-          "name": "ConsensusSubmitMessageCustomFees",
-          "baseFee": 500000000,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1 },
             { "name": "BYTES",      "includedCount": 256 }
