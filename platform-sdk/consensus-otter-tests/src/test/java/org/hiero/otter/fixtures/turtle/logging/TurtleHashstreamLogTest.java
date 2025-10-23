@@ -36,7 +36,7 @@ import org.junit.jupiter.params.provider.ValueSource;
  *     <li>The build/turtle folder structure contains only node directories</li>
  * </ul>
  */
-final class TurtleHashstreamLogTest {
+class TurtleHashstreamLogTest {
 
     /**
      * List of markers that commonly appear during normal Turtle node operation, but should not be present in the
