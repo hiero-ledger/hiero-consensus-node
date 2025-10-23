@@ -23,13 +23,16 @@ import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
  */
 public class SingleNodeEventStreamResultImpl implements SingleNodeEventStreamResult {
 
-    private static final BiPredicate<Path, BasicFileAttributes> EVENT_STREAM_FILE_FILTER = (path, attrs) -> {
+    private static final BiPredicate<Path, BasicFileAttributes> SIGNED_EVENT_STREAM_FILE_FILTER = (path, attrs) -> {
         if (attrs.isRegularFile() && path.toString().endsWith(".evts")) {
             // We only care about event stream files that have a corresponding signature file
             return Files.exists(Path.of(path + "_sig"));
         }
         return false;
     };
+
+    private static final BiPredicate<Path, BasicFileAttributes> ANY_EVENT_FILE_FILTER =
+            (path, attrs) -> attrs.isRegularFile() && path.toString().endsWith(".evts");
 
     private static final BiPredicate<Path, BasicFileAttributes> SIGNATURE_FILE_FILTER =
             (path, attrs) -> attrs.isRegularFile() && path.toString().endsWith(".evts_sig");
@@ -76,7 +79,7 @@ public class SingleNodeEventStreamResultImpl implements SingleNodeEventStreamRes
     @Override
     @NonNull
     public List<Path> eventStreamFiles() {
-        try (final Stream<Path> stream = Files.find(eventStreamDir, 1, EVENT_STREAM_FILE_FILTER)) {
+        try (final Stream<Path> stream = Files.find(eventStreamDir, 1, SIGNED_EVENT_STREAM_FILE_FILTER)) {
             return stream.sorted().toList();
         } catch (final IOException e) {
             throw new UncheckedIOException("Exception while traversing event stream files", e);
@@ -93,6 +96,15 @@ public class SingleNodeEventStreamResultImpl implements SingleNodeEventStreamRes
             return stream.sorted().toList();
         } catch (final IOException e) {
             throw new UncheckedIOException("Exception while traversing signature files", e);
+        }
+    }
+
+    @Override
+    public boolean hasAnyEventStreamFile() {
+        try (final Stream<Path> stream = Files.find(eventStreamDir, 1, ANY_EVENT_FILE_FILTER)) {
+            return stream.findAny().isPresent();
+        } catch (final IOException e) {
+            throw new UncheckedIOException("Exception while traversing event stream files", e);
         }
     }
 
