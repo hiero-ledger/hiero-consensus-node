@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.streams;
 
+import static com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess.BLOCK_STREAM_ACCESS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.WORKING_DIR;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
-import static com.hedera.services.bdd.junit.support.BlockStreamAccess.BLOCK_STREAM_ACCESS;
 import static com.hedera.services.bdd.junit.support.StreamFileAccess.STREAM_FILE_ACCESS;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -21,12 +21,12 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
 import com.hedera.hapi.block.stream.Block;
+import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.node.app.history.impl.ProofControllerImpl;
 import com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
 import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
-import com.hedera.services.bdd.junit.support.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.RecordStreamValidator;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
@@ -352,7 +352,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         final boolean isGrpcOnly = "GRPC".equals(writerMode);
 
         log.info("Beginning block proof validation for each node in the network (writerMode: {})", writerMode);
-        final var verifiedBlockNumbersAll = getAllVerifiedBlockNumbers(spec);
+        final var verifiedBlockNumbersAll = getAllVerifiedBlockNumbers();
 
         if (verifiedBlockNumbersAll.isEmpty()) {
             Assertions.fail("No verified blocks by block node simulator");
@@ -393,7 +393,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         log.info("Block proofs validation completed successfully");
     }
 
-    private static Set<Long> getAllVerifiedBlockNumbers(@NonNull final HapiSpec spec) {
+    private static Set<Long> getAllVerifiedBlockNumbers() {
         final var blockNodeNetwork = NetworkTargetingExtension.SHARED_BLOCK_NODE_NETWORK.get();
         if (blockNodeNetwork == null) {
             return Set.of();
