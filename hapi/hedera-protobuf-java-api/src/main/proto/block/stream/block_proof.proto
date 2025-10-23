@@ -234,7 +234,7 @@ message BlockProof {
    */
   oneof proof {
     TssSignedBlockProof signed_block_proof = 8;
-//    com.hedera.hapi.block.stream.StateProof block_state_proof = 9;
+    com.hedera.hapi.block.stream.NoThisStateProof block_state_proof = 9;
     SignedRecordFileProof signed_record_file_proof = 10;
   }
 }
