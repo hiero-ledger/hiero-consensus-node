@@ -46,14 +46,8 @@ public class SimpleFeesSuite {
     static Stream<DynamicTest> runBeforeAfter(@NonNull final SpecOperation... ops) {
         List<SpecOperation> opsList = new ArrayList<>();
         opsList.add(overriding("fees.simpleFeesEnabled", "false"));
-        //        opsList.add(withOpContext((spec, log) -> {
-        //            System.out.println("simple fees enabled = false");
-        //        }));
         opsList.addAll(Arrays.asList(ops));
         opsList.add(overriding("fees.simpleFeesEnabled", "true"));
-        //        opsList.add(withOpContext((spec, log) -> {
-        //            System.out.println("simple fees enabled = true");
-        //        }));
         opsList.addAll(Arrays.asList(ops));
         return hapiTest(opsList.toArray(new SpecOperation[opsList.size()]));
     }

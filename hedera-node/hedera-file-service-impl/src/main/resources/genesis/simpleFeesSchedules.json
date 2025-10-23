@@ -1,6 +1,6 @@
 {
   "node": {
-    "baseFee": 0,
+    "baseFee": 100000,
     "extras": [
       {
         "name": "SIGNATURES", "includedCount": 10
@@ -68,7 +68,7 @@
       "schedule": [
         {
           "name": "ConsensusCreateTopic",
-          "baseFee": 100000000,
+          "baseFee": 99700000,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1 },
             { "name": "KEYS", "includedCount": 0 }
@@ -76,7 +76,7 @@
         },
         {
           "name": "ConsensusUpdateTopic",
-          "baseFee": 3540000,
+          "baseFee": 3240000,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 2 },
             { "name": "KEYS",       "includedCount": 1 }
@@ -84,7 +84,7 @@
         },
         {
           "name": "ConsensusSubmitMessage",
-          "baseFee": 1000000,
+          "baseFee": 700000,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1 },
             { "name": "BYTES",      "includedCount": 256 }
@@ -92,7 +92,7 @@
         },
         {
           "name": "ConsensusDeleteTopic",
-          "baseFee": 22000000,
+          "baseFee": 21700000,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1 }
           ]
