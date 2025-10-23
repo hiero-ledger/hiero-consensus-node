@@ -45,7 +45,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.output.TransactionResult;
-import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.token.NodeActivity;
 import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
@@ -660,26 +659,7 @@ public class RepeatableHip1064Tests {
                 waitUntilStartOfNextStakingPeriod(1),
                 nodeUpdate("0").declineReward(false),
                 sleepForBlockPeriod(),
-                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
-                        .copyBuilder()
-                        .nodeActivities(List.of(
-                                NodeActivity.newBuilder()
-                                        .nodeId(0)
-                                        .numMissedJudgeRounds(0)
-                                        .build(),
-                                NodeActivity.newBuilder()
-                                        .nodeId(1)
-                                        .numMissedJudgeRounds(0)
-                                        .build(),
-                                NodeActivity.newBuilder()
-                                        .nodeId(2)
-                                        .numMissedJudgeRounds(0)
-                                        .build(),
-                                NodeActivity.newBuilder()
-                                        .nodeId(3)
-                                        .numMissedJudgeRounds(0)
-                                        .build()))
-                        .build()),
+                setAllNodesActive(),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, NODE_REWARD, ONE_MILLION_HBARS)),
                 // Move into a new staking period
                 waitUntilStartOfNextStakingPeriod(1),
@@ -762,25 +742,6 @@ public class RepeatableHip1064Tests {
 
             // Finally, call accept on the list
             crs.accept(latestNTxnResults);
-        });
-    }
-
-    static Instant toInstant(Timestamp ts) {
-        return Instant.ofEpochSecond(ts.seconds(), ts.nanos());
-    }
-
-    static SpecOperation exposeLatestBlock(Consumer<Block> cb, Duration after) {
-        return doingContextual((spec) -> {
-            Uninterruptable.tryToSleep(after);
-            try (final var stream = Files.walk(spec.getNetworkNodes().getFirst().getExternalPath(BLOCK_STREAMS_DIR))) {
-                final var lastPath = stream.filter(block -> BlockStreamAccess.isBlockFile(block, true))
-                        .peek(System.out::println)
-                        .max(comparing(BlockStreamAccess::extractBlockNumber))
-                        .orElseThrow();
-                cb.accept(blockFrom(lastPath));
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
         });
     }
 
