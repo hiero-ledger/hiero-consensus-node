@@ -9,6 +9,7 @@ import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
+import static com.hedera.node.app.blocks.impl.quiescence.TctProbe.blockStreamInfoFrom;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.blockDirFor;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.cleanUpPendingBlock;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.loadContiguousPendingBlocks;
@@ -18,6 +19,7 @@ import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.block.stream.BlockItem;
@@ -36,6 +38,8 @@ import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.blocks.StreamingTreeHasher;
+import com.hedera.node.app.blocks.impl.quiescence.QuiescedHeartbeat;
+import com.hedera.node.app.blocks.impl.quiescence.TctProbe;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.info.DiskStartupNetworks.InfoType;
@@ -48,6 +52,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
+import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.types.DiskNetworkExport;
@@ -100,8 +105,8 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 
 @Singleton
 public class BlockStreamManagerImpl implements BlockStreamManager {
-
     private static final Logger log = LogManager.getLogger(BlockStreamManagerImpl.class);
+
     public static final Bytes NULL_HASH = Bytes.wrap(new byte[HASH_SIZE]);
 
     private final int roundsPerBlock;
@@ -124,6 +129,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final Platform platform;
     private final CurrentBlockTracker currentBlockTracker;
     private final QuiescenceController quiescenceController;
+    private final QuiescedHeartbeat quiescedHeartbeat;
 
     // The status of pending work
     private PendingWork pendingWork = NONE;
@@ -230,6 +236,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final SemanticVersion version,
             @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final Lifecycle lifecycle,
+            @NonNull final QuiescedHeartbeat quiescedHeartbeat,
             @NonNull final Metrics metrics) {
         this.blockHashSigner = requireNonNull(blockHashSigner);
         this.platform = requireNonNull(platform);
@@ -242,6 +249,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.platformStateFacade = requireNonNull(platformStateFacade);
         this.lifecycle = requireNonNull(lifecycle);
         this.configProvider = requireNonNull(configProvider);
+        this.quiescedHeartbeat = requireNonNull(quiescedHeartbeat);
         final var config = configProvider.getConfiguration();
         this.hintsEnabled = config.getConfigData(TssConfig.class).hintsEnabled();
         this.quiescenceEnabled = config.getConfigData(QuiescenceConfig.class).enabled();
@@ -261,6 +269,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         indirectProofCounter = requireNonNull(metrics)
                 .getOrCreate(new Counter.Config("block", "numIndirectProofs")
                         .withDescription("Number of blocks closed with indirect proofs"));
+        if (!quiescenceEnabled) {
+            log.info("Quiescence is disabled");
+            quiescedHeartbeat.shutdown();
+        }
         log.info(
                 "Initialized BlockStreamManager from round {} with end-of-round hash {}",
                 lastRoundOfPrevBlock,
@@ -538,6 +550,17 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         if (commandNow != lastCommand && lastQuiescenceCommand.compareAndSet(lastCommand, commandNow)) {
                             log.info("Updating quiescence command from {} to {}", lastCommand, commandNow);
                             platform.quiescenceCommand(commandNow);
+                            if (commandNow == QUIESCE) {
+                                final var config = configProvider.getConfiguration();
+                                final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
+                                quiescedHeartbeat.start(
+                                        blockStreamConfig.quiescedHeartbeatInterval(),
+                                        new TctProbe(
+                                                blockStreamConfig.maxConsecutiveScheduleSecondsToProbe(),
+                                                config.getConfigData(StakingConfig.class)
+                                                        .periodMins(),
+                                                state));
+                            }
                         }
                     }
                 });
@@ -704,12 +727,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private static boolean impliesPostUpgradeWorkPending(
             @NonNull final BlockStreamInfo blockStreamInfo, @NonNull final SemanticVersion version) {
         return !version.equals(blockStreamInfo.creationSoftwareVersion()) || !blockStreamInfo.postUpgradeWorkDone();
-    }
-
-    private @NonNull BlockStreamInfo blockStreamInfoFrom(@NonNull final State state) {
-        final var blockStreamInfoState = state.getReadableStates(BlockStreamService.NAME)
-                .<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID);
-        return requireNonNull(blockStreamInfoState.get());
     }
 
     private boolean shouldCloseBlock(final long roundNumber, final long freezeRoundNumber) {

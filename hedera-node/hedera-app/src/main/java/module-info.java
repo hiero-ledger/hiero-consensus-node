@@ -111,6 +111,7 @@ module com.hedera.node.app {
     exports com.hedera.node.app.fees;
     exports com.hedera.node.app.throttle;
     exports com.hedera.node.app.blocks.impl;
+    exports com.hedera.node.app.blocks.impl.quiescence;
     exports com.hedera.node.app.blocks.impl.streaming;
     exports com.hedera.node.app.workflows.handle.metric;
     exports com.hedera.node.app.tss;

@@ -105,6 +105,7 @@ import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.tss.TssBaseServiceImpl;
 import com.hedera.node.app.workflows.handle.HandleWorkflow;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
+import com.hedera.node.app.workflows.ingest.IngestWorkflowImpl;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.Utils;
@@ -162,6 +163,7 @@ import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.model.event.Event;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -202,7 +204,7 @@ import org.hiero.consensus.transaction.TransactionPoolNexus;
  * including its state. It constructs the Dagger dependency tree, and manages the gRPC server, and in all other ways,
  * controls execution of the node. If you want to understand our system, this is a great place to start!
  */
-public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gossip {
+public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gossip, Consumer<PlatformEvent> {
 
     private static final Logger logger = LogManager.getLogger(Hedera.class);
 
@@ -616,6 +618,18 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
     }
 
     @Override
+    public void accept(@NonNull final PlatformEvent event) {
+        requireNonNull(event);
+        if (quiescenceEnabled && daggerApp != null) {
+            logger.info("!!! Got a stale event");
+            daggerApp.quiescenceController().staleEvent(event);
+            if (event.getCreatorId().equals(platform.getSelfId())) {
+                ((IngestWorkflowImpl) daggerApp.ingestWorkflow()).countLanded(event.transactionIterator());
+            }
+        }
+    }
+
+    @Override
     public void newPlatformStatus(@NonNull final PlatformStatus platformStatus) {
         this.platformStatus = platformStatus;
         transactionPool.updatePlatformStatus(platformStatus);
@@ -995,13 +1009,16 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
 
         final var transactions = new ArrayList<Transaction>(1000);
         event.forEachTransaction(transactions::add);
-        if (quiescenceEnabled) {
-            daggerApp.quiescenceController().onPreHandle(transactions);
-        }
         daggerApp
                 .preHandleWorkflow()
                 .preHandle(
                         readableStoreFactory, creatorInfo, transactions.stream(), simplifiedStateSignatureTxnCallback);
+        if (quiescenceEnabled) {
+            daggerApp.quiescenceController().onPreHandle(transactions);
+            if (event.getCreatorId().equals(platform.getSelfId())) {
+                ((IngestWorkflowImpl) daggerApp.ingestWorkflow()).countLanded(event.transactionIterator());
+            }
+        }
     }
 
     public void onNewRecoveredState() {

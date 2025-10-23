@@ -32,7 +32,9 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "2s") @Min(0) @NetworkProperty Duration blockPeriod,
         @ConfigProperty(defaultValue = "256") @Min(0) @NetworkProperty int blockItemBatchSize,
         @ConfigProperty(defaultValue = "8192") @Min(1) @NetworkProperty int receiptEntriesBatchSize,
-        @ConfigProperty(defaultValue = "10ms") @Min(1) @NodeProperty Duration workerLoopSleepDuration) {
+        @ConfigProperty(defaultValue = "10ms") @Min(1) @NodeProperty Duration workerLoopSleepDuration,
+        @ConfigProperty(defaultValue = "100") @Min(1) @NodeProperty int maxConsecutiveScheduleSecondsToProbe,
+        @ConfigProperty(defaultValue = "1s") @Min(1) @NodeProperty Duration quiescedHeartbeatInterval) {
 
     /**
      * Whether to stream to block nodes.

@@ -2,12 +2,14 @@
 package com.hedera.node.app.platform;
 
 import com.hedera.node.app.annotations.CommonExecutor;
+import com.hedera.node.app.blocks.impl.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.quiescence.QuiescenceConfig;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.state.listeners.FatalIssListenerImpl;
 import com.hedera.node.app.state.listeners.ReconnectListener;
 import com.hedera.node.app.state.listeners.WriteStateToDiskListener;
+import com.hedera.node.app.workflows.ingest.IngestWorkflow;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.system.Platform;
@@ -48,9 +50,13 @@ public interface PlatformModule {
     @Provides
     @Singleton
     static QuiescenceController provideQuiescenceController(
-            @NonNull final BootstrapConfigProviderImpl configProvider, @NonNull final InstantSource instantSource) {
+            @NonNull final BootstrapConfigProviderImpl configProvider,
+            @NonNull final IngestWorkflow ingestWorkflow,
+            @NonNull final InstantSource instantSource) {
         return new QuiescenceController(
-                configProvider.configuration().getConfigData(QuiescenceConfig.class), instantSource, () -> 0L);
+                configProvider.configuration().getConfigData(QuiescenceConfig.class),
+                instantSource,
+                ingestWorkflow::estimateTxPipelineCount);
     }
 
     @Binds
