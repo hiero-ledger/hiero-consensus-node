@@ -39,139 +39,141 @@ option java_multiple_files = true;
  * block item in this block.
  */
 message BlockStreamInfo {
-    /**
-     * A block number.<br/>
-     * This is the current block number.
-     */
-    uint64 block_number = 1;
+  /**
+   * A block number.<br/>
+   * This is the current block number.
+   */
+  uint64 block_number = 1;
 
-    /**
-     * A consensus time for the current block.<br/>
-     * This is the consensus time of the first round in the current block,
-     * and is used to determine if this block was the first across an
-     * important boundary in consensus time, such as UTC midnight.
-     * This may also be used to purge entities expiring between the last
-     * block time and this time.
-     */
-    proto.Timestamp block_time = 2;
+  /**
+   * A consensus time for the current block.<br/>
+   * This is the consensus time of the first round in the current block,
+   * and is used to determine if this block was the first across an
+   * important boundary in consensus time, such as UTC midnight.
+   * This may also be used to purge entities expiring between the last
+   * block time and this time.
+   */
+  proto.Timestamp block_time = 2;
 
-    /**
-     * A concatenation of hash values.<br/>
-     * This combines several trailing output block item hashes and
-     * is used as a seed value for a pseudo-random number generator.<br/>
-     * This is also required to implement the EVM `PREVRANDAO` opcode.<br/>
-     * This MUST contain at least 256 bits of entropy.
-     */
-    bytes trailing_output_hashes = 3;
+  /**
+   * A concatenation of hash values.<br/>
+   * This combines several trailing output block item hashes and
+   * is used as a seed value for a pseudo-random number generator.<br/>
+   * This is also required to implement the EVM `PREVRANDAO` opcode.<br/>
+   * This MUST contain at least 256 bits of entropy.
+   */
+  bytes trailing_output_hashes = 3;
 
-    /**
-     * A concatenation of hash values.<br/>
-     * This field combines up to 256 trailing block hashes.
-     * <p>
-     * If this message is for block number N, then the earliest available
-     * hash SHALL be for block number N-256.<br/>
-     * The latest available hash SHALL be for block N-1.<br/>
-     * This is REQUIRED to implement the EVM `BLOCKHASH` opcode.
-     * <p>
-     * ### Field Length
-     * Each hash value SHALL be the trailing 265 bits of a SHA2-384 hash.<br/>
-     * The length of this field SHALL be an integer multiple of 32 bytes.<br/>
-     * This field SHALL be at least 32 bytes.<br/>
-     * The maximum length of this field SHALL be 8192 bytes.
-     */
-    bytes trailing_block_hashes = 4;
+  /**
+   * A concatenation of hash values.<br/>
+   * This field combines up to 256 trailing block hashes.
+   * <p>
+   * If this message is for block number N, then the earliest available
+   * hash SHALL be for block number N-256.<br/>
+   * The latest available hash SHALL be for block N-1.<br/>
+   * This is REQUIRED to implement the EVM `BLOCKHASH` opcode.
+   * <p>
+   * ### Field Length
+   * Each hash value SHALL be the trailing 265 bits of a SHA2-384 hash.<br/>
+   * The length of this field SHALL be an integer multiple of 32 bytes.<br/>
+   * This field SHALL be at least 32 bytes.<br/>
+   * The maximum length of this field SHALL be 8192 bytes.
+   */
+  bytes trailing_block_hashes = 4;
 
-    /**
-     * A SHA2-384 hash value.<br/>
-     * This is the hash of the "input" subtree for this block.
-     */
-    bytes input_tree_root_hash = 5;
+  /**
+   * A SHA2-384 hash value.<br/>
+   * This is the final hash of the "input" subtree for this block.
+   */
+  bytes input_tree_root_hash = 5;
 
-    /**
-     * A SHA2-384 hash value.<br/>
-     * This is the hash of consensus state at the _start_ of this block.
-     */
-    bytes start_of_block_state_hash = 6;
+  /**
+   * A SHA2-384 hash value.<br/>
+   * This is the hash of consensus state at the _start_ of this block.
+   */
+  bytes start_of_block_state_hash = 6;
 
-    /**
-     * A count of "output" block items in this block.
-     * <p>
-     * This SHALL count the number of output block items that _precede_
-     * the state change that updates this singleton.
-     */
-    uint32 num_preceding_state_changes_items = 7;
+  /**
+   * A count of "output" block items in this block.
+   * <p>
+   * This SHALL count the number of output block items that _precede_
+   * the state change that updates this singleton.
+   */
+  uint32 num_preceding_state_changes_items = 7;
 
-    /**
-     * TODO
-     */
-    repeated bytes intermediate_previous_block_root_hashes = 8;
+  /**
+   * TODO
+   */
+  repeated bytes intermediate_previous_block_root_hashes = 8;
 
-    /**
-     * A block-end consensus time stamp.
-     * <p>
-     * This field SHALL hold the last-used consensus time for
-     * the current block.
-     */
-    proto.Timestamp block_end_time = 9;
+  /**
+   * A block-end consensus time stamp.
+   * <p>
+   * This field SHALL hold the last-used consensus time for
+   * the current block.
+   */
+  proto.Timestamp block_end_time = 9;
 
-    /**
-     * Whether the post-upgrade work has been done.
-     * <p>
-     * This MUST be false if and only if the network just restarted
-     * after an upgrade and has not yet done the post-upgrade work.
-     */
-    bool post_upgrade_work_done = 10;
+  /**
+   * Whether the post-upgrade work has been done.
+   * <p>
+   * This MUST be false if and only if the network just restarted
+   * after an upgrade and has not yet done the post-upgrade work.
+   */
+  bool post_upgrade_work_done = 10;
 
-    /**
-     * A version describing the version of application software.
-     * <p>
-     * This SHALL be the software version that created this block.
-     */
-    proto.SemanticVersion creation_software_version = 11;
+  /**
+   * A version describing the version of application software.
+   * <p>
+   * This SHALL be the software version that created this block.
+   */
+  proto.SemanticVersion creation_software_version = 11;
 
-    /**
-     * The time stamp at which the last interval process was done.
-     * <p>
-     * This field SHALL hold the consensus time for the last time
-     * at which an interval of time-dependent events were processed.
-     */
-    proto.Timestamp last_interval_process_time = 12;
+  /**
+   * The time stamp at which the last interval process was done.
+   * <p>
+   * This field SHALL hold the consensus time for the last time
+   * at which an interval of time-dependent events were processed.
+   */
+  proto.Timestamp last_interval_process_time = 12;
 
-    /**
-     * The time stamp at which the last user transaction was handled.
-     * <p>
-     * This field SHALL hold the consensus time for the last time
-     * at which a user transaction was handled.
-     */
-    proto.Timestamp last_handle_time = 13;
+  /**
+   * The time stamp at which the last user transaction was handled.
+   * <p>
+   * This field SHALL hold the consensus time for the last time
+   * at which a user transaction was handled.
+   */
+  proto.Timestamp last_handle_time = 13;
 
-    /**
-    * TODO
-    */
-    repeated bytes intermediate_consensus_header_hashes = 14;
+  /**
+   * A SHA2-384 hash value.<br/>
+   * This is the final hash of the "input" subtree for this block.
+   */
+  bytes consensus_header_root_hash = 14;
 
-    /**
-    * TODO
-    */
-    repeated bytes intermediate_input_block_item_hashes = 15;
+  /**
+   * A SHA2-384 hash value.<br/>
+   * This is the final hash of the "input" subtree for this block.
+   */
+  bytes output_item_root_hash = 15;
 
-    /**
-    * TODO
-    */
-    repeated bytes intermediate_output_block_item_hashes = 16;
+  /**
+   * A SHA2-384 hash value.<br/>
+   * This is the <b>penultimate</b> hash of the "input" subtree for
+   * this block. The final hash of the "state change" subtree MUST
+   * be calculated immediately after this block stream info object
+   * is persisted to state, and its accompanying state change emitted.
+   */
+  bytes penultimate_state_change_item_root_hash = 16;
 
-    /**
-    * TODO
-    */
-    repeated bytes intermediate_state_change_block_item_hashes = 17;
+  /**
+   * A SHA2-384 hash value.<br/>
+   * This is the final hash of the "trace data" subtree for this block.
+   */
+  bytes trace_data_root_hash = 17;
 
-    /**
-    * TODO
-    */
-    repeated bytes intermediate_trace_data_hashes = 18;
-
-    /**
-     * TODO
-     */
-    proto.Timestamp block_start_consensus_timestamp = 19;
+  /**
+   * TODO
+   */
+  proto.Timestamp block_start_consensus_timestamp = 18;
 }
