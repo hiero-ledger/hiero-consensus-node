@@ -5,9 +5,14 @@ import static com.swirlds.state.StateChangeListener.StateType.MAP;
 import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
+import static com.swirlds.state.merkle.StateItem.CODEC;
 import static com.swirlds.state.merkle.disk.OnDiskQueueHelper.QUEUE_STATE_VALUE_CODEC;
 import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
+import static com.swirlds.virtualmap.internal.Path.getParentPath;
+import static com.swirlds.virtualmap.internal.Path.getSiblingPath;
+import static com.swirlds.virtualmap.internal.Path.isRight;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.crypto.Cryptography.NULL_HASH;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -21,6 +26,8 @@ import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.MerkleProof;
+import com.swirlds.state.SiblingHash;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.lifecycle.StateMetadata;
@@ -169,6 +176,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
 
     /**
      * Creates a copy of the instance.
+     *
      * @return a copy of the instance
      */
     protected abstract T copyingConstructor();
@@ -335,7 +343,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
      * Removes the node and metadata from the state merkle tree.
      *
      * @param serviceName The service name. Cannot be null.
-     * @param stateId The state ID
+     * @param stateId     The state ID
      */
     public void removeServiceState(@NonNull final String serviceName, final int stateId) {
         virtualMap.throwIfImmutable();
@@ -431,6 +439,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
     /**
      * Release a reservation on a Virtual Map.
      * For more detailed docs, see {@link Reservable#release()}.
+     *
      * @return true if this call to release() caused the Virtual Map to become destroyed
      */
     public boolean release() {
@@ -628,7 +637,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
         /**
          * Create a new instance
          *
-         * @param serviceName cannot be null
+         * @param serviceName   cannot be null
          * @param stateMetadata cannot be null
          */
         MerkleWritableStates(
@@ -853,6 +862,43 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
     @Override
     public Hash getHashForPath(long path) {
         return virtualMap.getRecords().findHash(path);
+    }
+
+    @Override
+    public MerkleProof getMerkleProof(final long path) {
+        if (!isHashed()) {
+            throw new IllegalStateException("Cannot get Merkle proof for unhashed virtual map");
+        }
+
+        VirtualLeafBytes<?> leafRecord = virtualMap.getRecords().findLeafRecord(path);
+        if (leafRecord == null) {
+            return null;
+        }
+
+        final List<SiblingHash> siblingHashes = new ArrayList<>();
+        final List<Hash> innerParentHashes = new ArrayList<>();
+
+        long currentPath = path;
+        while (currentPath > 0) {
+            final long siblingPath = getSiblingPath(currentPath);
+            final boolean isSiblingRight = isRight(siblingPath);
+            final Hash hashForPath = getHashForPath(siblingPath);
+            final Hash normalizedHashForPath = hashForPath == null ? NULL_HASH : hashForPath;
+
+            siblingHashes.add(new SiblingHash(isSiblingRight, normalizedHashForPath));
+
+            innerParentHashes.add(getHashForPath(currentPath));
+
+            currentPath = getParentPath(currentPath);
+        }
+
+        assert virtualMap.getHash() != null;
+
+        // add root hash
+        innerParentHashes.add(virtualMap.getHash());
+
+        StateItem stateItem = new StateItem(leafRecord.keyBytes(), leafRecord.valueBytes());
+        return new MerkleProof(CODEC.toBytes(stateItem), siblingHashes, innerParentHashes);
     }
 
     /**
