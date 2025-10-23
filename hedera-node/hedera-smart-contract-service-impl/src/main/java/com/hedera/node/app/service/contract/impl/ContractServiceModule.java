@@ -28,6 +28,7 @@ import com.hedera.node.app.service.contract.impl.exec.QueryComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule;
 import com.hedera.node.app.service.contract.impl.exec.v030.V030Module;
 import com.hedera.node.app.service.contract.impl.exec.v034.V034Module;
@@ -129,6 +130,16 @@ public interface ContractServiceModule {
     @Binds
     @Singleton
     GasCalculator bindGasCalculator(@NonNull final CustomGasCalculator gasCalculator);
+
+    /**
+     * Binds the {@link GasCalculator} to the {@link CustomGasCalculator}.
+     *
+     * @param gasCalculator the implementation of the {@link HederaGasCalculator}
+     * @return  the bound implementation
+     */
+    @Binds
+    @Singleton
+    HederaGasCalculator bindHederaGasCalculator(@NonNull final CustomGasCalculator gasCalculator);
 
     /**
      * @return the EVM configuration to use

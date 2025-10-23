@@ -89,4 +89,9 @@ public abstract class AbstractMutableEvmAccount implements MutableAccount, Heder
     public Map<UInt256, UInt256> getUpdatedStorage() {
         throw new UnsupportedOperationException("Storage changes are managed by the EvmFrameState");
     }
+
+    @Override
+    public boolean isStorageEmpty() {
+        return false;
+    }
 }

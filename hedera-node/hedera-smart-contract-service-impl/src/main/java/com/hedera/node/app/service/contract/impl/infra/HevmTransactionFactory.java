@@ -52,6 +52,7 @@ import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.contract.impl.annotations.InitialState;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
@@ -73,7 +74,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import javax.inject.Inject;
-import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
 @TransactionScope
 public class HevmTransactionFactory {
@@ -82,7 +82,7 @@ public class HevmTransactionFactory {
     private final LedgerConfig ledgerConfig;
     private final HederaConfig hederaConfig;
     private final FeatureFlags featureFlags;
-    private final GasCalculator gasCalculator;
+    private final HederaGasCalculator gasCalculator;
     private final ContractsConfig contractsConfig;
     private final EntitiesConfig entitiesConfig;
     private final HooksConfig hooksConfig;
@@ -102,7 +102,7 @@ public class HevmTransactionFactory {
             @NonNull final LedgerConfig ledgerConfig,
             @NonNull final HederaConfig hederaConfig,
             @NonNull final FeatureFlags featureFlags,
-            @NonNull final GasCalculator gasCalculator,
+            @NonNull final HederaGasCalculator gasCalculator,
             @NonNull final ContractsConfig contractsConfig,
             @NonNull final EntitiesConfig entitiesConfig,
             @Nullable final HydratedEthTxData hydratedEthTxData,
@@ -169,6 +169,7 @@ public class HevmTransactionFactory {
                 NOT_APPLICABLE,
                 body,
                 null,
+                null,
                 null);
     }
 
@@ -197,6 +198,7 @@ public class HevmTransactionFactory {
                 NOT_APPLICABLE,
                 null,
                 null,
+                null,
                 body);
     }
 
@@ -214,6 +216,7 @@ public class HevmTransactionFactory {
                 body.gas(),
                 NOT_APPLICABLE,
                 NOT_APPLICABLE,
+                null,
                 null,
                 null,
                 null);
@@ -246,6 +249,7 @@ public class HevmTransactionFactory {
                 ethTxData.effectiveOfferedGasPriceInTinybars(hederaEvmContext.gasPrice()),
                 maxGasAllowance,
                 null,
+                ethTxData.extractCodeDelegations(),
                 null,
                 null);
     }
@@ -267,6 +271,7 @@ public class HevmTransactionFactory {
                 ethTxData.effectiveOfferedGasPriceInTinybars(hederaEvmContext.gasPrice()),
                 maxGasAllowance,
                 synthEthTxCreation(ledgerConfig.autoRenewPeriodMinDuration(), ethTxData),
+                ethTxData.extractCodeDelegations(),
                 null,
                 null);
     }
@@ -307,6 +312,7 @@ public class HevmTransactionFactory {
                 gasPrice,
                 NOT_APPLICABLE,
                 NOT_APPLICABLE,
+                null,
                 null,
                 exception,
                 null);

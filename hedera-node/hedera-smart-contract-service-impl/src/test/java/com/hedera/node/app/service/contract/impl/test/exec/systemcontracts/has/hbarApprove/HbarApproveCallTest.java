@@ -44,8 +44,8 @@ class HbarApproveCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(State.REVERT, result.getState());
-        assertEquals(ordinalRevertOutputFor(INVALID_ALLOWANCE_OWNER_ID), result.getOutput());
+        assertEquals(State.REVERT, result.state());
+        assertEquals(ordinalRevertOutputFor(INVALID_ALLOWANCE_OWNER_ID), result.output());
     }
 
     @Test
@@ -58,13 +58,13 @@ class HbarApproveCallTest extends CallTestBase {
         subject = new HbarApproveCall(attempt, transactionBody);
 
         final var result = subject.execute(frame).fullResult().result();
-        assertEquals(State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(HbarApproveTranslator.HBAR_APPROVE
                         .getOutputs()
                         .encode(Tuple.singleton((long) SUCCESS.getNumber()))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -77,12 +77,12 @@ class HbarApproveCallTest extends CallTestBase {
         subject = new HbarApproveCall(attempt, transactionBody);
 
         final var result = subject.execute(frame).fullResult().result();
-        assertEquals(State.REVERT, result.getState());
+        assertEquals(State.REVERT, result.state());
         assertEquals(
                 Bytes.wrap(HbarApproveTranslator.HBAR_APPROVE
                         .getOutputs()
                         .encode(Tuple.singleton((long) REVERTED_SUCCESS.getNumber()))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 }

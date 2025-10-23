@@ -83,8 +83,8 @@ class IsAuthorizedRawCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_ACCOUNT_ID), result.getOutput());
+        assertEquals(State.REVERT, result.state());
+        assertEquals(revertOutputFor(INVALID_ACCOUNT_ID), result.output());
     }
 
     @Test
@@ -96,8 +96,8 @@ class IsAuthorizedRawCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_ACCOUNT_ID), result.getOutput());
+        assertEquals(State.REVERT, result.state());
+        assertEquals(revertOutputFor(INVALID_ACCOUNT_ID), result.output());
     }
 
     @Test
