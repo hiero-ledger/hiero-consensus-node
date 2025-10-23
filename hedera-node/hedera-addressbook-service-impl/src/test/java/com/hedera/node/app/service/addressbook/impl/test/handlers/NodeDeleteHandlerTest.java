@@ -77,13 +77,8 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
 
     @BeforeEach
     void setUp() {
-        mockStore = mock(ReadableNodeStoreImpl.class);
         subject = new NodeDeleteHandler();
-
-        writableNodeState = writableNodeStateWithOneKey();
-        given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(writableNodeState);
         testConfig = HederaTestConfigBuilder.createConfig();
-        writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
         lenient().when(handleContext.configuration()).thenReturn(testConfig);
     }
 
@@ -134,7 +129,7 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
         final var txn = newDeleteTxn().nodeDeleteOrThrow();
 
         given(handleContext.storeFactory()).willReturn(storeFactory);
-        writableNodeState = emptyWritableNodeState();
+        writableNodeState = writableNodeStateBuilder(0).build();
         given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(writableNodeState);
         writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
@@ -155,7 +150,7 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
         node = null;
 
         given(handleContext.storeFactory()).willReturn(storeFactory);
-        writableNodeState = writableNodeStateWithOneKey();
+        writableNodeState = writableNodeStateBuilder(1).build();
         given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(writableNodeState);
         writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
@@ -180,7 +175,6 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
                 .willReturn(TransactionBody.newBuilder().nodeDelete(txn).build());
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
-        createEmptyAccountNodeRelState();
         given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
 
         subject.handle(handleContext);
@@ -194,9 +188,10 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
     @Test
     @DisplayName("Node already deleted returns error")
     void noFileKeys() {
+        // mark current node as deleted
         givenValidNode(true);
-        refreshStoresWithCurrentNodeInBothReadableAndWritable();
-
+        // refresh sate with updated node
+        rebuildState(1);
         final var txn = newDeleteTxn().nodeDeleteOrThrow();
 
         final var existingNode = writableStore.get(WELL_KNOWN_NODE_ID);
@@ -213,9 +208,10 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
 
     @Test
     void preHandleWorksWhenExistingAdminKeyValid() throws PreCheckException {
+        // update current node key
         givenValidNodeWithAdminKey(anotherKey);
-        refreshStoresWithCurrentNodeInReadable();
-
+        // refresh sate with updated node
+        rebuildState(1);
         final var txn = newDeleteTxnWithNodeId(nodeId.number());
         final var context = setupPreHandlePayerKey(txn, accountId, key);
         subject.preHandle(context);
@@ -226,8 +222,10 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
 
     @Test
     void preHandleFailedWhenAdminKeyInValid() throws PreCheckException {
+        // update current node key
         givenValidNodeWithAdminKey(invalidKey);
-        refreshStoresWithCurrentNodeInReadable();
+        // refresh state with updated node
+        rebuildState(1);
         final var txn = newDeleteTxnWithNodeId(nodeId.number());
         final var context = setupPreHandlePayerKey(txn, accountId, anotherKey);
         assertThrowsPreCheck(() -> subject.preHandle(context), INVALID_ADMIN_KEY);
