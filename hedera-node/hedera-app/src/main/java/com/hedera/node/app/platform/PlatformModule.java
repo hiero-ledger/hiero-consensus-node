@@ -2,7 +2,6 @@
 package com.hedera.node.app.platform;
 
 import com.hedera.node.app.annotations.CommonExecutor;
-import com.hedera.node.app.blocks.impl.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.quiescence.QuiescenceConfig;
 import com.hedera.node.app.quiescence.QuiescenceController;

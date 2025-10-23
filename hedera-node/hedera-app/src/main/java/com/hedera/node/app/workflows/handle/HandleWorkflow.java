@@ -391,9 +391,7 @@ public class HandleWorkflow {
                 stateSignatureTxnCallback.accept(scopedTxn);
             };
 
-            // log start of event to transaction state log
             logStartEvent(event, creator);
-            // handle each transaction of the event
             for (final var it = event.consensusTransactionIterator(); it.hasNext(); ) {
                 final var platformTxn = it.next();
                 if (quiescenceEnabled) {
@@ -414,6 +412,11 @@ public class HandleWorkflow {
                                     + "While this node may not die right away, it is in a bad way, most likely fatally.",
                             e);
                 }
+            }
+            if (!transactionsDispatched) {
+                // If there were no platform transactions to follow with scheduled transactions, then
+                // use the round consensus time as the execution start time for scheduled transactions
+                transactionsDispatched = executeScheduledTransactions(state, round.getConsensusTimestamp(), creator);
             }
             recordCache.maybeCommitReceiptsBatch(
                     state,
@@ -569,33 +572,42 @@ public class HandleWorkflow {
         opWorkflowMetrics.updateDuration(userTxn.functionality(), (int) (System.nanoTime() - handleStart));
         congestionMetrics.updateMultiplier(userTxn.txnInfo(), userTxn.readableStoreFactory());
 
+        executeScheduledTransactions(state, userTxn.consensusNow(), userTxn.creatorInfo());
+
+        return true;
+    }
+
+    private boolean executeScheduledTransactions(
+            @NonNull final State state,
+            @NonNull final Instant consensusNow,
+            @NonNull final NodeInfo proximalCreatorInfo) {
         var executionStart = streamMode == RECORDS
                 ? blockRecordManager.lastIntervalProcessTime()
                 : blockStreamManager.lastIntervalProcessTime();
         if (executionStart.equals(EPOCH)) {
-            executionStart = userTxn.consensusNow();
+            executionStart = consensusNow;
         }
         try {
             // We execute as many schedules expiring in [lastIntervalProcessTime, consensusNow]
             // as there are available consensus times and execution slots (ordinarily there will
             // be more than enough of both, but we must be prepared for the edge cases)
-            executeAsManyScheduled(state, executionStart, userTxn.consensusNow(), userTxn.creatorInfo());
+            return executeAsManyScheduled(state, executionStart, consensusNow, proximalCreatorInfo);
         } catch (Exception e) {
             logger.error(
                     "{} - unhandled exception while executing schedules between [{}, {}]",
                     ALERT_MESSAGE,
                     executionStart,
-                    userTxn.consensusNow(),
+                    consensusNow,
                     e);
             // This should never happen, but if it does, we skip over everything in the interval to
             // avoid being stuck in a crash loop here
             if (streamMode != RECORDS) {
-                blockStreamManager.setLastIntervalProcessTime(userTxn.consensusNow());
+                blockStreamManager.setLastIntervalProcessTime(consensusNow);
             } else {
-                blockRecordManager.setLastIntervalProcessTime(userTxn.consensusNow(), state);
+                blockRecordManager.setLastIntervalProcessTime(consensusNow, state);
             }
+            return false;
         }
-        return true;
     }
 
     /**
@@ -610,12 +622,14 @@ public class HandleWorkflow {
      * @param executionStart the start of the interval to execute transactions in
      * @param consensusNow the consensus time at which the user transaction triggering this execution was processed
      * @param creatorInfo the node info of the user transaction creator
+     * @return whether any scheduled transactions were executed
      */
-    private void executeAsManyScheduled(
+    private boolean executeAsManyScheduled(
             @NonNull final State state,
             @NonNull final Instant executionStart,
             @NonNull final Instant consensusNow,
             @NonNull final NodeInfo creatorInfo) {
+        boolean transactionsDispatched = false;
         // Non-final right endpoint of the execution interval, in case we cannot do all the scheduled work
         var executionEnd = consensusNow;
         // We only construct an Iterator<ExecutableTxn> if this is not genesis, and we haven't already
@@ -637,6 +651,12 @@ public class HandleWorkflow {
             var lastTime = streamMode == RECORDS
                     ? blockRecordManager.lastUsedConsensusTime()
                     : blockStreamManager.lastUsedConsensusTime();
+            // If there were no user transactions preceding this scan for scheduled transactions,
+            // then advance to the current consensus time so execution times don't look e earlier
+            // than scheduled times
+            if (consensusNow.isAfter(lastTime)) {
+                lastTime = consensusNow;
+            }
             var nextTime = lastTime.plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
             final var entityIdWritableStates = state.getWritableStates(EntityIdService.NAME);
             final var writableEntityIdStore = new WritableEntityIdStoreImpl(entityIdWritableStates);
@@ -650,6 +670,7 @@ public class HandleWorkflow {
             final var iteratorEnd = lastCheckableSecond >= consensusNow.getEpochSecond()
                     ? consensusNow
                     : executionStart.plusSeconds(maxSecsToCheck);
+            logger.info("Looking for executable schedules in [{}, {}]", executionStart, iteratorEnd);
             final var iter = scheduleService.executableTxns(
                     executionStart,
                     iteratorEnd,
@@ -666,6 +687,7 @@ public class HandleWorkflow {
                         blockRecordManager.startUserTransaction(nextTime, state);
                     }
                     final var handleOutput = executeScheduled(state, nextTime, creatorInfo, executableTxn);
+                    transactionsDispatched = true;
                     if (streamMode != RECORDS) {
                         handleOutput.blockRecordSourceOrThrow().forEachItem(blockStreamManager::writeItem);
                     } else if (handleOutput.lastAssignedConsensusTime().isAfter(consensusNow)) {
@@ -706,6 +728,7 @@ public class HandleWorkflow {
         } else {
             blockRecordManager.setLastIntervalProcessTime(executionEnd, state);
         }
+        return transactionsDispatched;
     }
 
     /**

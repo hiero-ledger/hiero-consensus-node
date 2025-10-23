@@ -6,7 +6,6 @@ import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Iterator;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.transaction.Transaction;

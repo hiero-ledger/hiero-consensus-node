@@ -9,10 +9,6 @@ import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.swirlds.platform.system.Platform;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.quiescence.QuiescenceCommand;
-
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.Executors;
@@ -22,6 +18,9 @@ import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 
 /**
  * The {@link BlockStreamManagerImpl} creates and starts a new heartbeat when the {@link QuiescenceController} first
@@ -81,10 +80,7 @@ public class QuiescedHeartbeat {
 
         // Schedule the heartbeat task
         heartbeatFuture = scheduler.scheduleAtFixedRate(
-                () -> heartbeat(probe),
-                0,
-                heartbeatInterval.toMillis(),
-                TimeUnit.MILLISECONDS);
+                () -> heartbeat(probe), 0, heartbeatInterval.toMillis(), TimeUnit.MILLISECONDS);
         log.info("Started quiesced heartbeat at interval {}", heartbeatInterval);
     }
 

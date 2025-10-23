@@ -7,7 +7,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.node.app.quiescence.QuiescenceUtils.isRelevantTransaction;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.transaction.TransactionResponse;
 import com.hedera.node.app.quiescence.QuiescenceConfig;
@@ -30,7 +29,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.transaction.Transaction;
@@ -77,7 +75,11 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
     @Override
     public int estimateTxPipelineCount() {
         final int answer = quiescenceEnabled ? (preFlightCount.get() + inFlightCount.get()) : 0;
-        logger.info("estimateTxPipelineCount: {} (pre-flight: {}, in-flight: {})", answer, preFlightCount.get(), inFlightCount.get());
+        logger.info(
+                "estimateTxPipelineCount: {} (pre-flight: {}, in-flight: {})",
+                answer,
+                preFlightCount.get(),
+                inFlightCount.get());
         return answer;
     }
 
@@ -93,7 +95,6 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
         if (!quiescenceEnabled) {
             return;
         }
-        logger.info("IN countLanded");
         while (iter.hasNext()) {
             final var tx = iter.next();
             if (tx.getMetadata() instanceof PreHandleResult preHandleResult) {
@@ -132,7 +133,7 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
                 // 7. Submit to platform
                 final var txInfo = checkerResult.txnInfoOrThrow();
                 if (txInfo.functionality() == CRYPTO_CREATE || txInfo.functionality() == SCHEDULE_CREATE) {
-                   logger.info("Submitting crypto create transaction");
+                    logger.info("Submitting crypto create transaction");
                 }
                 submissionManager.submit(txInfo.txBody(), txInfo.serializedSignedTxOrThrow());
                 if (quiescenceEnabled) {
