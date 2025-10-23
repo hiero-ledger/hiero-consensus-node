@@ -6,6 +6,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_101
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.REQUIRED_GAS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SYSTEM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertSameResult;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -172,6 +173,24 @@ class CustomCallOperationTest {
             final var actual = subject.execute(frame, evm);
 
             assertSameResult(expected, actual);
+        }
+    }
+
+    @Test
+    void returnsOwnerAddressForSenderDuringHookExecution() {
+        try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
+            frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
+            frameUtils.when(() -> FrameUtils.entityIdFactory(frame)).thenReturn(entityIdFactory);
+            frameUtils
+                    .when(() -> FrameUtils.contractRequired(frame, TestHelpers.EIP_1014_ADDRESS, featureFlags))
+                    .thenReturn(true);
+            given(frame.getRecipientAddress()).willReturn(TestHelpers.HTS_HOOKS_CONTRACT_ADDRESS);
+            frameUtils.when(() -> FrameUtils.isHookExecution(frame)).thenReturn(true);
+            frameUtils.when(() -> FrameUtils.hookOwnerAddress(frame)).thenReturn(TestHelpers.SYSTEM_ADDRESS);
+
+            final var actual = subject.sender(frame);
+
+            assertEquals(TestHelpers.SYSTEM_ADDRESS, actual);
         }
     }
 

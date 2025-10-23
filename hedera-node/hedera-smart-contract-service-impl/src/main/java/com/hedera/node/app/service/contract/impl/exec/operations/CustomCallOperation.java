@@ -76,7 +76,7 @@ public class CustomCallOperation extends CallOperation {
     }
 
     @Override
-    protected Address sender(final MessageFrame frame) {
+    public Address sender(final MessageFrame frame) {
         if (frame.getRecipientAddress().equals(HTS_HOOKS_CONTRACT_ADDRESS)) {
             // If the sender is the HTS hooks contract, we want to use the owner of the hook as the sender
             return FrameUtils.hookOwnerAddress(frame);

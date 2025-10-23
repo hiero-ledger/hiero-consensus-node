@@ -29,6 +29,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.integration.hip1195.Hip1195EnabledTest.OWNER;
+import static com.hedera.services.bdd.suites.integration.hip1195.Hip1195EnabledTest.PAYER;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_IN_USE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_NOT_FOUND;
@@ -47,7 +49,6 @@ import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
-import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
@@ -762,24 +763,47 @@ public class Hip1195BasicTests {
                         .withHooks(
                                 accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name())),
-                tokenCreate("token")
-                        .treasury(OWNER)
-                        .supplyType(TokenSupplyType.FINITE)
-                        .supplyKey("supplyKey")
-                        .withCustom(fixedHbarFee(1L, GENESIS))
-                        .initialSupply(10L)
-                        .maxSupply(1000L),
-                mintToken("token", 10),
+                cryptoCreate(PAYER)
+                        .receiverSigRequired(true)
+                        .withHooks(
+                                accountAllowanceHook(123L, TRUE_PRE_POST_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name())),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 25_000L, "")
                         .payingWith(OWNER)
                         .via("feeTxn"),
                 validateChargedUsd("feeTxn", 0.05),
-                cryptoTransfer(TokenMovement.moving(1, "token").between(OWNER, GENESIS))
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
                         .withPreHookFor(OWNER, 123L, 25_000L, "")
-                        .withPrePostHookFor(OWNER, 124L, 25_000L, "")
+                        .withPrePostHookFor(PAYER, 123L, 25_000L, "")
                         .payingWith(OWNER)
                         .via("feeTxn2"),
                 validateChargedUsd("feeTxn2", 0.05));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> usingWrongContractForPrePostFails() {
+        return hapiTest(
+                newKeyNamed("supplyKey"),
+                cryptoCreate(OWNER)
+                        .withHooks(
+                                accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name())),
+                cryptoCreate(PAYER)
+                        .receiverSigRequired(true)
+                        .withHooks(
+                                accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
+                        .withPrePostHookFor(PAYER, 123L, 25_000L, "")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .payingWith(OWNER)
+                        .via("failedTxn"),
+                getTxnRecord("failedTxn")
+                        .andAllChildRecords()
+                        .hasChildRecords(TransactionRecordAsserts.recordWith().status(CONTRACT_REVERT_EXECUTED)),
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
+                        .withPrePostHookFor(PAYER, 124L, 25_000L, "")
+                        .payingWith(OWNER));
     }
 }

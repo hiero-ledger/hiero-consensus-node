@@ -66,7 +66,7 @@ public class CustomStaticCallOperation extends StaticCallOperation implements Ba
     }
 
     @Override
-    protected Address sender(final MessageFrame frame) {
+    public Address sender(final MessageFrame frame) {
         if (frame.getRecipientAddress().equals(HTS_HOOKS_CONTRACT_ADDRESS)) {
             // For HTS hooks, the sender is the owner of the hook, not the HTS hooks contract itself
             return FrameUtils.hookOwnerAddress(frame);
