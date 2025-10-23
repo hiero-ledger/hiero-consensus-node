@@ -21,6 +21,18 @@ public class PlannedLogErrorCodec implements Codec<PlannedLogError> {
     @NonNull
     @Override
     public PlannedLogError parse(
+            @NonNull ReadableSequentialData in,
+            boolean strictMode,
+            boolean parseUnknownFields,
+            int maxDepth,
+            int maxSize)
+            throws ParseException {
+        return new PlannedLogError(in);
+    }
+
+    @NonNull
+    @Override
+    public PlannedLogError parse(
             @NonNull final ReadableSequentialData in, boolean strictMode, boolean parseUnknownFields, int maxDepth) {
         return new PlannedLogError(in);
     }

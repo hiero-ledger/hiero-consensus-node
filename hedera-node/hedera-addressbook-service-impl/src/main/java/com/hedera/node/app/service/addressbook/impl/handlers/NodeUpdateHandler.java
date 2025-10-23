@@ -7,18 +7,23 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTI
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GRPC_CERTIFICATE_HASH;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UPDATE_NODE_ACCOUNT_NOT_ALLOWED;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.checkDABEnabled;
 import static com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator.validateX509Certificate;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
+import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.SubType;
+import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
@@ -34,6 +39,7 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.NodesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Arrays;
 import java.util.Objects;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -82,16 +88,21 @@ public class NodeUpdateHandler implements TransactionHandler {
         validateFalsePreCheck(existingNode == null, INVALID_NODE_ID);
         validateFalsePreCheck(existingNode.deleted(), INVALID_NODE_ID);
 
+        if (op.hasAccountId()) {
+            validateTruePreCheck(config.updateAccountIdAllowed(), UPDATE_NODE_ACCOUNT_NOT_ALLOWED);
+            final var newAccountId = op.accountIdOrThrow();
+            addressBookValidator.validateAccountId(newAccountId);
+            context.requireKeyOrThrow(newAccountId, INVALID_SIGNATURE);
+            // On updating only the account ID, require the existing account or the admin key signature
+            if (onlyUpdatesAccountID(op)) {
+                handleAccountIdOnlyUpdate(context, existingNode);
+                return;
+            }
+        }
+
         context.requireKeyOrThrow(existingNode.adminKey(), INVALID_ADMIN_KEY);
         if (op.hasAdminKey()) {
             context.requireKeyOrThrow(op.adminKeyOrThrow(), INVALID_ADMIN_KEY);
-        }
-        if (config.updateAccountIdAllowed()) {
-            if (op.hasAccountId()) {
-                addressBookValidator.validateAccountId(op.accountIdOrThrow());
-            }
-        } else {
-            validateFalsePreCheck(op.hasAccountId(), UPDATE_NODE_ACCOUNT_NOT_ALLOWED);
         }
     }
 
@@ -109,10 +120,11 @@ public class NodeUpdateHandler implements TransactionHandler {
         final var existingNode = nodeStore.get(op.nodeId());
         validateFalse(existingNode == null, INVALID_NODE_ID);
         if (op.hasAccountId()) {
-            final var accountId = op.accountIdOrThrow();
-            validateTrue(accountStore.contains(accountId), INVALID_NODE_ACCOUNT_ID);
+            validateTrue(accountStore.contains(op.accountIdOrThrow()), INVALID_NODE_ACCOUNT_ID);
         }
-        if (op.hasDescription()) addressBookValidator.validateDescription(op.description(), nodeConfig);
+        if (op.hasDescription()) {
+            addressBookValidator.validateDescription(op.description(), nodeConfig);
+        }
         if (!op.gossipEndpoint().isEmpty()) {
             addressBookValidator.validateGossipEndpoint(op.gossipEndpoint(), nodeConfig);
         }
@@ -183,5 +195,42 @@ public class NodeUpdateHandler implements TransactionHandler {
             nodeBuilder.grpcProxyEndpoint(unsetWebProxy ? null : op.grpcProxyEndpoint());
         }
         return nodeBuilder;
+    }
+
+    private void handleAccountIdOnlyUpdate(PreHandleContext context, Node existingNode) throws PreCheckException {
+        if (existingNode.hasAccountId()) {
+            // Allow signature from either admin key or existing account key
+            Key requiredKey = oneOf(existingNode.adminKey(), context.getAccountKey(existingNode.accountIdOrThrow()));
+            context.requireKeyOrThrow(requiredKey, INVALID_SIGNATURE);
+        } else {
+            // No account ID exists, so only admin key signature is acceptable
+            context.requireKeyOrThrow(existingNode.adminKey(), INVALID_ADMIN_KEY);
+        }
+    }
+
+    private boolean onlyUpdatesAccountID(@NonNull final NodeUpdateTransactionBody op) {
+        return op.hasAccountId()
+                && !op.hasDescription()
+                && !op.hasAdminKey()
+                && op.gossipEndpoint().isEmpty()
+                && op.serviceEndpoint().isEmpty()
+                && !op.hasGossipCaCertificate()
+                && !op.hasGrpcCertificateHash()
+                && !op.hasDeclineReward()
+                && !op.hasGrpcProxyEndpoint();
+    }
+
+    /**
+     * Creates a threshold key with threshold 1 with the given keys.
+     * @param acceptedKeys all keys that can individually authorize an operation
+     * @return threshold key with threshold 1
+     */
+    private static Key oneOf(@NonNull final Key... acceptedKeys) {
+        return Key.newBuilder()
+                .thresholdKey(ThresholdKey.newBuilder()
+                        .keys(new KeyList(Arrays.asList(acceptedKeys)))
+                        .threshold(1)
+                        .build())
+                .build();
     }
 }

@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.container.network;
 
 import static org.hiero.otter.fixtures.network.Topology.DISCONNECTED;
+import static org.hiero.otter.fixtures.network.utils.BandwidthLimit.UNLIMITED_BANDWIDTH;
 
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -23,10 +24,10 @@ import org.assertj.core.data.Percentage;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.Node;
+import org.hiero.otter.fixtures.container.network.Toxin.BandwidthToxin;
 import org.hiero.otter.fixtures.container.network.Toxin.LatencyToxin;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.Topology.ConnectionData;
-import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
 
 /**
  * This class is a wrapper around the Toxiproxy client and provides methods to modify the network behavior.
@@ -36,7 +37,7 @@ public class NetworkBehavior {
     private static final Logger log = LogManager.getLogger();
 
     private static final ConnectionData INITIAL_STATE =
-            new ConnectionData(true, Duration.ZERO, Percentage.withPercentage(0), BandwidthLimit.UNLIMITED);
+            new ConnectionData(true, Duration.ZERO, Percentage.withPercentage(0), UNLIMITED_BANDWIDTH);
 
     private final ToxiproxyClient toxiproxyClient;
     private final Map<ConnectionKey, Proxy> proxies = new HashMap<>();
@@ -61,6 +62,10 @@ public class NetworkBehavior {
 
         final List<NodeId> nodeIds =
                 roster.rosterEntries().stream().map(RosterUtils::getNodeId).toList();
+        final Toxin upstreamLatencyToxin = new LatencyToxin(INITIAL_STATE.latency(), INITIAL_STATE.jitter());
+        final Toxin downstreamLatencyToxin = upstreamLatencyToxin.downstream();
+        final Toxin upstreamBandwidthToxin = new BandwidthToxin(INITIAL_STATE.bandwidthLimit());
+        final Toxin downstreamBandwidthToxin = upstreamBandwidthToxin.downstream();
         for (final RosterEntry receiverEntry : roster.rosterEntries()) {
             final NodeId receiver = NodeId.of(receiverEntry.nodeId());
             final ServiceEndpoint endpoint = receiverEntry.gossipEndpoint().getFirst();
@@ -79,8 +84,10 @@ public class NetworkBehavior {
                 final String connectionName = "%d-%d".formatted(sender.id(), receiver.id());
                 final Proxy proxy = new Proxy(connectionName, listenAddress, receiverAddress, true);
                 proxies.put(connectionKey, toxiproxyClient.createProxy(proxy));
-                final LatencyToxin latencyToxin = new LatencyToxin(INITIAL_STATE.latency(), INITIAL_STATE.jitter());
-                toxiproxyClient.createToxin(proxy, latencyToxin);
+                toxiproxyClient.createToxin(proxy, upstreamLatencyToxin);
+                toxiproxyClient.createToxin(proxy, downstreamLatencyToxin);
+                toxiproxyClient.createToxin(proxy, upstreamBandwidthToxin);
+                toxiproxyClient.createToxin(proxy, downstreamBandwidthToxin);
                 connections.put(connectionKey, INITIAL_STATE);
             }
         }
@@ -109,6 +116,9 @@ public class NetworkBehavior {
                     if (!Objects.equals(oldConnectionData.latency(), newConnectionData.latency())
                             || !Objects.equals(oldConnectionData.jitter(), newConnectionData.jitter())) {
                         setLatency(connectionKey, newConnectionData);
+                    }
+                    if (!Objects.equals(oldConnectionData.bandwidthLimit(), newConnectionData.bandwidthLimit())) {
+                        setBandwidthLimit(connectionKey, newConnectionData);
                     }
                 } else {
                     if (oldConnectionData.connected()) {
@@ -143,17 +153,38 @@ public class NetworkBehavior {
     private void setLatency(
             @NonNull final ConnectionKey connectionKey, @NonNull final ConnectionData newConnectionData) {
         log.debug(
-                "Setting latency between sender {} and receiver {} to {}",
+                "Setting latency between sender {} and receiver {} to {} (+- {})",
                 connectionKey.sender(),
                 connectionKey.receiver(),
-                newConnectionData.latency());
+                newConnectionData.latency(),
+                newConnectionData.jitter());
+        final LatencyToxin latencyToxin = new LatencyToxin(newConnectionData.latency(), newConnectionData.jitter());
+        updateToxin(connectionKey, latencyToxin);
+    }
+
+    private void setBandwidthLimit(
+            @NonNull final ConnectionKey connectionKey, @NonNull final ConnectionData newConnectionData) {
+        log.debug(
+                "Setting bandwidth between sender {} and receiver {} to {}",
+                connectionKey.sender(),
+                connectionKey.receiver(),
+                newConnectionData.bandwidthLimit());
+        final BandwidthToxin bandwidthToxin = new BandwidthToxin(newConnectionData.bandwidthLimit());
+        updateToxin(connectionKey, bandwidthToxin);
+    }
+
+    private void updateToxin(@NonNull final ConnectionKey connectionKey, @NonNull final Toxin toxin) {
+        updateToxinSingleStream(connectionKey, toxin);
+        updateToxinSingleStream(connectionKey.reversed(), toxin.downstream());
+    }
+
+    private void updateToxinSingleStream(@NonNull final ConnectionKey connectionKey, @NonNull final Toxin toxin) {
         final Proxy proxy = proxies.get(connectionKey);
         if (proxy == null) {
             throw new IllegalStateException("No proxy found for sender %s and receiver %s"
                     .formatted(connectionKey.sender(), connectionKey.receiver()));
         }
-        final LatencyToxin latencyToxin = new LatencyToxin(newConnectionData.latency(), newConnectionData.jitter());
-        toxiproxyClient.updateToxin(proxy, latencyToxin);
+        toxiproxyClient.updateToxin(proxy, toxin);
     }
 
     /**
