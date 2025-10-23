@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.contract.records.batch;
 
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -26,6 +27,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
+import static com.hedera.services.bdd.suites.contract.Utils.asInstant;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.RECEIVER;
 import static com.hedera.services.bdd.suites.crypto.CryptoCreateSuite.ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
@@ -55,7 +57,6 @@ import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes32;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -65,8 +66,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 @HapiTestLifecycle
 @DisplayName("Records Suite")
-@Disabled
-public class AtomicRecordsSuite {
+class AtomicRecordsSuite {
 
     public static final String LOG_NOW = "logNow";
     public static final String AUTO_ACCOUNT = "autoAccount";
@@ -74,13 +74,7 @@ public class AtomicRecordsSuite {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled",
-                "true",
-                "atomicBatch.maxNumberOfTransactions",
-                "50",
-                "contracts.throttle.throttleByGas",
-                "false"));
+        testLifecycle.overrideInClass(Map.of("contracts.throttle.throttleByGas", "false"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
@@ -104,6 +98,7 @@ public class AtomicRecordsSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> txRecordsContainValidTransfers() {
         final var contract = "ParentChildTransfer";
 
@@ -197,34 +192,26 @@ public class AtomicRecordsSuite {
                     final var firstCallLogs =
                             firstCallRecord.getContractCallResult().getLogInfoList();
                     final var firstCallTimeLogData =
-                            firstCallLogs.get(0).getData().toByteArray();
-                    final var firstCallTimestamp =
+                            firstCallLogs.getFirst().getData().toByteArray();
+                    final var firstCallBlockTime =
                             Longs.fromByteArray(Arrays.copyOfRange(firstCallTimeLogData, 24, 32));
 
                     final var secondCallRecord = recordOp.getResponseRecord();
                     final var secondCallLogs =
                             secondCallRecord.getContractCallResult().getLogInfoList();
                     final var secondCallTimeLogData =
-                            secondCallLogs.get(0).getData().toByteArray();
-                    final var secondCallTimestamp =
+                            secondCallLogs.getFirst().getData().toByteArray();
+                    final var secondCallBlockTime =
                             Longs.fromByteArray(Arrays.copyOfRange(secondCallTimeLogData, 24, 32));
 
-                    final var blockPeriod = spec.startupProperties().getLong("hedera.recordStream.logPeriod");
-                    final var firstBlockPeriod =
-                            canonicalBlockPeriod(firstCallRecord.getConsensusTimestamp(), blockPeriod);
-                    final var secondBlockPeriod =
-                            canonicalBlockPeriod(secondCallRecord.getConsensusTimestamp(), blockPeriod);
-
-                    // In general both calls will be handled in the same block period, and should hence have the
-                    // same Ethereum block timestamp; but timing fluctuations in CI _can_ cause them to be handled
-                    // in different block periods, so we allow for that here as well
-                    if (firstBlockPeriod < secondBlockPeriod) {
+                    final var blockPeriod = spec.startupProperties().getConfigDuration("blockStream.blockPeriod");
+                    final var firstTime = asInstant(firstCallRecord.getConsensusTimestamp());
+                    final var secondTime = asInstant(secondCallRecord.getConsensusTimestamp());
+                    if (!firstTime.plus(blockPeriod).isAfter(secondTime)) {
                         assertTrue(
-                                firstCallTimestamp < secondCallTimestamp,
-                                "Block timestamps should change from period " + firstBlockPeriod + " to "
-                                        + secondBlockPeriod);
-                    } else {
-                        assertEquals(firstCallTimestamp, secondCallTimestamp, "Block timestamps should be equal");
+                                firstCallBlockTime < secondCallBlockTime,
+                                "Block timestamps should definitely change between " + firstTime + " and "
+                                        + secondTime);
                     }
                 }));
     }
@@ -319,6 +306,7 @@ public class AtomicRecordsSuite {
 
     @DisplayName("Block Hash Returns The Hash Of The Latest 256 Blocks")
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @Tag(MATS)
     final Stream<DynamicTest> blockHashReturnsTheHashOfTheLatest256Blocks() {
         final var contract = "EmitBlockTimestamp";
         return hapiTest(

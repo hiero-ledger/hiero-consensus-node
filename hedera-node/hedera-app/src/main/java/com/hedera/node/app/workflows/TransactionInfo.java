@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SignatureMap;
@@ -22,41 +24,47 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * <p>All this parsing and checking is done by {@link TransactionChecker}. It saves all that work in an instance
  * of this class, so we don't have to parse it all again later.</p>
  *
- * @param transaction   The transaction itself
- * @param txBody        the deserialized {@link TransactionBody} (either from the {@link Transaction#body()} or
- *                      from the {@link Transaction#signedTransactionBytes()}).
+ * @param signedTx The signed transaction
+ * @param txBody the deserialized {@link TransactionBody}
  * @param transactionID the validated {@link TransactionID} extracted from {@link #txBody}
- * @param payerID       the validated {@link AccountID} of the payer extracted from {@link #transactionID}
- * @param signatureMap  the {@link SignatureMap} (either from {@link Transaction#sigMap()} or
- *                      from {@link SignedTransaction#sigMap()}). Not all transactions require a signature map....
- * @param signedBytes   the bytes to use for signature verification
+ * @param payerID the validated {@link AccountID} of the payer extracted from {@link #transactionID}
+ * @param signatureMap the {@link SignatureMap} (either from {@link Transaction#sigMap()} or
+ * from {@link SignedTransaction#sigMap()}). Not all transactions require a signature map....
+ * @param signedBytes the bytes to use for signature verification
  * @param functionality the {@link HederaFunctionality} representing the transaction.
  */
 public record TransactionInfo(
-        @NonNull Transaction transaction,
+        @NonNull SignedTransaction signedTx,
         @NonNull TransactionBody txBody,
         @NonNull TransactionID transactionID,
         @NonNull AccountID payerID,
         @NonNull SignatureMap signatureMap,
         @NonNull Bytes signedBytes,
         @NonNull HederaFunctionality functionality,
-        @Nullable Bytes serializedTransaction) {
+        @Nullable Bytes serializedSignedTx) {
 
     public TransactionInfo(
-            @NonNull Transaction transaction,
+            @NonNull SignedTransaction signedTx,
             @NonNull TransactionBody txBody,
             @NonNull SignatureMap signatureMap,
             @NonNull Bytes signedBytes,
             @NonNull HederaFunctionality functionality,
-            @Nullable Bytes serializedTransaction) {
+            @Nullable Bytes serializedSignedTx) {
         this(
-                transaction,
+                signedTx,
                 txBody,
                 txBody.transactionIDOrThrow(),
                 txBody.transactionIDOrThrow().accountIDOrThrow(),
                 signatureMap,
                 signedBytes,
                 functionality,
-                serializedTransaction);
+                serializedSignedTx);
+    }
+
+    /**
+     * Returns the serialized signed transaction, or throws a {@link NullPointerException} if it is null.
+     */
+    public @NonNull Bytes serializedSignedTxOrThrow() {
+        return requireNonNull(serializedSignedTx);
     }
 }

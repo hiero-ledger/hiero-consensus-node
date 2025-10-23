@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.ReadableUpgradeFileStore;
 import com.hedera.node.app.service.networkadmin.ReadableFreezeStore;
 import com.hedera.node.app.service.networkadmin.impl.handlers.ReadableFreezeUpgradeActions;
@@ -15,7 +16,6 @@ import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.Executor;
 import javax.inject.Inject;

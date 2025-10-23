@@ -43,7 +43,8 @@
             "UtilPrng",
             "NodeCreate",
             "NodeUpdate",
-            "NodeDelete"
+            "NodeDelete",
+            "AtomicBatch"
           ]
         },
         {
@@ -101,6 +102,13 @@
             "TokenClaimAirdrop",
             "TokenReject",
             "TokenCancelAirdrop"
+          ]
+        },
+        {
+          "opsPerSec": 0,
+          "milliOpsPerSec": 50000,
+          "operations": [
+            "LambdaSStore"
           ]
         }
       ]

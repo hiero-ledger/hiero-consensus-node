@@ -40,9 +40,9 @@ import com.hedera.node.app.service.contract.impl.exec.utils.PropagatedCallFailur
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -320,7 +320,6 @@ class FrameRunnerTest {
                 .withValue("contracts.maxRefundPercentOfGasLimit", HEDERA_MAX_REFUND_PERCENTAGE)
                 .getOrCreateConfig();
         given(frame.getContextVariable(FrameUtils.CONFIG_CONTEXT_VARIABLE)).willReturn(config);
-        given(frame.getContextVariable(FrameUtils.TRACKER_CONTEXT_VARIABLE)).willReturn(null);
         given(childFrame.getContextVariable(FrameUtils.PROPAGATED_CALL_FAILURE_CONTEXT_VARIABLE))
                 .willReturn(propagatedCallFailure);
         given(frame.getGasPrice()).willReturn(Wei.of(NETWORK_GAS_PRICE));

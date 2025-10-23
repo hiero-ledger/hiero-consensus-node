@@ -4,19 +4,23 @@ package org.hiero.otter.fixtures.assertions;
 import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
-import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SubscriberAction;
 
 /**
  * Continuous assertions for {@link SingleNodeConsensusResult}.
+ *
+ * <p>Please note: If two continuous assertions fail roughly at the same time, it is non-deterministic which one
+ * will report the failure first. This is even true when running a test in the Turtle environment.
+ * If deterministic behavior is required, please use regular assertions instead of continuous assertions.
  */
 @SuppressWarnings({"UnusedReturnValue", "unused"})
 public class SingleNodeConsensusResultContinuousAssert
@@ -69,7 +73,9 @@ public class SingleNodeConsensusResultContinuousAssert
                                         Stream.ofNullable(lastRound), rounds.stream())
                                 .toList();
                         ConsensusRoundValidator.validate(includingLast);
-                        lastRound = rounds.getLast();
+                        if (!rounds.isEmpty()) {
+                            lastRound = rounds.getLast();
+                        }
                         yield CONTINUE;
                     }
                     case PAUSED -> CONTINUE;

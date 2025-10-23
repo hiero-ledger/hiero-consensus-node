@@ -4,6 +4,7 @@ package com.hedera.node.app.service.token.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ALIAS_ALREADY_ASSIGNED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BAD_ENCODING;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALIAS_KEY;
@@ -19,6 +20,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_R
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED;
 import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.CREATE_SLOT_MULTIPLIER;
+import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.HOUR_TO_SECOND_MULTIPLIER;
 import static com.hedera.node.app.hapi.fees.usage.crypto.entities.CryptoEntitySizes.CRYPTO_ENTITY_SIZES;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BOOL_SIZE;
@@ -34,6 +36,8 @@ import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static com.hedera.node.app.service.token.AliasUtils.isEntityNumAlias;
 import static com.hedera.node.app.service.token.AliasUtils.isKeyAlias;
 import static com.hedera.node.app.service.token.AliasUtils.isOfEvmAddressSize;
+import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookCreations;
+import static com.hedera.node.app.service.token.HookDispatchUtils.validateHookDuplicates;
 import static com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler.UNLIMITED_AUTOMATIC_ASSOCIATIONS;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingUtilities.NOT_REWARDED_SINCE_LAST_STAKING_META_CHANGE;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingUtilities.NO_STAKE_PERIOD_START;
@@ -54,6 +58,7 @@ import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.validators.CryptoCreateValidator;
@@ -86,6 +91,8 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class CryptoCreateHandler extends BaseCryptoHandler implements TransactionHandler {
+    private static final long FIRST_SYSTEM_FILE_ENTITY = 101L;
+    private static final long FIRST_POST_SYSTEM_FILE_ENTITY = 200L;
     private static final TransactionBody UPDATE_TXN_BODY_BUILDER = TransactionBody.newBuilder()
             .cryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder()
                     .key(Key.newBuilder().ecdsaSecp256k1(Bytes.EMPTY).build()))
@@ -96,17 +103,22 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
     @Nullable
     private final AtomicBoolean systemEntitiesCreatedFlag;
 
+    private final EntityIdFactory entityIdFactory;
+
     /**
      * Constructs a {@link CryptoCreateHandler} with the given {@link CryptoCreateValidator} and {@link StakingValidator}.
+     *
      * @param cryptoCreateValidator the validator for the crypto create transaction
      */
     @Inject
     public CryptoCreateHandler(
             @NonNull final CryptoCreateValidator cryptoCreateValidator,
-            @Nullable final AtomicBoolean systemEntitiesCreatedFlag) {
+            @Nullable final AtomicBoolean systemEntitiesCreatedFlag,
+            @NonNull final EntityIdFactory entityIdFactory) {
         this.cryptoCreateValidator =
                 requireNonNull(cryptoCreateValidator, "The supplied argument 'cryptoCreateValidator' must not be null");
         this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
+        this.entityIdFactory = requireNonNull(entityIdFactory);
     }
 
     @Override
@@ -156,6 +168,8 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
             }
         }
         validateTruePreCheck(key != null, KEY_NOT_PROVIDED);
+        // since pure evm hooks are being removed, just added validations for lambda evm hooks for now
+        validateHookDuplicates(op.hookCreationDetails());
     }
 
     @Override
@@ -221,9 +235,9 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
      * the transaction fee.
      *
      * @throws NullPointerException if one of the arguments is {@code null}
-     * @throws HandleException      if the transaction is not successful due to payer account being deleted or has
-     *                              insufficient balance or the account is not created due to the usage of a price
-     *                              regime
+     * @throws HandleException if the transaction is not successful due to payer account being deleted or has
+     * insufficient balance or the account is not created due to the usage of a price
+     * regime
      */
     @Override
     public void handle(@NonNull final HandleContext context) {
@@ -255,9 +269,18 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
             accountStore.put(modifiedPayer);
         }
 
+        // Dispatch hook creation to contract service if there are any hooks to be created
+        if (!op.hookCreationDetails().isEmpty()) {
+            final var owner =
+                    entityIdFactory.newAccountId(context.entityNumGenerator().peekAtNewEntityNum());
+            dispatchHookCreations(context, op.hookCreationDetails(), 0L, owner);
+        }
+
         // Build the new account to be persisted based on the transaction body and save the newly created account
         // number in the record builder
         final var accountCreated = buildAccount(op, context);
+        // As an extra guardrail, ensure it's impossible to programmatically create a system file account
+        validateFalse(isSystemFile(accountCreated.accountIdOrThrow().accountNumOrThrow()), FAIL_INVALID);
         accountStore.putAndIncrementCount(accountCreated);
 
         final var createdAccountID = accountCreated.accountIdOrThrow();
@@ -408,6 +431,8 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
      */
     @NonNull
     private Account buildAccount(CryptoCreateTransactionBody op, HandleContext handleContext) {
+        requireNonNull(op);
+        requireNonNull(handleContext);
         final var autoRenewPeriod = op.autoRenewPeriodOrThrow().seconds();
         final var consensusTime = handleContext.consensusNow().getEpochSecond();
         final var expiry = consensusTime + autoRenewPeriod;
@@ -423,6 +448,10 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
                 .stakeAtStartOfLastRewardedPeriod(NOT_REWARDED_SINCE_LAST_STAKING_META_CHANGE)
                 .stakePeriodStart(NO_STAKE_PERIOD_START)
                 .alias(op.alias());
+        if (!op.hookCreationDetails().isEmpty()) {
+            builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
+            builder.numberHooksInUse(op.hookCreationDetails().size());
+        }
 
         // We do this separately because we want to let the protobuf object remain UNSET for the staked ID if neither
         // of the staking information was set in the transaction body.
@@ -465,10 +494,19 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         if (!unlimitedAutoAssociations && op.maxAutomaticTokenAssociations() > 0) {
             fee.addRamByteSeconds(op.maxAutomaticTokenAssociations() * lifeTime * CREATE_SLOT_MULTIPLIER);
         }
+        // Using SBS here because this part us not used in other calculations. It is a per hour cost
+        // so we convert to per second by multiplying by 1/3600. This will be changed with simple fees.
+        if (!op.hookCreationDetails().isEmpty()) {
+            fee.addStorageBytesSeconds(op.hookCreationDetails().size() * HOUR_TO_SECOND_MULTIPLIER);
+        }
         if (IMMUTABILITY_SENTINEL_KEY.equals(op.key())) {
             final var lazyCreationFee = feeContext.dispatchComputeFees(UPDATE_TXN_BODY_BUILDER, feeContext.payer());
             return fee.calculate().plus(lazyCreationFee);
         }
         return fee.calculate();
+    }
+
+    private boolean isSystemFile(final long entityNum) {
+        return FIRST_SYSTEM_FILE_ENTITY <= entityNum && entityNum < FIRST_POST_SYSTEM_FILE_ENTITY;
     }
 }

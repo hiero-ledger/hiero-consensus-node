@@ -38,14 +38,15 @@ public class FCHashMapBench extends BaseBench {
             for (int j = 0; j < numRecords; ++j) {
                 long id = Utils.randomLong(maxKey);
                 BenchmarkKey key = new BenchmarkKey(id);
-                var modifiableValue = fcHashMap.getForModify(key);
+                BenchmarkValue value = fcHashMap.get(key);
                 long val = nextValue();
-                if (modifiableValue != null) {
+                if (value != null) {
                     if ((val & 0xff) == 0) {
                         fcHashMap.remove(key);
                         if (verify) map[(int) id] = 0L;
                     } else {
-                        modifiableValue.value().update((l) -> l + val);
+                        value = value.copyBuilder().update((l) -> l + val).build();
+                        fcHashMap.put(key, value);
                         if (verify) map[(int) id] += val;
                     }
                 } else {

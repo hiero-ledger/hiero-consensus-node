@@ -9,6 +9,7 @@ import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readStat
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.util.HapiUtils;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.RecycleBin;
@@ -18,13 +19,12 @@ import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.internal.SignedStateLoadingException;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SavedStateInfo;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.HapiUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -57,7 +57,7 @@ public final class StartupStateUtils {
      *
      * @param softwareVersion     the software version of the app
      * @param genesisStateBuilder a supplier that can build a genesis state
-     * @param stateRootFunction   a function to instantiate the state root object from a Virtual Map
+     * @param createStateFromVirtualMap   a function to instantiate the state object from a Virtual Map
      * @param mainClassName       the name of the app's SwirldMain class
      * @param swirldName          the name of this swirld
      * @param selfId              the node id of this node
@@ -72,7 +72,7 @@ public final class StartupStateUtils {
             @NonNull final RecycleBin recycleBin,
             @NonNull final SemanticVersion softwareVersion,
             @NonNull final Supplier<MerkleNodeState> genesisStateBuilder,
-            @NonNull final Function<VirtualMap, MerkleNodeState> stateRootFunction,
+            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
             @NonNull final String mainClassName,
             @NonNull final String swirldName,
             @NonNull final NodeId selfId,
@@ -93,7 +93,7 @@ public final class StartupStateUtils {
                 selfId,
                 mainClassName,
                 swirldName,
-                stateRootFunction,
+                createStateFromVirtualMap,
                 softwareVersion,
                 platformStateFacade,
                 platformContext);
@@ -123,7 +123,7 @@ public final class StartupStateUtils {
      * @param selfId                   the ID of this node
      * @param mainClassName            the name of the main class
      * @param swirldName               the name of the swirld
-     * @param stateRootFunction        a function to instantiate the state root object from a Virtual Map
+     * @param createStateFromVirtualMap a function to instantiate the state object from a Virtual Map
      * @param currentSoftwareVersion   the current software version
      * @return a reserved signed state (wrapped state will be null if no state could be loaded)
      * @throws SignedStateLoadingException if there was a problem parsing states on disk and we are not configured to
@@ -135,7 +135,7 @@ public final class StartupStateUtils {
             @NonNull final NodeId selfId,
             @NonNull final String mainClassName,
             @NonNull final String swirldName,
-            @NonNull final Function<VirtualMap, MerkleNodeState> stateRootFunction,
+            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
             @NonNull final SemanticVersion currentSoftwareVersion,
             @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final PlatformContext platformContext) {
@@ -158,7 +158,7 @@ public final class StartupStateUtils {
                 recycleBin,
                 currentSoftwareVersion,
                 savedStateFiles,
-                stateRootFunction,
+                createStateFromVirtualMap,
                 platformStateFacade,
                 platformContext);
     }
@@ -188,9 +188,13 @@ public final class StartupStateUtils {
                 false,
                 false,
                 platformStateFacade);
-        signedStateCopy.init(platformContext);
         signedStateCopy.setSigSet(initialSignedState.getSigSet());
 
+        // FUTURE WORK: To support MerkleStateRoot in the testing apps we still need to use `digestTreeAsync` instead of
+        // just calling `initialSignedState.getState().getRoot().getHash()`. The latter option doesn't work for
+        // `MerkleStateRoot` as it doesn't cause hash recalculation. Once we get rid of `MerkleStateRoot` entirely,
+        // the following statement can be replaced. (see
+        // https://github.com/hiero-ledger/hiero-consensus-node/issues/19307)
         final Hash hash = platformContext
                 .getMerkleCryptography()
                 .digestTreeSync(initialSignedState.getState().getRoot());
@@ -221,14 +225,14 @@ public final class StartupStateUtils {
      *
      * @param currentSoftwareVersion the current software version
      * @param savedStateFiles        the saved states to try
-     * @param stateRootFunction      a function to instantiate the state root object from a Virtual Map
+     * @param createStateFromVirtualMap a function to instantiate the state object from a Virtual Map
      * @return the loaded state
      */
-    private static ReservedSignedState loadLatestState(
+    public static ReservedSignedState loadLatestState(
             @NonNull final RecycleBin recycleBin,
             @NonNull final SemanticVersion currentSoftwareVersion,
             @NonNull final List<SavedStateInfo> savedStateFiles,
-            @NonNull final Function<VirtualMap, MerkleNodeState> stateRootFunction,
+            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
             @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final PlatformContext platformContext)
             throws SignedStateLoadingException {
@@ -240,7 +244,7 @@ public final class StartupStateUtils {
                     recycleBin,
                     currentSoftwareVersion,
                     savedStateFile,
-                    stateRootFunction,
+                    createStateFromVirtualMap,
                     platformStateFacade,
                     platformContext);
             if (state != null) {
@@ -257,7 +261,7 @@ public final class StartupStateUtils {
      *
      * @param currentSoftwareVersion the current software version
      * @param savedStateFile         the state to load
-     * @param stateRootFunction      a function to instantiate the state root object from a Virtual Map
+     * @param createStateFromVirtualMap a function to instantiate the state root object from a Virtual Map
      * @return the loaded state, or null if the state could not be loaded. Will be fully hashed if non-null.
      */
     @Nullable
@@ -265,7 +269,7 @@ public final class StartupStateUtils {
             @NonNull final RecycleBin recycleBin,
             @NonNull final SemanticVersion currentSoftwareVersion,
             @NonNull final SavedStateInfo savedStateFile,
-            @NonNull final Function<VirtualMap, MerkleNodeState> stateRootFunction,
+            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
             @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final PlatformContext platformContext)
             throws SignedStateLoadingException {
@@ -275,8 +279,8 @@ public final class StartupStateUtils {
         final DeserializedSignedState deserializedSignedState;
         final Configuration configuration = platformContext.getConfiguration();
         try {
-            deserializedSignedState =
-                    readStateFile(savedStateFile.stateFile(), stateRootFunction, platformStateFacade, platformContext);
+            deserializedSignedState = readStateFile(
+                    savedStateFile.stateFile(), createStateFromVirtualMap, platformStateFacade, platformContext);
         } catch (final IOException e) {
             logger.error(EXCEPTION.getMarker(), "unable to load state file {}", savedStateFile.stateFile(), e);
 
@@ -362,7 +366,6 @@ public final class StartupStateUtils {
                 false,
                 false,
                 platformStateFacade);
-        signedState.init(platformContext);
         return signedState.reserve("initial reservation on genesis state");
     }
 
@@ -418,13 +421,13 @@ public final class StartupStateUtils {
             @NonNull final NodeId selfId,
             @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final PlatformContext platformContext,
-            @NonNull final Function<VirtualMap, MerkleNodeState> stateRootFunction) {
+            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
         final var loadedState = loadStateFile(
                 recycleBin,
                 selfId,
                 mainClassName,
                 swirldName,
-                stateRootFunction,
+                createStateFromVirtualMap,
                 softwareVersion,
                 platformStateFacade,
                 platformContext);
@@ -447,7 +450,6 @@ public final class StartupStateUtils {
                 false,
                 false,
                 platformStateFacade);
-        signedState.init(platformContext);
         final var reservedSignedState = signedState.reserve("initial reservation on genesis state");
         try (reservedSignedState) {
             return copyInitialSignedState(reservedSignedState.get(), platformStateFacade, platformContext);

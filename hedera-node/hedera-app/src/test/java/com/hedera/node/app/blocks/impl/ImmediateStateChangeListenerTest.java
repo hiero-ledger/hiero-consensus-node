@@ -7,7 +7,6 @@ import static com.hedera.hapi.block.stream.output.StateChange.ChangeOperationOne
 import static com.hedera.hapi.block.stream.output.StateChange.ChangeOperationOneOfType.QUEUE_PUSH;
 import static com.swirlds.state.StateChangeListener.StateType.MAP;
 import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
-import static com.swirlds.state.merkle.StateUtils.stateIdFor;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -18,6 +17,7 @@ import com.hedera.hapi.block.stream.output.StateIdentifier;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.FileID;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.PendingAirdropId;
 import com.hedera.hapi.node.base.ScheduleID;
@@ -38,6 +38,8 @@ import com.hedera.hapi.node.state.hints.PreprocessingVote;
 import com.hedera.hapi.node.state.hints.PreprocessingVoteId;
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
 import com.hedera.hapi.node.state.history.RecordedHistorySignature;
+import com.hedera.hapi.node.state.hooks.EvmHookState;
+import com.hedera.hapi.node.state.hooks.LambdaSlotKey;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.primitives.ProtoString;
@@ -55,8 +57,6 @@ import com.hedera.hapi.node.state.tss.TssVoteMapKey;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.tss.TssMessageTransactionBody;
 import com.hedera.hapi.services.auxiliary.tss.TssVoteTransactionBody;
-import com.hedera.node.app.blocks.BlockStreamService;
-import com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import java.util.Set;
@@ -66,6 +66,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 class ImmediateStateChangeListenerTest {
+
     private static final int STATE_ID = 1;
     private static final AccountID KEY = AccountID.newBuilder().accountNum(1234).build();
     private static final Account VALUE = Account.newBuilder().accountId(KEY).build();
@@ -88,7 +89,7 @@ class ImmediateStateChangeListenerTest {
     @Test
     void testResetStateChanges() {
         listener.mapUpdateChange(STATE_ID, KEY, VALUE);
-        listener.reset();
+        listener.reset(null);
 
         List<StateChange> stateChanges = listener.getStateChanges();
         assertTrue(stateChanges.isEmpty());
@@ -128,13 +129,13 @@ class ImmediateStateChangeListenerTest {
 
                     case TOKEN_RELATIONSHIP_KEY ->
                         new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_TOKEN_RELATIONS.protoOrdinal(),
+                                StateIdentifier.STATE_ID_TOKEN_RELS.protoOrdinal(),
                                 new EntityIDPair(AccountID.DEFAULT, TokenID.DEFAULT),
                                 TokenRelation.DEFAULT);
 
                     case ENTITY_NUMBER_KEY ->
                         new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_CONTRACT_BYTECODE.protoOrdinal(),
+                                StateIdentifier.STATE_ID_BYTECODE.protoOrdinal(),
                                 new EntityNumber(1L),
                                 Bytecode.DEFAULT);
 
@@ -184,15 +185,11 @@ class ImmediateStateChangeListenerTest {
 
                     case SLOT_KEY_KEY ->
                         new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_CONTRACT_STORAGE.protoOrdinal(),
-                                SlotKey.DEFAULT,
-                                SlotValue.DEFAULT);
+                                StateIdentifier.STATE_ID_STORAGE.protoOrdinal(), SlotKey.DEFAULT, SlotValue.DEFAULT);
 
                     case CONTRACT_ID_KEY ->
                         new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_CONTRACT_BYTECODE.protoOrdinal(),
-                                ContractID.DEFAULT,
-                                Bytecode.DEFAULT);
+                                StateIdentifier.STATE_ID_BYTECODE.protoOrdinal(), ContractID.DEFAULT, Bytecode.DEFAULT);
 
                     case TOKEN_ID_KEY ->
                         new MapUpdateScenario<>(
@@ -241,6 +238,18 @@ class ImmediateStateChangeListenerTest {
                                 StateIdentifier.STATE_ID_HISTORY_SIGNATURES.protoOrdinal(),
                                 ConstructionNodeId.DEFAULT,
                                 RecordedHistorySignature.DEFAULT);
+
+                    case HOOK_ID_KEY ->
+                        new MapUpdateScenario<>(
+                                StateIdentifier.STATE_ID_EVM_HOOK_STATES.protoOrdinal(),
+                                HookId.DEFAULT,
+                                EvmHookState.DEFAULT);
+
+                    case LAMBDA_SLOT_KEY ->
+                        new MapUpdateScenario<>(
+                                StateIdentifier.STATE_ID_LAMBDA_STORAGE.protoOrdinal(),
+                                LambdaSlotKey.DEFAULT,
+                                SlotValue.DEFAULT);
                 };
         if (scenario != null) {
             assertDoesNotThrow(() -> listener.mapUpdateChange(scenario.stateId, scenario.key, scenario.value));
@@ -252,13 +261,6 @@ class ImmediateStateChangeListenerTest {
     @Test
     void targetTypeIsMapAndQueue() {
         assertEquals(Set.of(MAP, QUEUE), listener.stateTypes());
-    }
-
-    @Test
-    void understandsStateIds() {
-        final var service = BlockStreamService.NAME;
-        final var stateKey = V0560BlockStreamSchema.BLOCK_STREAM_INFO_KEY;
-        assertEquals(stateIdFor(service, stateKey), listener.stateIdFor(service, stateKey));
     }
 
     @Test

@@ -3,8 +3,8 @@ package com.hedera.node.app.service.token.records;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransferList;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -24,11 +24,12 @@ public interface GenesisAccountStreamBuilder extends StreamBuilder {
 
     /**
      * Tracks the synthetic transaction that represents the created system account.
+     *
      * @param txn the synthetic transaction that represents the created system account
      * @return this builder
      */
     @NonNull
-    GenesisAccountStreamBuilder transaction(@NonNull Transaction txn);
+    GenesisAccountStreamBuilder signedTx(@NonNull SignedTransaction txn);
 
     /**
      * Tracks the synthetic transaction that represents the created system account.

@@ -3,14 +3,26 @@ package org.hiero.otter.fixtures.internal.result;
 
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.RECONNECT_COMPLETE;
+import static org.hiero.otter.fixtures.internal.helpers.LogPayloadUtils.parsePayload;
 
-import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.logging.legacy.payload.ReconnectFailurePayload;
+import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
+import com.swirlds.logging.legacy.payload.SynchronizationCompletePayload;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.otter.fixtures.logging.StructuredLog;
+import org.hiero.otter.fixtures.result.ReconnectFailureNotification;
+import org.hiero.otter.fixtures.result.ReconnectNotification;
+import org.hiero.otter.fixtures.result.ReconnectNotificationSubscriber;
+import org.hiero.otter.fixtures.result.ReconnectStartNotification;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
-import org.jetbrains.annotations.NotNull;
+import org.hiero.otter.fixtures.result.SubscriberAction;
+import org.hiero.otter.fixtures.result.SynchronizationCompleteNotification;
 
 /**
  * Implementation of the {@link SingleNodeReconnectResult} interface.
@@ -20,9 +32,12 @@ public class SingleNodeReconnectResultImpl implements SingleNodeReconnectResult 
     private final NodeId nodeId;
     private final SingleNodePlatformStatusResult statusResults;
     private final SingleNodeLogResult logResults;
+    private final List<ReconnectNotificationSubscriber> reconnectSubscribers = new CopyOnWriteArrayList<>();
 
     /**
      * Constructor for SingleNodeReconnectResultImpl.
+     *
+     * @param nodeId the ID of the node
      * @param statusResults the platform status results for the single node
      * @param logResults the log results for the single node
      */
@@ -39,7 +54,8 @@ public class SingleNodeReconnectResultImpl implements SingleNodeReconnectResult 
      * {@inheritDoc}
      */
     @Override
-    public @NotNull com.hedera.hapi.platform.state.NodeId nodeId() {
+    @NonNull
+    public NodeId nodeId() {
         return nodeId;
     }
 
@@ -59,8 +75,58 @@ public class SingleNodeReconnectResultImpl implements SingleNodeReconnectResult 
     @Override
     public int numFailedReconnects() {
         return (int) logResults.logs().stream()
-                .filter(log -> log.message().contains(ReconnectFailurePayload.class.toString()))
+                .filter(log -> log.message().contains(ReconnectFailurePayload.class.getName()))
                 .count();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public List<SynchronizationCompletePayload> getSynchronizationCompletePayloads() {
+        return logResults.logs().stream()
+                .filter(log -> log.message().contains(SynchronizationCompletePayload.class.getName()))
+                .map(log -> parsePayload(SynchronizationCompletePayload.class, log.message()))
+                .toList();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void subscribe(@NonNull final ReconnectNotificationSubscriber newSubscriber) {
+        if (reconnectSubscribers.isEmpty()) {
+            logResults.subscribe(this::onLogEntry);
+        }
+        reconnectSubscribers.add(newSubscriber);
+    }
+
+    @NonNull
+    private SubscriberAction onLogEntry(@NonNull final StructuredLog logEntry) {
+        final ReconnectNotification<?> notification = toReconnectNotification(logEntry);
+        if (notification != null) {
+            reconnectSubscribers.removeIf(
+                    subscriber -> subscriber.onNotification(notification) == SubscriberAction.UNSUBSCRIBE);
+            return reconnectSubscribers.isEmpty() ? SubscriberAction.UNSUBSCRIBE : SubscriberAction.CONTINUE;
+        }
+        return SubscriberAction.CONTINUE;
+    }
+
+    @Nullable
+    private ReconnectNotification<?> toReconnectNotification(@NonNull final StructuredLog logEntry) {
+        final String message = logEntry.message();
+        if (message.contains(ReconnectFailurePayload.class.getName())) {
+            return new ReconnectFailureNotification(
+                    parsePayload(ReconnectFailurePayload.class, message), logEntry.nodeId());
+        } else if (message.contains(ReconnectStartPayload.class.getName())) {
+            final ReconnectStartPayload payload = parsePayload(ReconnectStartPayload.class, message);
+            return payload.isReceiving() ? new ReconnectStartNotification(payload, logEntry.nodeId()) : null;
+        } else if (message.contains(SynchronizationCompletePayload.class.getName())) {
+            return new SynchronizationCompleteNotification(
+                    parsePayload(SynchronizationCompletePayload.class, message), logEntry.nodeId());
+        }
+        return null;
     }
 
     /**

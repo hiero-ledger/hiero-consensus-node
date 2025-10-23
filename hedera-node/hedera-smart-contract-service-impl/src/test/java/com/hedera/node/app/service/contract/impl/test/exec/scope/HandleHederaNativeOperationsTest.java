@@ -45,6 +45,8 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.schedule.ScheduleServiceApi;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
@@ -56,7 +58,7 @@ import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.swirlds.state.lifecycle.EntityIdFactory;
+import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.SortedSet;
@@ -99,6 +101,9 @@ class HandleHederaNativeOperationsTest {
 
     @Mock
     private TokenServiceApi tokenServiceApi;
+
+    @Mock
+    private ScheduleServiceApi scheduleServiceApi;
 
     @Mock
     private ReadableNftStore nftStore;
@@ -177,13 +182,14 @@ class HandleHederaNativeOperationsTest {
     @Test
     void createsHollowAccountByDispatching() {
         final var synthLazyCreate = TransactionBody.newBuilder()
-                .cryptoCreateAccount(synthHollowAccountCreation(CANONICAL_ALIAS))
+                .cryptoCreateAccount(synthHollowAccountCreation(CANONICAL_ALIAS, true))
                 .build();
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
 
         when(context.dispatch(any())).thenReturn(cryptoCreateRecordBuilder);
 
         given(cryptoCreateRecordBuilder.status()).willReturn(OK);
+        given(context.configuration()).willReturn(DEFAULT_CONFIG);
 
         final var status = subject.createHollowAccount(CANONICAL_ALIAS);
         assertEquals(OK, status);
@@ -194,12 +200,13 @@ class HandleHederaNativeOperationsTest {
     @Test
     void createsHollowAccountByDispatchingDoesNotThrowErrors() {
         final var synthLazyCreate = TransactionBody.newBuilder()
-                .cryptoCreateAccount(synthHollowAccountCreation(CANONICAL_ALIAS))
+                .cryptoCreateAccount(synthHollowAccountCreation(CANONICAL_ALIAS, true))
                 .build();
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
         given(context.dispatch(assertArg(options -> assertEquals(synthLazyCreate, options.body()))))
                 .willReturn(cryptoCreateRecordBuilder);
         given(cryptoCreateRecordBuilder.status()).willReturn(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
+        given(context.configuration()).willReturn(DEFAULT_CONFIG);
 
         final var status = assertDoesNotThrow(() -> subject.createHollowAccount(CANONICAL_ALIAS));
         assertThat(status).isEqualTo(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
@@ -220,6 +227,17 @@ class HandleHederaNativeOperationsTest {
         subject.finalizeHollowAccountAsContract(CANONICAL_ALIAS);
 
         verify(tokenServiceApi).finalizeHollowAccountAsContract(A_NEW_ACCOUNT_ID);
+    }
+
+    @Test
+    void scheduleCallCapacityCheckUsesApi() {
+        final var now = Instant.ofEpochSecond(1_234_567, 890);
+        given(context.storeFactory()).willReturn(storeFactory);
+        given(context.consensusNow()).willReturn(now);
+        given(storeFactory.serviceApi(ScheduleServiceApi.class)).willReturn(scheduleServiceApi);
+        given(scheduleServiceApi.hasContractCallCapacity(123L, now, 456L, AccountID.DEFAULT))
+                .willReturn(true);
+        assertTrue(subject.canScheduleContractCall(123L, 456L, AccountID.DEFAULT));
     }
 
     @Test

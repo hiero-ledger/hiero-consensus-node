@@ -30,9 +30,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.SubType;
-import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.consensus.ConsensusUpdateTopicTransactionBody;
 import com.hedera.hapi.node.state.consensus.Topic;
@@ -61,7 +59,6 @@ import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.ArrayList;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -113,26 +110,6 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
         mustExist(topic, INVALID_TOPIC_ID);
         validateFalsePreCheck(topic.deleted(), INVALID_TOPIC_ID);
 
-        // If we update only the submit key, then the required signature must be either the submit key or the admin key.
-        // We create a threshold key that contains both keys,
-        // and require that the transaction is signed by at least one of them.
-        if (onlyExtendsSubmitKey(op)) {
-            final var keys = new ArrayList<Key>();
-            if (topic.hasSubmitKey()) {
-                keys.add(topic.submitKeyOrThrow());
-            }
-            if (topic.hasAdminKey()) {
-                keys.add(topic.adminKeyOrThrow());
-            }
-            final var keyList = KeyList.newBuilder().keys(keys);
-            final var thresholdKey =
-                    ThresholdKey.newBuilder().keys(keyList.build()).threshold(1);
-            final var submitOrAdminThresholdKey =
-                    Key.newBuilder().thresholdKey(thresholdKey).build();
-            context.requireKeyOrThrow(submitOrAdminThresholdKey, UNAUTHORIZED);
-            return;
-        }
-
         // Extending the expiry is the *only* update operation permitted without an admin key. So if that is the
         // only thing this transaction is doing, then we don't need to worry about checking any additional keys.
         if (onlyExtendsExpiry(op)) {
@@ -163,15 +140,6 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
         }
     }
 
-    private boolean onlyExtendsSubmitKey(@NonNull final ConsensusUpdateTopicTransactionBody op) {
-        return op.hasSubmitKey()
-                && !op.hasMemo()
-                && !op.hasAdminKey()
-                && !op.hasExpirationTime()
-                && !op.hasAutoRenewPeriod()
-                && !op.hasAutoRenewAccount();
-    }
-
     private boolean onlyExtendsExpiry(@NonNull final ConsensusUpdateTopicTransactionBody op) {
         return op.hasExpirationTime()
                 && !op.hasMemo()
@@ -199,7 +167,7 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
         // preHandle already checks for topic existence, so topic should never be null.
 
         // First validate this topic is mutable; and the pending mutations are allowed
-        if (wantsToMutateNonExpiryOrSubmitKeyField(op)) {
+        if (wantsToMutateNonExpiryField(op)) {
             validateTrue(topic.hasAdminKey(), UNAUTHORIZED);
             final var opRemovesAutoRenewId =
                     op.hasAutoRenewAccount() && designatesAccountRemoval(op.autoRenewAccount());
@@ -412,11 +380,14 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
 
     /**
      * @param op the transaction body of consensus update operation
-     * @return {@code true} if the operation wants to update a non-expiry or submitKey field, {@code false} otherwise
+     * @return {@code true} if the operation wants to update a non-expiry field, {@code false} otherwise.
      */
-    public static boolean wantsToMutateNonExpiryOrSubmitKeyField(
-            @NonNull final ConsensusUpdateTopicTransactionBody op) {
-        return op.hasMemo() || op.hasAdminKey() || op.hasAutoRenewPeriod() || op.hasAutoRenewAccount();
+    public static boolean wantsToMutateNonExpiryField(@NonNull final ConsensusUpdateTopicTransactionBody op) {
+        return op.hasMemo()
+                || op.hasAdminKey()
+                || op.hasSubmitKey()
+                || op.hasAutoRenewPeriod()
+                || op.hasAutoRenewAccount();
     }
 
     private boolean designatesAccountRemoval(AccountID id) {

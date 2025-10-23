@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip991;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
@@ -73,26 +74,20 @@ import com.hederahashgraph.api.proto.java.TokenType;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of TopicCustomFeeSubmitMessageTest. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm the fees are the same
 @HapiTestLifecycle
 @DisplayName("Submit message")
-public class AtomicTopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
+class AtomicTopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
 
     private static final String BATCH_OPERATOR = "batchOperator";
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-    }
 
     @Nested
     @DisplayName("Positive scenarios")
@@ -1004,6 +999,7 @@ public class AtomicTopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
         @HapiTest
         @DisplayName("SubmitMessage to a topic with a custom fee of 1 FT A and 1 HBAR and accept_all_custom_fees=true")
         // TOPIC_FEE_192/193
+        @Tag(MATS)
         final Stream<DynamicTest> submitMessageToTopicWithCustomFeesAndAcceptAllCustomFees() {
             final var collector = "collector";
             final var tokenA = "tokenA";

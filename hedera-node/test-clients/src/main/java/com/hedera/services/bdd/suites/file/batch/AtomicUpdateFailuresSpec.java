@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.file.batch;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -27,34 +28,23 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of UpdateFailuresSpec. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
-@HapiTestLifecycle
-public class AtomicUpdateFailuresSpec {
+class AtomicUpdateFailuresSpec {
 
     private static final long A_LOT = 1_234_567_890L;
     private static final String CIVILIAN = "civilian";
     private static final String BATCH_OPERATOR = "batchOperator";
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-    }
 
     @HapiTest
     final Stream<DynamicTest> confusedUpdateCantExtendExpiry() {
@@ -169,6 +159,7 @@ public class AtomicUpdateFailuresSpec {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> precheckAllowsBadEncoding() {
         return hapiTest(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),

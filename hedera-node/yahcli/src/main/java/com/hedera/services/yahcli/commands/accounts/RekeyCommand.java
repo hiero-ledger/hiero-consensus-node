@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.commands.accounts;
 
-import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.google.common.io.Files;
@@ -66,18 +65,19 @@ public class RekeyCommand implements Callable<Integer> {
                 .map(File::getPath)
                 .orElseGet(() -> config.keysLoc() + File.separator + "account" + normalizedAcct + ".pem");
 
-        final SigControl sigType =
-                Optional.ofNullable(ParseUtils.keyTypeFromParam(keyType)).orElse(SigControl.ED25519_ON);
+        final SigControl sigType = Optional.ofNullable(ParseUtils.keyTypeFromParam(config.output(), keyType))
+                .orElse(SigControl.ED25519_ON);
         final var delegate =
                 new RekeySuite(config.asSpecConfig(), normalizedAcct, replKeyLoc, genNewKey, sigType, replTarget);
         delegate.runSuiteSync();
 
         if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
-            COMMON_MESSAGES.info("SUCCESS - account " + config.shard() + "." + config.realm() + "." + normalizedAcct
-                    + " has been re-keyed");
+            config.output()
+                    .info("SUCCESS - account " + config.shard() + "." + config.realm() + "." + normalizedAcct
+                            + " has been re-keyed");
         } else {
-            COMMON_MESSAGES.warn(
-                    "FAILED to re-key account " + config.shard() + "." + config.realm() + "." + normalizedAcct);
+            config.output()
+                    .warn("FAILED to re-key account " + config.shard() + "." + config.realm() + "." + normalizedAcct);
             return 1;
         }
 
@@ -100,7 +100,7 @@ public class RekeyCommand implements Callable<Integer> {
                 }
             }
         } else {
-            COMMON_MESSAGES.warn("No current key for account " + num + ", payer will need special privileges");
+            configManager.output().warn("No current key for account " + num + ", payer will need special privileges");
         }
         return optKeyFile;
     }

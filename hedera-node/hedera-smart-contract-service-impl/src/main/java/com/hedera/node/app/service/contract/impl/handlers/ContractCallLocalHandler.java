@@ -9,6 +9,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.EVM_ADDRESS_LENGTH_AS_INT;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZeroAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
+import static com.hedera.node.app.service.contract.impl.utils.ValidationUtils.getMaxGasLimit;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
@@ -25,6 +26,7 @@ import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.exec.QueryComponent;
 import com.hedera.node.app.service.contract.impl.exec.QueryComponent.Factory;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.Fees;
@@ -34,7 +36,6 @@ import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.ContractFunctionResult;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.InstantSource;
 import javax.inject.Inject;
@@ -91,11 +92,11 @@ public class ContractCallLocalHandler extends PaidQueryHandler {
         final ContractCallLocalQuery op = query.contractCallLocalOrThrow();
         final var requestedGas = op.gas();
         validateTruePreCheck(requestedGas >= 0, CONTRACT_NEGATIVE_GAS);
-        final var maxGasLimit =
-                context.configuration().getConfigData(ContractsConfig.class).maxGasPerSec();
+        final var maxGasLimit = getMaxGasLimit(context.configuration().getConfigData(ContractsConfig.class));
         validateTruePreCheck(requestedGas <= maxGasLimit, MAX_GAS_LIMIT_EXCEEDED);
+        // TODO: Revisit baselineGas with Pectra support epic
         final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(
-                org.apache.tuweni.bytes.Bytes.wrap(op.functionParameters().toByteArray()), false);
+                org.apache.tuweni.bytes.Bytes.wrap(op.functionParameters().toByteArray()), false, 0L);
         validateTruePreCheck(op.gas() >= intrinsicGas, INSUFFICIENT_GAS);
 
         final var contractID = op.contractID();

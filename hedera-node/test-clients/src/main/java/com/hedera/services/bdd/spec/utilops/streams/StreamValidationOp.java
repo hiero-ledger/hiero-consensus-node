@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.streams;
 
+import static com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess.BLOCK_STREAM_ACCESS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_DIR;
-import static com.hedera.services.bdd.junit.support.BlockStreamAccess.BLOCK_STREAM_ACCESS;
 import static com.hedera.services.bdd.junit.support.StreamFileAccess.STREAM_FILE_ACCESS;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -19,8 +19,8 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
 import com.hedera.hapi.block.stream.Block;
+import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.node.app.history.impl.ProofControllerImpl;
-import com.hedera.services.bdd.junit.support.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.RecordStreamValidator;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
@@ -30,7 +30,6 @@ import com.hedera.services.bdd.junit.support.validators.ExpiryRecordsValidator;
 import com.hedera.services.bdd.junit.support.validators.TokenReconciliationValidator;
 import com.hedera.services.bdd.junit.support.validators.TransactionBodyValidator;
 import com.hedera.services.bdd.junit.support.validators.block.BlockContentsValidator;
-import com.hedera.services.bdd.junit.support.validators.block.BlockItemNonceValidator;
 import com.hedera.services.bdd.junit.support.validators.block.BlockNumberSequenceValidator;
 import com.hedera.services.bdd.junit.support.validators.block.StateChangesValidator;
 import com.hedera.services.bdd.junit.support.validators.block.TransactionRecordParityValidator;
@@ -42,8 +41,10 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
@@ -70,8 +71,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             TransactionRecordParityValidator.FACTORY,
             StateChangesValidator.FACTORY,
             BlockContentsValidator.FACTORY,
-            BlockNumberSequenceValidator.FACTORY,
-            BlockItemNonceValidator.FACTORY);
+            BlockNumberSequenceValidator.FACTORY);
 
     private final int historyProofsToWaitFor;
 
@@ -229,9 +229,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                     Assertions.fail(String.format("No marker files found for node %d", nodeId));
                 }
 
-                // Get verified block numbers from simulator
-                final var verifiedBlockNumbers =
-                        spec.getSimulatedBlockNodeById(nodeId).getReceivedBlockNumbers();
+                // Get verified block numbers from the simulator
+                final var verifiedBlockNumbers = getVerifiedBlockNumbers(spec, nodeId);
 
                 if (verifiedBlockNumbers.isEmpty()) {
                     Assertions.fail(String.format("No verified blocks by block node simulator for node %d", nodeId));
@@ -250,5 +249,24 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             }
         });
         log.info("Block proofs validation completed successfully");
+    }
+
+    private static Set<Long> getVerifiedBlockNumbers(@NonNull final HapiSpec spec, final long nodeId) {
+        final var simulatedBlockNode = spec.getSimulatedBlockNodeById(nodeId);
+
+        if (simulatedBlockNode.hasEverBeenShutdown()) {
+            // Check whether other simulated block nodes have verified this block
+            return spec.getBlockNodeNetworkIds().stream()
+                    .filter(blockNodeId -> blockNodeId != nodeId)
+                    .map(blockNodeId ->
+                            spec.getSimulatedBlockNodeById(blockNodeId).getReceivedBlockNumbers())
+                    .reduce(new HashSet<>(), (acc, blockNumbers) -> {
+                        acc.addAll(blockNumbers);
+                        acc.addAll(simulatedBlockNode.getReceivedBlockNumbers());
+                        return acc;
+                    });
+        } else {
+            return simulatedBlockNode.getReceivedBlockNumbers();
+        }
     }
 }

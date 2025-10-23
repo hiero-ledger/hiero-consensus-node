@@ -13,13 +13,14 @@ import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextQueryProcessor;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
+import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.infra.HevmStaticTransactionFactory;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -60,7 +61,13 @@ class ContextQueryProcessorTest {
         given(context.configuration()).willReturn(CONFIGURATION);
         given(context.query()).willReturn(Query.DEFAULT);
         given(hevmStaticTransactionFactory.fromHapiQuery(Query.DEFAULT)).willReturn(HEVM_CREATION);
-        given(processor.processTransaction(HEVM_CREATION, proxyWorldUpdater, hederaEvmContext, tracer, CONFIGURATION))
+        given(processor.processTransaction(
+                        HEVM_CREATION,
+                        proxyWorldUpdater,
+                        hederaEvmContext,
+                        tracer,
+                        CONFIGURATION,
+                        OpsDurationCounter.disabled()))
                 .willReturn(SUCCESS_RESULT);
         given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         final var protoResult = SUCCESS_RESULT.asQueryResult(proxyWorldUpdater);
@@ -72,9 +79,8 @@ class ContextQueryProcessorTest {
                 null,
                 null,
                 null,
-                null,
-                null,
                 SUCCESS_RESULT.asEvmQueryResult(),
+                null,
                 null,
                 null);
         assertEquals(expectedResult, subject.call());

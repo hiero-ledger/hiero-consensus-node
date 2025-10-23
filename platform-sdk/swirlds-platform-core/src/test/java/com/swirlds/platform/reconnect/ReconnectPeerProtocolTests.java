@@ -27,19 +27,18 @@ import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.protocol.PeerProtocol;
 import com.swirlds.platform.network.protocol.Protocol;
 import com.swirlds.platform.network.protocol.ReconnectProtocol;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateValidator;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
+import com.swirlds.state.MerkleNodeState;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -123,8 +122,6 @@ class ReconnectPeerProtocolTests {
 
     @BeforeEach
     void setup() {
-        MerkleDb.resetDefaultInstancePath();
-
         reconnectNetworkHelper = mock(ReconnectSyncHelper.class);
         when(reconnectNetworkHelper.blockLearnerPermit()).thenReturn(true);
 

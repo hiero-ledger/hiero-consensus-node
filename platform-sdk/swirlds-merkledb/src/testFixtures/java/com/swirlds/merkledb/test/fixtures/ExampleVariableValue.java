@@ -10,7 +10,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Random;
+import org.hiero.base.constructable.ConstructableIgnored;
 
+@ConstructableIgnored
 public final class ExampleVariableValue extends ExampleByteArrayVirtualValue {
 
     public static final ExampleVariableValueCodec CODEC = new ExampleVariableValueCodec();
@@ -93,7 +95,11 @@ public final class ExampleVariableValue extends ExampleByteArrayVirtualValue {
         @NonNull
         @Override
         public ExampleVariableValue parse(
-                @NonNull ReadableSequentialData in, boolean strictMode, boolean parseUnknownFields, int maxDepth) {
+                @NonNull ReadableSequentialData in,
+                boolean strictMode,
+                boolean parseUnknownFields,
+                int maxDepth,
+                int maxSize) {
             return new ExampleVariableValue(in);
         }
 

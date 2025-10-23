@@ -115,7 +115,8 @@ public class CustomFractionalFeeAssessor {
                         result.getMutableInputBalanceAdjustments().computeIfAbsent(denom, ADJUSTMENTS_MAP_FACTORY);
                 final var filteredRemainingCredits = filteredByExemptCredits(map, token, fee);
                 // This has the side effect of reducing the filtered credits map
-                final long unreclaimedAmount = reclaim(assessedAmount, filteredRemainingCredits);
+                final var reclaimResult = reclaim(assessedAmount, filteredRemainingCredits);
+                final var unreclaimedAmount = reclaimResult.unreclaimedAmount();
                 if (nonNetAssessment.isMinimum() && unreclaimedAmount > 0) {
                     throw new HandleException(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE);
                 }
@@ -136,12 +137,16 @@ public class CustomFractionalFeeAssessor {
                 final var finalEffPayerNumsArray = new AccountID[finalEffPayerNums.size()];
 
                 // Add assessed custom fees to the result. This is needed to build transaction record
-                result.addAssessedCustomFee(AssessedCustomFee.newBuilder()
-                        .effectivePayerAccountId(finalEffPayerNums.toArray(finalEffPayerNumsArray))
-                        .feeCollectorAccountId(collector)
-                        .tokenId(denom)
-                        .amount(collectedAmount)
-                        .build());
+                // If there are multiple payers, record the details in the result. This is needed to construct
+                // custom fee proposed transfers with hooks
+                result.addAssessedFeeWithPayerDebits(
+                        AssessedCustomFee.newBuilder()
+                                .effectivePayerAccountId(finalEffPayerNums.toArray(finalEffPayerNumsArray))
+                                .feeCollectorAccountId(collector)
+                                .tokenId(denom)
+                                .amount(collectedAmount)
+                                .build(),
+                        reclaimResult.paidByPayer());
             }
         }
     }
@@ -232,7 +237,7 @@ public class CustomFractionalFeeAssessor {
      * @param credits the credits to be reclaimed from
      * @return the amount reclaimed
      */
-    private long reclaim(final long amount, @NonNull final Map<AccountID, Long> credits) {
+    private ReclaimResult reclaim(final long amount, @NonNull final Map<AccountID, Long> credits) {
         long availableToReclaim = 0L;
         for (final var entry : credits.entrySet()) {
             availableToReclaim += entry.getValue();
@@ -241,32 +246,49 @@ public class CustomFractionalFeeAssessor {
         final long amountToReclaim = Math.min(amount, availableToReclaim);
 
         long amountReclaimed = 0L;
+        final var paidByPayer = new LinkedHashMap<AccountID, Long>();
         for (final var entry : credits.entrySet()) {
             final var account = entry.getKey();
             final long creditAmount = entry.getValue();
             try {
                 final long toReclaimHere = safeFractionMultiply(creditAmount, availableToReclaim, amountToReclaim);
-                credits.put(account, creditAmount - toReclaimHere);
-                amountReclaimed += toReclaimHere;
+                if (toReclaimHere != 0) {
+                    credits.put(account, creditAmount - toReclaimHere);
+                    amountReclaimed += toReclaimHere;
+                    paidByPayer.merge(account, -toReclaimHere, Math::addExact);
+                }
             } catch (final ArithmeticException e) {
                 throw new HandleException(CUSTOM_FEE_OUTSIDE_NUMERIC_RANGE);
             }
         }
-
+        //  Distribute any rounding remainder deterministically in iteration order
         if (amountReclaimed < amountToReclaim) {
             long leftToReclaim = amountToReclaim - amountReclaimed;
             for (final var entry : credits.entrySet()) {
                 final var account = entry.getKey();
                 final long creditAmount = entry.getValue();
                 final long toReclaimHere = Math.min(creditAmount, leftToReclaim);
-                credits.put(account, creditAmount - toReclaimHere);
-                amountReclaimed += toReclaimHere;
-                leftToReclaim -= toReclaimHere;
+                if (toReclaimHere != 0L) {
+                    credits.put(account, creditAmount - toReclaimHere);
+                    amountReclaimed += toReclaimHere;
+                    leftToReclaim -= toReclaimHere;
+                    paidByPayer.merge(account, -toReclaimHere, Math::addExact);
+                }
                 if (leftToReclaim == 0) {
                     break;
                 }
             }
         }
-        return amount - amountReclaimed;
+        final var unreclaimed = amount - amountReclaimed;
+        return new ReclaimResult(unreclaimed, paidByPayer);
     }
+
+    /**
+     * A record to hold the result of reclaim operation. It contains the unreclaimed amount
+     * and a map of amounts paid by each payer for fractional fee.
+     *
+     * @param unreclaimedAmount the amount that could not be reclaimed
+     * @param paidByPayer a map of amounts paid by each payer
+     */
+    private record ReclaimResult(long unreclaimedAmount, Map<AccountID, Long> paidByPayer) {}
 }

@@ -120,15 +120,6 @@ public final class VirtualNodeCache implements FastCopyable, SelfSerializable {
     public static final VirtualLeafBytes<?> DELETED_LEAF_RECORD = new VirtualLeafBytes<>(-1, Bytes.EMPTY, null, null);
 
     /**
-     * A special {@link Hash} used to indicate that the record associated with a particular
-     * path has been deleted. The {@link VirtualMap} has code that asks the cache for the record. If the
-     * return value is null, it will create a new record or load from disk, since it thinks {@code null}
-     * means that the value doesn't exist. But we need it to know that we have deleted the record so it
-     * doesn't go to disk. Hence, we have this special marker.
-     */
-    public static final Hash DELETED_HASH = new Hash();
-
-    /**
      * Another marker {@link Hash} instance used to store null hashes instead of {@code null}s, which
      * are only used for deleted hashes. Before hashes are returned to callers in {@link #dirtyHashes}
      * or {@link #lookupHashByPath(long)}, this value is converted to {@code null}.
@@ -897,25 +888,6 @@ public final class VirtualNodeCache implements FastCopyable, SelfSerializable {
     }
 
     /**
-     * Marks the hash at {@code path} as having been deleted. This only happens
-     * if the merkle tree shrinks. This is only called during {@code handleTransaction},
-     * NOT during hashing and NOT after hashing.
-     * <p>
-     * This method may be called concurrently from multiple threads, but <strong>MUST NOT</strong>
-     * be called concurrently for the same record! It is NOT fully threadsafe!
-     *
-     * @param path
-     * 		The path to the virtual node that is to be marked as deleted in this cache.
-     * @throws MutabilityException
-     * 		if called when <strong>leaves</strong> are immutable.
-     */
-    public void deleteHash(final long path) {
-        throwIfLeafImmutable();
-        updatePaths(
-                null, estimatedHashesSizeInBytes, Hash::getSerializedLength, path, pathToDirtyHashIndex, dirtyHashes);
-    }
-
-    /**
      * Looks for an internal node record in this cache instance, and all older ones, based on the
      * given {@code path}. If the record exists, it is returned. If the nodes was deleted,
      * {@link #DELETED_LEAF_RECORD} is returned. If there is no mutation record at all, null is returned,
@@ -941,14 +913,9 @@ public final class VirtualNodeCache implements FastCopyable, SelfSerializable {
 
         final Mutation<Long, Hash> mutation = lookup(pathToDirtyHashIndex.get(path));
 
-        // Always return null if there is no mutation regardless of forModify
+        // Always return null if there is no mutation
         if ((mutation == null) || (mutation.value == NULL_HASH)) {
             return null;
-        }
-
-        // If the mutation was deleted, return our marker instance
-        if (mutation.isDeleted()) {
-            return DELETED_HASH;
         }
 
         return mutation.value;
@@ -1283,10 +1250,15 @@ public final class VirtualNodeCache implements FastCopyable, SelfSerializable {
             final ConcurrentArray<Mutation<K, V>> array,
             final Map<K, Mutation<K, V>> index,
             @NonNull final VirtualMapConfig virtualMapConfig) {
-        array.parallelTraverse(
-                getCleaningPool(virtualMapConfig),
-                element -> index.compute(element.key, (key, mutation) -> {
-                    if (mutation == null || element.equals(mutation)) {
+        array.parallelTraverse(getCleaningPool(virtualMapConfig), element -> {
+            // If a cache copy is released after flush, some mutations may be already marked as
+            // filtered in dirtyLeavesForFlush() and dirtyHashesForFlush(). When a mutation is
+            // filtered, it means there is a newer mutation for the same key in the same cache
+            // copy. When this newer mutation is purged, it also takes care of the filtered
+            // mutation, so there is no need to handle filtered mutations explicitly
+            if (element.notFiltered()) {
+                index.compute(element.key, (key, mutation) -> {
+                    if ((mutation == null) || element.equals(mutation)) {
                         // Already removed for a more recent mutation
                         return null;
                     }
@@ -1297,7 +1269,9 @@ public final class VirtualNodeCache implements FastCopyable, SelfSerializable {
                         }
                     }
                     return mutation;
-                }));
+                });
+            }
+        });
     }
 
     /**

@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_GET_ACCOUNT_B
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.HederaFunctionality.GET_VERSION_INFO;
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.NETWORK_GET_EXECUTION_TIME;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_SIGN;
@@ -15,11 +16,15 @@ import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_BURN;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
 import static com.hedera.hapi.node.base.HederaFunctionality.TRANSACTION_GET_RECEIPT;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
-import static com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema.SCHEDULES_BY_ID_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_KEY;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema.SCHEDULES_BY_ID_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_LABEL;
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.FRONTEND_THROTTLE;
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.NOOP_THROTTLE;
 import static com.hedera.pbj.runtime.ProtoTestTools.getThreadLocalDataBuffer;
@@ -29,26 +34,26 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ScheduleID;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
+import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
+import com.hedera.hapi.node.hooks.HookExecution;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.hapi.node.scheduled.ScheduleCreateTransactionBody;
 import com.hedera.hapi.node.scheduled.ScheduleSignTransactionBody;
@@ -60,13 +65,15 @@ import com.hedera.hapi.node.token.CryptoGetAccountBalanceQuery;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.token.TokenMintTransactionBody;
 import com.hedera.hapi.node.transaction.Query;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.ScaleFactor;
 import com.hedera.node.app.hapi.utils.throttles.BucketThrottle;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
 import com.hedera.node.app.hapi.utils.throttles.LeakyBucketDeterministicThrottle;
-import com.hedera.node.app.ids.EntityIdService;
+import com.hedera.node.app.hapi.utils.throttles.OpsDurationDeterministicThrottle;
+import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
@@ -115,6 +122,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 
 @ExtendWith({MockitoExtension.class, LogCaptureExtension.class})
 class ThrottleAccumulatorTest {
+
     private static final int CAPACITY_SPLIT = 2;
     private static final Instant TIME_INSTANT = Instant.ofEpochSecond(1_234_567L, 123);
     private static final AccountID PAYER_ID =
@@ -147,7 +155,7 @@ class ThrottleAccumulatorTest {
     private LeakyBucketDeterministicThrottle bytesThrottle;
 
     @Mock
-    private LeakyBucketDeterministicThrottle opsDurationThrottle;
+    private OpsDurationDeterministicThrottle opsDurationThrottle;
 
     @Mock
     private ThrottleMetrics throttleMetrics;
@@ -194,7 +202,6 @@ class ThrottleAccumulatorTest {
     @Mock
     private TransactionInfo transactionInfo;
 
-    private SemanticVersion softwareVersionFactory = SemanticVersion.DEFAULT;
     private final HederaConfig hederaConfig =
             HederaTestConfigBuilder.create().getOrCreateConfig().getConfigData(HederaConfig.class);
 
@@ -273,8 +280,8 @@ class ThrottleAccumulatorTest {
                 .build();
         final var account = Account.newBuilder().numberAssociations(2).build();
         final var states = MapReadableStates.builder()
-                .state(new MapReadableKVState<>(TokenService.NAME, ACCOUNTS_KEY, Map.of(RECEIVER_ID, account)))
-                .state(new MapReadableKVState<>(TokenService.NAME, ALIASES_KEY, Map.of()))
+                .state(new MapReadableKVState<>(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL, Map.of(RECEIVER_ID, account)))
+                .state(new MapReadableKVState<>(ALIASES_STATE_ID, ALIASES_STATE_LABEL, Map.of()))
                 .build();
         lenient().when(state.getReadableStates(TokenService.NAME)).thenReturn(states);
 
@@ -318,16 +325,16 @@ class ThrottleAccumulatorTest {
                 .build();
         final var account = Account.newBuilder().numberAssociations(2).build();
         final var states = MapReadableStates.builder()
-                .state(new MapReadableKVState<>(TokenService.NAME, ACCOUNTS_KEY, Map.of(RECEIVER_ID, account)))
-                .state(new MapReadableKVState<>(TokenService.NAME, ALIASES_KEY, Map.of()))
+                .state(new MapReadableKVState<>(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL, Map.of(RECEIVER_ID, account)))
+                .state(new MapReadableKVState<>(ALIASES_STATE_ID, ALIASES_STATE_LABEL, Map.of()))
                 .build();
         given(state.getReadableStates(TokenService.NAME)).willReturn(states);
         final var entityIdStates = MapReadableStates.builder()
                 .state(new FunctionReadableSingletonState<>(
-                        EntityIdService.NAME, ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder()
+                        ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.newBuilder()
                                 .build()))
                 .state(new FunctionReadableSingletonState<Object>(
-                        EntityIdService.NAME, ENTITY_COUNTS_KEY, () -> EntityCounts.newBuilder()
+                        ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.newBuilder()
                                 .build()))
                 .build();
         given(state.getReadableStates(EntityIdService.NAME)).willReturn(entityIdStates);
@@ -368,16 +375,16 @@ class ThrottleAccumulatorTest {
                 .build();
         final var account = Account.newBuilder().numberAssociations(0).build();
         final var states = MapReadableStates.builder()
-                .state(new MapReadableKVState<>(TokenService.NAME, ACCOUNTS_KEY, Map.of(RECEIVER_ID, account)))
-                .state(new MapReadableKVState<>(TokenService.NAME, ALIASES_KEY, Map.of()))
+                .state(new MapReadableKVState<>(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL, Map.of(RECEIVER_ID, account)))
+                .state(new MapReadableKVState<>(ALIASES_STATE_ID, ALIASES_STATE_LABEL, Map.of()))
                 .build();
         given(state.getReadableStates(TokenService.NAME)).willReturn(states);
         final var entityIdStates = MapReadableStates.builder()
                 .state(new FunctionReadableSingletonState<Object>(
-                        EntityIdService.NAME, ENTITY_ID_STATE_KEY, () -> EntityCounts.newBuilder()
+                        ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityCounts.newBuilder()
                                 .build()))
                 .state(new FunctionReadableSingletonState<Object>(
-                        EntityIdService.NAME, ENTITY_COUNTS_KEY, () -> EntityNumber.newBuilder()
+                        ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityNumber.newBuilder()
                                 .build()))
                 .build();
         given(state.getReadableStates(EntityIdService.NAME)).willReturn(entityIdStates);
@@ -788,7 +795,7 @@ class ThrottleAccumulatorTest {
         final int numImplicitCreations = 1;
         givenTransferWithImplicitCreations(numImplicitCreations);
         given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.get(any())).willReturn(aliases);
+        given(readableStates.get(anyInt())).willReturn(aliases);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
         given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
@@ -830,7 +837,7 @@ class ThrottleAccumulatorTest {
         final int numImplicitCreations = 1;
         givenTransferWithAutoAssociations(numImplicitCreations);
         given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.get(any())).willReturn(tokenRels);
+        given(readableStates.get(anyInt())).willReturn(tokenRels);
 
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
         given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
@@ -872,7 +879,7 @@ class ThrottleAccumulatorTest {
         given(transactionInfo.functionality()).willReturn(CRYPTO_TRANSFER);
         givenTransferWithImplicitCreations(10);
         given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.get(any())).willReturn(aliases);
+        given(readableStates.get(anyInt())).willReturn(aliases);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
         given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
@@ -913,7 +920,7 @@ class ThrottleAccumulatorTest {
         given(transactionInfo.functionality()).willReturn(CRYPTO_TRANSFER);
         givenTransferWithAutoAssociations(101);
         given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.get(any())).willReturn(tokenRels);
+        given(readableStates.get(anyInt())).willReturn(tokenRels);
 
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
         given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
@@ -956,7 +963,7 @@ class ThrottleAccumulatorTest {
         given(transactionInfo.functionality()).willReturn(CRYPTO_TRANSFER);
         givenTransferWithImplicitCreations(1);
         given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.get(any())).willReturn(aliases);
+        given(readableStates.get(anyInt())).willReturn(aliases);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
         given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
@@ -1003,7 +1010,7 @@ class ThrottleAccumulatorTest {
                         .build());
 
         given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.get(any())).willReturn(aliases);
+        given(readableStates.get(anyInt())).willReturn(aliases);
 
         // when
         subject.rebuildFor(defs);
@@ -1011,6 +1018,49 @@ class ThrottleAccumulatorTest {
 
         // then
         assertFalse(ans);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
+    void hookDispatchThrottledAsExpected(ThrottleAccumulator.ThrottleType throttleType)
+            throws IOException, ParseException {
+        // given
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                throttleType,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.throttleThrottleByGas()).willReturn(true);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
+
+        given(transactionInfo.payerID())
+                .willReturn(AccountID.newBuilder().accountNum(1234L).build());
+
+        final var defs = getThrottleDefs("bootstrap/throttles.json");
+
+        given(transactionInfo.functionality()).willReturn(HOOK_DISPATCH);
+        final var hookDispatchBody = HookDispatchTransactionBody.newBuilder()
+                .execution(HookExecution.DEFAULT)
+                .build();
+        given(transactionInfo.txBody())
+                .willReturn(TransactionBody.newBuilder()
+                        .hookDispatch(hookDispatchBody)
+                        .build());
+
+        // when
+        subject.rebuildFor(defs);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
+
+        // then
+        assertTrue(ans);
     }
 
     @ParameterizedTest
@@ -1048,7 +1098,7 @@ class ThrottleAccumulatorTest {
                         .build());
 
         given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.get(any())).willReturn(aliases);
+        given(readableStates.get(anyInt())).willReturn(aliases);
 
         // when
         subject.rebuildFor(defs);
@@ -1095,7 +1145,7 @@ class ThrottleAccumulatorTest {
                         .build());
 
         given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.get(any())).willReturn(aliases);
+        given(readableStates.get(anyInt())).willReturn(aliases);
 
         // when
         subject.rebuildFor(defs);
@@ -1142,7 +1192,7 @@ class ThrottleAccumulatorTest {
                         .build());
 
         given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.get(any())).willReturn(aliases);
+        given(readableStates.get(anyInt())).willReturn(aliases);
 
         // when
         subject.rebuildFor(defs);
@@ -1504,7 +1554,6 @@ class ThrottleAccumulatorTest {
             given(contractsConfig.maxGasPerSec()).willReturn(t);
         } else {
             given(contractsConfig.maxGasPerSecBackend()).willReturn(t);
-            given(contractsConfig.gasThrottleBurstSeconds()).willReturn(1);
         }
     }
 
@@ -1733,7 +1782,7 @@ class ThrottleAccumulatorTest {
         given(jumboTransactionsConfig.allowedHederaFunctionalities()).willReturn(Set.of(fromPbj(ETHEREUM_TRANSACTION)));
 
         given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.get(ALIASES_KEY)).willReturn(aliases);
+        given(readableStates.get(ALIASES_STATE_ID)).willReturn(aliases);
 
         final var alias = keyToBytes(A_PRIMITIVE_KEY);
         if (throttleType == FRONTEND_THROTTLE && longTermEnabled) {
@@ -1765,7 +1814,7 @@ class ThrottleAccumulatorTest {
                     .payerAccountId(scheduleCreateTxnInfo.payerID())
                     .scheduledTransaction(scheduledTransferWithAutoCreation)
                     .build();
-            given(readableStates.get(SCHEDULES_BY_ID_KEY)).willReturn(schedules);
+            given(readableStates.get(SCHEDULES_BY_ID_STATE_ID)).willReturn(schedules);
             given(schedules.get(SCHEDULE_ID)).willReturn(schedule);
         }
 
@@ -1801,6 +1850,92 @@ class ThrottleAccumulatorTest {
         verify(throttleMetrics).updateAllMetrics();
     }
 
+    @Test
+    void scheduleCreateWithoutScheduledTransactionBodyIsNotThrottled() throws IOException, ParseException {
+        // given
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(contractsConfig.maxGasPerSec()).willReturn(10_000_000L);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
+
+        subject = new ThrottleAccumulator(configProvider::getConfiguration, () -> CAPACITY_SPLIT, FRONTEND_THROTTLE);
+        subject.applyGasConfig();
+        final var defs = getThrottleDefs("bootstrap/schedule-create-throttles.json");
+        subject.rebuildFor(defs);
+
+        // Create a ScheduleCreate transaction WITHOUT scheduledTransactionBody
+        final var scheduleWithoutBody = ScheduleCreateTransactionBody.newBuilder()
+                .waitForExpiry(false)
+                .build(); // Missing .scheduledTransactionBody(...)
+        final var body = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
+                .scheduleCreate(scheduleWithoutBody)
+                .build();
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
+                .build();
+        final var txnInfo = new TransactionInfo(
+                signedTx,
+                body,
+                TransactionID.newBuilder().accountID(PAYER_ID).build(),
+                PAYER_ID,
+                SignatureMap.DEFAULT,
+                Bytes.EMPTY,
+                SCHEDULE_CREATE,
+                null);
+
+        final var shouldThrottle =
+                assertDoesNotThrow(() -> subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null));
+
+        assertTrue(shouldThrottle, "ScheduleCreate without scheduledTransactionBody should be throttled");
+    }
+
+    @Test
+    void tokenMintWithoutTokenIdIsNotThrottled() throws IOException, ParseException {
+        // given
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(contractsConfig.maxGasPerSec()).willReturn(10_000_000L);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
+
+        subject = new ThrottleAccumulator(configProvider::getConfiguration, () -> CAPACITY_SPLIT, FRONTEND_THROTTLE);
+        subject.applyGasConfig();
+        final var defs = getThrottleDefs("bootstrap/throttles.json");
+        subject.rebuildFor(defs);
+
+        // Create a TokenMint transaction WITHOUT token field
+        final var mintOp = TokenMintTransactionBody.newBuilder().amount(1000L).build(); // Missing .token(...)
+        final var body = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
+                .tokenMint(mintOp)
+                .build();
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
+                .build();
+        final var txnInfo = new TransactionInfo(
+                signedTx,
+                body,
+                TransactionID.newBuilder().accountID(PAYER_ID).build(),
+                PAYER_ID,
+                SignatureMap.DEFAULT,
+                Bytes.EMPTY,
+                TOKEN_MINT,
+                null);
+
+        final var shouldThrottle =
+                assertDoesNotThrow(() -> subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null));
+
+        assertFalse(shouldThrottle, "TokenMint without token field should not be throttled");
+    }
+
     @NonNull
     private static Bytes keyToBytes(Key key) throws IOException, ParseException {
         final var dataBuffer = getThreadLocalDataBuffer();
@@ -1822,9 +1957,11 @@ class ThrottleAccumulatorTest {
                 .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
                 .scheduleCreate(schedule)
                 .build();
-        final var txn = Transaction.newBuilder().body(body).build();
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
+                .build();
         return new TransactionInfo(
-                txn,
+                signedTx,
                 body,
                 TransactionID.newBuilder().accountID(PAYER_ID).build(),
                 PAYER_ID,
@@ -1840,9 +1977,11 @@ class ThrottleAccumulatorTest {
                 .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
                 .scheduleSign(schedule)
                 .build();
-        final var txn = Transaction.newBuilder().body(body).build();
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
+                .build();
         return new TransactionInfo(
-                txn,
+                signedTx,
                 body,
                 TransactionID.newBuilder().accountID(PAYER_ID).build(),
                 PAYER_ID,
@@ -1863,42 +2002,7 @@ class ThrottleAccumulatorTest {
         }
     }
 
-    private CryptoTransferTransactionBody cryptoTransferWithImplicitCreations(int numImplicitCreations) {
-        var accountAmounts = new ArrayList<AccountAmount>();
-        for (int i = 1; i <= numImplicitCreations; i++) {
-            accountAmounts.add(AccountAmount.newBuilder()
-                    .accountID(AccountID.newBuilder()
-                            .alias(Bytes.wrap("abcdeabcdeabcdeabcde"))
-                            .build())
-                    .amount(i)
-                    .build());
-        }
-
-        return CryptoTransferTransactionBody.newBuilder()
-                .transfers(
-                        TransferList.newBuilder().accountAmounts(accountAmounts).build())
-                .build();
-    }
-
-    private CryptoTransferTransactionBody cryptoTransferFungibleWithAutoAssociations(int numAutoAssociations) {
-        var accountAmounts = new ArrayList<AccountAmount>();
-        for (int i = 1; i <= numAutoAssociations; i++) {
-            accountAmounts.add(
-                    AccountAmount.newBuilder().accountID(PAYER_ID).amount(-i).build());
-            accountAmounts.add(
-                    AccountAmount.newBuilder().accountID(RECEIVER_ID).amount(i).build());
-        }
-
-        return CryptoTransferTransactionBody.newBuilder()
-                .tokenTransfers(TokenTransferList.newBuilder()
-                        .token(TOKEN_ID)
-                        .transfers(accountAmounts)
-                        .build())
-                .build();
-    }
-
     private void givenMintWith(int numNfts) {
-        final List<ByteString> meta = new ArrayList<>();
         final var op = TokenMintTransactionBody.newBuilder();
         if (numNfts == 0) {
             op.amount(1_234_567L);

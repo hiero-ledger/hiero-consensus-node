@@ -9,7 +9,6 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tu
 import static java.util.Objects.requireNonNull;
 import static org.hyperledger.besu.evm.frame.MessageFrame.State.EXCEPTIONAL_HALT;
 
-import com.hedera.hapi.block.stream.trace.ContractInitcode;
 import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
 import com.hedera.hapi.block.stream.trace.InitcodeBookends;
 import com.hedera.hapi.streams.ContractBytecode;
@@ -28,7 +27,6 @@ import org.hyperledger.besu.evm.account.MutableAccount;
 import org.hyperledger.besu.evm.contractvalidation.ContractValidationRule;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
-import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
 
@@ -50,19 +48,16 @@ public class CustomContractCreationProcessor extends ContractCreationProcessor {
 
     /**
      * @param evm the EVM to use
-     * @param gasCalculator the gas calculator to use
      * @param requireCodeDepositToSucceed whether to require the deposit to succeed
      * @param contractValidationRules the rules against which the contract will be validated
      * @param initialContractNonce the initial contract nonce to use for the creation
      */
     public CustomContractCreationProcessor(
             @NonNull final EVM evm,
-            @NonNull final GasCalculator gasCalculator,
             final boolean requireCodeDepositToSucceed,
             @NonNull final List<ContractValidationRule> contractValidationRules,
             final long initialContractNonce) {
         super(
-                requireNonNull(gasCalculator),
                 requireNonNull(evm),
                 requireCodeDepositToSucceed,
                 requireNonNull(contractValidationRules),
@@ -133,24 +128,16 @@ public class CustomContractCreationProcessor extends ContractCreationProcessor {
                             ContractBytecode.newBuilder().initcode(initcode).build();
                     pendingCreationMetadata.streamBuilder().addContractBytecode(sidecar, false);
                 }
-            } else if (initcode != null) {
-                final var sidecar = ContractBytecode.newBuilder()
-                        .contractId(recipientId)
-                        .initcode(initcode)
-                        .runtimeBytecode(bytecode)
-                        .build();
-                pendingCreationMetadata.streamBuilder().addContractBytecode(sidecar, false);
-            }
-            // No-op for the RecordStreamBuilder
-            if (validationRuleFailed) {
+            } else {
+                final var sidecar =
+                        ContractBytecode.newBuilder().contractId(recipientId).runtimeBytecode(bytecode);
                 if (initcode != null) {
-                    pendingCreationMetadata
-                            .streamBuilder()
-                            .addInitcode(ContractInitcode.newBuilder()
-                                    .failedInitcode(initcode)
-                                    .build());
+                    sidecar.initcode(initcode);
                 }
-            } else if (initcode != null) {
+                pendingCreationMetadata.streamBuilder().addContractBytecode(sidecar.build(), false);
+            }
+            // Below is a no-op for the RecordStreamBuilder
+            if (!validationRuleFailed && initcode != null) {
                 final var initcodeBuilder = ExecutedInitcode.newBuilder().contractId(recipientId);
                 final int i = indexOf(initcode, bytecode);
                 if (i != -1) {
@@ -161,11 +148,7 @@ public class CustomContractCreationProcessor extends ContractCreationProcessor {
                 } else {
                     initcodeBuilder.explicitInitcode(initcode);
                 }
-                pendingCreationMetadata
-                        .streamBuilder()
-                        .addInitcode(ContractInitcode.newBuilder()
-                                .executedInitcode(initcodeBuilder)
-                                .build());
+                pendingCreationMetadata.streamBuilder().addInitcode(initcodeBuilder.build());
             }
         }
     }
@@ -181,11 +164,11 @@ public class CustomContractCreationProcessor extends ContractCreationProcessor {
     }
 
     private boolean alreadyCreated(final MutableAccount account) {
-        return account.getNonce() > 0 || account.getCode().size() > 0;
+        return account.getNonce() > 0 || !account.getCode().isEmpty() || !account.isStorageEmpty();
     }
 
     private boolean isHollow(@NonNull final MutableAccount account) {
-        if (account instanceof AbstractProxyEvmAccount abstractProxyEvmAccount) {
+        if (account instanceof final AbstractProxyEvmAccount abstractProxyEvmAccount) {
             return abstractProxyEvmAccount.isHollow();
         }
         throw new IllegalArgumentException("Creation target not a AbstractProxyEvmAccount - " + account);

@@ -10,12 +10,13 @@ import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStaki
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.lastInstantOfPreviousPeriodFor;
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.newNodeStakeUpdateBuilder;
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.readableNonZeroHistory;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.transactionWith;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.signedTxWith;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.NodeStake;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
@@ -26,7 +27,6 @@ import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.StakingConfig;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigDecimal;
@@ -188,7 +188,7 @@ public class EndOfStakingPeriodUpdater {
                 END_OF_PERIOD_MEMO);
         log.info("Exporting:\n{}", nodeStakes);
         return context.addPrecedingChildRecordBuilder(NodeStakeUpdateStreamBuilder.class, NODE_STAKE_UPDATE)
-                .transaction(transactionWith(syntheticNodeStakeUpdateTxn.build()))
+                .signedTx(signedTxWith(syntheticNodeStakeUpdateTxn.build()))
                 .memo(END_OF_PERIOD_MEMO)
                 .exchangeRate(exchangeRates)
                 .status(SUCCESS);

@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_IS_TREASURY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_HOOKS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
@@ -20,6 +21,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
 import com.hedera.node.app.service.token.api.FeeStreamBuilder;
@@ -27,7 +29,7 @@ import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.validators.StakingValidator;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.ids.WritableEntityCounters;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
@@ -38,7 +40,6 @@ import com.hedera.node.config.data.NodesConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -200,7 +201,6 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         if (originalContract != null && originalContract.smartContract()) {
             builder.alias(Bytes.EMPTY);
         }
-        System.out.println("Putting " + builder.build());
         accountStore.put(builder.build());
 
         // It may be (but should never happen) that the alias in the given contractId does not match the alias on the
@@ -311,6 +311,26 @@ public class TokenServiceApiImpl implements TokenServiceApi {
                 .firstContractStorageKey(firstKey)
                 .contractKvPairsNumber(newNumKvPairs)
                 .build());
+    }
+
+    @Override
+    public void updateLambdaStorageSlots(@NonNull final AccountID accountId, final int netChangeInSlotsUsed) {
+        requireNonNull(accountId);
+        final var account = accountStore.get(accountId);
+        if (account == null) {
+            throw new IllegalArgumentException("No account found for ID " + accountId);
+        }
+        final long newSlotsUsed = account.numberLambdaStorageSlots() + netChangeInSlotsUsed;
+        if (newSlotsUsed < 0) {
+            throw new IllegalArgumentException("Cannot change # of lambda storage slots (currently "
+                    + account.numberLambdaStorageSlots()
+                    + ") by "
+                    + netChangeInSlotsUsed
+                    + " for account "
+                    + accountId);
+        }
+        accountStore.put(
+                account.copyBuilder().numberLambdaStorageSlots(newSlotsUsed).build());
     }
 
     @Override
@@ -629,6 +649,8 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         validateFalse(isExpired, ACCOUNT_EXPIRED_AND_PENDING_REMOVAL);
         // An account can't be deleted if there are any tokens associated with this account
         validateTrue(deletedAccount.numberPositiveBalances() == 0, TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES);
+        // Can't delete account with non-zero hooks
+        validateTrue(deletedAccount.numberHooksInUse() == 0, TRANSACTION_REQUIRES_ZERO_HOOKS);
         return new InvolvedAccounts(deletedAccount, transferAccount);
     }
 

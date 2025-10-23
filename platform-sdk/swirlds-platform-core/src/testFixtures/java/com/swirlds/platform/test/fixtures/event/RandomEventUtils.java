@@ -43,7 +43,7 @@ public class RandomEventUtils {
         final byte[] sig = new byte[SignatureType.RSA.signatureLength()];
         random.nextBytes(sig);
 
-        return new EventImpl(new PlatformEvent(unsignedEvent, sig), selfParent, otherParent);
+        return new EventImpl(new PlatformEvent(unsignedEvent, Bytes.wrap(sig)), selfParent, otherParent);
     }
 
     /**
@@ -79,7 +79,8 @@ public class RandomEventUtils {
                 otherDescriptor == null ? Collections.emptyList() : Collections.singletonList(otherDescriptor),
                 birthRound,
                 timestamp,
-                convertedTransactions);
+                convertedTransactions,
+                random.nextLong(0, Long.MAX_VALUE));
 
         if (fakeHash) {
             unsignedEvent.setHash(CryptoRandomUtils.randomHash(random));

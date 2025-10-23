@@ -42,7 +42,6 @@ import com.swirlds.platform.reconnect.ReconnectPlatformHelper;
 import com.swirlds.platform.reconnect.ReconnectPlatformHelperImpl;
 import com.swirlds.platform.reconnect.ReconnectSyncHelper;
 import com.swirlds.platform.reconnect.ReconnectThrottle;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -50,6 +49,7 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.wiring.NoInput;
 import com.swirlds.platform.wiring.components.Gossip;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.cert.X509Certificate;
@@ -88,6 +88,7 @@ public class SyncGossipModular implements Gossip {
 
     // this is not a nice dependency, should be removed as well as the sharedState
     private Consumer<PlatformEvent> receivedEventHandler;
+    private Consumer<Double> syncLagHandler;
     private ReconnectController reconnectController;
 
     /**
@@ -106,7 +107,7 @@ public class SyncGossipModular implements Gossip {
      * @param clearAllPipelinesForReconnect this method should be called to clear all pipelines prior to a reconnect
      * @param intakeEventCounter            keeps track of the number of events in the intake pipeline from each peer
      * @param platformStateFacade           the facade to access the platform state
-     * @param stateRootFunction             a function to instantiate the state root object from a Virtual Map
+     * @param createStateFromVirtualMap     a function to instantiate the state object from a Virtual Map
      */
     public SyncGossipModular(
             @NonNull final PlatformContext platformContext,
@@ -122,7 +123,7 @@ public class SyncGossipModular implements Gossip {
             @NonNull final Runnable clearAllPipelinesForReconnect,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final Function<VirtualMap, MerkleNodeState> stateRootFunction) {
+            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
 
         final RosterEntry selfEntry = RosterUtils.getRosterEntry(roster, selfId.id());
         final X509Certificate selfCert = RosterUtils.fetchGossipCaCertificate(selfEntry);
@@ -165,7 +166,8 @@ public class SyncGossipModular implements Gossip {
                     event -> receivedEventHandler.accept(event),
                     syncManager,
                     intakeEventCounter,
-                    selfId);
+                    selfId,
+                    lag -> syncLagHandler.accept(lag));
 
             this.synchronizer = rpcSynchronizer;
 
@@ -189,7 +191,8 @@ public class SyncGossipModular implements Gossip {
                     event -> receivedEventHandler.accept(event),
                     syncManager,
                     intakeEventCounter,
-                    new CachedPoolParallelExecutor(threadManager, "node-sync"));
+                    new CachedPoolParallelExecutor(threadManager, "node-sync"),
+                    lag -> syncLagHandler.accept(lag));
 
             this.synchronizer = shadowgraphSynchronizer;
 
@@ -211,7 +214,7 @@ public class SyncGossipModular implements Gossip {
                         selfId,
                         this.syncProtocol,
                         platformStateFacade,
-                        stateRootFunction),
+                        createStateFromVirtualMap),
                 syncProtocol);
 
         final VersionCompareHandshake versionCompareHandshake =
@@ -235,7 +238,7 @@ public class SyncGossipModular implements Gossip {
      * @param selfId                        this node's ID
      * @param gossipController              way to pause/resume gossip while reconnect is in progress
      * @param platformStateFacade           the facade to access the platform state
-     * @param stateRootFunction             a function to instantiate the state root object from a Virtual Map
+     * @param createStateFromVirtualMap     a function to instantiate the state root object from a Virtual Map
      * @return constructed ReconnectProtocol
      */
     public ReconnectProtocol createReconnectProtocol(
@@ -250,7 +253,7 @@ public class SyncGossipModular implements Gossip {
             @NonNull final NodeId selfId,
             @NonNull final GossipController gossipController,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final Function<VirtualMap, MerkleNodeState> stateRootFunction) {
+            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
 
         final ReconnectConfig reconnectConfig =
                 platformContext.getConfiguration().getConfigData(ReconnectConfig.class);
@@ -284,7 +287,7 @@ public class SyncGossipModular implements Gossip {
                         reconnectConfig.asyncStreamTimeout(),
                         reconnectMetrics,
                         platformStateFacade,
-                        stateRootFunction),
+                        createStateFromVirtualMap),
                 stateConfig,
                 platformStateFacade);
 
@@ -352,7 +355,8 @@ public class SyncGossipModular implements Gossip {
             @NonNull final BindableInputWire<NoInput, Void> stopInput,
             @NonNull final BindableInputWire<NoInput, Void> clearInput,
             @NonNull final BindableInputWire<Duration, Void> systemHealthInput,
-            @NonNull final BindableInputWire<PlatformStatus, Void> platformStatusInput) {
+            @NonNull final BindableInputWire<PlatformStatus, Void> platformStatusInput,
+            @NonNull final StandardOutputWire<Double> syncLagOutput) {
 
         startInput.bindConsumer(ignored -> {
             syncProtocol.start();
@@ -374,5 +378,6 @@ public class SyncGossipModular implements Gossip {
         });
 
         this.receivedEventHandler = eventOutput::forward;
+        this.syncLagHandler = syncLagOutput::forward;
     }
 }

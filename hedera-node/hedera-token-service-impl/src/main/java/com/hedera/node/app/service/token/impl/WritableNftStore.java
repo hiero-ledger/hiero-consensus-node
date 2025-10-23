@@ -7,8 +7,8 @@ import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
-import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -24,6 +24,7 @@ import java.util.Set;
  * This class is not complete, it will be extended with other methods like remove, update etc.,
  */
 public class WritableNftStore extends ReadableNftStoreImpl {
+
     /** The underlying data storage class that holds the NFT data. */
     private final WritableKVState<NftID, Nft> nftState;
 
@@ -37,7 +38,7 @@ public class WritableNftStore extends ReadableNftStoreImpl {
     public WritableNftStore(
             @NonNull final WritableStates states, @NonNull final WritableEntityCounters entityCounters) {
         super(states, entityCounters);
-        this.nftState = states.get(V0490TokenSchema.NFTS_KEY);
+        this.nftState = states.get(V0490TokenSchema.NFTS_STATE_ID);
         this.entityCounters = entityCounters;
     }
 

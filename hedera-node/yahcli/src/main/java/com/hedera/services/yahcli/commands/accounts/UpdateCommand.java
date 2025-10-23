@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.commands.accounts;
 
-import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.google.common.collect.Lists;
@@ -64,32 +64,32 @@ public class UpdateCommand implements Callable<Integer> {
             throw new CommandLine.PicocliException("you have to schedule the update command");
         }
 
-        final var delegate = new UpdateSuite(
-                config.asSpecConfig(),
-                effectiveMemo,
-                effectivePublicKeys,
-                effectiveTargetAccount,
-                accountsCommand.getYahcli().isScheduled());
+        final var isScheduled = accountsCommand.getYahcli().isScheduled();
+        final var delegate =
+                new UpdateSuite(config, effectiveMemo, effectivePublicKeys, effectiveTargetAccount, isScheduled);
         delegate.runSuiteSync();
 
         if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
-            COMMON_MESSAGES.info("SUCCESS - "
-                    + "Scheduled update account "
-                    + effectiveTargetAccount
-                    + " keys "
-                    + effectivePublicKeys
-                    + " with memo: '"
-                    + memo
-                    + "'");
+            config.output()
+                    .info("SUCCESS - "
+                            + "Scheduled update account "
+                            + effectiveTargetAccount
+                            + " keys "
+                            + effectivePublicKeys
+                            + " with memo: '"
+                            + memo
+                            + "'"
+                            + maybeScheduleId(isScheduled, delegate));
         } else {
-            COMMON_MESSAGES.warn("FAILED - "
-                    + "Schedule update account "
-                    + effectiveTargetAccount
-                    + " keys "
-                    + effectivePublicKeys
-                    + " with memo: '"
-                    + memo
-                    + "'");
+            config.output()
+                    .warn("FAILED - "
+                            + "Schedule update account "
+                            + effectiveTargetAccount
+                            + " keys "
+                            + effectivePublicKeys
+                            + " with memo: '"
+                            + memo
+                            + "'");
             return 1;
         }
 
@@ -109,5 +109,16 @@ public class UpdateCommand implements Callable<Integer> {
             unHexedKeys.add(key);
         }
         return unHexedKeys;
+    }
+
+    private String maybeScheduleId(boolean isSchedule, UpdateSuite delegate) {
+        final var message = new StringBuilder();
+        if (isSchedule) {
+            final var scheduleId = delegate.getScheduleId().get();
+            message.append(" with schedule ID ");
+            message.append(
+                    asEntityString(scheduleId.getShardNum(), scheduleId.getRealmNum(), scheduleId.getScheduleNum()));
+        }
+        return message.toString();
     }
 }

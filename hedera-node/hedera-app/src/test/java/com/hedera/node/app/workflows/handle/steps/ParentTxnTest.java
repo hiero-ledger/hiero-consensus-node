@@ -4,6 +4,7 @@ package com.hedera.node.app.workflows.handle.steps;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
+import static com.hedera.node.app.service.token.impl.api.TokenServiceApiProvider.TOKEN_SERVICE_API_PROVIDER;
 import static java.util.Collections.emptyMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -19,9 +20,9 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.SignatureMap;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.blocks.BlockStreamManager;
@@ -33,9 +34,12 @@ import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
+import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.services.ServiceScopeLookup;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.throttle.NetworkUtilizationManager;
 import com.hedera.node.app.workflows.TransactionChecker;
@@ -51,9 +55,8 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import java.time.Instant;
+import java.util.Map;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
@@ -193,7 +196,7 @@ class ParentTxnTest {
                 .willReturn(TransactionBody.newBuilder()
                         .transactionID(TransactionID.DEFAULT)
                         .build());
-        given(txnInfo.transaction()).willReturn(Transaction.DEFAULT);
+        given(txnInfo.signedTx()).willReturn(SignedTransaction.DEFAULT);
         given(preHandleResult.txnInfoOrThrow()).willReturn(txnInfo);
         given(txnInfo.signatureMap()).willReturn(SignatureMap.DEFAULT);
         given(preHandleResult.payerKey()).willReturn(AN_ED25519_KEY);
@@ -211,7 +214,7 @@ class ParentTxnTest {
 
         assertSame(PAYER_ID, dispatch.payerId());
         final var result = ((BlockStreamBuilder) subject.baseBuilder())
-                .build(false, false).blockItems().stream()
+                .build(false, null).blockItems().stream()
                         .filter(BlockItem::hasTransactionResult)
                         .findFirst()
                         .map(BlockItem::transactionResultOrThrow)
@@ -227,7 +230,7 @@ class ParentTxnTest {
                 .willReturn(TransactionBody.newBuilder()
                         .transactionID(TransactionID.DEFAULT)
                         .build());
-        given(txnInfo.transaction()).willReturn(Transaction.DEFAULT);
+        given(txnInfo.signedTx()).willReturn(SignedTransaction.DEFAULT);
         given(txnInfo.signatureMap()).willReturn(SignatureMap.DEFAULT);
         given(preHandleResult.getVerificationResults()).willReturn(emptyMap());
         given(preHandleResult.txnInfoOrThrow()).willReturn(txnInfo);
@@ -244,7 +247,7 @@ class ParentTxnTest {
 
         assertSame(PAYER_ID, dispatch.payerId());
         final var result = ((BlockStreamBuilder) subject.baseBuilder())
-                .build(false, false).blockItems().stream()
+                .build(false, null).blockItems().stream()
                         .filter(BlockItem::hasTransactionResult)
                         .findFirst()
                         .map(BlockItem::transactionResultOrThrow)
@@ -269,7 +272,7 @@ class ParentTxnTest {
                 blockRecordManager,
                 blockStreamManager,
                 childDispatchFactory,
-                softwareVersionFactory,
-                transactionChecker);
+                transactionChecker,
+                Map.of(TokenServiceApi.class, TOKEN_SERVICE_API_PROVIDER));
     }
 }

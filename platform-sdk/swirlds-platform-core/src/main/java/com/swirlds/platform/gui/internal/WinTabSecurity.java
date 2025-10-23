@@ -41,7 +41,7 @@ class WinTabSecurity extends PrePaintableJPanel {
                         + "The second is a sequence of words. \n\n"
                         + "Assuming more than two thirds of the population are honest, the "
                         + "unique identifier for a given swirld will never change. And if the "
-                        + "swirld ever forks or splits or branches, only one branch will keep "
+                        + "swirld ever branches or splits, only one branch will keep "
                         + "the same identifier as the original. So that version of the "
                         + "swirld is the 'official' or 'true' successor, and the rest are new swirlds.");
 

@@ -5,12 +5,13 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_STAKE_UPDATE;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
+import static com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess.blockFrom;
+import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_STATE_ID;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
-import static com.hedera.services.bdd.junit.support.BlockStreamAccess.blockFrom;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
@@ -50,13 +51,13 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.state.token.NodeActivity;
 import com.hedera.hapi.node.state.token.NodeRewards;
+import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
-import com.hedera.services.bdd.junit.support.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -79,7 +80,6 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 import org.hiero.base.concurrent.interrupt.Uninterruptable;
@@ -142,7 +142,7 @@ public class RepeatableHip1064Tests {
                 cryptoCreate(CIVILIAN_PAYER),
                 EmbeddedVerbs.<NodeRewards>viewSingleton(
                         TokenService.NAME,
-                        "NODE_REWARDS",
+                        NODE_REWARDS_STATE_ID,
                         (nodeRewards) -> preCollectionNodeFees.set(nodeRewards.nodeFeesCollected())),
                 fileCreate("something")
                         .contents("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -174,7 +174,7 @@ public class RepeatableHip1064Tests {
                 // This is considered as one transaction submitted, so one round
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
                 // Start a new period and leave only node1 as inactive
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> {
                     assertEquals(3, nodeRewards.numRoundsInStakingPeriod());
                     assertEquals(4, nodeRewards.nodeActivities().size());
                     final long expectedNodeFees = preCollectionNodeFees.get() + additionalNodeFees.get();
@@ -271,7 +271,7 @@ public class RepeatableHip1064Tests {
                 // This is considered as one transaction submitted, so one round
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
                 // Start a new period and leave only node1 as inactive
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> {
                     assertEquals(3, nodeRewards.numRoundsInStakingPeriod());
                     assertEquals(4, nodeRewards.nodeActivities().size());
                     assertEquals(expectedNodeFees.get(), nodeRewards.nodeFeesCollected());
@@ -374,7 +374,7 @@ public class RepeatableHip1064Tests {
                 sleepForBlockPeriod(),
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
                 // Start a new period and leave only node1 as inactive
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> {
                     assertEquals(3, nodeRewards.numRoundsInStakingPeriod());
                     assertEquals(4, nodeRewards.nodeActivities().size());
                     assertEquals(expectedNodeFees.get(), nodeRewards.nodeFeesCollected());
@@ -468,7 +468,7 @@ public class RepeatableHip1064Tests {
                 // This is considered as one transaction submitted, so one round
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
                 // Start a new period and leave only node1 as inactive
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> {
                     assertEquals(3, nodeRewards.numRoundsInStakingPeriod());
                     assertEquals(4, nodeRewards.nodeActivities().size());
                     assertEquals(expectedNodeFees.get(), nodeRewards.nodeFeesCollected());
@@ -550,7 +550,7 @@ public class RepeatableHip1064Tests {
                 sleepForBlockPeriod(),
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
                 // Start a new period and leave only node1 as inactive
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> {
                     assertEquals(3, nodeRewards.numRoundsInStakingPeriod());
                     assertEquals(4, nodeRewards.nodeActivities().size());
                     assertEquals(expectedNodeFees.get(), nodeRewards.nodeFeesCollected());
@@ -633,7 +633,7 @@ public class RepeatableHip1064Tests {
                 // This is considered as one transaction submitted, so one round
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
                 // Start a new period and leave only node1 as inactive
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> {
                     assertEquals(3, nodeRewards.numRoundsInStakingPeriod());
                     assertEquals(4, nodeRewards.nodeActivities().size());
                     assertEquals(expectedNodeFees.get(), nodeRewards.nodeFeesCollected());
@@ -663,10 +663,25 @@ public class RepeatableHip1064Tests {
                 waitUntilStartOfNextStakingPeriod(1),
                 nodeUpdate("0").declineReward(false),
                 sleepForBlockPeriod(),
-                // Hack to make nodes appear active
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> nodeRewards
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
                         .copyBuilder()
-                        .nodeActivities(List.of())
+                        .nodeActivities(List.of(
+                                NodeActivity.newBuilder()
+                                        .nodeId(0)
+                                        .numMissedJudgeRounds(0)
+                                        .build(),
+                                NodeActivity.newBuilder()
+                                        .nodeId(1)
+                                        .numMissedJudgeRounds(0)
+                                        .build(),
+                                NodeActivity.newBuilder()
+                                        .nodeId(2)
+                                        .numMissedJudgeRounds(0)
+                                        .build(),
+                                NodeActivity.newBuilder()
+                                        .nodeId(3)
+                                        .numMissedJudgeRounds(0)
+                                        .build()))
                         .build()),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, NODE_REWARD, ONE_MILLION_HBARS)),
                 // Move into a new staking period
@@ -686,7 +701,8 @@ public class RepeatableHip1064Tests {
                                     rewardPayment.orElseThrow().body().cryptoTransferOrThrow();
                             final var hasNodeRewardDebit =
                                     requireNonNull(rewardPaymentTx.transfers()).accountAmounts().stream()
-                                            .anyMatch(aa -> aa.amount() < 0);
+                                            .anyMatch(aa -> aa.amount() < 0
+                                                    && aa.accountIDOrThrow().accountNumOrThrow() == 801L);
                             assertTrue(hasNodeRewardDebit, "Node rewards payment should be present in the block");
                             final var nodeStakeUpdate = findFirst(b, NODE_STAKE_UPDATE);
                             assertTrue(nodeStakeUpdate.isPresent(), "Node stake update should be present in the block");
@@ -697,23 +713,18 @@ public class RepeatableHip1064Tests {
     private static Optional<TransactionParts> findFirst(
             @NonNull final Block b, @NonNull final HederaFunctionality function) {
         return b.items().stream()
-                .filter(BlockItem::hasEventTransaction)
-                .map(BlockItem::eventTransactionOrThrow)
-                .map(t -> TransactionParts.from(t.applicationTransactionOrThrow()))
+                .filter(BlockItem::hasSignedTransaction)
+                .map(BlockItem::signedTransactionOrThrow)
+                .map(TransactionParts::from)
                 .filter(parts -> parts.function() == function)
                 .findFirst();
-    }
-
-    static SpecOperation exposeLatestBlockNumber(LongConsumer cb, Duration after) {
-        return exposeLatestBlock(
-                b -> cb.accept(b.items().getFirst().blockHeaderOrThrow().number()), after);
     }
 
     static SpecOperation exposeLatestBlock(Consumer<Block> cb, Duration after) {
         return UtilVerbs.doingContextual((spec) -> {
             Uninterruptable.tryToSleep(after);
             try (final var stream = Files.walk(spec.getNetworkNodes().getFirst().getExternalPath(BLOCK_STREAMS_DIR))) {
-                final var lastPath = stream.filter(BlockStreamAccess::isBlockFile)
+                final var lastPath = stream.filter(block -> BlockStreamAccess.isBlockFile(block, true))
                         .peek(System.out::println)
                         .max(comparing(BlockStreamAccess::extractBlockNumber))
                         .orElseThrow();

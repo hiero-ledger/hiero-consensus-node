@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.manager;
 
+import static com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator.changeStateHashRandomly;
 import static com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils.buildFakeSignature;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -11,14 +12,13 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.components.state.output.StateHasEnoughSignaturesConsumer;
 import com.swirlds.platform.components.state.output.StateLacksSignaturesConsumer;
 import com.swirlds.platform.state.StateSignatureCollectorTester;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
+import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import java.security.PublicKey;
 import java.util.HashMap;
 import java.util.Map;
@@ -27,7 +27,6 @@ import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -69,11 +68,6 @@ class AddIncompleteStateTest extends AbstractStateSignatureCollectorTest {
         };
     }
 
-    @BeforeEach
-    void setUp() {
-        MerkleDb.resetDefaultInstancePath();
-    }
-
     @AfterEach
     void tearDown() {
         RandomSignedStateGenerator.releaseAllBuiltSignedStates();
@@ -106,12 +100,10 @@ class AddIncompleteStateTest extends AbstractStateSignatureCollectorTest {
                 .setRoster(roster)
                 .setRound(firstRound)
                 .setSignatures(signatures)
-                .setState(new TestMerkleStateRoot()) // FUTURE WORK: remove this line to use TestHederaVirtualMapState
+                .setState(new TestVirtualMapState())
                 .build();
 
-        // This is intentionally a different hash than the signed hash!
-        final Hash stateHash = randomHash();
-        stateFromDisk.getState().setHash(stateHash);
+        changeStateHashRandomly(stateFromDisk);
 
         // The manager should store this state but not assigned it to the last complete signed state
         manager.addReservedState(stateFromDisk.reserve("test"));

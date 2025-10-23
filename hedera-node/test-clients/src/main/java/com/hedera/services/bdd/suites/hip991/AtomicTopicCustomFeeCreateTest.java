@@ -46,7 +46,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -59,7 +58,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -68,17 +66,10 @@ import org.junit.jupiter.api.Nested;
 
 // This test cases are direct copies of TopicCustomFeeCreateTest. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm the fees are the same
-@HapiTestLifecycle
 @DisplayName("Topic custom fees")
-public class AtomicTopicCustomFeeCreateTest extends TopicCustomFeeBase {
+class AtomicTopicCustomFeeCreateTest extends TopicCustomFeeBase {
 
     private static final String BATCH_OPERATOR = "batchOperator";
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-    }
 
     @Nested
     @DisplayName("Positive scenarios")

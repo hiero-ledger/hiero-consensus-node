@@ -140,8 +140,8 @@ class VirtualInternalNodeTest extends VirtualTestBase {
     @DisplayName("Getting a child that is on disk")
     void getValidChildOnDisk() throws IOException {
         final VirtualMap map = createMap();
-        map.getState().setLastLeafPath(12);
-        map.getState().setFirstLeafPath(6);
+        map.getMetadata().setLastLeafPath(12);
+        map.getMetadata().setFirstLeafPath(6);
 
         final List<VirtualLeafBytes> leaves = List.of(
                 new VirtualLeafBytes<>(6, D_KEY, DATE, TestValueCodec.INSTANCE),
@@ -151,7 +151,8 @@ class VirtualInternalNodeTest extends VirtualTestBase {
                 new VirtualLeafBytes<>(10, F_KEY, FIG, TestValueCodec.INSTANCE),
                 new VirtualLeafBytes<>(11, G_KEY, GRAPE, TestValueCodec.INSTANCE),
                 new VirtualLeafBytes<>(12, B_KEY, BANANA, TestValueCodec.INSTANCE));
-        map.getDataSource().saveRecords(6, 12, leaves.stream().map(this::hashRecord), leaves.stream(), Stream.empty());
+        map.getDataSource()
+                .saveRecords(6, 12, leaves.stream().map(this::hashRecord), leaves.stream(), Stream.empty(), false);
 
         VirtualHashRecord virtualHashRecord = new VirtualHashRecord(2, null);
         VirtualInternalNode internalNode = new VirtualInternalNode(map, virtualHashRecord);

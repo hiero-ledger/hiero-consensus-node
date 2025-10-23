@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.standalone.impl;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
+import static com.hedera.node.app.service.token.impl.api.TokenServiceApiProvider.TOKEN_SERVICE_API_PROVIDER;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.initializeBuilderInfo;
 import static com.hedera.node.app.workflows.handle.dispatch.ChildDispatchFactory.NO_OP_KEY_VERIFIER;
@@ -10,7 +11,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SignatureMap;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
@@ -19,15 +19,20 @@ import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fees.ResourcePriceCalculatorImpl;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.EntityNumGeneratorImpl;
-import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.records.impl.BlockRecordInfoImpl;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.entityid.impl.EntityNumGeneratorImpl;
+import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
+import com.hedera.node.app.service.schedule.ScheduleServiceApi;
+import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
 import com.hedera.node.app.service.token.api.FeeStreamBuilder;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.services.ServiceScopeLookup;
+import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.node.app.spi.authorization.Authorizer;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
@@ -54,11 +59,10 @@ import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
@@ -83,6 +87,7 @@ public class StandaloneDispatchFactory {
     private final TransactionDispatcher transactionDispatcher;
     private final NetworkUtilizationManager networkUtilizationManager;
     private final TransactionChecker transactionChecker;
+    private final Map<Class<?>, ServiceApiProvider<?>> apiProviders;
 
     @Inject
     public StandaloneDispatchFactory(
@@ -98,7 +103,8 @@ public class StandaloneDispatchFactory {
             @NonNull final ChildDispatchFactory childDispatchFactory,
             @NonNull final TransactionDispatcher transactionDispatcher,
             @NonNull final NetworkUtilizationManager networkUtilizationManager,
-            @NonNull final TransactionChecker transactionChecker) {
+            @NonNull final TransactionChecker transactionChecker,
+            @NonNull final ScheduleServiceImpl scheduleService) {
         this.feeManager = requireNonNull(feeManager);
         this.authorizer = requireNonNull(authorizer);
         this.networkInfo = requireNonNull(networkInfo);
@@ -112,6 +118,12 @@ public class StandaloneDispatchFactory {
         this.storeMetricsService = requireNonNull(storeMetricsService);
         this.networkUtilizationManager = requireNonNull(networkUtilizationManager);
         this.transactionChecker = requireNonNull(transactionChecker);
+        requireNonNull(scheduleService);
+        this.apiProviders = Map.of(
+                TokenServiceApi.class,
+                TOKEN_SERVICE_API_PROVIDER,
+                ScheduleServiceApi.class,
+                scheduleService.apiProvider());
     }
 
     /**
@@ -139,7 +151,7 @@ public class StandaloneDispatchFactory {
                 new ImmediateStateChangeListener(),
                 blockStreamConfig.streamMode());
         final var readableStoreFactory = new ReadableStoreFactory(stack);
-        final var entityIdStore = new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME));
+        final var entityIdStore = new WritableEntityIdStoreImpl(stack.getWritableStates(EntityIdService.NAME));
         final var consensusTransaction = consensusTransactionFor(transactionBody);
         final var creatorInfo = creatorInfoFor(transactionBody);
         final var preHandleResult = preHandleWorkflow.getCurrentPreHandleResult(
@@ -148,7 +160,7 @@ public class StandaloneDispatchFactory {
         final var txnInfo = requireNonNull(preHandleResult.txInfo());
         final var writableStoreFactory =
                 new WritableStoreFactory(stack, serviceScopeLookup.getServiceName(txnInfo.txBody()), entityIdStore);
-        final var serviceApiFactory = new ServiceApiFactory(stack, config);
+        final var serviceApiFactory = new ServiceApiFactory(stack, config, apiProviders);
         final var priceCalculator =
                 new ResourcePriceCalculatorImpl(consensusNow, txnInfo, feeManager, readableStoreFactory);
         final var storeFactory = new StoreFactoryImpl(readableStoreFactory, writableStoreFactory, serviceApiFactory);
@@ -212,19 +224,17 @@ public class StandaloneDispatchFactory {
     }
 
     private ConsensusTransaction consensusTransactionFor(@NonNull final TransactionBody transactionBody) {
-        final var signedTransaction =
-                new SignedTransaction(TransactionBody.PROTOBUF.toBytes(transactionBody), SignatureMap.DEFAULT);
-        final var transaction = Transaction.newBuilder()
-                .signedTransactionBytes(SignedTransaction.PROTOBUF.toBytes(signedTransaction))
-                .build();
-        final var transactionBytes = Transaction.PROTOBUF.toBytes(transaction);
-        final var consensusTransaction = new TransactionWrapper(transactionBytes);
+        final var signedTx =
+                new SignedTransaction(TransactionBody.PROTOBUF.toBytes(transactionBody), SignatureMap.DEFAULT, false);
+        final var serializedSignedTx = SignedTransaction.PROTOBUF.toBytes(signedTx);
+        final var consensusTransaction = new TransactionWrapper(serializedSignedTx);
         consensusTransaction.setMetadata(temporaryPreHandleResult());
         return consensusTransaction;
     }
 
     private NodeInfo creatorInfoFor(@NonNull final TransactionBody transactionBody) {
-        return new NodeInfoImpl(0, transactionBody.nodeAccountIDOrThrow(), 0, List.of(), Bytes.EMPTY, List.of(), false);
+        return new NodeInfoImpl(
+                0, transactionBody.nodeAccountIDOrThrow(), 0, List.of(), Bytes.EMPTY, List.of(), false, null);
     }
 
     private PreHandleResult temporaryPreHandleResult() {

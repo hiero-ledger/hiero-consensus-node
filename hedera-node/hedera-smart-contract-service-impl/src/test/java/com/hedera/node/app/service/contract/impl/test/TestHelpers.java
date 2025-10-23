@@ -3,9 +3,8 @@ package com.hedera.node.app.service.contract.impl.test;
 
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SIGNATURE;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.TokenTupleUtils.typedKeyTupleFor;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
+import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.headlongAddressOf;
@@ -19,7 +18,6 @@ import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INVALID_OPERA
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.doReturn;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
@@ -87,6 +85,7 @@ import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.OpsDurationConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -139,6 +138,7 @@ public class TestHelpers {
     public static final ContractsConfig DEFAULT_CONTRACTS_CONFIG = DEFAULT_CONFIG.getConfigData(ContractsConfig.class);
     public static final EntitiesConfig DEFAULT_ENTITIES_CONFIG = DEFAULT_CONFIG.getConfigData(EntitiesConfig.class);
     public static final AccountsConfig DEFAULT_ACCOUNTS_CONFIG = DEFAULT_CONFIG.getConfigData(AccountsConfig.class);
+    public static final HooksConfig DEFAULT_HOOKS_CONFIG = DEFAULT_CONFIG.getConfigData(HooksConfig.class);
     public static final OpsDurationConfig DEFAULT_OPS_DURATION_CONFIG =
             DEFAULT_CONFIG.getConfigData(OpsDurationConfig.class);
 
@@ -209,7 +209,8 @@ public class TestHelpers {
             .evmAddress(Bytes.fromHex("1234123412341234123412341234123412341234"))
             .build();
     public static final Bytes LONG_ZERO_ADDRESS_BYTES = Bytes.fromHex("0000000000000000000000000000000000000123");
-    public static final Bytes NON_LONG_ZERO_ADDRESS_BYTES = Bytes.fromHex("dac17f958d2ee523a2206206994597c13d831ec7");
+    public static final String NON_LONG_ZERO_ADDRESS = "dac17f958d2ee523a2206206994597c13d831ec7";
+    public static final Bytes NON_LONG_ZERO_ADDRESS_BYTES = Bytes.fromHex(NON_LONG_ZERO_ADDRESS);
     public static final ContractID LONG_ZERO_CONTRACT_ID =
             ContractID.newBuilder().evmAddress(LONG_ZERO_ADDRESS_BYTES).build();
 
@@ -219,6 +220,7 @@ public class TestHelpers {
     public static final Address PRNG_SYSTEM_CONTRACT_ADDRESS = Address.fromHexString("0x169");
     public static final Address NON_SYSTEM_LONG_ZERO_ADDRESS = Address.fromHexString("0x1234576890");
     public static final Address NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS = Address.fromHexString("0x1234");
+    public static final Address HTS_HOOKS_CONTRACT_ADDRESS = Address.fromHexString("0x16D");
     public static final FileID INITCODE_FILE_ID =
             FileID.newBuilder().fileNum(6789L).build();
     public static final FileID ETH_CALLDATA_FILE_ID =
@@ -525,7 +527,8 @@ public class TestHelpers {
     public static final List<ContractNonceInfo> NONCES =
             List.of(new ContractNonceInfo(CALLED_CONTRACT_ID, NONCE), new ContractNonceInfo(CHILD_CONTRACT_ID, 1L));
     public static final EntityNumber CALLED_CONTRACT_ENTITY_NUMBER = new EntityNumber(666);
-    public static final Code CONTRACT_CODE = CodeFactory.createCode(pbjToTuweniBytes(CALL_DATA), 0, false);
+    public static final CodeFactory CODE_FACTORY = new CodeFactory(0, 0);
+    public static final Code CONTRACT_CODE = CODE_FACTORY.createCode(pbjToTuweniBytes(CALL_DATA), false);
     public static final Log BESU_LOG = new Log(
             NON_SYSTEM_LONG_ZERO_ADDRESS,
             pbjToTuweniBytes(TestHelpers.CALL_DATA),
@@ -567,6 +570,7 @@ public class TestHelpers {
             0L,
             0L,
             ContractCreateTransactionBody.DEFAULT,
+            null,
             null);
     public static final HederaEvmTransaction HEVM_Exception = new HederaEvmTransaction(
             SENDER_ID,
@@ -580,7 +584,23 @@ public class TestHelpers {
             0L,
             0L,
             null,
-            new HandleException(ResponseCodeEnum.INVALID_CONTRACT_ID));
+            new HandleException(ResponseCodeEnum.INVALID_CONTRACT_ID),
+            null);
+
+    public static final HederaEvmTransaction HEVM_OversizeException = new HederaEvmTransaction(
+            SENDER_ID,
+            RELAYER_ID,
+            CALLED_CONTRACT_ID,
+            NONCE,
+            CALL_DATA,
+            MAINNET_CHAIN_ID,
+            VALUE,
+            GAS_LIMIT,
+            0L,
+            0L,
+            null,
+            new HandleException(ResponseCodeEnum.TRANSACTION_OVERSIZE),
+            null);
 
     public static final HederaEvmTransactionResult SUCCESS_RESULT = explicitSuccessFrom(
             GAS_LIMIT / 2,
@@ -619,7 +639,6 @@ public class TestHelpers {
             INVALID_SIGNATURE,
             null,
             Collections.emptyList(),
-            null,
             null,
             null,
             null,
@@ -714,6 +733,7 @@ public class TestHelpers {
     public static final Bytes APPROVED_ADDRESS = Bytes.fromHex("aa1e6a49898ea7a44e81599a7c0deeeaa969e990");
     public static final com.esaulpaugh.headlong.abi.Address APPROVED_HEADLONG_ADDRESS =
             asHeadlongAddress(APPROVED_ADDRESS.toByteArray());
+    public static final Address APPROVED_BESU_ADDRESS = Address.fromHexString(APPROVED_ADDRESS.toHex());
 
     public static final AccountID RECEIVER_ID =
             AccountID.newBuilder().accountNum(7773777L).build(); // 7773777L == 0x769e51
@@ -808,6 +828,7 @@ public class TestHelpers {
                 userGasPrice,
                 maxGasAllowance,
                 null,
+                null,
                 null);
     }
 
@@ -837,6 +858,7 @@ public class TestHelpers {
                 userGasPrice,
                 maxGasAllowance,
                 ContractCreateTransactionBody.DEFAULT,
+                null,
                 null);
     }
 
@@ -861,7 +883,7 @@ public class TestHelpers {
             @NonNull final HederaEvmBlocks blocks,
             @NonNull final TinybarValues tinybarValues,
             @NonNull final SystemContractGasCalculator systemContractGasCalculator,
-            @NonNull ContractOperationStreamBuilder recordBuilder) {
+            @NonNull final ContractOperationStreamBuilder recordBuilder) {
         return new HederaEvmContext(
                 NETWORK_GAS_PRICE,
                 false,
@@ -954,14 +976,8 @@ public class TestHelpers {
                 .build();
     }
 
-    public static void givenDefaultConfigInFrame(@NonNull final MessageFrame frame) {
-        givenConfigInFrame(frame, DEFAULT_CONFIG);
-    }
-
-    public static void givenConfigInFrame(@NonNull final MessageFrame frame, @NonNull final Configuration config) {
+    public static void givenFrameStack(@NonNull final MessageFrame frame) {
         final Deque<MessageFrame> stack = new ArrayDeque<>();
-        given(frame.getMessageFrameStack()).willReturn(stack);
-        doReturn(config).when(frame).getContextVariable(CONFIG_CONTEXT_VARIABLE);
         given(frame.getMessageFrameStack()).willReturn(stack);
     }
 
@@ -979,7 +995,7 @@ public class TestHelpers {
                 processor,
                 HederaEvmVersion.VERSION_051,
                 processor,
-                HederaEvmVersion.VERSION_062,
+                HederaEvmVersion.VERSION_065,
                 processor);
     }
 
@@ -990,7 +1006,7 @@ public class TestHelpers {
         private Tuple transferList;
 
         public TransferListBuilder withAccountAmounts(final Tuple... accountAmounts) {
-            this.transferList = Tuple.singleton(accountAmounts);
+            transferList = Tuple.singleton(accountAmounts);
             return this;
         }
 
@@ -1030,12 +1046,12 @@ public class TestHelpers {
         }
 
         public TokenTransferListBuilder withAccountAmounts(final Tuple... accountAmounts) {
-            this.tokenTransferList = Tuple.of(token, accountAmounts, new Tuple[] {});
+            tokenTransferList = Tuple.of(token, accountAmounts, new Tuple[] {});
             return this;
         }
 
         public TokenTransferListBuilder withNftTransfers(final Tuple... nftTransfers) {
-            this.tokenTransferList = Tuple.of(token, new Tuple[] {}, nftTransfers);
+            tokenTransferList = Tuple.of(token, new Tuple[] {}, nftTransfers);
             return this;
         }
 
@@ -1071,10 +1087,9 @@ public class TestHelpers {
                 null,
                 requireNonNull(logs),
                 evmLogs,
-                stateChanges,
-                slotUsages,
                 null,
                 actions,
+                null,
                 null);
     }
 }

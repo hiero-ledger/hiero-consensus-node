@@ -28,8 +28,8 @@ class OnDiskReadableStateTest extends MerkleTestBase {
         setupFruitVirtualMap();
     }
 
-    private void add(String serviceName, String stateKey, ProtoBytes key, String value) {
-        addKvState(fruitVirtualMap, serviceName, stateKey, STRING_CODEC, key, value);
+    private void add(int stateId, ProtoBytes key, ProtoBytes value) {
+        addKvState(fruitVirtualMap, stateId, key, value);
     }
 
     @Nested
@@ -37,18 +37,10 @@ class OnDiskReadableStateTest extends MerkleTestBase {
     final class ConstructorTest {
 
         @Test
-        @DisplayName("You must specify the serviceName")
+        @DisplayName("You must specify the label")
         void nullServiceNameThrows() {
             assertThatThrownBy(() -> new OnDiskReadableKVState<>(
-                            null, FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC, fruitVirtualMap))
-                    .isInstanceOf(NullPointerException.class);
-        }
-
-        @Test
-        @DisplayName("You must specify the stateKey")
-        void nullStateKeyThrows() {
-            assertThatThrownBy(() -> new OnDiskReadableKVState<>(
-                            FRUIT_SERVICE_NAME, null, STRING_CODEC, STRING_CODEC, fruitVirtualMap))
+                            FRUIT_STATE_ID, null, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, fruitVirtualMap))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -56,39 +48,31 @@ class OnDiskReadableStateTest extends MerkleTestBase {
         @DisplayName("You must specify the virtual map")
         void nullVirtualMapThrows() {
             assertThatThrownBy(() -> new OnDiskReadableKVState<>(
-                            FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC, null))
+                            FRUIT_STATE_ID, FRUIT_STATE_LABEL, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, null))
                     .isInstanceOf(NullPointerException.class);
         }
 
         @Test
-        @DisplayName("The serviceName matches that supplied")
-        void serviceName() {
+        @DisplayName("The stateId matches that supplied")
+        void stateId() {
             final var state = new OnDiskReadableKVState<>(
-                    FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC, fruitVirtualMap);
-            assertThat(state.getServiceName()).isEqualTo(FRUIT_SERVICE_NAME);
-        }
-
-        @Test
-        @DisplayName("The stateKey matches that supplied")
-        void stateKey() {
-            final var state = new OnDiskReadableKVState<>(
-                    FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC, fruitVirtualMap);
-            assertThat(state.getStateKey()).isEqualTo(FRUIT_STATE_KEY);
+                    FRUIT_STATE_ID, FRUIT_STATE_LABEL, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, fruitVirtualMap);
+            assertThat(state.getStateId()).isEqualTo(FRUIT_STATE_ID);
         }
     }
 
     @Nested
     @DisplayName("Query Tests")
     final class QueryTest {
-        private OnDiskReadableKVState<ProtoBytes, String> state;
+        private OnDiskReadableKVState<ProtoBytes, ProtoBytes> state;
 
         @BeforeEach
         void setUp() {
             state = new OnDiskReadableKVState<>(
-                    FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, STRING_CODEC, fruitVirtualMap);
-            add(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, A_KEY, APPLE);
-            add(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, B_KEY, BANANA);
-            add(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, C_KEY, CHERRY);
+                    FRUIT_STATE_ID, FRUIT_STATE_LABEL, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, fruitVirtualMap);
+            add(FRUIT_STATE_ID, A_KEY, APPLE);
+            add(FRUIT_STATE_ID, B_KEY, BANANA);
+            add(FRUIT_STATE_ID, C_KEY, CHERRY);
         }
 
         @Test
@@ -108,9 +92,9 @@ class OnDiskReadableStateTest extends MerkleTestBase {
     @DisplayName("The method warm() calls the appropriate method on the virtual map")
     void warm(@Mock VirtualMap virtualMapMock) {
         final var state = new OnDiskReadableKVState<>(
-                FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, STRING_CODEC, virtualMapMock);
+                FRUIT_STATE_ID, FRUIT_STATE_LABEL, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, virtualMapMock);
         state.warm(A_KEY);
-        verify(virtualMapMock).warm(StateUtils.getVirtualMapKeyForKv(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, A_KEY));
+        verify(virtualMapMock).warm(StateUtils.getStateKeyForKv(FRUIT_STATE_ID, A_KEY, ProtoBytes.PROTOBUF));
     }
 
     @AfterEach

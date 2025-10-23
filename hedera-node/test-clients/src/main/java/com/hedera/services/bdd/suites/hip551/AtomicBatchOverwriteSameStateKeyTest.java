@@ -2,11 +2,14 @@
 package com.hedera.services.bdd.suites.hip551;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
 import static com.hedera.services.bdd.spec.keys.KeyShape.PREDEFINED_SHAPE;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -23,10 +26,13 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.wipeTokenAccount;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.precompile.ContractBurnHTSSuite.ALICE;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.genRandomBytes;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -36,16 +42,11 @@ import static java.lang.String.valueOf;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -60,17 +61,12 @@ import org.junit.jupiter.api.Tag;
  * effects using trace data, allowing accurate record generation even when
  * state is overwritten within the same batch.
  */
-@HapiTestLifecycle
 @Tag(TOKEN)
-public class AtomicBatchOverwriteSameStateKeyTest {
+@Tag(MATS)
+class AtomicBatchOverwriteSameStateKeyTest {
 
     private static final String OPERATOR = "operator";
     private static final String ADMIN_KEY = "adminKey";
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle lifecycle) {
-        lifecycle.overrideInClass(Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-    }
 
     /**
      * Mint, Burn and Delete NFT token
@@ -78,7 +74,7 @@ public class AtomicBatchOverwriteSameStateKeyTest {
      */
     @HapiTest
     @DisplayName("Mint, Burn and Delete NFT token")
-    public Stream<DynamicTest> mintBurnAndDeleteNftWithoutCustomFeesSuccessInBatch() {
+    Stream<DynamicTest> mintBurnAndDeleteNftWithoutCustomFeesSuccessInBatch() {
         final String nft = "nft";
         final String adminKey = ADMIN_KEY;
         final String nftSupplyKey = "nftSupplyKey";
@@ -128,7 +124,7 @@ public class AtomicBatchOverwriteSameStateKeyTest {
      */
     @HapiTest
     @DisplayName("Multiple crypto updates on same state key")
-    public Stream<DynamicTest> multipleCryptoUpdatesOnSameStateInBatch() {
+    Stream<DynamicTest> multipleCryptoUpdatesOnSameStateInBatch() {
         final var key = "key";
         final var newKey = "newKey1";
         final var newKey2 = "newKey2";
@@ -173,7 +169,7 @@ public class AtomicBatchOverwriteSameStateKeyTest {
      */
     @HapiTest
     @DisplayName("Multiple token updates on same state key in batch")
-    public Stream<DynamicTest> multipleTokenUpdatesOnSameStateInBatch() {
+    Stream<DynamicTest> multipleTokenUpdatesOnSameStateInBatch() {
         final var token = "test";
         final var treasury = "treasury";
         final var treasury1 = "treasury1";
@@ -215,13 +211,62 @@ public class AtomicBatchOverwriteSameStateKeyTest {
         // just because the same slot they use is overwritten by the third one.
     }
 
+    @HapiTest
+    @DisplayName("Update Token Admin Key And Update Treasury Account Success in Atomic Batch")
+    Stream<DynamicTest> updateTokenAdminKeyAndTreasuryAccountSuccessInAtomicBatch() {
+        final var token = "test";
+        final var adminKey = "adminKey";
+        final var newAdminKey = "newAdminKey";
+        final var treasury = "treasury";
+        final var treasury1 = "treasury1";
+        final var payer = "payer";
+        return hapiTest(flattened(
+                newKeyNamed(adminKey),
+                newKeyNamed(newAdminKey),
+                cryptoCreate(OPERATOR),
+                cryptoCreate(payer),
+                cryptoCreate(treasury).maxAutomaticTokenAssociations(-1),
+                cryptoCreate(treasury1).maxAutomaticTokenAssociations(-1),
+                // create keys, tokens and accounts
+                tokenCreate(token)
+                        .adminKey(adminKey)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(1000)
+                        .treasury(treasury)
+                        .supplyKey(adminKey),
+                // perform the atomic batch transaction
+                atomicBatch(
+                                tokenUpdate(token)
+                                        .adminKey(newAdminKey)
+                                        .payingWith(payer)
+                                        .signedBy(adminKey, newAdminKey, payer)
+                                        .via("updateTokenTxn")
+                                        .batchKey(OPERATOR),
+                                tokenUpdate(token)
+                                        .treasury(treasury1)
+                                        .payingWith(payer)
+                                        .signedBy(newAdminKey, treasury1, payer)
+                                        .via("updateTokenTxn")
+                                        .batchKey(OPERATOR))
+                        .payingWith(OPERATOR)
+                        .via("batchTxn")
+                        .hasKnownStatus(SUCCESS),
+                // confirm token is updated
+                getTokenInfo(token).hasTreasury(treasury1),
+                withOpContext((spec, opLog) -> {
+                    final var newAdminKeyFromRegistry = spec.registry().getKey(newAdminKey);
+                    final var tokenInfoOperation = getTokenInfo(token).hasAdminKey(toPbj(newAdminKeyFromRegistry));
+                    allRunFor(spec, tokenInfoOperation);
+                })));
+    }
+
     /**
      * Submit to topic twice in batch
      * @return HAPI test
      */
     @HapiTest
     @DisplayName("Submit to topic twice in batch")
-    public Stream<DynamicTest> submitToTopicTwiceInBatch() {
+    Stream<DynamicTest> submitToTopicTwiceInBatch() {
         final var topic = "topic";
         final var submitKey = "submitKey";
         final var batchOperator = "batchOperator";
@@ -251,7 +296,7 @@ public class AtomicBatchOverwriteSameStateKeyTest {
      */
     @HapiTest
     @DisplayName("Multiple mint precompile calls")
-    public Stream<DynamicTest> multipleMintPrecompileCalls() {
+    Stream<DynamicTest> multipleMintPrecompileCalls() {
         final var nft = "nft";
         final var gasToOffer = 2_000_000L;
         final var mintContract = "MintContract";
@@ -305,7 +350,7 @@ public class AtomicBatchOverwriteSameStateKeyTest {
      */
     @HapiTest
     @DisplayName("Multiple wipe token")
-    public Stream<DynamicTest> multipleWipeToken() {
+    Stream<DynamicTest> multipleWipeToken() {
         final String nft = "nft";
         final String adminKey = ADMIN_KEY;
         final String treasury = "treasury";

@@ -8,11 +8,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
@@ -20,13 +20,12 @@ import com.swirlds.platform.state.service.PlatformStateValueAccumulator;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import java.util.ArrayList;
 import java.util.List;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.AddressBook;
-import org.hiero.consensus.roster.RosterRetriever;
 
 /**
  * A helper class for testing the {@link DefaultTransactionHandler}.
@@ -42,11 +41,11 @@ public class TransactionHandlerTester {
     private final MerkleNodeState consensusState;
 
     /**
-     * Constructs a new {@link TransactionHandlerTester} with the given {@link AddressBook}.
+     * Constructs a new {@link TransactionHandlerTester} with the given {@link Roster}.
      *
-     * @param addressBook the {@link AddressBook} to use
+     * @param roster the {@link Roster} to use
      */
-    public TransactionHandlerTester(final AddressBook addressBook) {
+    public TransactionHandlerTester(final Roster roster) {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
         platformState = new PlatformStateValueAccumulator();
@@ -69,7 +68,7 @@ public class TransactionHandlerTester {
         final StatusActionSubmitter statusActionSubmitter = submittedActions::add;
         swirldStateManager = new SwirldStateManager(
                 platformContext,
-                RosterRetriever.buildRoster(addressBook),
+                roster,
                 NodeId.FIRST_NODE_ID,
                 statusActionSubmitter,
                 SemanticVersion.newBuilder().major(1).build(),

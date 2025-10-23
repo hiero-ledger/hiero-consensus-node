@@ -12,11 +12,11 @@ import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.ExecutionException;
@@ -69,7 +69,6 @@ public final class StateInitializer {
             throw new IllegalStateException("Expected initial state to be unhashed");
         }
 
-        signedState.init(platformContext);
         consensusStateEventHandler.onStateInitialized(
                 signedState.getState(), platform, trigger, previousSoftwareVersion);
 
@@ -107,19 +106,19 @@ public final class StateInitializer {
      * </p>
      *
      * @deprecated This method should be removed together with {@code MerkleStateRoot}. Only state root function should be used then.
-     * @param stateRootFunction a function to instantiate the state root object from a Virtual Map
-     * @param stateRoot         the root of the state to initialize
-     * @param metrics           the metrics
+     * @param createStateFromVirtualMap a function to instantiate the state object from a Virtual Map
+     * @param stateRoot                 the root of the state to initialize
+     * @param metrics                   the metrics
      * @return the initialized {@code MerkleNodeState}
      */
     @Deprecated
     public static MerkleNodeState initializeMerkleNodeState(
-            @NonNull final Function<VirtualMap, MerkleNodeState> stateRootFunction,
+            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
             @NonNull final MerkleNode stateRoot,
             @NonNull final Metrics metrics) {
         if (stateRoot instanceof VirtualMap virtualMap) {
             virtualMap.registerMetrics(metrics);
-            return stateRootFunction.apply(virtualMap);
+            return createStateFromVirtualMap.apply(virtualMap);
         } else {
             return (MerkleNodeState) stateRoot;
         }

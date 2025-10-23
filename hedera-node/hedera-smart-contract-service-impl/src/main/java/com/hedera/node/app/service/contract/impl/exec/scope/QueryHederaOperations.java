@@ -9,6 +9,7 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.node.app.service.contract.impl.annotations.QueryScope;
 import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
 import com.hedera.node.app.spi.fees.FeeCharging;
@@ -272,6 +273,13 @@ public class QueryHederaOperations implements HederaOperations {
     @Nullable
     public ThrottleAdviser getThrottleAdviser() {
         // Queries do not have a throttle adviser
+        return null;
+    }
+
+    @Override
+    @Nullable
+    public ContractMetrics contractMetrics() {
+        // As we do not have throttle adviser it makes no sense to use the metrics
         return null;
     }
 }

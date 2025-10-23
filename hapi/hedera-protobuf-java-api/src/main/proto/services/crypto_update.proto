@@ -20,6 +20,7 @@ option java_multiple_files = true;
 
 import "services/basic_types.proto";
 import "services/duration.proto";
+import "services/hook_types.proto";
 import "services/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 
@@ -216,4 +217,13 @@ message CryptoUpdateTransactionBody {
      */
     google.protobuf.BoolValue decline_reward = 18;
 
+    /**
+     * The ids the hooks to delete from the account.
+     */
+    repeated int64 hook_ids_to_delete = 19;
+
+    /**
+     * The hooks to create for the account.
+     */
+    repeated com.hedera.hapi.node.hooks.HookCreationDetails hook_creation_details = 20;
 }

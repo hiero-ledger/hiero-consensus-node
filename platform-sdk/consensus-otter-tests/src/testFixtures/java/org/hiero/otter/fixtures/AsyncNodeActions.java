@@ -3,20 +3,27 @@ package org.hiero.otter.fixtures;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 
 /**
  * Interface for performing asynchronous node actions with a specified timeout.
  */
+@SuppressWarnings("unused")
 public interface AsyncNodeActions {
+
+    /**
+     * Start the node with the configured timeout.
+     *
+     * @see Node#start()
+     */
+    void start();
 
     /**
      * Kill the node without prior cleanup with the configured timeout.
      *
      * @see Node#killImmediately()
-     *
-     * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void killImmediately() throws InterruptedException;
+    void killImmediately();
 
     /**
      * Start a synthetic bottleneck on the node with a default delay of 100 milliseconds per round.
@@ -34,9 +41,16 @@ public interface AsyncNodeActions {
     void stopSyntheticBottleneck();
 
     /**
-     * Start the node with the configured timeout.
-     *
-     * @see Node#start()
+     * Triggers a self-ISS on this node.
      */
-    void start();
+    void triggerSelfIss();
+
+    /**
+     * Sets the quiescence command of the node.
+     *
+     * <p>The default command is {@link QuiescenceCommand#DONT_QUIESCE}.
+     *
+     * @param command the new quiescence command
+     */
+    void sendQuiescenceCommand(@NonNull QuiescenceCommand command);
 }

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.io.utility.FileUtils;
@@ -13,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
@@ -22,7 +24,9 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
-import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
+import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
+import org.hiero.otter.fixtures.turtle.logging.TurtleLogClock;
+import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 
 /**
  * A test environment for the Turtle framework.
@@ -32,25 +36,34 @@ import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
  */
 public class TurtleTestEnvironment implements TestEnvironment {
 
+    static {
+        // Set custom clock property BEFORE any Log4j2 initialization
+        // This ensures the TurtleClock is used for all log timestamps
+        System.setProperty("log4j.Clock", TurtleLogClock.class.getName());
+    }
+
     private static final Logger log = LogManager.getLogger(TurtleTestEnvironment.class);
 
-    static final String APP_NAME = "otter";
-    static final String SWIRLD_NAME = "123";
-
     static final Duration GRANULARITY = Duration.ofMillis(10);
-    static final Duration AVERAGE_NETWORK_DELAY = Duration.ofMillis(200);
-    static final Duration STANDARD_DEVIATION_NETWORK_DELAY = Duration.ofMillis(10);
 
     private final TurtleNetwork network;
     private final TurtleTransactionGenerator transactionGenerator;
     private final TurtleTimeManager timeManager;
 
     /**
+     * Constructor with default values for using a random seed and random node-ids
+     */
+    public TurtleTestEnvironment() {
+        this(0L, true);
+    }
+
+    /**
      * Constructor for the {@link TurtleTestEnvironment} class.
      *
      * @param randomSeed the seed for the PRNG; if {@code 0}, a random seed will be generated
+     * @param useRandomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
      */
-    public TurtleTestEnvironment(final long randomSeed) {
+    public TurtleTestEnvironment(final long randomSeed, final boolean useRandomNodeIds) {
         final Path rootOutputDirectory = Path.of("build", "turtle");
         try {
             if (Files.exists(rootOutputDirectory)) {
@@ -61,11 +74,14 @@ public class TurtleTestEnvironment implements TestEnvironment {
             log.warn("Failed to delete directory: {}", rootOutputDirectory, ex);
         }
 
-        final TurtleLogging logging = new TurtleLogging(rootOutputDirectory);
-
         final Randotron randotron = randomSeed == 0L ? Randotron.create() : Randotron.create(randomSeed);
 
         final FakeTime time = new FakeTime(randotron.nextInstant(), Duration.ZERO);
+
+        // Set the fake time for turtle nodes BEFORE configuring logging
+        TurtleLogClock.setFakeTime(time);
+
+        final TurtleLogging logging = new TurtleLogging(rootOutputDirectory);
 
         RuntimeObjectRegistry.reset();
         RuntimeObjectRegistry.initialize(time);
@@ -74,7 +90,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
             final ConstructableRegistry registry = ConstructableRegistry.getInstance();
             registry.reset();
             registry.registerConstructables("");
-            registerMerkleStateRootClassIds();
+            registerConstructablesForStorage(CONFIGURATION);
         } catch (final ConstructableRegistryException e) {
             throw new RuntimeException(e);
         }
@@ -82,7 +98,8 @@ public class TurtleTestEnvironment implements TestEnvironment {
         timeManager = new TurtleTimeManager(time, GRANULARITY);
 
         transactionGenerator = new TurtleTransactionGenerator(randotron);
-        network = new TurtleNetwork(randotron, timeManager, logging, rootOutputDirectory, transactionGenerator);
+        network = new TurtleNetwork(
+                randotron, timeManager, logging, rootOutputDirectory, transactionGenerator, useRandomNodeIds);
 
         timeManager.addTimeTickReceiver(network);
     }
@@ -95,6 +112,15 @@ public class TurtleTestEnvironment implements TestEnvironment {
      */
     public static boolean supports(@NonNull final List<Capability> requiredCapabilities) {
         return requiredCapabilities.isEmpty();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Set<Capability> capabilities() {
+        return Set.of();
     }
 
     /**
@@ -128,8 +154,8 @@ public class TurtleTestEnvironment implements TestEnvironment {
      * {@inheritDoc}
      */
     @Override
-    public void destroy() throws InterruptedException {
-        InMemoryAppender.reset();
+    public void destroy() {
+        InMemorySubscriptionManager.INSTANCE.reset();
         network.destroy();
         ConstructableRegistry.getInstance().reset();
         RuntimeObjectRegistry.reset();

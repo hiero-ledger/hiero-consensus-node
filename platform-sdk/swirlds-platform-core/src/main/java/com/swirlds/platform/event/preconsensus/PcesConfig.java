@@ -10,10 +10,10 @@ import java.time.Duration;
 /**
  * Configuration for preconsensus event storage.
  *
- * @param writeQueueCapacity                   the queue capacity for preconsensus events waiting to be written to disk
  * @param minimumRetentionPeriod               the minimum amount of time that preconsensus events should be stored on
- *                                             disk. At a minimum, should exceed the length of time between state
- *                                             saving.
+ *                                             disk. This is only needed for running a node that does not have state
+ *                                             snapshots enabled. If state snapshots are enabled, PCES files are kept
+ *                                             that allow the node to replay events since the oldest state snapshot.
  * @param preferredFileSizeMegabytes           the preferred file size for preconsensus event files. Not a strong
  *                                             guarantee on file size, more of a suggestion.
  * @param bootstrapSpan                        when first starting up a preconsensus event file manager, the running
@@ -54,20 +54,12 @@ import java.time.Duration;
  * @param databaseDirectory                    the directory where preconsensus events will be stored, relative to
  *                                             {@link
  *                                             com.swirlds.common.config.StateCommonConfig#savedStateDirectory()}.
- * @param replayQueueSize                      the size of the queue used for holding preconsensus events that are
- *                                             waiting to be replayed
- * @param replayHashPoolSize                   the number of threads used for hashing events during replay
  * @param copyRecentStreamToStateSnapshots     if true, then copy recent PCES files into the saved state snapshot
  *                                             directories every time we take a state snapshot. The files copied are
  *                                             guaranteed to contain all non-ancient events w.r.t. the state snapshot.
  * @param compactLastFileOnStartup             if true, then compact the last file's span on startup.
  * @param forceIgnorePcesSignatures            if true, then ignore the signatures on preconsensus events. Note: This is
  *                                             a TEST ONLY setting. It must never be enabled in production.
- * @param roundDurabilityBufferHeartbeatPeriod the period of the heartbeats sent to the round durability buffer
- *                                             component, which uses the opportunity to check for and log when a round
- *                                             has been stuck for too long
- * @param suspiciousRoundDurabilityDuration    the duration after which a round is considered stuck in the round
- *                                             durability buffer component
  * @param replayHealthThreshold                if the system is unhealthy (i.e. overloaded) for more than this amount of
  *                                             time, pause PCES replay until the system is able to catch up.
  * @param limitReplayFrequency                 if true, then directly limit the replay frequency of preconsensus events
@@ -79,7 +71,6 @@ import java.time.Duration;
  */
 @ConfigData("event.preconsensus")
 public record PcesConfig(
-        @ConfigProperty(defaultValue = "1000") int writeQueueCapacity,
         @ConfigProperty(defaultValue = "1h") Duration minimumRetentionPeriod,
         @ConfigProperty(defaultValue = "10") int preferredFileSizeMegabytes,
         @ConfigProperty(defaultValue = "50") int bootstrapSpan,
@@ -89,13 +80,9 @@ public record PcesConfig(
         @ConfigProperty(defaultValue = "5") int minimumSpan,
         @ConfigProperty(defaultValue = "false") boolean permitGaps,
         @ConfigProperty(defaultValue = "preconsensus-events") Path databaseDirectory,
-        @ConfigProperty(defaultValue = "1024") int replayQueueSize,
-        @ConfigProperty(defaultValue = "8") int replayHashPoolSize,
         @ConfigProperty(defaultValue = "true") boolean copyRecentStreamToStateSnapshots,
         @ConfigProperty(defaultValue = "true") boolean compactLastFileOnStartup,
         @ConfigProperty(defaultValue = "false") boolean forceIgnorePcesSignatures,
-        @ConfigProperty(defaultValue = "1m") Duration roundDurabilityBufferHeartbeatPeriod,
-        @ConfigProperty(defaultValue = "1m") Duration suspiciousRoundDurabilityDuration,
         @ConfigProperty(defaultValue = "1ms") Duration replayHealthThreshold,
         @ConfigProperty(defaultValue = "true") boolean limitReplayFrequency,
         @ConfigProperty(defaultValue = "5000") int maxEventReplayFrequency,

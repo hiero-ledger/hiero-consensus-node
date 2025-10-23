@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.info;
 
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -8,17 +9,17 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mock.Strictness.LENIENT;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.schemas.V0590EntityIdSchema;
 import com.hedera.node.app.service.addressbook.AddressBookService;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -37,6 +38,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 public class StateNetworkInfoTest {
+
     @Mock(strictness = LENIENT)
     private State state;
 
@@ -64,12 +66,12 @@ public class StateNetworkInfoTest {
         when(configProvider.getConfiguration())
                 .thenReturn(new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), 1));
         when(state.getReadableStates(EntityIdService.NAME)).thenReturn(readableStates);
-        when(readableStates.<EntityCounts>getSingleton(V0590EntityIdSchema.ENTITY_COUNTS_KEY))
+        when(readableStates.<EntityCounts>getSingleton(V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID))
                 .thenReturn(entityCountsState);
         when(entityCountsState.get())
                 .thenReturn(EntityCounts.newBuilder().numNodes(1L).build());
         when(state.getReadableStates(AddressBookService.NAME)).thenReturn(readableStates);
-        when(readableStates.<EntityNumber, Node>get("NODES")).thenReturn(nodeState);
+        when(readableStates.<EntityNumber, Node>get(NODES_STATE_ID)).thenReturn(nodeState);
         when(state.getReadableStates(PlatformStateService.NAME)).thenReturn(readableStates);
         networkInfo = new StateNetworkInfo(SELF_ID, state, activeRoster, configProvider, () -> Network.DEFAULT);
     }
@@ -109,7 +111,9 @@ public class StateNetworkInfoTest {
 
     @Test
     public void testUpdateFrom() {
-        when(nodeState.get(any(EntityNumber.class))).thenReturn(mock(Node.class));
+        final var placeholderNode =
+                Node.newBuilder().accountId(AccountID.DEFAULT).build();
+        when(nodeState.get(any(EntityNumber.class))).thenReturn(placeholderNode);
 
         networkInfo.updateFrom(state);
         assertEquals(2, networkInfo.addressBook().size());

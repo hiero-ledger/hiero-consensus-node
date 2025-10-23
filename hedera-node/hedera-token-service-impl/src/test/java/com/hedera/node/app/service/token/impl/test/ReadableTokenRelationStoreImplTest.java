@@ -11,9 +11,9 @@ import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.service.entityid.ReadableEntityCounters;
 import com.hedera.node.app.service.token.impl.ReadableTokenRelationStoreImpl;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
-import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import org.assertj.core.api.Assertions;
@@ -25,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class ReadableTokenRelationStoreImplTest {
+
     private static final long TOKEN_10 = 10L;
     private static final TokenID TOKEN_10_ID =
             TokenID.newBuilder().tokenNum(TOKEN_10).build();
@@ -50,7 +51,7 @@ class ReadableTokenRelationStoreImplTest {
 
     @BeforeEach
     void setUp() {
-        given(states.<EntityIDPair, TokenRelation>get(V0490TokenSchema.TOKEN_RELS_KEY))
+        given(states.<EntityIDPair, TokenRelation>get(V0490TokenSchema.TOKEN_RELS_STATE_ID))
                 .willReturn(tokenRelState);
 
         subject = new ReadableTokenRelationStoreImpl(states, readableEntityCounters);
@@ -96,7 +97,7 @@ class ReadableTokenRelationStoreImplTest {
 
     @Test
     void warmWarmsUnderlyingState(@Mock ReadableKVState<EntityIDPair, TokenRelation> tokenRelations) {
-        given(states.<EntityIDPair, TokenRelation>get(V0490TokenSchema.TOKEN_RELS_KEY))
+        given(states.<EntityIDPair, TokenRelation>get(V0490TokenSchema.TOKEN_RELS_STATE_ID))
                 .willReturn(tokenRelations);
         final var tokenRelationStore = new ReadableTokenRelationStoreImpl(states, readableEntityCounters);
         tokenRelationStore.warm(ACCOUNT_20_ID, TOKEN_10_ID);

@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.hip869;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.endpointFor;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asDnsServiceEndpoint;
@@ -47,7 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
+import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -61,6 +62,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 @DisplayName("updateNode")
 @HapiTestLifecycle
@@ -148,6 +150,7 @@ public class NodeUpdateTest {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> validateServiceEndpoint() throws CertificateEncodingException {
         return hapiTest(
                 newKeyNamed("adminKey"),
@@ -366,7 +369,7 @@ public class NodeUpdateTest {
                         .description("newNode"),
                 viewNode("testNode", node -> assertNotNull(node.grpcProxyEndpoint())),
                 nodeUpdate("testNode")
-                        .grpcProxyEndpoint(com.hedera.hapi.node.base.ServiceEndpoint.DEFAULT)
+                        .grpcProxyEndpoint(ServiceEndpoint.DEFAULT)
                         .description("updatedNode")
                         .signedByPayerAnd("adminKey"),
                 viewNode("testNode", node -> assertNull(node.grpcProxyEndpoint())));
@@ -428,6 +431,7 @@ public class NodeUpdateTest {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> signedByAdminKeySuccess() throws CertificateEncodingException {
         return hapiTest(
                 newKeyNamed("adminKey"),
@@ -452,7 +456,7 @@ public class NodeUpdateTest {
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 nodeUpdate("testNode")
                         .signedByPayerAnd("adminKey")
-                        .grpcProxyEndpoint(CommonPbjConverters.toPbj(GRPC_PROXY_ENDPOINT_IP))
+                        .grpcProxyEndpoint(toPbj(GRPC_PROXY_ENDPOINT_IP))
                         .hasKnownStatus(INVALID_SERVICE_ENDPOINT));
     }
 }

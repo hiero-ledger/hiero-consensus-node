@@ -10,16 +10,15 @@ import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.GrpcBlockItemWriter;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.app.services.NodeRewardManager;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.FileSystem;
-import java.util.concurrent.Executors;
 import java.util.function.Supplier;
 import javax.inject.Singleton;
 
@@ -39,17 +38,17 @@ public interface BlockStreamModule {
             @NonNull final ConfigProvider configProvider,
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final BlockStreamMetrics blockStreamMetrics) {
-        final BlockNodeConnectionManager manager = new BlockNodeConnectionManager(
-                configProvider, blockBufferService, blockStreamMetrics, Executors.newSingleThreadScheduledExecutor());
+        final BlockNodeConnectionManager manager =
+                new BlockNodeConnectionManager(configProvider, blockBufferService, blockStreamMetrics);
         blockBufferService.setBlockNodeConnectionManager(manager);
+        manager.start();
         return manager;
     }
 
     @Provides
     @Singleton
-    static BlockStreamMetrics provideBlockStreamMetrics(
-            @NonNull final NodeInfo selfNodeInfo, @NonNull final Metrics metrics) {
-        return new BlockStreamMetrics(metrics, selfNodeInfo);
+    static BlockStreamMetrics provideBlockStreamMetrics(@NonNull final Metrics metrics) {
+        return new BlockStreamMetrics(metrics);
     }
 
     @Provides
@@ -64,14 +63,16 @@ public interface BlockStreamModule {
             @NonNull final ConfigProvider configProvider,
             @NonNull final NodeInfo selfNodeInfo,
             @NonNull final FileSystem fileSystem,
-            @NonNull final BlockBufferService blockBufferService) {
+            @NonNull final BlockBufferService blockBufferService,
+            @NonNull final BlockNodeConnectionManager blockNodeConnectionManager) {
         final var config = configProvider.getConfiguration();
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
         return switch (blockStreamConfig.writerMode()) {
             case FILE -> () -> new FileBlockItemWriter(configProvider, selfNodeInfo, fileSystem);
-            case GRPC -> () -> new GrpcBlockItemWriter(blockBufferService);
+            case GRPC -> () -> new GrpcBlockItemWriter(blockBufferService, blockNodeConnectionManager);
             case FILE_AND_GRPC ->
-                () -> new FileAndGrpcBlockItemWriter(configProvider, selfNodeInfo, fileSystem, blockBufferService);
+                () -> new FileAndGrpcBlockItemWriter(
+                        configProvider, selfNodeInfo, fileSystem, blockBufferService, blockNodeConnectionManager);
         };
     }
 

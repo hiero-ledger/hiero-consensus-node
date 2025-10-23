@@ -21,8 +21,6 @@ import java.util.Objects;
 @SuppressWarnings("Singleton")
 public class TestStringCodec implements Codec<String> {
 
-    public static final TestStringCodec SINGLETON = new TestStringCodec();
-
     private static final String DEFAULT_VALUE = "";
 
     private TestStringCodec() {}
@@ -35,7 +33,11 @@ public class TestStringCodec implements Codec<String> {
     @NonNull
     @Override
     public String parse(
-            @NonNull ReadableSequentialData input, boolean strictMode, boolean parseUnknownFields, int maxDepth)
+            @NonNull ReadableSequentialData input,
+            boolean strictMode,
+            boolean parseUnknownFields,
+            int maxDepth,
+            int maxSize)
             throws ParseException {
         Objects.requireNonNull(input);
         final var len = input.readInt();
