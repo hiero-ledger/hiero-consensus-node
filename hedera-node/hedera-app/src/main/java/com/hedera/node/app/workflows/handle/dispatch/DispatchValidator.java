@@ -218,10 +218,10 @@ public class DispatchValidator {
                 }
                 yield account;
             }
-            case CHILD, PRECEDING, SCHEDULED -> {
+            case CHILD, PRECEDING, SCHEDULED, SYSTEM_TASK -> {
                 if (account == null) {
                     throw new IllegalStateException(
-                            "Category " + category + " payer account should have been rejected " + account);
+                            "Category " + category + " null payer account should have been rejected " + accountID);
                 }
                 yield account;
             }

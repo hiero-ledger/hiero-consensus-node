@@ -35,6 +35,7 @@ import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.toSet;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -65,6 +66,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.AutoRenewConfig;
 import com.hedera.node.config.data.EntitiesConfig;
@@ -75,7 +77,10 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -174,52 +179,79 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         // Update hooks if any
         updateHooks(context, targetAccount, op, builder);
 
-        // Handle indirect key bookkeeping if the key is being updated
         if (op.hasKey()) {
-            // 1) Before storing the new template key, compute OLD/NEW indirect references and remove OLD
-            final var oldRefs = getIndirectAccountRefs(targetAccount.keyOrElse(Key.DEFAULT));
-            final var newRefs = getIndirectAccountRefs(op.keyOrThrow());
-            final var toRemove = new java.util.HashSet<>(oldRefs);
-            toRemove.removeAll(newRefs);
-            final var toAdd = new java.util.HashSet<>(newRefs);
-            toAdd.removeAll(oldRefs);
-
-            // Remove target from lists for accounts no longer referenced
-            final var userId = targetAccount.accountIdOrThrow();
-            for (final var keyAccountId : toRemove) {
-                accountStore.removeIndirectUser(keyAccountId, userId);
+            boolean concreteKeyChanged = false;
+            final var concreteKey = concreteKeyOf(targetAccount);
+            if (context.savepointStack().getBaseBuilder(StreamBuilder.class).isInternalDispatch()) {
+                // System task updates go straight to the materialized key and do nothing else
+                concreteKeyChanged = !Objects.equals(concreteKey, op.keyOrThrow());
+                if (concreteKeyChanged) {
+                    builder.materializedKey(op.keyOrThrow());
+                }
+            } else {
+                // Always update the template key
+                builder.key(op.keyOrThrow());
+                Set<AccountID> indirectRefsToAdd = Collections.emptySet();
+                Set<AccountID> indirectRefsToRemove = Collections.emptySet();
+                switch (indirectionUpdate(targetAccount, op.keyOrThrow())) {
+                    case NONE_TO_NONE -> concreteKeyChanged = !Objects.equals(concreteKey, op.keyOrThrow());
+                    case NONE_TO_SOME -> {
+                        indirectRefsToAdd = getIndirectAccountRefs(op.keyOrThrow());
+                        final var newConcreteKey = new KeyMaterializer().materialize(op.keyOrThrow(), new KeySourceFromStore(accountStore));
+                        builder.materializedKey(newConcreteKey);
+                        concreteKeyChanged = !Objects.equals(concreteKey, newConcreteKey);
+                    }
+                    case SOME_TO_NONE -> {
+                        indirectRefsToRemove = getIndirectAccountRefs(targetAccount.keyOrElse(Key.DEFAULT));
+                        builder.materializedKey((Key) null);
+                        concreteKeyChanged = !Objects.equals(concreteKey, op.keyOrThrow());
+                    }
+                    case SOME_TO_SOME -> {
+                        final var oldRefs = getIndirectAccountRefs(targetAccount.keyOrThrow());
+                        final var newRefs = getIndirectAccountRefs(op.keyOrThrow());
+                        indirectRefsToRemove = oldRefs.stream().filter(ref -> !newRefs.contains(ref)).collect(toSet());
+                        indirectRefsToAdd = newRefs.stream().filter(ref -> !oldRefs.contains(ref)).collect(toSet());
+                        final var newConcreteKey = new KeyMaterializer().materialize(op.keyOrThrow(), new KeySourceFromStore(accountStore));
+                        builder.materializedKey(newConcreteKey);
+                        concreteKeyChanged = !Objects.equals(concreteKey, newConcreteKey);
+                    }
+                }
+                final var userId = targetAccount.accountIdOrThrow();
+                for (final var keyAccountId : indirectRefsToRemove) {
+                    accountStore.removeIndirectUser(keyAccountId, userId);
+                }
+                for (final var keyAccountId : indirectRefsToAdd) {
+                    accountStore.insertIndirectUser(keyAccountId, userId);
+                }
             }
-
-            // 2) Materialize the new key and set both template and materialized_key
-            builder.key(op.keyOrThrow());
-            final var concrete =
-                    new KeyMaterializer().materialize(op.keyOrThrow(), new KeySourceFromStore(accountStore));
-            builder.materializedKey(concrete);
-
-            // 3) For each newly referenced account, insert target into its indirect users list
-            for (final var keyAccountId : toAdd) {
-                accountStore.insertIndirectUser(keyAccountId, userId);
-            }
-
-            // 4) If materialized_key changed and target has indirect key users, schedule
-            // propagation of the target account's new key to its users
-            final var oldKey = concreteKeyOf(targetAccount);
-            final boolean keyChanged = !Objects.equals(oldKey, concrete);
-            if (keyChanged && targetAccount.numIndirectKeyUsers() > 0) {
-                builder.maxRemainingPropagations(targetAccount.numIndirectKeyUsers());
-                builder.nextInLineKeyUserId(targetAccount.firstKeyUserId());
+            if (concreteKeyChanged && targetAccount.numIndirectKeyUsers() > 0) {
+                builder.maxRemainingPropagations(targetAccount.numIndirectKeyUsers())
+                        .nextInLineKeyUserId(targetAccount.firstKeyUserId());
                 final var task = SystemTask.newBuilder()
                         .keyPropagation(KeyPropagation.newBuilder().keyAccountId(target))
                         .build();
                 context.offer(task);
             }
         }
-
         // Add account to the modifications in state
         accountStore.put(builder.build());
         context.savepointStack()
                 .getBaseBuilder(CryptoUpdateStreamBuilder.class)
                 .accountID(targetAccount.accountIdOrThrow());
+    }
+
+    private enum IndirectionChange {
+        NONE_TO_NONE, NONE_TO_SOME, SOME_TO_NONE, SOME_TO_SOME
+    }
+
+    private IndirectionChange indirectionUpdate(@NonNull final Account targetAccount, @NonNull final Key newKey) {
+        final boolean oldHasIndirection = targetAccount.hasMaterializedKey();
+        final boolean newHasIndirection = countIndirectKeyOccurrences(newKey) > 0;
+        if (oldHasIndirection) {
+            return newHasIndirection ? IndirectionChange.SOME_TO_SOME : IndirectionChange.SOME_TO_NONE;
+        } else {
+            return newHasIndirection ? IndirectionChange.NONE_TO_SOME : IndirectionChange.NONE_TO_NONE;
+        }
     }
 
     /** Counts total occurrences of IndirectKey nodes within the given key tree. */

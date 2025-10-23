@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.systemtasks;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_UPDATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.concreteKeyOf;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
@@ -11,7 +13,6 @@ import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.state.systemtask.KeyPropagation;
 import com.hedera.hapi.node.state.systemtask.SystemTask;
-import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.IndirectKeyUsersKey;
 import com.hedera.hapi.node.state.token.IndirectKeyUsersValue;
 import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
@@ -50,72 +51,73 @@ public class KeyPropagationSystemTaskHandler implements SystemTaskHandler {
     public void handle(@NonNull final SystemTaskContext context) {
         requireNonNull(context);
         final var task = context.currentTask();
-        final KeyPropagation kp = task.keyPropagationOrThrow();
-        final AccountID keyAccountId = kp.keyAccountIdOrThrow();
+        final var op = task.keyPropagationOrThrow();
+        final var keyAccountId = op.keyAccountIdOrThrow();
         final var accountStore = context.storeFactory().writableStore(WritableAccountStore.class);
-        final Account A = accountStore.get(keyAccountId);
-        if (A == null || A.deleted()) {
-            return; // Missing or deleted A; nothing to do
+        final var keyAccount = accountStore.get(keyAccountId);
+        if (keyAccount == null || keyAccount.deleted()) {
+            return;
         }
-        final AccountID uId = A.nextInLineKeyUserId();
-        if (uId == null || uId.equals(AccountID.DEFAULT)) {
-            return; // No user to process currently
+        final var nextUserId = keyAccount.nextInLineKeyUserId();
+        if (nextUserId == null || nextUserId.equals(AccountID.DEFAULT)) {
+            return;
         }
-        final Account U = accountStore.get(uId);
-        if (U != null && !U.deleted()) {
-            final Key newMatForU = replaceIndirectRefsTo(
-                    A.accountIdOrThrow(), A.materializedKeyOrThrow(), U.keyOrThrow(), U.materializedKeyOrThrow());
-            if (newMatForU != null && !Objects.equals(newMatForU, U.materializedKey())) {
-                final var originalU = U;
-                // Tentatively update U, then submit synthetic update; rollback on failure
-                final var uBuilder = U.copyBuilder().materializedKey(newMatForU);
-                accountStore.put(uBuilder.build());
-                //                final boolean ok = submitter.submit(uId, newMatForU);
+        final var userAccount = accountStore.get(nextUserId);
+        if (userAccount != null && !userAccount.deleted()) {
+            final var userConcreteKey = userAccount.materializedKeyOrThrow();
+            final var keyToPropagate = replaceIndirectRefsTo(
+                    keyAccount.accountIdOrThrow(),
+                    concreteKeyOf(keyAccount),
+                    userAccount.keyOrThrow(),
+                    userConcreteKey);
+            if (!Objects.equals(keyToPropagate, userConcreteKey)) {
+                // Note the user receiving the key propagation pays for this dispatch
                 final var streamBuilder = context.dispatch(
+                        userAccount.accountIdOrThrow(),
                         b -> {
-                            // Since this is an internal dispatch, the key will go straight to materialized, not
-                            // template
+                            // System task dispatch will make the key will go straight to materialized, not template
                             b.cryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder()
-                                    .accountIDToUpdate(U.accountIdOrThrow())
-                                    .key(newMatForU));
+                                    .accountIDToUpdate(userAccount.accountIdOrThrow())
+                                    .key(keyToPropagate));
                         },
-                        CryptoUpdateStreamBuilder.class);
+                        CryptoUpdateStreamBuilder.class, CRYPTO_UPDATE);
                 validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
-                // If U has indirect key users after update, schedule its own propagation
-                final var updatedU = accountStore.get(uId);
-                if (updatedU != null && updatedU.numIndirectKeyUsers() > 0) {
-                    final var cascaded = updatedU.copyBuilder()
-                            .maxRemainingPropagations(updatedU.numIndirectKeyUsers())
-                            .nextInLineKeyUserId(updatedU.firstKeyUserId())
-                            .build();
-                    accountStore.put(cascaded);
-                    final var cascadeTask = SystemTask.newBuilder()
-                            .keyPropagation(KeyPropagation.newBuilder().keyAccountId(uId))
-                            .build();
-                    context.offer(cascadeTask);
+                // If the user has indirect key users after update, schedule its own propagation
+                final var updatedUserAccount = requireNonNull(accountStore.get(nextUserId));
+                if (updatedUserAccount.numIndirectKeyUsers() > 0) {
+                    accountStore.put(updatedUserAccount
+                            .copyBuilder()
+                            .maxRemainingPropagations(updatedUserAccount.numIndirectKeyUsers())
+                            .nextInLineKeyUserId(updatedUserAccount.firstKeyUserId())
+                            .build());
+                    context.offer(SystemTask.newBuilder()
+                            .keyPropagation(KeyPropagation.newBuilder().keyAccountId(nextUserId))
+                            .build());
                 }
             }
         }
         // Advance A's propagation window
-        int remaining = Math.max(0, A.maxRemainingPropagations() - 1);
-        AccountID nextInLine = null;
+        int remaining = Math.max(0, keyAccount.maxRemainingPropagations() - 1);
+        AccountID nextInLineId = null;
         if (remaining > 0) {
-            final var indirects = accountStore.indirectKeyUsers();
-            nextInLine = nextUserInList(indirects, A.accountId(), uId, A.firstKeyUserId());
+            nextInLineId = nextUserInList(
+                    accountStore.indirectKeyUsers(),
+                    keyAccount.accountIdOrThrow(),
+                    nextUserId,
+                    keyAccount.firstKeyUserIdOrThrow());
         }
-        final var aBuilder = A.copyBuilder().maxRemainingPropagations(remaining);
+        final var builder = keyAccount.copyBuilder().maxRemainingPropagations(remaining);
         if (remaining == 0) {
-            aBuilder.nextInLineKeyUserId(AccountID.DEFAULT);
+            builder.nextInLineKeyUserId((AccountID) null);
         } else {
-            aBuilder.nextInLineKeyUserId(nextInLine);
+            builder.nextInLineKeyUserId(nextInLineId);
         }
-        accountStore.put(aBuilder.build());
+        accountStore.put(builder.build());
         if (remaining > 0) {
             // Re-enqueue propagation for A
-            final var repeatTask = SystemTask.newBuilder()
-                    .keyPropagation(KeyPropagation.newBuilder().keyAccountId(A.accountId()))
-                    .build();
-            context.offer(repeatTask);
+            context.offer(SystemTask.newBuilder()
+                    .keyPropagation(KeyPropagation.newBuilder().keyAccountId(keyAccount.accountId()))
+                    .build());
         }
     }
 
@@ -142,69 +144,80 @@ public class KeyPropagationSystemTaskHandler implements SystemTaskHandler {
      */
     private static Key replaceIndirectRefsTo(
             @NonNull final AccountID target,
-            @NonNull final Key replacement,
-            @NonNull final Key template,
-            @NonNull final Key currentMat) {
-        if (template == null || template.key() == null) {
-            return currentMat; // Nothing to replace
-        }
-        return switch (template.key().kind()) {
+            @NonNull final Key targetReplacement,
+            @NonNull final Key templateKey,
+            @NonNull final Key concreteKey) {
+        return switch (templateKey.key().kind()) {
             case INDIRECT_KEY -> {
-                final var ik = template.indirectKey();
-                if (ik != null && ik.hasAccountId() && target.equals(ik.accountId())) {
-                    yield replacement;
+                final var indirectKey = templateKey.indirectKey();
+                if (indirectKey != null && indirectKey.hasAccountId() && target.equals(indirectKey.accountId())) {
+                    yield targetReplacement;
                 } else {
-                    yield currentMat;
+                    yield concreteKey;
                 }
             }
-            case KEY_LIST -> replaceInKeyList(target, replacement, template, currentMat);
-            case THRESHOLD_KEY -> replaceInThreshold(target, replacement, template, currentMat);
-            case ED25519, ECDSA_SECP256K1, RSA_3072, ECDSA_384, CONTRACT_ID, DELEGATABLE_CONTRACT_ID, UNSET ->
-                currentMat;
+            case KEY_LIST -> replaceInKeyList(target, targetReplacement, templateKey, concreteKey);
+            case THRESHOLD_KEY -> replaceInThreshold(target, targetReplacement, templateKey, concreteKey);
+            default -> concreteKey;
         };
     }
 
     private static Key replaceInKeyList(
-            final AccountID target, final Key replacement, final Key template, final Key currentMat) {
-        final var tList = template.keyList();
-        final var mList = (currentMat != null) ? currentMat.keyList() : null;
-        if (tList == null) return currentMat;
+            @NonNull final AccountID target,
+            @NonNull final Key targetReplacement,
+            @NonNull final Key templateKey,
+            @NonNull final Key concreteKey) {
+        final var tList = templateKey.keyList();
+        if (tList == null) {
+            return concreteKey;
+        }
+        final var mList = concreteKey.keyListOrThrow();
         final var tKeys = tList.keys();
-        final var mKeys = (mList != null) ? mList.keys() : null;
+        final var mKeys = mList.keys();
         boolean changed = false;
-        final var out = new java.util.ArrayList<Key>(tKeys == null ? 0 : tKeys.size());
-        for (int i = 0; i < (tKeys == null ? 0 : tKeys.size()); i++) {
+        final var out = new java.util.ArrayList<Key>(tKeys.size());
+        for (int i = 0, n = tKeys.size(); i < n; i++) {
             final var tChild = tKeys.get(i);
-            final var mChild = (mKeys != null && i < mKeys.size()) ? mKeys.get(i) : null;
-            final var newChild = replaceIndirectRefsTo(target, replacement, tChild, mChild);
+            final var mChild = requireNonNull(mKeys.get(i));
+            final var newChild = replaceIndirectRefsTo(target, targetReplacement, tChild, mChild);
             changed |= !Objects.equals(newChild, mChild);
             out.add(newChild);
         }
-        if (!changed) return currentMat;
+        if (!changed) {
+            return concreteKey;
+        }
         return Key.newBuilder().keyList(KeyList.newBuilder().keys(out)).build();
     }
 
     private static Key replaceInThreshold(
-            final AccountID target, final Key replacement, final Key template, final Key currentMat) {
-        final ThresholdKey t = template.thresholdKey();
-        if (t == null) return currentMat;
-        final var m = (currentMat != null) ? currentMat.thresholdKey() : null;
-        final var tKeys = (t.keys() != null) ? t.keys().keys() : null;
-        final var mKeys = (m != null && m.keys() != null) ? m.keys().keys() : null;
+            @NonNull final AccountID target,
+            @NonNull final Key targetReplacement,
+            @NonNull final Key templateKey,
+            @NonNull final Key concreteKey) {
+        final var t = templateKey.thresholdKey();
+        if (t == null) {
+            return concreteKey;
+        }
+        final var m = concreteKey.thresholdKeyOrThrow();
+        final var tKeys = t.keysOrThrow().keys();
+        final var mKeys = m.keysOrThrow().keys();
         boolean changed = false;
-        final var out = new java.util.ArrayList<Key>(tKeys == null ? 0 : tKeys.size());
-        for (int i = 0; i < (tKeys == null ? 0 : tKeys.size()); i++) {
+        final var out = new java.util.ArrayList<Key>(tKeys.size());
+        for (int i = 0, n = tKeys.size(); i < n; i++) {
             final var tChild = tKeys.get(i);
-            final var mChild = (mKeys != null && i < mKeys.size()) ? mKeys.get(i) : null;
-            final var newChild = replaceIndirectRefsTo(target, replacement, tChild, mChild);
+            final var mChild = requireNonNull(mKeys.get(i));
+            final var newChild = replaceIndirectRefsTo(target, targetReplacement, tChild, mChild);
             changed |= !Objects.equals(newChild, mChild);
             out.add(newChild);
         }
-        if (!changed) return currentMat;
-        final var newT = ThresholdKey.newBuilder()
-                .threshold(t.threshold())
-                .keys(KeyList.newBuilder().keys(out))
+        if (!changed) {
+            return concreteKey;
+        }
+        return Key.newBuilder()
+                .thresholdKey(ThresholdKey.newBuilder()
+                        .threshold(t.threshold())
+                        .keys(KeyList.newBuilder().keys(out))
+                        .build())
                 .build();
-        return Key.newBuilder().thresholdKey(newT).build();
     }
 }

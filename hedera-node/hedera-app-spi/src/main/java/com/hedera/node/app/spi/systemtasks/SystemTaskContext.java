@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.systemtasks;
 
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.state.systemtask.SystemTask;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.store.StoreFactory;
@@ -57,8 +59,14 @@ public interface SystemTaskContext {
 
     /**
      * Dispatches a transaction to its handler on behalf of the network.
+     *
+     * @param payerId the account to pay for the transaction
      * @param spec the transaction to dispatch
+     * @param functionality the functionality of the transaction
      */
     <T extends StreamBuilder> T dispatch(
-            @NonNull Consumer<TransactionBody.Builder> spec, @NonNull Class<T> streamBuilderType);
+            @NonNull AccountID payerId,
+            @NonNull Consumer<TransactionBody.Builder> spec,
+            @NonNull Class<T> streamBuilderType,
+            @NonNull HederaFunctionality functionality);
 }

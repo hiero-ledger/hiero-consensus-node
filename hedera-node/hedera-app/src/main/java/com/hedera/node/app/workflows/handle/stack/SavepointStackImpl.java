@@ -566,7 +566,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             final var builder = builders.get(i);
             final var nonceOffset =
                     switch (builder.category()) {
-                        case USER, SCHEDULED, NODE, BATCH_INNER -> 0;
+                        case USER, SCHEDULED, NODE, BATCH_INNER, SYSTEM_TASK -> 0;
                         case PRECEDING, CHILD -> nextNonceOffset++;
                     };
             final var txnId = builder.transactionID();

@@ -16,6 +16,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewQueue;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.exposeSpecSecondTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
@@ -23,11 +24,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.KeyList;
+import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.node.app.systemtask.SystemTaskService;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.SpecOperation;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -51,11 +56,9 @@ public class RepeatableIndirectKeysTest {
      * Validates that an indirect key user's materialized key (and hence signing requirements)
      * reflect the latest key change to the account it indirectly references, once propagated.
      */
-    @RepeatableHapiTest(value = {NEEDS_LAST_ASSIGNED_CONSENSUS_TIME, NEEDS_STATE_ACCESS})
+    @RepeatableHapiTest(value = {NEEDS_STATE_ACCESS})
     final Stream<DynamicTest> keyPropagationTaskReflectedInUserKey() {
-        final var lastSecond = new AtomicLong();
         return hapiTest(
-                exposeSpecSecondTo(lastSecond::set),
                 newKeyNamed("firstKey"),
                 newKeyNamed("replacementKey"),
                 cryptoCreate("target").key("firstKey"),
@@ -76,7 +79,50 @@ public class RepeatableIndirectKeysTest {
                 cryptoUpdate("user").memo("Testing 123").payingWith("target").signedBy("target"),
                 // Confirm the task queue is currently empty
                 viewQueue(SystemTaskService.NAME, SYSTEM_TASK_QUEUE_STATE_ID, queue -> assertNull(queue.peek())),
-                // Now update the target account
-                cryptoUpdate("target").key("replacementKey"));
+                // Now update the target account's key (the enqueued task should be able to execute immediately)
+                cryptoUpdate("target").key("replacementKey"),
+                // Confirm the task queue was consumed
+                viewQueue(SystemTaskService.NAME, SYSTEM_TASK_QUEUE_STATE_ID, queue -> assertNull(queue.peek())),
+                // And the user's materialized key reflects the new target key
+                sourcingContextual(spec -> viewAccount("user", account -> {
+                    final var controlKey = toPbj(spec.registry().getKey("controlKey"));
+                    final var targetKey = toPbj(spec.registry().getKey("replacementKey"));
+                    final var expectedKey = Key.newBuilder()
+                            .thresholdKey(ThresholdKey.newBuilder()
+                                    .threshold(1)
+                                    .keys(KeyList.newBuilder().keys(controlKey, targetKey)))
+                            .build();
+                    assertEquals(expectedKey, account.materializedKey());
+                })));
     }
+
+    /**
+     * Validates that a loop of indirect key references stops once the maximum depth is reached.
+     */
+    @RepeatableHapiTest(value = {NEEDS_STATE_ACCESS})
+    final Stream<DynamicTest> minimumLoopStopsWhenMaxDepthReached() {
+        return hapiTest(
+                newKeyNamed(controlKeyFor("loopingAccount")),
+                cryptoCreate("loopingAccount").key(controlKeyFor("loopingAccount")),
+        );
+    }
+
+    private SpecOperation createIndirectionUser(
+            String userAccount, String keyAccount) {
+        return blockingOrder(
+                newKeyNamed(controlKeyFor(userAccount)),
+                newKeyNamed(templateKeyFor(userAccount))
+                        .shape(threshOf(1, PREDEFINED_SHAPE, INDIRECT_ACCOUNT_SHAPE)
+                                .signedWith(sigs(controlKeyFor(userAccount), keyAccount))),
+                cryptoCreate(userAccount).key(templateKeyFor(userAccount)));
+    }
+
+    private static String templateKeyFor(String userAccount) {
+        return userAccount + "templateKey";
+    }
+
+    private static String controlKeyFor(String userAccount) {
+        return userAccount + "controlKey";
+    }
+
 }

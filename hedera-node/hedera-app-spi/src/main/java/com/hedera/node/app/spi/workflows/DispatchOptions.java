@@ -312,6 +312,39 @@ public record DispatchOptions<T extends StreamBuilder>(
     }
 
     /**
+     * Returns options for a dispatch that is a step in the parent system task's business logic, but only appropriate
+     * to externalize if the system task succeeds.
+     * <ul>
+     *     <li>Dispatching an indirect key propagation to a user account.</li>
+     * </ul>
+     *
+     * @param payerId the account to pay for the dispatch
+     * @param body the transaction to dispatch
+     * @param streamBuilderType the type of stream builder to use for the dispatch
+     * @return the options for the sub-dispatch
+     * @param <T> the type of stream builder to use for the dispatch
+     */
+    public static <T extends StreamBuilder> DispatchOptions<T> systemTaskDispatch(
+            @NonNull final AccountID payerId,
+            @NonNull final TransactionBody body,
+            @NonNull final Class<T> streamBuilderType) {
+        return new DispatchOptions<>(
+                Commit.WITH_PARENT,
+                payerId,
+                body,
+                UsePresetTxnId.NO,
+                PREAUTHORIZED_KEYS,
+                emptySet(),
+                TransactionCategory.SYSTEM_TASK,
+                ConsensusThrottling.OFF,
+                streamBuilderType,
+                ReversingBehavior.REMOVABLE,
+                NOOP_SIGNED_TX_CUSTOMIZER,
+                EMPTY_METADATA,
+                null);
+    }
+
+    /**
      * Returns options for a dispatch that is a step in the parent dispatch's business logic, but only appropriate
      * to externalize if the parent succeeds.
      * <ul>

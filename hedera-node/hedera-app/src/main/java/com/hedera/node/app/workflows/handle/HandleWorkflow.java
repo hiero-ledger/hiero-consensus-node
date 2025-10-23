@@ -6,8 +6,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.systemTaskDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartEvent;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartRound;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartUserTransaction;
@@ -30,6 +30,8 @@ import com.hedera.hapi.block.stream.input.ParentEventReference;
 import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Duration;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
@@ -69,7 +71,6 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.systemtasks.SystemTaskContext;
-import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.HederaRecordCache.DueDiligenceFailure;
@@ -98,6 +99,7 @@ import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.types.StreamMode;
@@ -808,6 +810,9 @@ public class HandleWorkflow {
             final var taskTime = nextTime.get();
             final var creatorInfo = networkInfo.addressBook().getFirst();
             final var throttleAdvisor = new AppThrottleAdviser(networkUtilizationManager, taskTime);
+            // Start with a nonce that is impossible to reach with a non-scheduled user transaction
+            final var nextDispatchNonce = new AtomicInteger(
+                    consensusConfig.handleMaxPrecedingRecords() + consensusConfig.handleMaxFollowingRecords() + 1);
             final var context = new SystemTaskContext() {
                 @Override
                 public @NonNull SystemTask currentTask() {
@@ -821,22 +826,31 @@ public class HandleWorkflow {
 
                 @Override
                 public <T extends StreamBuilder> T dispatch(
-                        @NonNull Consumer<TransactionBody.Builder> spec, @NonNull Class<T> streamBuilderType) {
+                        @NonNull final AccountID payerId,
+                        @NonNull Consumer<TransactionBody.Builder> spec,
+                        @NonNull Class<T> streamBuilderType,
+                        @NonNull final HederaFunctionality functionality) {
                     final var dispatchTime = nextTime.get().plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
+                    final var builder = TransactionBody.newBuilder()
+                            .transactionValidDuration(new Duration(
+                                    config.getConfigData(HederaConfig.class).transactionMaxValidDuration()))
+                            .transactionID(TransactionID.newBuilder()
+                                    .accountID(payerId)
+                                    .transactionValidStart(asTimestamp(dispatchTime))
+                                    .nonce(nextDispatchNonce.getAndIncrement())
+                                    .build());
+                    spec.accept(builder);
+                    final var body = builder.build();
                     final var dispatch = childDispatchFactory.createChildDispatch(
                             config,
                             taskStack,
                             storeFactory.asReadOnly(),
                             creatorInfo,
-                            UNCHECKED_SUBMIT,
+                            functionality,
                             throttleAdvisor,
                             dispatchTime,
                             streamMode != RECORDS ? blockStreamManager : blockRecordManager,
-                            DispatchOptions.stepDispatch(
-                                    AccountID.DEFAULT,
-                                    TransactionBody.DEFAULT,
-                                    streamBuilderType,
-                                    NOOP_SIGNED_TX_CUSTOMIZER),
+                            systemTaskDispatch(payerId, body, streamBuilderType),
                             null);
                     dispatchProcessor.processDispatch(dispatch);
                     return castBuilder(dispatch.streamBuilder(), streamBuilderType);
