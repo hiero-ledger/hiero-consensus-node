@@ -151,7 +151,7 @@ message ServiceFeeSchedule {
    * expected by the network service it configures (this is expected to match it
    * exactly). The name must match `[A-Za-z].*[A-Za-z0-9]*`.
    */
-  string name = 1;
+  proto.HederaFunctionality name = 1;
 
   /**
    * The list of transaction and query fee configurations. This list MUST NOT be empty.
