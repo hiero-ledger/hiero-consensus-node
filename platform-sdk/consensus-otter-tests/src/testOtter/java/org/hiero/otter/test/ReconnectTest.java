@@ -13,6 +13,7 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig_;
+import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.platform.consensus.ConsensusConfig_;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -31,7 +32,6 @@ import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SubscriberAction;
-import org.junit.jupiter.api.Disabled;
 
 /**
  * Tests the reconnect functionality of a node that has fallen behind in the consensus rounds. The test ensures that the
@@ -42,6 +42,8 @@ public class ReconnectTest {
     /** Reducing the number of rounds non-expired will allow nodes to require a reconnect faster. */
     private static final long ROUNDS_EXPIRED = 100L;
 
+    public static final Duration BEHIND_WAIT_TIME = Duration.ofSeconds(240L);
+
     /**
      * Tests that a node which is killed, kept down until it is behind, and then restarted is able to reconnect to the
      * network and catch up with consensus.
@@ -49,7 +51,6 @@ public class ReconnectTest {
      * @param env the test environment
      */
     @OtterTest(requires = Capability.RECONNECT)
-    @Disabled
     void testNodeDeathReconnect(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -250,7 +251,6 @@ public class ReconnectTest {
      * @param env the test environment
      */
     @OtterTest(requires = Capability.RECONNECT)
-    @Disabled
     void testReconnectSucceedsAfterFailure(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -283,7 +283,7 @@ public class ReconnectTest {
         enableSyntheticBottleneck(Duration.ofMinutes(10), nodeToReconnect);
         timeManager.waitForCondition(
                 nodeToReconnect::isBehind,
-                Duration.ofSeconds(120L),
+                BEHIND_WAIT_TIME,
                 "Node did not enter BEHIND status within the expected time "
                         + "frame after synthetic bottleneck was enabled");
 
@@ -311,7 +311,6 @@ public class ReconnectTest {
      * @param env the test environment
      */
     @OtterTest(requires = {Capability.RECONNECT, Capability.SINGLE_NODE_JVM_SHUTDOWN})
-    @Disabled
     void testNodeShutsDownAfterMaxFailedReconnects(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -335,10 +334,14 @@ public class ReconnectTest {
 
         final Node nodeToReconnect = network.nodes().getLast();
 
-        nodeToReconnect.newLogResult().subscribe(logEntry -> {
-            if (logEntry.message().contains("Starting reconnect in role of the receiver.")) {
-                network.isolate(nodeToReconnect);
-                return SubscriberAction.UNSUBSCRIBE;
+        network.newReconnectResults().subscribe(notification -> {
+            if (notification.payload().getClass().equals(ReconnectStartPayload.class)) {
+                final ReconnectStartPayload payload = (ReconnectStartPayload) notification.payload();
+                final Node node = network.nodes().stream()
+                        .filter(n -> n.selfId().id() == payload.getOtherNodeId())
+                        .findFirst()
+                        .orElse(nodeToReconnect);
+                network.isolate(node);
             }
             return SubscriberAction.CONTINUE;
         });
@@ -346,7 +349,7 @@ public class ReconnectTest {
         enableSyntheticBottleneck(Duration.ofMinutes(10), nodeToReconnect);
         timeManager.waitForCondition(
                 nodeToReconnect::isBehind,
-                Duration.ofSeconds(120L),
+                BEHIND_WAIT_TIME,
                 "Node did not enter BEHIND status within the expected time "
                         + "frame after synthetic bottleneck was enabled");
 
@@ -365,7 +368,6 @@ public class ReconnectTest {
     }
 
     @OtterTest(requires = {Capability.RECONNECT, Capability.SINGLE_NODE_JVM_SHUTDOWN})
-    @Disabled
     void testIsolateNodeWhileReconnectingAndRestore(@NonNull final TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -400,7 +402,7 @@ public class ReconnectTest {
         enableSyntheticBottleneck(Duration.ofMinutes(10), nodeToReconnect);
         timeManager.waitForCondition(
                 nodeToReconnect::isBehind,
-                Duration.ofSeconds(120L),
+                BEHIND_WAIT_TIME,
                 "Node did not enter BEHIND status within the expected time "
                         + "frame after synthetic bottleneck was enabled");
 
@@ -418,6 +420,5 @@ public class ReconnectTest {
                 nodeToReconnect::isActive,
                 Duration.ofMinutes(2L),
                 "Node did not become ACTIVE within the expected time frame after restoring normal connectivity");
-        Thread.sleep(Duration.ofMinutes(3));
     }
 }
