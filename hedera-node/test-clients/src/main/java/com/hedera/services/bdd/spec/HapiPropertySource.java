@@ -33,6 +33,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
@@ -137,43 +138,37 @@ public interface HapiPropertySource {
     }
 
     default long getRealm() {
-        return 12;
-        //        return Optional.ofNullable(get("hapi.spec.default.realm"))
-        //                .map(Long::parseLong)
-        //                .orElse(getSpecDefaultRealm());
+        return Optional.ofNullable(get("hapi.spec.default.realm"))
+                .map(Long::parseLong)
+                .orElse(getSpecDefaultRealm());
     }
 
     default long getShard() {
-        return 11;
-        //        return Optional.ofNullable(get("hapi.spec.default.shard"))
-        //                .map(Long::parseLong)
-        //                .orElse(getSpecDefaultShard());
+        return Optional.ofNullable(get("hapi.spec.default.shard"))
+                .map(Long::parseLong)
+                .orElse(getSpecDefaultShard());
     }
 
     static long getConfigShard() {
-        return 11;
-        //        return Optional.ofNullable(System.getProperty("hapi.spec.default.shard"))
-        //                .map(Long::parseLong)
-        //                .orElse(getSpecDefaultShard());
+        return Optional.ofNullable(System.getProperty("hapi.spec.default.shard"))
+                .map(Long::parseLong)
+                .orElse(getSpecDefaultShard());
     }
 
     static long getConfigRealm() {
-        return 12;
-        //        return Optional.ofNullable(System.getProperty("hapi.spec.default.realm"))
-        //                .map(Long::parseLong)
-        //                .orElse(getSpecDefaultRealm());
+        return Optional.ofNullable(System.getProperty("hapi.spec.default.realm"))
+                .map(Long::parseLong)
+                .orElse(getSpecDefaultRealm());
     }
 
     private static long getSpecDefaultShard() {
-        return 11;
-        //        return Integer.parseInt(
-        //                Optional.ofNullable(defaultSource.get("default.shard")).orElse("0"));
+        return Integer.parseInt(
+                Optional.ofNullable(defaultSource.get("default.shard")).orElse("0"));
     }
 
     private static long getSpecDefaultRealm() {
-        return 12;
-        //        return Long.parseLong(
-        //                Optional.ofNullable(defaultSource.get("default.realm")).orElse("0"));
+        return Long.parseLong(
+                Optional.ofNullable(defaultSource.get("default.realm")).orElse("0"));
     }
 
     default TimeUnit getTimeUnit(String property) {

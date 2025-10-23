@@ -5,6 +5,7 @@ import static com.hedera.node.app.service.contract.impl.state.WritableEvmHookSto
 import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
@@ -38,6 +39,7 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.assertions.StateChange;
 import com.hedera.services.bdd.spec.assertions.StorageChange;
@@ -58,7 +60,7 @@ import org.junit.jupiter.api.Tag;
 @Order(14)
 @Tag(INTEGRATION)
 @HapiTestLifecycle
-// @TargetEmbeddedMode(CONCURRENT)
+@TargetEmbeddedMode(CONCURRENT)
 public class Hip1195StorageTest {
     private static final String OWNER = "owner";
     private static final String PAYER = "payer";

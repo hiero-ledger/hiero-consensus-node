@@ -60,6 +60,7 @@ public class CustomCallCodeOperation extends CallCodeOperation implements BasicC
 
     @Override
     public OperationResult execute(@NonNull final MessageFrame frame, @NonNull final EVM evm) {
+        // Call code operations originating from a hook execution are not allowed
         if (FrameUtils.isHookExecution(frame)) {
             return new OperationResult(0, ExceptionalHaltReason.INVALID_OPERATION);
         }
