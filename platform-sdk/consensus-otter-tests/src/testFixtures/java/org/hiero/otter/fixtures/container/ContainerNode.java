@@ -9,6 +9,7 @@ import static org.hiero.otter.fixtures.container.utils.ContainerConstants.EVENT_
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.HASHSTREAM_LOG_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.METRICS_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.NODE_COMMUNICATION_PORT;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.OTTER_LOG_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.SWIRLDS_LOG_PATH;
 import static org.hiero.otter.fixtures.internal.AbstractNetwork.NODE_IDENTIFIER_FORMAT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
@@ -510,6 +511,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
         copyFileFromContainerIfExists(localOutputDirectory, SWIRLDS_LOG_PATH);
         copyFileFromContainerIfExists(localOutputDirectory, HASHSTREAM_LOG_PATH);
+        copyFileFromContainerIfExists(localOutputDirectory, OTTER_LOG_PATH);
         copyFileFromContainerIfExists(localOutputDirectory, METRICS_PATH.formatted(selfId.id()));
     }
 
