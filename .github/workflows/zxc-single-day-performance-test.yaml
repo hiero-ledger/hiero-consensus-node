@@ -366,7 +366,7 @@ jobs:
           set +e
           git clone https://"${GITHUB_PAGES_URL}"@github.com/hashgraph/network-load-generator network-load-generator
           cd network-load-generator
-          git checkout 21444-hip-1215-load-tests
+          git checkout main
           ./gradlew --no-daemon clean assemble
           cd build/libs
           tar cvf /tmp/NLG.tar lib network-load-generator-*.jar
