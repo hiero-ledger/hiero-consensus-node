@@ -661,16 +661,22 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             worker.addItem(flushChangesFromListener(boundaryStateChangeListener));
             worker.sync();
 
-            final var blockHash = combine(
-                    lastBlockHash,
-                    prevBlockRootsHash,
-                    stateHashAtStartOfBlock,
-                    consensusHeaderHash,
-                    inputsHash,
-                    outputsHash,
-                    stateChangesHash,
-                    traceDataHash,
-                    firstConsensusTimeOfCurrentBlock);
+			final var blockHash = combine(
+					lastBlockHash,
+					prevBlockRootsHash,
+					stateHashAtStartOfBlock,
+					consensusHeaderHash,
+					inputsHash,
+					outputsHash,
+					stateChangesHash,
+					traceDataHash,
+					firstConsensusTimeOfCurrentBlock);
+
+            // Compute depth two hashes
+            final var depth2Node0 = combine(lastBlockHash, blockStartStateHash);
+            final var depth2Node1 = combine(consensusHeaderHash, inputHash);
+            final var depth2Node2 = combine(outputHash, stateChangesHash);
+            final var depth2Node3 = combine(traceDataHash, NULL_HASH);
 
             // Create BlockFooter with the three essential hashes:
             // 1. previousBlockRootHash - Root hash of the previous block (N-1)

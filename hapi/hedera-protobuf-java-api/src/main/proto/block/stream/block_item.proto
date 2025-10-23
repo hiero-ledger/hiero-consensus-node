@@ -276,23 +276,23 @@ message BlockItem {
 
 /** Identifer for each sub-tree of the block root fixed size tree */
 enum SubMerkleTree {
-    ITEM_TYPE_UNSPECIFIED = 0;  // Default value, required best practice
-    PREVIOUS_BLOCK_ROOT = 1;
-    PREVIOUS_ROOTS_TREE = 2;
-    PREVIOUS_BLOCK_START_STATE = 3;
-    CONSENSUS_HEADER_ITEMS = 4;
-    INPUT_ITEMS_TREE = 5;
-    OUTPUT_ITEMS_TREE = 6;
-    STATE_CHANGE_ITEMS_TREE = 7;
-    TRACE_DATA_ITEMS_TREE = 8;
-    FUTURE_1 = 9; // these place holders for future use sub trees, will be renamed if they are used later
-    FUTURE_2 = 10;
-    FUTURE_3 = 11;
-    FUTURE_4 = 12;
-    FUTURE_5 = 13;
-    FUTURE_6 = 14;
-    FUTURE_7 = 15;
-    FUTURE_8 = 16;
+  ITEM_TYPE_UNSPECIFIED = 0;  // Default value, required best practice
+  PREVIOUS_BLOCK_ROOT = 1;
+  PREVIOUS_ROOTS_TREE = 2;
+  PREVIOUS_BLOCK_START_STATE = 3;
+  CONSENSUS_HEADER_ITEMS = 4;
+  INPUT_ITEMS_TREE = 5;
+  OUTPUT_ITEMS_TREE = 6;
+  STATE_CHANGE_ITEMS_TREE = 7;
+  TRACE_DATA_ITEMS_TREE = 8;
+  FUTURE_1 = 9; // these place holders for future use sub trees, will be renamed if they are used later
+  FUTURE_2 = 10;
+  FUTURE_3 = 11;
+  FUTURE_4 = 12;
+  FUTURE_5 = 13;
+  FUTURE_6 = 14;
+  FUTURE_7 = 15;
+  FUTURE_8 = 16;
 }
 
 /**
