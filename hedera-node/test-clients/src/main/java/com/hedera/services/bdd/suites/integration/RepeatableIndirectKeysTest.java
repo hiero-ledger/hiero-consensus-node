@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.integration;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.systemtask.schemas.V069SystemTaskSchema.SYSTEM_TASK_QUEUE_STATE_ID;
-import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_LAST_ASSIGNED_CONSENSUS_TIME;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
@@ -17,7 +16,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewQueue;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.exposeSpecSecondTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -35,7 +33,6 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.SpecOperation;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
@@ -103,12 +100,10 @@ public class RepeatableIndirectKeysTest {
     final Stream<DynamicTest> minimumLoopStopsWhenMaxDepthReached() {
         return hapiTest(
                 newKeyNamed(controlKeyFor("loopingAccount")),
-                cryptoCreate("loopingAccount").key(controlKeyFor("loopingAccount")),
-        );
+                cryptoCreate("loopingAccount").key(controlKeyFor("loopingAccount")));
     }
 
-    private SpecOperation createIndirectionUser(
-            String userAccount, String keyAccount) {
+    private SpecOperation createIndirectionUser(String userAccount, String keyAccount) {
         return blockingOrder(
                 newKeyNamed(controlKeyFor(userAccount)),
                 newKeyNamed(templateKeyFor(userAccount))
@@ -124,5 +119,4 @@ public class RepeatableIndirectKeysTest {
     private static String controlKeyFor(String userAccount) {
         return userAccount + "controlKey";
     }
-
 }

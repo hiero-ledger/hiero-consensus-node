@@ -137,7 +137,11 @@ jobs:
           - windows-2022
           - windows-2025
           - hiero-network-node-linux-medium
+          - hiero-network-node-linux-ubuntu-24-medium
+          - hiero-network-node-linux-debian-12-medium
           - hiero-network-node-linux-large
+          - hiero-network-node-linux-ubuntu-24-large
+          - hiero-network-node-linux-debian-12-large
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0

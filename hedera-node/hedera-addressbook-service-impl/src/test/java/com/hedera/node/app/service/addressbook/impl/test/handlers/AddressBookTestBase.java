@@ -2,12 +2,14 @@
 package com.hedera.node.app.service.addressbook.impl.test.handlers;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.asBytes;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_LABEL;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V068AddressBookSchema.ACCOUNT_NODE_REL_STATE_ID;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V068AddressBookSchema.ACCOUNT_NODE_REL_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
@@ -23,17 +25,21 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.hapi.utils.EntityType;
-import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
-import com.hedera.node.app.ids.WritableEntityIdStore;
+import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.service.addressbook.impl.ReadableAccountNodeRelStoreImpl;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
+import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
+import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
+import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
-import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -126,6 +132,9 @@ public class AddressBookTestBase {
     protected static final Key aPrimitiveKey = Key.newBuilder()
             .ed25519(Bytes.wrap("01234567890123456789012345678901"))
             .build();
+    protected static final Key bPrimitiveKey = Key.newBuilder()
+            .ed25519(Bytes.wrap("01234567890123456789098765432101"))
+            .build();
     protected static final ProtoBytes edKeyAlias = new ProtoBytes(Bytes.wrap(asBytes(Key.PROTOBUF, aPrimitiveKey)));
     protected final AccountID alias = idFactory.newAccountIdWithAlias(edKeyAlias.value());
 
@@ -160,13 +169,18 @@ public class AddressBookTestBase {
     protected WritableStates writableStates;
 
     protected ReadableEntityIdStore readableEntityCounters;
-    protected WritableEntityIdStore writableEntityCounters;
+    protected WritableEntityIdStoreImpl writableEntityCounters;
 
     protected MapReadableKVState<EntityNumber, Node> readableNodeState;
     protected MapWritableKVState<EntityNumber, Node> writableNodeState;
 
     protected ReadableNodeStore readableStore;
     protected WritableNodeStore writableStore;
+
+    protected MapReadableKVState<AccountID, NodeId> readableAccountNodeRelState;
+    protected MapWritableKVState<AccountID, NodeId> writableAccountNodeRelState;
+    protected ReadableAccountNodeRelStore readableAccountNodeRelStore;
+    protected WritableAccountNodeRelStore writableAccountNodeRelStore;
 
     @BeforeEach
     void commonSetUp() {
@@ -182,6 +196,13 @@ public class AddressBookTestBase {
         given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(writableNodeState);
         readableStore = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
         writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
+
+        readableAccountNodeRelState = newReadableAccNodeRelState();
+        writableAccountNodeRelState = newWritableAccNodeRelState();
+        given(readableStates.<AccountID, NodeId>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(readableAccountNodeRelState);
+        given(writableStates.<AccountID, NodeId>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(writableAccountNodeRelState);
+        readableAccountNodeRelStore = new ReadableAccountNodeRelStoreImpl(readableStates);
+        writableAccountNodeRelStore = new WritableAccountNodeRelStore(writableStates);
     }
 
     protected void givenEntityCounters() {
@@ -202,7 +223,7 @@ public class AddressBookTestBase {
                 .willReturn(new FunctionReadableSingletonState<>(
                         ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT));
         readableEntityCounters = new ReadableEntityIdStoreImpl(readableStates);
-        writableEntityCounters = new WritableEntityIdStore(writableStates);
+        writableEntityCounters = new WritableEntityIdStoreImpl(writableStates);
     }
 
     protected void givenEntityCountersWithOneNodeInWritable() {
@@ -228,7 +249,7 @@ public class AddressBookTestBase {
                         ENTITY_COUNTS_STATE_LABEL,
                         () -> EntityCounts.newBuilder().numNodes(1).build()));
         readableEntityCounters = new ReadableEntityIdStoreImpl(readableStates);
-        writableEntityCounters = new WritableEntityIdStore(writableStates);
+        writableEntityCounters = new WritableEntityIdStoreImpl(writableStates);
     }
 
     protected void refreshStoresWithCurrentNodeInBothReadableAndWritable() {
@@ -238,7 +259,6 @@ public class AddressBookTestBase {
         given(readableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(readableNodeState);
         given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(writableNodeState);
         readableStore = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
-        final var configuration = HederaTestConfigBuilder.createConfig();
         writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
     }
 
@@ -247,7 +267,6 @@ public class AddressBookTestBase {
         writableEntityCounters.incrementEntityTypeCount(EntityType.NODE);
         writableNodeState = writableNodeStateWithOneKey();
         given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(writableNodeState);
-        final var configuration = HederaTestConfigBuilder.createConfig();
         writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
     }
 
@@ -255,8 +274,14 @@ public class AddressBookTestBase {
         givenEntityCounters();
         writableNodeState = writableNodeStateWithMoreKeys();
         given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(writableNodeState);
-        final var configuration = HederaTestConfigBuilder.createConfig();
         writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
+
+        readableAccountNodeRelState = newReadableAccNodeRelState();
+        writableAccountNodeRelState = newWritableAccNodeRelState();
+        given(readableStates.<AccountID, NodeId>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(readableAccountNodeRelState);
+        given(writableStates.<AccountID, NodeId>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(writableAccountNodeRelState);
+        readableAccountNodeRelStore = new ReadableAccountNodeRelStoreImpl(readableStates);
+        writableAccountNodeRelStore = new WritableAccountNodeRelStore(writableStates);
     }
 
     @NonNull
@@ -290,6 +315,20 @@ public class AddressBookTestBase {
     @NonNull
     protected MapReadableKVState.Builder<EntityNumber, Node> emptyReadableNodeStateBuilder() {
         return MapReadableKVState.builder(NODES_STATE_ID, NODES_STATE_LABEL);
+    }
+
+    @NonNull
+    protected MapReadableKVState<AccountID, NodeId> newReadableAccNodeRelState() {
+        return MapReadableKVState.<AccountID, NodeId>builder(ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_LABEL)
+                .value(node.accountId(), NodeId.newBuilder().id(node.nodeId()).build())
+                .build();
+    }
+
+    @NonNull
+    protected MapWritableKVState<AccountID, NodeId> newWritableAccNodeRelState() {
+        return MapWritableKVState.<AccountID, NodeId>builder(ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_LABEL)
+                .value(node.accountId(), NodeId.newBuilder().id(node.nodeId()).build())
+                .build();
     }
 
     protected void givenValidNode() {
@@ -342,11 +381,16 @@ public class AddressBookTestBase {
                 .build();
     }
 
-    protected Key mockPayerLookup(Key key, AccountID contextPayerId, ReadableAccountStore accountStore) {
+    protected void mockAccountLookup(Key key, AccountID contextPayerId, ReadableAccountStore accountStore) {
         final var account = mock(Account.class);
         given(account.key()).willReturn(key);
         given(accountStore.getAccountById(contextPayerId)).willReturn(account);
-        return key;
+    }
+
+    protected void mockAccountKeyOrThrow(Key key, AccountID contextPayerId, ReadableAccountStore accountStore) {
+        final var account = mock(Account.class);
+        given(account.keyOrThrow()).willReturn(key);
+        given(accountStore.getAccountById(contextPayerId)).willReturn(account);
     }
 
     public static List<X509Certificate> generateX509Certificates(final int n) {

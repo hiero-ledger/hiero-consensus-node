@@ -9,6 +9,7 @@ import static org.hiero.otter.fixtures.container.utils.ContainerConstants.EVENT_
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.HASHSTREAM_LOG_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.METRICS_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.NODE_COMMUNICATION_PORT;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.OTTER_LOG_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.SWIRLDS_LOG_PATH;
 import static org.hiero.otter.fixtures.internal.AbstractNetwork.NODE_IDENTIFIER_FORMAT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
@@ -17,6 +18,7 @@ import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.google.protobuf.Empty;
 import com.google.protobuf.ProtocolStringList;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.config.api.Configuration;
@@ -55,6 +57,7 @@ import org.hiero.otter.fixtures.container.proto.InitRequest;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
 import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc;
 import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc.NodeCommunicationServiceStub;
+import org.hiero.otter.fixtures.container.proto.PingResponse;
 import org.hiero.otter.fixtures.container.proto.PlatformStatusChange;
 import org.hiero.otter.fixtures.container.proto.QuiescenceRequest;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
@@ -62,6 +65,7 @@ import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
 import org.hiero.otter.fixtures.container.utils.ContainerConstants;
+import org.hiero.otter.fixtures.container.utils.ContainerUtils;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
@@ -147,6 +151,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
         container = new ContainerImage(dockerImage, network, selfId);
         container.start();
+
         containerControlChannel = ManagedChannelBuilder.forAddress(
                         container.getHost(), container.getMappedPort(CONTAINER_CONTROL_PORT))
                 .maxInboundMessageSize(32 * 1024 * 1024)
@@ -183,6 +188,12 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         throwIfInLifecycle(LifeCycle.DESTROYED, "Node has already been destroyed.");
 
         log.info("Starting node {}...", selfId);
+
+        if (savedStateDirectory != null) {
+            final StateCommonConfig stateCommonConfig =
+                    configuration().current().getConfigData(StateCommonConfig.class);
+            ContainerUtils.copySavedStateToContainer(container, selfId, stateCommonConfig, savedStateDirectory);
+        }
 
         final InitRequest initRequest = InitRequest.newBuilder()
                 .setSelfId(ProtobufConverter.toLegacy(selfId))
@@ -254,6 +265,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             final KillImmediatelyRequest request = KillImmediatelyRequest.getDefaultInstance();
             // Unary call – will throw if server returns an error.
             containerControlBlockingStub.withDeadlineAfter(timeout).killImmediately(request);
+            platformStatus = null;
 
             log.info("Node {} has been killed", selfId);
         } catch (final Exception e) {
@@ -330,6 +342,20 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         } catch (final Exception e) {
             fail("Failed to submit transaction to node %d".formatted(selfId.id()), e);
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isAlive() {
+        final PingResponse response =
+                containerControlBlockingStub.nodePing(Empty.newBuilder().build());
+        if (!response.getAlive()) {
+            lifeCycle = SHUTDOWN;
+            platformStatus = null;
+        }
+        return response.getAlive();
     }
 
     /**
@@ -448,12 +474,13 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             throw new UncheckedIOException("Failed to copy files from container", e);
         }
 
-        if (lifeCycle == RUNNING) {
-            log.info("Destroying container of node {}...", selfId);
-            containerControlChannel.shutdownNow();
-            nodeCommChannel.shutdownNow();
+        log.info("Destroying container of node {}...", selfId);
+        containerControlChannel.shutdownNow();
+        nodeCommChannel.shutdownNow();
+        if (container.isRunning()) {
             container.stop();
         }
+
         resultsCollector.destroy();
         platformStatus = null;
         lifeCycle = DESTROYED;
@@ -483,17 +510,10 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         Files.createDirectories(localOutputDirectory.resolve("output/swirlds-hashstream"));
         Files.createDirectories(localOutputDirectory.resolve("data/stats"));
 
-        container.copyFileFromContainer(
-                CONTAINER_APP_WORKING_DIR + SWIRLDS_LOG_PATH,
-                localOutputDirectory.resolve(SWIRLDS_LOG_PATH).toString());
-        container.copyFileFromContainer(
-                CONTAINER_APP_WORKING_DIR + HASHSTREAM_LOG_PATH,
-                localOutputDirectory.resolve(HASHSTREAM_LOG_PATH).toString());
-        container.copyFileFromContainer(
-                CONTAINER_APP_WORKING_DIR + METRICS_PATH.formatted(selfId.id()),
-                localOutputDirectory
-                        .resolve(METRICS_PATH.formatted(selfId.id()))
-                        .toString());
+        copyFileFromContainerIfExists(localOutputDirectory, SWIRLDS_LOG_PATH);
+        copyFileFromContainerIfExists(localOutputDirectory, HASHSTREAM_LOG_PATH);
+        copyFileFromContainerIfExists(localOutputDirectory, OTTER_LOG_PATH);
+        copyFileFromContainerIfExists(localOutputDirectory, METRICS_PATH.formatted(selfId.id()));
     }
 
     private void downloadConsistencyServiceFiles(@NonNull final Path localOutputDirectory) {
@@ -507,11 +527,36 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 .resolve(Long.toString(selfId.id()));
 
         final Path historyFilePath = historyFileDirectory.resolve(consistencyServiceConfig.historyFileName());
-        container.copyFileFromContainer(
-                CONTAINER_APP_WORKING_DIR + historyFilePath,
-                localOutputDirectory
-                        .resolve(consistencyServiceConfig.historyFileName())
-                        .toString());
+        copyFileFromContainerIfExists(
+                localOutputDirectory, historyFilePath.toString(), consistencyServiceConfig.historyFileName());
+    }
+
+    private void copyFileFromContainerIfExists(
+            @NonNull final Path localOutputDirectory, @NonNull final String relativePath) {
+        copyFileFromContainerIfExists(localOutputDirectory, relativePath, relativePath);
+    }
+
+    private void copyFileFromContainerIfExists(
+            @NonNull final Path localOutputDirectory,
+            @NonNull final String relativeSourcePath,
+            @NonNull final String relativeTargetPath) {
+        final String containerPath = CONTAINER_APP_WORKING_DIR + relativeSourcePath;
+        final String localPath =
+                localOutputDirectory.resolve(relativeTargetPath).toString();
+
+        try {
+            final ExecResult result = container.execInContainer("test", "-f", containerPath);
+            if (result.getExitCode() == 0) {
+                container.copyFileFromContainer(containerPath, localPath);
+            } else {
+                log.warn("File not found in node {}: {}", selfId.id(), containerPath);
+            }
+        } catch (final IOException e) {
+            log.warn("Failed to check if file exists in node {}: {}", selfId.id(), containerPath, e);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("Interrupted while checking if file exists in node {}: {}", selfId.id(), containerPath, e);
+        }
     }
 
     /**

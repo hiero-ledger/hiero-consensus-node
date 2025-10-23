@@ -28,10 +28,10 @@ import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fees.ResourcePriceCalculatorImpl;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.EntityNumGeneratorImpl;
-import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.records.BlockRecordManager;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.entityid.impl.EntityNumGeneratorImpl;
+import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.api.FeeStreamBuilder;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.services.ServiceScopeLookup;
@@ -194,7 +194,10 @@ public class ParentTxnFactory {
             return null;
         }
         final var tokenContext = new TokenContextImpl(
-                config, stack, consensusNow, new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME)));
+                config,
+                stack,
+                consensusNow,
+                new WritableEntityIdStoreImpl(stack.getWritableStates(EntityIdService.NAME)));
         return new ParentTxn(
                 txnInfo.functionality(),
                 consensusNow,
@@ -238,7 +241,7 @@ public class ParentTxnFactory {
         final var functionality = functionOfTxn(body);
         final var preHandleResult =
                 preHandleSystemTransaction(body, payerId, config, readableStoreFactory, creatorInfo, type);
-        final var entityIdStore = new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME));
+        final var entityIdStore = new WritableEntityIdStoreImpl(stack.getWritableStates(EntityIdService.NAME));
         final var tokenContext = new TokenContextImpl(config, stack, consensusNow, entityIdStore);
         return new ParentTxn(
                 functionality,
@@ -310,7 +313,7 @@ public class ParentTxnFactory {
         final var consensusNow = parentTxn.consensusNow();
         final var creatorInfo = parentTxn.creatorInfo();
         final var tokenContextImpl = parentTxn.tokenContextImpl();
-        final var entityIdStore = new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME));
+        final var entityIdStore = new WritableEntityIdStoreImpl(stack.getWritableStates(EntityIdService.NAME));
 
         final var readableStoreFactory = new ReadableStoreFactory(stack);
         final var entityNumGenerator = new EntityNumGeneratorImpl(entityIdStore);

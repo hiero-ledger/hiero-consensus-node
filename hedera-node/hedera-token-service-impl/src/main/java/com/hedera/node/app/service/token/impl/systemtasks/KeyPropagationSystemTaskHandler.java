@@ -80,7 +80,8 @@ public class KeyPropagationSystemTaskHandler implements SystemTaskHandler {
                                     .accountIDToUpdate(userAccount.accountIdOrThrow())
                                     .key(keyToPropagate));
                         },
-                        CryptoUpdateStreamBuilder.class, CRYPTO_UPDATE);
+                        CryptoUpdateStreamBuilder.class,
+                        CRYPTO_UPDATE);
                 validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
                 // If the user has indirect key users after update, schedule its own propagation
                 final var updatedUserAccount = requireNonNull(accountStore.get(nextUserId));

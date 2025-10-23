@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.UNCHECKED_SUBMIT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
@@ -51,11 +50,11 @@ import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.info.CurrentPlatformStatus;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.service.schedule.ExecutableTxn;
@@ -563,7 +562,7 @@ public class HandleWorkflow {
                             networkInfo,
                             configProvider.getConfiguration(),
                             new WritableStakingInfoStore(
-                                    writableTokenStates, new WritableEntityIdStore(writableEntityIdStates)),
+                                    writableTokenStates, new WritableEntityIdStoreImpl(writableEntityIdStates)),
                             new WritableNetworkStakingRewardsStore(writableTokenStates)));
             if (streamMode == RECORDS) {
                 // Only update this if we are relying on RecordManager state for post-upgrade processing
@@ -680,7 +679,7 @@ public class HandleWorkflow {
         // created and exhausted iterators through the last second in the interval
         if (executionEnd.getEpochSecond() > lastExecutedSecond) {
             final var entityIdWritableStates = state.getWritableStates(EntityIdService.NAME);
-            final var writableEntityIdStore = new WritableEntityIdStore(entityIdWritableStates);
+            final var writableEntityIdStore = new WritableEntityIdStoreImpl(entityIdWritableStates);
             // Now we construct the iterator and start executing transactions in the longest permitted
             // interval; this is constrained by `scheduling.maxExpirySecsToCheckPerUserTxn` so that in
             // test environments where we restart from a state with last consensus time T and begin
@@ -798,7 +797,7 @@ public class HandleWorkflow {
                     immediateStateChangeListener,
                     streamMode);
             final var entityIdWritableStates = taskStack.getWritableStates(EntityIdService.NAME);
-            final var writableEntityIdStore = new WritableEntityIdStore(entityIdWritableStates);
+            final var writableEntityIdStore = new WritableEntityIdStoreImpl(entityIdWritableStates);
             final var taskStore =
                     new WritableSystemTaskStore(state.getWritableStates(SystemTaskService.NAME), writableEntityIdStore);
             final var readableStoreFactory = new ReadableStoreFactory(taskStack);
@@ -1141,7 +1140,7 @@ public class HandleWorkflow {
                         historyService.setLatestHistoryProof(construction.targetProofOrThrow());
                         final var writableHintsStates = state.getWritableStates(HintsService.NAME);
                         final var writableEntityStates = state.getWritableStates(EntityIdService.NAME);
-                        final var entityCounters = new WritableEntityIdStore(writableEntityStates);
+                        final var entityCounters = new WritableEntityIdStoreImpl(writableEntityStates);
                         final var hintsStore = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
                         hintsService.handoff(
                                 hintsStore,
@@ -1167,7 +1166,7 @@ public class HandleWorkflow {
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         if (tssConfig.hintsEnabled() || tssConfig.historyEnabled()) {
             final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
-            final var entityCounters = new WritableEntityIdStore(state.getWritableStates(EntityIdService.NAME));
+            final var entityCounters = new WritableEntityIdStoreImpl(state.getWritableStates(EntityIdService.NAME));
             final var activeRosters = ActiveRosters.from(rosterStore);
             final var isActive = currentPlatformStatus.get() == ACTIVE;
             if (tssConfig.hintsEnabled()) {

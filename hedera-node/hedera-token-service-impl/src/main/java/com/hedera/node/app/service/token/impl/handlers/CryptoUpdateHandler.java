@@ -80,7 +80,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -197,7 +196,8 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                     case NONE_TO_NONE -> concreteKeyChanged = !Objects.equals(concreteKey, op.keyOrThrow());
                     case NONE_TO_SOME -> {
                         indirectRefsToAdd = getIndirectAccountRefs(op.keyOrThrow());
-                        final var newConcreteKey = new KeyMaterializer().materialize(op.keyOrThrow(), new KeySourceFromStore(accountStore));
+                        final var newConcreteKey = new KeyMaterializer()
+                                .materialize(op.keyOrThrow(), new KeySourceFromStore(accountStore));
                         builder.materializedKey(newConcreteKey);
                         concreteKeyChanged = !Objects.equals(concreteKey, newConcreteKey);
                     }
@@ -209,9 +209,14 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                     case SOME_TO_SOME -> {
                         final var oldRefs = getIndirectAccountRefs(targetAccount.keyOrThrow());
                         final var newRefs = getIndirectAccountRefs(op.keyOrThrow());
-                        indirectRefsToRemove = oldRefs.stream().filter(ref -> !newRefs.contains(ref)).collect(toSet());
-                        indirectRefsToAdd = newRefs.stream().filter(ref -> !oldRefs.contains(ref)).collect(toSet());
-                        final var newConcreteKey = new KeyMaterializer().materialize(op.keyOrThrow(), new KeySourceFromStore(accountStore));
+                        indirectRefsToRemove = oldRefs.stream()
+                                .filter(ref -> !newRefs.contains(ref))
+                                .collect(toSet());
+                        indirectRefsToAdd = newRefs.stream()
+                                .filter(ref -> !oldRefs.contains(ref))
+                                .collect(toSet());
+                        final var newConcreteKey = new KeyMaterializer()
+                                .materialize(op.keyOrThrow(), new KeySourceFromStore(accountStore));
                         builder.materializedKey(newConcreteKey);
                         concreteKeyChanged = !Objects.equals(concreteKey, newConcreteKey);
                     }
@@ -241,7 +246,10 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
     }
 
     private enum IndirectionChange {
-        NONE_TO_NONE, NONE_TO_SOME, SOME_TO_NONE, SOME_TO_SOME
+        NONE_TO_NONE,
+        NONE_TO_SOME,
+        SOME_TO_NONE,
+        SOME_TO_SOME
     }
 
     private IndirectionChange indirectionUpdate(@NonNull final Account targetAccount, @NonNull final Key newKey) {

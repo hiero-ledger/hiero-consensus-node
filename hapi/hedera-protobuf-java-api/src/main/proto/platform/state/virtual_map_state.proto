@@ -266,9 +266,14 @@ message StateKey {
     com.hedera.hapi.node.state.hooks.LambdaSlotKey ContractService_I_LAMBDA_STORAGE = 52;
 
     /**
+     * A state identifier for account to node relationships.
+     */
+    proto.AccountID AddressBookService_I_ACCOUNT_NODE_REL = 53;
+
+    /**
      * A state identifier for indirect key users.
      */
-    proto.IndirectKeyUsersKey TokenService_I_INDIRECT_KEY_USERS = 53;
+    proto.IndirectKeyUsersKey TokenService_I_INDIRECT_KEY_USERS = 54;
 
     // Queue states
     /**
@@ -609,9 +614,14 @@ message StateValue {
     proto.SlotValue ContractService_I_LAMBDA_STORAGE = 52;
 
     /**
+     * A state identifier for account to node relationships.
+     */
+    com.hedera.hapi.platform.state.NodeId AddressBookService_I_ACCOUNT_NODE_REL = 53;
+        
+    /**
      * Prev/next pointers for indirect key users.
      */
-    proto.IndirectKeyUsersValue TokenService_I_INDIRECT_KEY_USERS = 53;
+     proto.IndirectKeyUsersValue TokenService_I_INDIRECT_KEY_USERS = 54;
 
     /**
      * Metadata of the round receipts queue.

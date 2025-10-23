@@ -168,7 +168,7 @@ jobs:
           version: 18.1.4
 
       - name: Authorize Teleport SSH Access
-        uses: teleport-actions/auth@685adaf480dc79262a99220eb158a92136d5abd9 # v2.0.3
+        uses: teleport-actions/auth@d48447391aa28b202c98ae3f3358097025c32511 # v2.0.4
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot

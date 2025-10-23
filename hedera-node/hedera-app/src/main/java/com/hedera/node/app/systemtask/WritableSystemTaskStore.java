@@ -5,7 +5,7 @@ import static com.hedera.node.app.hapi.utils.EntityType.SYSTEM_TASK;
 import static com.hedera.node.app.systemtask.schemas.V069SystemTaskSchema.SYSTEM_TASK_QUEUE_STATE_ID;
 
 import com.hedera.hapi.node.state.systemtask.SystemTask;
-import com.hedera.node.app.spi.ids.WritableEntityCounters;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.swirlds.state.spi.WritableQueueState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;

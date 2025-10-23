@@ -6,7 +6,7 @@ import static com.hedera.node.app.systemtask.schemas.V069SystemTaskSchema.SYSTEM
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.systemtask.SystemTask;
-import com.hedera.node.app.spi.ids.ReadableEntityCounters;
+import com.hedera.node.app.service.entityid.ReadableEntityCounters;
 import com.swirlds.state.spi.ReadableQueueState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;

@@ -25,8 +25,9 @@ import com.hedera.node.app.fees.ChildFeeContextImpl;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.fees.FeeManager;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.WritableEntityIdStore;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.entityid.EntityNumGenerator;
+import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
@@ -37,7 +38,6 @@ import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.ResourcePriceCalculator;
-import com.hedera.node.app.spi.ids.EntityNumGenerator;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.key.KeyVerifier;
@@ -465,7 +465,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     @Override
     public void offer(@NonNull final SystemTask task) {
         final var entityIdWritableStates = stack.getWritableStates(EntityIdService.NAME);
-        final var writableEntityIdStore = new WritableEntityIdStore(entityIdWritableStates);
+        final var writableEntityIdStore = new WritableEntityIdStoreImpl(entityIdWritableStates);
         final var store =
                 new WritableSystemTaskStore(stack.getWritableStates(SystemTaskService.NAME), writableEntityIdStore);
         final long limit = config.getConfigData(NetworkAdminConfig.class).maxPendingSystemTasks();
