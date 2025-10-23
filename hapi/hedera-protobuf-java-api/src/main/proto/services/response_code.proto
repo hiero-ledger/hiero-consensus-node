@@ -1892,4 +1892,10 @@ enum ResponseCodeEnum {
      *  Hooks are not supported to be used in TokenAirdrop transactions
      */
     HOOKS_ARE_NOT_SUPPORTED_IN_AIRDROPS = 523;
+
+    /**
+     *  Hooks are not supported to be used in Batch transactions and Scheduled transactions.
+     * They are only supported in a top level CryptoTransfer transaction.
+     */
+    HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER = 524;
 }

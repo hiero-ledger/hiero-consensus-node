@@ -71,8 +71,7 @@ public class CustomDelegateCallOperation extends DelegateCallOperation implement
     }
 
     /**
-     * Determines if the delegate call is being redirected from a native Hedera entity account
-     * (i.e., a regular account, token facade, or schedule transaction facade).
+     * Determines if the delegate call is being redirected from a native facade.
      *
      * @param frame the current message frame
      * @return true if the call is redirected from a native entity, false otherwise

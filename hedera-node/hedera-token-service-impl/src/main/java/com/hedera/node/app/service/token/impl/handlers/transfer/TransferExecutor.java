@@ -167,7 +167,7 @@ public class TransferExecutor extends BaseTokenHandler {
             txns = customFeeStep.assessCustomFees(transferContext);
         }
 
-        final var hasHooks = HookUtils.hasHooks(replacedOp);
+        final var hasHooks = HookUtils.hasHookExecutions(replacedOp);
         HookCalls hookCalls = null;
 
         if (hasHooks) {

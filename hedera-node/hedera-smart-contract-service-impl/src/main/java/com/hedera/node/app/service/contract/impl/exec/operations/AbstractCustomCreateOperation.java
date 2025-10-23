@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.operations;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_GAS;
 import static org.hyperledger.besu.evm.internal.Words.clampedToLong;
 
+import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -90,6 +92,9 @@ public abstract class AbstractCustomCreateOperation extends AbstractOperation {
 
     @Override
     public OperationResult execute(@NonNull final MessageFrame frame, @NonNull final EVM evm) {
+        if (FrameUtils.isHookExecution(frame)) {
+            return new OperationResult(0, ExceptionalHaltReason.INVALID_OPERATION);
+        }
         if (!isEnabled(frame)) {
             return INVALID_RESPONSE;
         }
@@ -135,6 +140,10 @@ public abstract class AbstractCustomCreateOperation extends AbstractOperation {
 
         final var childGasStipend = gasCalculator().gasAvailableForChildCreate(frame.getRemainingGas());
         frame.decrementRemainingGas(childGasStipend);
+
+        // For HTS hooks, the sender should be the owner of the hook, not the HTS hooks contract itself
+        final var senderAddress = getSenderAddress(frame);
+
         // child frame is added to frame stack via build method
         MessageFrame.builder()
                 .parentMessageFrame(frame)
@@ -143,7 +152,7 @@ public abstract class AbstractCustomCreateOperation extends AbstractOperation {
                 .address(contractAddress)
                 .contract(contractAddress)
                 .inputData(Bytes.EMPTY)
-                .sender(frame.getRecipientAddress())
+                .sender(senderAddress)
                 .value(value)
                 .apparentValue(value)
                 .code(codeFactory.createCode(inputData, false))
@@ -151,6 +160,21 @@ public abstract class AbstractCustomCreateOperation extends AbstractOperation {
                 .build();
         frame.incrementRemainingGas(cost);
         frame.setState(MessageFrame.State.CODE_SUSPENDED);
+    }
+
+    /**
+     * Returns the sender address for the child CONTRACT_CREATION frame.
+     * For HTS hooks, this returns the hook owner's address instead of the HTS hooks contract address.
+     *
+     * @param frame the current frame
+     * @return the sender address to use for the child frame
+     */
+    private Address getSenderAddress(@NonNull final MessageFrame frame) {
+        final var recipientAddress = frame.getRecipientAddress();
+        if (recipientAddress.equals(HTS_HOOKS_CONTRACT_ADDRESS)) {
+            return FrameUtils.hookOwnerAddress(frame);
+        }
+        return recipientAddress;
     }
 
     private void fail(@NonNull final MessageFrame frame) {

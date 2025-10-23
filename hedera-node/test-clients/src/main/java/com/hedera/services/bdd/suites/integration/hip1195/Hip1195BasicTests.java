@@ -8,12 +8,14 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
@@ -28,12 +30,15 @@ import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.integration.hip1195.Hip1195EnabledTest.OWNER;
 import static com.hedera.services.bdd.suites.integration.hip1195.Hip1195EnabledTest.PAYER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_IN_USE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_NOT_FOUND;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -63,6 +68,7 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @TargetEmbeddedMode(CONCURRENT)
 public class Hip1195BasicTests {
+    private static final String BATCH_OPERATOR = "batchOperator";
 
     @Contract(contract = "FalsePreHook", creationGas = 5_000_000)
     static SpecContract FALSE_ALLOWANCE_HOOK;
@@ -805,5 +811,48 @@ public class Hip1195BasicTests {
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
                         .withPrePostHookFor(PAYER, 124L, 25_000L, "")
                         .payingWith(OWNER));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hooksExecutionsInBatchNotAllowed() {
+        return hapiTest(
+                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
+                cryptoCreate(OWNER)
+                        .withHooks(
+                                accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name())),
+                cryptoCreate(PAYER)
+                        .receiverSigRequired(true)
+                        .withHooks(
+                                accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
+                atomicBatch(cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
+                                .withPreHookFor(PAYER, 123L, 25_000L, "")
+                                .batchKey(BATCH_OPERATOR)
+                                .hasKnownStatus(HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER)
+                                .via("transferTxn"))
+                        .payingWith(BATCH_OPERATOR)
+                        .via("batchTxn")
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hooksExecutionsInScheduleNotAllowed() {
+        return hapiTest(
+                cryptoCreate(OWNER)
+                        .withHooks(
+                                accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name())),
+                cryptoCreate(PAYER)
+                        .receiverSigRequired(true)
+                        .withHooks(
+                                accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
+                scheduleCreate(
+                                "schedule",
+                                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
+                                        .withPreHookFor(PAYER, 123L, 25_000L, ""))
+                        .hasPrecheck(HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER)
+                        .payingWith(PAYER));
     }
 }

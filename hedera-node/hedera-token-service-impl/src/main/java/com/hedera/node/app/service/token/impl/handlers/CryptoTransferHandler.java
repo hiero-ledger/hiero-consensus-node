@@ -53,6 +53,7 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.spi.workflows.WarmupContext;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.HooksConfig;
@@ -203,7 +204,9 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
         final var accountsConfig = context.configuration().getConfigData(AccountsConfig.class);
         final var hooksConfig = context.configuration().getConfigData(HooksConfig.class);
 
-        validator.validateSemantics(op, ledgerConfig, accountsConfig, hooksConfig);
+        final var transactionCategory =
+                context.savepointStack().getBaseBuilder(StreamBuilder.class).category();
+        validator.validateSemantics(op, ledgerConfig, accountsConfig, hooksConfig, transactionCategory);
 
         // create a new transfer context that is specific only for this transaction
         final var transferContext =
