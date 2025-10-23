@@ -34,8 +34,6 @@ public class QuiescenceController {
     private final AtomicLong pipelineTransactionCount;
     private final Map<Long, QuiescenceBlockTracker> blockTrackers;
 
-    private long lastCountLogged = Long.MIN_VALUE;
-
     /**
      * Constructs a new quiescence controller.
      *
@@ -69,11 +67,6 @@ public class QuiescenceController {
         }
         try {
             pipelineTransactionCount.addAndGet(QuiescenceUtils.countRelevantTransactions(transactions.iterator()));
-            final long maybeLog = pipelineTransactionCount.get();
-            if (maybeLog != lastCountLogged) {
-                lastCountLogged = maybeLog;
-                logger.info("(onPreHandle) Pipeline transaction count: {}", maybeLog);
-            }
         } catch (final BadMetadataException e) {
             disableQuiescence(e);
         }
@@ -135,7 +128,6 @@ public class QuiescenceController {
         }
         try {
             pipelineTransactionCount.addAndGet(-QuiescenceUtils.countRelevantTransactions(event.transactionIterator()));
-            logger.info("(staleEvent) Pipeline transaction count: {}", pipelineTransactionCount.get());
         } catch (final BadMetadataException e) {
             disableQuiescence(e);
         }
@@ -177,7 +169,6 @@ public class QuiescenceController {
         if (isDisabled()) {
             return QuiescenceCommand.DONT_QUIESCE;
         }
-        logger.info("(getQuiescenceStatus) Pipeline transaction count: {}", pipelineTransactionCount.get());
         if (pipelineTransactionCount.get() > 0) {
             return QuiescenceCommand.DONT_QUIESCE;
         }
@@ -236,10 +227,6 @@ public class QuiescenceController {
 
     private void updateTransactionCount(final long delta) {
         final long updatedValue = pipelineTransactionCount.addAndGet(delta);
-        if (updatedValue != lastCountLogged) {
-            lastCountLogged = updatedValue;
-            logger.info("(updateTransactionCount={}) Pipeline transaction count: {}", delta, updatedValue);
-        }
         if (updatedValue < 0) {
             disableQuiescence("Quiescence transaction count is negative, this indicates a bug");
         }

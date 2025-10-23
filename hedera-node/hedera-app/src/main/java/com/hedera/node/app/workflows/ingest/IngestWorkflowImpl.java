@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.ingest;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.node.app.quiescence.QuiescenceUtils.isRelevantTransaction;
 import static java.util.Objects.requireNonNull;
@@ -74,13 +72,7 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
 
     @Override
     public int estimateTxPipelineCount() {
-        final int answer = quiescenceEnabled ? (preFlightCount.get() + inFlightCount.get()) : 0;
-        logger.info(
-                "estimateTxPipelineCount: {} (pre-flight: {}, in-flight: {})",
-                answer,
-                preFlightCount.get(),
-                inFlightCount.get());
-        return answer;
+        return quiescenceEnabled ? (preFlightCount.get() + inFlightCount.get()) : 0;
     }
 
     /**
@@ -132,13 +124,9 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
 
                 // 7. Submit to platform
                 final var txInfo = checkerResult.txnInfoOrThrow();
-                if (txInfo.functionality() == CRYPTO_CREATE || txInfo.functionality() == SCHEDULE_CREATE) {
-                    logger.info("Submitting crypto create transaction");
-                }
                 submissionManager.submit(txInfo.txBody(), txInfo.serializedSignedTxOrThrow());
                 if (quiescenceEnabled) {
                     inFlightCount.incrementAndGet();
-                    logger.info("In-flight count: {}", inFlightCount.get());
                 }
             } catch (final InsufficientBalanceException e) {
                 estimatedFee = e.getEstimatedFee();
