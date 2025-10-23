@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees.schemas;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.TimestampSeconds;
 import com.hedera.hapi.node.transaction.ExchangeRate;
@@ -13,7 +15,7 @@ import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
-public class V0490FeeSchema extends Schema {
+public class V0490FeeSchema extends Schema<SemanticVersion> {
 
     public static final String MIDNIGHT_RATES_KEY = "MIDNIGHT_RATES";
     public static final int MIDNIGHT_RATES_STATE_ID = SingletonType.FEESERVICE_I_MIDNIGHT_RATES.protoOrdinal();
@@ -25,7 +27,7 @@ public class V0490FeeSchema extends Schema {
             SemanticVersion.newBuilder().major(0).minor(49).patch(0).build();
 
     public V0490FeeSchema() {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
     @NonNull

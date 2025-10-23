@@ -30,6 +30,7 @@ module com.swirlds.demo.platform {
     requires com.swirlds.common.test.fixtures;
     requires com.swirlds.common;
     requires com.swirlds.config.api;
+    requires com.swirlds.config.extensions;
     requires com.swirlds.fchashmap;
     requires com.swirlds.fcqueue;
     requires com.swirlds.logging;
@@ -40,7 +41,7 @@ module com.swirlds.demo.platform {
     requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.platform.core;
     requires com.swirlds.state.api;
-    requires com.swirlds.state.impl;
+    requires com.swirlds.state.impl.test.fixtures;
     requires com.swirlds.virtualmap;
     requires org.hiero.base.concurrent;
     requires org.hiero.base.crypto.test.fixtures;

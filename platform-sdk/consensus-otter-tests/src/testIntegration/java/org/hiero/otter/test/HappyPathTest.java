@@ -36,28 +36,26 @@ public class HappyPathTest {
         // Setup simulation
         network.addNodes(4);
 
-        assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds();
+        // Setup continuous assertions
         assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
+        assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
+        assertContinuouslyThat(network.newConsensusResults())
+                .haveEqualCommonRounds()
+                .haveConsistentRounds();
+        assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
         assertContinuouslyThat(network.newPlatformStatusResults())
                 .doOnlyEnterStatusesOf(ACTIVE, REPLAYING_EVENTS, OBSERVING, CHECKING)
                 .doNotEnterAnyStatusesOf(BEHIND, FREEZING);
-        assertContinuouslyThat(network.newMarkerFileResults())
-                .haveNoNoSuperMajorityMarkerFiles()
-                .haveNoNoJudgesMarkerFiles()
-                .haveNoConsensusExceptionMarkerFiles()
-                .haveNoIssMarkerFiles();
 
         network.start();
 
-        // Wait for 30 seconds
-        timeManager.waitFor(Duration.ofSeconds(30L));
+        // Wait for 5 seconds
+        timeManager.waitFor(Duration.ofSeconds(5L));
 
         // Validations
-        assertThat(network.newLogResults()).haveNoErrorLevelMessages();
-
-        assertThat(network.newConsensusResults()).haveEqualCommonRounds().haveConsistentRounds();
-
         assertThat(network.newPlatformStatusResults())
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
+
+        assertThat(network.newEventStreamResults()).haveEqualFiles();
     }
 }

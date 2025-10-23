@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.regression.system;
 
+import static com.hedera.hapi.util.HapiUtils.asReadableIp;
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.CLASSIC_HAPI_TEST_NETWORK_SIZE;
 import static com.hedera.services.bdd.junit.TestTags.UPGRADE;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
@@ -10,7 +11,6 @@ import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classi
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.entryById;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.nodeIdsFrom;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.VALID_CERT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asReadableIp;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asServiceEndpoint;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.operations.transactions.TouchBalancesOperation.touchBalanceOf;
@@ -115,13 +115,13 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     @Account(tinybarBalance = ONE_BILLION_HBARS, stakedNodeId = 0)
     static SpecAccount NODE0_STAKER;
 
-    @Account(tinybarBalance = ONE_BILLION_HBARS, stakedNodeId = 1)
+    @Account(tinybarBalance = ONE_BILLION_HBARS / 100, stakedNodeId = 1)
     static SpecAccount NODE1_STAKER;
 
-    @Account(tinybarBalance = ONE_BILLION_HBARS, stakedNodeId = 2)
+    @Account(tinybarBalance = ONE_BILLION_HBARS / 100, stakedNodeId = 2)
     static SpecAccount NODE2_STAKER;
 
-    @Account(tinybarBalance = ONE_MILLION_HBARS, stakedNodeId = 3)
+    @Account(tinybarBalance = ONE_MILLION_HBARS / 100, stakedNodeId = 3)
     static SpecAccount NODE3_STAKER;
 
     @HapiTest

@@ -6,6 +6,7 @@ module com.hedera.node.app.service.contract.impl {
     requires transitive com.hedera.node.app.hapi.fees;
     requires transitive com.hedera.node.app.hapi.utils;
     requires transitive com.hedera.node.app.service.contract;
+    requires transitive com.hedera.node.app.service.entityid;
     requires transitive com.hedera.node.app.service.file;
     requires transitive com.hedera.node.app.service.schedule;
     requires transitive com.hedera.node.app.service.token;
@@ -32,6 +33,7 @@ module com.hedera.node.app.service.contract.impl {
     requires com.google.protobuf;
     requires org.apache.commons.lang3;
     requires org.bouncycastle.provider;
+    requires org.hyperledger.besu.internal.crypto;
     requires org.slf4j;
     requires static transitive com.github.spotbugs.annotations;
     requires static java.compiler;
@@ -93,4 +95,11 @@ module com.hedera.node.app.service.contract.impl {
             com.hedera.node.app.service.contract.impl.test;
 
     exports com.hedera.node.app.service.contract.impl.annotations;
+    exports com.hedera.node.app.service.contract.impl.nativelibverification to
+            com.hedera.node.app;
+    exports com.hedera.node.app.service.contract.impl.state.hooks to
+            com.hedera.node.app,
+            com.hedera.node.app.service.contract.impl.test,
+            com.hedera.node.services.cli,
+            com.hedera.node.test.clients;
 }

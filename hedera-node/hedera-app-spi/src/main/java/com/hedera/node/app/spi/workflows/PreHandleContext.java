@@ -313,6 +313,16 @@ public interface PreHandleContext extends TransactionKeys {
             throws PreCheckException;
 
     /**
+     * Returns the key of the given account.
+     * If the account does not exist, or has no key, or an empty key,
+     * a PreCheckException is thrown with {@link ResponseCodeEnum#INVALID_ACCOUNT_ID}.
+     * @param accountID The ID of the account whose key is to be fetched
+     * @return the key of the account
+     * @throws PreCheckException if the account does not exist, or has no key, or an empty key
+     */
+    Key getAccountKey(@NonNull AccountID accountID) throws PreCheckException;
+
+    /**
      * Returns the {@link NodeInfo} of the creator of the transaction.
      */
     NodeInfo creatorInfo();

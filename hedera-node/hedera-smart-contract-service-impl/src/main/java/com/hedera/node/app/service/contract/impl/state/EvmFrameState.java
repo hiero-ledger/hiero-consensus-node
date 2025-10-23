@@ -4,7 +4,7 @@ package com.hedera.node.app.service.contract.impl.state;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomCallOperation;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Optional;
@@ -15,6 +15,7 @@ import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.account.Account;
 import org.hyperledger.besu.evm.account.MutableAccount;
+import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
@@ -203,7 +204,7 @@ public interface EvmFrameState {
      * @return the code hash of the contract
      */
     @NonNull
-    Hash getCodeHash(ContractID contractID);
+    Hash getCodeHash(ContractID contractID, @NonNull final CodeFactory codeFactory);
 
     /**
      * Returns the hash of the redirect bytecode for the token with the given address, which must be a

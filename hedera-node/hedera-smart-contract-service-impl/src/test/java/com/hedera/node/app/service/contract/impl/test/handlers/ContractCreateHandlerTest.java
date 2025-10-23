@@ -41,6 +41,7 @@ import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCreateHandler;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
+import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
@@ -119,6 +120,9 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
     @Mock
     private TokenServiceApi tokenServiceApi;
 
+    @Mock
+    private EvmFrameStates evmFrameStates;
+
     private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
 
     private final Metrics metrics = new NoOpMetrics();
@@ -139,7 +143,8 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
         final var account = mock(Account.class);
         final var builder = Account.newBuilder();
 
-        given(factory.create(context, HederaFunctionality.CONTRACT_CREATE)).willReturn(component);
+        given(factory.create(context, HederaFunctionality.CONTRACT_CREATE, EvmFrameStates.DEFAULT))
+                .willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(streamBuilder);
@@ -187,7 +192,8 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
 
     @Test
     void delegatesToCreatedComponentAndThrowsFailure() {
-        given(factory.create(context, HederaFunctionality.CONTRACT_CREATE)).willReturn(component);
+        given(factory.create(context, HederaFunctionality.CONTRACT_CREATE, EvmFrameStates.DEFAULT))
+                .willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
         given(component.hederaOperations()).willReturn(hederaOperations);
         given(context.savepointStack()).willReturn(stack);
@@ -279,7 +285,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
     void validatePureChecks() {
         // check at least intrinsic gas
         final var txn1 = contractCreateTransactionWithInsufficientGas();
-        given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), true))
+        given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), true, 0L))
                 .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
         given(pureChecksContext.body()).willReturn(txn1);
         assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));

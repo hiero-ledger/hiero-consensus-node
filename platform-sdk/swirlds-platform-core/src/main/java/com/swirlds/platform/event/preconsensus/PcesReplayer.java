@@ -173,6 +173,7 @@ public class PcesReplayer {
                 }
 
                 final PlatformEvent event = eventIterator.next();
+                event.setTimeReceived(time.now());
 
                 eventCount++;
                 transactionCount += event.getTransactionCount();

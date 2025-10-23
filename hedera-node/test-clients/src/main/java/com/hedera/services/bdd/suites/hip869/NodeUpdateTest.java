@@ -48,7 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
+import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -369,7 +369,7 @@ public class NodeUpdateTest {
                         .description("newNode"),
                 viewNode("testNode", node -> assertNotNull(node.grpcProxyEndpoint())),
                 nodeUpdate("testNode")
-                        .grpcProxyEndpoint(com.hedera.hapi.node.base.ServiceEndpoint.DEFAULT)
+                        .grpcProxyEndpoint(ServiceEndpoint.DEFAULT)
                         .description("updatedNode")
                         .signedByPayerAnd("adminKey"),
                 viewNode("testNode", node -> assertNull(node.grpcProxyEndpoint())));
@@ -456,7 +456,7 @@ public class NodeUpdateTest {
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 nodeUpdate("testNode")
                         .signedByPayerAnd("adminKey")
-                        .grpcProxyEndpoint(CommonPbjConverters.toPbj(GRPC_PROXY_ENDPOINT_IP))
+                        .grpcProxyEndpoint(toPbj(GRPC_PROXY_ENDPOINT_IP))
                         .hasKnownStatus(INVALID_SERVICE_ENDPOINT));
     }
 }

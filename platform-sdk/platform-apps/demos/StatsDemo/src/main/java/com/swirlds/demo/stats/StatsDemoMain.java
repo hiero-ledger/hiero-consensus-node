@@ -13,12 +13,17 @@ package com.swirlds.demo.stats;
 
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_SECONDS;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.NoOpConsensusStateEventHandler;
@@ -42,6 +47,9 @@ import org.hiero.consensus.model.node.NodeId;
 public class StatsDemoMain extends DefaultSwirldMain<StatsDemoState> {
     // the first four come from the parameters in the config.txt file
 
+    static final Configuration CONFIGURATION =
+            ConfigurationBuilder.create().autoDiscoverExtensions().build();
+
     /** bytes in each transaction */
     private int bytesPerTrans = 1;
     /** transactions in each Event */
@@ -63,6 +71,7 @@ public class StatsDemoMain extends DefaultSwirldMain<StatsDemoState> {
                 return statsDemoState;
             }));
             registerMerkleStateRootClassIds();
+            registerConstructablesForStorage(CONFIGURATION);
         } catch (final ConstructableRegistryException e) {
             throw new RuntimeException(e);
         }
@@ -127,7 +136,7 @@ public class StatsDemoMain extends DefaultSwirldMain<StatsDemoState> {
     @Override
     public StatsDemoState newStateRoot() {
         final StatsDemoState state = new StatsDemoState();
-        TestingAppStateInitializer.DEFAULT.initStates(state);
+        TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
         return state;
     }
 
@@ -138,8 +147,11 @@ public class StatsDemoMain extends DefaultSwirldMain<StatsDemoState> {
      * </p>
      */
     @Override
-    public Function<VirtualMap, StatsDemoState> stateRootFromVirtualMap() {
-        throw new UnsupportedOperationException();
+    public Function<VirtualMap, StatsDemoState> stateRootFromVirtualMap(
+            @NonNull final Metrics metrics, @NonNull final Time time) {
+        return (virtualMap) -> {
+            throw new UnsupportedOperationException();
+        };
     }
 
     @NonNull

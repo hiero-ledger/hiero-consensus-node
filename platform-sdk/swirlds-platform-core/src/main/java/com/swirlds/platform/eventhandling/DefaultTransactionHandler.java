@@ -20,7 +20,6 @@ import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.metrics.RoundHandlingMetrics;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
@@ -29,6 +28,7 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.actions.FreezePeriodEnteredAction;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -314,7 +314,6 @@ public class DefaultTransactionHandler implements TransactionHandler {
                     true,
                     consensusRound.isPcesRound(),
                     platformStateFacade);
-            signedState.init(platformContext);
 
             reservedSignedState = signedState.reserve("transaction handler output");
 

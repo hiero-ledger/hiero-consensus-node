@@ -295,6 +295,29 @@ public record DispatchOptions<T extends StreamBuilder>(
             @NonNull final TransactionBody body,
             @NonNull final Class<T> streamBuilderType,
             @NonNull final StreamBuilder.SignedTxCustomizer signedTxCustomizer) {
+        return stepDispatch(payerId, body, streamBuilderType, signedTxCustomizer, ReversingBehavior.REMOVABLE);
+    }
+    /**
+     * Returns options for a dispatch that is a step in the parent dispatch's business logic, but only appropriate
+     * to externalize if the parent succeeds.
+     * <ul>
+     *     <li>Dispatching an internal contract creation in the EVM.</li>
+     * </ul>
+     *
+     * @param payerId the account to pay for the dispatch
+     * @param body the transaction to dispatch
+     * @param streamBuilderType the type of stream builder to use for the dispatch
+     * @param signedTxCustomizer the customizer for the transaction
+     * @param reversingBehavior the reversing behavior for the dispatch
+     * @return the options for the sub-dispatch
+     * @param <T> the type of stream builder to use for the dispatch
+     */
+    public static <T extends StreamBuilder> DispatchOptions<T> stepDispatch(
+            @NonNull final AccountID payerId,
+            @NonNull final TransactionBody body,
+            @NonNull final Class<T> streamBuilderType,
+            @NonNull final StreamBuilder.SignedTxCustomizer signedTxCustomizer,
+            @NonNull final ReversingBehavior reversingBehavior) {
         return new DispatchOptions<>(
                 Commit.WITH_PARENT,
                 payerId,
@@ -305,7 +328,7 @@ public record DispatchOptions<T extends StreamBuilder>(
                 TransactionCategory.CHILD,
                 ConsensusThrottling.OFF,
                 streamBuilderType,
-                ReversingBehavior.REMOVABLE,
+                reversingBehavior,
                 signedTxCustomizer,
                 EMPTY_METADATA,
                 NOOP_FEE_CHARGING);
@@ -382,7 +405,8 @@ public record DispatchOptions<T extends StreamBuilder>(
 
     /**
      * Returns options for a dispatch that is a step in the parent dispatch's business logic, but only appropriate
-     * to externalize if the parent succeeds. This is used for hook dispatches.
+     * to externalize if the parent succeeds. This is used for hook dispatches that don't need to externalize a stream
+     * builder.
      * @param payerId the account to pay for the dispatch
      * @param body the transaction to dispatch
      * @param streamBuilderType the type of stream builder to use for the dispatch
@@ -394,5 +418,31 @@ public record DispatchOptions<T extends StreamBuilder>(
             @NonNull final TransactionBody body,
             @NonNull final Class<T> streamBuilderType) {
         return stepDispatch(payerId, body, streamBuilderType, SUPPRESSING_SIGNED_TX_CUSTOMIZER);
+    }
+
+    /**
+     * Returns options for a dispatch that is a step in the parent dispatch's business logic, but only appropriate
+     * to externalize if the parent succeeds. This is used for hook dispatches.
+     * @param payerId the account to pay for the dispatch
+     * @param body the transaction to dispatch
+     * @param streamBuilderType the type of stream builder to use for the dispatch
+     * @param signedTxCustomizer the customizer for the transaction
+     * @return the options for the sub-dispatch
+     * @param <T> the type of stream builder to use for the dispatch
+     */
+    public static <T extends StreamBuilder> DispatchOptions<T> hookDispatch(
+            @NonNull final AccountID payerId,
+            @NonNull final TransactionBody body,
+            @NonNull final Class<T> streamBuilderType,
+            @NonNull final StreamBuilder.SignedTxCustomizer signedTxCustomizer) {
+        return stepDispatch(payerId, body, streamBuilderType, signedTxCustomizer);
+    }
+
+    public static <T extends StreamBuilder> DispatchOptions<T> hookDispatchForExecution(
+            @NonNull final AccountID payerId,
+            @NonNull final TransactionBody body,
+            @NonNull final Class<T> streamBuilderType,
+            @NonNull final StreamBuilder.SignedTxCustomizer signedTxCustomizer) {
+        return stepDispatch(payerId, body, streamBuilderType, signedTxCustomizer, ReversingBehavior.REVERSIBLE);
     }
 }

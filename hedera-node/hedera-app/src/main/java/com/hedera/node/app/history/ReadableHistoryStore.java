@@ -6,7 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.HistorySignature;
-import com.hedera.node.app.roster.ActiveRosters;
+import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;

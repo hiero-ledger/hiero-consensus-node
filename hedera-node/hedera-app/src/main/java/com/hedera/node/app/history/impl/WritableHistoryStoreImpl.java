@@ -8,8 +8,8 @@ import static com.hedera.node.app.history.schemas.V059HistorySchema.LEDGER_ID_ST
 import static com.hedera.node.app.history.schemas.V059HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_KEY_SETS_STATE_ID;
 import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_VOTES_STATE_ID;
-import static com.hedera.node.app.roster.ActiveRosters.Phase.BOOTSTRAP;
-import static com.hedera.node.app.roster.ActiveRosters.Phase.HANDOFF;
+import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
+import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.roster.RosterUtils.isWeightRotation;
 
@@ -24,7 +24,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.history.WritableHistoryStore;
-import com.hedera.node.app.roster.ActiveRosters;
+import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.WritableKVState;

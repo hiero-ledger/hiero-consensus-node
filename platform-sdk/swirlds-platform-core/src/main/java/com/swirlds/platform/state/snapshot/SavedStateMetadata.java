@@ -4,12 +4,12 @@ package com.swirlds.platform.state.snapshot;
 import static com.swirlds.common.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.CONSENSUS_TIMESTAMP;
+import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.FREEZE_STATE;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.HASH;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.HASH_MNEMONIC;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.LEGACY_RUNNING_EVENT_HASH;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.LEGACY_RUNNING_EVENT_HASH_MNEMONIC;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.MINIMUM_BIRTH_ROUND_NON_ANCIENT;
-import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.MINIMUM_GENERATION_NON_ANCIENT;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.NODE_ID;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.NUMBER_OF_CONSENSUS_EVENTS;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.ROUND;
@@ -54,34 +54,32 @@ import org.hiero.consensus.roster.RosterUtils;
  * Metadata about a saved state. Fields in this record may be null if they are not present in the metadata file. All
  * fields in this record will be null if the metadata file is missing.
  *
- * @param round                          the round of the signed state, corresponds to
- *                                       {@link SavedStateMetadataField#ROUND}
- * @param hash                           the root hash of the state
- * @param hashMnemonic                   the root hash of the state in mnemonic form
- * @param numberOfConsensusEvents        the number of consensus events, starting from genesis, that have been handled
- *                                       to create this state, corresponds to
- *                                       {@link SavedStateMetadataField#NUMBER_OF_CONSENSUS_EVENTS}
- * @param consensusTimestamp             the consensus timestamp of this state, corresponds to
- *                                       {@link SavedStateMetadataField#CONSENSUS_TIMESTAMP}
- * @param legacyRunningEventHash         the legacy running event hash used by the consensus event stream, corresponds
- *                                       to {@link SavedStateMetadataField#LEGACY_RUNNING_EVENT_HASH}.
+ * @param round the round of the signed state, corresponds to {@link SavedStateMetadataField#ROUND}
+ * @param hash the root hash of the state
+ * @param hashMnemonic the root hash of the state in mnemonic form
+ * @param numberOfConsensusEvents the number of consensus events, starting from genesis, that have been handled to
+ * create this state, corresponds to {@link SavedStateMetadataField#NUMBER_OF_CONSENSUS_EVENTS}
+ * @param consensusTimestamp the consensus timestamp of this state, corresponds to
+ * {@link SavedStateMetadataField#CONSENSUS_TIMESTAMP}
+ * @param legacyRunningEventHash the legacy running event hash used by the consensus event stream, corresponds to
+ * {@link SavedStateMetadataField#LEGACY_RUNNING_EVENT_HASH}.
  * @param legacyRunningEventHashMnemonic the mnemonic for the {@link #legacyRunningEventHash}, corresponds to
- *                                       {@link SavedStateMetadataField#LEGACY_RUNNING_EVENT_HASH_MNEMONIC}.
- * @param minimumBirthRoundNonAncient    the minimum birth round of non-ancient events after this state reached
- *                                       consensus, corresponds to
- *                                       {@link SavedStateMetadataField#MINIMUM_BIRTH_ROUND_NON_ANCIENT}
- * @param softwareVersion                the application software version that created this state, corresponds to
- *                                       {@link SavedStateMetadataField#SOFTWARE_VERSION}
- * @param wallClockTime                  the wall clock time when this state was written to disk, corresponds to
- *                                       {@link SavedStateMetadataField#WALL_CLOCK_TIME}
- * @param nodeId                         the ID of the node that wrote this state to disk, corresponds to
- *                                       {@link SavedStateMetadataField#NODE_ID}
- * @param signingNodes                   a comma separated list of node IDs that signed this state, corresponds to
- *                                       {@link SavedStateMetadataField#SIGNING_NODES}
- * @param signingWeightSum               the sum of all signing nodes' weights, corresponds to
- *                                       {@link SavedStateMetadataField#SIGNING_WEIGHT_SUM}
- * @param totalWeight                    the total weight of all nodes in the network, corresponds to
- *                                       {@link SavedStateMetadataField#TOTAL_WEIGHT}
+ * {@link SavedStateMetadataField#LEGACY_RUNNING_EVENT_HASH_MNEMONIC}.
+ * @param minimumBirthRoundNonAncient the minimum birth round of non-ancient events after this state reached consensus,
+ * corresponds to {@link SavedStateMetadataField#MINIMUM_BIRTH_ROUND_NON_ANCIENT}
+ * @param softwareVersion the application software version that created this state, corresponds to
+ * {@link SavedStateMetadataField#SOFTWARE_VERSION}
+ * @param wallClockTime the wall clock time when this state was written to disk, corresponds to
+ * {@link SavedStateMetadataField#WALL_CLOCK_TIME}
+ * @param nodeId the ID of the node that wrote this state to disk, corresponds to
+ * {@link SavedStateMetadataField#NODE_ID}
+ * @param signingNodes a comma separated list of node IDs that signed this state, corresponds to
+ * {@link SavedStateMetadataField#SIGNING_NODES}
+ * @param signingWeightSum the sum of all signing nodes' weights, corresponds to
+ * {@link SavedStateMetadataField#SIGNING_WEIGHT_SUM}
+ * @param totalWeight the total weight of all nodes in the network, corresponds to
+ * {@link SavedStateMetadataField#TOTAL_WEIGHT}
+ * @param freezeState if true, the state is a freeze state, corresponds to {@link SavedStateMetadataField#FREEZE_STATE}
  */
 public record SavedStateMetadata(
         long round,
@@ -97,7 +95,8 @@ public record SavedStateMetadata(
         @NonNull NodeId nodeId,
         @NonNull List<NodeId> signingNodes,
         long signingWeightSum,
-        long totalWeight) {
+        long totalWeight,
+        @Nullable Boolean freezeState) {
 
     // A note to engineers maintaining this code:
     //
@@ -135,38 +134,35 @@ public record SavedStateMetadata(
                 parseNonNullInstant(data, CONSENSUS_TIMESTAMP),
                 parseHash(data, LEGACY_RUNNING_EVENT_HASH),
                 parseString(data, LEGACY_RUNNING_EVENT_HASH_MNEMONIC),
-                parseBirthRoundNonAncient(data),
+                parsePrimitiveLong(data, MINIMUM_BIRTH_ROUND_NON_ANCIENT),
                 parseNonNullString(data, SOFTWARE_VERSION),
                 parseNonNullInstant(data, WALL_CLOCK_TIME),
                 NodeId.of(parsePrimitiveLong(data, NODE_ID)),
                 parseNodeIdList(data, SIGNING_NODES),
                 parsePrimitiveLong(data, SIGNING_WEIGHT_SUM),
-                parsePrimitiveLong(data, TOTAL_WEIGHT));
+                parsePrimitiveLong(data, TOTAL_WEIGHT),
+                parseNullableBoolean(data, FREEZE_STATE));
     }
 
-    /**
-     * We used to write generation values to this file, but now we write birth round values. We need to support both for
-     * a period of time before removing the generation field.
-     */
-    private static long parseBirthRoundNonAncient(final Map<SavedStateMetadataField, String> data) throws IOException {
-        if (data.containsKey(MINIMUM_BIRTH_ROUND_NON_ANCIENT)) {
-            // This is a new file, parse the new field.
-            return parsePrimitiveLong(data, MINIMUM_BIRTH_ROUND_NON_ANCIENT);
-        } else if (data.containsKey(MINIMUM_GENERATION_NON_ANCIENT)) {
-            // This is an old file, parse the old field.
-            return parsePrimitiveLong(data, MINIMUM_GENERATION_NON_ANCIENT);
+    private static Boolean parseNullableBoolean(
+            @NonNull final Map<SavedStateMetadataField, String> data, @NonNull final SavedStateMetadataField field) {
+        if (data.containsKey(field)) {
+            if ("null".equalsIgnoreCase(data.get(field))) {
+                return null; // Handle the case where the field is explicitly set to "null"
+            }
+            return Boolean.parseBoolean(data.get(field));
+        } else {
+            logMissingField(field);
+            return null;
         }
-        throw new IOException("Signed state metadata must have either "
-                + MINIMUM_BIRTH_ROUND_NON_ANCIENT + " or " + MINIMUM_GENERATION_NON_ANCIENT
-                + " field, but neither was found");
     }
 
     /**
      * Create a new saved state metadata object from the given signed state.
      *
-     * @param signedState         the signed state
-     * @param selfId              the ID of the node that created the signed state
-     * @param now                 the current time
+     * @param signedState the signed state
+     * @param selfId the ID of the node that created the signed state
+     * @param now the current time
      * @param platformStateFacade the facade to access the platform state
      * @return the signed state metadata
      */
@@ -200,7 +196,8 @@ public record SavedStateMetadata(
                 selfId,
                 signingNodes,
                 signedState.getSigningWeight(),
-                roster == null ? 0 : RosterUtils.computeTotalWeight(roster));
+                roster == null ? 0 : RosterUtils.computeTotalWeight(roster),
+                signedState.isFreezeState());
     }
 
     /**
@@ -278,7 +275,7 @@ public record SavedStateMetadata(
      *
      * @param field the invalid field
      * @param value the invalid value
-     * @param e     the exception
+     * @param e the exception
      */
     private static void logInvalidField(
             @NonNull final SavedStateMetadataField field, @NonNull final String value, @NonNull final Exception e) {
@@ -301,7 +298,7 @@ public record SavedStateMetadata(
      *
      * @param field the invalid field
      * @param value the invalid value
-     * @param e     the exception
+     * @param e the exception
      */
     private static void throwInvalidRequiredField(
             @NonNull final SavedStateMetadataField field, @NonNull final String value, @NonNull final Exception e)
@@ -321,7 +318,7 @@ public record SavedStateMetadata(
     /**
      * Attempt to parse a long from the data map.
      *
-     * @param data  the data map
+     * @param data the data map
      * @param field the field to parse
      * @return the parsed long, or null if the field is not present or the value is not a valid long
      */
@@ -346,7 +343,7 @@ public record SavedStateMetadata(
     /**
      * Attempt to parse a primitive long from the data map.
      *
-     * @param data  the data map
+     * @param data the data map
      * @param field the field to parse
      * @return the parsed long, or null if the field is not present or the value is not a valid long
      */
@@ -373,7 +370,7 @@ public record SavedStateMetadata(
     /**
      * Attempt to parse a string from the data map.
      *
-     * @param data  the data map
+     * @param data the data map
      * @param field the field to parse
      * @return the parsed string, or null if the field is not present or the value is not a valid hash
      */
@@ -392,7 +389,7 @@ public record SavedStateMetadata(
     /**
      * Attempt to parse a string from the data map.
      *
-     * @param data  the data map
+     * @param data the data map
      * @param field the field to parse
      * @return the parsed string, or null if the field is not present or the value is not a valid hash
      */
@@ -417,7 +414,7 @@ public record SavedStateMetadata(
     /**
      * Attempt to parse an instant from the data map.
      *
-     * @param data  the data map
+     * @param data the data map
      * @param field the field to parse
      * @return the parsed instant, or null if the field is not present or the value is not a valid instant
      */
@@ -443,7 +440,7 @@ public record SavedStateMetadata(
      * Attempt to parse a primitive instant from the data map. Throws if field can't be found or if the value is not a
      * valid instant.
      *
-     * @param data  the data map
+     * @param data the data map
      * @param field the field to parse
      * @return the parsed instant
      */
@@ -471,7 +468,7 @@ public record SavedStateMetadata(
     /**
      * Attempt to parse a list of NodeIds from the data map.
      *
-     * @param data  the data map
+     * @param data the data map
      * @param field the field to parse
      * @return the parsed list of longs, or null if the field is not present or the value is not a valid list of longs
      */
@@ -509,7 +506,7 @@ public record SavedStateMetadata(
     /**
      * Attempt to parse a hash from the data map. Supports null.
      *
-     * @param data  the data map
+     * @param data the data map
      * @param field the field to parse
      * @return the parsed hash, or null if the field is not present or the value is not a valid hash
      */
@@ -539,7 +536,7 @@ public record SavedStateMetadata(
     /**
      * Attempt to parse a hash from the data map. Throws if field can't be found or if the value is not a valid hash.
      *
-     * @param data  the data map
+     * @param data the data map
      * @param field the field to parse
      * @return the parsed hash, or null if the field is not present or the value is not a valid hash
      */
@@ -591,7 +588,7 @@ public record SavedStateMetadata(
      * Put a value into the data map, using the string "null" to represent a null value. This should only be used for
      * fields where the parser is capable of interpreting "null" as a value.
      *
-     * @param map   the map to put the value into
+     * @param map the map to put the value into
      * @param field the field to put the value into
      * @param value the value to put into the map
      */
@@ -626,6 +623,7 @@ public record SavedStateMetadata(
         putRequireNonNull(map, SIGNING_NODES, formattedList(signingNodes.iterator()));
         putRequireNonNull(map, SIGNING_WEIGHT_SUM, signingWeightSum);
         putRequireNonNull(map, TOTAL_WEIGHT, totalWeight);
+        putPossiblyNullObject(map, FREEZE_STATE, freezeState);
 
         return map;
     }

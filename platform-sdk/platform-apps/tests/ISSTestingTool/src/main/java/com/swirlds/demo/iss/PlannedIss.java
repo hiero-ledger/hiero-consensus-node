@@ -3,8 +3,9 @@ package com.swirlds.demo.iss;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
+import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -13,39 +14,26 @@ import java.util.Objects;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.io.SelfSerializable;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Describes an intentional ISS that will take place at a given time on a given set of nodes.
  */
-public class PlannedIss implements SelfSerializable, PlannedIncident {
+public class PlannedIss implements PlannedIncident {
+
     private static final Logger logger = LogManager.getLogger(PlannedIss.class);
-
-    private static final long CLASS_ID = 0xb2490d3733e756dL;
-
-    private static final class ClassVersion {
-        public static final int ORIGINAL = 1;
-    }
 
     /**
      * The amount of time after genesis that the ISS should be triggered on.
      */
-    private Duration timeAfterGenesis;
+    private final Duration timeAfterGenesis;
 
     /**
      * A list of partitions. Each partition contains a list of node IDs. All nodes in a partition will agree on the
      * state hash. Any two nodes not in the same partition will disagree on the state hash after the ISS has been
      * triggered.
      */
-    private List<List<NodeId>> hashPartitions = new ArrayList<>();
-
-    /**
-     * Zero arg constructor for the constructable registry.
-     */
-    public PlannedIss() {}
+    private final List<List<NodeId>> hashPartitions;
 
     /**
      * Create a planned ISS.
@@ -54,52 +42,53 @@ public class PlannedIss implements SelfSerializable, PlannedIncident {
      * @param hashPartitions   a list of ISS partitions, each partition list should be a list of node IDs that will
      *                         agree with each other on the hash of the post-ISS state
      */
-    public PlannedIss(final Duration timeAfterGenesis, final List<List<NodeId>> hashPartitions) {
+    public PlannedIss(@NonNull final Duration timeAfterGenesis, @NonNull final List<List<NodeId>> hashPartitions) {
         this.timeAfterGenesis = timeAfterGenesis;
         this.hashPartitions = hashPartitions;
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getClassId() {
-        return CLASS_ID;
+    public PlannedIss(@NonNull final ReadableSequentialData in) {
+        this.timeAfterGenesis = Duration.ofNanos(in.readLong());
+
+        final int partitionCount = in.readInt();
+        this.hashPartitions = new ArrayList<>(partitionCount);
+        for (int partitionIndex = 0; partitionIndex < partitionCount; partitionIndex++) {
+            final int partitionSize = in.readInt();
+
+            final List<NodeId> nodes = new ArrayList<>(partitionSize);
+            for (int nodeIndex = 0; nodeIndex < partitionSize; nodeIndex++) {
+                nodes.add(NodeId.of(in.readLong()));
+            }
+
+            this.hashPartitions.add(nodes);
+        }
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int getVersion() {
-        return ClassVersion.ORIGINAL;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void serialize(final SerializableDataOutputStream out) throws IOException {
+    public void writeTo(WritableSequentialData out) {
         out.writeLong(timeAfterGenesis.toNanos());
 
         out.writeInt(hashPartitions.size());
         for (final List<NodeId> partition : hashPartitions) {
-            out.writeSerializableList(partition, false, true);
+            out.writeInt(partition.size());
+
+            for (final NodeId nodeId : partition) {
+                out.writeLong(nodeId.id());
+            }
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void deserialize(final SerializableDataInputStream in, final int version) throws IOException {
-        timeAfterGenesis = Duration.ofNanos(in.readLong());
+    public int getSizeInBytes() {
+        int sizeInBytes = 0;
 
-        hashPartitions.clear();
-        final int partitionCount = in.readInt();
-        for (int partitionIndex = 0; partitionIndex < partitionCount; partitionIndex++) {
-            hashPartitions.add(in.readSerializableList(1024, false, NodeId::new));
+        sizeInBytes += Long.BYTES; // timeAfterGenesis
+        sizeInBytes += Integer.BYTES; // hashPartitions.size()
+
+        for (final List<NodeId> partition : hashPartitions) {
+            sizeInBytes += Integer.BYTES;
+            sizeInBytes += partition.size() * Long.BYTES;
         }
+
+        return sizeInBytes;
     }
 
     /**

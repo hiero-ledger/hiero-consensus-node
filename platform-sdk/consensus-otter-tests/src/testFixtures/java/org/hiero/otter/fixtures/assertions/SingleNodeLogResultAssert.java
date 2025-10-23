@@ -78,6 +78,21 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
     }
 
     /**
+     * Verifies that at least one log message with the specified marker exists.
+     *
+     * @param marker the marker to check
+     * @return this assertion object for method chaining
+     */
+    public SingleNodeLogResultAssert hasMessageWithMarker(@NonNull final LogMarker marker) {
+        isNotNull();
+        final boolean matchFound = actual.logs().stream().anyMatch(log -> marker.getMarker() == log.marker());
+        if (!matchFound) {
+            failWithMessage("Expected to find a message with marker '%s', but did not", marker);
+        }
+        return this;
+    }
+
+    /**
      * Verifies that no log messages with a level higher than the specified level exist.
      *
      * @param level the maximum log level to allow
@@ -101,6 +116,7 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
      *
      * @return this assertion object for method chaining
      */
+    @NonNull
     public SingleNodeLogResultAssert hasNoErrorLevelMessages() {
         return hasNoMessagesWithLevelHigherThan(Level.WARN);
     }
@@ -111,6 +127,7 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
      * @param expectedMessage the substring to search for in log messages
      * @return this assertion object for method chaining
      */
+    @NonNull
     public SingleNodeLogResultAssert hasMessageContaining(@NonNull final String expectedMessage) {
         isNotNull();
         final List<StructuredLog> logs = actual.logs().stream()
@@ -123,12 +140,13 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
     }
 
     /**
-     * Verifies that no log messages contain the specified substring.
+     * Verifies that no log message contains the specified substring.
      *
-     * @param searchString the substring to search for in log messages
+     * @param searchString the substring that should not be present
      * @return this assertion object for method chaining
      */
-    public SingleNodeLogResultAssert hasNoMessagesContaining(@NonNull final String searchString) {
+    @NonNull
+    public SingleNodeLogResultAssert hasNoMessageContaining(@NonNull final String searchString) {
         isNotNull();
         final List<StructuredLog> logs = actual.logs().stream()
                 .filter(log -> log.message().contains(searchString))

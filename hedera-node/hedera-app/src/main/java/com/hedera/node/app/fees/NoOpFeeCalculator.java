@@ -51,6 +51,12 @@ public class NoOpFeeCalculator implements FeeCalculator {
     }
 
     @NonNull
+    @Override
+    public FeeCalculator addGas(final long amount) {
+        return this;
+    }
+
+    @NonNull
     public FeeCalculator resetUsage() {
         return this;
     }

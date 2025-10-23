@@ -19,8 +19,8 @@ public record ContractsConfig(
                 boolean noncesExternalizationEnabled,
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean enforceCreationThrottle,
         @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerTransaction,
-        @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerSec,
-        @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerSecBackend,
+        @ConfigProperty(defaultValue = "1500000000") @NetworkProperty long maxGasPerSec,
+        @ConfigProperty(defaultValue = "1500000000") @NetworkProperty long maxGasPerSecBackend,
         @ConfigProperty(defaultValue = "500000000") @NetworkProperty long opsDurationThrottleCapacity,
         @ConfigProperty(defaultValue = "500000000") @NetworkProperty long opsDurationThrottleUnitsFreedPerSecond,
         @ConfigProperty(value = "maxKvPairs.aggregate", defaultValue = "500000000") @NetworkProperty
@@ -34,11 +34,11 @@ public record ContractsConfig(
         @ConfigProperty(defaultValue = "CONTRACT_STATE_CHANGE,CONTRACT_BYTECODE,CONTRACT_ACTION") @NetworkProperty
                 Set<SidecarType> sidecars,
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean sidecarValidationEnabled,
-        @ConfigProperty(value = "throttle.throttleByGas", defaultValue = "true") @NetworkProperty
+        @ConfigProperty(value = "throttle.throttleByGas", defaultValue = "false") @NetworkProperty
                 boolean throttleThrottleByGas,
-        @ConfigProperty(value = "throttle.throttleByOpsDuration", defaultValue = "false") @NetworkProperty
+        @ConfigProperty(value = "throttle.throttleByOpsDuration", defaultValue = "true") @NetworkProperty
                 boolean throttleThrottleByOpsDuration,
-        @ConfigProperty(defaultValue = "20") @NetworkProperty int maxRefundPercentOfGasLimit,
+        @ConfigProperty(defaultValue = "100") @NetworkProperty int maxRefundPercentOfGasLimit,
         @ConfigProperty(value = "precompile.exchangeRateGasCost", defaultValue = "100") @NetworkProperty
                 long precompileExchangeRateGasCost,
         @ConfigProperty(value = "precompile.htsDefaultGasCost", defaultValue = "10000") @NetworkProperty
@@ -98,6 +98,8 @@ public record ContractsConfig(
         @ConfigProperty(value = "evm.nonExtantContractsFail", defaultValue = "0") @NetworkProperty
                 Set<Long> evmNonExtantContractsFail,
         @ConfigProperty(value = "evm.version", defaultValue = "v0.51") @NetworkProperty String evmVersion,
+        @ConfigProperty(value = "evm.nativeLibVerification.halt.enabled", defaultValue = "false") @NetworkProperty
+                boolean nativeLibVerificationHaltEnabled,
         @ConfigProperty(value = "metrics.smartContract.primary.enabled", defaultValue = "true") @NetworkProperty
                 boolean metricsSmartContractPrimaryEnabled,
         @ConfigProperty(value = "metrics.smartContract.secondary.enabled", defaultValue = "true") @NetworkProperty

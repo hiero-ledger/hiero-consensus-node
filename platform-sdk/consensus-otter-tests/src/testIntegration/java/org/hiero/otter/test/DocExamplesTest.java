@@ -10,6 +10,7 @@ import com.swirlds.platform.consensus.ConsensusConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
+import java.util.stream.Stream;
 import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
@@ -19,6 +20,10 @@ import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.assertions.MultipleNodeLogResultsContinuousAssert;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.turtle.TurtleSpecs;
+import org.junit.jupiter.api.RepeatedTest;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * This class contains examples that are used in the documentation. If you change the examples, please make sure to
@@ -48,6 +53,7 @@ class DocExamplesTest {
 
     // This test is used in the turtle-environment.md file.
     @OtterTest
+    @RepeatedTest(10)
     @TurtleSpecs(randomSeed = 42)
     void testDeterministicBehavior(@NonNull final TestEnvironment env) {
         // This test will produce identical results every time
@@ -62,7 +68,7 @@ class DocExamplesTest {
                 network.newConsensusResults().results().getFirst().lastRoundNum();
 
         // This assertion will always pass with seed=42
-        assertThat(lastRound).isEqualTo(37);
+        assertThat(lastRound).isEqualTo(47L);
     }
 
     // This test is used in the writing-tests.md file.
@@ -131,7 +137,7 @@ class DocExamplesTest {
         network.addNodes(4);
 
         // Set up monitoring before starting the network
-        assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds();
+        assertContinuouslyThat(network.newConsensusResults()).haveEqualCommonRounds();
 
         assertContinuouslyThat(network.newLogResults().suppressingLogMarker(STARTUP))
                 .haveNoErrorLevelMessages();
@@ -158,5 +164,28 @@ class DocExamplesTest {
 
         // Stop suppressing the RECONNECT log marker
         assertion.stopSuppressingLogMarker(RECONNECT);
+    }
+
+    // This test is used in the writing-tests.md file.
+    @OtterTest
+    @ParameterizedTest
+    @MethodSource("provideWeightDistributions")
+    void testWithDifferentWeightDistributions(
+            @NonNull final List<Long> weightDistribution, @NonNull final TestEnvironment env) {
+        final Network network = env.network();
+        weightDistribution.forEach(weight -> network.addNode().weight(weight));
+        network.start();
+
+        env.timeManager().waitFor(Duration.ofSeconds(5));
+
+        assertThat(network.newLogResults()).haveNoErrorLevelMessages();
+    }
+
+    private static Stream<Arguments> provideWeightDistributions() {
+        return Stream.of(
+                Arguments.of(List.of(1L, 1L, 1L, 1L)), // 4 nodes, equal weights
+                Arguments.of(List.of(5L, 5L, 5L, 15L)), // 4 nodes, one dominant weight
+                Arguments.of(List.of(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L)) // 9 nodes, increasing weights
+                );
     }
 }
