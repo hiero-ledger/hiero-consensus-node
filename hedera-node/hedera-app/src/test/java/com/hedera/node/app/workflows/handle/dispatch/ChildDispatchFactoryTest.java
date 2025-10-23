@@ -4,7 +4,7 @@ package com.hedera.node.app.workflows.handle.dispatch;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.token.impl.api.TokenServiceApiProvider.TOKEN_SERVICE_API_PROVIDER;
-import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
+import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
 import static java.util.Collections.emptySet;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -253,7 +253,7 @@ class ChildDispatchFactoryTest {
                                 StreamBuilder.class,
                                 DispatchOptions.StakingRewards.ON,
                                 DispatchOptions.UsePresetTxnId.NO,
-                                NOOP_FEE_CHARGING,
+                                UNIVERSAL_NOOP_FEE_CHARGING,
                                 PropagateFeeChargingStrategy.YES),
                         null));
         assertInstanceOf(UnknownHederaFunctionality.class, exception.getCause());

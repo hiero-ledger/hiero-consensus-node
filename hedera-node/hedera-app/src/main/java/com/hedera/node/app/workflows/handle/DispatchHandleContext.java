@@ -204,10 +204,14 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
         if (amount < 0) {
             throw new IllegalArgumentException("Cannot charge negative amount " + amount);
         }
-        return feeCharging
-                        .charge(this, ValidationResult.newSuccess(creatorInfo.accountId()), new Fees(0, amount, 0))
-                        .totalFee()
-                == amount;
+        if (feeCharging.bypassForExtraHandlerCharges()) {
+            return feeAccumulator.chargeFee(accountId, amount, null).networkFee() == amount;
+        } else {
+            return feeCharging
+                            .charge(this, ValidationResult.newSuccess(creatorInfo.accountId()), new Fees(0, amount, 0))
+                            .totalFee()
+                    == amount;
+        }
     }
 
     @Override
@@ -216,7 +220,11 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
         if (amount < 0) {
             throw new IllegalArgumentException("Cannot refund negative amount " + amount);
         }
-        feeCharging.refund(this, new Fees(0, amount, 0));
+        if (feeCharging.bypassForExtraHandlerCharges()) {
+            feeAccumulator.refundFee(accountId, amount);
+        } else {
+            feeCharging.refund(this, new Fees(0, amount, 0));
+        }
     }
 
     @NonNull
