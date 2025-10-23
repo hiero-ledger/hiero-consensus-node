@@ -130,7 +130,7 @@ class NetworkPartitionTest {
                 //                }
 
                 // Remove the partition
-                network.removePartition(partition);
+                network.removeNetworkPartition(partition);
 
                 // Verify all nodes are back in normal connectivity
                 assertThat(network.networkPartitions()).isEmpty();
@@ -406,10 +406,10 @@ class NetworkPartitionTest {
 
             // Create and then remove a partition
             final Partition partition = network.createNetworkPartition(nodes.get(0), nodes.get(1));
-            network.removePartition(partition);
+            network.removeNetworkPartition(partition);
 
             // Try to remove the same partition again - should throw exception
-            assertThatThrownBy(() -> network.removePartition(partition))
+            assertThatThrownBy(() -> network.removeNetworkPartition(partition))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Partition does not exist in the network");
         } finally {
@@ -502,7 +502,7 @@ class NetworkPartitionTest {
             assertThat(partition2.nodes()).containsExactlyInAnyOrder(node2, node3);
 
             // Remove one partition - should clear all partitions per implementation
-            network.removePartition(partition1);
+            network.removeNetworkPartition(partition1);
 
             // Verify all partitions are cleared
             assertThat(network.networkPartitions()).isEmpty();
