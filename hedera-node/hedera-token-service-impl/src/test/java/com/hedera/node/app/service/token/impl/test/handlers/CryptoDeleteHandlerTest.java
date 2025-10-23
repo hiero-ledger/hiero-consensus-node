@@ -471,7 +471,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
                         ACCOUNT_NODE_REL_STATE_ID, ACCOUNTS_STATE_LABEL)
                 .build();
         given(readableStates.<AccountID, Long>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(readableAccountNodeRels);
-        final var accountNodeRelStore = new ReadableAccountNodeRelStoreImpl(readableStates, readableEntityCounters);
+        final var accountNodeRelStore = new ReadableAccountNodeRelStoreImpl(readableStates);
         given(storeFactory.readableStore(ReadableAccountNodeRelStore.class)).willReturn(accountNodeRelStore);
     }
 }

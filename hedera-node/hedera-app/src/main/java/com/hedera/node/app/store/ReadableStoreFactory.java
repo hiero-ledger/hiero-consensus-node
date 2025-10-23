@@ -123,7 +123,9 @@ public class ReadableStoreFactory {
         newMap.put(ReadableNodeStore.class, new StoreEntry(AddressBookService.NAME, ReadableNodeStoreImpl::new));
         newMap.put(
                 ReadableAccountNodeRelStore.class,
-                new StoreEntry(AddressBookService.NAME, ReadableAccountNodeRelStoreImpl::new));
+                new StoreEntry(
+                        AddressBookService.NAME,
+                        (states, entityCounters) -> new ReadableAccountNodeRelStoreImpl(states)));
         // Platform
         newMap.put(
                 ReadablePlatformStateStore.class,

@@ -203,8 +203,8 @@ public class AddressBookTestBase {
         writableAccountNodeRelState = newEmptyWritableAccNodeRelState();
         given(readableStates.<AccountID, NodeId>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(readableAccountNodeRelState);
         given(writableStates.<AccountID, NodeId>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(writableAccountNodeRelState);
-        readableAccountNodeRelStore = new ReadableAccountNodeRelStoreImpl(readableStates, readableEntityCounters);
-        writableAccountNodeRelStore = new WritableAccountNodeRelStore(writableStates, writableEntityCounters);
+        readableAccountNodeRelStore = new ReadableAccountNodeRelStoreImpl(readableStates);
+        writableAccountNodeRelStore = new WritableAccountNodeRelStore(writableStates);
     }
 
     protected void createAccountNodeRelStoreWithCurrentAccountNodeRel() {
@@ -212,8 +212,8 @@ public class AddressBookTestBase {
         writableAccountNodeRelState = newWritableAccNodeRelStateWithNode();
         given(readableStates.<AccountID, NodeId>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(readableAccountNodeRelState);
         given(writableStates.<AccountID, NodeId>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(writableAccountNodeRelState);
-        readableAccountNodeRelStore = new ReadableAccountNodeRelStoreImpl(readableStates, readableEntityCounters);
-        writableAccountNodeRelStore = new WritableAccountNodeRelStore(writableStates, writableEntityCounters);
+        readableAccountNodeRelStore = new ReadableAccountNodeRelStoreImpl(readableStates);
+        writableAccountNodeRelStore = new WritableAccountNodeRelStore(writableStates);
     }
 
     protected void givenEntityCounters() {

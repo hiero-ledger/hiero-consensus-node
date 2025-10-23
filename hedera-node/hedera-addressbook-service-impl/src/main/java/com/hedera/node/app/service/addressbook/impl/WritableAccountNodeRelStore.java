@@ -5,8 +5,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.platform.state.NodeId;
-import com.hedera.node.app.hapi.utils.EntityType;
-import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -18,17 +16,13 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  */
 public class WritableAccountNodeRelStore extends ReadableAccountNodeRelStoreImpl {
 
-    private final WritableEntityCounters entityCounters;
-
     /**
      * Create a new {@link WritableAccountNodeRelStore} instance.
      *
      * @param states The state to use.
      */
-    public WritableAccountNodeRelStore(
-            @NonNull final WritableStates states, @NonNull final WritableEntityCounters entityCounters) {
-        super(states, entityCounters);
-        this.entityCounters = entityCounters;
+    public WritableAccountNodeRelStore(@NonNull final WritableStates states) {
+        super(states);
     }
 
     @Override
@@ -50,7 +44,6 @@ public class WritableAccountNodeRelStore extends ReadableAccountNodeRelStoreImpl
         requireNonNull(accountId);
         requireNonNull(nodeId);
         accountNodeRelState().put(accountId, NodeId.newBuilder().id(nodeId).build());
-        entityCounters.incrementEntityTypeCount(EntityType.ACCOUNT_NODE_REL);
     }
 
     /**
@@ -65,6 +58,5 @@ public class WritableAccountNodeRelStore extends ReadableAccountNodeRelStoreImpl
     public void remove(@NonNull final AccountID accountId) {
         requireNonNull(accountId);
         accountNodeRelState().remove(accountId);
-        entityCounters.decrementEntityTypeCounter(EntityType.ACCOUNT_NODE_REL);
     }
 }

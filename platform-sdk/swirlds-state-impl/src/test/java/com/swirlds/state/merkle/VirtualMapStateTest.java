@@ -8,13 +8,23 @@ import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.hiero.base.crypto.Cryptography.NULL_HASH;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.base.state.MutabilityException;
+import com.swirlds.state.MerkleProof;
+import com.swirlds.state.SiblingHash;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
@@ -30,8 +40,13 @@ import com.swirlds.state.test.fixtures.StateTestBase;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
 import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import java.io.IOException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.EnumSet;
+import java.util.List;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -888,7 +903,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
                       hash(3)           hash(4)                 Apple (5)        Queue state (6)
                     /    \               /    \
             Ghana(7)   Biology(8)  Art(9)    Chemistry (10)
-                  */
+            */
             assertThat(virtualMapState.getHashForPath(0)).isEqualTo(rootHash);
             for (int i = 1; i <= 10; i++) {
                 assertNotNull(virtualMapState.getHashForPath(i));
@@ -900,6 +915,233 @@ public class VirtualMapStateTest extends MerkleTestBase {
         void getHashByPath_nonExistentPath() {
             virtualMapState.getHash();
             assertNull(virtualMapState.getHashForPath(777));
+        }
+
+        @Test
+        @DisplayName("getMerkleProof for non-existent path")
+        void getMerkleProof_nonExistentPath() {
+            virtualMapState.getHash();
+            assertThat(virtualMapState.getMerkleProof(777)).isNull();
+        }
+
+        @Test
+        @DisplayName("getMerkleProof returns correct proof for kv")
+        void getMerkleProof_kv() throws ParseException {
+            // Ensure the tree is hashed
+            virtualMapState.getHash();
+
+            // Compute the path for the KV entry (FRUIT: A_KEY -> APPLE)
+            final long path = virtualMapState.kvPath(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(A_KEY));
+            assertThat(path).isNotEqualTo(INVALID_PATH);
+
+            // Build expected state item content from the actual leaf record
+            final VirtualMap vm = (VirtualMap) virtualMapState.getRoot();
+
+            final VirtualLeafBytes leaf = vm.getRecords()
+                    .findLeafRecord(StateUtils.getStateKeyForKv(FRUIT_STATE_ID, A_KEY, ProtoBytes.PROTOBUF));
+            assertNotNull(leaf);
+
+            // Get Merkle proof and verify state item content
+            final MerkleProof proof = virtualMapState.getMerkleProof(path);
+            final StateItem parsedStateItem =
+                    StateItem.CODEC.parse(proof.stateItem().toReadableSequentialData());
+            assertThat(parsedStateItem.key()).isEqualTo(leaf.keyBytes());
+            assertThat(parsedStateItem.value()).isEqualTo(leaf.valueBytes());
+
+            final List<SiblingHash> siblingHashes = proof.siblingHashes();
+
+            // Siblings along the path from leaf(5) -> internal(2)
+            assertThat(siblingHashes.size()).isEqualTo(2);
+
+            assertThat(siblingHashes.get(0).hash()).isEqualTo(getHash(6));
+            assertTrue(siblingHashes.get(0).isRight());
+
+            assertThat(siblingHashes.get(1).hash()).isEqualTo(getHash(1));
+            assertFalse(siblingHashes.get(1).isRight());
+
+            // Parent hashes leaf(5) -> internal(2) -> root(0)
+            final List<Hash> innerParentHashes = proof.innerParentHashes();
+            // hash of leaf (Apple, 5)
+            assertThat(innerParentHashes.get(0)).isEqualTo(getHash(5));
+            // hash of internal(2)
+            assertThat(innerParentHashes.get(1)).isEqualTo(getHash(2));
+            // root hash
+            assertThat(innerParentHashes.get(2)).isEqualTo(virtualMap.getHash());
+
+            // Verify hashes
+
+            // hash(5) + hash (6) == hash(2)
+            assertThat(hash(innerParentHashes.get(0), siblingHashes.get(0).hash()))
+                    .isEqualTo(innerParentHashes.get(1));
+            // hash(1) + hash (2) == root hash
+            assertThat(hash(siblingHashes.get(1).hash(), innerParentHashes.get(1)))
+                    .isEqualTo(innerParentHashes.get(2));
+        }
+
+        /**
+         * This is a method that has the same logic as {@code VirtualHasher.ChunkHashTask#hash(Hash, Hash)}
+         * We need it to make sure that sibling and inner parent hashes are computed correctly.
+         * @param left left hash
+         * @param right right hash
+         * @return combined hash
+         */
+        static Hash hash(final Hash left, final Hash right) {
+            try {
+                final MessageDigest md = MessageDigest.getInstance(Cryptography.DEFAULT_DIGEST_TYPE.algorithmName());
+                md.reset();
+                // Unique value to make sure internal node hashes are different from leaf hashes
+                md.update((byte) 0x02);
+                md.update(left.copyToByteArray());
+                md.update(right.copyToByteArray());
+
+                return new Hash(md.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
+            } catch (NoSuchAlgorithmException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        @Test
+        @DisplayName("getMerkleProof returns correct proof for singleton")
+        void getMerkleProof_singleton() throws ParseException {
+            // Ensure the tree is hashed
+            virtualMapState.getHash();
+
+            // Compute the path for the singleton entry (COUNTRY -> GHANA)
+            final long path = virtualMapState.singletonPath(COUNTRY_STATE_ID);
+            assertThat(path).isNotEqualTo(INVALID_PATH);
+
+            // Build expected state item content from the actual leaf record
+            final VirtualMap vm = (VirtualMap) virtualMapState.getRoot();
+            final VirtualLeafBytes leaf =
+                    vm.getRecords().findLeafRecord(StateUtils.getStateKeyForSingleton(COUNTRY_STATE_ID));
+            assertNotNull(leaf);
+
+            // Get Merkle proof and verify state item content
+            final MerkleProof proof = virtualMapState.getMerkleProof(path);
+            final StateItem parsedStateItem =
+                    StateItem.CODEC.parse(proof.stateItem().toReadableSequentialData());
+            assertThat(parsedStateItem.key()).isEqualTo(leaf.keyBytes());
+            assertThat(parsedStateItem.value()).isEqualTo(leaf.valueBytes());
+
+            final List<SiblingHash> siblingHashes = proof.siblingHashes();
+            assertThat(siblingHashes.size()).isEqualTo(3);
+            // Siblings along the path from leaf(7) -> internal(3) -> internal(1)
+            assertThat(siblingHashes.get(0).hash()).isEqualTo(getHash(8));
+            assertTrue(siblingHashes.get(0).isRight());
+
+            assertThat(siblingHashes.get(1).hash()).isEqualTo(getHash(4));
+            assertTrue(siblingHashes.get(1).isRight());
+
+            assertThat(siblingHashes.get(2).hash()).isEqualTo(getHash(2));
+            assertTrue(siblingHashes.get(2).isRight());
+
+            final List<Hash> innerParentHashes = proof.innerParentHashes();
+            // leaf hash, then internal(3), then internal(1), then root
+            assertThat(innerParentHashes.get(0)).isEqualTo(getHash(7));
+            assertThat(innerParentHashes.get(1)).isEqualTo(getHash(3));
+            assertThat(innerParentHashes.get(2)).isEqualTo(getHash(1));
+            assertThat(innerParentHashes.get(3)).isEqualTo(getHash(0));
+
+            // Verify hashes
+
+            // hash(7) + hash (8) == hash(3)
+            assertThat(hash(innerParentHashes.get(0), siblingHashes.get(0).hash()))
+                    .isEqualTo(innerParentHashes.get(1));
+            // hash(3) + hash (4) == hash(1)
+            assertThat(hash(innerParentHashes.get(1), siblingHashes.get(1).hash()))
+                    .isEqualTo(innerParentHashes.get(2));
+            // hash(1) + hash (2) == root hash
+            assertThat(hash(innerParentHashes.get(2), siblingHashes.get(2).hash()))
+                    .isEqualTo(innerParentHashes.get(3));
+        }
+
+        @Test
+        @DisplayName("getMerkleProof returns correct proof for queue element")
+        void getMerkleProof_queue() throws ParseException {
+            // Ensure the tree is hashed
+            virtualMapState.getHash();
+
+            // Compute the path for the queue entry (STEAM: CHEMISTRY at index 3)
+            final long path = virtualMapState.queueElementPath(STEAM_STATE_ID, ProtoBytes.PROTOBUF.toBytes(CHEMISTRY));
+            assertThat(path).isNotEqualTo(INVALID_PATH);
+
+            // Build expected state item content from the actual leaf record
+            final VirtualMap vm = (VirtualMap) virtualMapState.getRoot();
+            final VirtualLeafBytes leaf =
+                    vm.getRecords().findLeafRecord(StateUtils.getStateKeyForQueue(STEAM_STATE_ID, 3));
+            assertNotNull(leaf);
+
+            // Get Merkle proof and verify state item content
+            final MerkleProof proof = virtualMapState.getMerkleProof(path);
+            final StateItem parsedStateItem =
+                    StateItem.CODEC.parse(proof.stateItem().toReadableSequentialData());
+            assertThat(parsedStateItem.key()).isEqualTo(leaf.keyBytes());
+            assertThat(parsedStateItem.value()).isEqualTo(leaf.valueBytes());
+
+            final List<SiblingHash> siblingHashes = proof.siblingHashes();
+            assertThat(siblingHashes.size()).isEqualTo(3);
+            // Path from leaf(10) -> internal(4) -> internal(1)
+            assertThat(siblingHashes.get(0).hash()).isEqualTo(getHash(9));
+            assertFalse(siblingHashes.get(0).isRight());
+
+            assertThat(siblingHashes.get(1).hash()).isEqualTo(getHash(3));
+            assertFalse(siblingHashes.get(1).isRight());
+
+            assertThat(siblingHashes.get(2).hash()).isEqualTo(getHash(2));
+            assertTrue(siblingHashes.get(2).isRight());
+
+            final List<Hash> innerParentHashes = proof.innerParentHashes();
+            // leaf hash, then internal(4), then internal(1), then root
+            assertThat(innerParentHashes.get(0)).isEqualTo(getHash(10));
+            assertThat(innerParentHashes.get(1)).isEqualTo(getHash(4));
+            assertThat(innerParentHashes.get(2)).isEqualTo(getHash(1));
+            assertThat(innerParentHashes.get(3)).isEqualTo(getHash(0));
+
+            // Verify hashes
+
+            // hash(7) + hash (8) == hash(3)
+            assertThat(hash(siblingHashes.get(0).hash(), innerParentHashes.get(0)))
+                    .isEqualTo(innerParentHashes.get(1));
+            // hash(3) + hash (4) == hash(1)
+            assertThat(hash(siblingHashes.get(1).hash(), innerParentHashes.get(1)))
+                    .isEqualTo(innerParentHashes.get(2));
+            // hash(1) + hash (2) == root hash
+            assertThat(hash(innerParentHashes.get(2), siblingHashes.get(2).hash()))
+                    .isEqualTo(innerParentHashes.get(3));
+        }
+
+        @Test
+        @DisplayName("getMerkleProof for a state with a single leaf with no sibling")
+        void leaf_with_no_sibling() {
+            // releasing pre-created test fixtures, we're not going to need them
+            virtualMapState.release();
+            fruitVirtualMap.release();
+
+            // create and prepare a new state
+            virtualMapState = new TestVirtualMapState();
+            setupFruitVirtualMap();
+            setupSingletonCountry();
+            virtualMap = (VirtualMap) virtualMapState.getRoot();
+            virtualMapState.initializeState(steamMetadata);
+
+            addSingletonState(virtualMap, countryMetadata, GHANA);
+
+            virtualMap.getHash();
+
+            MerkleProof merkleProof = virtualMapState.getMerkleProof(1);
+
+            assertThat(merkleProof.siblingHashes().size()).isEqualTo(1);
+            assertThat(merkleProof.siblingHashes().get(0).hash()).isEqualTo(NULL_HASH);
+        }
+
+        @Test
+        @DisplayName("getMerkleProof for the state which was not hashed previously")
+        void getMerkleProof_nonHashedMap() {
+            assertThrows(IllegalStateException.class, () -> virtualMapState.getMerkleProof(10));
+        }
+
+        private Hash getHash(int path) {
+            return virtualMapState.getHashForPath(path);
         }
     }
 

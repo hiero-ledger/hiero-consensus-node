@@ -6,9 +6,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.platform.state.NodeId;
-import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
-import com.hedera.node.app.service.entityid.ReadableEntityCounters;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -23,17 +21,13 @@ public class ReadableAccountNodeRelStoreImpl implements ReadableAccountNodeRelSt
 
     private final ReadableKVState<AccountID, NodeId> accountNodeRelState;
 
-    private final ReadableEntityCounters entityCounters;
-
     /**
      * Create a new {@link ReadableAccountNodeRelStoreImpl} instance.
      *
      * @param states The state to use.
      */
-    public ReadableAccountNodeRelStoreImpl(
-            @NonNull final ReadableStates states, @NonNull final ReadableEntityCounters entityCounters) {
+    public ReadableAccountNodeRelStoreImpl(@NonNull final ReadableStates states) {
         requireNonNull(states);
-        this.entityCounters = requireNonNull(entityCounters);
         this.accountNodeRelState = states.get(ACCOUNT_NODE_REL_STATE_ID);
     }
 
@@ -53,14 +47,5 @@ public class ReadableAccountNodeRelStoreImpl implements ReadableAccountNodeRelSt
     public Long get(final AccountID accountId) {
         final var nodeId = accountNodeRelState.get(accountId);
         return nodeId != null ? nodeId.id() : null;
-    }
-
-    /**
-     * Returns the number of relations in the state.
-     *
-     * @return the number of relations in the state
-     */
-    public long sizeOfState() {
-        return entityCounters.getCounterFor(EntityType.ACCOUNT_NODE_REL);
     }
 }

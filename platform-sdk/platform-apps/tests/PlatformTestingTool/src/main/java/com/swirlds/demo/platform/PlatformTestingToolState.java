@@ -27,6 +27,7 @@ import com.swirlds.demo.platform.nft.NftLedger;
 import com.swirlds.demo.platform.nft.ReferenceNftLedger;
 import com.swirlds.merkle.test.fixtures.map.pta.MapKey;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.MerkleProof;
 import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -518,6 +519,11 @@ public class PlatformTestingToolState extends MerkleStateRoot<PlatformTestingToo
 
     @Override
     public Hash getHashForPath(long path) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public MerkleProof getMerkleProof(long path) {
         throw new UnsupportedOperationException();
     }
 
