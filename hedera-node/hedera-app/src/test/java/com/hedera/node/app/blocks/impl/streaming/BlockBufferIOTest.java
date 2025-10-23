@@ -160,7 +160,7 @@ class BlockBufferIOTest {
 
     @Test
     void insufficientReadDepthIgnoresBlocks() throws IOException {
-        final List<BlockState> blocksToWrite = generateRandomBlocks(1, 10);
+        final List<BlockState> blocksToWrite = generateRandomBlocks(10);
         bufferIO.write(blocksToWrite, 0);
 
         final var restrictedSubject = new BlockBufferIO(testDir, 1); // MB KB
