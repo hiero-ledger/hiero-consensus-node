@@ -11,16 +11,11 @@ import com.hedera.node.app.services.MigrationStateChanges;
 import com.hedera.node.app.spi.fixtures.TestSchema;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.config.data.HederaConfig;
-import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.config.StateCommonConfig_;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.config.StateConfig_;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.MerkleNodeState;
@@ -196,23 +191,6 @@ class SerializationTest extends MerkleTestBase {
         final var schemaV1 = createV1Schema();
         final var originalTree = createMerkleHederaState(schemaV1);
         final var tempDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory(config);
-        final var configBuilder = new TestConfigBuilder()
-                .withValue(StateConfig_.SIGNED_STATE_DISK, 1)
-                .withValue(
-                        StateCommonConfig_.SAVED_STATE_DIRECTORY,
-                        tempDir.toFile().toString());
-        final PlatformContext context = TestPlatformContextBuilder.create()
-                .withConfiguration(configBuilder.getOrCreateConfig())
-                .withTime(new FakeTime())
-                .build();
-
-        originalTree.init(
-                context.getTime(),
-                context.getMetrics(),
-                context.getMerkleCryptography(),
-                () -> TEST_PLATFORM_STATE_FACADE
-                        .consensusSnapshotOf(originalTree)
-                        .round());
 
         // prepare the tree and create a snapshot
         originalTree.copy().release();
