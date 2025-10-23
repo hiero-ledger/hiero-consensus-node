@@ -33,6 +33,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.integration.hip1195.Hip1195EnabledTest.OWNER;
 import static com.hedera.services.bdd.suites.integration.hip1195.Hip1195EnabledTest.PAYER;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_EXECUTION_EXCEPTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_IN_USE;
@@ -82,6 +83,12 @@ public class Hip1195BasicTests {
     @Contract(contract = "FalsePrePostHook", creationGas = 5_000_000)
     static SpecContract FALSE_PRE_POST_ALLOWANCE_HOOK;
 
+    @Contract(contract = "CreateOpHook", creationGas = 5_000_000)
+    static SpecContract CREATE_HOOK;
+
+    @Contract(contract = "Create2OpHook", creationGas = 5_000_000)
+    static SpecContract CREATE2_HOOK;
+
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
@@ -89,6 +96,8 @@ public class Hip1195BasicTests {
         testLifecycle.doAdhoc(TRUE_ALLOWANCE_HOOK.getInfo());
         testLifecycle.doAdhoc(TRUE_PRE_POST_ALLOWANCE_HOOK.getInfo());
         testLifecycle.doAdhoc(FALSE_PRE_POST_ALLOWANCE_HOOK.getInfo());
+        testLifecycle.doAdhoc(CREATE_HOOK.getInfo());
+        testLifecycle.doAdhoc(CREATE2_HOOK.getInfo());
 
         testLifecycle.doAdhoc(withOpContext(
                 (spec, opLog) -> GLOBAL_WATCHER.set(new SidecarWatcher(spec.recordStreamsLoc(byNodeId(0))))));
@@ -854,5 +863,35 @@ public class Hip1195BasicTests {
                                         .withPreHookFor(PAYER, 123L, 25_000L, ""))
                         .hasPrecheck(HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER)
                         .payingWith(PAYER));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> createOpIsDisabledInHookExecution() {
+        return hapiTest(
+                cryptoCreate(OWNER).withHooks(accountAllowanceHook(123L, CREATE_HOOK.name())),
+                cryptoCreate(PAYER).receiverSigRequired(true),
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
+                        .withPreHookFor(OWNER, 123L, 25_000L, "")
+                        .payingWith(PAYER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .via("failedTxn"),
+                getTxnRecord("failedTxn")
+                        .andAllChildRecords()
+                        .hasChildRecords(TransactionRecordAsserts.recordWith().status(CONTRACT_EXECUTION_EXCEPTION)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> create2OpIsDisabledInHookExecution() {
+        return hapiTest(
+                cryptoCreate(OWNER).withHooks(accountAllowanceHook(123L, CREATE2_HOOK.name())),
+                cryptoCreate(PAYER).receiverSigRequired(true),
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
+                        .withPreHookFor(OWNER, 123L, 25_000L, "")
+                        .payingWith(PAYER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .via("failedTxn"),
+                getTxnRecord("failedTxn")
+                        .andAllChildRecords()
+                        .hasChildRecords(TransactionRecordAsserts.recordWith().status(CONTRACT_EXECUTION_EXCEPTION)));
     }
 }
