@@ -8,7 +8,6 @@ import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
 import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
-import static org.hiero.otter.fixtures.tools.GenerateStateTool.MIGRATION_TEST_SEED;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -23,7 +22,6 @@ import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
-import org.hiero.otter.fixtures.turtle.TurtleSpecs;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -39,7 +37,6 @@ public class StartFromStateTest {
      */
     @OtterTest
     @OtterSpecs(randomNodeIds = false)
-    @TurtleSpecs(randomSeed = MIGRATION_TEST_SEED)
     @ParameterizedTest
     @ValueSource(
             ints = {

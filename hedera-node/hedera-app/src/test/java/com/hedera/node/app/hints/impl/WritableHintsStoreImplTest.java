@@ -123,6 +123,7 @@ class WritableHintsStoreImplTest {
 
     @BeforeEach
     void setUp() {
+        given(appContext.configSupplier()).willReturn(() -> DEFAULT_CONFIG);
         state = emptyState();
         entityCounters = new WritableEntityIdStoreImpl(new MapWritableStates(Map.of(
                 ENTITY_ID_STATE_ID,

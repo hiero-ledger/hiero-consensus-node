@@ -43,9 +43,6 @@ import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
  */
 public class GenerateStateTool {
 
-    /** Deterministic seed used to initialize the turtle test environment. */
-    public static final long MIGRATION_TEST_SEED = 5045275509048911830L;
-
     /** Path relative to the project root */
     public static final String SAVE_STATE_DIRECTORY = "saved-states";
 
@@ -233,7 +230,7 @@ public class GenerateStateTool {
 
             final SemanticVersion version = fetchApplicationVersion();
             final GenerateStateTool generateStateTool =
-                    new GenerateStateTool(new TurtleTestEnvironment(MIGRATION_TEST_SEED, false), version);
+                    new GenerateStateTool(new TurtleTestEnvironment(0L, false), version);
             generateStateTool.generateState();
 
             final Node node = generateStateTool.getNode((int) SELF_ID);

@@ -69,6 +69,7 @@ import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
@@ -309,7 +310,8 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var servicesVersion = versionConfig.servicesVersion();
         final var metrics = new NoOpMetrics();
         final var platformConfig = ServicesMain.buildPlatformConfig();
-        final var hedera = ServicesMain.newHedera(metrics, new PlatformStateFacade(), platformConfig);
+        final var hedera =
+                ServicesMain.newHedera(new PlatformStateFacade(), platformConfig, metrics, Time.getCurrent());
         this.state = hedera.newStateRoot();
         hedera.initializeStatesApi(state, GENESIS, platformConfig);
         final var stateToBeCopied = state;
