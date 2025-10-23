@@ -52,6 +52,10 @@ class TurtleConsoleOutputTest {
         return matcher.find() ? matcher.group(2) : "";
     }
 
+    /**
+     * Tests that console output from the Turtle test environment contains expected log messages.
+     * It also verifies that log messages are at INFO level or higher.
+     */
     @Test
     void testBasicConsoleOutput() {
         // Capture console output
