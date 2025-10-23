@@ -117,12 +117,8 @@ final class ContainerSwirldsLogTest {
 
             // Verify that INFO and WARN level messages are present
             // We look for the log level indicators in the log output
-            assertThat(logContent)
-                    .as("Log should contain INFO level messages")
-                    .containsPattern("\\bINFO\\b");
-            assertThat(logContent)
-                    .as("Log should contain WARN level message")
-                    .containsPattern("\\bWARN\\b");
+            assertThat(logContent).as("Log should contain INFO level messages").containsPattern("\\bINFO\\b");
+            assertThat(logContent).as("Log should contain WARN level message").containsPattern("\\bWARN\\b");
 
             // double-check that we have no errors in the log
             assertThat(logContent)
