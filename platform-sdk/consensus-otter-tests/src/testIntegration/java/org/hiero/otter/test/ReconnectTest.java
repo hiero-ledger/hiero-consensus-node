@@ -368,7 +368,7 @@ public class ReconnectTest {
     }
 
     @OtterTest(requires = {Capability.RECONNECT, Capability.SINGLE_NODE_JVM_SHUTDOWN})
-    void testIsolateNodeWhileReconnectingAndRestore(@NonNull final TestEnvironment env) throws InterruptedException {
+    void testIsolateNodeWhileReconnectingAndRestore(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
@@ -391,8 +391,8 @@ public class ReconnectTest {
 
         final Node nodeToReconnect = network.nodes().getLast();
 
-        nodeToReconnect.newLogResult().subscribe(logEntry -> {
-            if (logEntry.message().contains("Starting reconnect in role of the receiver.")) {
+        network.newReconnectResults().subscribe(notification -> {
+            if (notification.payload().getClass().equals(ReconnectStartPayload.class)) {
                 network.isolate(nodeToReconnect);
                 return SubscriberAction.UNSUBSCRIBE;
             }
@@ -414,7 +414,7 @@ public class ReconnectTest {
                 () -> nodeToReconnect.newReconnectResult().numFailedReconnects() > 0,
                 Duration.ofMinutes(2L),
                 "Node did not record the expected number of failed reconnect attempts within the expected time frame.");
-
+        timeManager.waitFor(Duration.ofSeconds(30));
         network.restoreConnectivity();
         timeManager.waitForCondition(
                 nodeToReconnect::isActive,
