@@ -9,7 +9,7 @@ import io.grpc.ServerBuilder;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.ExecutorService;
-import org.hiero.consensus.otter.docker.app.logging.DockerLogConfigBuilder;
+import org.hiero.consensus.otter.docker.app.logging.ControlProcessLogConfigBuilder;
 
 /**
  * Main entry point for the Docker container application.
@@ -43,7 +43,7 @@ public final class DockerMain {
      * @throws InterruptedException if the server is interrupted while waiting for termination
      */
     public static void main(final String[] args) throws IOException, InterruptedException {
-        DockerLogConfigBuilder.configure(Path.of(CONTAINER_APP_WORKING_DIR), null);
+        ControlProcessLogConfigBuilder.configure(Path.of(CONTAINER_APP_WORKING_DIR));
         new DockerMain().startGrpcServer();
     }
 
