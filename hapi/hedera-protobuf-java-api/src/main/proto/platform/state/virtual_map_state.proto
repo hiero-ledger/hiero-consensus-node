@@ -323,6 +323,7 @@ message StateKey {
      * Queue index for the `159` upgrade file data.
      */
     uint64 FileService_I_UPGRADE_DATA_159 = 10010;
+
   }
 }
 
@@ -669,6 +670,7 @@ message StateValue {
      * Metadata of the `159` upgrade file data queue.
      */
     proto.ProtoBytes FileService_I_UPGRADE_DATA_159 = 10010;
+
   }
 }
 
