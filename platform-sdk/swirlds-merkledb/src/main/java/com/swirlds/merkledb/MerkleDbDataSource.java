@@ -47,8 +47,10 @@ import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -129,6 +131,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      * On disk store for hash chunks. Stores {@link VirtualHashChunk} objects.
      */
     private final MemoryIndexDiskKeyValueStore hashChunkStore;
+
+    private final int hashChunkCacheThreshold;
+    private final Map<Long, VirtualHashChunk> hashChunkCache;
 
     /**
      * Mixed disk and off-heap memory store for key to path map.
@@ -375,6 +380,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                     hashChunkLoadedCallback,
                     idToDiskLocationHashChunks);
         }
+
+        hashChunkCacheThreshold = merkleDbConfig.hashChunkCacheThreshold();
+        hashChunkCache = new ConcurrentHashMap<>(hashChunkCacheThreshold);
 
         // KV disk location index (path to disk location)
         final Path pathToLeafLocationFile = dbPaths.pathToDiskLocationLeafNodesFile;
@@ -643,7 +651,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 // the comment in close() for details
                 storeHashesExecutor.execute(() -> {
                     try {
-                        writeHashes(lastLeafPath, hashChunksToUpdate);
+                        writeHashes(lastLeafPath, hashChunksToUpdate, true);
                     } catch (final IOException e) {
                         logger.error(EXCEPTION.getMarker(), "[{}] Failed to store hashes", tableName, e);
                         throw new UncheckedIOException(e);
@@ -855,8 +863,19 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             return null;
         }
 
+        if (chunkId < hashChunkCacheThreshold) {
+            final VirtualHashChunk chunk = hashChunkCache.get(chunkId);
+            if (chunk != null) {
+                return chunk.copy();
+            }
+        }
+
         final VirtualHashChunk chunk = VirtualHashChunk.parseFrom(hashChunkStore.get(chunkId));
         assert chunk != null;
+        if (chunkId < hashChunkCacheThreshold) {
+            assert hashChunkCache.get(chunkId) == null;
+            hashChunkCache.put(chunkId, chunk.copy());
+        }
         statisticsUpdater.countHashReads();
 
         return chunk;
@@ -882,6 +901,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                     logger.info(MERKLE_DB.getMarker(), "Closing Data Source [{}]", tableName);
                     // Hash chunk store
                     hashChunkStore.close();
+                    // Hash chunk cache
+                    hashChunkCache.clear();
                     // Then hash chunk index
                     idToDiskLocationHashChunks.close();
                     // Key to paths, both store and index
@@ -941,6 +962,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             final MerkleDbPaths snapshotDbPaths = new MerkleDbPaths(snapshotDirectory);
             // main snapshotting process in multiple-threads
             try {
+                writeHashes(getLastLeafPath(), hashChunkCache.values().stream(), false);
                 final CountDownLatch countDownLatch = new CountDownLatch(6);
                 // write all data stores
                 runWithSnapshotExecutor(true, countDownLatch, "idToDiskLocationHashChunks", () -> {
@@ -1168,7 +1190,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     /**
      * Write all hashes to hashStore
      */
-    private void writeHashes(final long maxValidPath, final Stream<VirtualHashChunk> dirtyHashes) throws IOException {
+    private void writeHashes(
+            final long maxValidPath, final Stream<VirtualHashChunk> dirtyHashes, final boolean useCache)
+            throws IOException {
         if (maxValidPath < 0) {
             // Empty store
             hashChunkStore.updateValidKeyRange(-1, -1);
@@ -1185,11 +1209,16 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
         dirtyHashes.forEach(chunk -> {
             statisticsUpdater.countFlushHashesWritten();
-            try {
-                hashChunkStore.put(chunk.getChunkId(), chunk::writeTo, chunk.getSizeInBytes());
-            } catch (final IOException e) {
-                logger.error(EXCEPTION.getMarker(), "[{}] IOException writing hash chunks", tableName, e);
-                throw new UncheckedIOException(e);
+            final long chunkId = chunk.getChunkId();
+            if (useCache && (chunkId < hashChunkCacheThreshold)) {
+                hashChunkCache.put(chunkId, chunk);
+            } else {
+                try {
+                    hashChunkStore.put(chunkId, chunk::writeTo, chunk.getSizeInBytes());
+                } catch (final IOException e) {
+                    logger.error(EXCEPTION.getMarker(), "[{}] IOException writing hash chunks", tableName, e);
+                    throw new UncheckedIOException(e);
+                }
             }
         });
 

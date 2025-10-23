@@ -127,11 +127,9 @@ public record VirtualHashChunk(long path, int height, @NonNull byte[] hashData) 
 
     public int getSizeInBytes() {
         int size = 0;
-        if (path != 0) {
-            size += ProtoWriterTools.sizeOfTag(FIELD_HASHCHUNK_PATH);
-            // Path is FIXED64
-            size += Long.BYTES;
-        }
+        size += ProtoWriterTools.sizeOfTag(FIELD_HASHCHUNK_PATH);
+        // Path is FIXED64
+        size += Long.BYTES;
         // height is always > 0
         size += ProtoWriterTools.sizeOfTag(FIELD_HASHCHUNK_HEIGHT);
         // Height is FIXED32
@@ -143,15 +141,15 @@ public record VirtualHashChunk(long path, int height, @NonNull byte[] hashData) 
 
     public void writeTo(final WritableSequentialData out) {
         final long pos = out.position();
-        if (path != 0) {
-            ProtoWriterTools.writeTag(out, FIELD_HASHCHUNK_PATH);
-            out.writeLong(path);
-        }
+        ProtoWriterTools.writeTag(out, FIELD_HASHCHUNK_PATH);
+        out.writeLong(path);
         // height is always > 0
         ProtoWriterTools.writeTag(out, FIELD_HASHCHUNK_HEIGHT);
         out.writeInt(height);
+        ProtoWriterTools.writeTag(out, FIELD_HASHCHUNK_HASHDATA);
+        out.writeVarInt(hashData.length, false);
         // Hash data is never null
-        ProtoWriterTools.writeDelimited(out, FIELD_HASHCHUNK_HASHDATA, hashData.length, o -> o.writeBytes(hashData));
+        out.writeBytes(hashData);
         assert out.position() == pos + getSizeInBytes();
     }
 
