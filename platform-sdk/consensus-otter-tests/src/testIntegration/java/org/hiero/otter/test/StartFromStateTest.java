@@ -11,13 +11,19 @@ import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 import static org.hiero.otter.fixtures.tools.GenerateStateTool.MIGRATION_TEST_SEED;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.swirlds.platform.crypto.KeyGeneratingException;
+import com.swirlds.platform.crypto.KeysAndCertsGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.Network;
+import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterSpecs;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
@@ -90,5 +96,33 @@ public class StartFromStateTest {
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
 
         assertThat(network.newEventStreamResults()).haveEqualFiles();
+    }
+
+    @OtterTest
+    @OtterSpecs(randomNodeIds = false)
+    @TurtleSpecs(randomSeed = MIGRATION_TEST_SEED)
+    void keysChangeTest(@NonNull final TestEnvironment env)
+            throws NoSuchAlgorithmException, KeyGeneratingException, NoSuchProviderException {
+        final Network network = env.network();
+        network.addNodes(4); // same as saved state
+        network.savedStateDirectory(Path.of("previous-version-state"));
+
+        final SecureRandom secureRandom = SecureRandom.getInstanceStrong();
+        for (final Node node : network.nodes()) {
+            node.keysAndCerts(KeysAndCertsGenerator.generate(node.selfId(), secureRandom, secureRandom));
+        }
+
+        // Setup continuous assertions
+        assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
+        assertContinuouslyThat(network.newConsensusResults())
+                .haveEqualCommonRounds()
+                .haveConsistentRounds();
+
+        network.start();
+
+        // Wait for 30 seconds
+        env.timeManager().waitFor(Duration.ofSeconds(30L));
+        final long lastRoundNum = network.newConsensusResults().results().stream().findAny().orElseThrow().lastRoundNum();
+        System.out.println("Last round number: " + lastRoundNum);
     }
 }

@@ -6,6 +6,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.time.Duration;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -139,6 +140,8 @@ public interface Node {
      * @param weight the new weight. Must be non-negative.
      */
     void weight(long weight);
+
+    void keysAndCerts(KeysAndCerts keysAndCerts);
 
     /**
      * Returns the status of the platform while the node is running or {@code null} if not.
