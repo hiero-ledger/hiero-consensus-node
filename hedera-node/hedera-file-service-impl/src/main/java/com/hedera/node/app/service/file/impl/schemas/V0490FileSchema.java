@@ -420,7 +420,6 @@ public class V0490FileSchema extends Schema<SemanticVersion> {
 
     public static org.hiero.hapi.support.fees.FeeSchedule parseSimpleFeesSchedules(
             @NonNull final byte[] feeScheduleJsonBytes) {
-        System.out.println("parsing bytes");
         try {
             final org.hiero.hapi.support.fees.FeeSchedule feeSchedule =
                     org.hiero.hapi.support.fees.FeeSchedule.JSON.parse(Bytes.wrap(feeScheduleJsonBytes));

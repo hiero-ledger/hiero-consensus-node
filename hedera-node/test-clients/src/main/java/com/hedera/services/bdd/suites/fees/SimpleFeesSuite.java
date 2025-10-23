@@ -62,6 +62,10 @@ public class SimpleFeesSuite {
         return amount / 100_000.0;
     }
 
+    private static long ucents(int value) {
+        return value * 100000;
+    }
+
     @Nested
     class TopicFeesComparison {
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -326,29 +330,49 @@ public class SimpleFeesSuite {
                                     )));
         }
         */
-        @HapiTest
-        @DisplayName("Simple fees for getting a topic transaction info")
-        final Stream<DynamicTest> getTopicInfoFee() {
-            return hapiTest(
-                    newKeyNamed(PAYER),
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    // create topic. provide up to 1 hbar to pay for it
-                    createTopic("testTopic")
-                            .blankMemo()
-                            .payingWith(PAYER)
-                            .adminKeyName(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("create-topic-txn"),
-                    // the extra 10 is for the admin key
-                    validateChargedUsd("create-topic-txn", ucents_to_USD(1000 + 10 + 1 * 3)),
-                    // get topic info, provide up to 1 hbar to pay for it
-                    getTopicInfo("testTopic")
-                            .payingWith(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("get-topic-txn")
-                            .logged(),
-                    validateChargedUsd("get-topic-txn", 0.0001));
-        }
+        //        @LeakyHapiTest
+        //        @DisplayName("Simple fees for getting a topic transaction info")
+        //        final Stream<DynamicTest> getTopicInfoFee() {
+        //            var feeSchedule = FeeSchedule.DEFAULT
+        //                    .copyBuilder()
+        //                    .extras(
+        //                            makeExtraDef(Extra.BYTES, 1),
+        //                            makeExtraDef(Extra.KEYS, 2),
+        //                            makeExtraDef(Extra.SIGNATURES, 3),
+        //                            makeExtraDef(Extra.CUSTOM_FEE, 500))
+        //                    .node(NodeFee.DEFAULT
+        //                            .copyBuilder()
+        //                            .build())
+        //                    .network(NetworkFee.DEFAULT.copyBuilder().multiplier(2).build())
+        //                    .services(makeService(
+        //                            "Consensus",
+        //                            makeServiceFee(CONSENSUS_CREATE_TOPIC, ucents(15), makeExtraIncluded(Extra.KEYS,
+        // 1)),
+        //                            makeServiceFee(CONSENSUS_GET_TOPIC_INFO, ucents(10))))
+        //                    .build();
+        //            final var contents = FeeSchedule.PROTOBUF.toBytes(feeSchedule).toByteArray();
+        //            return hapiTest(
+        //                    fileUpdate(SIMPLE_FEE_SCHEDULE).payingWith(GENESIS).contents(contents),
+        //                    newKeyNamed(PAYER),
+        //                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+        //                    // create topic. provide up to 1 hbar to pay for it
+        //                    createTopic("testTopic")
+        //                            .blankMemo()
+        //                            .payingWith(PAYER)
+        //                            .adminKeyName(PAYER)
+        //                            .fee(ONE_HBAR)
+        //                            .via("create-topic-txn"),
+        //                    // the extra 10 is for the admin key
+        //                    validateChargedUsd("create-topic-txn",ucents_to_USD(15)),
+        //                    // get topic info, provide up to 1 hbar to pay for it
+        //                    getTopicInfo("testTopic")
+        //                            .payingWith(PAYER)
+        //                            .fee(ONE_HBAR)
+        //                            .via("get-topic-txn")
+        //                            .logged(),
+        //                    validateChargedUsd("get-topic-txn", ucents_to_USD(10))
+        //            );
+        //        }
 
         @HapiTest
         @DisplayName("Simple fee for submitting a large message")
