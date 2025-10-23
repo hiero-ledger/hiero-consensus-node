@@ -608,9 +608,14 @@ message StateValue {
     proto.SlotValue ContractService_I_LAMBDA_STORAGE = 52;
 
     /**
+     * A state identifier for account to node relationships.
+     */
+    com.hedera.hapi.platform.state.NodeId AddressBookService_I_ACCOUNT_NODE_REL = 53;
+
+    /**
      * A state identifier for CLPR Ledger Configuration.
      */
-    org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration ClprService_I_CONFIGURATIONS = 53;
+    org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration ClprService_I_CONFIGURATIONS = 54;
 
     /**
      * Metadata of the round receipts queue.
