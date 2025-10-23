@@ -325,7 +325,7 @@ jobs:
           cp "${{ github.workspace }}"/.github/workflows/support/citr/application.properties.txt application.properties
 
           # Generate the settings.txt file inline
-          cp "${{ github.workspace }}"/.github/workflows/support/citr/settings.txt settings.txt
+          cat "${{ github.workspace }}"/.github/workflows/support/citr/settings.txt | grep -v 'consensus.roundsExpired' > settings.txt
 
           if [ "${{ inputs.add-app-props }}" != "" ]
           then
