@@ -66,7 +66,7 @@ class TurtleConsoleOutputTest {
                     .contains("Random seed:");
             assertThat(consoleOutput)
                     .as("Console output should contain 'Random seed:' entry")
-                    .doesNotContain("testcontainers");  // Container environment only
+                    .doesNotContain("testcontainers"); // Container environment only
             assertThat(consoleOutput)
                     .as("Console output should contain 'Starting network...' message")
                     .contains("Starting network...");

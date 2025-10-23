@@ -63,7 +63,7 @@ class ContainerConsoleOutputTest {
             // Verify that the console output contains expected log messages
             assertThat(consoleOutput)
                     .as("Console output should contain 'Random seed:' entry")
-                    .doesNotContain("Random seed:");  // Turtle environment only
+                    .doesNotContain("Random seed:"); // Turtle environment only
             assertThat(consoleOutput)
                     .as("Console output should contain 'Random seed:' entry")
                     .contains("testcontainers");
