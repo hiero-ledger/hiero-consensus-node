@@ -85,7 +85,7 @@
     <RollingFile name="BlockNodeCommsFile" fileName="output/blocknode-comms.log"
                filePattern="output/blocknode-comms-%i.log">
       <PatternLayout>
-          <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p %-4L %c{1} - [Thread:%t/ID:%T] %m{nolookups}%n</pattern>
+          <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p %-4L %c{1} - [%t] %m{nolookups}%n</pattern>
       </PatternLayout>
       <Policies>
           <SizeBasedTriggeringPolicy size="100 MB"/>
