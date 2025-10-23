@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.container.logging;
+package org.hiero.otter.fixtures.logging;
 
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
 import static com.swirlds.logging.legacy.LogMarker.PLATFORM_STATUS;
@@ -16,28 +16,34 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
+import org.apache.logging.log4j.LogManager;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
+import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
- * Comprehensive integration tests for swirlds.log content in the Container environment.
+ * Comprehensive integration tests for swirlds.log content in all environments.
  *
  * <p>These tests verify that:
  * <ul>
  *     <li>Messages with allowed markers appear in swirlds.log</li>
+ *     <li>Messages with disallowed markers (e.g., STATE_HASH) do NOT appear in swirlds.log</li>
  *     <li>Only INFO level and above messages are logged</li>
  *     <li>Each node's logs are correctly routed to their respective directories</li>
  * </ul>
  *
  * <p>Note: Per-node log routing is guaranteed by container isolation, so no explicit routing test is needed.
  */
-final class ContainerSwirldsLogTest {
+final class BasicSwirldsLogTest {
 
     /**
      * List of markers that commonly appear during normal Container node operation.
@@ -46,7 +52,16 @@ final class ContainerSwirldsLogTest {
     private static final List<LogMarker> MARKERS_APPEARING_IN_NORMAL_OPERATION =
             List.of(STARTUP, PLATFORM_STATUS, STATE_TO_DISK, MERKLE_DB);
 
-    private static final String LOG_DIR = "build/container/node-%d/output/";
+    @NonNull
+    private static Stream<Arguments> arguments() {
+        return Stream.of(
+                Arguments.of(1, "turtle", (Supplier<TestEnvironment>) TurtleTestEnvironment::new),
+                Arguments.of(4, "turtle", (Supplier<TestEnvironment>) TurtleTestEnvironment::new),
+                Arguments.of(1, "container", (Supplier<TestEnvironment>) ContainerTestEnvironment::new),
+                Arguments.of(4, "container", (Supplier<TestEnvironment>) ContainerTestEnvironment::new));
+    }
+
+    private static final String LOG_DIR = "build/%s/node-%d/output/";
     private static final String LOG_FILENAME = "swirlds.log";
 
     /**
@@ -62,9 +77,11 @@ final class ContainerSwirldsLogTest {
      * @param numNodes the number of nodes to test with
      */
     @ParameterizedTest
-    @ValueSource(ints = {1, 4})
-    void testBasicSwirldsLogFunctionality(final int numNodes) throws IOException {
-        final TestEnvironment env = new ContainerTestEnvironment();
+    @MethodSource("arguments")
+    void testBasicSwirldsLogFunctionality(
+            final int numNodes, @NonNull final String pathElement, @NonNull final Supplier<TestEnvironment> envFactory)
+            throws IOException {
+        final TestEnvironment env = envFactory.get();
         final List<NodeId> nodeIds = new ArrayList<>();
 
         try {
@@ -79,6 +96,11 @@ final class ContainerSwirldsLogTest {
                 nodeIds.add(node.selfId());
             }
 
+            // Generate log messages in the test. These should not appear in the log.
+            System.out.println("Hello Otter!");
+            LogManager.getLogger().info("Hello Hiero!");
+            LogManager.getLogger("com.acme.ExternalOtterTest").info("Hello World!");
+
             // Let the nodes run for a bit to generate log messages
             timeManager.waitFor(Duration.ofSeconds(5L));
         } finally {
@@ -88,7 +110,7 @@ final class ContainerSwirldsLogTest {
 
         // After destroy, verify each node's log file contains messages with allowed markers
         for (final NodeId nodeId : nodeIds) {
-            final Path logFile = Path.of(String.format(LOG_DIR, nodeId.id()), LOG_FILENAME);
+            final Path logFile = Path.of(String.format(LOG_DIR, pathElement, nodeId.id()), LOG_FILENAME);
             awaitFile(logFile, Duration.ofSeconds(10L));
 
             final String logContent = Files.readString(logFile);
@@ -128,6 +150,19 @@ final class ContainerSwirldsLogTest {
             assertThat(logContent)
                     .as("Log should NOT contain TRACE level messages")
                     .doesNotContainPattern("\\bTRACE\\b");
+
+            // Test Message Verification
+
+            // Verify that our test log messages do NOT appear in the log
+            assertThat(logContent)
+                    .as("Log should NOT contain test log message 'Hello Otter!'")
+                    .doesNotContain("Hello Otter!");
+            assertThat(logContent)
+                    .as("Log should NOT contain test log message 'Hello Hiero!'")
+                    .doesNotContain("Hello Hiero!");
+            assertThat(logContent)
+                    .as("Log should NOT contain test log message 'Hello World!'")
+                    .doesNotContain("Hello World!");
         }
     }
 
