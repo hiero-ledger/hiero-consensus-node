@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -25,7 +26,8 @@ public class NetworkRosterTests {
      */
     @Test
     void testCertificates()
-            throws NoSuchAlgorithmException, KeyGeneratingException, NoSuchProviderException, CertificateEncodingException {
+            throws NoSuchAlgorithmException, KeyGeneratingException, NoSuchProviderException,
+                    CertificateEncodingException {
         final TurtleTestEnvironment env = new TurtleTestEnvironment();
         try {
             // Create a network with 2 nodes
@@ -36,10 +38,8 @@ public class NetworkRosterTests {
 
             // Override the keys and certs for each node
             final SecureRandom secureRandom = SecureRandom.getInstanceStrong();
-            final KeysAndCerts kac0 = KeysAndCertsGenerator.generate(node0.selfId(), secureRandom,
-                    secureRandom);
-            final KeysAndCerts kac1 = KeysAndCertsGenerator.generate(node0.selfId(), secureRandom,
-                    secureRandom);
+            final KeysAndCerts kac0 = KeysAndCertsGenerator.generate(node0.selfId(), secureRandom, secureRandom);
+            final KeysAndCerts kac1 = KeysAndCertsGenerator.generate(node0.selfId(), secureRandom, secureRandom);
             node0.keysAndCerts(kac0);
             node1.keysAndCerts(kac1);
 

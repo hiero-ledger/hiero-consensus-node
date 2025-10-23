@@ -118,7 +118,8 @@ public class StartFromStateTest {
         // Determine the round of the saved state
         final long savedStateRound;
         try (final Stream<Path> stream = Files.walk(OtterSavedStateUtils.findSaveState(savedStatePath))) {
-            final Path metadataFile = stream.filter(p->p.getFileName().toString().equals(SavedStateMetadata.FILE_NAME))
+            final Path metadataFile = stream.filter(
+                            p -> p.getFileName().toString().equals(SavedStateMetadata.FILE_NAME))
                     .findAny()
                     .orElseThrow();
             savedStateRound = SavedStateMetadata.parse(metadataFile).round();
@@ -137,13 +138,13 @@ public class StartFromStateTest {
                 .haveEqualCommonRounds()
                 .haveConsistentRounds();
 
-
         // Start the network
         network.start();
 
         // Wait for the nodes to advance 20 rounds, indicating that the network is working correctly with the new keys
-        env.timeManager().waitForCondition(
-                () -> network.newConsensusResults().allNodesAdvancedToRound(savedStateRound + 20),
-                Duration.ofSeconds(30L));
+        env.timeManager()
+                .waitForCondition(
+                        () -> network.newConsensusResults().allNodesAdvancedToRound(savedStateRound + 20),
+                        Duration.ofSeconds(30L));
     }
 }
