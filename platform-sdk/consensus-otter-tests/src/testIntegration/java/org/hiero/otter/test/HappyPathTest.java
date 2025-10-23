@@ -49,8 +49,6 @@ public class HappyPathTest {
 
         network.start();
 
-        env.transactionGenerator().start();
-
         // Wait for 5 seconds
         timeManager.waitFor(Duration.ofSeconds(5L));
 
