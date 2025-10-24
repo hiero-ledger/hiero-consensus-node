@@ -20,7 +20,8 @@
         "initBufferSize": 2048,
         "name": "grpc",
         "pollWaitTime": "PT10S"
-      }
+      },
+      "maxMessageSizeBytes": 2097152
     },
     { "address": "localhost", "port": 8081, "priority": 1 }
   ]
