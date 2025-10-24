@@ -8,5 +8,4 @@ public class Constants {
     public static final Path COMBINED_REPORT_FILE = Path.of("combined_report.json");
     public static final String COMBINED_HTML_REPORT_TEMPLATE = "combined_report.html.template";
     public static final Path COMBINED_HTML_REPORT = Path.of("combined_report.html");
-    public static final String VM_LABEL = "state";
 }
