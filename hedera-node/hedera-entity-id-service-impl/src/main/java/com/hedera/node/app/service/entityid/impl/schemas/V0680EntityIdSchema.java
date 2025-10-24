@@ -39,20 +39,6 @@ public class V0680EntityIdSchema extends Schema<SemanticVersion> {
 
     @Override
     public void migrate(@NonNull final MigrationContext ctx) {
-        // Initialize the highest node id to the maximum node id present in the address book at migration time,
-        // scanning a fixed range of [0, 100).
-        final var highestNodeIdState = ctx.newStates().getSingleton(HIGHEST_NODE_ID_STATE_ID);
-        if (highestNodeIdState.get() == null) {
-            long highest = -1;
-            final var prevNodes = ctx.previousStates().get(V053AddressBookSchema.NODES_STATE_ID);
-            for (long i = 0; i < 100; i++) {
-                final var key = EntityNumber.newBuilder().number(i).build();
-                final var node = prevNodes.get(key);
-                if (node != null) {
-                    highest = Math.max(highest, i);
-                }
-            }
-            highestNodeIdState.put(EntityNumber.newBuilder().number(highest).build());
-        }
+        // No-op; initialization of the highest node id is handled in the AddressBook v0.68 schema migration.
     }
 }
