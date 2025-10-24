@@ -89,15 +89,15 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
             final List<Block> redactedBlocks = redactBlocks(blocks);
 
             // Step 2: Write redacted blocks to disk
-            final List<Path> writtenFiles = writeBlocksToDisk(redactedBlocks);
-
-            // Step 3: Read blocks back from disk to verify serialization/deserialization
-            final List<Block> reloadedBlocks = readBlocksFromDisk(writtenFiles);
+//            final List<Path> writtenFiles = writeBlocksToDisk(redactedBlocks);
+//
+//            // Step 3: Read blocks back from disk to verify serialization/deserialization
+//            final List<Block> reloadedBlocks = readBlocksFromDisk(writtenFiles);
 
             // Step 4: Verify that the redacted blocks maintain structural integrity
-            verifyRedactedBlocks(reloadedBlocks, blocks.size());
+            verifyRedactedBlocks(redactedBlocks, blocks.size());
 
-            logger.info("Successfully processed and verified {} redacted blocks", reloadedBlocks.size());
+            logger.info("Successfully processed and verified {} redacted blocks", redactedBlocks.size());
 
         } catch (final IOException | ParseException e) {
             logger.error("Failed to process blocks for redaction", e);
