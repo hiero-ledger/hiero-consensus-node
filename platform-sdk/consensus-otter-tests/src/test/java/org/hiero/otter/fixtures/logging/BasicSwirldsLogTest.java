@@ -6,7 +6,7 @@ import static com.swirlds.logging.legacy.LogMarker.PLATFORM_STATUS;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.awaitility.Awaitility.await;
+import static org.testcontainers.shaded.org.awaitility.Awaitility.await;
 
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -152,6 +152,20 @@ final class BasicSwirldsLogTest {
                     .doesNotContainPattern("\\bTRACE\\b");
 
             // Test Message Verification
+
+            // Verify that the log contains expected log messages from swirlds.log
+            assertThat(logContent)
+                    .as("Log should contain 'No saved states were found on disk' entry")
+                    .contains("No saved states were found on disk");
+            assertThat(logContent)
+                    .as("Log should contain 'Starting with roster history' message")
+                    .contains("Starting with roster history");
+            assertThat(logContent)
+                    .as("Log should contain 'CHECKING. Now in ACTIVE' message")
+                    .contains("CHECKING. Now in ACTIVE");
+            assertThat(logContent)
+                    .as("Log should contain '// Node is Starting //' message")
+                    .contains("// Node is Starting //");
 
             // Verify that our test log messages do NOT appear in the log
             assertThat(logContent)

@@ -2,7 +2,7 @@
 package org.hiero.otter.fixtures.turtle.logging;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.awaitility.Awaitility.await;
+import static org.testcontainers.shaded.org.awaitility.Awaitility.await;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
