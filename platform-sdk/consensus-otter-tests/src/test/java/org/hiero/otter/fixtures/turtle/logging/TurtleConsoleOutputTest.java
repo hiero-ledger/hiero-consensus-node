@@ -2,13 +2,13 @@
 package org.hiero.otter.fixtures.turtle.logging;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hiero.otter.fixtures.logging.LogMessageParser.extractLogLevel;
+import static org.hiero.otter.fixtures.logging.LogMessageParser.isLogMessage;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.hiero.otter.fixtures.Network;
@@ -20,38 +20,9 @@ import org.junit.jupiter.api.Test;
 class TurtleConsoleOutputTest {
 
     /**
-     * Pattern for parsing log messages.
-     * Matches: [thread] [optional marker] LEVEL  logger - message
-     * Group 1: log level (INFO, WARN, ERROR, etc.)
-     * Group 2: logger name (e.g., org.hiero.otter.fixtures.internal.AbstractNetwork)
+     * Tests that console output from the Turtle test environment contains expected log messages.
+     * It also verifies that log messages are at INFO level or higher.
      */
-    private static final Pattern LOG_PATTERN = Pattern.compile("\\[.*?]\\s+(?:\\[.*?])?\\s*(\\w+)\\s+(\\S+)\\s+-");
-
-    /**
-     * Checks if a line matches the log message pattern.
-     */
-    private static boolean isLogMessage(final String line) {
-        return LOG_PATTERN.matcher(line).find();
-    }
-
-    /**
-     * Extracts the log level from a log message line.
-     * Returns empty string if the line doesn't match the expected pattern.
-     */
-    private static String extractLogLevel(final String line) {
-        final Matcher matcher = LOG_PATTERN.matcher(line);
-        return matcher.find() ? matcher.group(1) : "";
-    }
-
-    /**
-     * Extracts the logger name from a log message line.
-     * Returns empty string if the line doesn't match the expected pattern.
-     */
-    private static String extractLoggerName(final String line) {
-        final Matcher matcher = LOG_PATTERN.matcher(line);
-        return matcher.find() ? matcher.group(2) : "";
-    }
-
     @Test
     void testBasicConsoleOutput() {
         // Capture console output
@@ -98,6 +69,9 @@ class TurtleConsoleOutputTest {
                     .as("Console output should contain 'Random seed:' entry")
                     .contains("Random seed:");
             assertThat(consoleOutput)
+                    .as("Console output should contain 'Random seed:' entry")
+                    .doesNotContain("testcontainers"); // Container environment only
+            assertThat(consoleOutput)
                     .as("Console output should contain 'Starting network...' message")
                     .contains("Starting network...");
             assertThat(consoleOutput)
@@ -132,7 +106,6 @@ class TurtleConsoleOutputTest {
                 if (isLogMessage(line)) {
                     // Extract log level and logger name
                     final String logLevel = extractLogLevel(line);
-                    final String loggerName = extractLoggerName(line);
 
                     // Verify log level is INFO or more critical (not DEBUG or TRACE)
                     assertThat(logLevel)
