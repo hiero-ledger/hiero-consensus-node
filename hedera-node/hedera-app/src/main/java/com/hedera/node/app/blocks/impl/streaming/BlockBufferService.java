@@ -447,10 +447,7 @@ public class BlockBufferService {
         // Attempt to free exactly one slot deterministically (the oldest acknowledged block)
         synchronized (blockBuffer) {
             sizeSnapshot = blockBuffer.size();
-            if (sizeSnapshot < capacity) {
-                // don't do anything if there is left capacity in the buffer
-                return;
-            } else {
+            if (sizeSnapshot >= capacity) {
                 final long earliest = earliestBlockNumber.get();
                 if (earliest != Long.MIN_VALUE && highestAckedBlockNumber.get() >= earliest) {
                     // Remove the earliest block to make space if it has been acknowledged
@@ -604,10 +601,9 @@ public class BlockBufferService {
             if (!isBackpressureEnabled()) {
                 // If backpressure is disabled, remove blocks based solely on the max buffer size
                 if (blockBuffer.size() > maxBufferSize) {
-                    if (blockBuffer.remove(blockNumber, block)) {
-                        ++numPruned;
-                        --size;
-                    }
+                    blockBuffer.remove(blockNumber);
+                    ++numPruned;
+                    --size;
                 } else {
                     // Track unacknowledged blocks
                     if (blockNumber > highestBlockAcked) {
@@ -617,10 +613,15 @@ public class BlockBufferService {
                     newEarliestBlock = Math.min(newEarliestBlock, blockNumber);
                     newLatestBlock = Math.max(newLatestBlock, blockNumber);
                 }
-            } else if (size > maxBufferSize && blockNumber <= highestBlockAcked) {
-                if (blockBuffer.remove(blockNumber, block)) {
+            } else if (blockNumber <= highestBlockAcked) {
+                if (size > maxBufferSize) {
+                    blockBuffer.remove(blockNumber);
                     ++numPruned;
                     --size;
+                } else {
+                    // keep track of earliest remaining block
+                    newEarliestBlock = Math.min(newEarliestBlock, blockNumber);
+                    newLatestBlock = Math.max(newLatestBlock, blockNumber);
                 }
             } else {
                 ++numPendingAck;
