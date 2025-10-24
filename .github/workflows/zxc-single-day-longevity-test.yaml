@@ -72,6 +72,7 @@ on:
 permissions:
   contents: write
   id-token: write
+  actions: write
 
 env:
   NAMESPACE_PREFIX: solo-sdlt-n
