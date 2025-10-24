@@ -384,11 +384,6 @@ public class HandleWorkflow {
             logStartEvent(event, creator);
             for (final var it = event.consensusTransactionIterator(); it.hasNext(); ) {
                 final var platformTxn = it.next();
-                if (quiescenceEnabled) {
-                    final var tracker = currentBlockTracker.trackerOrThrow();
-                    tracker.blockTransaction(platformTxn);
-                    tracker.consensusTimeAdvanced(platformTxn.getConsensusTimestamp());
-                }
                 try {
                     transactionsDispatched |= handlePlatformTransaction(
                             state, creator, platformTxn, event.getEventCore().birthRound(), shortCircuitTxnCallback);
@@ -398,6 +393,13 @@ public class HandleWorkflow {
                                     + "While this node may not die right away, it is in a bad way, most likely fatally.",
                             e);
                 }
+                if (quiescenceEnabled) {
+                    final var tracker = currentBlockTracker.trackerOrThrow();
+                    tracker.blockTransaction(platformTxn);
+                    tracker.consensusTimeAdvanced(platformTxn.getConsensusTimestamp());
+                }
+                // Clear tx metadata now that we won't use it again
+                platformTxn.setMetadata(null);
             }
             if (!transactionsDispatched) {
                 // If there were no platform transactions to follow with scheduled transactions, then

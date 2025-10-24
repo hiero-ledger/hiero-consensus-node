@@ -84,6 +84,7 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
      * @param iter iterator of self-created transactions that landed
      */
     public void countLanded(@NonNull final Iterator<Transaction> iter) {
+        requireNonNull(iter);
         if (!quiescenceEnabled) {
             return;
         }

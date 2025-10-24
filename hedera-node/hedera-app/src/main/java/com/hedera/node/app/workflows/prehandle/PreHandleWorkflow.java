@@ -163,8 +163,6 @@ public interface PreHandleWorkflow {
                     metadata);
             previousResult = null;
         }
-        // We do not know how long transactions are kept in memory. Clearing metadata to avoid keeping it for too long.
-        platformTxn.setMetadata(null);
         return preHandleAllTransactions(
                 creator,
                 storeFactory,

@@ -102,9 +102,11 @@ import com.hedera.node.app.throttle.AppThrottleFactory;
 import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.tss.TssBaseServiceImpl;
+import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.HandleWorkflow;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
 import com.hedera.node.app.workflows.ingest.IngestWorkflowImpl;
+import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.Utils;
@@ -624,10 +626,24 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
     public void accept(@NonNull final PlatformEvent event) {
         requireNonNull(event);
         if (quiescenceEnabled && daggerApp != null) {
+            // First set a minimal PreHandleResult on every event so the quiescence controller can classify them
+            final var transactions = new ArrayList<Transaction>(1000);
+            event.forEachTransaction(transactions::add);
+            final int maxBytes = configProvider
+                    .getConfiguration()
+                    .getConfigData(HederaConfig.class)
+                    .nodeTransactionMaxBytes();
+            transactions.stream().parallel().forEach(tx -> {
+                TransactionInfo txInfo = null;
+                try {
+                    txInfo = daggerApp.transactionChecker().parseSignedAndCheck(tx.getApplicationTransaction(), maxBytes);
+                } catch (PreCheckException ignore) { }
+                tx.setMetadata(PreHandleResult.shortCircuitingTransaction(txInfo));
+            });
             daggerApp.quiescenceController().staleEvent(event);
             // If this is a self-created event, decrement in-flight counts by stale transactions that landed
             if (event.getCreatorId().equals(platform.getSelfId())) {
-                ((IngestWorkflowImpl) daggerApp.ingestWorkflow()).countLanded(event.transactionIterator());
+                ((IngestWorkflowImpl) daggerApp.ingestWorkflow()).countLanded(transactions.iterator());
             }
         }
     }
