@@ -4,7 +4,9 @@ package org.hiero.otter.fixtures.result;
 import com.swirlds.platform.event.preconsensus.PcesFile;
 import com.swirlds.platform.event.preconsensus.PcesMultiFileIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 import java.util.Iterator;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -34,4 +36,16 @@ public interface SingleNodePcesResult {
      */
     @NonNull
     PcesMultiFileIterator pcesEvents();
+
+    default PlatformEvent lastPcesEvent() {
+        PlatformEvent lastEvent = null;
+        try (final PcesMultiFileIterator iterator = pcesEvents()) {
+            while (iterator.hasNext()) {
+                lastEvent = iterator.next();
+            }
+        }catch (final IOException e) {
+            throw new RuntimeException("Failed to read PCES events", e);
+        }
+        return lastEvent;
+    }
 }
