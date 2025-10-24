@@ -27,6 +27,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -101,6 +102,9 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
     public void setUp() {
         super.setUp();
         subject = new CryptoTransferHandler(validator, hookCallFactory, entityIdFactory);
+        lenient().when(handleContext.savepointStack()).thenReturn(stack);
+        lenient().when(stack.getBaseBuilder(StreamBuilder.class)).thenReturn(transferRecordBuilder);
+        lenient().when(transferRecordBuilder.category()).thenReturn(HandleContext.TransactionCategory.USER);
     }
 
     @Test
@@ -781,6 +785,9 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
         final var context = mock(HandleContext.class);
         given(context.configuration()).willReturn(config);
         given(context.body()).willReturn(txn);
+        given(context.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(StreamBuilder.class)).willReturn(transferRecordBuilder);
+        given(transferRecordBuilder.category()).willReturn(HandleContext.TransactionCategory.USER);
         return context;
     }
 
