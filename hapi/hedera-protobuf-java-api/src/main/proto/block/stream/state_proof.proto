@@ -24,7 +24,6 @@ import "services/state/blockstream/merkle_leaf.proto";
 /**
  * TODO
  */
-// For some reason pbj can't figure out the difference between this StateProof and the org.hiero.block.api StateProof
 message StateProof {
 
   /**

@@ -30,7 +30,7 @@ message PendingProof {
    */
   uint64 block = 1;
   /**
-   * The hash requiring a TSS signature.
+   * The hash requiring a proof.
    */
   bytes block_hash = 2;
   /**
