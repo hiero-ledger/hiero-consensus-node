@@ -5,59 +5,68 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.platform.metrics.ReconnectMetrics;
-import com.swirlds.platform.reconnect.ReconnectPeerProtocol;
-import com.swirlds.platform.reconnect.ReconnectSyncHelper;
-import com.swirlds.platform.reconnect.ReconnectThrottle;
+import com.swirlds.platform.reconnect.FallenBehindMonitor;
+import com.swirlds.platform.reconnect.ReconnectStatePeerProtocol;
+import com.swirlds.platform.reconnect.ReconnectStateTeacherThrottle;
+import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
+import com.swirlds.state.MerkleNodeState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.function.Supplier;
-import org.hiero.consensus.gossip.FallenBehindManager;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
- * Implementation of a factory for reconnect protocol
+ * This protocol is responsible for synchronizing a current state either local acting as lerner or remote acting as teacher.
  */
-public class ReconnectProtocol implements Protocol {
+public class ReconnectStateSyncProtocol implements Protocol {
 
-    private final ReconnectThrottle reconnectThrottle;
+    private final ReconnectStateTeacherThrottle reconnectStateTeacherThrottle;
     private final Supplier<ReservedSignedState> lastCompleteSignedState;
     private final Duration reconnectSocketTimeout;
     private final ReconnectMetrics reconnectMetrics;
     private final ThreadManager threadManager;
-    private final FallenBehindManager fallenBehindManager;
+    private final FallenBehindMonitor fallenBehindManager;
     private final PlatformStateFacade platformStateFacade;
 
     private final Time time;
     private final PlatformContext platformContext;
     private final AtomicReference<PlatformStatus> platformStatus = new AtomicReference<>(PlatformStatus.STARTING_UP);
-    private final ReconnectSyncHelper reconnectSyncHelper;
+    private final ReservedSignedStateResultPromise reservedSignedStateResultPromise;
+    private final SwirldStateManager swirldStateManager;
+    private final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap;
 
-    public ReconnectProtocol(
+    public ReconnectStateSyncProtocol(
             @NonNull final PlatformContext platformContext,
             @NonNull final ThreadManager threadManager,
-            @NonNull final ReconnectThrottle reconnectThrottle,
+            @NonNull final ReconnectStateTeacherThrottle reconnectStateTeacherThrottle,
             @NonNull final Supplier<ReservedSignedState> lastCompleteSignedState,
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics reconnectMetrics,
-            @NonNull final ReconnectSyncHelper reconnectSyncHelper,
-            @NonNull final FallenBehindManager fallenBehindManager,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final FallenBehindMonitor fallenBehindManager,
+            @NonNull final PlatformStateFacade platformStateFacade,
+            @NonNull final ReservedSignedStateResultPromise reservedSignedStateResultPromise,
+            @NonNull final SwirldStateManager swirldStateManager,
+            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
         this.threadManager = Objects.requireNonNull(threadManager);
-        this.reconnectThrottle = Objects.requireNonNull(reconnectThrottle);
+        this.reconnectStateTeacherThrottle = Objects.requireNonNull(reconnectStateTeacherThrottle);
         this.lastCompleteSignedState = Objects.requireNonNull(lastCompleteSignedState);
         this.reconnectSocketTimeout = Objects.requireNonNull(reconnectSocketTimeout);
         this.reconnectMetrics = Objects.requireNonNull(reconnectMetrics);
-        this.reconnectSyncHelper = Objects.requireNonNull(reconnectSyncHelper);
         this.fallenBehindManager = Objects.requireNonNull(fallenBehindManager);
         this.platformStateFacade = platformStateFacade;
         this.time = Objects.requireNonNull(platformContext.getTime());
+        this.reservedSignedStateResultPromise = Objects.requireNonNull(reservedSignedStateResultPromise);
+        this.swirldStateManager = Objects.requireNonNull(swirldStateManager);
+        this.createStateFromVirtualMap = Objects.requireNonNull(createStateFromVirtualMap);
     }
 
     /**
@@ -65,20 +74,22 @@ public class ReconnectProtocol implements Protocol {
      */
     @NonNull
     @Override
-    public ReconnectPeerProtocol createPeerInstance(@NonNull final NodeId peerId) {
-        return new ReconnectPeerProtocol(
+    public ReconnectStatePeerProtocol createPeerInstance(@NonNull final NodeId peerId) {
+        return new ReconnectStatePeerProtocol(
                 platformContext,
                 threadManager,
                 Objects.requireNonNull(peerId),
-                reconnectThrottle,
+                reconnectStateTeacherThrottle,
                 lastCompleteSignedState,
                 reconnectSocketTimeout,
                 reconnectMetrics,
-                reconnectSyncHelper,
                 fallenBehindManager,
                 platformStatus::get,
                 time,
-                platformStateFacade);
+                platformStateFacade,
+                reservedSignedStateResultPromise,
+                swirldStateManager,
+                createStateFromVirtualMap);
     }
 
     /**

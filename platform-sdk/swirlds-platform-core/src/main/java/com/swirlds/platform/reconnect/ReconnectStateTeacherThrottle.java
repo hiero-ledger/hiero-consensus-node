@@ -20,9 +20,9 @@ import org.hiero.consensus.model.node.NodeId;
 /**
  * This object is responsible for restricting the frequency of reconnects (in the role of the sender).
  */
-public class ReconnectThrottle {
+public class ReconnectStateTeacherThrottle {
 
-    private static final Logger logger = LogManager.getLogger(ReconnectThrottle.class);
+    private static final Logger logger = LogManager.getLogger(ReconnectStateTeacherThrottle.class);
 
     /**
      * Reconnect settings for this node.
@@ -50,7 +50,7 @@ public class ReconnectThrottle {
      */
     private Supplier<Instant> currentTime;
 
-    public ReconnectThrottle(@NonNull final ReconnectConfig config, @NonNull final Time time) {
+    public ReconnectStateTeacherThrottle(@NonNull final ReconnectConfig config, @NonNull final Time time) {
         this.config = Objects.requireNonNull(config, "config must not be null");
         Objects.requireNonNull(time);
         lastReconnectTime = new HashMap<>();

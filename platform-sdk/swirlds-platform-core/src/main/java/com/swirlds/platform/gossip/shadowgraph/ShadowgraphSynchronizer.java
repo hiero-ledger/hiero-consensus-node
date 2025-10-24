@@ -22,6 +22,8 @@ import com.swirlds.platform.gossip.shadowgraph.SyncUtils.TipsInfo;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.Connection;
+import com.swirlds.platform.reconnect.FallenBehindMonitor;
+import com.swirlds.platform.reconnect.FallenBehindStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -38,7 +40,6 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.ThrowingRunnable;
-import org.hiero.consensus.gossip.FallenBehindManager;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 
@@ -78,7 +79,7 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
             final int numberOfNodes,
             @NonNull final SyncMetrics syncMetrics,
             @NonNull final Consumer<PlatformEvent> receivedEventHandler,
-            @NonNull final FallenBehindManager fallenBehindManager,
+            @NonNull final FallenBehindMonitor fallenBehindManager,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final ParallelExecutor executor,
             @NonNull final Consumer<Double> syncLagHandler) {
@@ -155,9 +156,15 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
 
             reportRoundDifference(myWindow, theirTipsAndEventWindow.eventWindow(), connection.getOtherId());
 
-            if (hasFallenBehind(myWindow, theirTipsAndEventWindow.eventWindow(), connection.getOtherId())
-                    != SyncFallenBehindStatus.NONE_FALLEN_BEHIND) {
+            final FallenBehindStatus status =
+                    fallenBehindMonitor.check(myWindow, theirTipsAndEventWindow.eventWindow(), connection.getOtherId());
+            if (status != FallenBehindStatus.NONE_FALLEN_BEHIND) {
                 // aborting the sync since someone has fallen behind
+                logger.info(
+                        SYNC_INFO.getMarker(),
+                        "Connection against {} aborting sync due to {}",
+                        connection.getOtherId(),
+                        status);
                 return false;
             }
 
