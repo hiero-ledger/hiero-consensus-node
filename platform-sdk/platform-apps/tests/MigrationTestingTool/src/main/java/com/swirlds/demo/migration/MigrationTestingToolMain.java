@@ -3,15 +3,17 @@ package com.swirlds.demo.migration;
 
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_SECONDS;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getGlobalMetrics;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.logging.legacy.payload.ApplicationFinishedPayload;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.DefaultSwirldMain;
@@ -150,7 +152,8 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<MigrationTesting
     @NonNull
     @Override
     public MigrationTestingToolState newStateRoot() {
-        final MigrationTestingToolState state = new MigrationTestingToolState(CONFIGURATION, getGlobalMetrics());
+        final MigrationTestingToolState state =
+                new MigrationTestingToolState(CONFIGURATION, new NoOpMetrics(), Time.getCurrent());
         TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
         return state;
     }
@@ -159,9 +162,10 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<MigrationTesting
      * {@inheritDoc}
      */
     @Override
-    public Function<VirtualMap, MigrationTestingToolState> stateRootFromVirtualMap() {
+    public Function<VirtualMap, MigrationTestingToolState> stateRootFromVirtualMap(
+            @NonNull final Metrics metrics, @NonNull final Time time) {
         return virtualMap -> {
-            final MigrationTestingToolState state = new MigrationTestingToolState(virtualMap);
+            final MigrationTestingToolState state = new MigrationTestingToolState(virtualMap, new NoOpMetrics(), time);
             TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
             return state;
         };

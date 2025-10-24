@@ -13,7 +13,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForAny;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlocks;
-import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.*;
+import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.restartAtNextConfigVersion;
 
 import com.hedera.node.internal.network.BlockNodeConnectionInfo;
 import com.hedera.services.bdd.HapiBlockNode;
@@ -80,7 +80,7 @@ public class BlockNodeSuite {
                         Duration.ofSeconds(30),
                         Duration.ofSeconds(30),
                         // Blocks are accumulating in buffer without being sent
-                        "No active connections available for streaming block")),
+                        "saturation=10.0%")),
                 waitUntilNextBlocks(2).withBackgroundTraffic(true),
                 // Create block-nodes.json to establish connection
                 doingContextual((spec) -> {
@@ -92,12 +92,12 @@ public class BlockNodeSuite {
                     BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
                     try {
                         // Write the config to this consensus node's block-nodes.json
-                        Path configPath = spec.getNetworkNodes()
+                        final Path configPath = spec.getNetworkNodes()
                                 .getFirst()
                                 .getExternalPath(DATA_CONFIG_DIR)
                                 .resolve("block-nodes.json");
                         Files.writeString(configPath, BlockNodeConnectionInfo.JSON.toJSON(connectionInfo));
-                    } catch (IOException e) {
+                    } catch (final IOException e) {
                         throw new RuntimeException(e);
                     }
                 }),
@@ -121,12 +121,12 @@ public class BlockNodeSuite {
                     BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
                     try {
                         // Write the config to this consensus node's block-nodes.json
-                        Path configPath = spec.getNetworkNodes()
+                        final Path configPath = spec.getNetworkNodes()
                                 .getFirst()
                                 .getExternalPath(DATA_CONFIG_DIR)
                                 .resolve("block-nodes.json");
                         Files.writeString(configPath, BlockNodeConnectionInfo.JSON.toJSON(connectionInfo));
-                    } catch (IOException e) {
+                    } catch (final IOException e) {
                         throw new RuntimeException(e);
                     }
                 }),
@@ -148,12 +148,12 @@ public class BlockNodeSuite {
                 // Delete block-nodes.json
                 doingContextual((spec) -> {
                     try {
-                        Path configPath = spec.getNetworkNodes()
+                        final Path configPath = spec.getNetworkNodes()
                                 .getFirst()
                                 .getExternalPath(DATA_CONFIG_DIR)
                                 .resolve("block-nodes.json");
                         Files.delete(configPath);
-                    } catch (IOException e) {
+                    } catch (final IOException e) {
                         throw new RuntimeException(e);
                     }
                 }),
@@ -173,12 +173,12 @@ public class BlockNodeSuite {
                 // Unparsable block-nodes.json
                 doingContextual((spec) -> {
                     try {
-                        Path configPath = spec.getNetworkNodes()
+                        final Path configPath = spec.getNetworkNodes()
                                 .getFirst()
                                 .getExternalPath(DATA_CONFIG_DIR)
                                 .resolve("block-nodes.json");
                         Files.writeString(configPath, "{ this is not valid json");
-                    } catch (IOException e) {
+                    } catch (final IOException e) {
                         throw new RuntimeException(e);
                     }
                 }),
@@ -202,12 +202,12 @@ public class BlockNodeSuite {
                     BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
                     try {
                         // Write the config to this consensus node's block-nodes.json
-                        Path configPath = spec.getNetworkNodes()
+                        final Path configPath = spec.getNetworkNodes()
                                 .getFirst()
                                 .getExternalPath(DATA_CONFIG_DIR)
                                 .resolve("block-nodes.json");
                         Files.writeString(configPath, BlockNodeConnectionInfo.JSON.toJSON(connectionInfo));
-                    } catch (IOException e) {
+                    } catch (final IOException e) {
                         throw new RuntimeException(e);
                     }
                 }),
@@ -885,7 +885,7 @@ public class BlockNodeSuite {
                         Duration.ofSeconds(20),
                         Duration.ofSeconds(20),
                         String.format(
-                                "/localhost:%s/ACTIVE] Received SkipBlock response for block 9223372036854775807, but we are streaming block",
+                                "/localhost:%s/ACTIVE] Received SkipBlock response (blockToSkip=9223372036854775807), but we've moved on to another block. Ignoring skip request",
                                 portNumbers.getFirst()))),
                 blockNode(0).sendResendBlockImmediately(Long.MAX_VALUE),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
@@ -903,7 +903,7 @@ public class BlockNodeSuite {
     }
 
     @NotNull
-    private Stream<DynamicTest> validateHappyPath(int blocksToWait) {
+    private Stream<DynamicTest> validateHappyPath(final int blocksToWait) {
         return hapiTest(
                 waitUntilNextBlocks(blocksToWait).withBackgroundTraffic(true),
 
