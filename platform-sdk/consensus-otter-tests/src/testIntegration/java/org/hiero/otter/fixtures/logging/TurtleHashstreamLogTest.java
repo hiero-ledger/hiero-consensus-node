@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.turtle.logging;
+package org.hiero.otter.fixtures.logging;
 
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
 import static com.swirlds.logging.legacy.LogMarker.PLATFORM_STATUS;

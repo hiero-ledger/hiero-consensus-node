@@ -8,6 +8,11 @@ on:
         type: boolean
         required: false
         default: true
+      enable-integration-tests:
+        description: "Integration Testing Enabled"
+        type: boolean
+        required: false
+        default: true
       enable-hapi-tests:
         description: "HAPI Testing Enabled"
         type: boolean
@@ -127,6 +132,24 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
       codecov-token: ${{ secrets.CODECOV_TOKEN }}
+
+  mats-integration-tests:
+    name: MATS - Integration Tests
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs:
+      - dependency-check
+      - spotless
+    with:
+      custom-job-label: "MATS Integration Tests"
+      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
+      enable-unit-tests: false
+      enable-integration-tests: ${{ github.event_name == 'push' || github.event.inputs.enable-integration-tests == 'true' }}
+      enable-network-log-capture: true
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
 
   mats-hapi-tests-misc:
     name: MATS - HAPI Tests (Misc)
@@ -364,6 +387,7 @@ jobs:
     runs-on: hiero-citr-linux-medium
     needs:
       - mats-unit-tests
+      - mats-integration-tests
       - mats-hapi-tests-misc
       - mats-hapi-tests-misc-records
       - mats-hapi-tests-crypto
@@ -379,6 +403,7 @@ jobs:
       - mats-docker-determinism
     if: ${{ (github.event_name == 'push') &&
       needs.mats-unit-tests.result == 'success' &&
+      needs.mats-integration-tests.result == 'success' &&
       needs.mats-hapi-tests-misc.result == 'success' &&
       needs.mats-hapi-tests-misc-records.result == 'success' &&
       needs.mats-hapi-tests-crypto.result == 'success' &&
@@ -419,6 +444,7 @@ jobs:
       - dependency-check
       - spotless
       - mats-unit-tests
+      - mats-integration-tests
       - mats-hapi-tests-misc
       - mats-hapi-tests-misc-records
       - mats-hapi-tests-crypto
@@ -437,6 +463,7 @@ jobs:
       needs.dependency-check.result != 'success' ||
       needs.spotless.result != 'success' ||
       needs.mats-unit-tests.result != 'success' ||
+      needs.mats-integration-tests.result != 'success' ||
       needs.mats-hapi-tests-misc.result != 'success' ||
       needs.mats-hapi-tests-misc-records.result != 'success' ||
       needs.mats-hapi-tests-crypto.result != 'success' ||
@@ -522,6 +549,7 @@ jobs:
       - name: Calculate MATS Unit Test Result
         id: mats-unit-test-result
         if: ${{ needs.mats-unit-tests.result != 'success' ||
+          needs.mats-integration-tests.result != 'success' ||
           needs.mats-hapi-tests-misc.result != 'success' ||
           needs.mats-hapi-tests-misc-records.result != 'success' ||
           needs.mats-hapi-tests-crypto.result != 'success' ||

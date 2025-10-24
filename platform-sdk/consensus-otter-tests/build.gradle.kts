@@ -23,6 +23,7 @@ plugins {
 description = "Consensus Otter Test Framework"
 
 testModuleInfo {
+    requires("com.swirlds.base")
     requires("com.swirlds.base.test.fixtures")
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.platform.core.test.fixtures")
@@ -35,17 +36,51 @@ testModuleInfo {
     requires("com.swirlds.metrics.api")
     requires("org.hiero.consensus.utility")
     requires("org.apache.logging.log4j")
-    requires("awaitility")
-    runtimeOnly("io.grpc.netty.shaded")
+}
+
+testing.suites {
+    val testOtter by
+        registering(JvmTestSuite::class) {
+            useJUnitJupiter()
+
+            dependencies {
+                implementation(project())
+                implementation(project.dependencies.testFixtures(project()))
+                implementation(project(":swirlds-common"))
+                implementation(project(":swirlds-platform-core"))
+                implementation("org.assertj:assertj-core")
+                implementation("org.junit.jupiter:junit-jupiter-params")
+                implementation("com.github.spotbugs:spotbugs-annotations")
+                runtimeOnly("io.grpc:grpc-netty-shaded")
+            }
+
+            targets {
+                all {
+                    testTask.configure {
+                        // Disable all parallelism
+                        systemProperty("junit.jupiter.execution.parallel.enabled", false)
+                        systemProperty(
+                            "junit.jupiter.testclass.order.default",
+                            "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
+                        )
+
+                        // Limit heap and number of processors
+                        maxHeapSize = "8g"
+                        jvmArgs("-XX:ActiveProcessorCount=6")
+                    }
+                }
+            }
+        }
 }
 
 testIntegrationModuleInfo {
     requires("com.swirlds.common.test.fixtures")
-    requires("com.swirlds.logging")
     requires("org.hiero.otter.fixtures")
     requires("org.assertj.core")
     requires("org.junit.jupiter.params")
     requires("com.github.spotbugs.annotations")
+    requires("org.apache.logging.log4j")
+    requires("awaitility")
     runtimeOnly("io.grpc.netty.shaded")
 }
 
@@ -59,8 +94,8 @@ tasks.compileTestFixturesJava {
 // Runs tests against the Turtle environment
 tasks.register<Test>("testTurtle") {
     useJUnitPlatform()
-    testClassesDirs = sourceSets.testIntegration.get().output.classesDirs
-    classpath = sourceSets.testIntegration.get().runtimeClasspath
+    testClassesDirs = sourceSets.named("testOtter").get().output.classesDirs
+    classpath = sourceSets.named("testOtter").get().runtimeClasspath
 
     // Disable all parallelism
     systemProperty("junit.jupiter.execution.parallel.enabled", false)
@@ -81,8 +116,8 @@ tasks.register<Test>("testContainer") {
     dependsOn(":consensus-otter-docker-app:copyDockerizedApp")
 
     useJUnitPlatform()
-    testClassesDirs = sourceSets.testIntegration.get().output.classesDirs
-    classpath = sourceSets.testIntegration.get().runtimeClasspath
+    testClassesDirs = sourceSets.named("testOtter").get().output.classesDirs
+    classpath = sourceSets.named("testOtter").get().runtimeClasspath
 
     // Disable all parallelism
     systemProperty("junit.jupiter.execution.parallel.enabled", false)
