@@ -627,6 +627,8 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(accountStore.contains(accountId)).willReturn(true);
+        given(accountStore.getAccountById(accountId)).willReturn(account);
+        given(account.tinybarBalance()).willReturn(10L);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
         given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);

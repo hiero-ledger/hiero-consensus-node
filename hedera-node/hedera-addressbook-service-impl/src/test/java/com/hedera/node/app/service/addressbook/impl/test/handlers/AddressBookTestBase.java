@@ -165,6 +165,9 @@ public class AddressBookTestBase {
     protected Node node;
 
     @Mock
+    protected Account account;
+
+    @Mock
     protected ReadableStates readableStates;
 
     @Mock

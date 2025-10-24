@@ -36,7 +36,6 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
-import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
@@ -89,9 +88,6 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
 
     @Mock
     private AttributeValidator validator;
-
-    @Mock
-    private Account account;
 
     private final AccountID newAccountId = idFactory.newAccountId(53);
     private TransactionBody txn;
