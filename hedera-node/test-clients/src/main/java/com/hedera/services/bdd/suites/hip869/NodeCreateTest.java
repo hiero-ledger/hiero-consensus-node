@@ -11,7 +11,6 @@ import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFu
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.WRONG_LENGTH_EDDSA_KEY;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewNode;
@@ -39,7 +38,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_D
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SERVICE_ENDPOINT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.KEY_REQUIRED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_NODES_CREATED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NODE_ACCOUNT_HAS_ZERO_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SERVICE_ENDPOINTS_EXCEEDED_LIMIT;
@@ -56,7 +54,6 @@ import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.node.HapiNodeCreate;
-import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.embedded.ViewNodeOp;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
@@ -692,30 +689,9 @@ public class NodeCreateTest {
                 nodeCreate(node2, account)
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
+                        .accountId(account)
                         .hasKnownStatus(ACCOUNT_IS_LINKED_TO_A_NODE),
                 nodeDelete(node1));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> nodeCreateWithAccountLinkedToTheOtherNode() throws CertificateEncodingException {
-        final var adminKey = "adminKey";
-        final var account = "account";
-        final var node = "node";
-        return hapiTest(
-                cryptoCreate(account).balance(0L),
-                newKeyNamed(adminKey),
-                // Try to create a new node with an account that has no funds.
-                nodeCreate(node, account)
-                        .adminKey("adminKey")
-                        .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
-                        .hasKnownStatus(NODE_ACCOUNT_HAS_ZERO_BALANCE),
-                // Fund the account.
-                cryptoTransfer(TokenMovement.movingHbar(1).between(GENESIS, account)),
-                // Create a node with an account that has funds.
-                nodeCreate(node, account)
-                        .adminKey("adminKey")
-                        .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
-                nodeDelete(node));
     }
 
     private static void assertEqualServiceEndpoints(

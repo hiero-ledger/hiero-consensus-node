@@ -9,7 +9,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_ENDPOINT
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_NODES_CREATED;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.NODE_ACCOUNT_HAS_ZERO_BALANCE;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.checkDABEnabled;
 import static com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator.validateX509Certificate;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
@@ -96,8 +95,6 @@ public class NodeCreateHandler implements TransactionHandler {
 
         validateFalse(nodeStore.sizeOfState() >= nodeConfig.maxNumber(), MAX_NODES_CREATED);
         validateTrue(accountStore.contains(accountId), INVALID_NODE_ACCOUNT_ID);
-        final var account = accountStore.getAccountById(accountId);
-        validateTrue(account.tinybarBalance() > 0, NODE_ACCOUNT_HAS_ZERO_BALANCE);
         validateTrue(accountNodeRelStore.get(accountId) == null, ACCOUNT_IS_LINKED_TO_A_NODE);
         addressBookValidator.validateDescription(op.description(), nodeConfig);
         addressBookValidator.validateGossipEndpoint(op.gossipEndpoint(), nodeConfig);
