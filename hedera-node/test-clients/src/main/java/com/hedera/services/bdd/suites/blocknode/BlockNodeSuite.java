@@ -945,7 +945,8 @@ public class BlockNodeSuite {
                         byNodeId(0), "Block node is behind and block state is not available", Duration.ofSeconds(0)),
                 assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Received EndOfStream response", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContainText(byNodeId(0), "Sending EndStream (code=", Duration.ofSeconds(0)),
+                assertBlockNodeCommsLogDoesNotContainText(
+                        byNodeId(0), "Sending EndStream (code=", Duration.ofSeconds(0)),
 
                 // Connection state transition error assertions
                 assertBlockNodeCommsLogDoesNotContainText(byNodeId(0), "Handling failed stream", Duration.ofSeconds(0)),
@@ -1005,7 +1006,8 @@ public class BlockNodeSuite {
                         Duration.ofSeconds(0)),
 
                 // Configuration and setup error assertions
-                assertBlockNodeCommsLogDoesNotContainText(byNodeId(0), "streaming is not enabled", Duration.ofSeconds(0)),
+                assertBlockNodeCommsLogDoesNotContainText(
+                        byNodeId(0), "streaming is not enabled", Duration.ofSeconds(0)),
                 assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Failed to read block node configuration from", Duration.ofSeconds(0)),
                 assertBlockNodeCommsLogDoesNotContainText(

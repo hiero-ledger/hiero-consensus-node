@@ -30,10 +30,13 @@ public class LogContainmentOp extends UtilOp {
     private final NodeSelector selector;
     private final ExternalPath path;
     private final Containment containment;
+
     @Nullable
     private final String text;
+
     @Nullable
     private final Pattern pattern;
+
     private final Duration delay;
 
     public LogContainmentOp(
@@ -71,7 +74,8 @@ public class LogContainmentOp extends UtilOp {
             if (isThere && containment == Containment.DOES_NOT_CONTAIN) {
                 Assertions.fail("Log for node '" + node.getName() + "' contains '" + searchTerm + "' and should not");
             } else if (!isThere && containment == Containment.CONTAINS) {
-                Assertions.fail("Log for node '" + node.getName() + "' does not contain '" + searchTerm + "' but should");
+                Assertions.fail(
+                        "Log for node '" + node.getName() + "' does not contain '" + searchTerm + "' but should");
             }
         });
         return false;

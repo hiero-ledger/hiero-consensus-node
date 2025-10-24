@@ -11,7 +11,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsPattern;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupDuration;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
