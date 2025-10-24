@@ -10,7 +10,8 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContains;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsPattern;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupDuration;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -56,9 +57,9 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
                         .exposingInfoTo(info -> scheduleExpiry.set(asInstant(info.getExpirationTime())))
                         .logged(),
                 doWithStartupDuration("quiescence.tctDuration", duration -> sleepForSeconds(2 * duration.toSeconds())),
-                assertHgcaaLogContains(
+                assertHgcaaLogContainsPattern(
                         NodeSelector.byNodeId(0),
-                        "Updating quiescence command from null to QUIESCE",
+                        "Updating quiescence command from .* to QUIESCE",
                         Duration.ofSeconds(1)),
                 doWithStartupDuration("quiescence.tctDuration", duration -> sleepForSeconds(4 * duration.toSeconds())),
                 getAccountBalance("scheduledReceiver").hasTinyBars(42 * ONE_HBAR),

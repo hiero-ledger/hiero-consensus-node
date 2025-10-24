@@ -154,7 +154,7 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                         Duration.ofSeconds(45),
                         "Detected ENTRY_DELETE event for block-nodes.json.",
                         "No valid block node configurations available after file change. Connections remain stopped.")),
-                assertHgcaaLogDoesNotContain(NodeSelector.allNodes(), "ERROR", Duration.ofSeconds(5)));
+                assertHgcaaLogDoesNotContainText(NodeSelector.allNodes(), "ERROR", Duration.ofSeconds(5)));
     }
 
     @HapiTest
@@ -234,6 +234,6 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                 waitUntilNextBlocks(20).withBackgroundTraffic(true),
                 // Verify no errors in the log after the config change and all nodes are active
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(30)),
-                assertHgcaaLogDoesNotContain(NodeSelector.allNodes(), "ERROR", Duration.ofSeconds(5)));
+                assertHgcaaLogDoesNotContainText(NodeSelector.allNodes(), "ERROR", Duration.ofSeconds(5)));
     }
 }

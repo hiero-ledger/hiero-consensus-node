@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.blocks.impl.quiescence;
+package com.hedera.node.app.quiescence;
 
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.DONT_QUIESCE;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
-import com.hedera.node.app.quiescence.QuiescenceController;
 import com.swirlds.platform.system.Platform;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;

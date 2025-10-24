@@ -9,7 +9,7 @@ import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
-import static com.hedera.node.app.blocks.impl.quiescence.TctProbe.blockStreamInfoFrom;
+import static com.hedera.node.app.quiescence.TctProbe.blockStreamInfoFrom;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.blockDirFor;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.cleanUpPendingBlock;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.loadContiguousPendingBlocks;
@@ -38,8 +38,8 @@ import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.blocks.StreamingTreeHasher;
-import com.hedera.node.app.blocks.impl.quiescence.QuiescedHeartbeat;
-import com.hedera.node.app.blocks.impl.quiescence.TctProbe;
+import com.hedera.node.app.quiescence.QuiescedHeartbeat;
+import com.hedera.node.app.quiescence.TctProbe;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.info.DiskStartupNetworks.InfoType;
@@ -692,7 +692,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
             block.writer().writePbjItemAndBytes(proofItem, BlockItem.PROTOBUF.toBytes(proofItem));
             block.writer().closeCompleteBlock();
-            if (quiescenceEnabled) {
+            // Only report signatures to the quiescence controller if they were created in-memory first
+            if (quiescenceEnabled && block.contentsPath() == null) {
                 quiescenceController.blockFullySigned(block.number());
             }
             if (block.number() != blockNumber) {

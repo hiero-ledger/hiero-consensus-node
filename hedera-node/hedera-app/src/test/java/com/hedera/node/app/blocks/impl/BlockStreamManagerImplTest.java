@@ -49,7 +49,7 @@ import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
-import com.hedera.node.app.blocks.impl.quiescence.QuiescedHeartbeat;
+import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.CurrentBlockTracker;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;

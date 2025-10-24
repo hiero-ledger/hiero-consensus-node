@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.blocks.impl.quiescence;
+package com.hedera.node.app.quiescence;
 
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.BREAK_QUIESCENCE;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.DONT_QUIESCE;
@@ -16,7 +16,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
-import com.hedera.node.app.quiescence.QuiescenceController;
 import com.swirlds.platform.system.Platform;
 import java.time.Duration;
 import java.time.Instant;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.blocks.impl.quiescence;
+package com.hedera.node.app.quiescence;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;

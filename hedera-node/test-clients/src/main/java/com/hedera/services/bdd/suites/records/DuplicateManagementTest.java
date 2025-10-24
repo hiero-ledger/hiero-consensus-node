@@ -21,8 +21,8 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uncheckedSubmit;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContains;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContain;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsText;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContainText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
@@ -122,13 +122,13 @@ public class DuplicateManagementTest {
                         .setNode("666")
                         .withSubmissionStrategy(usingEventBirthRound(0L))
                         .hasAnyStatusAtAll(),
-                assertHgcaaLogDoesNotContain(
+                assertHgcaaLogDoesNotContainText(
                         byNodeId(0), "node 666 which is not in the address book", Duration.ofSeconds(1)),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, ONE_HBAR))
                         .setNode("666")
                         .withSubmissionStrategy(usingEventBirthRound(42L))
                         .hasAnyStatusAtAll(),
-                assertHgcaaLogContains(
+                assertHgcaaLogContainsText(
                         byNodeId(0), "node 666 which is not in the address book", Duration.ofSeconds(1)));
     }
 
