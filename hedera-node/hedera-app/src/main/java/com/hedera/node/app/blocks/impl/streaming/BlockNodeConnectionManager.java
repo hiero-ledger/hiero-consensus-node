@@ -106,9 +106,7 @@ public class BlockNodeConnectionManager {
      */
     private final List<BlockNodeConfig> availableBlockNodes = new ArrayList<>();
 
-    private final Map<BlockNodeConfig, Http2ClientProtocolConfig> http2ClientProtocolConfigs =
-            new ConcurrentHashMap<>();
-    private final Map<BlockNodeConfig, GrpcClientProtocolConfig> grpcClientProtocolConfigs = new ConcurrentHashMap<>();
+    private final Map<BlockNodeConfig, BlockNodeProtocolConfig> blockNodeProtocolConfigs = new ConcurrentHashMap<>();
     /**
      * Flag that indicates if this connection manager is active or not. In this case, being active means it is actively
      * processing blocks and attempting to send them to a block node.
@@ -125,7 +123,7 @@ public class BlockNodeConnectionManager {
     /**
      * The directory containing the block node connection configuration file.
      */
-    private final Path blockNodeConfigDirectory;
+    private Path blockNodeConfigDirectory;
     /**
      * The file name of the block node configuration file.
      */
@@ -254,8 +252,15 @@ public class BlockNodeConnectionManager {
 
             final byte[] jsonConfig = Files.readAllBytes(configPath);
             final BlockNodeConnectionInfo protoConfig = BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(jsonConfig));
-            extractOptionalHttp2ClientProtocolConfig(protoConfig);
-            extractOptionalGrpcClientProtocolConfig(protoConfig);
+            for (BlockNodeConfig nodeConfig : protoConfig.nodes()) {
+                blockNodeProtocolConfigs.put(
+                        nodeConfig,
+                        new BlockNodeProtocolConfig(
+                                extractOptionalHttp2ClientProtocolConfig(nodeConfig),
+                                extractOptionalGrpcClientProtocolConfig(nodeConfig),
+                                nodeConfig.maxMessageSizeBytes()));
+            }
+
             return protoConfig.nodes();
         } catch (final IOException | ParseException e) {
             logWithContext(
@@ -268,95 +273,93 @@ public class BlockNodeConnectionManager {
         }
     }
 
-    private void extractOptionalHttp2ClientProtocolConfig(BlockNodeConnectionInfo protoConfig) {
-        for (BlockNodeConfig config : protoConfig.nodes()) {
-            if (config.hasHttp2ClientProtocolConfig()) {
-                com.hedera.node.internal.network.Http2ClientProtocolConfig protocolConfig =
-                        config.http2ClientProtocolConfig();
-                Http2ClientProtocolConfig.Builder builder = Http2ClientProtocolConfig.builder();
-                if (protocolConfig != null) {
-                    if (protocolConfig.flowControlBlockTimeout() != null) {
-                        try {
-                            Duration flowControlBlockTimeout = Duration.parse(protocolConfig.flowControlBlockTimeout());
-                            builder.flowControlBlockTimeout(flowControlBlockTimeout);
-                        } catch (DateTimeParseException e) {
-                            logger.info(
-                                    "Unable to parse Http2ClientProtocolConfig flowControlBlockTimeout: {}",
-                                    protocolConfig.flowControlBlockTimeout());
-                        }
-                    }
-                    if (protocolConfig.initialWindowSize() != null) {
-                        builder.initialWindowSize(protocolConfig.initialWindowSize());
-                    }
-                    if (protocolConfig.maxFrameSize() != null) {
-                        builder.maxFrameSize(protocolConfig.maxFrameSize());
-                    }
-                    if (protocolConfig.maxHeaderListSize() != null) {
-                        builder.maxHeaderListSize(protocolConfig.maxHeaderListSize());
-                    }
-                    if (protocolConfig.name() != null) {
-                        builder.name(protocolConfig.name());
-                    }
-                    if (protocolConfig.ping() != null) {
-                        builder.ping(protocolConfig.ping());
-                    }
-                    if (protocolConfig.pingTimeout() != null) {
-                        try {
-                            Duration pingTimeout = Duration.parse(protocolConfig.pingTimeout());
-                            builder.pingTimeout(pingTimeout);
-                        } catch (DateTimeParseException e) {
-                            logger.info(
-                                    "Unable to parse Http2ClientProtocolConfig pingTimeout: {}",
-                                    protocolConfig.pingTimeout());
-                        }
-                    }
-                    if (protocolConfig.priorKnowledge() != null) {
-                        builder.priorKnowledge(protocolConfig.priorKnowledge());
+    private Http2ClientProtocolConfig extractOptionalHttp2ClientProtocolConfig(BlockNodeConfig config) {
+        if (config.hasHttp2ClientProtocolConfig()) {
+            com.hedera.node.internal.network.Http2ClientProtocolConfig protocolConfig =
+                    config.http2ClientProtocolConfig();
+            Http2ClientProtocolConfig.Builder builder = Http2ClientProtocolConfig.builder();
+            if (protocolConfig != null) {
+                if (protocolConfig.flowControlBlockTimeout() != null) {
+                    try {
+                        Duration flowControlBlockTimeout = Duration.parse(protocolConfig.flowControlBlockTimeout());
+                        builder.flowControlBlockTimeout(flowControlBlockTimeout);
+                    } catch (DateTimeParseException e) {
+                        logger.info(
+                                "Unable to parse Http2ClientProtocolConfig flowControlBlockTimeout: {}",
+                                protocolConfig.flowControlBlockTimeout());
                     }
                 }
-                http2ClientProtocolConfigs.put(config, builder.build());
+                if (protocolConfig.initialWindowSize() != null) {
+                    builder.initialWindowSize(protocolConfig.initialWindowSize());
+                }
+                if (protocolConfig.maxFrameSize() != null) {
+                    builder.maxFrameSize(protocolConfig.maxFrameSize());
+                }
+                if (protocolConfig.maxHeaderListSize() != null) {
+                    builder.maxHeaderListSize(protocolConfig.maxHeaderListSize());
+                }
+                if (protocolConfig.name() != null) {
+                    builder.name(protocolConfig.name());
+                }
+                if (protocolConfig.ping() != null) {
+                    builder.ping(protocolConfig.ping());
+                }
+                if (protocolConfig.pingTimeout() != null) {
+                    try {
+                        Duration pingTimeout = Duration.parse(protocolConfig.pingTimeout());
+                        builder.pingTimeout(pingTimeout);
+                    } catch (DateTimeParseException e) {
+                        logger.info(
+                                "Unable to parse Http2ClientProtocolConfig pingTimeout: {}",
+                                protocolConfig.pingTimeout());
+                    }
+                }
+                if (protocolConfig.priorKnowledge() != null) {
+                    builder.priorKnowledge(protocolConfig.priorKnowledge());
+                }
             }
+            return builder.build();
         }
+        return null;
     }
 
-    private void extractOptionalGrpcClientProtocolConfig(BlockNodeConnectionInfo protoConfig) {
-        for (BlockNodeConfig config : protoConfig.nodes()) {
-            if (config.hasGrpcClientProtocolConfig()) {
-                com.hedera.node.internal.network.GrpcClientProtocolConfig protocolConfig =
-                        config.grpcClientProtocolConfig();
-                GrpcClientProtocolConfig.Builder builder = GrpcClientProtocolConfig.builder();
-                if (protocolConfig != null) {
-                    if (protocolConfig.abortPollTimeExpired() != null) {
-                        builder.abortPollTimeExpired(protocolConfig.abortPollTimeExpired());
-                    }
-                    if (protocolConfig.heartbeatPeriod() != null) {
-                        try {
-                            builder.heartbeatPeriod(Duration.parse(protocolConfig.heartbeatPeriod()));
-                        } catch (DateTimeParseException e) {
-                            logger.info(
-                                    "Unable to parse GrpcClientProtocolConfig heartbeatPeriod: {}",
-                                    protocolConfig.heartbeatPeriod());
-                        }
-                    }
-                    if (protocolConfig.initBufferSize() != null) {
-                        builder.initBufferSize(protocolConfig.initBufferSize());
-                    }
-                    if (protocolConfig.name() != null) {
-                        builder.name(protocolConfig.name());
-                    }
-                    if (protocolConfig.pollWaitTime() != null) {
-                        try {
-                            builder.pollWaitTime(Duration.parse(protocolConfig.pollWaitTime()));
-                        } catch (DateTimeParseException e) {
-                            logger.info(
-                                    "Unable to parse GrpcClientProtocolConfig pollWaitTime: {}",
-                                    protocolConfig.pollWaitTime());
-                        }
+    private GrpcClientProtocolConfig extractOptionalGrpcClientProtocolConfig(BlockNodeConfig config) {
+        if (config.hasGrpcClientProtocolConfig()) {
+            com.hedera.node.internal.network.GrpcClientProtocolConfig protocolConfig =
+                    config.grpcClientProtocolConfig();
+            GrpcClientProtocolConfig.Builder builder = GrpcClientProtocolConfig.builder();
+            if (protocolConfig != null) {
+                if (protocolConfig.abortPollTimeExpired() != null) {
+                    builder.abortPollTimeExpired(protocolConfig.abortPollTimeExpired());
+                }
+                if (protocolConfig.heartbeatPeriod() != null) {
+                    try {
+                        builder.heartbeatPeriod(Duration.parse(protocolConfig.heartbeatPeriod()));
+                    } catch (DateTimeParseException e) {
+                        logger.info(
+                                "Unable to parse GrpcClientProtocolConfig heartbeatPeriod: {}",
+                                protocolConfig.heartbeatPeriod());
                     }
                 }
-                grpcClientProtocolConfigs.put(config, builder.build());
+                if (protocolConfig.initBufferSize() != null) {
+                    builder.initBufferSize(protocolConfig.initBufferSize());
+                }
+                if (protocolConfig.name() != null) {
+                    builder.name(protocolConfig.name());
+                }
+                if (protocolConfig.pollWaitTime() != null) {
+                    try {
+                        builder.pollWaitTime(Duration.parse(protocolConfig.pollWaitTime()));
+                    } catch (DateTimeParseException e) {
+                        logger.info(
+                                "Unable to parse GrpcClientProtocolConfig pollWaitTime: {}",
+                                protocolConfig.pollWaitTime());
+                    }
+                }
             }
+            return builder.build();
         }
+        return null;
     }
 
     /**
@@ -532,8 +535,7 @@ public class BlockNodeConnectionManager {
         activeConnectionRef.set(null);
         nodeStats.clear();
         availableBlockNodes.clear();
-        http2ClientProtocolConfigs.clear();
-        grpcClientProtocolConfigs.clear();
+        blockNodeProtocolConfigs.clear();
     }
 
     private void closeAllConnections() {
@@ -1207,18 +1209,10 @@ public class BlockNodeConnectionManager {
     }
 
     /**
-     * Gets the HTTP/2 client protocol configurations for all block nodes.
-     * @return a map of BlockNodeConfig to Http2ClientProtocolConfig
+     * Gets the block node protocol configurations.
+     * @return the block node protocol configurations
      */
-    public Map<BlockNodeConfig, Http2ClientProtocolConfig> getHttp2ClientProtocolConfigs() {
-        return http2ClientProtocolConfigs;
-    }
-
-    /**
-     * Gets the gRPC client protocol configurations for all block nodes.
-     * @return a map of BlockNodeConfig to GrpcClientProtocolConfig
-     */
-    public Map<BlockNodeConfig, GrpcClientProtocolConfig> getGrpcClientProtocolConfigs() {
-        return grpcClientProtocolConfigs;
+    public Map<BlockNodeConfig, BlockNodeProtocolConfig> getBlockNodeProtocolConfigs() {
+        return blockNodeProtocolConfigs;
     }
 }

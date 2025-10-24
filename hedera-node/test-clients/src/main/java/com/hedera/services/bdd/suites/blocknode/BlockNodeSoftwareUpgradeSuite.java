@@ -110,7 +110,7 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                     final var node0Port = spec.getBlockNodePortById(0);
                     List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
                     blockNodes.add(new com.hedera.node.internal.network.BlockNodeConfig(
-                            "localhost", node0Port, 0, null, null));
+                            "localhost", node0Port, 0, null, null, null));
                     BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
                     try {
                         // Write the config to this consensus node's block-nodes.json
