@@ -70,9 +70,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * A network of Hedera nodes started in subprocesses and accessed via gRPC. Unlike
- * nodes in a remote or embedded network, its nodes support lifecycle operations like
- * stopping and restarting.
+ * A network of Hedera nodes started in subprocesses and accessed via gRPC. Unlike nodes in a remote or embedded
+ * network, its nodes support lifecycle operations like stopping and restarting.
  */
 public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetwork {
     public static final String SHARED_NETWORK_NAME = "SHARED_NETWORK";
@@ -116,8 +115,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private final Map<Long, List<String>> applicationPropertyOverrides = new HashMap<>();
 
     /**
-     * Wraps a runnable, allowing us to defer running it until we know we are the privileged runner
-     * out of potentially several concurrent threads.
+     * Wraps a runnable, allowing us to defer running it until we know we are the privileged runner out of potentially
+     * several concurrent threads.
      */
     private static class DeferredRun {
         private static final Duration SCHEDULING_TIMEOUT = Duration.ofSeconds(10);
@@ -199,8 +198,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     }
 
     /**
-     * Returns the network type; for now this is always
-     * {@link TargetNetworkType#SUBPROCESS_NETWORK}.
+     * Returns the network type; for now this is always {@link TargetNetworkType#SUBPROCESS_NETWORK}.
      *
      * @return the network type
      */
@@ -223,6 +221,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
 
     /**
      * Add a listener to be notified when the network is ready.
+     *
      * @param listener the listener to notify when the network is ready
      */
     public void onReady(@NonNull final Consumer<HederaNetwork> listener) {
@@ -296,7 +295,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     /**
      * Updates the account id for the node with the given id.
      *
-     * @param nodeId the node id
+     * @param nodeId    the node id
      * @param accountId the account id
      */
     public void updateNodeAccount(final long nodeId, final AccountID accountId) {
@@ -310,6 +309,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
 
     /**
      * Sets a one-time use customizer for use during the next {@literal override-network.json} refresh.
+     *
      * @param overrideCustomizer the customizer to apply to the override network
      */
     public void setOneTimeOverrideCustomizer(@NonNull final UnaryOperator<Network> overrideCustomizer) {
@@ -349,8 +349,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     }
 
     /**
-     * Removes the matching node from the network and updates the <i>config.txt</i> file for the remaining nodes
-     * from the given source.
+     * Removes the matching node from the network and updates the <i>config.txt</i> file for the remaining nodes from
+     * the given source.
      *
      * @param selector the selector for the node to remove
      */
@@ -365,8 +365,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     }
 
     /**
-     * Adds a node with the given id to the network and updates the <i>config.txt</i> file for the remaining nodes
-     * from the given source.
+     * Adds a node with the given id to the network and updates the <i>config.txt</i> file for the remaining nodes from
+     * the given source.
      *
      * @param nodeId the id of the node to add
      */
@@ -409,8 +409,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     }
 
     /**
-     * Returns the gossip endpoints that can be automatically managed by this {@link SubProcessNetwork}
-     * for the given node id.
+     * Returns the gossip endpoints that can be automatically managed by this {@link SubProcessNetwork} for the given
+     * node id.
      *
      * @return the gossip endpoints
      */
@@ -422,8 +422,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     }
 
     /**
-     * Returns the gRPC endpoint that can be automatically managed by this {@link SubProcessNetwork}
-     * for the given node id.
+     * Returns the gRPC endpoint that can be automatically managed by this {@link SubProcessNetwork} for the given node
+     * id.
      *
      * @return the gRPC endpoint
      */
@@ -438,8 +438,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     }
 
     /**
-     * Creates a network of live (sub-process) nodes with the given name and size. This method is
-     * synchronized because we don't want to re-use any ports across different networks.
+     * Creates a network of live (sub-process) nodes with the given name and size. This method is synchronized because
+     * we don't want to re-use any ports across different networks.
      *
      * @param name the name of the network
      * @param size the number of nodes in the network
@@ -476,8 +476,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     }
 
     /**
-     * Writes the override <i>config.txt</i> and <i>override-network.json</i> files for each node in the network,
-     * as implied by the current {@link SubProcessNetwork#configTxt} field. (Note the weights in this {@code configTxt}
+     * Writes the override <i>config.txt</i> and <i>override-network.json</i> files for each node in the network, as
+     * implied by the current {@link SubProcessNetwork#configTxt} field. (Note the weights in this {@code configTxt}
      * field are maintained in very brittle fashion by getting up-to-date values from {@code node0}'s
      * <i>candidate-roster.json</i> file during the {@link FakeNmt} operations that precede the upgrade; at some point
      * we should clean this up.)
@@ -564,7 +564,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     /**
      * Initializes the next ports for the network with the given size and first gRPC port.
      *
-     * @param size the number of nodes in the network
+     * @param size          the number of nodes in the network
      * @param firstGrpcPort the first gRPC port
      */
     public static void initializeNextPortsForNetwork(final int size, final int firstGrpcPort) {
@@ -707,10 +707,10 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     }
 
     /**
-     * Configures the log level for the block node communication package in the node's log4j2.xml file.
-     * This allows for more detailed logging of block streaming operations during tests.
+     * Configures the log level for the block node communication package in the node's log4j2.xml file. This allows for
+     * more detailed logging of block streaming operations during tests.
      *
-     * @param node the node whose logging configuration should be updated
+     * @param node     the node whose logging configuration should be updated
      * @param logLevel the log level to set (e.g., "DEBUG", "INFO", "WARN")
      */
     public void configureBlockNodeCommunicationLogLevel(
@@ -776,6 +776,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
 
     /**
      * Configure the block node mode for this network.
+     *
      * @param mode the block node mode to use
      */
     public void setBlockNodeMode(@NonNull final BlockNodeMode mode) {
