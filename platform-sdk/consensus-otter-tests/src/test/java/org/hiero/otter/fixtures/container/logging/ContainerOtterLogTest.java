@@ -23,12 +23,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 /**
  * Comprehensive integration tests for otter.log content in the Container environment.
  *
- * <p>These tests verify that:
- * <ul>
- *     <li>Only INFO level and above messages are logged</li>
- *     <li></li>
- * </ul>
- *
  * <p>Note: Per-node log routing is guaranteed by container isolation, so no explicit routing test is needed.
  */
 final class ContainerOtterLogTest {
