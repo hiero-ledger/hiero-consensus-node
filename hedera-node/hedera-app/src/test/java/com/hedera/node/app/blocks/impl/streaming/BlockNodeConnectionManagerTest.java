@@ -46,9 +46,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.BooleanSupplier;
@@ -981,156 +984,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // Verify manager remains inactive
         final AtomicBoolean isActive = isActiveFlag();
         assertThat(isActive).isFalse();
-
-        // Verify no worker thread was created
-        final AtomicReference<Thread> workerThreadRef = workerThread();
-        assertThat(workerThreadRef).hasNullValue();
-    }
-
-    @Test
-    void testBlockStreamWorkerLoop_uncheckedIOException() throws InterruptedException {
-        isActiveFlag().set(true);
-        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-        final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
-        activeConnectionRef.set(connection);
-        final AtomicLong currentStreamingBlock = streamingBlockNumber();
-        currentStreamingBlock.set(10L);
-
-        // Mock connection state to be ACTIVE so processStreamingToBlockNode proceeds
-        doReturn(ConnectionState.ACTIVE).when(connection).getConnectionState();
-
-        // Make bufferService throw UncheckedIOException
-        when(bufferService.getBlockState(10L))
-                .thenThrow(new java.io.UncheckedIOException("IO Error", new java.io.IOException("Test IO error")))
-                .thenReturn(null); // Return null on subsequent calls to allow loop to exit
-
-        final CountDownLatch doneLatch = new CountDownLatch(1);
-        final AtomicReference<Throwable> errorRef = new AtomicReference<>();
-
-        ForkJoinPool.commonPool().execute(() -> {
-            try {
-                invoke_blockStreamWorkerLoop();
-            } catch (final Throwable e) {
-                errorRef.set(e);
-            } finally {
-                doneLatch.countDown();
-            }
-        });
-
-        // Give the loop time to execute and handle the exception
-        Thread.sleep(100);
-        isActiveFlag().set(false); // stop the loop
-
-        assertThat(doneLatch.await(2, TimeUnit.SECONDS)).isTrue();
-        assertThat(errorRef).hasNullValue();
-
-        // Verify that handleStreamFailureWithoutOnComplete was called
-        verify(connection).handleStreamFailureWithoutOnComplete();
-        verify(bufferService, atLeast(1)).getBlockState(10L);
-
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(metrics);
-    }
-
-    @Test
-    void testBlockStreamWorkerLoop_uncheckedIOException_noActiveConnection() throws InterruptedException {
-        isActiveFlag().set(true);
-        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-        final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
-        final AtomicLong currentStreamingBlock = streamingBlockNumber();
-        currentStreamingBlock.set(10L);
-
-        // Start with an active connection so getBlockState gets called
-        activeConnectionRef.set(connection);
-
-        // Mock connection state to be ACTIVE so processStreamingToBlockNode proceeds
-        doReturn(ConnectionState.ACTIVE).when(connection).getConnectionState();
-
-        // Make bufferService throw UncheckedIOException on first call
-        when(bufferService.getBlockState(10L))
-                .thenThrow(new java.io.UncheckedIOException("IO Error", new java.io.IOException("Test IO error")));
-
-        final CountDownLatch doneLatch = new CountDownLatch(1);
-        final AtomicReference<Throwable> errorRef = new AtomicReference<>();
-
-        ForkJoinPool.commonPool().execute(() -> {
-            try {
-                invoke_blockStreamWorkerLoop();
-            } catch (final Throwable e) {
-                errorRef.set(e);
-            } finally {
-                doneLatch.countDown();
-            }
-        });
-
-        // Give the loop time to execute and handle the exception, then clear active connection
-        Thread.sleep(50);
-        activeConnectionRef.set(null); // Clear active connection before exception handling
-        Thread.sleep(50);
-        isActiveFlag().set(false); // stop the loop
-
-        assertThat(doneLatch.await(2, TimeUnit.SECONDS)).isTrue();
-        assertThat(errorRef).hasNullValue();
-
-        // Verify that getBlockState was called (which threw the exception)
-        verify(bufferService, atLeast(1)).getBlockState(10L);
-
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(metrics);
-    }
-
-    @Test
-    void testBlockStreamWorkerLoop_exception_noActiveConnection() throws InterruptedException {
-        isActiveFlag().set(true);
-        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-        final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
-        final AtomicLong currentStreamingBlock = streamingBlockNumber();
-        currentStreamingBlock.set(10L);
-
-        // Start with an active connection so getBlockState gets called
-        activeConnectionRef.set(connection);
-
-        // Mock connection state to be ACTIVE so processStreamingToBlockNode proceeds
-        doReturn(ConnectionState.ACTIVE).when(connection).getConnectionState();
-
-        // Add synchronization latch to ensure getBlockState is actually called before clearing connection
-        final CountDownLatch getBlockStateLatch = new CountDownLatch(1);
-
-        // Make bufferService signal AFTER getBlockState is called, THEN throw exception
-        when(bufferService.getBlockState(10L)).thenAnswer(invocation -> {
-            getBlockStateLatch.countDown(); // Signal that we're in the loop
-            throw new RuntimeException("General error");
-        });
-
-        final CountDownLatch doneLatch = new CountDownLatch(1);
-        final AtomicReference<Throwable> errorRef = new AtomicReference<>();
-
-        ForkJoinPool.commonPool().execute(() -> {
-            try {
-                invoke_blockStreamWorkerLoop();
-            } catch (final Throwable e) {
-                errorRef.set(e);
-            } finally {
-                doneLatch.countDown();
-            }
-        });
-
-        // Wait for the loop to actually call getBlockState before clearing the connection
-        assertThat(getBlockStateLatch.await(2, TimeUnit.SECONDS)).isTrue();
-
-        // Now it's safe to clear the connection
-        activeConnectionRef.set(null);
-        Thread.sleep(50);
-        isActiveFlag().set(false); // stop the loop
-
-        assertThat(doneLatch.await(2, TimeUnit.SECONDS)).isTrue();
-        assertThat(errorRef).hasNullValue();
-
-        // Verify that getBlockState was called (which threw the exception)
-        verify(bufferService, atLeast(1)).getBlockState(10L);
-
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(metrics);
     }
 
     @Test
