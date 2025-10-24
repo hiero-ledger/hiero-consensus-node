@@ -368,6 +368,17 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     }
 
     /**
+     * Gets the container instance for this node. This allows direct access to the underlying
+     * Testcontainers container for operations like retrieving console logs.
+     *
+     * @return the container instance
+     */
+    @NonNull
+    public ContainerImage container() {
+        return container;
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override
