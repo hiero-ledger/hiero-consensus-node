@@ -23,6 +23,7 @@ import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.contract.ContractDeleteTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
+import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
 import com.hedera.node.app.service.contract.impl.records.ContractDeleteStreamBuilder;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -105,9 +106,15 @@ public class ContractDeleteHandler implements TransactionHandler {
         validateFalse(toBeDeleted.accountIdOrThrow().equals(obtainer.accountIdOrThrow()), OBTAINER_SAME_CONTRACT_ID);
         final var recordBuilder = context.savepointStack().getBaseBuilder(ContractDeleteStreamBuilder.class);
         final var deletedId = toBeDeleted.accountIdOrThrow();
+        final var accountNodeRelStore = context.storeFactory().readableStore(ReadableAccountNodeRelStore.class);
         context.storeFactory()
                 .serviceApi(TokenServiceApi.class)
-                .deleteAndTransfer(deletedId, obtainer.accountIdOrThrow(), context.expiryValidator(), recordBuilder);
+                .deleteAndTransfer(
+                        deletedId,
+                        obtainer.accountIdOrThrow(),
+                        context.expiryValidator(),
+                        recordBuilder,
+                        accountNodeRelStore);
         recordBuilder.contractID(asNumericContractId(entityIdFactory, deletedId));
     }
 

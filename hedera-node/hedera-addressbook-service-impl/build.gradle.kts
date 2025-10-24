@@ -6,6 +6,7 @@ description = "Default Hedera AddressBook Service Implementation"
 mainModuleInfo { annotationProcessor("dagger.compiler") }
 
 testModuleInfo {
+    requires("com.hedera.node.app")
     requires("com.hedera.node.app.service.entityid.impl")
     requires("com.hedera.node.config.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
