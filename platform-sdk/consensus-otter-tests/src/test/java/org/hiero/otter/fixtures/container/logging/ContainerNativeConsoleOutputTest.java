@@ -59,6 +59,20 @@ class ContainerNativeConsoleOutputTest {
                 assertThat(consoleLogs)
                         .as("Console output should contain 'Init request completed.' message")
                         .contains("Init request completed.");
+
+                // Verify that the log contains expected log messages from swirlds.log
+                assertThat(consoleLogs)
+                        .as("Console output should contain 'No saved states were found on disk' entry")
+                        .contains("No saved states were found on disk");
+                assertThat(consoleLogs)
+                        .as("Console output should contain 'Starting with roster history' message")
+                        .contains("Starting with roster history");
+                assertThat(consoleLogs)
+                        .as("Console output should contain 'CHECKING. Now in ACTIVE' message")
+                        .contains("CHECKING. Now in ACTIVE");
+                assertThat(consoleLogs)
+                        .as("Console output should contain '// Node is Starting //' message")
+                        .contains("// Node is Starting //");
             }
         } finally {
             env.destroy();
