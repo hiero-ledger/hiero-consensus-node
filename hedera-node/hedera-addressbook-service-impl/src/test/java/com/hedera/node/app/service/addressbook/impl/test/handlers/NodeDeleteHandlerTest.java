@@ -168,8 +168,8 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
     }
 
     @Test
-    @DisplayName("Handle works as expected")
-    void handleWorksAsExpected() {
+    @DisplayName("Handle removes node from state")
+    void handleRemovesNodeFromState() {
         final var txn = newDeleteTxn().nodeDeleteOrThrow();
 
         final var existingNode = writableStore.get(WELL_KNOWN_NODE_ID);
@@ -184,30 +184,8 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
 
         subject.handle(handleContext);
 
-        final var changedFile = writableStore.get(WELL_KNOWN_NODE_ID);
-
-        assertThat(changedFile).isNotNull();
-        assertThat(changedFile.deleted()).isTrue();
-    }
-
-    @Test
-    @DisplayName("Node already deleted returns error")
-    void noFileKeys() {
-        givenValidNode(true);
-        refreshStoresWithCurrentNodeInBothReadableAndWritable();
-
-        final var txn = newDeleteTxn().nodeDeleteOrThrow();
-
-        final var existingNode = writableStore.get(WELL_KNOWN_NODE_ID);
-        assertThat(existingNode).isNotNull();
-        assertThat(existingNode.deleted()).isTrue();
-
-        given(handleContext.body())
-                .willReturn(TransactionBody.newBuilder().nodeDelete(txn).build());
-        given(handleContext.storeFactory()).willReturn(storeFactory);
-        given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
-        // expect:
-        assertFailsWith(() -> subject.handle(handleContext), ResponseCodeEnum.NODE_DELETED);
+        final var changed = writableStore.get(WELL_KNOWN_NODE_ID);
+        assertThat(changed).isNull();
     }
 
     @Test

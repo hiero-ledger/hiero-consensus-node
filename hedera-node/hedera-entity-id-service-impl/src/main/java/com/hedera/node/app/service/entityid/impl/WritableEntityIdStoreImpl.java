@@ -3,6 +3,7 @@ package com.hedera.node.app.service.entityid.impl;
 
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0680EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
@@ -24,6 +25,7 @@ public class WritableEntityIdStoreImpl extends ReadableEntityIdStoreImpl impleme
     private final WritableSingletonState<EntityNumber> entityIdState;
 
     private final WritableSingletonState<EntityCounts> entityCountsState;
+    private final WritableSingletonState<EntityNumber> highestNodeIdState;
 
     /**
      * Create a new {@link WritableEntityIdStoreImpl} instance.
@@ -35,6 +37,7 @@ public class WritableEntityIdStoreImpl extends ReadableEntityIdStoreImpl impleme
         requireNonNull(states);
         this.entityIdState = states.getSingleton(ENTITY_ID_STATE_ID);
         this.entityCountsState = states.getSingleton(ENTITY_COUNTS_STATE_ID);
+        this.highestNodeIdState = states.getSingleton(HIGHEST_NODE_ID_STATE_ID);
     }
 
     @Override
@@ -48,6 +51,20 @@ public class WritableEntityIdStoreImpl extends ReadableEntityIdStoreImpl impleme
         final var newEntityNum = peekAtNextNumber();
         entityIdState.put(new EntityNumber(newEntityNum));
         return newEntityNum;
+    }
+
+    @Override
+    public long peekAtNextNodeId() {
+        final var current = highestNodeIdState.get();
+        // If null, no node assigned yet; start at 0
+        return current == null ? 0 : current.number() + 1;
+    }
+
+    @Override
+    public long incrementHighestNodeIdAndGet() {
+        final var next = peekAtNextNodeId();
+        highestNodeIdState.put(new EntityNumber(next));
+        return next;
     }
 
     @Override

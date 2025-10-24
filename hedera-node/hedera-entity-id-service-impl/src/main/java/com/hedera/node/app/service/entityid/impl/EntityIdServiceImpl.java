@@ -4,6 +4,7 @@ package com.hedera.node.app.service.entityid.impl;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema;
 import com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema;
+import com.hedera.node.app.service.entityid.impl.schemas.V0680EntityIdSchema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -17,5 +18,6 @@ public class EntityIdServiceImpl extends EntityIdService {
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         registry.register(new V0490EntityIdSchema());
         registry.register(new V0590EntityIdSchema());
+        registry.register(new V0680EntityIdSchema());
     }
 }

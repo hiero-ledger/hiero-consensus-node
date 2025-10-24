@@ -25,6 +25,8 @@ public class ReadableEntityIdStoreImpl implements ReadableEntityIdStore {
 
     private final ReadableSingletonState<EntityCounts> entityCountsState;
 
+    private final ReadableSingletonState<EntityNumber> highestNodeIdState;
+
     /**
      * Create a new {@link ReadableEntityIdStoreImpl} instance.
      *
@@ -34,6 +36,8 @@ public class ReadableEntityIdStoreImpl implements ReadableEntityIdStore {
         requireNonNull(states);
         this.entityIdState = states.getSingleton(ENTITY_ID_STATE_ID);
         this.entityCountsState = states.getSingleton(ENTITY_COUNTS_STATE_ID);
+        this.highestNodeIdState = states.getSingleton(
+                com.hedera.node.app.service.entityid.impl.schemas.V0680EntityIdSchema.HIGHEST_NODE_ID_STATE_ID);
     }
 
     /**
@@ -45,6 +49,12 @@ public class ReadableEntityIdStoreImpl implements ReadableEntityIdStore {
     public long peekAtNextNumber() {
         final var oldEntityNum = entityIdState.get();
         return oldEntityNum == null ? 1 : oldEntityNum.number() + 1;
+    }
+
+    @Override
+    public long peekAtNextNodeId() {
+        final var current = highestNodeIdState.get();
+        return current == null ? 0 : current.number() + 1;
     }
 
     // Add all getters for number of entities

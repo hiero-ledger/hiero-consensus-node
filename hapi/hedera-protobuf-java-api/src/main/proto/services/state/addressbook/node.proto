@@ -126,7 +126,7 @@ message Node {
      * If this field is set, then any `nodeUpdate` transaction to modify this
      * node SHALL fail.
      */
-    bool deleted = 9;
+    bool deleted = 9 [deprecated = true];
 
     /**
      * An administrative key controlled by the node operator.
