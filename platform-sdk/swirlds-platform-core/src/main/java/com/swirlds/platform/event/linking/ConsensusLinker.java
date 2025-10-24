@@ -96,14 +96,14 @@ public class ConsensusLinker {
         final EventImpl linkedEvent = new EventImpl(event, selfParent, otherParent);
         EventCounter.incrementLinkedEventCount();
 
+        final EventDescriptorWrapper eventDescriptorWrapper = event.getDescriptor();
+        parentDescriptorMap.put(eventDescriptorWrapper, linkedEvent);
+        parentHashMap.put(eventDescriptorWrapper.hash(), linkedEvent);
+
         final int index = event.getIndex();
         if (index > 0) {
             TimestampCollector.timestamp(TimestampCollector.Position.PARENTS_LINKED, index);
         }
-
-        final EventDescriptorWrapper eventDescriptorWrapper = event.getDescriptor();
-        parentDescriptorMap.put(eventDescriptorWrapper, linkedEvent);
-        parentHashMap.put(eventDescriptorWrapper.hash(), linkedEvent);
 
         return linkedEvent;
     }

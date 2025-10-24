@@ -9,6 +9,7 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.Consensus;
 import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.TimestampCollector;
+import com.swirlds.platform.TimestampCollector.Position;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.event.linking.ConsensusLinker;
@@ -100,6 +101,11 @@ public class DefaultConsensusEngine implements ConsensusEngine {
     public ConsensusEngineOutput addEvent(@NonNull final PlatformEvent event) {
         Objects.requireNonNull(event);
 
+        final int currentIndex = event.getIndex();
+        if (currentIndex > 0) {
+            TimestampCollector.timestamp(Position.EVENT_ADDED_TO_HASHGRAPH, currentIndex);
+        }
+
         if (freezeRoundController.isFrozen()) {
             // If we are frozen, ignore all events
             return ConsensusEngineOutput.emptyInstance();
@@ -109,9 +115,8 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         if (consensusRelevantEvent == null) {
             // The event is either a future event or an ancient event.
             // If it is a future event, it will be added later when the event window is updated.
-            final int index = event.getIndex();
-            if (index > 0) {
-                TimestampCollector.timestamp(TimestampCollector.Position.FUTURE_BUFFER_ENTERED, index);
+            if (currentIndex > 0) {
+                TimestampCollector.timestamp(TimestampCollector.Position.FUTURE_BUFFER_ENTERED, currentIndex);
             }
             return ConsensusEngineOutput.emptyInstance();
         }
