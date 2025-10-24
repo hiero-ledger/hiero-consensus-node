@@ -969,9 +969,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             while ((item = block.blockItem(itemIndex)) != null) {
                 if (itemIndex == 0) {
                     logger.trace(
-                            "{} Starting to process items for block {}",
-                            BlockNodeConnection.this,
-                            block.blockNumber());
+                            "{} Starting to process items for block {}", BlockNodeConnection.this, block.blockNumber());
                 }
 
                 final int itemSize = item.protobufSize();
@@ -1054,12 +1052,10 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     return true;
                 }
             } catch (final UncheckedIOException e) {
-                logger.debug("{} UncheckedIOException caught in connection worker thread", BlockNodeConnection.this,
-                        e);
+                logger.debug("{} UncheckedIOException caught in connection worker thread", BlockNodeConnection.this, e);
                 handleStreamFailureWithoutOnComplete();
             } catch (final Exception e) {
-                logger.debug(
-                        "{} Exception caught in connection worker thread", BlockNodeConnection.this, e);
+                logger.debug("{} Exception caught in connection worker thread", BlockNodeConnection.this, e);
                 handleStreamFailure();
             }
 
@@ -1097,7 +1093,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             // Swap blocks and reset
             if (logger.isTraceEnabled()) {
                 final long oldBlock = block == null ? -1 : block.blockNumber();
-                logger.trace("{} Worker switching from block {} to block {}",
+                logger.trace(
+                        "{} Worker switching from block {} to block {}",
                         BlockNodeConnection.this,
                         oldBlock,
                         latestActiveBlockNumber);

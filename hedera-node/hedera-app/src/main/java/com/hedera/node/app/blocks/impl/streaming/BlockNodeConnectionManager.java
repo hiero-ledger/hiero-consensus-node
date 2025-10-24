@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
-import static com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.THIRTY_SECONDS;
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static java.util.Collections.shuffle;
 import static java.util.Objects.requireNonNull;
