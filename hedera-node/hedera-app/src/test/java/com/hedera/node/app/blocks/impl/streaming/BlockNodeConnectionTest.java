@@ -33,16 +33,16 @@ import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions;
 import io.helidon.webclient.api.WebClient;
-import java.lang.reflect.Field;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.VarHandle;
+import java.lang.reflect.Field;
 import java.time.Duration;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
@@ -50,7 +50,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.block.api.BlockItemSet;
@@ -1882,7 +1881,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         // Verify close completed successfully
         verify(requestPipeline).onComplete();
-        verify(connectionManager).jumpToBlock(-1L);
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
 
@@ -1904,7 +1902,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         // Verify onComplete was not called on pipeline
         verifyNoInteractions(requestPipeline);
-        verify(connectionManager).jumpToBlock(-1L);
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
 
@@ -2046,7 +2043,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(mockFuture).cancel(true);
         verify(metrics).recordPipelineOperationTimeout();
         verify(metrics).recordConnectionClosed();
-        verify(connectionManager).jumpToBlock(-1L);
 
         // Connection should still be CLOSED despite timeout
         assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CLOSED);
@@ -2082,7 +2078,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         // Verify interruption was handled gracefully
         verify(mockFuture).get(anyLong(), any(TimeUnit.class));
         verify(metrics).recordConnectionClosed();
-        verify(connectionManager).jumpToBlock(-1L);
 
         // Connection should still be CLOSED despite interruption
         assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CLOSED);
@@ -2121,7 +2116,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(mockPipelineExecutor).shutdownNow();
 
         verify(metrics).recordConnectionClosed();
-        verify(connectionManager).jumpToBlock(-1L);
 
         // Connection should still be CLOSED despite interruption
         assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CLOSED);
