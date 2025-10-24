@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_REPEATED_IN_ACC
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CANNOT_SET_HOOKS_AND_APPROVAL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_TOKEN_TRANSFER_ACCOUNT_AMOUNTS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
@@ -16,7 +17,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_ID_REPEATED_IN_TO
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_TRANSFER_LIST_SIZE_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSFERS_NOT_ZERO_SUM_FOR_TOKEN;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSFER_LIST_SIZE_LIMIT_EXCEEDED;
-import static com.hedera.node.app.hapi.utils.contracts.HookUtils.hasHooks;
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.hasHookExecutions;
 import static com.hedera.node.app.spi.validation.Validations.validateAccountID;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
@@ -30,7 +31,8 @@ import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.HooksConfig;
@@ -88,17 +90,22 @@ public class CryptoTransferValidator {
      * @param op the crypto transfer operation
      * @param ledgerConfig the ledger config
      * @param accountsConfig the accounts config
-     * @param hooksConfig
+     * @param hooksConfig the hooks config
+     * @param category the transaction category
      */
     public void validateSemantics(
             @NonNull final CryptoTransferTransactionBody op,
             @NonNull final LedgerConfig ledgerConfig,
             @NonNull final AccountsConfig accountsConfig,
-            @NonNull final HooksConfig hooksConfig) {
+            @NonNull final HooksConfig hooksConfig,
+            final HandleContext.TransactionCategory category) {
         final var transfers = op.transfersOrElse(TransferList.DEFAULT);
         // validate hooks are enabled if hooks are present in the transaction
-        if (hasHooks(op)) {
+        if (hasHookExecutions(op)) {
             validateTrue(hooksConfig.hooksEnabled(), HOOKS_NOT_ENABLED);
+            validateTrue(
+                    category.equals(HandleContext.TransactionCategory.USER),
+                    HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER);
         }
 
         // Validate that there aren't too many hbar transfers

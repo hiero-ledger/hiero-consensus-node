@@ -3,25 +3,25 @@ package com.hedera.statevalidation;
 
 import static com.hedera.statevalidation.compaction.Compaction.runCompaction;
 
-import com.hedera.statevalidation.parameterresolver.StateResolver;
+import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.state.MerkleNodeState;
-import picocli.CommandLine;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.ParentCommand;
 
-@CommandLine.Command(name = "compact", description = "Performs compaction of state files.")
+@Command(name = "compact", description = "Performs compaction of state files.")
 public class CompactionCommand implements Runnable {
 
-    @CommandLine.ParentCommand
+    @ParentCommand
     private StateOperatorCommand parent;
 
     private CompactionCommand() {}
 
     @Override
     public void run() {
-        System.setProperty("state.dir", parent.getStateDir().getAbsolutePath());
-
+        parent.initializeStateDir();
         try {
-            final DeserializedSignedState deserializedSignedState = StateResolver.initState();
+            final DeserializedSignedState deserializedSignedState = StateUtils.getDeserializedSignedState();
             final MerkleNodeState merkleNodeState =
                     deserializedSignedState.reservedSignedState().get().getState();
             runCompaction(merkleNodeState);

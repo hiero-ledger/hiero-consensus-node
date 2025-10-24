@@ -55,10 +55,10 @@ import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
@@ -187,7 +187,7 @@ public class HevmTransactionFactory {
         return new HederaEvmTransaction(
                 payer,
                 null,
-                HTS_HOOKS_CONTRACT_ID,
+                entityIdFactory.newContractId(HTS_HOOKS_CONTRACT_ID.contractNumOrThrow()),
                 NOT_APPLICABLE,
                 body.executionOrThrow().callOrThrow().evmHookCallOrThrow().data(),
                 null,

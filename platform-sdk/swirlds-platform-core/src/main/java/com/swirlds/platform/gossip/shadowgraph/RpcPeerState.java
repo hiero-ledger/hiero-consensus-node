@@ -57,7 +57,7 @@ class RpcPeerState {
 
     /**
      * Clear internal state in preparation for a new sync in the future. In particular, this method closes
-     * {@link #shadowWindow} if one was allocated previously.
+     * {@link #shadowWindow} if one was allocated previously. It does NOT clear peerStillSendingEvents.
      *
      * @param lastSyncTime time when synchronization has finished, in most cases same as time when this method is
      *                     called

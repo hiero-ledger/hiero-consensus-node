@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.operations;
 
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.*;
+import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.DefaultExceptionalHaltReason.INVALID_OPERATION;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -13,6 +14,7 @@ import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomCallCodeOperation;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
+import com.hedera.node.app.service.contract.impl.exec.utils.InvalidAddressContext;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
@@ -65,10 +67,13 @@ class CustomCallCodeOperationTest {
 
     @Test
     void catchesUnderflowWhenStackIsEmpty() {
-        givenWellKnownFrameWithNoGasCalcNoValue(NON_SYSTEM_LONG_ZERO_ADDRESS, 2L);
-        given(frame.getStackItem(1)).willThrow(UnderflowException.class);
-        final var expected = new Operation.OperationResult(0L, ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS);
-        assertSameResult(expected, subject.execute(frame, evm));
+        try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
+            frameUtils.when(() -> FrameUtils.isHookExecution(frame)).thenReturn(false);
+            givenWellKnownFrameWithNoGasCalcNoValue(NON_SYSTEM_LONG_ZERO_ADDRESS, 2L);
+            given(frame.getStackItem(1)).willThrow(UnderflowException.class);
+            final var expected = new Operation.OperationResult(0L, ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS);
+            assertSameResult(expected, subject.execute(frame, evm));
+        }
     }
 
     @Test
@@ -76,11 +81,22 @@ class CustomCallCodeOperationTest {
         try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
             doCallRealMethod().when(addressChecks).isNeitherSystemNorPresent(any(), any());
             givenWellKnownFrameWith(1L, NON_SYSTEM_LONG_ZERO_ADDRESS, 2L);
+            frameUtils.when(() -> FrameUtils.invalidAddressContext(frame)).thenReturn(new InvalidAddressContext());
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
             frameUtils
                     .when(() -> FrameUtils.contractRequired(frame, NON_SYSTEM_LONG_ZERO_ADDRESS, featureFlags))
                     .thenReturn(true);
             final var expected = new Operation.OperationResult(REQUIRED_GAS, INVALID_SOLIDITY_ADDRESS);
+            assertSameResult(expected, subject.execute(frame, evm));
+        }
+    }
+
+    @Test
+    void rejectsCallCodeDuringHookExecution() {
+        try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
+            frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
+            frameUtils.when(() -> FrameUtils.isHookExecution(frame)).thenReturn(true);
+            final var expected = new Operation.OperationResult(0, INVALID_OPERATION);
             assertSameResult(expected, subject.execute(frame, evm));
         }
     }

@@ -18,7 +18,8 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.token.TokenAirdropTransactionBody;
 import com.hedera.hapi.node.token.TokenClaimAirdropTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.ids.AppEntityIdFactory;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
 import com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler;
 import com.hedera.node.app.service.token.impl.handlers.TokenAirdropHandler;
 import com.hedera.node.app.service.token.impl.handlers.TokenClaimAirdropHandler;
@@ -27,6 +28,7 @@ import com.hedera.node.app.service.token.impl.test.handlers.transfer.StepsBase;
 import com.hedera.node.app.service.token.impl.util.PendingAirdropUpdater;
 import com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator;
 import com.hedera.node.app.service.token.impl.validators.TokenAirdropValidator;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import java.util.Arrays;
 import java.util.List;
@@ -77,6 +79,7 @@ class CryptoTransferHandlerTestBase extends StepsBase {
     protected TokenClaimAirdropHandler tokenClaimAirdropHandler;
     protected CryptoTransferValidator validator;
     protected PendingAirdropUpdater pendingAirdropUpdater;
+    protected final EntityIdFactory entityIdFactory = new FakeEntityIdFactoryImpl(0, 0);
 
     @Mock
     protected HandleContext.SavepointStack stack;
@@ -89,11 +92,12 @@ class CryptoTransferHandlerTestBase extends StepsBase {
         super.setUp();
         validator = new CryptoTransferValidator(new AppEntityIdFactory(configuration));
         tokenAirdropValidator = new TokenAirdropValidator();
-        subject = new CryptoTransferHandler(validator, hookCallFactory);
-        tokenAirdropHandler = new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallFactory);
+        subject = new CryptoTransferHandler(validator, hookCallFactory, entityIdFactory);
+        tokenAirdropHandler =
+                new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallFactory, entityIdFactory);
         pendingAirdropUpdater = new PendingAirdropUpdater();
-        tokenClaimAirdropHandler =
-                new TokenClaimAirdropHandler(tokenAirdropValidator, validator, pendingAirdropUpdater, hookCallFactory);
+        tokenClaimAirdropHandler = new TokenClaimAirdropHandler(
+                tokenAirdropValidator, validator, pendingAirdropUpdater, hookCallFactory, entityIdFactory);
     }
 
     protected TransactionBody newCryptoTransfer(final AccountAmount... acctAmounts) {
