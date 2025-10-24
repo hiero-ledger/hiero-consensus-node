@@ -451,6 +451,14 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
         return this;
     }
 
+    public HapiCryptoTransfer withNftReceiverPreHookFor(
+            final String account, final long hookId, final long gasLimit, final ByteString dataUtf8) {
+        nftReceiverHooksByAccount
+                .computeIfAbsent(account, k -> new ArrayList<>())
+                .add(HookSpec.pre(hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : dataUtf8));
+        return this;
+    }
+
     public HapiCryptoTransfer withNftReceiverPrePostHookFor(
             final String account, final long hookId, final long gasLimit, final String dataUtf8) {
         nftReceiverHooksByAccount

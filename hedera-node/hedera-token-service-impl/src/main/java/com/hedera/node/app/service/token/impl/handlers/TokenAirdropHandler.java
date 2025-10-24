@@ -36,6 +36,7 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.AccountPendingAirdrop;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAirdropStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
@@ -85,8 +86,9 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
     public TokenAirdropHandler(
             @NonNull final TokenAirdropValidator validator,
             @NonNull final CryptoTransferValidator cryptoTransferValidator,
-            @NonNull final HookCallFactory hookCallFactory) {
-        super(cryptoTransferValidator, hookCallFactory);
+            @NonNull final HookCallFactory hookCallFactory,
+            @NonNull final EntityIdFactory entityIdFactory) {
+        super(cryptoTransferValidator, hookCallFactory, entityIdFactory);
         this.validator = validator;
     }
 

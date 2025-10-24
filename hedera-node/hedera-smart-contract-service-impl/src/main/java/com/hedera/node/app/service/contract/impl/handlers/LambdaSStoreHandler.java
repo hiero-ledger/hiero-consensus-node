@@ -115,9 +115,6 @@ public class LambdaSStoreHandler implements TransactionHandler {
     }
 
     private void validateEntry(@NonNull final LambdaMappingEntry entry) throws PreCheckException {
-        if (entry.hasKey()) {
-            validateWord(entry.keyOrThrow());
-        }
         validateWord(entry.value());
     }
 

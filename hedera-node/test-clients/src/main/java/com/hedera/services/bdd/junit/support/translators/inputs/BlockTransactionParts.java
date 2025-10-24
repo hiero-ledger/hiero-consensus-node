@@ -45,7 +45,7 @@ import java.util.Optional;
  */
 public record BlockTransactionParts(
         @Nullable TransactionParts transactionParts,
-        @NonNull TransactionResult transactionResult,
+        @Nullable TransactionResult transactionResult,
         @Nullable List<TraceData> traces,
         @Nullable List<TransactionOutput> outputs,
         boolean isTopLevel,
@@ -271,5 +271,9 @@ public record BlockTransactionParts(
      */
     public List<AssessedCustomFee> assessedCustomFees() {
         return transactionResult().assessedCustomFees();
+    }
+
+    public boolean hasResult() {
+        return transactionResult != null;
     }
 }

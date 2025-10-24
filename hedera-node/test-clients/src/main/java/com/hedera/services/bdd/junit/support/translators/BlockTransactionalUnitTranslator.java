@@ -29,6 +29,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PREPROCESSING_
 import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_ASSEMBLY_SIGNATURE;
 import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_PROOF_KEY_PUBLICATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_PROOF_VOTE;
+import static com.hedera.hapi.node.base.HederaFunctionality.LAMBDA_S_STORE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_STAKE_UPDATE;
@@ -36,6 +37,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.NODE_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_SIGN;
+import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_UNDELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ACCOUNT_WIPE;
@@ -140,6 +142,7 @@ public class BlockTransactionalUnitTranslator {
                     put(FILE_UPDATE, new FileUpdateTranslator());
                     put(FILE_APPEND, new FileAppendTranslator());
                     put(FREEZE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(LAMBDA_S_STORE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(NODE_CREATE, new NodeCreateTranslator());
                     put(NODE_DELETE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(NODE_UPDATE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
@@ -147,6 +150,7 @@ public class BlockTransactionalUnitTranslator {
                     put(SCHEDULE_CREATE, new ScheduleCreateTranslator());
                     put(SCHEDULE_DELETE, new ScheduleDeleteTranslator());
                     put(SCHEDULE_SIGN, new ScheduleSignTranslator());
+                    put(STATE_SIGNATURE_TRANSACTION, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(SYSTEM_DELETE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(SYSTEM_UNDELETE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(TOKEN_AIRDROP, new TokenAirdropTranslator());
@@ -222,9 +226,13 @@ public class BlockTransactionalUnitTranslator {
                     // Remove the traces that are part of this transaction from the following traces
                     followingTraces.removeAll(blockTransactionParts.tracesOrThrow());
                 }
-                final var translation = translator.translate(
-                        blockTransactionParts, baseTranslator, remainingStateChanges, tracesSoFar, followingTraces);
-                translatedRecords.add(translation);
+                if (blockTransactionParts.functionality() != STATE_SIGNATURE_TRANSACTION
+                        && blockTransactionParts.hasResult()
+                        && blockTransactionParts.transactionParts() != null) {
+                    final var translation = translator.translate(
+                            blockTransactionParts, baseTranslator, remainingStateChanges, tracesSoFar, followingTraces);
+                    translatedRecords.add(translation);
+                }
             }
         }
         baseTranslator.finishLastUnit();

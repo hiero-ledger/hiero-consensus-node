@@ -1919,4 +1919,10 @@ enum ResponseCodeEnum {
      * consensus node.
      */
     ACCOUNT_IS_LINKED_TO_A_NODE = 524;
+
+    /**
+     *  Hooks are not supported to be used in Batch transactions and Scheduled transactions.
+     * They are only supported in a top level CryptoTransfer transaction.
+     */
+    HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER = 525;
 }
