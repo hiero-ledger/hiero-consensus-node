@@ -7,6 +7,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
+import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -139,5 +140,9 @@ public class ChildFeeContextImpl implements FeeContext {
     private Key getPayerKey() {
         final var account = context.readableStore(ReadableAccountStore.class).getAccountById(payerId);
         return computeFeesAsInternalDispatch || account == null ? Key.DEFAULT : account.keyOrThrow();
+    }
+
+    public ExchangeRate activeRate() {
+        return context.activeRate();
     }
 }

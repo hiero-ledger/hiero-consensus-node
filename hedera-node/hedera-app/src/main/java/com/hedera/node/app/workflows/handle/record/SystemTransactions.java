@@ -72,6 +72,7 @@ import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.ConsensusConfig;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -108,6 +109,7 @@ import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.roster.ReadableRosterStore;
+import org.hiero.hapi.support.fees.FeeSchedule;
 
 /**
  * This class is responsible for storing the system accounts created during node startup, and then creating
@@ -386,6 +388,15 @@ public class SystemTransactions {
                                 ctx, createFileID(filesConfig.hapiPermissions(), config), bytes),
                         adminConfig.upgradePermissionOverridesFile(),
                         in -> parseConfig("override HAPI permissions", in)));
+        final var feesConfig = config.getConfigData(FeesConfig.class);
+        if (feesConfig.simpleFeesEnabled()) {
+            autoSysFileUpdates.add(new AutoEntityUpdate<>(
+                    (ctx, bytes) -> dispatchSynthFileUpdate(
+                            ctx, createFileID(filesConfig.simpleFeesSchedules(), config), bytes),
+                    adminConfig.upgradeSimpleFeeSchedulesFile(),
+                    SystemTransactions::parseSimpleFeesSchedules));
+        }
+
         autoSysFileUpdates.forEach(update -> update.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext));
         final var autoNodeAdminKeyUpdates = new AutoEntityUpdate<Map<Long, Key>>(
                 (ctx, nodeAdminKeys) -> nodeAdminKeys.forEach(
@@ -868,6 +879,16 @@ public class SystemTransactions {
             final var bytes = in.readAllBytes();
             final var feeSchedules = V0490FileSchema.parseFeeSchedules(bytes);
             return CurrentAndNextFeeSchedule.PROTOBUF.toBytes(feeSchedules);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static Bytes parseSimpleFeesSchedules(@NonNull final InputStream in) {
+        try {
+            final var bytes = in.readAllBytes();
+            final var feeSchedules = V0490FileSchema.parseSimpleFeesSchedules(bytes);
+            return FeeSchedule.PROTOBUF.toBytes(feeSchedules);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

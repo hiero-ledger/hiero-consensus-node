@@ -20,7 +20,7 @@ public class StandardFeeModel extends AbstractBaseFeeModel {
     }
 
     @Override
-    public FeeResult computeFee(Map<Extra, Object> params, FeeSchedule feeSchedule) {
+    public FeeResult computeFee(Map<Extra, Long> params, FeeSchedule feeSchedule) {
         var result = this.computeNodeAndNetworkFees(params, feeSchedule);
         result.addServiceFee(
                 "Base Fee for " + this.getApi(),

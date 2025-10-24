@@ -1,9 +1,9 @@
 {
   "node": {
-    "baseFee": 1,
+    "baseFee": 100000,
     "extras": [
       {
-        "name": "SIGNATURES", "includedCount": 1
+        "name": "SIGNATURES", "includedCount": 10
       }
     ]
   },
@@ -15,9 +15,9 @@
   },
 
   "extras": [
-    { "name":  "SIGNATURES",                     "fee": 1 },
-    { "name":  "BYTES",                          "fee": 1 },
-    { "name":  "KEYS",                           "fee": 1 },
+    { "name":  "SIGNATURES",                     "fee": 60000000 },
+    { "name":  "BYTES",                          "fee": 300 },
+    { "name":  "KEYS",                           "fee": 2200000 },
     { "name":  "TOKEN_TYPES",                    "fee": 3 },
     { "name":  "NFT_SERIALS",                    "fee": 1 },
     { "name":  "ACCOUNTS",                       "fee": 3 },
@@ -27,7 +27,7 @@
     { "name":  "CUSTOM_FEE_NON_FUNGIBLE_TOKENS", "fee": 3 },
     { "name":  "CREATED_AUTO_ASSOCIATIONS",      "fee": 3 },
     { "name":  "CREATED_ACCOUNTS",               "fee": 3 },
-    { "name":  "CUSTOM_FEE",                     "fee": 30 },
+    { "name":  "CUSTOM_FEE",                     "fee": 1 },
     { "name":  "GAS",                            "fee": 1 },
     { "name":  "ALLOWANCES",                     "fee": 2000 },
     { "name":  "AIRDROPS",                       "fee": 8800 }
@@ -68,41 +68,40 @@
       "schedule": [
         {
           "name": "ConsensusCreateTopic",
-          "baseFee": 19,
+          "baseFee": 99700000,
           "extras": [
-            { "name": "SIGNATURES", "includedCount": 1 }
+            { "name": "SIGNATURES", "includedCount": 1 },
+            { "name": "KEYS", "includedCount": 0 }
           ]
         },
         {
           "name": "ConsensusUpdateTopic",
-          "baseFee": 19,
+          "baseFee": 3240000,
           "extras": [
-            { "name": "SIGNATURES", "includedCount": 1 },
+            { "name": "SIGNATURES", "includedCount": 2 },
             { "name": "KEYS",       "includedCount": 1 }
           ]
         },
         {
           "name": "ConsensusSubmitMessage",
-          "baseFee": 19,
+          "baseFee": 700000,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1 },
-            {  "name": "KEYS", "includedCount": 1      },
-            { "name": "BYTES", "includedCount": 256    }
+            { "name": "BYTES",      "includedCount": 256 }
           ]
         },
         {
           "name": "ConsensusDeleteTopic",
-          "baseFee": 5,
+          "baseFee": 21700000,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1 }
           ]
         },
         {
           "name": "ConsensusGetTopicInfo",
-          "baseFee": 1,
+          "baseFee": 5000000,
           "extras": [
-            { "name": "SIGNATURES", "includedCount": 1      },
-            { "name": "KEYS",       "includedCount": 1      }
+            { "name": "SIGNATURES", "includedCount": 1 }
           ]
         }
       ]
