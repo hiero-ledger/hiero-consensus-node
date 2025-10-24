@@ -126,7 +126,7 @@ public class StartFromStateTest {
         // Override the keys and certificates for all nodes
         // Otter will automatically update the roster history with the new certs
         final SecureRandom secureRandom = DetRandomProvider.getDetRandom();
-        secureRandom.setSeed(new byte[]{1, 2, 3});
+        secureRandom.setSeed(new byte[] {1, 2, 3});
         for (final Node node : network.nodes()) {
             node.keysAndCerts(KeysAndCertsGenerator.generate(node.selfId(), secureRandom, secureRandom));
         }
