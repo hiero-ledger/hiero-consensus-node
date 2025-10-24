@@ -186,7 +186,8 @@ public abstract class AbstractNode implements Node {
     }
 
     @Override
-    public void keysAndCerts(final KeysAndCerts keysAndCerts) {
+    public void keysAndCerts(@NonNull final KeysAndCerts keysAndCerts) {
+        throwIsNotInLifecycle(LifeCycle.INIT, "KeysAndCerts can only be set during initialization");
         this.keysAndCerts = requireNonNull(keysAndCerts);
     }
 

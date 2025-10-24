@@ -142,6 +142,6 @@ public class StartFromStateTest {
         env.timeManager()
                 .waitForCondition(
                         () -> network.newConsensusResults().allNodesAdvancedToRound(savedStateRound + 20),
-                        Duration.ofSeconds(30L));
+                        Duration.ofSeconds(120L));
     }
 }

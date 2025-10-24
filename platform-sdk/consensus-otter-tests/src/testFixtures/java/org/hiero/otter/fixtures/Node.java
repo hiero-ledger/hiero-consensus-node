@@ -143,11 +143,11 @@ public interface Node {
 
     /**
      * Sets the keys and certificates of the node. These signing certificates will become part of the new roster. This
-     * method can only be called while the node is not running.
+     * method can only be called while the node has not been started yet.
      *
      * @param keysAndCerts the new keys and certificates
      */
-    void keysAndCerts(KeysAndCerts keysAndCerts);
+    void keysAndCerts(@NonNull KeysAndCerts keysAndCerts);
 
     /**
      * Returns the status of the platform while the node is running or {@code null} if not.
