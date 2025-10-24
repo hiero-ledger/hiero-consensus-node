@@ -12,6 +12,7 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.node.app.service.addressbook.AddressBookService;
+import com.hedera.node.app.service.entityid.impl.schemas.V0680EntityIdSchema;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
@@ -59,10 +60,33 @@ public class V068AddressBookSchema extends Schema<SemanticVersion> {
             final var nodeState = ctx.previousStates().get(NODES_STATE_ID);
             final var relState = ctx.newStates().get(ACCOUNT_NODE_REL_STATE_ID);
 
-            // With Virtual MegaMap, nodeState.keys() is over **every leaf in state**.
-            // Since we can't use it to iterate nodes directly, we iterate through potential
-            // node IDs (0-99) to populate the relation map, which covers our production node count.
-            for (int i = 0; i < 100; i++) {
+            // 1) Initialize highest node id from previous nodes in [0,100)
+            final var highestNodeIdState = ctx.newStates().getSingleton(V0680EntityIdSchema.HIGHEST_NODE_ID_STATE_ID);
+            long highest = -1;
+            if (highestNodeIdState.get() == null) {
+                final var prevNodes = ctx.previousStates().get(V053AddressBookSchema.NODES_STATE_ID);
+                for (long i = 0; i < 100; i++) {
+                    final var key = EntityNumber.newBuilder().number(i).build();
+                    final var node = prevNodes.get(key);
+                    if (node != null) {
+                        highest = Math.max(highest, i);
+                    }
+                }
+                highestNodeIdState.put(EntityNumber.newBuilder().number(highest).build());
+            }
+
+            // 2) Remove any nodes with deleted=true, scanning ids in [0, 100)
+            final var nodes = ctx.newStates().get(V053AddressBookSchema.NODES_STATE_ID);
+            for (long i = 0; i < 100; i++) {
+                final var key = EntityNumber.newBuilder().number(i).build();
+                final var node = (Node) nodes.get(key);
+                if (node != null && node.deleted()) {
+                    nodes.remove(key);
+                }
+            }
+
+            // 3) Populate the account-to-node relation state
+            for (int i = 0; i < highest; i++) {
                 final var nodeId = EntityNumber.newBuilder().number(i).build();
                 final var node = (Node) nodeState.get(nodeId);
                 if (node != null && node.hasAccountId()) {

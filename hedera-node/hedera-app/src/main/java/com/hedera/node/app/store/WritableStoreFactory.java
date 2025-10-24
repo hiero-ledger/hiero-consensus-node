@@ -95,7 +95,7 @@ public class WritableStoreFactory {
         newMap.put(WritableEvmHookStore.class, new StoreEntry(ContractService.NAME, WritableEvmHookStore::new));
         // EntityIdService
         newMap.put(
-                WritableEntityIdStoreImpl.class,
+                WritableEntityIdStore.class,
                 new StoreEntry(
                         EntityIdService.NAME, (states, entityCounters) -> new WritableEntityIdStoreImpl(states)));
         // Schedule Service

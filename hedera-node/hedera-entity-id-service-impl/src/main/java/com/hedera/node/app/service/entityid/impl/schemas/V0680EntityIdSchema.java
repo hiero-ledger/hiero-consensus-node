@@ -7,7 +7,6 @@ import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.platform.state.SingletonType;
-import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
@@ -40,5 +39,7 @@ public class V0680EntityIdSchema extends Schema<SemanticVersion> {
     @Override
     public void migrate(@NonNull final MigrationContext ctx) {
         // No-op; initialization of the highest node id is handled in the AddressBook v0.68 schema migration.
+        final var highestNodeIdState = ctx.newStates().getSingleton(HIGHEST_NODE_ID_STATE_ID);
+        highestNodeIdState.put(EntityNumber.newBuilder().number(-1).build());
     }
 }

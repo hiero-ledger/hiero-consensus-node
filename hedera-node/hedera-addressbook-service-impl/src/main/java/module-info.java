@@ -17,7 +17,7 @@ module com.hedera.node.app.service.addressbook.impl {
     requires com.fasterxml.jackson.databind;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
-    requires static transitive java.compiler;
+    requires static transitive java.compiler; requires com.hedera.node.app.service.entityid.impl;
 
     provides com.hedera.node.app.service.addressbook.AddressBookService with
             com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;

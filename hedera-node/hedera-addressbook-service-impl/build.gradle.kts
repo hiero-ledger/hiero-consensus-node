@@ -2,6 +2,9 @@
 plugins { id("org.hiero.gradle.module.library") }
 
 description = "Default Hedera AddressBook Service Implementation"
+dependencies {
+    implementation(project(":app-service-entity-id-impl"))
+}
 
 mainModuleInfo { annotationProcessor("dagger.compiler") }
 
