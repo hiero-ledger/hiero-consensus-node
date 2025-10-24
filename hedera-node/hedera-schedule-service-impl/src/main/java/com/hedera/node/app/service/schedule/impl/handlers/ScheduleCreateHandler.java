@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.schedule.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_ID_DOES_NOT_EXIST;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
@@ -40,6 +41,7 @@ import com.hedera.hapi.node.state.schedule.ScheduledOrder;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.schedule.ScheduleOpsUsage;
+import com.hedera.node.app.hapi.utils.contracts.HookUtils;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.schedule.ScheduleStreamBuilder;
@@ -104,6 +106,12 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
         validateTruePreCheck(op.hasScheduledTransactionBody(), INVALID_TRANSACTION);
         // (FUTURE) Add a dedicated response code for an op waiting for an unspecified expiration time
         validateFalsePreCheck(op.waitForExpiry() && !op.hasExpirationTime(), MISSING_EXPIRY_TIME);
+        if (op.scheduledTransactionBodyOrThrow().hasCryptoTransfer()) {
+            validateFalsePreCheck(
+                    HookUtils.hasHookExecutions(
+                            op.scheduledTransactionBodyOrThrow().cryptoTransferOrThrow()),
+                    HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER);
+        }
     }
 
     @Override
