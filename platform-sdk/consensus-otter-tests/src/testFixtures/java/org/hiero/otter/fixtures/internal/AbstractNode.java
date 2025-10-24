@@ -233,6 +233,10 @@ public abstract class AbstractNode implements Node {
         this.savedStateDirectory = OtterSavedStateUtils.findSaveState(requireNonNull(savedStateDirectory));
     }
 
+    public Path savedStateDirectory() {
+        return savedStateDirectory;
+    }
+
     /**
      * {@inheritDoc}
      */
