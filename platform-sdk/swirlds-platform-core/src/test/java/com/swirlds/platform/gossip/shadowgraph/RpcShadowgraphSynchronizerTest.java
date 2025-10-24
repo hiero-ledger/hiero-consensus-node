@@ -156,6 +156,28 @@ class RpcShadowgraphSynchronizerTest {
     }
 
     @Test
+    void disconnectInMiddleOfEventSendingNotBreakingNextSync() {
+        var otherNodeId = NodeId.of(5);
+        var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
+        conversation.checkForPeriodicActions(false, false);
+        Mockito.verify(gossipSender).sendSyncData(any());
+        conversation.receiveSyncData(EMPTY_SYNC_MESSAGE);
+        Mockito.verify(gossipSender).sendTips(List.of());
+        conversation.receiveTips(List.of());
+        Mockito.verify(gossipSender).sendEvents(List.of());
+        Mockito.verify(gossipSender).sendEndOfEvents();
+
+        // emulate disconnect
+        conversation.cleanup();
+        ((FakeTime) this.platformContext.getTime()).tick(Duration.ofSeconds(10));
+        Mockito.clearInvocations(gossipSender);
+
+        // try starting new sync, even if old was broken in middle of receiving events
+        conversation.checkForPeriodicActions(false, false);
+        Mockito.verify(gossipSender).sendSyncData(any());
+    }
+
+    @Test
     void fullEmptySyncIgnoreEvents() {
         var otherNodeId = NodeId.of(5);
         var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
