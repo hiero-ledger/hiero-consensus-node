@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.turtle.logging;
+package org.hiero.otter.fixtures.container.logging;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.otter.fixtures.logging.LogMessageParser.extractLogLevel;
@@ -14,11 +14,19 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
+import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.junit.jupiter.api.Test;
 
-class TurtleConsoleOutputTest {
+/**
+ * Tests to verify console output in the Container-based test environment. This test validates the output on
+ * the host machine that runs the test, not the output inside the containers.
+ */
+class ContainerConsoleOutputTest {
 
+    /**
+     * Test basic console output capturing and log message verification.
+     * The output should contain expected log messages from the Otter framework and user log statements.
+     */
     @Test
     void testBasicConsoleOutput() {
         // Capture console output
@@ -34,7 +42,7 @@ class TurtleConsoleOutputTest {
             final LoggerContext context = (LoggerContext) LogManager.getContext(false);
             context.reconfigure();
 
-            final TestEnvironment env = new TurtleTestEnvironment();
+            final TestEnvironment env = new ContainerTestEnvironment();
             try {
                 final Network network = env.network();
                 final TimeManager timeManager = env.timeManager();
@@ -63,10 +71,12 @@ class TurtleConsoleOutputTest {
             // Verify that the console output contains expected log messages
             assertThat(consoleOutput)
                     .as("Console output should contain 'Random seed:' entry")
-                    .contains("Random seed:");
+                    .doesNotContain("Random seed:"); // Turtle environment only
             assertThat(consoleOutput)
-                    .as("Console output should contain 'Random seed:' entry")
-                    .doesNotContain("testcontainers"); // Container environment only
+                    .as("Console output should contain 'testcontainers' entry")
+                    .contains("testcontainers"); // Container environment only
+
+            // Verify presence of key log messages from Otter framework
             assertThat(consoleOutput)
                     .as("Console output should contain 'Starting network...' message")
                     .contains("Starting network...");
@@ -79,6 +89,8 @@ class TurtleConsoleOutputTest {
             assertThat(consoleOutput)
                     .as("Console output should contain 'Destroying network...' message")
                     .contains("Destroying network...");
+
+            // Verify presence of user log messages
             assertThat(consoleOutput)
                     .as("Console output should contain 'Hello Otter!' message")
                     .contains("Hello Otter!");
