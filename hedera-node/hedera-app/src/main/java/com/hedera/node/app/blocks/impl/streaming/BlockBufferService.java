@@ -20,9 +20,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -43,20 +41,19 @@ import org.apache.logging.log4j.Logger;
  * <ul>
  *     <li>Maintaining the block states in a buffer</li>
  *     <li>Handling backpressure when the buffer is saturated</li>
- *     <li>Pruning the buffer based on TTL and saturation</li>
+ *     <li>Pruning the buffer based on max buffer size and saturation</li>
  * </ul>
  */
 @Singleton
 public class BlockBufferService {
     private static final Logger logger = LogManager.getLogger(BlockBufferService.class);
-    private static final int DEFAULT_BUFFER_SIZE = 150;
-
     private static final Duration DEFAULT_WORKER_INTERVAL = Duration.ofSeconds(1);
+    private static final int DEFAULT_BUFFER_SIZE = 150;
 
     /**
      * Buffer that stores recent blocks. This buffer is unbounded, however it is technically capped because back
      * pressure will prevent blocks from being created. Generally speaking, the buffer should contain only blocks that
-     * are recent (that is within the configured {@link BlockBufferConfig#blockTtl() TTL}) and have yet to be
+     * are recent (that are within the configured {@link BlockBufferConfig#maxBufferedBlocks() number}) and have yet to be
      * acknowledged. There may be cases where older blocks still exist in the buffer if they are unacknowledged, but
      * once they are acknowledged they will be pruned the next time {@link #openBlock(long)} is invoked.
      */
@@ -213,23 +210,18 @@ public class BlockBufferService {
     }
 
     /**
-     * @return the current TTL for items in the block buffer
+     * @return the configured maximum number of buffered blocks
      */
-    private Duration blockBufferTtl() {
-        return configProvider
+    private int maxBufferedBlocks() {
+        final int maxBufferedBlocks = configProvider
                 .getConfiguration()
                 .getConfigData(BlockBufferConfig.class)
-                .blockTtl();
-    }
-
-    /**
-     * @return the block period duration (i.e. the amount of time a single block represents)
-     */
-    private Duration blockPeriod() {
-        return configProvider
-                .getConfiguration()
-                .getConfigData(BlockStreamConfig.class)
-                .blockPeriod();
+                .maxBufferedBlocks();
+        if (maxBufferedBlocks <= 0) {
+            return DEFAULT_BUFFER_SIZE;
+        } else {
+            return maxBufferedBlocks;
+        }
     }
 
     /**
@@ -438,31 +430,74 @@ public class BlockBufferService {
     }
 
     /**
-     * Ensures that there is enough capacity in the block buffer to permit a new block being created. If there is not
-     * enough capacity - i.e. the buffer is saturated - then this method will block until there is enough capacity.
+     * Ensures that there is enough capacity in the block buffer to permit a new block being created. If the
+     * buffer is saturated, this method will first try to free exactly one slot by pruning the oldest acknowledged
+     * block. If capacity is still not available, it will enable backpressure and block until capacity
+     * becomes available. It also mirrors the buffer state transition handling performed by the periodic worker.
      */
     public void ensureNewBlocksPermitted() {
         if (!isGrpcStreamingEnabled() || !isStarted.get()) {
             return;
         }
 
-        final CompletableFuture<Boolean> cf = backpressureCompletableFutureRef.get();
-        if (cf != null && !cf.isDone()) {
-            try {
-                logger.error("!!! Block buffer is saturated; blocking thread until buffer is no longer saturated");
-                final long startMs = System.currentTimeMillis();
-                final boolean bufferAvailable = cf.get(); // this will block until the future is completed
-                final long durationMs = System.currentTimeMillis() - startMs;
-                logger.warn("Thread was blocked for {}ms waiting for block buffer to free space", durationMs);
+        final int capacity = maxBufferedBlocks();
+        int prunedBlocks = 0;
+        int sizeSnapshot;
 
-                if (!bufferAvailable) {
-                    logger.warn("Block buffer still not available to accept new blocks; reentering wait...");
-                    ensureNewBlocksPermitted();
+        // Attempt to free exactly one slot deterministically (the oldest acknowledged block)
+        synchronized (blockBuffer) {
+            sizeSnapshot = blockBuffer.size();
+            if (sizeSnapshot >= capacity) {
+                final long earliest = earliestBlockNumber.get();
+                if (earliest != Long.MIN_VALUE && highestAckedBlockNumber.get() >= earliest) {
+                    // Remove the earliest block to make space if it has been acknowledged
+                    blockBuffer.remove(earliest);
+                    prunedBlocks++;
+                    // Advance the earliest pointer to the next present block number if possible
+                    long next = earliest + 1;
+                    if (next <= lastProducedBlockNumber.get() && blockBuffer.containsKey(next)) {
+                        earliestBlockNumber.set(next);
+                    } else {
+                        earliestBlockNumber.set(Long.MIN_VALUE);
+                    }
+                    // Recalculate saturation after removal
+                    sizeSnapshot = blockBuffer.size();
                 }
-            } catch (final InterruptedException e) {
-                Thread.currentThread().interrupt();
-            } catch (final Exception e) {
-                logger.warn("Failed to wait for block buffer to be available", e);
+            }
+        }
+
+        final PruneResult pruningResult = new PruneResult(
+                capacity,
+                sizeSnapshot,
+                sizeSnapshot,
+                prunedBlocks,
+                earliestBlockNumber.get(),
+                lastProducedBlockNumber.get());
+        final PruneResult previousPruneResult = lastPruningResult;
+        lastPruningResult = pruningResult;
+
+        handleBufferStateTransitions(previousPruneResult, pruningResult);
+
+        // If still saturated after attempting a single prune, block on backpressure
+        if (pruningResult.isSaturated) {
+            final CompletableFuture<Boolean> cf = backpressureCompletableFutureRef.get();
+            if (cf != null && !cf.isDone()) {
+                try {
+                    logger.error("!!! Block buffer is saturated; blocking thread until buffer is no longer saturated");
+                    final long startMs = System.currentTimeMillis();
+                    final boolean bufferAvailable = cf.get(); // this will block until the future is completed
+                    final long durationMs = System.currentTimeMillis() - startMs;
+                    logger.warn("Thread was blocked for {}ms waiting for block buffer to free space", durationMs);
+
+                    if (!bufferAvailable) {
+                        logger.warn("Block buffer still not available to accept new blocks; reentering wait...");
+                        ensureNewBlocksPermitted();
+                    }
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } catch (final Exception e) {
+                    logger.warn("Failed to wait for block buffer to be available", e);
+                }
             }
         }
     }
@@ -538,69 +573,61 @@ public class BlockBufferService {
     }
 
     /**
-     * Prunes the block buffer by removing blocks that have been acknowledged and exceeded the configured TTL. By doing
-     * this, we also inadvertently can know if buffer is "saturated" due to blocks not being acknowledged in a timely
-     * manner.
+     * Prunes the block buffer deterministically by always removing the oldest acknowledged blocks first
+     * until the buffer size is within the configured limit. Also computes saturation based on the number of
+     * unacknowledged blocks.
      */
     private @NonNull PruneResult pruneBuffer() {
-        final Duration ttl = blockBufferTtl();
-        final Instant cutoffInstant = Instant.now().minus(ttl);
-        final Iterator<Map.Entry<Long, BlockState>> it = blockBuffer.entrySet().iterator();
         final long highestBlockAcked = highestAckedBlockNumber.get();
-        /*
-        Calculate the ideal max buffer size. This is calculated as the block buffer TTL (e.g. 5 minutes) divided by the
-        block period (e.g. 2 seconds). This gives us an ideal number of blocks in the buffer.
-         */
-        final Duration blockPeriod = blockPeriod();
-        final long idealMaxBufferSize =
-                blockPeriod.isZero() || blockPeriod.isNegative() ? DEFAULT_BUFFER_SIZE : ttl.dividedBy(blockPeriod);
+        final int maxBufferSize = maxBufferedBlocks();
         int numPruned = 0;
         int numChecked = 0;
         int numPendingAck = 0;
         long newEarliestBlock = Long.MAX_VALUE;
         long newLatestBlock = Long.MIN_VALUE;
 
-        while (it.hasNext()) {
-            final Map.Entry<Long, BlockState> blockEntry = it.next();
-            final BlockState block = blockEntry.getValue();
-            final long blockNum = blockEntry.getKey();
+        // Create a sorted snapshot of keys so the pruning order is oldest-first
+        final List<Long> orderedBuffer = new ArrayList<>(blockBuffer.keySet());
+        Collections.sort(orderedBuffer); // ascending (oldest first)
+
+        int size = blockBuffer.size();
+        for (final long blockNumber : orderedBuffer) {
+            final BlockState block = blockBuffer.get(blockNumber);
+            if (block == null || block.closedTimestamp() == null) {
+                continue; // raced removal
+            }
             ++numChecked;
 
-            final Instant closedTimestamp = block.closedTimestamp();
-            if (closedTimestamp == null) {
-                // the block is not finished yet, so skip checking it
-                continue;
-            }
-
             if (!isBackpressureEnabled()) {
-                // If backpressure is disabled, remove blocks based solely on TTL
-                if (closedTimestamp.isBefore(cutoffInstant)) {
-                    it.remove();
+                // If backpressure is disabled, remove blocks based solely on the max buffer size
+                if (blockBuffer.size() > maxBufferSize) {
+                    blockBuffer.remove(blockNumber);
                     ++numPruned;
+                    --size;
                 } else {
                     // Track unacknowledged blocks
-                    if (block.blockNumber() > highestBlockAcked) {
+                    if (blockNumber > highestBlockAcked) {
                         ++numPendingAck;
                     }
-                    // Keep track of earliest remaining block
-                    newEarliestBlock = Math.min(newEarliestBlock, blockNum);
-                    newLatestBlock = Math.max(newLatestBlock, blockNum);
+                    // Keep track of the earliest remaining block
+                    newEarliestBlock = Math.min(newEarliestBlock, blockNumber);
+                    newLatestBlock = Math.max(newLatestBlock, blockNumber);
                 }
-            } else if (block.blockNumber() <= highestBlockAcked) {
-                // this block is eligible for pruning if it is old enough
-                if (closedTimestamp.isBefore(cutoffInstant)) {
-                    it.remove();
+            } else if (blockNumber <= highestBlockAcked) {
+                if (size > maxBufferSize) {
+                    blockBuffer.remove(blockNumber);
                     ++numPruned;
+                    --size;
                 } else {
                     // keep track of earliest remaining block
-                    newEarliestBlock = Math.min(newEarliestBlock, blockNum);
-                    newLatestBlock = Math.max(newLatestBlock, blockNum);
+                    newEarliestBlock = Math.min(newEarliestBlock, blockNumber);
+                    newLatestBlock = Math.max(newLatestBlock, blockNumber);
                 }
             } else {
                 ++numPendingAck;
-                // keep track of earliest remaining block
-                newEarliestBlock = Math.min(newEarliestBlock, blockNum);
-                newLatestBlock = Math.max(newLatestBlock, blockNum);
+                // keep track of the earliest remaining block
+                newEarliestBlock = Math.min(newEarliestBlock, blockNumber);
+                newLatestBlock = Math.max(newLatestBlock, blockNumber);
             }
         }
 
@@ -613,8 +640,7 @@ public class BlockBufferService {
         blockStreamMetrics.recordBufferOldestBlock(newEarliestBlock == Long.MIN_VALUE ? -1 : newEarliestBlock);
         blockStreamMetrics.recordBufferNewestBlock(newLatestBlock);
 
-        return new PruneResult(
-                idealMaxBufferSize, numChecked, numPendingAck, numPruned, newEarliestBlock, newLatestBlock);
+        return new PruneResult(maxBufferSize, numChecked, numPendingAck, numPruned, newEarliestBlock, newLatestBlock);
     }
 
     /**
@@ -697,9 +723,14 @@ public class BlockBufferService {
                     getContiguousRangesAsString(new ArrayList<>(blockBuffer.keySet())),
                     pruningResult.saturationPercent);
         }
+        handleBufferStateTransitions(previousPruneResult, pruningResult);
+    }
 
+    /*
+     * Handles buffer state transitions and emits metrics
+     */
+    private void handleBufferStateTransitions(final PruneResult previousPruneResult, final PruneResult pruningResult) {
         blockStreamMetrics.recordBufferSaturation(pruningResult.saturationPercent);
-
         final double actionStageThreshold = actionStageThreshold();
 
         if (previousPruneResult.saturationPercent < actionStageThreshold) {
