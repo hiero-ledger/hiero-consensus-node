@@ -309,10 +309,7 @@ public class BlockNodeConnectionManager {
             @Nullable final Duration delay,
             @Nullable final Long blockNumber,
             final boolean selectNewBlockNode) {
-        // Remove from connections map and clear active reference
-        removeConnectionAndClearActive(connection);
-
-        final long delayMs;
+        long delayMs;
         // Get or create the retry attempt for this node
         final RetryState retryState = retryStates.computeIfAbsent(connection.getNodeConfig(), k -> new RetryState());
         final int retryAttempt;
@@ -343,34 +340,6 @@ public class BlockNodeConnectionManager {
             // Immediately try to find and connect to the next available node
             selectNewBlockNodeForStreaming(false);
         }
-    }
-
-    /**
-     * Connection initiated a reset of the stream
-     * @param connection the connection that initiated the reset of the stream
-     */
-    public void connectionResetsTheStream(@NonNull final BlockNodeConnection connection) {
-        if (!isStreamingEnabled()) {
-            return;
-        }
-        requireNonNull(connection);
-
-        removeConnectionAndClearActive(connection);
-
-        // Immediately try to find and connect to the next available node
-        selectNewBlockNodeForStreaming(false);
-    }
-
-    /**
-     * Removes a connection from the connections map and clears the active reference if this was the active connection.
-     * This is a utility method to ensure consistent cleanup behavior.
-     *
-     * @param connection the connection to remove and clean up
-     */
-    private void removeConnectionAndClearActive(@NonNull final BlockNodeConnection connection) {
-        requireNonNull(connection);
-        connections.remove(connection.getNodeConfig(), connection);
-        activeConnectionRef.compareAndSet(connection, null);
     }
 
     private void scheduleConnectionAttempt(
@@ -404,7 +373,6 @@ public class BlockNodeConnectionManager {
             logWithContext(logger, DEBUG, "Successfully scheduled reconnection task.", newConnection);
         } catch (final Exception e) {
             logger.error(formatLogMessage("Failed to schedule connection task for block node.", newConnection), e);
-            connections.remove(newConnection.getNodeConfig());
             newConnection.close(true);
         }
     }
@@ -832,6 +800,22 @@ public class BlockNodeConnectionManager {
                     try {
                         logWithContext(DEBUG, "Closing current active connection {}.", activeConnection);
                         activeConnection.close(true);
+                        // For a forced switch, reschedule the previously active connection to try again later
+                        if (force) {
+                            try {
+                                final Duration delay = getForcedSwitchRescheduleDelay();
+                                scheduleConnectionAttempt(activeConnection.getNodeConfig(), delay, null, false);
+                                logWithContext(
+                                        DEBUG,
+                                        "Scheduled previously active connection in {} ms due to forced switch.",
+                                        delay.toMillis());
+                            } catch (final Exception e) {
+                                logger.error(
+                                        "Failed to schedule reschedule for previous active connection after forced switch.",
+                                        e);
+                                connections.remove(connection.getNodeConfig());
+                            }
+                        }
                     } catch (final RuntimeException e) {
                         logger.info(
                                 "Failed to shutdown current active connection {} (shutdown reason: another connection was elevated to active).",
@@ -890,9 +874,6 @@ public class BlockNodeConnectionManager {
                 logWithContext(INFO, "Rescheduled connection attempt (delayMillis={}).", jitteredDelayMs);
             } catch (final Exception e) {
                 logger.error("Failed to reschedule connection attempt. Removing from retry map.", e);
-                // If rescheduling fails, close the connection and remove it from the connection map. A periodic task
-                // will handle checking if there are no longer any connections
-                connections.remove(connection.getNodeConfig());
                 connection.close(true);
             }
         }
@@ -952,6 +933,13 @@ public class BlockNodeConnectionManager {
                 .getConfiguration()
                 .getConfigData(BlockNodeConnectionConfig.class)
                 .endOfStreamTimeFrame();
+    }
+
+    private Duration getForcedSwitchRescheduleDelay() {
+        return configProvider
+                .getConfiguration()
+                .getConfigData(BlockNodeConnectionConfig.class)
+                .forcedSwitchRescheduleDelay();
     }
 
     /**
@@ -1106,5 +1094,21 @@ public class BlockNodeConnectionManager {
         }
 
         return result;
+    }
+
+    /**
+     * Gets the map of block node connections.
+     * @return the map of block node connections
+     */
+    public Map<BlockNodeConfig, BlockNodeConnection> getConnections() {
+        return connections;
+    }
+
+    /**
+     * Gets the atomic reference to the active block node connection.
+     * @return the atomic reference to the active block node connection
+     */
+    public AtomicReference<BlockNodeConnection> getActiveConnectionRef() {
+        return activeConnectionRef;
     }
 }

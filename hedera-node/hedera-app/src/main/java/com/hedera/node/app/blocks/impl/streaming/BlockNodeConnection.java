@@ -361,7 +361,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         if (getConnectionState() == ConnectionState.ACTIVE) {
             logWithContext(logger, INFO, this, "Performing scheduled stream reset.");
             endTheStreamWith(RESET);
-            blockNodeConnectionManager.connectionResetsTheStream(this);
+            blockNodeConnectionManager.selectNewBlockNodeForStreaming(false);
         }
     }
 
@@ -793,6 +793,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             }
             blockStreamMetrics.recordConnectionClosed();
             blockStreamMetrics.recordActiveConnectionIp(-1L);
+            blockNodeConnectionManager.getConnections().remove(blockNodeConfig);
+            blockNodeConnectionManager.getActiveConnectionRef().compareAndSet(this, null);
             // regardless of outcome, mark the connection as closed
             updateConnectionState(ConnectionState.CLOSED);
         }
@@ -1054,7 +1056,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                                 newRequestBytes,
                                 MAX_BYTES_PER_REQUEST);
                         endTheStreamWith(EndStream.Code.ERROR);
-                        blockNodeConnectionManager.connectionResetsTheStream(BlockNodeConnection.this);
                         break;
                     }
                 } else {
