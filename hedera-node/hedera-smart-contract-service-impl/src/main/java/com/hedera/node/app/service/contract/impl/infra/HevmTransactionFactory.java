@@ -187,7 +187,7 @@ public class HevmTransactionFactory {
         return new HederaEvmTransaction(
                 payer,
                 null,
-                HTS_HOOKS_CONTRACT_ID,
+                entityIdFactory.newContractId(HTS_HOOKS_CONTRACT_ID.contractNumOrThrow()),
                 NOT_APPLICABLE,
                 body.executionOrThrow().callOrThrow().evmHookCallOrThrow().data(),
                 null,
