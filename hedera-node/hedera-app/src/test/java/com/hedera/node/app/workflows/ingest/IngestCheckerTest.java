@@ -63,6 +63,7 @@ import com.hedera.node.app.signature.SignatureExpander;
 import com.hedera.node.app.signature.SignatureVerificationFuture;
 import com.hedera.node.app.signature.SignatureVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
+import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
@@ -337,7 +338,7 @@ class IngestCheckerTest extends AppTestBase {
                     mock(DeduplicationCache.class),
                     mock(TransactionDispatcher.class),
                     mock(FeeManager.class),
-                    mock(Authorizer.class),
+                    authorizer,
                     mock(SynchronizedThrottleAccumulator.class),
                     mock(java.time.InstantSource.class),
                     mock(OpWorkflowMetrics.class),
@@ -348,7 +349,7 @@ class IngestCheckerTest extends AppTestBase {
         @Test
         void throwsIfNodeAccountNotFound() {
             when(accountStore.getAccountById(any())).thenReturn(null);
-            assertThatThrownBy(() -> subject.verifyNodeAccountBalance(storeFactory, payerAccount, configuration))
+            assertThatThrownBy(() -> subject.verifyNodeAccountBalance(storeFactory, transactionInfo))
                     .isInstanceOf(PreCheckException.class)
                     .hasFieldOrPropertyWithValue("responseCode", INVALID_NODE_ACCOUNT);
         }
@@ -358,9 +359,8 @@ class IngestCheckerTest extends AppTestBase {
             when(accountStore.getAccountById(any())).thenReturn(nodeAccount);
             when(nodeAccount.tinybarBalance()).thenReturn(0L);
             // Simulate non-system account
-            when(payerAccount.accountIdOrThrow())
-                    .thenReturn(AccountID.newBuilder().accountNum(2000L).build());
-            assertThatThrownBy(() -> subject.verifyNodeAccountBalance(storeFactory, payerAccount, configuration))
+            when(authorizer.hasPrivilegedAuthorization(any(), any(), any())).thenReturn(SystemPrivilege.UNAUTHORIZED);
+            assertThatThrownBy(() -> subject.verifyNodeAccountBalance(storeFactory, transactionInfo))
                     .isInstanceOf(PreCheckException.class)
                     .hasFieldOrPropertyWithValue("responseCode", NODE_ACCOUNT_HAS_ZERO_BALANCE);
         }
@@ -369,7 +369,7 @@ class IngestCheckerTest extends AppTestBase {
         void succeedsIfNodeAccountHasBalance() {
             when(accountStore.getAccountById(any())).thenReturn(nodeAccount);
             when(nodeAccount.tinybarBalance()).thenReturn(100L);
-            assertThatCode(() -> subject.verifyNodeAccountBalance(storeFactory, payerAccount, configuration))
+            assertThatCode(() -> subject.verifyNodeAccountBalance(storeFactory, transactionInfo))
                     .doesNotThrowAnyException();
         }
     }

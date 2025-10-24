@@ -54,6 +54,7 @@ import com.hedera.node.app.signature.ExpandedSignaturePair;
 import com.hedera.node.app.signature.SignatureExpander;
 import com.hedera.node.app.signature.SignatureVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
+import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
@@ -71,7 +72,6 @@ import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.hedera.node.config.Utils;
-import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -232,17 +232,23 @@ public final class IngestChecker {
         }
     }
 
-    public void verifyNodeAccountBalance(
-            final ReadableStoreFactory storeFactory, final Account payerAccount, final Configuration configuration)
+    public void verifyNodeAccountBalance(final ReadableStoreFactory storeFactory, final TransactionInfo txInfo)
             throws PreCheckException {
-        final var accountsConfig = configuration.getConfigData(AccountsConfig.class);
         final var accountStore = storeFactory.getStore(ReadableAccountStore.class);
-        final var nodeAccount =
-                accountStore.getAccountById(networkInfo.selfNodeInfo().accountId());
-        if (nodeAccount == null) {
+        final var selfAccountId = networkInfo.selfNodeInfo().accountId();
+        final var selfAccount = accountStore.getAccountById(selfAccountId);
+
+        if (selfAccount == null) {
             throw new PreCheckException(INVALID_NODE_ACCOUNT);
         }
-        if (nodeAccount.tinybarBalance() < 1 && !accountsConfig.isSuperuser(payerAccount.accountIdOrThrow())) {
+
+        final var nodeBalance = selfAccount.tinybarBalance();
+        final var isPrivilegedAuthorized =
+                authorizer.hasPrivilegedAuthorization(txInfo.payerID(), txInfo.functionality(), txInfo.txBody())
+                        == SystemPrivilege.AUTHORIZED;
+
+        // Check node account balance and authorization
+        if (nodeBalance < 1 && !isPrivilegedAuthorized) {
             throw new PreCheckException(NODE_ACCOUNT_HAS_ZERO_BALANCE);
         }
     }
@@ -335,7 +341,7 @@ public final class IngestChecker {
             logger.warn("Payer account {} has no key, indicating a problem with state", txInfo.payerID());
             throw new PreCheckException(UNAUTHORIZED);
         }
-        verifyNodeAccountBalance(storeFactory, payer, configuration);
+        verifyNodeAccountBalance(storeFactory, txInfo);
 
         // 6. Verify payer's signatures
         verifyPayerSignature(txInfo, payer, configuration);
