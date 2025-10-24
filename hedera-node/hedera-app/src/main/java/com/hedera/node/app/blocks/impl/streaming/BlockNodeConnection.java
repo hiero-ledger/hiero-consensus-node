@@ -1056,7 +1056,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                                 newRequestBytes,
                                 MAX_BYTES_PER_REQUEST);
                         endTheStreamWith(EndStream.Code.ERROR);
-                        blockNodeConnectionManager.connectionResetsTheStream(BlockNodeConnection.this);
                         break;
                     }
                 } else {

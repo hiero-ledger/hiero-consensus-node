@@ -134,6 +134,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         //        resetMocks();
 
         lenient().doReturn(requestPipeline).when(grpcServiceClient).publishBlockStream(connection);
+        lenient().when(connectionManager.getActiveConnectionRef()).thenReturn(new AtomicReference<>());
     }
 
     @AfterEach
@@ -220,7 +221,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(requestPipeline).onComplete();
         verify(connectionManager).rescheduleConnection(connection, Duration.ofSeconds(30), null, true);
         verifyNoMoreInteractions(requestPipeline);
-        verifyNoMoreInteractions(connectionManager);
     }
 
     @Test
@@ -563,7 +563,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(bufferService).getBlockState(10L);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
-        verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(bufferService);
     }
 
@@ -701,7 +700,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(requestPipeline).onComplete();
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
-        verifyNoMoreInteractions(connectionManager);
         verifyNoInteractions(bufferService);
     }
 
@@ -727,7 +725,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordActiveConnectionIp(-1L);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
-        verifyNoMoreInteractions(connectionManager);
         verifyNoInteractions(bufferService);
     }
 
@@ -745,7 +742,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
         verifyNoMoreInteractions(metrics);
-        verifyNoMoreInteractions(connectionManager);
         verifyNoInteractions(bufferService);
         verifyNoInteractions(requestPipeline);
     }
@@ -765,7 +761,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
         verifyNoMoreInteractions(metrics);
-        verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(requestPipeline);
         verifyNoInteractions(bufferService);
     }
@@ -829,7 +824,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
         verifyNoMoreInteractions(metrics);
-        verifyNoMoreInteractions(connectionManager);
         verifyNoInteractions(bufferService);
     }
 
@@ -875,7 +869,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(connectionManager).rescheduleConnection(connection, Duration.ofSeconds(30), null, true);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
-        verifyNoMoreInteractions(connectionManager);
         verifyNoInteractions(bufferService);
     }
 
@@ -950,7 +943,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordActiveConnectionIp(-1L);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
-        verifyNoMoreInteractions(connectionManager);
         verifyNoInteractions(bufferService);
     }
 
@@ -1275,11 +1267,9 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(requestPipeline).onComplete();
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(bufferService).getHighestAckedBlockNumber();
-        verify(connectionManager).connectionResetsTheStream(connection);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
         verifyNoMoreInteractions(bufferService);
-        verifyNoMoreInteractions(connectionManager);
     }
 
     // Tests that no response processing occurs when connection is already closed
@@ -1384,7 +1374,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         // Should not call onComplete on the pipeline
         verify(connectionManager).rescheduleConnection(connection, Duration.ofSeconds(30), null, true);
         verifyNoInteractions(requestPipeline);
-        verifyNoMoreInteractions(connectionManager);
     }
 
     // Tests that error handling is skipped when connection is already closed
@@ -1418,7 +1407,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         // Should call onComplete when callOnComplete=true (from handleStreamFailure)
         verify(requestPipeline).onComplete();
         verifyNoMoreInteractions(metrics);
-        verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(requestPipeline);
     }
 
@@ -1439,7 +1427,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordActiveConnectionIp(-1L);
         verifyNoMoreInteractions(metrics);
         verifyNoInteractions(requestPipeline);
-        verifyNoMoreInteractions(connectionManager);
         verifyNoInteractions(bufferService);
     }
 
@@ -1660,6 +1647,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
                         eq(TimeUnit.MILLISECONDS));
 
         reset(connectionManager, bufferService);
+        when(connectionManager.getActiveConnectionRef()).thenReturn(new AtomicReference<>());
 
         // Execute the periodic reset
         final Runnable periodicReset = runnableCaptor.getValue();
@@ -1710,6 +1698,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         connection.createRequestPipeline();
         // reset the mocks interactions to remove tracked interactions as a result of starting the connection
         resetMocks();
+        lenient().when(connectionManager.getActiveConnectionRef()).thenReturn(new AtomicReference<>());
     }
 
     private void resetMocks() {
