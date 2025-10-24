@@ -18,10 +18,9 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
  */
 public class InMemoryBuilder implements VirtualDataSourceBuilder {
 
-    private final Map<String, InMemoryDataSource> databases = new ConcurrentHashMap<>();
-
     private static final AtomicInteger dbIndex = new AtomicInteger(0);
 
+    // Path to data source, used in snapshot() and restore()
     private static final Map<String, InMemoryDataSource> snapshots = new ConcurrentHashMap<>();
 
     private static final long CLASS_ID = 0x29e653a8c81959b8L;
@@ -57,7 +56,7 @@ public class InMemoryBuilder implements VirtualDataSourceBuilder {
             final boolean compactionEnabled,
             final boolean offlineUse) {
         if (sourceDir == null) {
-            return databases.computeIfAbsent(label, (s) -> createDataSource(label));
+            return createDataSource(label);
         } else {
             assert snapshots.containsKey(sourceDir.toString());
             return snapshots.get(sourceDir.toString());

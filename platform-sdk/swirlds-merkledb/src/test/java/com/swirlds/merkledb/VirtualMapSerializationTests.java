@@ -19,9 +19,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.test.fixtures.ExampleFixedValue;
 import com.swirlds.merkledb.test.fixtures.ExampleLongKey;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
-import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.internal.merkle.VirtualInternalNode;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import java.io.ByteArrayInputStream;
@@ -60,9 +58,6 @@ class VirtualMapSerializationTests {
                 .registerConstructable(new ClassConstructorPair(
                         MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(CONFIGURATION)));
         registry.registerConstructable(new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(CONFIGURATION)));
-        registry.registerConstructable(new ClassConstructorPair(
-                VirtualNodeCache.class,
-                () -> new VirtualNodeCache(CONFIGURATION.getConfigData(VirtualMapConfig.class))));
     }
 
     /**

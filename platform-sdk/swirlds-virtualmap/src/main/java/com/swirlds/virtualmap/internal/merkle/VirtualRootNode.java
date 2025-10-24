@@ -33,6 +33,7 @@ public final class VirtualRootNode extends PartialBinaryMerkleInternal implement
     }
 
     /**
+     *
      * {@inheritDoc}
      */
     @Override

@@ -26,8 +26,6 @@ import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
 import com.swirlds.state.test.fixtures.merkle.singleton.SingletonNode;
 import com.swirlds.state.test.fixtures.merkle.singleton.StringLeaf;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.config.VirtualMapConfig;
-import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -64,9 +62,6 @@ public final class TestingAppStateInitializer {
                     new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(configuration)));
             registry.registerConstructable(new ClassConstructorPair(
                     MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(configuration)));
-            registry.registerConstructable(new ClassConstructorPair(
-                    VirtualNodeCache.class,
-                    () -> new VirtualNodeCache(configuration.getConfigData(VirtualMapConfig.class))));
         } catch (ConstructableRegistryException e) {
             throw new IllegalStateException(e);
         }
