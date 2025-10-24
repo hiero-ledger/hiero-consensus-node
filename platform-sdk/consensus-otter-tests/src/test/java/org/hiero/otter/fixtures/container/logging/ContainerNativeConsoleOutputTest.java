@@ -17,7 +17,7 @@ import org.junit.jupiter.params.provider.ValueSource;
  * Test to validate that both the control process (DockerMain) and consensus node (ConsensusNodeMain)
  * print their output to the console when running in containers.
  */
-class ContainerConsoleOutputTest {
+class ContainerNativeConsoleOutputTest {
 
     /**
      * Tests that console output from both apps contains expected log messages.
