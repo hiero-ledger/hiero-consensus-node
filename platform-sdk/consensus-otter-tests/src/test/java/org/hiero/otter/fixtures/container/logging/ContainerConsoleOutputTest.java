@@ -70,9 +70,9 @@ class ContainerConsoleOutputTest {
                 assertThat(consoleLogs)
                         .as("Console output should contain 'CHECKING. Now in ACTIVE' message")
                         .contains("CHECKING. Now in ACTIVE");
-                //                assertThat(consoleLogs)
-                //                        .as("Console output should contain '// Node is Starting //' message")
-                //                        .contains("// Node is Starting //");
+                assertThat(consoleLogs)
+                        .as("Console output should contain '// Node is Starting //' message")
+                        .contains("// Node is Starting //");
             }
         } finally {
             env.destroy();
