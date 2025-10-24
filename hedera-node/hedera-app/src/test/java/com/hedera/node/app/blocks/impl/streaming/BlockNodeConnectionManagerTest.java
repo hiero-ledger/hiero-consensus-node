@@ -1404,6 +1404,54 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testExtractBlockNodesConfigurations_validJson_populatesProtocolConfigs() throws Exception {
+        final Path dir = tempDir;
+        final Path file = dir.resolve("block-nodes.json");
+
+        final String json = "{\n"
+                + "  \"nodes\": [\n"
+                + "    {\n"
+                + "      \"address\": \"localhost\",\n"
+                + "      \"port\": 50051,\n"
+                + "      \"priority\": 1,\n"
+                + "      \"http2ClientProtocolConfig\": {\n"
+                + "        \"flowControlBlockTimeout\": \"PT1S\",\n"
+                + "        \"initialWindowSize\": 12345,\n"
+                + "        \"maxFrameSize\": 16384,\n"
+                + "        \"maxHeaderListSize\": \"-1\",\n"
+                + "        \"name\": \"h2\",\n"
+                + "        \"ping\": true,\n"
+                + "        \"pingTimeout\": \"PT0.5S\",\n"
+                + "        \"priorKnowledge\": false\n"
+                + "      },\n"
+                + "      \"grpcClientProtocolConfig\": {\n"
+                + "        \"abortPollTimeExpired\": false,\n"
+                + "        \"heartbeatPeriod\": \"PT0S\",\n"
+                + "        \"initBufferSize\": 1024,\n"
+                + "        \"name\": \"grpc\",\n"
+                + "        \"pollWaitTime\": \"PT10S\"\n"
+                + "      },\n"
+                + "      \"maxMessageSizeBytes\": 1500000\n"
+                + "    }\n"
+                + "  ]\n"
+                + "}";
+
+        Files.writeString(file, json, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+
+        final List<BlockNodeConfig> configs = invoke_extractBlockNodesConfigurations(dir.toString());
+
+        assertThat(configs).hasSize(1);
+
+        final Map<BlockNodeConfig, BlockNodeProtocolConfig> protocolConfigs =
+                connectionManager.getBlockNodeProtocolConfigs();
+        assertThat(protocolConfigs).containsKey(configs.getFirst());
+        final BlockNodeProtocolConfig protocol = protocolConfigs.get(configs.getFirst());
+        assertThat(protocol.http2ClientProtocolConfig()).isNotNull();
+        assertThat(protocol.grpcClientProtocolConfig()).isNotNull();
+        assertThat(protocol.maxMessageSizeBytes()).isEqualTo(1_500_000);
+    }
+
+    @Test
     void testConnectionTask_activeConnectionIsSameConnection() {
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
 

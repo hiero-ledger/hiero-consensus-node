@@ -333,6 +333,37 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testCreateNewGrpcClient_usesProvidedProtocolConfigs() {
+        // Arrange a protocol config present for this node with custom HTTP2 and gRPC configs
+        final var http2 = io.helidon.webclient.http2.Http2ClientProtocolConfig.builder()
+                .name("h2")
+                .ping(true)
+                .build();
+        final var grpc = io.helidon.webclient.grpc.GrpcClientProtocolConfig.builder()
+                .abortPollTimeExpired(true)
+                .build();
+        doReturn(Map.of(nodeConfig, new BlockNodeProtocolConfig(http2, grpc, null)))
+                .when(connectionManager)
+                .getBlockNodeProtocolConfigs();
+
+        // Act
+        connection.createRequestPipeline();
+
+        // Assert: client creation invoked with our factory and publish called once
+        verify(grpcServiceClient).publishBlockStream(connection);
+    }
+
+    @Test
+    void testCreateNewGrpcClient_usesDefaultWhenProtocolConfigMissing() {
+        // No protocol config in the map → defaults are applied
+        doReturn(Map.of()).when(connectionManager).getBlockNodeProtocolConfigs();
+
+        connection.createRequestPipeline();
+
+        verify(grpcServiceClient).publishBlockStream(connection);
+    }
+
+    @Test
     void testUpdatingConnectionState() {
         final ConnectionState preUpdateState = connection.getConnectionState();
         // this should be uninitialized because we haven't called connect yet
@@ -1571,6 +1602,60 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
         verifyNoMoreInteractions(bufferService);
+    }
+
+    @Test
+    void testWorkerConstructor_respectsMaxMessageSizeFromProtocolConfig() throws Exception {
+        // Provide a protocol config with a smaller max message size than the hard cap
+        final int configuredMax = 1_000_000;
+        doReturn(Map.of(nodeConfig, new BlockNodeProtocolConfig(null, null, configuredMax)))
+                .when(connectionManager)
+                .getBlockNodeProtocolConfigs();
+
+        // Recreate connection to pick up protocol config through manager on worker construction
+        final ConfigProvider configProvider = createConfigProvider(createDefaultConfigProvider());
+        final BlockNodeClientFactory localFactory = mock(BlockNodeClientFactory.class);
+        lenient()
+                .doReturn(grpcServiceClient)
+                .when(localFactory)
+                .createClient(any(WebClient.class), any(PbjGrpcClientConfig.class), any(RequestOptions.class));
+
+        connection = new BlockNodeConnection(
+                configProvider,
+                nodeConfig,
+                connectionManager,
+                bufferService,
+                metrics,
+                executorService,
+                null,
+                localFactory);
+
+        // Ensure publish stream returns pipeline
+        lenient().doReturn(requestPipeline).when(grpcServiceClient).publishBlockStream(connection);
+
+        // Start the connection to trigger worker construction
+        final AtomicReference<Thread> workerThreadRef = workerThreadRef();
+        workerThreadRef.set(null);
+        connection.createRequestPipeline();
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        // Feed one item just over configuredMax to force fatal branch if limit not respected
+        final AtomicLong streamingBlockNumber = streamingBlockNumber();
+        streamingBlockNumber.set(5);
+        final BlockState block = new BlockState(5);
+        final BlockItem header = newBlockHeaderItem(5);
+        block.addItem(header);
+        // Slightly over configuredMax to ensure split/end if not honored
+        final BlockItem tooLarge = newBlockTxItem(configuredMax + 10);
+        block.addItem(tooLarge);
+        doReturn(block).when(bufferService).getBlockState(5);
+
+        // Allow worker loop to run
+        Thread.sleep(250);
+
+        // Should have sent header, then ended stream due to size violation under configured limit
+        verify(requestPipeline, atLeastOnce()).onNext(any(PublishStreamRequest.class));
+        verify(connectionManager).connectionResetsTheStream(connection);
     }
 
     // Tests that no response processing occurs when connection is already closed

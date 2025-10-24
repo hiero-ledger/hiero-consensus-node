@@ -303,10 +303,12 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         final PbjGrpcClientConfig grpcConfig =
                 new PbjGrpcClientConfig(timeoutDuration, tls, Optional.of(""), "application/grpc");
 
-        final GrpcClientProtocolConfig extractedGrpcConfig = blockNodeConnectionManager
-                .getBlockNodeProtocolConfigs()
-                .get(blockNodeConfig)
-                .grpcClientProtocolConfig();
+        BlockNodeProtocolConfig protocolConfig =
+                blockNodeConnectionManager.getBlockNodeProtocolConfigs().get(blockNodeConfig);
+        GrpcClientProtocolConfig extractedGrpcConfig = null;
+        if (protocolConfig != null) {
+            extractedGrpcConfig = protocolConfig.grpcClientProtocolConfig();
+        }
         final GrpcClientProtocolConfig grpcProtocolConfig = (extractedGrpcConfig != null)
                 ? extractedGrpcConfig
                 : GrpcClientProtocolConfig.builder()
@@ -316,10 +318,10 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         final List<ProtocolConfig> protocolConfigs = new ArrayList<>();
         protocolConfigs.add(grpcProtocolConfig);
-        final Http2ClientProtocolConfig http2ClientProtocolConfig = blockNodeConnectionManager
-                .getBlockNodeProtocolConfigs()
-                .get(blockNodeConfig)
-                .http2ClientProtocolConfig();
+        Http2ClientProtocolConfig http2ClientProtocolConfig = null;
+        if (protocolConfig != null) {
+            http2ClientProtocolConfig = protocolConfig.http2ClientProtocolConfig();
+        }
         if (http2ClientProtocolConfig != null) {
             protocolConfigs.add(http2ClientProtocolConfig);
         }
