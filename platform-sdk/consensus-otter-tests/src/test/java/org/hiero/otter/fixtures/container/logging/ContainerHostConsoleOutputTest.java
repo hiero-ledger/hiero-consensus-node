@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test;
  * Tests to verify console output in the Container-based test environment. This test validates the output on
  * the host machine that runs the test, not the output inside the containers.
  */
-class ContainerConsoleOutputTest {
+class ContainerHostConsoleOutputTest {
 
     /**
      * Test basic console output capturing and log message verification.
