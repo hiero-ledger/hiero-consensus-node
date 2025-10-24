@@ -1888,6 +1888,7 @@ enum ResponseCodeEnum {
      * The HookCall set in the transaction is invalid
      */
     INVALID_HOOK_CALL = 522;
+
     /**
      *  Hooks are not supported to be used in TokenAirdrop transactions
      */
@@ -1909,4 +1910,9 @@ enum ResponseCodeEnum {
      * They are only supported in a top level CryptoTransfer transaction.
      */
     HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER = 525;
+
+    /**
+     *  The node account submitting the transaction has zero balance
+     */
+    NODE_ACCOUNT_HAS_ZERO_BALANCE = 526;
 }
