@@ -237,10 +237,9 @@ public class BlockTestUtils {
     public static BlockItem newBlockProof(final long blockNumber) {
         final BlockProof proof = BlockProof.newBuilder()
                 .block(blockNumber)
-                .blockSignature(SIGNATURE)
                 .verificationKey(VERIFICATION_KEY)
-                .previousBlockRootHash(PREV_BLOCK_ROOT_HASH)
-                .startOfBlockStateRootHash(ROOT_HASH_START)
+                // TODO: add TssSigned or StateProof (includes sig)
+                // ???what about history proof?
                 .build();
         return BlockItem.newBuilder().blockProof(proof).build();
     }

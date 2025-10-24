@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
-import com.hedera.hapi.block.stream.StreamingTreeSnapshot;
-import com.hedera.hapi.block.stream.SubMerkleTree;
+import com.hedera.hapi.node.state.blockstream.StreamingTreeSnapshot;
+import com.hedera.hapi.node.state.blockstream.SubMerkleTree;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedOutputStream;
