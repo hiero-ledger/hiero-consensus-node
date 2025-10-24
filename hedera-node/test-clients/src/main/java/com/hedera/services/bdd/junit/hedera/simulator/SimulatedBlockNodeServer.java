@@ -72,6 +72,7 @@ public class SimulatedBlockNodeServer {
     private final WebServer webServer;
     private final int port;
     private final MockBlockStreamServiceImpl serviceImpl;
+    private final boolean highLatency;
 
     // Configuration for EndOfStream responses
     private final AtomicReference<EndOfStreamConfig> endOfStreamConfig = new AtomicReference<>();
@@ -105,11 +106,14 @@ public class SimulatedBlockNodeServer {
      * Creates a new simulated block node server on the specified port.
      *
      * @param port the port to listen on
+     * @param highLatency whether to simulate high-latency responses
      * @param lastVerifiedBlockNumberSupplier an optional supplier that provides the last verified block number
      * from an external source, can be null if not needed
      */
-    public SimulatedBlockNodeServer(final int port, @Nullable final Supplier<Long> lastVerifiedBlockNumberSupplier) {
+    public SimulatedBlockNodeServer(
+            final int port, final boolean highLatency, @Nullable final Supplier<Long> lastVerifiedBlockNumberSupplier) {
         this.port = port;
+        this.highLatency = highLatency;
         this.serviceImpl = new MockBlockStreamServiceImpl();
         this.externalLastVerifiedBlockNumberSupplier = lastVerifiedBlockNumberSupplier;
 
@@ -480,6 +484,12 @@ public class SimulatedBlockNodeServer {
                                             activeStreams.size(),
                                             port);
                                     for (final Pipeline<? super PublishStreamResponse> pipeline : activeStreams) {
+                                        if (highLatency) {
+                                            // If the simulator is set to be with high latency, delay acknowledgements
+                                            // with 1500 ms (assuming CN considers 1000 ms delays as high latency)
+                                            Thread.sleep(1500);
+                                        }
+
                                         buildAndSendBlockAcknowledgement(blockNumber, pipeline);
                                     }
 
@@ -488,6 +498,8 @@ public class SimulatedBlockNodeServer {
                                 }
                             } // End of loop through BlockItems
                         }
+                    } catch (InterruptedException e) {
+                        log.warn("Interrupted while waiting for BlockAcknowledgement", e);
                     } finally {
                         blockTrackingLock.writeLock().unlock();
                     }
