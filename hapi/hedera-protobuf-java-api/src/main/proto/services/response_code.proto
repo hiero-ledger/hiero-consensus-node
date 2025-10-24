@@ -1906,10 +1906,16 @@ enum ResponseCodeEnum {
     ACCOUNT_IS_LINKED_TO_A_NODE = 524;
 
     /**
+     *  Hooks are not supported to be used in Batch transactions and Scheduled transactions.
+     * They are only supported in a top level CryptoTransfer transaction.
+     */
+    HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER = 525;
+
+    /**
      * This operation cannot be completed because the target
      * account has a zero balance.<br/>
      * Node accounts require a positive balance. The transaction may be
      * resubmitted once the account has been funded.
      */
-    NODE_ACCOUNT_HAS_ZERO_BALANCE = 525;
+    NODE_ACCOUNT_HAS_ZERO_BALANCE = 526;
 }

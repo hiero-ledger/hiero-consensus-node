@@ -18,6 +18,9 @@ import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionalUnit;
 import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
@@ -152,6 +155,17 @@ public class RoleFreeBlockUnitSplit {
                         final var txId = getParts.apply(i).transactionIdOrThrow();
                         topLevelIds.put(i, txId);
                     }
+                } else {
+                    try {
+                        SignedTransaction signedTxn =
+                                SignedTransaction.PROTOBUF.parse(items.get(i).signedTransaction());
+                        TransactionBody body = TransactionBody.PROTOBUF.parse(signedTxn.bodyBytes());
+                        if (body.hasStateSignatureTransaction()) {
+                            topLevelIds.put(i, body.transactionID());
+                        }
+                    } catch (ParseException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
             }
             final var nextTxIndex = txIndexes.higher(i);
@@ -230,9 +244,11 @@ public class RoleFreeBlockUnitSplit {
                     case TRANSACTION_RESULT -> pending.addResultEnforcingOrder(item.transactionResultOrThrow());
                     case TRANSACTION_OUTPUT -> pending.addOutputEnforcingOrder(item.transactionOutputOrThrow());
                     case TRACE_DATA -> pending.addTraceEnforcingOrder(item.traceDataOrThrow());
-                    case STATE_CHANGES ->
-                        requireNonNull(stateChanges)
-                                .addAll(item.stateChangesOrThrow().stateChanges());
+                    case STATE_CHANGES -> {
+                        if (stateChanges != null) {
+                            stateChanges.addAll(item.stateChangesOrThrow().stateChanges());
+                        }
+                    }
                     default -> {
                         // No-op
                     }
@@ -366,8 +382,6 @@ public class RoleFreeBlockUnitSplit {
 
         BlockTransactionParts toBlockTransactionParts(
                 final boolean isTopLevel, final boolean hasEnrichedLegacyRecord, final boolean inBatch) {
-            // The only absolute requirement is the result is not null
-            requireNonNull(result);
             return new BlockTransactionParts(
                     parts, result, traces, outputs, isTopLevel, hasEnrichedLegacyRecord, inBatch);
         }

@@ -21,6 +21,7 @@ import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
 import com.hedera.hapi.node.hooks.HookExecution;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -37,26 +38,6 @@ public class HookDispatchUtils {
             ContractID.newBuilder().contractNum(365L).build();
     public static final String HTS_HOOKS_EVM_ADDRESS =
             "0x" + Long.toHexString(HTS_HOOKS_CONTRACT_ID.contractNumOrThrow());
-
-    private static final StreamBuilder.SignedTxCustomizer EXECUTION_CUSTOMIZER = signedTx -> {
-        try {
-            final var dispatchedBody =
-                    TransactionBody.PROTOBUF.parseStrict(signedTx.bodyBytes().toReadableSequentialData());
-            final var hookCall = dispatchedBody
-                    .hookDispatchOrThrow()
-                    .executionOrThrow()
-                    .callOrThrow()
-                    .evmHookCallOrThrow();
-            return signedTxWith(dispatchedBody
-                    .copyBuilder()
-                    .contractCall(new ContractCallTransactionBody(
-                            HTS_HOOKS_CONTRACT_ID, hookCall.gasLimit(), 0L, hookCall.data()))
-                    .build());
-        } catch (ParseException e) {
-            // Should be impossible
-            throw new UncheckedParseException(e);
-        }
-    };
 
     public static long dispatchHookDeletions(
             final @NonNull HandleContext context,
@@ -163,16 +144,40 @@ public class HookDispatchUtils {
      * @param context the handle context
      * @param execution the hook execution to dispatch
      * @param function the function to decode the result
+     * @param entityIdFactory
      */
     public static void dispatchExecution(
-            final @NonNull HandleContext context, final HookExecution execution, final Function function) {
+            final @NonNull HandleContext context,
+            final HookExecution execution,
+            final Function function,
+            final EntityIdFactory entityIdFactory) {
         final var hookDispatch =
                 HookDispatchTransactionBody.newBuilder().execution(execution).build();
+        final var hookContractId = entityIdFactory.newContractId(HTS_HOOKS_CONTRACT_ID.contractNumOrThrow());
+        final StreamBuilder.SignedTxCustomizer executionCustomizer = signedTx -> {
+            try {
+                final var dispatchedBody = TransactionBody.PROTOBUF.parseStrict(
+                        signedTx.bodyBytes().toReadableSequentialData());
+                final var hookCall = dispatchedBody
+                        .hookDispatchOrThrow()
+                        .executionOrThrow()
+                        .callOrThrow()
+                        .evmHookCallOrThrow();
+                return signedTxWith(dispatchedBody
+                        .copyBuilder()
+                        .contractCall(new ContractCallTransactionBody(
+                                hookContractId, hookCall.gasLimit(), 0L, hookCall.data()))
+                        .build());
+            } catch (ParseException e) {
+                // Should be impossible
+                throw new UncheckedParseException(e);
+            }
+        };
         final var streamBuilder = context.dispatch(hookDispatchForExecution(
                 context.payer(),
                 TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
                 HookDispatchStreamBuilder.class,
-                EXECUTION_CUSTOMIZER));
+                executionCustomizer));
         validateTrue(streamBuilder.status() == SUCCESS, REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK);
         final var result = streamBuilder.getEvmCallResult();
         try {
