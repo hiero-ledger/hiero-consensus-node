@@ -26,7 +26,6 @@ import java.security.KeyStoreException;
 import java.security.cert.CertificateEncodingException;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -35,7 +34,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -220,7 +218,8 @@ public abstract class AbstractNetwork implements Network {
             final List<NodeId> nodeIds =
                     IntStream.range(0, count).mapToObj(i -> getNextNodeId()).toList();
             return CryptoStatic.generateKeysAndCerts(nodeIds, null).entrySet().stream()
-                    .map(e -> doCreateNode(e.getKey(), e.getValue())).toList();
+                    .map(e -> doCreateNode(e.getKey(), e.getValue()))
+                    .toList();
         } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
             throw new RuntimeException("Exception while generating KeysAndCerts", e);
         }
@@ -1024,5 +1023,4 @@ public abstract class AbstractNetwork implements Network {
     }
 
     private record LatencyOverride(@NonNull Duration latency, @NonNull Percentage jitter) {}
-
 }

@@ -66,5 +66,4 @@ public class TurtleNodeConfiguration extends AbstractNodeConfiguration {
                 PathsConfig_.MARKER_FILES_DIR,
                 outputDirectory.resolve("data/saved/marker_files").toString());
     }
-
 }

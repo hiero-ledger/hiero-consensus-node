@@ -30,8 +30,6 @@ import org.hiero.otter.fixtures.internal.NodeProperties;
 import org.hiero.otter.fixtures.internal.RegularTimeManager;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.Topology.ConnectionData;
-import org.hiero.otter.fixtures.turtle.TurtleNodeConfiguration;
-import org.jetbrains.annotations.NotNull;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 

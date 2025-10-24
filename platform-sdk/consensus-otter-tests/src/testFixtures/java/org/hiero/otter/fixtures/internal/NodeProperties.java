@@ -1,12 +1,13 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal;
+
+import static org.hiero.otter.fixtures.internal.AbstractNode.UNSET_WEIGHT;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import org.hiero.otter.fixtures.Node;
-
-import static org.hiero.otter.fixtures.internal.AbstractNode.UNSET_WEIGHT;
 
 /**
  * Properties set at the network level that need to be applied to nodes once they are created.
