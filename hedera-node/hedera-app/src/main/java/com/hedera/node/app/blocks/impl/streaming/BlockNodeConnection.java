@@ -3,6 +3,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static com.hedera.node.app.util.LoggingUtilities.formatLogMessage;
 import static com.hedera.node.app.util.LoggingUtilities.logWithContext;
+import static java.lang.Math.min;
 import static java.util.Objects.requireNonNull;
 import static org.apache.logging.log4j.Level.DEBUG;
 import static org.apache.logging.log4j.Level.ERROR;
@@ -28,6 +29,8 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import io.helidon.common.tls.Tls;
 import io.helidon.webclient.api.WebClient;
 import io.helidon.webclient.grpc.GrpcClientProtocolConfig;
+import io.helidon.webclient.http2.Http2ClientProtocolConfig;
+import io.helidon.webclient.spi.ProtocolConfig;
 import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.time.Instant;
@@ -265,13 +268,33 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         final PbjGrpcClientConfig grpcConfig =
                 new PbjGrpcClientConfig(timeoutDuration, tls, Optional.of(""), "application/grpc");
 
+        BlockNodeProtocolConfig protocolConfig =
+                blockNodeConnectionManager.getBlockNodeProtocolConfigs().get(blockNodeConfig);
+        GrpcClientProtocolConfig extractedGrpcConfig = null;
+        if (protocolConfig != null) {
+            extractedGrpcConfig = protocolConfig.grpcClientProtocolConfig();
+        }
+        final GrpcClientProtocolConfig grpcProtocolConfig = (extractedGrpcConfig != null)
+                ? extractedGrpcConfig
+                : GrpcClientProtocolConfig.builder()
+                        .abortPollTimeExpired(false)
+                        .pollWaitTime(timeoutDuration)
+                        .build();
+
+        final List<ProtocolConfig> protocolConfigs = new ArrayList<>();
+        protocolConfigs.add(grpcProtocolConfig);
+        Http2ClientProtocolConfig http2ClientProtocolConfig = null;
+        if (protocolConfig != null) {
+            http2ClientProtocolConfig = protocolConfig.http2ClientProtocolConfig();
+        }
+        if (http2ClientProtocolConfig != null) {
+            protocolConfigs.add(http2ClientProtocolConfig);
+        }
+
         final WebClient webClient = WebClient.builder()
                 .baseUri("http://" + blockNodeConfig.address() + ":" + blockNodeConfig.port())
                 .tls(tls)
-                .protocolConfigs(List.of(GrpcClientProtocolConfig.builder()
-                        .abortPollTimeExpired(false)
-                        .pollWaitTime(timeoutDuration)
-                        .build()))
+                .protocolConfigs(protocolConfigs)
                 .connectTimeout(timeoutDuration)
                 .build();
         logWithContext(
@@ -979,6 +1002,28 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         private int itemIndex = 0;
         private BlockState block;
         private long lastSendTimeMillis = -1;
+        private int maxBytesPerRequest = 0;
+
+        public ConnectionWorkerLoopTask() {
+            if (blockNodeConnectionManager.getBlockNodeProtocolConfigs().get(blockNodeConfig) != null) {
+                if (blockNodeConnectionManager
+                                .getBlockNodeProtocolConfigs()
+                                .get(blockNodeConfig)
+                                .maxMessageSizeBytes()
+                        != null) {
+                    this.maxBytesPerRequest = min(
+                            blockNodeConnectionManager
+                                    .getBlockNodeProtocolConfigs()
+                                    .get(blockNodeConfig)
+                                    .maxMessageSizeBytes(),
+                            MAX_BYTES_PER_REQUEST);
+                } else {
+                    this.maxBytesPerRequest = MAX_BYTES_PER_REQUEST;
+                }
+            } else {
+                this.maxBytesPerRequest = MAX_BYTES_PER_REQUEST;
+            }
+        }
 
         @Override
         public void run() {
@@ -1033,7 +1078,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 final int itemSize = item.protobufSize();
                 final long newRequestBytes = pendingRequestBytes + itemSize;
 
-                if (newRequestBytes > MAX_BYTES_PER_REQUEST) {
+                if (newRequestBytes > maxBytesPerRequest) {
                     // Adding this item to the request would exceed the max size per request
                     if (!pendingRequestItems.isEmpty()) {
                         // Try to send the pending request
@@ -1052,7 +1097,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                                 block.blockNumber(),
                                 itemIndex,
                                 newRequestBytes,
-                                MAX_BYTES_PER_REQUEST);
+                                maxBytesPerRequest);
                         endTheStreamWith(EndStream.Code.ERROR);
                         blockNodeConnectionManager.connectionResetsTheStream(BlockNodeConnection.this);
                         break;

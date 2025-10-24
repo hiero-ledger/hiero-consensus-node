@@ -23,6 +23,8 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import io.helidon.webclient.grpc.GrpcClientProtocolConfig;
+import io.helidon.webclient.http2.Http2ClientProtocolConfig;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URI;
@@ -36,6 +38,7 @@ import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -102,6 +105,8 @@ public class BlockNodeConnectionManager {
      * startup from the configuration file(s) on disk.
      */
     private final List<BlockNodeConfig> availableBlockNodes = new ArrayList<>();
+
+    private final Map<BlockNodeConfig, BlockNodeProtocolConfig> blockNodeProtocolConfigs = new ConcurrentHashMap<>();
     /**
      * Flag that indicates if this connection manager is active or not. In this case, being active means it is actively
      * processing blocks and attempting to send them to a block node.
@@ -247,11 +252,16 @@ public class BlockNodeConnectionManager {
 
             final byte[] jsonConfig = Files.readAllBytes(configPath);
             final BlockNodeConnectionInfo protoConfig = BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(jsonConfig));
+            for (BlockNodeConfig nodeConfig : protoConfig.nodes()) {
+                blockNodeProtocolConfigs.put(
+                        nodeConfig,
+                        new BlockNodeProtocolConfig(
+                                extractOptionalHttp2ClientProtocolConfig(nodeConfig),
+                                extractOptionalGrpcClientProtocolConfig(nodeConfig),
+                                nodeConfig.maxMessageSizeBytes()));
+            }
 
-            // Convert proto config to internal config objects
-            return protoConfig.nodes().stream()
-                    .map(node -> new BlockNodeConfig(node.address(), node.port(), node.priority()))
-                    .toList();
+            return protoConfig.nodes();
         } catch (final IOException | ParseException e) {
             logWithContext(
                     logger,
@@ -261,6 +271,95 @@ public class BlockNodeConnectionManager {
                     e);
             return List.of();
         }
+    }
+
+    private Http2ClientProtocolConfig extractOptionalHttp2ClientProtocolConfig(BlockNodeConfig config) {
+        if (config.hasHttp2ClientProtocolConfig()) {
+            com.hedera.node.internal.network.Http2ClientProtocolConfig protocolConfig =
+                    config.http2ClientProtocolConfig();
+            Http2ClientProtocolConfig.Builder builder = Http2ClientProtocolConfig.builder();
+            if (protocolConfig != null) {
+                if (protocolConfig.flowControlBlockTimeout() != null) {
+                    try {
+                        Duration flowControlBlockTimeout = Duration.parse(protocolConfig.flowControlBlockTimeout());
+                        builder.flowControlBlockTimeout(flowControlBlockTimeout);
+                    } catch (DateTimeParseException e) {
+                        logger.info(
+                                "Unable to parse Http2ClientProtocolConfig flowControlBlockTimeout: {}",
+                                protocolConfig.flowControlBlockTimeout());
+                    }
+                }
+                if (protocolConfig.initialWindowSize() != null) {
+                    builder.initialWindowSize(protocolConfig.initialWindowSize());
+                }
+                if (protocolConfig.maxFrameSize() != null) {
+                    builder.maxFrameSize(protocolConfig.maxFrameSize());
+                }
+                if (protocolConfig.maxHeaderListSize() != null) {
+                    builder.maxHeaderListSize(protocolConfig.maxHeaderListSize());
+                }
+                if (protocolConfig.name() != null) {
+                    builder.name(protocolConfig.name());
+                }
+                if (protocolConfig.ping() != null) {
+                    builder.ping(protocolConfig.ping());
+                }
+                if (protocolConfig.pingTimeout() != null) {
+                    try {
+                        Duration pingTimeout = Duration.parse(protocolConfig.pingTimeout());
+                        builder.pingTimeout(pingTimeout);
+                    } catch (DateTimeParseException e) {
+                        logger.info(
+                                "Unable to parse Http2ClientProtocolConfig pingTimeout: {}",
+                                protocolConfig.pingTimeout());
+                    }
+                }
+                if (protocolConfig.priorKnowledge() != null) {
+                    builder.priorKnowledge(protocolConfig.priorKnowledge());
+                }
+            }
+            return builder.build();
+        }
+        return null;
+    }
+
+    private GrpcClientProtocolConfig extractOptionalGrpcClientProtocolConfig(BlockNodeConfig config) {
+        if (config.hasGrpcClientProtocolConfig()) {
+            com.hedera.node.internal.network.GrpcClientProtocolConfig protocolConfig =
+                    config.grpcClientProtocolConfig();
+            GrpcClientProtocolConfig.Builder builder = GrpcClientProtocolConfig.builder();
+            if (protocolConfig != null) {
+                if (protocolConfig.abortPollTimeExpired() != null) {
+                    builder.abortPollTimeExpired(protocolConfig.abortPollTimeExpired());
+                }
+                if (protocolConfig.heartbeatPeriod() != null) {
+                    try {
+                        builder.heartbeatPeriod(Duration.parse(protocolConfig.heartbeatPeriod()));
+                    } catch (DateTimeParseException e) {
+                        logger.info(
+                                "Unable to parse GrpcClientProtocolConfig heartbeatPeriod: {}",
+                                protocolConfig.heartbeatPeriod());
+                    }
+                }
+                if (protocolConfig.initBufferSize() != null) {
+                    builder.initBufferSize(protocolConfig.initBufferSize());
+                }
+                if (protocolConfig.name() != null) {
+                    builder.name(protocolConfig.name());
+                }
+                if (protocolConfig.pollWaitTime() != null) {
+                    try {
+                        builder.pollWaitTime(Duration.parse(protocolConfig.pollWaitTime()));
+                    } catch (DateTimeParseException e) {
+                        logger.info(
+                                "Unable to parse GrpcClientProtocolConfig pollWaitTime: {}",
+                                protocolConfig.pollWaitTime());
+                    }
+                }
+            }
+            return builder.build();
+        }
+        return null;
     }
 
     /**
@@ -436,6 +535,7 @@ public class BlockNodeConnectionManager {
         activeConnectionRef.set(null);
         nodeStats.clear();
         availableBlockNodes.clear();
+        blockNodeProtocolConfigs.clear();
     }
 
     private void closeAllConnections() {
@@ -1106,5 +1206,13 @@ public class BlockNodeConnectionManager {
         }
 
         return result;
+    }
+
+    /**
+     * Gets the block node protocol configurations.
+     * @return the block node protocol configurations
+     */
+    public Map<BlockNodeConfig, BlockNodeProtocolConfig> getBlockNodeProtocolConfigs() {
+        return blockNodeProtocolConfigs;
     }
 }
