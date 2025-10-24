@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.CONTRACT_ID_COMPARATOR;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
@@ -847,7 +848,10 @@ public class BaseTranslator {
             if (stateChange.hasMapUpdate()) {
                 final var mapUpdate = stateChange.mapUpdateOrThrow();
                 final var key = mapUpdate.keyOrThrow();
-                if (key.hasAccountIdKey()) {
+                final var value = mapUpdate.valueOrThrow();
+                // check the key and the value to ensure this update is on accounts state
+                // and not in account-node relation state
+                if (key.hasAccountIdKey() && value.hasAccountValue()) {
                     final var num = key.accountIdKeyOrThrow().accountNumOrThrow();
                     nonces.put(
                             num, mapUpdate.valueOrThrow().accountValueOrThrow().ethereumNonce());
@@ -916,7 +920,7 @@ public class BaseTranslator {
                             schedule.originalCreateTransactionOrThrow().transactionIDOrThrow());
                     scheduleRefs.put(scheduledTxnId, scheduleId);
                     scheduleTxnIds.put(scheduleId, scheduledTxnId);
-                } else if (key.hasAccountIdKey()) {
+                } else if (key.hasAccountIdKey() && mapUpdate.valueOrThrow().hasAccountValue()) {
                     final var num = key.accountIdKeyOrThrow().accountNumOrThrow();
                     if (num > highestKnownEntityNum) {
                         nextCreatedNums
@@ -944,6 +948,11 @@ public class BaseTranslator {
         });
         userTimestamp = null;
         unit.blockTransactionParts().forEach(parts -> {
+            if (parts.functionality() == STATE_SIGNATURE_TRANSACTION) {
+                // There is no equivalent record for this type of transaction (block) item
+                return;
+            }
+
             if (parts.isTopLevel()) {
                 userTimestamp = asInstant(parts.consensusTimestamp());
             }
@@ -974,7 +983,8 @@ public class BaseTranslator {
                 .filter(change -> change.stateId() == STATE_ID_ACCOUNTS.protoOrdinal())
                 .filter(StateChange::hasMapUpdate)
                 .map(StateChange::mapUpdateOrThrow)
-                .filter(change -> change.keyOrThrow().hasAccountIdKey())
+                .filter(change -> change.keyOrThrow().hasAccountIdKey()
+                        && change.valueOrThrow().hasAccountValue())
                 .filter(change -> change.valueOrThrow().accountValueOrThrow().smartContract())
                 .map(change -> change.valueOrThrow().accountValueOrThrow())
                 .filter(contract -> {
@@ -993,7 +1003,8 @@ public class BaseTranslator {
                 .filter(change -> change.stateId() == STATE_ID_ACCOUNTS.protoOrdinal())
                 .filter(StateChange::hasMapUpdate)
                 .map(StateChange::mapUpdateOrThrow)
-                .filter(change -> change.keyOrThrow().hasAccountIdKey())
+                .filter(change -> change.keyOrThrow().hasAccountIdKey()
+                        && change.valueOrThrow().hasAccountValue())
                 .filter(change -> !change.valueOrThrow().accountValueOrThrow().smartContract())
                 .map(change -> change.valueOrThrow().accountValueOrThrow())
                 .filter(account -> account.accountIdOrThrow().equals(accountId))
