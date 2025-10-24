@@ -252,7 +252,6 @@ public class Hip1195StorageTest {
     }
 
     @HapiTest
-    @Tag(ADHOC)
     final Stream<DynamicTest> storageSettingWorks() {
         final var passcode = "open-sesame";
         final var passHash32 = Bytes.wrap(keccak256(org.apache.tuweni.bytes.Bytes.wrap(passcode.getBytes(UTF_8)))
