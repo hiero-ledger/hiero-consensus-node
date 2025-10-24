@@ -66,12 +66,14 @@ import com.hedera.node.app.service.token.impl.handlers.TokenUpdateNftsHandler;
 import com.hedera.node.app.service.util.impl.handlers.AtomicBatchHandler;
 import com.hedera.node.app.service.util.impl.handlers.UtilPrngHandler;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.interledger.clpr.impl.handlers.ClprSetLedgerConfigurationHandler;
 
 /**
  * A record that contains all {@link com.hedera.node.app.spi.workflows.TransactionHandler}s that are available in the
  * app
  */
 public record TransactionHandlers(
+        @NonNull ClprSetLedgerConfigurationHandler clprSetLedgerConfigurationHandler,
         @NonNull ConsensusCreateTopicHandler consensusCreateTopicHandler,
         @NonNull ConsensusUpdateTopicHandler consensusUpdateTopicHandler,
         @NonNull ConsensusDeleteTopicHandler consensusDeleteTopicHandler,

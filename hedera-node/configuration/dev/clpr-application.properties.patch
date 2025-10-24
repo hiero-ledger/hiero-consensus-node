@@ -1,0 +1,40 @@
+diff --git a/hedera-node/configuration/dev/application.properties b/hedera-node/configuration/dev/application.properties
+index 5fc78c685d..5f2b88b51e 100644
+--- a/hedera-node/configuration/dev/application.properties
++++ b/hedera-node/configuration/dev/application.properties
+@@ -2,7 +2,7 @@
+ 
+ balances.exportDir.path=data/accountBalances/
+ upgrade.artifacts.path=data/upgrade
+-contracts.chainId=298
++#contracts.chainId=298
+ contracts.maxGasPerSec=15000000000
+ # Needed for end-end tests running on mod-service code
+ staking.periodMins=1
+@@ -10,17 +10,24 @@ staking.fees.nodeRewardPercentage=10
+ staking.fees.stakingRewardPercentage=10
+ # Needed for Restart and Reconnect HapiTests that run many transactions of each type
+ bootstrap.throttleDefsJson.resource=genesis/throttles-dev.json
+-ledger.id=0x03
++#ledger.id=0x03
+ hedera.shard=0
+ hedera.realm=0
+ blockStream.streamMode=BOTH
+ nodes.enableDAB=true
+ blockStream.blockFileDir=data/blockStreams
+ blockStream.blockNodeConnectionFileDir=data/config
+-grpc.nodeOperatorPortEnabled=true
++#grpc.nodeOperatorPortEnabled=true
+ # For CI tests we want to override roster weights from override-network.json
+ networkAdmin.preserveStateWeightsDuringOverride=false
+ contracts.systemContract.hts.addresses=359,364
+ # Disable TSS for PR checks by default because of the time overhead
+ tss.hintsEnabled=false
+ tss.historyEnabled=false
++
++# The exact values for any of these numeric properties don't matter—just make them different from the defaults
++grpc.port=51211
++grpc.tlsPort=51212
++grpc.nodeOperatorPortEnabled=false
++contracts.chainId=299
++ledger.id=0x04

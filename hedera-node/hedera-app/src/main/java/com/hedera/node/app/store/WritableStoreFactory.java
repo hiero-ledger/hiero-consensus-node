@@ -44,6 +44,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import org.hiero.consensus.roster.WritableRosterStore;
+import org.hiero.interledger.clpr.ClprService;
+import org.hiero.interledger.clpr.WritableClprLedgerConfigurationStore;
+import org.hiero.interledger.clpr.impl.WritableClprLedgerConfigurationStoreImpl;
 
 /**
  * Factory for all writable stores. It creates new writable stores based on the {@link State}.
@@ -109,6 +112,12 @@ public class WritableStoreFactory {
         newMap.put(
                 WritableHistoryStore.class,
                 new StoreEntry(HistoryService.NAME, (states, entityCounters) -> new WritableHistoryStoreImpl(states)));
+        // ClprService
+        newMap.put(
+                WritableClprLedgerConfigurationStore.class,
+                new StoreEntry(
+                        ClprService.NAME,
+                        (states, entityCounters) -> new WritableClprLedgerConfigurationStoreImpl(states)));
         return Collections.unmodifiableMap(newMap);
     }
 
@@ -119,8 +128,8 @@ public class WritableStoreFactory {
     /**
      * Constructor of {@code WritableStoreFactory}
      *
-     * @param state       the {@link State} to use
-     * @param serviceName the name of the service to create stores for
+     * @param state          the {@link State} to use
+     * @param serviceName    the name of the service to create stores for
      * @param entityCounters the {@link WritableEntityCounters} to use
      * @throws NullPointerException     if one of the arguments is {@code null}
      * @throws IllegalArgumentException if the service name is unknown

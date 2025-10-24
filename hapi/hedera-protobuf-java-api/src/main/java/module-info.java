@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.hedera.protobuf.java.api {
+    exports org.hiero.hapi.interledger.clpr.protoc;
+    exports org.hiero.hapi.interledger.state.clpr.protoc;
     exports com.hedera.hapi.block.stream.input.protoc;
     exports com.hedera.hapi.block.stream.output.protoc;
     exports com.hedera.hapi.block.stream.trace.protoc;
