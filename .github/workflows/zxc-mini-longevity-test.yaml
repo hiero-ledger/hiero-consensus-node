@@ -88,10 +88,13 @@ jobs:
       namespace: ${{ steps.set-namespace.outputs.namespace }}
       commit-sha: ${{ steps.hederahash.outputs.sha }}
       kubernetes-cluster: ${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
+
       NFTscore: ${{ steps.NftTransferLoadTestLogs.outputs.value }}
       Cryptoscore: ${{ steps.CryptoTransferLoadTestLogs.outputs.value }}
       HCSscore: ${{ steps.HCSLoadTestLogs.outputs.value }}
       Smartscore: ${{ steps.SmartContractLoadTestLogs.outputs.value }}
+      ValidatorStatus: ${{ steps.validator-status.outputs.value }}
+      ReconnectStatus: ${{ steps.reconnect-status.outputs.value }}
 
     steps:
       - name: Harden Runner
@@ -557,6 +560,7 @@ jobs:
           exit ${ec}
 
       - name: Start Reconnect
+        id: reconnect-status
         run: |
           set +x
           set +e
@@ -566,7 +570,9 @@ jobs:
           NofLoops=2
 
           nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator | awk '{print $1}')"
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/profileReconnectLoopK8s.sh "${{ steps.set-namespace.outputs.namespace }}" ${downtime} ${warmtime} ${NofLoops}
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/profileReconnectLoopK8s.sh "${{ steps.set-namespace.outputs.namespace }}" ${downtime} ${warmtime} ${NofLoops} 2>&1 | tee "${{ github.workspace }}"/report/reconnect.log
+          grep -E "Reconnect N=${NofLoops} done" "${{ github.workspace }}"/report/reconnect.log
+          echo "value=$?" >> "${GITHUB_OUTPUT}"
 
       - name: Wait for ScriptedLoadTest
         run: |
@@ -665,11 +671,16 @@ jobs:
             cp "${{ github.workspace }}"/.github/workflows/support/citr/checkValidatorNode.sh network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/checkValidatorNode.sh
 
       - name: Run Validator
+        id: validator-status
         run: |
-          #FIXME: redirect to log, to publish (currently, TTY warning)
+          set +x
+          set +e
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" \
-            exec -it network-node1-0 -c root-container -- bash -c "cd /opt/hgcapp/services-hedera/HapiApp2.0; sh checkValidatorNode.sh 0"
-          exit 0
+            exec -it network-node1-0 -c root-container -- bash -c "cd /opt/hgcapp/services-hedera/HapiApp2.0; sh checkValidatorNode.sh 0" 2>&1 | tee "${{ github.workspace }}"/report/validator_status.log
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" \
+            cp network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/data/saved/validation.tmp/validator.log "${{ github.workspace }}"/report/validator.log
+          grep -E 'validation .* is OK' "${{ github.workspace }}"/report/validator_status.log
+          echo "value=$?" >> "${GITHUB_OUTPUT}"
 
       - name: Copy logs
         run: |

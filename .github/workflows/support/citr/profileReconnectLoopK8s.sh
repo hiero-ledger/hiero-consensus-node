@@ -25,7 +25,7 @@ echo "NFT transfer started. Working for warmtime=$warmtime ..."
 
 sleep $warmtime
 
-while [ $counter -le $NofLoops ]
+while [ $counter -lt $NofLoops ]
 do
   counter=`expr $counter + 1`
   echo "Loop: $counter"
