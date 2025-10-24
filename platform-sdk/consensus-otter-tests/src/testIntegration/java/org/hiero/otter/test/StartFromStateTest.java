@@ -24,6 +24,7 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.internal.DetRandomProvider;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
@@ -124,7 +125,8 @@ public class StartFromStateTest {
 
         // Override the keys and certificates for all nodes
         // Otter will automatically update the roster history with the new certs
-        final SecureRandom secureRandom = SecureRandom.getInstanceStrong();
+        final SecureRandom secureRandom = DetRandomProvider.getDetRandom();
+        secureRandom.setSeed(new byte[]{1, 2, 3});
         for (final Node node : network.nodes()) {
             node.keysAndCerts(KeysAndCertsGenerator.generate(node.selfId(), secureRandom, secureRandom));
         }
@@ -134,6 +136,8 @@ public class StartFromStateTest {
         assertContinuouslyThat(network.newConsensusResults())
                 .haveEqualCommonRounds()
                 .haveConsistentRounds();
+        assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
+        assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
 
         // Start the network
         network.start();
