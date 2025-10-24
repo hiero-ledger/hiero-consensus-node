@@ -6,7 +6,7 @@
 2. [Definitions](#definitions)
 3. [Component Responsibilities](#component-responsibilities)
 4. [Component Interaction](#component-interaction)
-5. [State Management](#state-management)
+5. [Lifecycle](#lifecycle)
 6. [State Machine Diagrams](#state-machine-diagrams)
 7. [Error Handling](#error-handling)
 
