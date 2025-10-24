@@ -325,7 +325,7 @@ class SystemFileUpdatesTest implements TransactionFactory {
         // when
         subject.handleTxBody(state, txBody.build());
         // then
-        verify(feeManager, times(1)).update(FileUtilities.getFileContent(state, fileID));
+        verify(feeManager, times(1)).updateSimpleFees(FileUtilities.getFileContent(state, fileID));
     }
 
     @Test
