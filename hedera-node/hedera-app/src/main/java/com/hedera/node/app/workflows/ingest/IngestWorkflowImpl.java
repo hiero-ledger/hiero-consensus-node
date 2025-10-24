@@ -7,7 +7,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.transaction.TransactionResponse;
-import com.hedera.node.app.quiescence.QuiescenceConfig;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
@@ -15,6 +14,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.throttle.ThrottleUsage;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.QuiescenceConfig;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
