@@ -170,7 +170,6 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     void nodeIdMustInState() {
         txn = new NodeUpdateBuilder().withNodeId(2L).build();
         given(handleContext.body()).willReturn(txn);
-        refreshStoresWithCurrentNodeInWritable();
         final var config = HederaTestConfigBuilder.create()
                 .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 10)
                 .getOrCreateConfig();
@@ -188,7 +187,6 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         txn = new NodeUpdateBuilder().withNodeId(1L).withAccountId(accountId).build();
         given(accountStore.contains(accountId)).willReturn(false);
         given(handleContext.body()).willReturn(txn);
-        refreshStoresWithCurrentNodeInWritable();
         final var config = HederaTestConfigBuilder.create()
                 .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 10)
                 .getOrCreateConfig();
@@ -210,7 +208,6 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .build();
         setupHandle();
 
-        refreshStoresWithCurrentNodeInWritable();
         final var config = HederaTestConfigBuilder.create()
                 .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 10)
                 .getOrCreateConfig();
@@ -362,19 +359,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .withAdminKey(key)
                 .withDeclineReward(true)
                 .build();
-        given(handleContext.body()).willReturn(txn);
-        refreshStoresWithMoreNodeInWritable();
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 12)
-                .withValue("nodes.maxGossipEndpoint", 4)
-                .withValue("nodes.maxServiceEndpoint", 3)
-                .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(config);
-        given(handleContext.storeFactory()).willReturn(storeFactory);
-        given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
-        given(accountStore.contains(accountId)).willReturn(true);
-        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
-        given(handleContext.attributeValidator()).willReturn(validator);
+        setupHandle();
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
         final var updatedNode = writableStore.get(1L);
@@ -396,10 +381,63 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
+    void handleAccountUpdateWorkAsExpected() {
+        final var updateAccountId = AccountID.newBuilder().accountNum(5L).build();
+        txn = new NodeUpdateBuilder()
+                .withNodeId(1L)
+                .withAccountId(updateAccountId)
+                .withAdminKey(key)
+                .build();
+        given(handleContext.body()).willReturn(txn);
+        given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
+        final var config = HederaTestConfigBuilder.create().getOrCreateConfig();
+        given(handleContext.configuration()).willReturn(config);
+        given(handleContext.storeFactory()).willReturn(storeFactory);
+        given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
+        given(accountStore.contains(updateAccountId)).willReturn(true);
+        given(accountStore.getAccountById(updateAccountId)).willReturn(account);
+        given(account.tinybarBalance()).willReturn(10L);
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(handleContext.attributeValidator()).willReturn(validator);
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+        final var updatedNode = writableStore.get(1L);
+        assertNotNull(updatedNode);
+        assertEquals(1, updatedNode.nodeId());
+        assertEquals(updateAccountId, updatedNode.accountId());
+    }
+
+    @Test
+    void updateWithRelatedAccountFail() {
+        // build state with two nodes and two relations
+        rebuildState(2);
+        // the account ID of the second node
+        final var relatedAccountId =
+                AccountID.newBuilder().accountNum(WELL_KNOWN_ACCOUNT_ID + 1).build();
+        txn = new NodeUpdateBuilder()
+                .withNodeId(1L)
+                .withAccountId(relatedAccountId)
+                .build();
+        given(handleContext.body()).willReturn(txn);
+        given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
+        final var config = HederaTestConfigBuilder.create().getOrCreateConfig();
+        given(handleContext.configuration()).willReturn(config);
+        given(handleContext.storeFactory()).willReturn(storeFactory);
+        given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
+        given(accountStore.contains(relatedAccountId)).willReturn(true);
+        given(accountStore.getAccountById(relatedAccountId)).willReturn(account);
+        given(account.tinybarBalance()).willReturn(10L);
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(handleContext.attributeValidator()).willReturn(validator);
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(ResponseCodeEnum.ACCOUNT_IS_LINKED_TO_A_NODE, msg.getStatus());
+    }
+
+    @Test
     void nothingHappensIfUpdateHasNoop() {
         txn = new NodeUpdateBuilder().withNodeId(1L).build();
         given(handleContext.body()).willReturn(txn);
-        refreshStoresWithCurrentNodeInWritable();
         final var config = HederaTestConfigBuilder.create()
                 .withValue("nodes.maxGossipEndpoint", 2)
                 .getOrCreateConfig();
@@ -448,7 +486,8 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     @Test
     void preHandleFailedWhenNodeDeleted() throws PreCheckException {
         givenValidNode(true);
-        refreshStoresWithCurrentNodeInReadable();
+        // refresh state with deleted node
+        rebuildState(1);
         txn = new NodeUpdateBuilder().withNodeId(nodeId.number()).build();
         final var context = setupPreHandle(true, txn);
         assertThrowsPreCheck(() -> subject.preHandle(context), INVALID_NODE_ID);
@@ -457,7 +496,8 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     @Test
     void preHandleFailedWhenOldAdminKeyInValid() throws PreCheckException {
         givenValidNodeWithAdminKey(invalidKey);
-        refreshStoresWithCurrentNodeInReadable();
+        // refresh state with updated node
+        rebuildState(1);
         txn = new NodeUpdateBuilder().withNodeId(nodeId.number()).build();
         final var context = setupPreHandle(true, txn);
         assertThrowsPreCheck(() -> subject.preHandle(context), INVALID_ADMIN_KEY);
@@ -530,7 +570,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
 
         // Set up the readable node state with our node - using correct builder pattern
         readableNodeState =
-                emptyReadableNodeStateBuilder().value(nodeId, nodeWithAccount).build();
+                readableNodeStateBuilder(0).value(nodeId, nodeWithAccount).build();
 
         given(readableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(readableNodeState);
         readableStore = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
@@ -580,9 +620,8 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 Node.newBuilder().nodeId(nodeId.number()).adminKey(key).build();
 
         // Set up the readable node state with our modified node
-        readableNodeState = emptyReadableNodeStateBuilder()
-                .value(nodeId, nodeWithoutAccount)
-                .build();
+        readableNodeState =
+                readableNodeStateBuilder(0).value(nodeId, nodeWithoutAccount).build();
 
         given(readableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(readableNodeState);
 
@@ -613,8 +652,6 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .build();
 
         given(handleContext.body()).willReturn(txn);
-        refreshStoresWithCurrentNodeInWritable();
-
         final var config = HederaTestConfigBuilder.create()
                 .withValue("nodes.webProxyEndpointsEnabled", false)
                 .getOrCreateConfig();
@@ -825,6 +862,10 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(accountStore.contains(newAccountId)).willReturn(true);
+        given(accountStore.getAccountById(newAccountId)).willReturn(account);
+        given(account.tinybarBalance()).willReturn(10L);
+        given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
+
         given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
 
         // Execute the method
@@ -875,15 +916,11 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     }
 
     private void setupHandle() {
-        given(handleContext.body()).willReturn(txn);
-        refreshStoresWithCurrentNodeInWritable();
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("nodes.maxGossipEndpoint", 2)
-                .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(config);
-        given(handleContext.storeFactory()).willReturn(storeFactory);
-        given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
+        setupMinimalHandle();
         given(accountStore.contains(accountId)).willReturn(true);
+        given(accountStore.getAccountById(any())).willReturn(account);
+        given(account.tinybarBalance()).willReturn(10L);
+
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
     }
 
