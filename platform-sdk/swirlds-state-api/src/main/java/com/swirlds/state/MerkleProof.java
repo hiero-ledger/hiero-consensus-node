@@ -8,7 +8,7 @@ import org.hiero.base.crypto.Hash;
 /**
  * Represents a Merkle proof containing all necessary information to verify a state item.
  *
- * @param stateItem        byte representation of {@code StateItem}
+ * @param stateItem        byte representation of {@code StateItem}, the item this proof is for
  * @param siblingHashes     a list of sibling hashes used in the Merkle proof from the leaf of {@code stateItem} to the root of the state
  * @param innerParentHashes a list of byte arrays representing inner parent hashes, where:
  *                          <ul>

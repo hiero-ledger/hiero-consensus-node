@@ -8,6 +8,7 @@ import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
 
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.base.time.Time;
+import com.swirlds.common.utility.throttle.RateLimiter;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.permits.SyncGuard;
@@ -88,6 +89,11 @@ public class RpcPeerHandler implements GossipRpcReceiver {
     private final RpcPeerState state = new RpcPeerState();
 
     /**
+     * Limiter to not spam with logs about falling behind compared to other nodes
+     */
+    private final RateLimiter fallBehindRateLimiter;
+
+    /**
      * How many events were sent out to peer node during latest sync
      */
     private int outgoingEventsCounter = 0;
@@ -134,6 +140,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
         this.eventHandler = Objects.requireNonNull(eventHandler);
         this.syncGuard = syncGuard;
+        this.fallBehindRateLimiter = new RateLimiter(time, Duration.ofMinutes(1));
     }
 
     /**
@@ -295,13 +302,14 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         final SyncFallenBehindStatus behindStatus = sharedShadowgraphSynchronizer.hasFallenBehind(
                 state.mySyncData.eventWindow(), state.remoteSyncData.eventWindow(), peerId);
         if (behindStatus != SyncFallenBehindStatus.NONE_FALLEN_BEHIND) {
-            logger.info(
-                    LogMarker.RECONNECT.getMarker(),
-                    "{} local ev={} remote ev={}",
-                    behindStatus,
-                    state.mySyncData.eventWindow(),
-                    state.remoteSyncData.eventWindow());
-
+            if (fallBehindRateLimiter.requestAndTrigger()) {
+                logger.info(
+                        LogMarker.RECONNECT.getMarker(),
+                        "{} local ev={} remote ev={}",
+                        behindStatus,
+                        state.mySyncData.eventWindow(),
+                        state.remoteSyncData.eventWindow());
+            }
             clearInternalState();
             if (behindStatus == SyncFallenBehindStatus.OTHER_FALLEN_BEHIND) {
                 this.syncMetrics.reportSyncPhase(peerId, SyncPhase.OTHER_FALLEN_BEHIND);
@@ -329,11 +337,6 @@ public class RpcPeerHandler implements GossipRpcReceiver {
                     latestShadowWindow.getEventWindow(), remoteEventWindow, peerId);
             if (behindStatus != SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
                 // we seem to be ok after all, let's wait for another sync to happen
-                logger.info(
-                        LogMarker.RECONNECT.getMarker(),
-                        "Latest event window is not really falling behind, will retry sync local ev={} remote ev={}",
-                        latestShadowWindow.getEventWindow(),
-                        remoteEventWindow);
                 return true;
             }
 

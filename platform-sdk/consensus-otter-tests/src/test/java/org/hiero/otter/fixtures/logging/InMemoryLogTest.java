@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.turtle.logging;
+package org.hiero.otter.fixtures.logging;
 
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
 import static com.swirlds.logging.legacy.LogMarker.PLATFORM_STATUS;
@@ -9,21 +9,25 @@ import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.swirlds.logging.legacy.LogMarker;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterAssertions;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.logging.StructuredLog;
+import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * Comprehensive integration tests for in-memory logger content in the Turtle environment.
@@ -36,7 +40,7 @@ import org.junit.jupiter.params.provider.ValueSource;
  *     <li>Each node's logs are correctly tracked separately</li>
  * </ul>
  */
-final class TurtleInMemoryLogTest {
+class InMemoryLogTest {
 
     /**
      * List of markers that commonly appear during normal Turtle node operation.
@@ -44,6 +48,20 @@ final class TurtleInMemoryLogTest {
      */
     private static final List<LogMarker> MARKERS_APPEARING_IN_NORMAL_OPERATION =
             List.of(STARTUP, PLATFORM_STATUS, STATE_TO_DISK, MERKLE_DB);
+
+    @NonNull
+    private static Stream<Arguments> nodesAndEnvironments() {
+        return Stream.of(
+                Arguments.of(1, (Supplier<TestEnvironment>) TurtleTestEnvironment::new),
+                Arguments.of(4, (Supplier<TestEnvironment>) TurtleTestEnvironment::new),
+                Arguments.of(1, (Supplier<TestEnvironment>) ContainerTestEnvironment::new),
+                Arguments.of(4, (Supplier<TestEnvironment>) ContainerTestEnvironment::new));
+    }
+
+    @NonNull
+    private static Stream<TestEnvironment> environments() {
+        return Stream.of(new TurtleTestEnvironment(), new ContainerTestEnvironment());
+    }
 
     /**
      * Test with multiple nodes to verify that all allowed markers are logged correctly in the in-memory logger.
@@ -58,15 +76,20 @@ final class TurtleInMemoryLogTest {
      * @param numNodes the number of nodes to test with
      */
     @ParameterizedTest
-    @ValueSource(ints = {1, 4})
-    void testNodesLogAllMarkers(final int numNodes) throws Exception {
-        final TestEnvironment env = new TurtleTestEnvironment();
+    @MethodSource("nodesAndEnvironments")
+    void testBasicInMemoryLogging(final int numNodes, @NonNull final Supplier<TestEnvironment> envFactory) {
+        final TestEnvironment env = envFactory.get();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
 
             final List<Node> nodes = network.addNodes(numNodes);
             network.start();
+
+            // Generate log messages in the test. These should not appear in the log.
+            System.out.println("Hello Otter!");
+            LogManager.getLogger().info("Hello Hiero!");
+            LogManager.getLogger("com.acme.ExternalOtterTest").info("Hello World!");
 
             // Let the nodes run for a bit to generate log messages
             timeManager.waitFor(Duration.ofSeconds(5L));
@@ -119,6 +142,19 @@ final class TurtleInMemoryLogTest {
                 assertThat(hasTraceLogs)
                         .as("Node %d in-memory log should NOT contain TRACE level messages", nodeId)
                         .isFalse();
+
+                // Test Message Verification
+
+                // Verify that our test log messages do NOT appear in the log
+                OtterAssertions.assertThat(logResult)
+                        .as("Log should NOT contain test log message 'Hello Otter!'")
+                        .hasNoMessageContaining("Hello Otter!");
+                OtterAssertions.assertThat(logResult)
+                        .as("Log should NOT contain test log message 'Hello Hiero!'")
+                        .hasNoMessageContaining("Hello Hiero!");
+                OtterAssertions.assertThat(logResult)
+                        .as("Log should NOT contain test log message 'Hello World!'")
+                        .hasNoMessageContaining("Hello World!");
             }
         } finally {
             env.destroy();
@@ -131,9 +167,9 @@ final class TurtleInMemoryLogTest {
      * <p>This test verifies per-node log tracking by checking that each node's log results
      * only contain logs with that node's ID, ensuring logs are not mixed between nodes.
      */
-    @Test
-    void testPerNodeLogTracking() throws Exception {
-        final TestEnvironment env = new TurtleTestEnvironment();
+    @ParameterizedTest
+    @MethodSource("environments")
+    void testPerNodeLogTracking(@NonNull final TestEnvironment env) {
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -192,15 +228,15 @@ final class TurtleInMemoryLogTest {
      * <li>Common assertions can be applied across all nodes at once</li>
      * </ul>
      */
-    @Test
-    void testNetworkLogResults() throws Exception {
-        final TestEnvironment env = new TurtleTestEnvironment();
+    @ParameterizedTest
+    @MethodSource("environments")
+    void testNetworkLogResults(@NonNull final TestEnvironment env) {
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
 
             // Spin up 4 nodes
-            final List<Node> nodes = network.addNodes(4);
+            network.addNodes(4);
             network.start();
 
             // Let the nodes run for a bit to generate log messages
@@ -239,9 +275,9 @@ final class TurtleInMemoryLogTest {
      * <li>Multiple calls to newLogResult() return consistent, accumulated log data</li>
      * </ul>
      */
-    @Test
-    void testLogsAddedContinuously() throws Exception {
-        final TestEnvironment env = new TurtleTestEnvironment();
+    @ParameterizedTest
+    @MethodSource("environments")
+    void testLogsAddedContinuously(@NonNull final TestEnvironment env) {
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();

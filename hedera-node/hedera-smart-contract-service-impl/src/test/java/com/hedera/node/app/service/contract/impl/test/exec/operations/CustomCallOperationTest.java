@@ -17,6 +17,7 @@ import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomCallOperation;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
+import com.hedera.node.app.service.contract.impl.exec.utils.InvalidAddressContext;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -130,6 +131,7 @@ class CustomCallOperationTest {
     void withNoValueRejectsMissingAddressIfAllowCallFeatureFlagOff() {
         try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
             givenWellKnownFrameWith(0L, TestHelpers.EIP_1014_ADDRESS, 2L);
+            frameUtils.when(() -> FrameUtils.invalidAddressContext(frame)).thenReturn(new InvalidAddressContext());
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
             frameUtils.when(() -> FrameUtils.entityIdFactory(frame)).thenReturn(entityIdFactory);
             frameUtils
@@ -162,6 +164,7 @@ class CustomCallOperationTest {
     void withoutImplicitCreationEnabledRejectsMissingAddress() {
         try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
             givenWellKnownFrameWith(1L, TestHelpers.EIP_1014_ADDRESS, 2L);
+            frameUtils.when(() -> FrameUtils.invalidAddressContext(frame)).thenReturn(new InvalidAddressContext());
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
             frameUtils.when(() -> FrameUtils.entityIdFactory(frame)).thenReturn(entityIdFactory);
             frameUtils
