@@ -1,14 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
-import static com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.THIRTY_SECONDS;
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static java.util.Collections.shuffle;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.collectingAndThen;
 import static java.util.stream.Collectors.toList;
-import static org.apache.logging.log4j.Level.DEBUG;
-import static org.apache.logging.log4j.Level.INFO;
 
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
@@ -380,11 +377,7 @@ public class BlockNodeConnectionManager {
         final long delayMillis = Math.max(0, initialDelay.toMillis());
         final BlockNodeConnection newConnection = createConnection(blockNodeConfig, initialBlockToStream);
 
-        logger.debug(
-                newConnection,
-                "Scheduling reconnection for node in {} ms (force={}).",
-                delayMillis,
-                force);
+        logger.debug("{} Scheduling reconnection for node in {} ms (force={}).", newConnection, delayMillis, force);
 
         // Schedule the first attempt using the connectionExecutor
         try {
@@ -492,7 +485,7 @@ public class BlockNodeConnectionManager {
             return false;
         }
 
-        logWithContext(logger, DEBUG, "Selecting highest priority available block node for connection attempt.");
+        logger.debug("Selecting highest priority available block node for connection attempt.");
 
         final BlockNodeConfig selectedNode = getNextPriorityBlockNode();
 
@@ -726,17 +719,6 @@ public class BlockNodeConnectionManager {
             // Ensure the initial delay is non-negative for backoff calculation
             this.currentBackoffDelayMs = initialDelay.isNegative() ? Duration.ZERO : initialDelay;
             this.force = force;
-        }
-
-        /**
-         * Helper method to add current connection information for debug logging.
-         */
-        private void logWithContext(final Level level, final String message, final Object... args) {
-            if (logger.isEnabled(level)) {
-                final String msg =
-                        String.format("%s %s %s", LoggingUtilities.threadInfo(), connection.toString(), message);
-                logger.atLevel(level).log(msg, args);
-            }
         }
 
         /**

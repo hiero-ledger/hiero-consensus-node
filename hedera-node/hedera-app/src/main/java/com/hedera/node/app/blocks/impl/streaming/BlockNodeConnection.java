@@ -2,11 +2,6 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
-import static org.apache.logging.log4j.Level.DEBUG;
-import static org.apache.logging.log4j.Level.ERROR;
-import static org.apache.logging.log4j.Level.INFO;
-import static org.apache.logging.log4j.Level.TRACE;
-import static org.apache.logging.log4j.Level.WARN;
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.RESET;
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TIMEOUT;
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TOO_FAR_BEHIND;
@@ -227,8 +222,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         if (initialBlockToStream != null) {
             streamingBlockNumber.set(initialBlockToStream);
-            logWithContext(
-                    logger, INFO, "Block node connection will initially stream with block {}", initialBlockToStream);
+            logger.info("Block node connection will initially stream with block {}", initialBlockToStream);
         }
     }
 
@@ -934,7 +928,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         @Override
         public void run() {
-            logWithContext(logger, INFO, BlockNodeConnection.this, "Worker thread started");
+            logger.info("{} Worker thread started", BlockNodeConnection.this);
             while (true) {
                 try {
                     if (connectionState.get().isTerminal()) {
@@ -951,14 +945,14 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     Thread.sleep(connectionWorkerSleepMillis());
                 } catch (final InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    logWithContext(logger, WARN, BlockNodeConnection.this, "Worker loop was interrupted");
+                    logger.warn("{} Worker loop was interrupted", BlockNodeConnection.this);
                 } catch (final Exception e) {
-                    logWithContext(logger, WARN, BlockNodeConnection.this, "Error caught in connection worker loop", e);
+                    logger.warn("{} Error caught in connection worker loop", BlockNodeConnection.this, e);
                 }
             }
 
             // if we exit the worker loop, then this thread is over... remove it from the worker thread reference
-            logWithContext(logger, INFO, "Worker thread exiting");
+            logger.info("Worker thread exiting");
             workerThreadRef.compareAndSet(Thread.currentThread(), null);
         }
 
@@ -974,12 +968,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
             while ((item = block.blockItem(itemIndex)) != null) {
                 if (itemIndex == 0) {
-                    logWithContext(
-                            logger,
-                            TRACE,
-                            BlockNodeConnection.this,
-                            "Starting to process items for block {}",
-                            block.blockNumber());
+                    logger.trace(
+                            "{} Starting to process items for block {}", BlockNodeConnection.this, block.blockNumber());
                 }
 
                 final int itemSize = item.protobufSize();
@@ -996,11 +986,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     } else {
                         // There are no other items in the current pending request. This means that the item is too big
                         // to send. We've entered a fatal, non-recoverable situation.
-                        logWithContext(
-                                logger,
-                                ERROR,
+                        logger.error(
+                                "{} !!! FATAL: Request would contain a block item that is too big to send (block={}, itemIndex={}, expectedRequestSize={}, maxAllowed={}). Closing connection.",
                                 BlockNodeConnection.this,
-                                "!!! FATAL: Request would contain a block item that is too big to send (block={}, itemIndex={}, expectedRequestSize={}, maxAllowed={}). Closing connection.",
                                 block.blockNumber(),
                                 itemIndex,
                                 newRequestBytes,
@@ -1031,13 +1019,11 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 // for the current block so we can move to the next block.
                 final long nextBlockNumber = block.blockNumber() + 1;
                 if (streamingBlockNumber.compareAndSet(block.blockNumber(), nextBlockNumber)) {
-                    logWithContext(logger, TRACE, BlockNodeConnection.this, "Advancing to block {}", nextBlockNumber);
+                    logger.trace("{} Advancing to block {}", BlockNodeConnection.this, nextBlockNumber);
                 } else {
-                    logWithContext(
-                            logger,
-                            TRACE,
+                    logger.trace(
+                            "{} Tried to advance to block {} but the block to stream was updated externally",
                             BlockNodeConnection.this,
-                            "Tried to advance to block {} but the block to stream was updated externally",
                             nextBlockNumber);
                 }
             }
@@ -1066,16 +1052,10 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     return true;
                 }
             } catch (final UncheckedIOException e) {
-                logWithContext(
-                        logger,
-                        DEBUG,
-                        BlockNodeConnection.this,
-                        "UncheckedIOException caught in connection worker thread",
-                        e);
+                logger.debug("{} UncheckedIOException caught in connection worker thread", BlockNodeConnection.this, e);
                 handleStreamFailureWithoutOnComplete();
             } catch (final Exception e) {
-                logWithContext(
-                        logger, DEBUG, BlockNodeConnection.this, "Exception caught in connection worker thread", e);
+                logger.debug("{} Exception caught in connection worker thread", BlockNodeConnection.this, e);
                 handleStreamFailure();
             }
 
@@ -1113,11 +1093,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             // Swap blocks and reset
             if (logger.isTraceEnabled()) {
                 final long oldBlock = block == null ? -1 : block.blockNumber();
-                logWithContext(
-                        logger,
-                        TRACE,
+                logger.trace(
+                        "{} Worker switching from block {} to block {}",
                         BlockNodeConnection.this,
-                        "Worker switching from block {} to block {}",
                         oldBlock,
                         latestActiveBlockNumber);
             }
