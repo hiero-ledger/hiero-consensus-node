@@ -59,12 +59,16 @@ public class IterableStorageManager {
             @NonNull final ContractStateStore store) {
         // map to store the first storage key for each contract
         final Map<ContractID, Bytes> firstKeys = new HashMap<>();
+        final var hooksContract = enhancement
+                .nativeOperations()
+                .entityIdFactory()
+                .newContractId(HTS_HOOKS_CONTRACT_ID.contractNumOrThrow());
 
         // Adjust the storage linked lists for each contract
         allAccesses.forEach(contractAccesses -> contractAccesses.accesses().forEach(access -> {
             if (access.isUpdate()) {
                 final var contractId = contractAccesses.contractID();
-                if (contractId.equals(HTS_HOOKS_CONTRACT_ID)) {
+                if (contractId.equals(hooksContract)) {
                     // Skip managing linked list for 0x16d, as its storage is managed separately
                     return;
                 }
@@ -106,7 +110,7 @@ public class IterableStorageManager {
         // Update contract metadata with the net change in slots used
         long slotUsageChange = 0;
         for (final var change : allSizeChanges) {
-            if (change.contractID().equals(HTS_HOOKS_CONTRACT_ID)) {
+            if (change.contractID().equals(hooksContract)) {
                 // Skip managing slot count for 0x16d, as its storage is managed separately
                 continue;
             }

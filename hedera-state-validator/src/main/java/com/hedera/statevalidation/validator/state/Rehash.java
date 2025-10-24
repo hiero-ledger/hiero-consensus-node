@@ -4,13 +4,12 @@ package com.hedera.statevalidation.validator.state;
 import static com.hedera.statevalidation.util.ParallelProcessingUtils.VALIDATOR_FORK_JOIN_POOL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.hedera.statevalidation.report.SlackReportGenerator;
 import com.hedera.statevalidation.util.junit.HashInfo;
 import com.hedera.statevalidation.util.junit.HashInfoResolver;
 import com.hedera.statevalidation.util.junit.StateResolver;
 import com.swirlds.common.merkle.hash.FutureMerkleHash;
-import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -18,15 +17,12 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.AbstractTask;
 import org.hiero.base.crypto.Cryptography;
-import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -95,18 +91,8 @@ public class Rehash {
     /**
      * This thread-local gets a message digest that can be used for hashing on a per-thread basis.
      */
-    private static final ThreadLocal<MessageDigest> MESSAGE_DIGEST_THREAD_LOCAL = ThreadLocal.withInitial(() -> {
-        try {
-            return MessageDigest.getInstance(Cryptography.DEFAULT_DIGEST_TYPE.algorithmName());
-        } catch (final NoSuchAlgorithmException e) {
-            throw new CryptographyException(e, LogMarker.EXCEPTION);
-        }
-    });
-
-    private static final ThreadLocal<byte[]> BYTE_ARRAY_THREAD_LOCAL = ThreadLocal.withInitial(() -> new byte[256]);
-
-    private static final ThreadLocal<BufferedData> BUFFERED_DATA_THREAD_LOCAL =
-            ThreadLocal.withInitial(() -> BufferedData.wrap(BYTE_ARRAY_THREAD_LOCAL.get()));
+    private static final ThreadLocal<WritableMessageDigest> MESSAGE_DIGEST_THREAD_LOCAL =
+            ThreadLocal.withInitial(() -> new WritableMessageDigest(Cryptography.DEFAULT_DIGEST_TYPE.buildDigest()));
 
     private static final Hash NO_PATH2_HASH = new Hash();
 
@@ -137,19 +123,9 @@ public class Rehash {
                 final VirtualLeafBytes<?> leafBytes = records.findLeafRecord(path);
                 assert leafBytes != null;
 
-                final int leafSizeInBytes = leafBytes.getSizeInBytesForHashing();
-                byte[] arr = BYTE_ARRAY_THREAD_LOCAL.get();
-                BufferedData out = BUFFERED_DATA_THREAD_LOCAL.get();
-                if (out.length() < leafSizeInBytes) {
-                    arr = new byte[leafSizeInBytes];
-                    BYTE_ARRAY_THREAD_LOCAL.set(arr);
-                    out = BufferedData.wrap(arr);
-                    BUFFERED_DATA_THREAD_LOCAL.set(out);
-                }
-                leafBytes.writeToForHashing(out);
-                final MessageDigest md = MESSAGE_DIGEST_THREAD_LOCAL.get();
-                md.update(arr, 0, Math.toIntExact(out.position()));
-                Hash hash = new Hash(md.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
+                final WritableMessageDigest wmd = MESSAGE_DIGEST_THREAD_LOCAL.get();
+                leafBytes.writeToForHashing(wmd);
+                Hash hash = new Hash(wmd.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
                 parent.setHash((leafBytes.path() & 1) == 1, hash);
 
                 if (lastLeafPath == 1) {
@@ -189,13 +165,13 @@ public class Rehash {
 
         @Override
         protected boolean onExecute() {
-            final MessageDigest md = MESSAGE_DIGEST_THREAD_LOCAL.get();
-            md.update((byte) 0x02);
-            leftHash.getBytes().writeTo(md);
+            final WritableMessageDigest wmd = MESSAGE_DIGEST_THREAD_LOCAL.get();
+            wmd.writeByte((byte) 0x02);
+            leftHash.getBytes().writeTo(wmd);
             if (rightHash != NO_PATH2_HASH) {
-                rightHash.getBytes().writeTo(md);
+                rightHash.getBytes().writeTo(wmd);
             }
-            Hash hash = new Hash(md.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
+            Hash hash = new Hash(wmd.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
 
             if (parent != null) {
                 parent.setHash((path & 1) == 1, hash);
