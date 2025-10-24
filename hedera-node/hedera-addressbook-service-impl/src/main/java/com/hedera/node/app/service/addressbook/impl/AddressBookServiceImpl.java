@@ -18,7 +18,6 @@ public final class AddressBookServiceImpl implements AddressBookService {
     public void registerSchemas(@NonNull SchemaRegistry registry) {
         registry.register(new V053AddressBookSchema());
         registry.register(new V068AddressBookSchema());
-        // Note: if tests expect only two schemas, update tests accordingly; keeping cleanup schema for v0.68
         registry.register(new V068AddressBookCleanupSchema());
     }
 }
