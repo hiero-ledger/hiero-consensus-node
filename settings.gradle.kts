@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-plugins { id("org.hiero.gradle.build") version "0.5.1" }
+plugins { id("org.hiero.gradle.build") version "0.6.0" }
 
 javaModules {
     // This "intermediate parent project" should be removed
