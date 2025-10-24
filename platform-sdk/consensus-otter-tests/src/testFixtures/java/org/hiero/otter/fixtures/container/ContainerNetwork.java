@@ -168,5 +168,6 @@ public class ContainerNetwork extends AbstractNetwork {
         if (toxiproxyContainer != null) {
             toxiproxyContainer.stop();
         }
+        network.close();
     }
 }

@@ -12,6 +12,7 @@ import static com.hedera.services.bdd.spec.dsl.SpecEntity.forceCreateAndRegister
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractUpdate;
@@ -272,6 +273,18 @@ public class SelfDestructSuite {
             return selfDestructedContractMightBeDeletedWhenPreviouslyCreated(
                     HapiSuite.EVM_VERSION_050, payerAccount, quickSelfDestructContract, selfDestructCallableContract);
         }
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> selfDestructWithInvalidBeneficiary() {
+        final var SELF_DESTRUCT_TXN = "SelfDestructTxn";
+        return hapiTest(
+                contractCreate(SELF_DESTRUCT_CALLABLE_CONTRACT).balance(ONE_HBAR),
+                contractCall(SELF_DESTRUCT_CALLABLE_CONTRACT, "destroyExplicitBeneficiary", mirrorAddrParamFunction(0L))
+                        .gas(1_000_000L)
+                        .hasKnownStatus(INVALID_SOLIDITY_ADDRESS)
+                        .via(SELF_DESTRUCT_TXN),
+                getTxnRecord(SELF_DESTRUCT_TXN).andAllChildRecords().logged());
     }
 
     final Stream<DynamicTest> selfDestructFailsWhenBeneficiaryHasReceiverSigRequiredAndHasNotSignedTheTxn(

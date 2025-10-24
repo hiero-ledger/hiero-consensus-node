@@ -134,4 +134,11 @@ public interface MerkleNodeState extends State {
      * @return hash of the merkle node at the given path or null if the path is non-existent
      */
     Hash getHashForPath(long path);
+
+    /**
+     * Prepares a Merkle proof for the given path.
+     * @param path merkle path
+     * @return Merkle proof for the given path or null if the path is non-existent
+     */
+    MerkleProof getMerkleProof(long path);
 }
