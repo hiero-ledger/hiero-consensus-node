@@ -542,7 +542,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         for (int i = 0; i < n; i++) {
             final var builder = builders.get(i);
             final var category = builder.category();
-            if (category == USER || category == NODE) {
+            if ((category == USER || category == NODE) && builder.transactionID() != null) {
                 indexOfParentBuilder = i;
                 topLevelNonce = builder.transactionID().nonce();
                 idBuilder = builder.transactionID().copyBuilder();
@@ -555,6 +555,9 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         var parentConsensusTime = consensusTime;
         for (int i = 0; i < n; i++) {
             final var builder = builders.get(i);
+            if (builder.transactionID() == null) {
+                continue;
+            }
             final var nonceOffset =
                     switch (builder.category()) {
                         case USER, SCHEDULED, NODE, BATCH_INNER, SYSTEM_TASK -> 0;

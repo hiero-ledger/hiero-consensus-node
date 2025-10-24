@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.integration;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.concreteKeyOf;
 import static com.hedera.node.app.systemtask.schemas.V069SystemTaskSchema.SYSTEM_TASK_QUEUE_STATE_ID;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
@@ -94,13 +95,64 @@ public class RepeatableIndirectKeysTest {
     }
 
     /**
-     * Validates that a loop of indirect key references stops once the maximum depth is reached.
+     * Validates that a loop of indirect key references stops once the maximum depth is reached by
+     * creating circular indirections between accounts A, B, and C as in the following schematic:
+     *        +-----+    uses key of    +-----+    uses key of    +-----+
+     *        |  A  | --------------->  |  B  | --------------->  |  C  |
+     *        +-----+                   +-----+                   +-----+
+     *           ^                                                  |
+     *           |---------------------- uses key of --------------|
      */
     @RepeatableHapiTest(value = {NEEDS_STATE_ACCESS})
     final Stream<DynamicTest> minimumLoopStopsWhenMaxDepthReached() {
         return hapiTest(
-                newKeyNamed(controlKeyFor("loopingAccount")),
-                cryptoCreate("loopingAccount").key(controlKeyFor("loopingAccount")));
+                newKeyNamed(controlKeyFor("Carol")),
+                cryptoCreate("Carol").key(controlKeyFor("Carol")),
+                createIndirectionUser("Bob", "Carol"),
+                createIndirectionUser("Alice", "Bob"),
+                // LOGGING
+                viewAccount("Carol", account -> {
+                    System.out.println("--- Carol ---");
+                    System.out.println(" - TEMPLATE: " + account.key());
+                    System.out.println("\n - CONCRETE: " + concreteKeyOf(account));
+                    System.out.println("-------------");
+                }),
+                viewAccount("Bob", account -> {
+                    System.out.println("--- Bob ---");
+                    System.out.println(" - TEMPLATE: " + account.key());
+                    System.out.println("\n - CONCRETE: " + concreteKeyOf(account));
+                    System.out.println("-------------");
+                }),
+                viewAccount("Alice", account -> {
+                    System.out.println("--- Alice ---");
+                    System.out.println(" - TEMPLATE: " + account.key());
+                    System.out.println("\n - CONCRETE: " + concreteKeyOf(account));
+                    System.out.println("-------------");
+                }),
+                // LOGGING
+                newKeyNamed(templateKeyFor("Carol"))
+                        .shape(threshOf(1, PREDEFINED_SHAPE, INDIRECT_ACCOUNT_SHAPE)
+                                .signedWith(sigs(controlKeyFor("Carol"), "Alice"))),
+                cryptoUpdate("Carol").key(templateKeyFor("Carol")),
+                // System tasks now running recursively until key depth 15 reached...
+                viewAccount("Carol", account -> {
+                    System.out.println("--- Carol ---");
+                    System.out.println(" - TEMPLATE: " + account.key());
+                    System.out.println("\n - CONCRETE: " + concreteKeyOf(account));
+                    System.out.println("-------------");
+                }),
+                viewAccount("Bob", account -> {
+                    System.out.println("--- Bob ---");
+                    System.out.println(" - TEMPLATE: " + account.key());
+                    System.out.println("\n - CONCRETE: " + concreteKeyOf(account));
+                    System.out.println("-------------");
+                }),
+                viewAccount("Alice", account -> {
+                    System.out.println("--- Alice ---");
+                    System.out.println(" - TEMPLATE: " + account.key());
+                    System.out.println("\n - CONCRETE: " + concreteKeyOf(account));
+                    System.out.println("-------------");
+                }));
     }
 
     private SpecOperation createIndirectionUser(String userAccount, String keyAccount) {

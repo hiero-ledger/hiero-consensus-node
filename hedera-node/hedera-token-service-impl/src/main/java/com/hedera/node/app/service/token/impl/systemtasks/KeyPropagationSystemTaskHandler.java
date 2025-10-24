@@ -4,7 +4,6 @@ package com.hedera.node.app.service.token.impl.systemtasks;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_UPDATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.concreteKeyOf;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -25,6 +24,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * SystemTaskHandler for processing KeyPropagation tasks for the Token Service.
@@ -36,6 +37,8 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class KeyPropagationSystemTaskHandler implements SystemTaskHandler {
+    private static final Logger logger = LogManager.getLogger(KeyPropagationSystemTaskHandler.class);
+
     @Inject
     public KeyPropagationSystemTaskHandler() {
         // Dagger2
@@ -82,18 +85,25 @@ public class KeyPropagationSystemTaskHandler implements SystemTaskHandler {
                         },
                         CryptoUpdateStreamBuilder.class,
                         CRYPTO_UPDATE);
-                validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
-                // If the user has indirect key users after update, schedule its own propagation
-                final var updatedUserAccount = requireNonNull(accountStore.get(nextUserId));
-                if (updatedUserAccount.numIndirectKeyUsers() > 0) {
-                    accountStore.put(updatedUserAccount
-                            .copyBuilder()
-                            .maxRemainingPropagations(updatedUserAccount.numIndirectKeyUsers())
-                            .nextInLineKeyUserId(updatedUserAccount.firstKeyUserId())
-                            .build());
-                    context.offer(SystemTask.newBuilder()
-                            .keyPropagation(KeyPropagation.newBuilder().keyAccountId(nextUserId))
-                            .build());
+                if (streamBuilder.status() == SUCCESS) {
+                    // If the user has indirect key users after successful update, schedule its own propagation
+                    final var updatedUserAccount = requireNonNull(accountStore.get(nextUserId));
+                    if (updatedUserAccount.numIndirectKeyUsers() > 0) {
+                        accountStore.put(updatedUserAccount
+                                .copyBuilder()
+                                .maxRemainingPropagations(updatedUserAccount.numIndirectKeyUsers())
+                                .nextInLineKeyUserId(updatedUserAccount.firstKeyUserId())
+                                .build());
+                        context.offer(SystemTask.newBuilder()
+                                .keyPropagation(KeyPropagation.newBuilder().keyAccountId(nextUserId))
+                                .build());
+                    }
+                } else {
+                    logger.info(
+                            "Failed to propagate key from 0.0.{} to 0.0.{} ({})",
+                            keyAccountId.accountNumOrThrow(),
+                            nextUserId.accountNumOrThrow(),
+                            streamBuilder.status());
                 }
             }
         }

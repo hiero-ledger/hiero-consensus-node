@@ -338,10 +338,6 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
     private Account.Builder updateBuilder(
             @NonNull final CryptoUpdateTransactionBody op, @NonNull final Account currentAccount) {
         final var builder = currentAccount.copyBuilder();
-        if (op.hasKey()) {
-            /* Note that {@code this.validateSemantics} will have rejected any txn with an invalid key. */
-            builder.key(op.key());
-        }
         if (op.hasExpirationTime()) {
             builder.expirationSecond(op.expirationTime().seconds());
         }
