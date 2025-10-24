@@ -636,8 +636,11 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             transactions.stream().parallel().forEach(tx -> {
                 TransactionInfo txInfo = null;
                 try {
-                    txInfo = daggerApp.transactionChecker().parseSignedAndCheck(tx.getApplicationTransaction(), maxBytes);
-                } catch (PreCheckException ignore) { }
+                    txInfo = daggerApp
+                            .transactionChecker()
+                            .parseSignedAndCheck(tx.getApplicationTransaction(), maxBytes);
+                } catch (PreCheckException ignore) {
+                }
                 tx.setMetadata(PreHandleResult.shortCircuitingTransaction(txInfo));
             });
             daggerApp.quiescenceController().staleEvent(event);

@@ -541,6 +541,7 @@ public class HandleWorkflow {
             }
         }
 
+        // IMPORTANT - this has the side effect of ensuring the tx's metadata is a PreHandleResult
         final var topLevelTxn =
                 parentTxnFactory.createTopLevelTxn(state, creator, txn, consensusNow, shortCircuitTxnCallback);
         if (topLevelTxn == null) {

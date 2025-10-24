@@ -155,8 +155,8 @@ public interface PreHandleWorkflow {
         } else {
             // This should be impossible since the Platform contract guarantees that
             // ConsensusStateEventHandler.onPreHandle() is always called before
-            // ConsensusStateEventHandler.onHandleTransaction(); and our preHandle() implementation always sets the
-            // metadata to a PreHandleResult
+            // ConsensusStateEventHandler.onHandleTransaction(); and our preHandle()
+            // implementation always uses a PreHandleResult
             log.error(
                     "Received transaction without PreHandleResult metadata from node {} (was {})",
                     (creator != null) ? creator.nodeId() : null,
