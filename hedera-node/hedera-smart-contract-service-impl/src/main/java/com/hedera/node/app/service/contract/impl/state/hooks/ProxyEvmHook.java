@@ -9,6 +9,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
+import com.hedera.hapi.util.HapiUtils;
 import com.hedera.node.app.service.contract.impl.state.AbstractProxyEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameState;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -84,19 +85,11 @@ public class ProxyEvmHook extends AbstractProxyEvmAccount {
     private static AccountID getOwnerId(final @NonNull HookId hookId) {
         return requireNonNull(hookId).entityIdOrThrow().hasAccountId()
                 ? hookId.entityIdOrThrow().accountIdOrThrow()
-                : asAccountId(hookId.entityIdOrThrow().contractIdOrThrow());
+                : HapiUtils.asAccountId(hookId.entityIdOrThrow().contractIdOrThrow());
     }
 
     @Override
     public boolean isRegularAccount() {
         return false;
-    }
-
-    private static AccountID asAccountId(final ContractID contractID) {
-        return AccountID.newBuilder()
-                .shardNum(contractID.shardNum())
-                .realmNum(contractID.realmNum())
-                .accountNum(contractID.contractNumOrThrow())
-                .build();
     }
 }

@@ -25,6 +25,11 @@ public record LegacyListRecordSource(
         implements RecordSource {
 
     @Override
+    public boolean isEmpty() {
+        return precomputedRecords.isEmpty();
+    }
+
+    @Override
     public @NonNull List<SingleTransactionRecord> precomputedRecords() {
         return precomputedRecords;
     }

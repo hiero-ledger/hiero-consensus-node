@@ -1,14 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.keys;
 
+import static com.hedera.hapi.util.HapiUtils.ACCOUNT_ID_COMPARATOR;
+import static com.hedera.hapi.util.HapiUtils.asAccountId;
 import static com.hedera.node.app.hapi.utils.keys.Ed25519Utils.isValidEd25519Key;
 import static com.hedera.node.app.hapi.utils.keys.Secp256k1Utils.isValidEcdsaSecp256k1Key;
 import static com.hedera.node.app.hapi.utils.keys.Secp256k1Utils.isValidEvmAddress;
+import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ThresholdKey;
+import com.hedera.hapi.node.state.token.Account;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -25,6 +30,8 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.Provider;
 import java.security.SecureRandom;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.openssl.PEMParser;
 import org.bouncycastle.openssl.PKCS8Generator;
@@ -136,6 +143,17 @@ public final class KeyUtils {
     }
 
     /**
+     * Returns the concrete key of the given account to be used for signature verification
+     * or examining other properties of the key.
+     * @param account the account
+     * @return the concrete key
+     */
+    public static @NonNull Key concreteKeyOf(@NonNull final Account account) {
+        requireNonNull(account);
+        return account.materializedKeyOrElse(account.keyOrThrow());
+    }
+
+    /**
      * Checks if the given key is empty.
      * For a KeyList type checks if the list is empty.
      * For a ThresholdKey type checks if the list is empty.
@@ -180,10 +198,10 @@ public final class KeyUtils {
             return true;
         } else if (pbjKey.hasThresholdKey()) {
             final var thresholdKey = (ThresholdKey) key.value();
-            if ((!thresholdKey.hasKeys() || thresholdKey.keys().keys().size() == 0)) {
+            if ((!thresholdKey.hasKeys() || thresholdKey.keysOrThrow().keys().isEmpty())) {
                 return true;
             }
-            for (final var k : thresholdKey.keys().keys()) {
+            for (final var k : thresholdKey.keysOrThrow().keys()) {
                 if (!isEmpty(k)) {
                     return false;
                 }
@@ -196,6 +214,14 @@ public final class KeyUtils {
         } else if (pbjKey.hasDelegatableContractId() || pbjKey.hasContractID()) {
             return ((ContractID) key.value()).contractNumOrElse(0L) == 0
                     && ((ContractID) key.value()).evmAddressOrElse(Bytes.EMPTY).length() == 0L;
+        } else if (pbjKey.hasIndirectKey()) {
+            return switch (pbjKey.indirectKeyOrThrow().target().kind()) {
+                case UNSET -> true;
+                case ACCOUNT_ID ->
+                    ((AccountID) pbjKey.indirectKeyOrThrow().target().value()).accountNumOrElse(0L) == 0;
+                case CONTRACT_ID ->
+                    ((ContractID) pbjKey.indirectKeyOrThrow().target().value()).contractNumOrElse(0L) == 0;
+            };
         }
         // ECDSA_384 and RSA_3072 are not supported yet
         return true;
@@ -269,6 +295,47 @@ public final class KeyUtils {
             return loc.substring(0, firstSegmentI) + loc.substring(lastSegmentI);
         } else {
             return loc;
+        }
+    }
+
+    /**
+     * Returns the set of account ids that are referenced by the given key's indirection.
+     * @param key the key to check
+     * @return the set of account ids that are referenced by the given key's indirection
+     */
+    public static SortedSet<AccountID> getIndirectAccountRefs(@NonNull final Key key) {
+        final SortedSet<AccountID> refs = new TreeSet<>(ACCOUNT_ID_COMPARATOR);
+        collectIndirectAccountRefs(key, refs);
+        return refs;
+    }
+
+    private static void collectIndirectAccountRefs(@NonNull final Key key, final SortedSet<AccountID> refs) {
+        switch (key.key().kind()) {
+            case INDIRECT_KEY -> {
+                final var ik = key.indirectKeyOrThrow();
+                switch (ik.target().kind()) {
+                    case ACCOUNT_ID -> refs.add(ik.accountIdOrThrow());
+                    case CONTRACT_ID -> refs.add(asAccountId(ik.contractIdOrThrow()));
+                    case UNSET -> {
+                        // Noop
+                    }
+                }
+            }
+            case KEY_LIST -> {
+                final var list = key.keyListOrThrow();
+                for (final var child : list.keys()) {
+                    collectIndirectAccountRefs(child, refs);
+                }
+            }
+            case THRESHOLD_KEY -> {
+                final var t = key.thresholdKeyOrThrow();
+                for (final var child : t.keysOrElse(KeyList.DEFAULT).keys()) {
+                    collectIndirectAccountRefs(child, refs);
+                }
+            }
+            default -> {
+                // Noop
+            }
         }
     }
 }

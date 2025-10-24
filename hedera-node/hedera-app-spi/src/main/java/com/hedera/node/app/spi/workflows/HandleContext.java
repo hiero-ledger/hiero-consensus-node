@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.state.systemtask.SystemTask;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.entityid.EntityNumGenerator;
 import com.hedera.node.app.spi.authorization.SystemPrivilege;
@@ -71,7 +72,11 @@ public interface HandleContext {
         /**
          * A child transaction submitted via atomic batch user transaction.
          */
-        BATCH_INNER
+        BATCH_INNER,
+        /**
+         * A transaction dispatched by a system task.
+         */
+        SYSTEM_TASK,
     }
 
     /**
@@ -380,6 +385,14 @@ public interface HandleContext {
      */
     @NonNull
     ThrottleAdviser throttleAdviser();
+
+    /**
+     * Enqueues a system-managed task for asynchronous processing by Services.
+     * Implementations must ensure the task is added to the SystemTaskService writable queue for
+     * the current transaction's state, so it will be committed with other state changes.
+     * @param task the system task to enqueue
+     */
+    void offer(@NonNull SystemTask task);
 
     /**
      * A stack of savepoints.

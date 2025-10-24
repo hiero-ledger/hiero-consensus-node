@@ -56,6 +56,11 @@ public class BlockRecordSource implements RecordSource {
         this.outputs = requireNonNull(outputs);
     }
 
+    @Override
+    public boolean isEmpty() {
+        return outputs.isEmpty();
+    }
+
     /**
      * For each {@link BlockItem} in the source, apply the given action.
      *

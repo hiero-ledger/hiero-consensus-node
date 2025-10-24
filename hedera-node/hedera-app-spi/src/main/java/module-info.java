@@ -30,4 +30,5 @@ module com.hedera.node.app.spi {
     exports com.hedera.node.app.spi.metrics;
     exports com.hedera.node.app.spi.info;
     exports com.hedera.node.app.spi.migrate;
+    exports com.hedera.node.app.spi.systemtasks;
 }

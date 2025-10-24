@@ -14,12 +14,14 @@ import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBe
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REMOVABLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.SUPPRESSING_SIGNED_TX_CUSTOMIZER;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.state.systemtask.SystemTask;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
@@ -112,7 +114,8 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
                 maxBuildersAfterUser,
                 boundaryStateChangeListener,
                 immediateStateChangeListener,
-                streamMode);
+                streamMode,
+                NOOP_SIGNED_TX_CUSTOMIZER);
     }
 
     /**
@@ -136,14 +139,42 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     }
 
     /**
+     * Constructs the {@link SavepointStackImpl} to serve as the transactional unit for a {@link SystemTask}.
+     * @param state                         the state
+     * @param maxBuildersBeforeUser         the maximum number of preceding builders with available consensus times
+     * @param maxBuildersAfterUser          the maximum number of following builders with available consensus times
+     * @param boundaryStateChangeListener   the listener for the round state changes
+     * @param immediateStateChangeListener  the listener for the key/value state changes
+     * @param streamMode                    the stream mode
+     * @return the task's {@link SavepointStackImpl}
+     */
+    public static SavepointStackImpl newTaskStack(
+            @NonNull final State state,
+            final int maxBuildersBeforeUser,
+            final int maxBuildersAfterUser,
+            @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
+            @NonNull final ImmediateStateChangeListener immediateStateChangeListener,
+            @NonNull final StreamMode streamMode) {
+        return new SavepointStackImpl(
+                state,
+                maxBuildersBeforeUser,
+                maxBuildersAfterUser,
+                boundaryStateChangeListener,
+                immediateStateChangeListener,
+                streamMode,
+                SUPPRESSING_SIGNED_TX_CUSTOMIZER);
+    }
+
+    /**
      * Constructs a new root {@link SavepointStackImpl} with the given root state.
      *
-     * @param state                         the state
-     * @param maxBuildersBeforeUser         the maximum number of preceding builders to create
-     * @param maxBuildersAfterUser          the maximum number of following builders to create
-     * @param boundaryStateChangeListener   the listener for the round state changes
-     * @param immediateStateChangeListener  the listener for the key-value state changes
-     * @param streamMode                    the stream mode
+     * @param state the state
+     * @param maxBuildersBeforeUser the maximum number of preceding builders to create
+     * @param maxBuildersAfterUser the maximum number of following builders to create
+     * @param boundaryStateChangeListener the listener for the round state changes
+     * @param immediateStateChangeListener the listener for the key-value state changes
+     * @param streamMode the stream mode
+     * @param signedTxCustomizer the signed transaction customizer
      */
     private SavepointStackImpl(
             @NonNull final State state,
@@ -151,7 +182,9 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             final int maxBuildersAfterUser,
             @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
             @NonNull final ImmediateStateChangeListener immediateStateChangeListener,
-            @NonNull final StreamMode streamMode) {
+            @NonNull final StreamMode streamMode,
+            @NonNull final StreamBuilder.SignedTxCustomizer signedTxCustomizer) {
+        requireNonNull(signedTxCustomizer);
         this.state = requireNonNull(state);
         this.immediateStateChangeListener = requireNonNull(immediateStateChangeListener);
         this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
@@ -509,7 +542,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         for (int i = 0; i < n; i++) {
             final var builder = builders.get(i);
             final var category = builder.category();
-            if (category == USER || category == NODE) {
+            if ((category == USER || category == NODE) && builder.transactionID() != null) {
                 indexOfParentBuilder = i;
                 topLevelNonce = builder.transactionID().nonce();
                 idBuilder = builder.transactionID().copyBuilder();
@@ -522,9 +555,12 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         var parentConsensusTime = consensusTime;
         for (int i = 0; i < n; i++) {
             final var builder = builders.get(i);
+            if (builder.transactionID() == null) {
+                continue;
+            }
             final var nonceOffset =
                     switch (builder.category()) {
-                        case USER, SCHEDULED, NODE, BATCH_INNER -> 0;
+                        case USER, SCHEDULED, NODE, BATCH_INNER, SYSTEM_TASK -> 0;
                         case PRECEDING, CHILD -> nextNonceOffset++;
                     };
             final var txnId = builder.transactionID();

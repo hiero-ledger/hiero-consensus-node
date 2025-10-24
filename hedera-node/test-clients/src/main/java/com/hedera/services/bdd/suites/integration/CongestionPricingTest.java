@@ -43,7 +43,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
-@Order(-1)
+@Order(-2)
 @Tag(INTEGRATION)
 @TargetEmbeddedMode(REPEATABLE)
 public class CongestionPricingTest {

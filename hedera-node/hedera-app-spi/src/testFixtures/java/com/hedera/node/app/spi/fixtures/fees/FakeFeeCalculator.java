@@ -67,6 +67,11 @@ public class FakeFeeCalculator implements FeeCalculator {
         return new Fees(0, 0, 0);
     }
 
+    @Override
+    public long tinybarsFromTinycents(final long tinycents) {
+        return tinycents;
+    }
+
     @NonNull
     public FakeFeeCalculator resetUsage() {
         return this;

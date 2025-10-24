@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_EXPIRED_AND_PEN
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_ID_DOES_NOT_EXIST;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INDIRECTION_LIMIT_PER_KEY_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
@@ -20,6 +21,8 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.INT_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.concreteKeyOf;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.getIndirectAccountRefs;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookCreations;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookDeletions;
 import static com.hedera.node.app.service.token.HookDispatchUtils.validateHookDuplicates;
@@ -32,17 +35,21 @@ import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.toSet;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.systemtask.KeyPropagation;
+import com.hedera.hapi.node.state.systemtask.SystemTask;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.hapi.utils.keys.KeyMaterializer;
 import com.hedera.node.app.service.token.CryptoSignatureWaivers;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
@@ -59,14 +66,20 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
+import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.AutoRenewConfig;
 import com.hedera.node.config.data.EntitiesConfig;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.Objects;
+import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -150,7 +163,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                 TokenHandlerHelper.getIfUsable(target, accountStore, context.expiryValidator(), INVALID_ACCOUNT_ID);
         context.attributeValidator().validateMemo(op.memo());
 
-        // Customize the account based on fields set in transaction body
+        // Prepare builder with all non-key fields first
         final var builder = updateBuilder(op, targetAccount);
 
         // validate all checks that involve config and state
@@ -165,11 +178,120 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         // Update hooks if any
         updateHooks(context, targetAccount, op, builder);
 
+        if (op.hasKey()) {
+            boolean concreteKeyChanged = false;
+            final var concreteKey = concreteKeyOf(targetAccount);
+            if (context.savepointStack().getBaseBuilder(StreamBuilder.class).isInternalDispatch()) {
+                // System task updates go straight to the materialized key and do nothing else
+                concreteKeyChanged = !Objects.equals(concreteKey, op.keyOrThrow());
+                if (concreteKeyChanged) {
+                    builder.materializedKey(op.keyOrThrow());
+                }
+            } else {
+                // Always update the template key
+                builder.key(op.keyOrThrow());
+                Set<AccountID> indirectRefsToAdd = Collections.emptySet();
+                Set<AccountID> indirectRefsToRemove = Collections.emptySet();
+                switch (indirectionUpdate(targetAccount, op.keyOrThrow())) {
+                    case NONE_TO_NONE -> concreteKeyChanged = !Objects.equals(concreteKey, op.keyOrThrow());
+                    case NONE_TO_SOME -> {
+                        indirectRefsToAdd = getIndirectAccountRefs(op.keyOrThrow());
+                        final var newConcreteKey = new KeyMaterializer()
+                                .materialize(op.keyOrThrow(), new KeySourceFromStore(accountStore));
+                        builder.materializedKey(newConcreteKey);
+                        concreteKeyChanged = !Objects.equals(concreteKey, newConcreteKey);
+                    }
+                    case SOME_TO_NONE -> {
+                        indirectRefsToRemove = getIndirectAccountRefs(targetAccount.keyOrElse(Key.DEFAULT));
+                        builder.materializedKey((Key) null);
+                        concreteKeyChanged = !Objects.equals(concreteKey, op.keyOrThrow());
+                    }
+                    case SOME_TO_SOME -> {
+                        final var oldRefs = getIndirectAccountRefs(targetAccount.keyOrThrow());
+                        final var newRefs = getIndirectAccountRefs(op.keyOrThrow());
+                        indirectRefsToRemove = oldRefs.stream()
+                                .filter(ref -> !newRefs.contains(ref))
+                                .collect(toSet());
+                        indirectRefsToAdd = newRefs.stream()
+                                .filter(ref -> !oldRefs.contains(ref))
+                                .collect(toSet());
+                        final var newConcreteKey = new KeyMaterializer()
+                                .materialize(op.keyOrThrow(), new KeySourceFromStore(accountStore));
+                        builder.materializedKey(newConcreteKey);
+                        concreteKeyChanged = !Objects.equals(concreteKey, newConcreteKey);
+                    }
+                }
+                final var userId = targetAccount.accountIdOrThrow();
+                for (final var keyAccountId : indirectRefsToRemove) {
+                    accountStore.removeIndirectUser(keyAccountId, userId);
+                }
+                for (final var keyAccountId : indirectRefsToAdd) {
+                    accountStore.insertIndirectUser(keyAccountId, userId);
+                }
+            }
+            if (concreteKeyChanged && targetAccount.numIndirectKeyUsers() > 0) {
+                builder.maxRemainingPropagations(targetAccount.numIndirectKeyUsers())
+                        .nextInLineKeyUserId(targetAccount.firstKeyUserId());
+                final var task = SystemTask.newBuilder()
+                        .keyPropagation(KeyPropagation.newBuilder().keyAccountId(target))
+                        .build();
+                context.offer(task);
+            }
+        }
         // Add account to the modifications in state
         accountStore.put(builder.build());
         context.savepointStack()
                 .getBaseBuilder(CryptoUpdateStreamBuilder.class)
                 .accountID(targetAccount.accountIdOrThrow());
+    }
+
+    private enum IndirectionChange {
+        NONE_TO_NONE,
+        NONE_TO_SOME,
+        SOME_TO_NONE,
+        SOME_TO_SOME
+    }
+
+    private IndirectionChange indirectionUpdate(@NonNull final Account targetAccount, @NonNull final Key newKey) {
+        final boolean oldHasIndirection = targetAccount.hasMaterializedKey();
+        final boolean newHasIndirection = countIndirectKeyOccurrences(newKey) > 0;
+        if (oldHasIndirection) {
+            return newHasIndirection ? IndirectionChange.SOME_TO_SOME : IndirectionChange.SOME_TO_NONE;
+        } else {
+            return newHasIndirection ? IndirectionChange.NONE_TO_SOME : IndirectionChange.NONE_TO_NONE;
+        }
+    }
+
+    /** Counts total occurrences of IndirectKey nodes within the given key tree. */
+    private static int countIndirectKeyOccurrences(@NonNull final Key key) {
+        switch (key.key().kind()) {
+            case INDIRECT_KEY -> {
+                return 1;
+            }
+            case KEY_LIST -> {
+                int total = 0;
+                final var list = key.keyList();
+                if (list != null) {
+                    for (final var child : list.keys()) {
+                        total += countIndirectKeyOccurrences(child);
+                    }
+                }
+                return total;
+            }
+            case THRESHOLD_KEY -> {
+                int total = 0;
+                final var t = key.thresholdKey();
+                if (t != null && t.keys() != null) {
+                    for (final var child : t.keys().keys()) {
+                        total += countIndirectKeyOccurrences(child);
+                    }
+                }
+                return total;
+            }
+            default -> {
+                return 0;
+            }
+        }
     }
 
     /**
@@ -216,10 +338,6 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
     private Account.Builder updateBuilder(
             @NonNull final CryptoUpdateTransactionBody op, @NonNull final Account currentAccount) {
         final var builder = currentAccount.copyBuilder();
-        if (op.hasKey()) {
-            /* Note that {@code this.validateSemantics} will have rejected any txn with an invalid key. */
-            builder.key(op.key());
-        }
         if (op.hasExpirationTime()) {
             builder.expirationSecond(op.expirationTime().seconds());
         }
@@ -297,8 +415,8 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         final var currentMetadata = new ExpiryMeta(
                 updateAccount.expirationSecond(), updateAccount.autoRenewSeconds(), updateAccount.autoRenewAccountId());
         final var updateMeta = new ExpiryMeta(
-                op.hasExpirationTime() ? op.expirationTime().seconds() : NA,
-                op.hasAutoRenewPeriod() ? op.autoRenewPeriod().seconds() : NA,
+                op.hasExpirationTime() ? op.expirationTimeOrThrow().seconds() : NA,
+                op.hasAutoRenewPeriod() ? op.autoRenewPeriodOrThrow().seconds() : NA,
                 null);
         context.expiryValidator().resolveUpdateAttempt(currentMetadata, updateMeta);
 
@@ -347,13 +465,17 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
             context.attributeValidator().validateMemo(op.memo());
         }
         // Empty key list is allowed and is used for immutable entities (e.g. system accounts)
-        if (op.hasKey() && !isImmutableKey(op.key())) {
-            context.attributeValidator().validateKey(op.key());
+        if (op.hasKey() && !isImmutableKey(op.keyOrThrow())) {
+            context.attributeValidator().validateKey(op.keyOrThrow());
+            // Enforce the maximum number of indirect key references allowed in the template key
+            final var accountsConfig = context.configuration().getConfigData(AccountsConfig.class);
+            final var refs = getIndirectAccountRefs(op.keyOrThrow());
+            validateTrue(refs.size() <= accountsConfig.maxIndirectKeyRefs(), INDIRECTION_LIMIT_PER_KEY_EXCEEDED);
         }
 
         if (op.hasAutoRenewPeriod()) {
             context.attributeValidator()
-                    .validateAutoRenewPeriod(op.autoRenewPeriod().seconds());
+                    .validateAutoRenewPeriod(op.autoRenewPeriodOrThrow().seconds());
         }
 
         StakingValidator.validateStakedIdForUpdate(
@@ -506,6 +628,24 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
             fees.addStorageBytesSeconds(
                     (op.hookCreationDetails().size() + op.hookIdsToDelete().size()) * HOUR_TO_SECOND_MULTIPLIER);
         }
-        return fees.calculate();
+        final var baseFees = fees.calculate();
+
+        // Apply indirect key complexity pricing: charge for added occurrences of IndirectKey
+        long extraServiceFeeTinybars = 0L;
+        try {
+            final var feesConfig = configuration.getConfigData(FeesConfig.class);
+            final long perOccurrenceTinycents = feesConfig.indirectKeyExtraTinycents();
+            // Count occurrences in old and new keys
+            final int oldCount = (account == null) ? 0 : countIndirectKeyOccurrences(account.keyOrElse(Key.DEFAULT));
+            final int newCount = op.hasKey() ? countIndirectKeyOccurrences(op.keyOrThrow()) : oldCount;
+            final int delta = newCount - oldCount;
+            if (delta > 0 && perOccurrenceTinycents > 0) {
+                final long totalTinycents = Math.multiplyExact(perOccurrenceTinycents, (long) delta);
+                // Convert tinycents to tinybars using the fee calculator's current rate and congestion multiplier
+                extraServiceFeeTinybars = feeCalculator.tinybarsFromTinycents(totalTinycents);
+            }
+        } catch (final Exception ignore) {
+        }
+        return baseFees.plus(new Fees(0L, 0L, extraServiceFeeTinybars));
     }
 }

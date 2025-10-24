@@ -160,7 +160,7 @@ public class HapiUtils {
                 key.thresholdKeyOrThrow().keysOrElse(KeyList.DEFAULT).keys().stream()
                         .mapToInt(HapiUtils::countOfCryptographicKeys)
                         .sum();
-            case CONTRACT_ID, DELEGATABLE_CONTRACT_ID, UNSET -> 0;
+            case CONTRACT_ID, DELEGATABLE_CONTRACT_ID, INDIRECT_KEY, UNSET -> 0;
         };
     }
 
@@ -437,5 +437,13 @@ public class HapiUtils {
                 return 0;
             }
         }
+    }
+
+    public static AccountID asAccountId(final ContractID contractID) {
+        return AccountID.newBuilder()
+                .shardNum(contractID.shardNum())
+                .realmNum(contractID.realmNum())
+                .accountNum(contractID.contractNumOrThrow())
+                .build();
     }
 }

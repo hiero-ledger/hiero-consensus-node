@@ -5,14 +5,17 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.systemTaskDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartEvent;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartRound;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartUserTransaction;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartUserTransactionPreHandleResultP2;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartUserTransactionPreHandleResultP3;
+import static com.hedera.node.app.systemtask.schemas.V069SystemTaskSchema.SYSTEM_TASK_QUEUE_STATE_ID;
 import static com.hedera.node.app.workflows.handle.TransactionType.ORDINARY_TRANSACTION;
 import static com.hedera.node.app.workflows.handle.TransactionType.POST_UPGRADE_TRANSACTION;
+import static com.hedera.node.app.workflows.handle.stack.SavepointStackImpl.castBuilder;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.system.InitTrigger.EVENT_STREAM_RECOVERY;
@@ -25,13 +28,20 @@ import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.ParentEventReference;
 import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Duration;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.systemtask.SystemTask;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
+import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
@@ -58,17 +68,29 @@ import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.store.StoreFactory;
+import com.hedera.node.app.spi.systemtasks.SystemTaskContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.HederaRecordCache.DueDiligenceFailure;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
+import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ServiceApiFactory;
 import com.hedera.node.app.store.StoreFactoryImpl;
+import com.hedera.node.app.store.WritableStoreFactory;
+import com.hedera.node.app.systemtask.SystemTaskHandlers;
+import com.hedera.node.app.systemtask.SystemTaskService;
+import com.hedera.node.app.systemtask.WritableSystemTaskStore;
+import com.hedera.node.app.throttle.AppThrottleAdviser;
 import com.hedera.node.app.throttle.CongestionMetrics;
+import com.hedera.node.app.throttle.NetworkUtilizationManager;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
+import com.hedera.node.app.workflows.handle.dispatch.ChildDispatchFactory;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
+import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.app.workflows.handle.steps.HollowAccountCompletions;
 import com.hedera.node.app.workflows.handle.steps.ParentTxn;
 import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
@@ -76,10 +98,12 @@ import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
@@ -97,6 +121,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.inject.Inject;
@@ -135,15 +161,19 @@ public class HandleWorkflow {
     private final HollowAccountCompletions hollowAccountCompletions;
     private final SystemTransactions systemTransactions;
     private final StakeInfoHelper stakeInfoHelper;
+    private final SystemTaskHandlers systemTaskHandlers;
     private final HederaRecordCache recordCache;
     private final ExchangeRateManager exchangeRateManager;
     private final StakePeriodManager stakePeriodManager;
     private final List<StateChanges.Builder> migrationStateChanges;
     private final ParentTxnFactory parentTxnFactory;
+    private final ChildDispatchFactory childDispatchFactory;
+    private final NetworkUtilizationManager networkUtilizationManager;
     private final HintsService hintsService;
     private final HistoryService historyService;
     private final ConfigProvider configProvider;
     private final ImmediateStateChangeListener immediateStateChangeListener;
+    private final BoundaryStateChangeListener boundaryStateChangeListener;
     private final ScheduleService scheduleService;
     private final CongestionMetrics congestionMetrics;
     private final CurrentPlatformStatus currentPlatformStatus;
@@ -168,6 +198,7 @@ public class HandleWorkflow {
             @NonNull final NetworkInfo networkInfo,
             @NonNull final StakePeriodChanges stakePeriodChanges,
             @NonNull final DispatchProcessor dispatchProcessor,
+            @NonNull final ChildDispatchFactory childDispatchFactory,
             @NonNull final ConfigProvider configProvider,
             @NonNull final BlockRecordManager blockRecordManager,
             @NonNull final BlockStreamManager blockStreamManager,
@@ -178,15 +209,18 @@ public class HandleWorkflow {
             @NonNull final HollowAccountCompletions hollowAccountCompletions,
             @NonNull final SystemTransactions systemTransactions,
             @NonNull final StakeInfoHelper stakeInfoHelper,
+            @NonNull final SystemTaskHandlers systemTaskHandlers,
             @NonNull final HederaRecordCache recordCache,
             @NonNull final ExchangeRateManager exchangeRateManager,
             @NonNull final StakePeriodManager stakePeriodManager,
             @NonNull final List<StateChanges.Builder> migrationStateChanges,
             @NonNull final ParentTxnFactory parentTxnFactory,
+            @NonNull final NetworkUtilizationManager networkUtilizationManager,
             @NonNull final ImmediateStateChangeListener immediateStateChangeListener,
             @NonNull final ScheduleService scheduleService,
             @NonNull final HintsService hintsService,
             @NonNull final HistoryService historyService,
+            @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
             @NonNull final CongestionMetrics congestionMetrics,
             @NonNull final CurrentPlatformStatus currentPlatformStatus,
             @NonNull final BlockHashSigner blockHashSigner,
@@ -198,6 +232,7 @@ public class HandleWorkflow {
         this.networkInfo = requireNonNull(networkInfo);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.dispatchProcessor = requireNonNull(dispatchProcessor);
+        this.childDispatchFactory = requireNonNull(childDispatchFactory);
         this.blockRecordManager = requireNonNull(blockRecordManager);
         this.blockStreamManager = requireNonNull(blockStreamManager);
         this.cacheWarmer = requireNonNull(cacheWarmer);
@@ -207,14 +242,17 @@ public class HandleWorkflow {
         this.hollowAccountCompletions = requireNonNull(hollowAccountCompletions);
         this.systemTransactions = requireNonNull(systemTransactions);
         this.stakeInfoHelper = requireNonNull(stakeInfoHelper);
+        this.systemTaskHandlers = requireNonNull(systemTaskHandlers);
         this.recordCache = requireNonNull(recordCache);
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
         this.stakePeriodManager = requireNonNull(stakePeriodManager);
         this.migrationStateChanges = new ArrayList<>(migrationStateChanges);
         this.parentTxnFactory = requireNonNull(parentTxnFactory);
         this.configProvider = requireNonNull(configProvider);
+        this.networkUtilizationManager = requireNonNull(networkUtilizationManager);
         this.immediateStateChangeListener = requireNonNull(immediateStateChangeListener);
         this.scheduleService = requireNonNull(scheduleService);
+        this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
         this.congestionMetrics = requireNonNull(congestionMetrics);
         this.streamMode = configProvider
                 .getConfiguration()
@@ -551,7 +589,10 @@ public class HandleWorkflow {
             // We execute as many schedules expiring in [lastIntervalProcessTime, consensusNow]
             // as there are available consensus times and execution slots (ordinarily there will
             // be more than enough of both, but we must be prepared for the edge cases)
-            executeAsManyScheduled(state, executionStart, topLevelTxn.consensusNow(), topLevelTxn.creatorInfo());
+            final var systemDispatchState = executeAsManyScheduled(
+                    state, executionStart, topLevelTxn.consensusNow(), topLevelTxn.creatorInfo());
+            // Then, within any remaining capacity, execute pending system tasks
+            doAsManyPending(state, systemDispatchState);
         } catch (Exception e) {
             logger.error(
                     "{} - unhandled exception while executing schedules between [{}, {}]",
@@ -571,6 +612,14 @@ public class HandleWorkflow {
     }
 
     /**
+     * The state of the system dispatches.
+     * @param remaining the maximum number of dispatches remaining
+     * @param lastUsableTime the last usable time
+     * @param nextTime the next time
+     */
+    private record SystemDispatchState(int remaining, Instant lastUsableTime, Instant nextTime) {}
+
+    /**
      * Executes as many transactions scheduled to expire in the interval {@code [executionStart, consensusNow]} as
      * possible from the given state, given some context of the triggering user transaction.
      * <p>
@@ -582,34 +631,36 @@ public class HandleWorkflow {
      * @param executionStart the start of the interval to execute transactions in
      * @param consensusNow the consensus time at which the user transaction triggering this execution was processed
      * @param creatorInfo the node info of the user transaction creator
+     * @return the state of the system dispatch mechanism after executing as many scheduled transactions as possible
      */
-    private void executeAsManyScheduled(
+    private SystemDispatchState executeAsManyScheduled(
             @NonNull final State state,
             @NonNull final Instant executionStart,
             @NonNull final Instant consensusNow,
             @NonNull final NodeInfo creatorInfo) {
         // Non-final right endpoint of the execution interval, in case we cannot do all the scheduled work
         var executionEnd = consensusNow;
+
+        // TODO - move this back inside if and return null when no work is done
+        // Obtain configuration and compute time bounds for this interval
+        final var config = configProvider.getConfiguration();
+        final var schedulingConfig = config.getConfigData(SchedulingConfig.class);
+        final var consensusConfig = config.getConfigData(ConsensusConfig.class);
+        final var reservedForSystemTasks = schedulingConfig.reservedSystemTxnNanos();
+        final var lastUsableTime = consensusNow.plusNanos(schedulingConfig.consTimeSeparationNanos()
+                - reservedForSystemTasks
+                - (consensusConfig.handleMaxFollowingRecords() + consensusConfig.handleMaxPrecedingRecords() + 1));
+        var lastTime = streamMode == RECORDS
+                ? blockRecordManager.lastUsedConsensusTime()
+                : blockStreamManager.lastUsedConsensusTime();
+        var nextTime = lastTime.plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
+
+        // Max number of schedule executions per user txn
+        int n = schedulingConfig.maxExecutionsPerUserTxn();
+
         // We only construct an Iterator<ExecutableTxn> if this is not genesis, and we haven't already
         // created and exhausted iterators through the last second in the interval
         if (executionEnd.getEpochSecond() > lastExecutedSecond) {
-            final var config = configProvider.getConfiguration();
-            final var schedulingConfig = config.getConfigData(SchedulingConfig.class);
-            final var consensusConfig = config.getConfigData(ConsensusConfig.class);
-            // Since the next platform-assigned consensus time may be as early as (now + separationNanos),
-            // we must ensure that even if the last scheduled execution time is followed by the maximum
-            // number of child transactions, the last child's assigned time will be strictly before the
-            // first of the next consensus time's possible preceding children; that is, strictly before
-            // (now + separationNanos - reservedSystemTxnNanos) - (maxAfter + maxBefore + 1)
-            final var lastUsableTime = consensusNow.plusNanos(schedulingConfig.consTimeSeparationNanos()
-                    - schedulingConfig.reservedSystemTxnNanos()
-                    - (consensusConfig.handleMaxFollowingRecords() + consensusConfig.handleMaxPrecedingRecords() + 1));
-            // The first possible time for the next execution is strictly after the last execution time
-            // consumed for the triggering user transaction; plus the maximum number of preceding children
-            var lastTime = streamMode == RECORDS
-                    ? blockRecordManager.lastUsedConsensusTime()
-                    : blockStreamManager.lastUsedConsensusTime();
-            var nextTime = lastTime.plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
             final var entityIdWritableStates = state.getWritableStates(EntityIdService.NAME);
             final var writableEntityIdStore = new WritableEntityIdStoreImpl(entityIdWritableStates);
             // Now we construct the iterator and start executing transactions in the longest permitted
@@ -628,8 +679,6 @@ public class HandleWorkflow {
                     StoreFactoryImpl.from(state, ScheduleService.NAME, config, writableEntityIdStore, apiProviders));
 
             final var writableStates = state.getWritableStates(ScheduleService.NAME);
-            // Configuration sets a maximum number of execution slots per user transaction
-            int n = schedulingConfig.maxExecutionsPerUserTxn();
             while (iter.hasNext() && !nextTime.isAfter(lastUsableTime) && n > 0) {
                 final var executableTxn = iter.next();
                 if (schedulingConfig.longTermEnabled()) {
@@ -677,6 +726,179 @@ public class HandleWorkflow {
             blockStreamManager.setLastIntervalProcessTime(executionEnd);
         } else {
             blockRecordManager.setLastIntervalProcessTime(executionEnd, state);
+        }
+
+        return new SystemDispatchState(n, lastUsableTime, nextTime);
+    }
+
+    /**
+     * Executes as many pending {@link SystemTask} entries as permitted by the remaining capacity.
+     * If the queue is empty or capacity is zero, does nothing.
+     *
+     * @param state the state to use to access the system task queue and stores
+     * @param systemDispatchState the state of the system dispatches
+     */
+    private void doAsManyPending(@NonNull final State state, @NonNull final SystemDispatchState systemDispatchState) {
+        if (systemDispatchState.remaining() <= 0) {
+            return;
+        }
+        final var config = configProvider.getConfiguration();
+        final var consensusConfig = config.getConfigData(ConsensusConfig.class);
+        final var n = new AtomicInteger(systemDispatchState.remaining());
+        final var nextTime = new AtomicReference<>(systemDispatchState.nextTime());
+        final var lastUsableTaskTime = systemDispatchState.lastUsableTime().minusNanos(1);
+        while (n.getAndDecrement() > 0 && !nextTime.get().isAfter(lastUsableTaskTime)) {
+            final var systemTaskStates = state.getWritableStates(SystemTaskService.NAME);
+            final var systemTaskQueue = systemTaskStates.<SystemTask>getQueue(SYSTEM_TASK_QUEUE_STATE_ID);
+            final var task = systemTaskQueue.poll();
+            if (task == null) {
+                break;
+            }
+            // Never retry the same task so we don't get stuck; we'll log loudly if the task handler throws
+            if (systemTaskStates instanceof CommittableWritableStates committableStates) {
+                committableStates.commit();
+            }
+            if (streamMode != RECORDS) {
+                final var changes = immediateStateChangeListener.getQueueStateChanges();
+                if (!changes.isEmpty()) {
+                    blockStreamManager.writeItem((now -> BlockItem.newBuilder()
+                            .stateChanges(new StateChanges(now, new ArrayList<>(changes)))
+                            .build()));
+                }
+            }
+            final var registration = systemTaskHandlers.getRegistration(task);
+            if (registration == null) {
+                logger.error("{} - no handler found for system task {}", ALERT_MESSAGE, task);
+                continue;
+            }
+
+            final var taskStack = SavepointStackImpl.newTaskStack(
+                    state,
+                    consensusConfig.handleMaxPrecedingRecords(),
+                    consensusConfig.handleMaxFollowingRecords(),
+                    boundaryStateChangeListener,
+                    immediateStateChangeListener,
+                    streamMode);
+            final var entityIdWritableStates = taskStack.getWritableStates(EntityIdService.NAME);
+            final var writableEntityIdStore = new WritableEntityIdStoreImpl(entityIdWritableStates);
+            final var taskStore =
+                    new WritableSystemTaskStore(state.getWritableStates(SystemTaskService.NAME), writableEntityIdStore);
+            final var readableStoreFactory = new ReadableStoreFactory(taskStack);
+            final var writableStoreFactory =
+                    new WritableStoreFactory(taskStack, registration.service().getServiceName(), writableEntityIdStore);
+            final var serviceApiFactory = new ServiceApiFactory(taskStack, config, apiProviders);
+            final var storeFactory =
+                    new StoreFactoryImpl(readableStoreFactory, writableStoreFactory, serviceApiFactory);
+            final var taskTime = nextTime.get();
+            final var creatorInfo = networkInfo.addressBook().getFirst();
+            final var throttleAdvisor = new AppThrottleAdviser(networkUtilizationManager, taskTime);
+            // Start with a nonce that is impossible to reach with a non-scheduled user transaction
+            final var nextDispatchNonce = new AtomicInteger(
+                    consensusConfig.handleMaxPrecedingRecords() + consensusConfig.handleMaxFollowingRecords() + 1);
+            final var context = new SystemTaskContext() {
+                @Override
+                public @NonNull SystemTask currentTask() {
+                    return task;
+                }
+
+                @Override
+                public boolean hasDispatchesRemaining() {
+                    return n.get() > 0;
+                }
+
+                @Override
+                public <T extends StreamBuilder> T dispatch(
+                        @NonNull final AccountID payerId,
+                        @NonNull Consumer<TransactionBody.Builder> spec,
+                        @NonNull Class<T> streamBuilderType,
+                        @NonNull final HederaFunctionality functionality) {
+                    final var dispatchTime = nextTime.get().plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
+                    final var builder = TransactionBody.newBuilder()
+                            .transactionValidDuration(new Duration(
+                                    config.getConfigData(HederaConfig.class).transactionMaxValidDuration()))
+                            .transactionID(TransactionID.newBuilder()
+                                    .accountID(payerId)
+                                    .transactionValidStart(asTimestamp(dispatchTime))
+                                    .nonce(nextDispatchNonce.getAndIncrement())
+                                    .build());
+                    spec.accept(builder);
+                    final var body = builder.build();
+                    final var dispatch = childDispatchFactory.createChildDispatch(
+                            config,
+                            taskStack,
+                            storeFactory.asReadOnly(),
+                            creatorInfo,
+                            functionality,
+                            throttleAdvisor,
+                            dispatchTime,
+                            streamMode != RECORDS ? blockStreamManager : blockRecordManager,
+                            systemTaskDispatch(payerId, body, streamBuilderType),
+                            null);
+                    dispatchProcessor.processDispatch(dispatch);
+                    return castBuilder(dispatch.streamBuilder(), streamBuilderType);
+                }
+
+                @Override
+                public void offer(@NonNull final SystemTask task) {
+                    requireNonNull(task);
+                    taskStore.offer(task);
+                }
+
+                @Override
+                public @NonNull StoreFactory storeFactory() {
+                    return storeFactory;
+                }
+
+                @Override
+                public @NonNull Configuration configuration() {
+                    return config;
+                }
+
+                @Override
+                public @NonNull Instant now() {
+                    return taskTime;
+                }
+            };
+            try {
+                stakePeriodManager.setCurrentStakePeriodFor(taskTime);
+                if (streamMode != BLOCKS) {
+                    blockRecordManager.startUserTransaction(taskTime, state);
+                }
+                // Handle the task and commit its changes
+                registration.handler().handle(context);
+                taskStack.commitFullStack();
+                // Then externalize all its effects to the record and/or block stream
+                final var taskOutput =
+                        taskStack.buildHandleOutput(taskTime.plusNanos(1), exchangeRateManager.exchangeRates());
+                final var taskChanges =
+                        taskStack.getBaseBuilder(StreamBuilder.class).getStateChanges();
+                if (!taskChanges.isEmpty()) {
+                    blockStreamManager.writeItem((now) -> BlockItem.newBuilder()
+                            .stateChanges(new StateChanges(asTimestamp(taskTime), taskChanges))
+                            .build());
+                }
+                recordCache.addRecordSource(
+                        creatorInfo.nodeId(),
+                        TransactionID.DEFAULT,
+                        DueDiligenceFailure.NO,
+                        taskOutput.preferringBlockRecordSource());
+                if (streamMode != BLOCKS) {
+                    final var records =
+                            ((LegacyListRecordSource) taskOutput.recordSourceOrThrow()).precomputedRecords();
+                    blockRecordManager.endUserTransaction(records.stream(), state);
+                }
+                if (streamMode != RECORDS) {
+                    taskOutput.blockRecordSourceOrThrow().forEachItem(blockStreamManager::writeItem);
+                } else if (taskOutput.lastAssignedConsensusTime().isAfter(taskTime)) {
+                    blockRecordManager.setLastUsedConsensusTime(taskOutput.lastAssignedConsensusTime(), state);
+                }
+                final var nextTaskTime = streamMode == RECORDS
+                        ? blockRecordManager.lastUsedConsensusTime()
+                        : blockStreamManager.lastUsedConsensusTime().plusNanos(1);
+                nextTime.set(nextTaskTime);
+            } catch (final Exception e) {
+                logger.error("{} - unhandled exception thrown while for system task {}", ALERT_MESSAGE, task, e);
+            }
         }
     }
 

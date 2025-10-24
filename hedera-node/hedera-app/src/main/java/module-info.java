@@ -127,6 +127,8 @@ module com.hedera.node.app {
     exports com.hedera.node.app.blocks.schemas;
     exports com.hedera.node.app.records.schemas;
     exports com.hedera.node.app.hints.schemas;
+    exports com.hedera.node.app.systemtask;
+    exports com.hedera.node.app.systemtask.schemas;
 
     provides com.swirlds.config.api.ConfigurationExtension with
             com.hedera.node.app.config.ServicesConfigExtension;

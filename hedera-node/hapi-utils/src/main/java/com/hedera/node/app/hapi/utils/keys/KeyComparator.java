@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.keys;
 
+import static com.hedera.hapi.util.HapiUtils.ACCOUNT_ID_COMPARATOR;
+
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.IndirectKey;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.Key.KeyOneOfType;
 import com.hedera.hapi.node.base.KeyList;
@@ -44,7 +47,8 @@ public class KeyComparator implements Comparator<Key> {
                 case ECDSA_SECP256K1 -> compareSecp256k(first, second);
                 case THRESHOLD_KEY -> compareThreshold(first, second);
                 case KEY_LIST -> compareKeyList(first, second);
-                    // The next two are not currently supported key types.
+                case INDIRECT_KEY -> compareIndirectKey(first, second);
+                // The next two are not currently supported key types.
                 case RSA_3072 -> compareRsa(first, second);
                 case ECDSA_384 -> compareEcdsa(first, second);
             };
@@ -94,6 +98,26 @@ public class KeyComparator implements Comparator<Key> {
         } else {
             return Long.compare(realmOne, realmTwo);
         }
+    }
+
+    private int compareIndirectKey(final Key first, final Key second) {
+        final var lhs = first.indirectKey();
+        final var rhs = second.indirectKey();
+        if (lhs == rhs) {
+            return 0;
+        } else if (lhs == null) {
+            return -1;
+        } else if (rhs == null) {
+            return 1;
+        }
+        final var lk = lhs.target().kind();
+        final var rk = rhs.target().kind();
+        if (lk != rk) {
+            return Integer.compare(lk.protoOrdinal(), rk.protoOrdinal());
+        }
+        return (lk == IndirectKey.TargetOneOfType.ACCOUNT_ID)
+                ? ACCOUNT_ID_COMPARATOR.compare(lhs.accountId(), rhs.accountId())
+                : compareId(lhs.contractIdOrElse(ContractID.DEFAULT), rhs.contractIdOrElse(ContractID.DEFAULT));
     }
 
     private int compareEdwards(final Key first, final Key second) {

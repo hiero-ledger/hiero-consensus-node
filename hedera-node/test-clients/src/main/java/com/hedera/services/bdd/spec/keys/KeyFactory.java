@@ -18,6 +18,7 @@ import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.utilops.inventory.TypedKey;
+import com.hederahashgraph.api.proto.java.IndirectKey;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.KeyList;
 import com.hederahashgraph.api.proto.java.SignatureMap;
@@ -534,6 +535,18 @@ public class KeyFactory {
                                 byLabel.put(label.literally(), generation);
                                 yield generation;
                             }
+                        }
+                        case INDIRECT_ACCOUNT -> {
+                            final var accountId = spec.registry().getAccountID(sc.indirectAccountIdOrThrow());
+                            yield Key.newBuilder()
+                                    .setIndirectKey(IndirectKey.newBuilder().setAccountId(accountId))
+                                    .build();
+                        }
+                        case INDIRECT_CONTRACT -> {
+                            final var contractId = spec.registry().getContractId(sc.indirectContractIdOrThrow());
+                            yield Key.newBuilder()
+                                    .setIndirectKey(IndirectKey.newBuilder().setContractId(contractId))
+                                    .build();
                         }
                     };
             if (saving) {

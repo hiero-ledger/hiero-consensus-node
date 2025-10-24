@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SYSTEM_TASK_QUEUE_FULL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNRESOLVABLE_REQUIRED_SIGNERS;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.INNER_TRANSACTION_BYTES;
@@ -17,13 +18,16 @@ import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.state.systemtask.SystemTask;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fees.ChildFeeContextImpl;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.fees.FeeManager;
+import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.EntityNumGenerator;
+import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
@@ -50,6 +54,8 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.TransactionKeys;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.store.StoreFactoryImpl;
+import com.hedera.node.app.systemtask.SystemTaskService;
+import com.hedera.node.app.systemtask.WritableSystemTaskStore;
 import com.hedera.node.app.workflows.InnerTransaction;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -62,6 +68,7 @@ import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
+import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -453,6 +460,19 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     @Override
     public ThrottleAdviser throttleAdviser() {
         return throttleAdviser;
+    }
+
+    @Override
+    public void offer(@NonNull final SystemTask task) {
+        final var entityIdWritableStates = stack.getWritableStates(EntityIdService.NAME);
+        final var writableEntityIdStore = new WritableEntityIdStoreImpl(entityIdWritableStates);
+        final var store =
+                new WritableSystemTaskStore(stack.getWritableStates(SystemTaskService.NAME), writableEntityIdStore);
+        final long limit = config.getConfigData(NetworkAdminConfig.class).maxPendingSystemTasks();
+        if (store.numPendingTasks() >= limit) {
+            throw new HandleException(SYSTEM_TASK_QUEUE_FULL);
+        }
+        store.offer(task);
     }
 
     @NonNull

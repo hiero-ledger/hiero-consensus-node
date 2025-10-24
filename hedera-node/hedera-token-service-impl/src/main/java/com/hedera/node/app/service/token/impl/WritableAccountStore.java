@@ -2,18 +2,24 @@
 package com.hedera.node.app.service.token.impl;
 
 import static com.hedera.hapi.node.base.AccountID.AccountOneOfType.ACCOUNT_NUM;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INDIRECTION_KEY_TARGET_NOT_FOUND;
 import static com.hedera.node.app.service.token.AliasUtils.asKeyFromAlias;
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static com.hedera.node.app.service.token.AliasUtils.isAlias;
 import static com.hedera.node.app.service.token.AliasUtils.isOfEvmAddressSize;
+import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.state.token.IndirectKeyUsersKey;
+import com.hedera.hapi.node.state.token.IndirectKeyUsersValue;
 import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.hapi.utils.keys.KeyUtils;
 import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -25,6 +31,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Provides write methods for modifying underlying data storage mechanisms for working with
@@ -34,13 +42,9 @@ import java.util.Set;
  * class is not complete, it will be extended with other methods like remove, update etc.,
  */
 public class WritableAccountStore extends ReadableAccountStoreImpl {
+    private static final Logger log = LoggerFactory.getLogger(WritableAccountStore.class);
     private final WritableEntityCounters entityCounters;
 
-    /**
-     * Create a new {@link WritableAccountStore} instance.
-     *
-     * @param states The state to use.
-     */
     public WritableAccountStore(
             @NonNull final WritableStates states, @NonNull final WritableEntityCounters entityCounters) {
         super(states, entityCounters);
@@ -48,13 +52,142 @@ public class WritableAccountStore extends ReadableAccountStoreImpl {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     protected WritableKVState<AccountID, Account> accountState() {
         return super.accountState();
     }
 
     @Override
+    @SuppressWarnings("unchecked")
+    public WritableKVState<IndirectKeyUsersKey, IndirectKeyUsersValue> indirectKeyUsers() {
+        return super.indirectKeyUsers();
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
     protected WritableKVState<ProtoBytes, AccountID> aliases() {
         return super.aliases();
+    }
+
+    /**
+     * Inserts the given user into the indirect key users list for the given key account.
+     * @param keyAccountId the key account id
+     * @param userId the user id
+     */
+    public void insertIndirectUser(@NonNull final AccountID keyAccountId, @NonNull final AccountID userId) {
+        if (userId.account().kind() != ACCOUNT_NUM) {
+            throw new IllegalArgumentException("User account id is not numbered - " + userId);
+        }
+        final var keyAccount = get(keyAccountId);
+        validateTrue(keyAccount != null, INDIRECTION_KEY_TARGET_NOT_FOUND);
+        final var keyAccountBuilder = keyAccount.copyBuilder();
+        final var nextInLineId = keyAccount.nextInLineKeyUserId();
+        if (nextInLineId != null && !AccountID.DEFAULT.equals(nextInLineId)) {
+            // Insert after next in line
+            final var prevKey = IndirectKeyUsersKey.newBuilder()
+                    .keyAccountId(keyAccountId)
+                    .indirectUserId(nextInLineId)
+                    .build();
+            final var prevVal = requireNonNull(indirectKeyUsers().get(prevKey));
+            final var nextId = prevVal.nextUserId();
+            // New entry
+            final var newVal = IndirectKeyUsersValue.newBuilder()
+                    .prevUserId(nextInLineId)
+                    .nextUserId(nextId)
+                    .build();
+            final var newKey = IndirectKeyUsersKey.newBuilder()
+                    .keyAccountId(keyAccountId)
+                    .indirectUserId(userId)
+                    .build();
+            indirectKeyUsers().put(newKey, newVal);
+            // Patch 'after' next
+            indirectKeyUsers()
+                    .put(prevKey, prevVal.copyBuilder().nextUserId(userId).build());
+            // Patch 'afterNext' prev
+            if (nextId != null && !AccountID.DEFAULT.equals(nextId)) {
+                final var nextKey = IndirectKeyUsersKey.newBuilder()
+                        .keyAccountId(keyAccountId)
+                        .indirectUserId(nextId)
+                        .build();
+                final var afterNextVal = requireNonNull(indirectKeyUsers().get(nextKey));
+                indirectKeyUsers()
+                        .put(
+                                nextKey,
+                                afterNextVal.copyBuilder().prevUserId(userId).build());
+            }
+        } else {
+            // Insert at head (before first)
+            final var oldRootId = keyAccountBuilder.build().firstKeyUserId();
+            final var newRootKey = IndirectKeyUsersKey.newBuilder()
+                    .keyAccountId(keyAccountId)
+                    .indirectUserId(userId)
+                    .build();
+            final var newRootVal = IndirectKeyUsersValue.newBuilder()
+                    .prevUserId((AccountID) null)
+                    .nextUserId(oldRootId)
+                    .build();
+            indirectKeyUsers().put(newRootKey, newRootVal);
+            if (oldRootId != null && !AccountID.DEFAULT.equals(oldRootId)) {
+                final var oldHeadKey = IndirectKeyUsersKey.newBuilder()
+                        .keyAccountId(keyAccountId)
+                        .indirectUserId(oldRootId)
+                        .build();
+                final var oldHeadVal = requireNonNull(indirectKeyUsers().get(oldHeadKey));
+                indirectKeyUsers()
+                        .put(
+                                oldHeadKey,
+                                oldHeadVal.copyBuilder().prevUserId(userId).build());
+            }
+            keyAccountBuilder.firstKeyUserId(userId);
+        }
+        incrementIndirectUserCount(keyAccountBuilder);
+        put(keyAccountBuilder.build());
+    }
+
+    /**
+     * Unlinks this account from any other accounts that it indirectly references via its key.
+     * @param account the account to unlink
+     */
+    public void cleanupIndirectKeyUsagesForDeleted(@NonNull final Account account) {
+        requireNonNull(account);
+        final var refIds = KeyUtils.getIndirectAccountRefs(account.keyOrElse(Key.DEFAULT));
+        final var deletedId = account.accountIdOrThrow();
+        for (final var refId : refIds) {
+            removeIndirectUser(refId, deletedId);
+        }
+    }
+
+    /**
+     * Removes the given user from the indirect key users list for the given key account.
+     * @param keyAccountId the key account id
+     * @param userId the user id
+     */
+    public void removeIndirectUser(@NonNull final AccountID keyAccountId, @NonNull final AccountID userId) {
+        final var usedAccount = get(keyAccountId);
+        if (usedAccount == null) {
+            log.warn("Account {} indirection pointed at missing {}", userId, keyAccountId);
+            return;
+        }
+        final var builder = usedAccount.copyBuilder();
+        // If target has an in-progress propagation, and the next-in-line user id is
+        // the removed user id, advance the target's next in-line (wrapping to its
+        // first indirect user if this is end)
+        final var nextInLine = usedAccount.nextInLineKeyUserId();
+        if (nextInLine != null && nextInLine.equals(userId)) {
+            final var advancedId =
+                    nextUserIdInList(indirectKeyUsers(), keyAccountId, userId, usedAccount.firstKeyUserIdOrThrow());
+            if (Objects.equals(userId, advancedId)) {
+                // This was the only indirect user; so there is no next in line,
+                // and it's safe to zero out max remaining propagations in target
+                builder.nextInLineKeyUserId((AccountID) null).maxRemainingPropagations(0);
+            } else {
+                builder.nextInLineKeyUserId(advancedId);
+            }
+        }
+        // Remove (targetId, deletedId) from state and fix pointers
+        removeIndirectUserFromList(indirectKeyUsers(), builder, keyAccountId, userId);
+        decrementIndirectUserCount(builder);
+        put(builder.build());
     }
 
     /**
@@ -228,6 +361,83 @@ public class WritableAccountStore extends ReadableAccountStoreImpl {
         if (accountId.equals(AccountID.DEFAULT)) {
             throw new IllegalArgumentException("Account ID cannot be default");
         }
+    }
+
+    private static void removeIndirectUserFromList(
+            @NonNull final WritableKVState<IndirectKeyUsersKey, IndirectKeyUsersValue> indirectKeyUsers,
+            @NonNull final Account.Builder keyAccountBuilder,
+            @NonNull final AccountID keyAccountId,
+            @NonNull final AccountID userId) {
+        if (keyAccountId.account().kind() != ACCOUNT_NUM) {
+            throw new IllegalArgumentException("Key account id is not numbered - " + keyAccountId);
+        }
+        if (userId.account().kind() != ACCOUNT_NUM) {
+            throw new IllegalArgumentException("User account id is not numbered - " + userId);
+        }
+        final var target = IndirectKeyUsersKey.newBuilder()
+                .keyAccountId(keyAccountId)
+                .indirectUserId(userId)
+                .build();
+        final var value = indirectKeyUsers.get(target);
+        if (value == null) {
+            return;
+        }
+        final var prev = value.prevUserId();
+        final var next = value.nextUserId();
+        // Update previous' next pointer
+        if (prev != null && !AccountID.DEFAULT.equals(prev)) {
+            final var prevKey = IndirectKeyUsersKey.newBuilder()
+                    .keyAccountId(keyAccountId)
+                    .indirectUserId(prev)
+                    .build();
+            final var prevVal = indirectKeyUsers.get(prevKey);
+            if (prevVal != null) {
+                indirectKeyUsers.put(
+                        prevKey, prevVal.copyBuilder().nextUserId(next).build());
+            } else {
+                log.warn("Previous indirect key user {} not found for key account {}", prev, keyAccountId);
+            }
+        } else {
+            // We removed the head
+            keyAccountBuilder.firstKeyUserId(next);
+        }
+        // Update next's prev pointer
+        if (next != null && !AccountID.DEFAULT.equals(next)) {
+            final var nextKey = IndirectKeyUsersKey.newBuilder()
+                    .keyAccountId(keyAccountId)
+                    .indirectUserId(next)
+                    .build();
+            final var nextVal = indirectKeyUsers.get(nextKey);
+            if (nextVal != null) {
+                indirectKeyUsers.put(
+                        nextKey, nextVal.copyBuilder().prevUserId(prev).build());
+            }
+        }
+        // Finally remove the (keyAccountId, userId) entry itself
+        indirectKeyUsers.remove(target);
+    }
+
+    private static AccountID nextUserIdInList(
+            @NonNull final WritableKVState<IndirectKeyUsersKey, IndirectKeyUsersValue> indirectKeyUsers,
+            @NonNull final AccountID aId,
+            @NonNull final AccountID current,
+            @NonNull final AccountID first) {
+        final var value = indirectKeyUsers.get(IndirectKeyUsersKey.newBuilder()
+                .keyAccountId(aId)
+                .indirectUserId(current)
+                .build());
+        final var next = (value == null) ? AccountID.DEFAULT : value.nextUserId();
+        return (next == null || next.equals(AccountID.DEFAULT)) ? first : next;
+    }
+
+    private static void decrementIndirectUserCount(@NonNull final Account.Builder accountBuilder) {
+        final int current = accountBuilder.build().numIndirectKeyUsers();
+        accountBuilder.numIndirectKeyUsers(current > 0 ? current - 1 : 0);
+    }
+
+    private static void incrementIndirectUserCount(final Account.Builder accountBuilder) {
+        final var current = accountBuilder.build().numIndirectKeyUsers();
+        accountBuilder.numIndirectKeyUsers(current + 1);
     }
 
     private void requireNotDefault(@NonNull final Bytes alias) {

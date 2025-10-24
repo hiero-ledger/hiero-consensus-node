@@ -34,6 +34,11 @@ public interface RecordSource {
     }
 
     /**
+     * Whether the source is empty.
+     */
+    boolean isEmpty();
+
+    /**
      * Returns all identified receipts known to this source.
      * @return the receipts
      */

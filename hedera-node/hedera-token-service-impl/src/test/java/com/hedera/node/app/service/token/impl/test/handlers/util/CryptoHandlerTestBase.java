@@ -400,7 +400,12 @@ public class CryptoHandlerTestBase {
                 0,
                 0L,
                 0L,
-                0L);
+                0L,
+                Key.DEFAULT,
+                0,
+                0,
+                null,
+                null);
     }
 
     protected void givenValidContract() {
@@ -441,7 +446,12 @@ public class CryptoHandlerTestBase {
                 0,
                 0L,
                 0L,
-                0L);
+                0L,
+                Key.DEFAULT,
+                0,
+                0,
+                null,
+                null);
     }
 
     /**

@@ -621,11 +621,17 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         final var deleteAndTransferAccounts =
                 validateSemantics(deletedId, obtainerId, expiryValidator, accountNodeRelStore);
         transferRemainingBalance(expiryValidator, deleteAndTransferAccounts);
-
+        accountStore.cleanupIndirectKeyUsagesForDeleted(deleteAndTransferAccounts.deletedAccount());
         // get the account from account store that has all balance changes
-        // commit the account with deleted flag set to true
         final var updatedDeleteAccount = requireNonNull(accountStore.get(deletedId));
-        final var builder = updatedDeleteAccount.copyBuilder().deleted(true);
+        // Null out A's indirect key fields not needed for purging before marking it deleted;
+        // keep first key user id and num indirect key users for linked list traversal
+        final var builder = updatedDeleteAccount
+                .copyBuilder()
+                .materializedKey((Key) null)
+                .nextInLineKeyUserId((AccountID) null)
+                .maxRemainingPropagations(0)
+                .deleted(true);
         accountStore.removeAlias(updatedDeleteAccount.alias());
         builder.alias(Bytes.EMPTY);
         accountStore.put(builder.build());

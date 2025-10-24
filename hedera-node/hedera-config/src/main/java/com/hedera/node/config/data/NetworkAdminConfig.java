@@ -45,4 +45,5 @@ public record NetworkAdminConfig(
         @ConfigProperty(defaultValue = "10") @NetworkProperty int distinctTxnIdsToTry,
         @ConfigProperty(defaultValue = "true") @NodeProperty boolean preserveStateWeightsDuringOverride,
         // Default value is the working directory
-        @ConfigProperty(defaultValue = "") @NodeProperty String configTxtPath) {}
+        @ConfigProperty(defaultValue = "") @NodeProperty String configTxtPath,
+        @ConfigProperty(defaultValue = "" + Integer.MAX_VALUE) @NetworkProperty long maxPendingSystemTasks) {}

@@ -87,8 +87,14 @@ public interface FeeCalculator {
     long getCongestionMultiplier();
 
     /**
+     * Converts the given tinycent amount to tinybars at the calculator's current exchange rate and
+     * applies the current congestion multiplier.
+     */
+    long tinybarsFromTinycents(long tinycents);
+
+    /**
      * Resets the usage of all components to zero.
-     * @return
+     * @return {@code this} for fluent usage.
      */
     @NonNull
     FeeCalculator resetUsage();

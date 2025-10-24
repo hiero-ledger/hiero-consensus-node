@@ -43,8 +43,10 @@ import "services/state/recordcache/recordcache.proto";
 import "services/state/roster/roster.proto";
 import "services/state/roster/roster_state.proto";
 import "services/state/schedule/schedule.proto";
+import "services/state/systemtask/system_task.proto";
 import "services/state/throttles/throttle_usage_snapshots.proto";
 import "services/state/token/account.proto";
+import "services/state/token/indirect_key_users.proto";
 import "services/state/token/account_pending_airdrop.proto";
 import "services/state/token/network_staking_rewards.proto";
 import "services/state/token/node_rewards.proto";
@@ -268,11 +270,21 @@ message StateKey {
      */
     proto.AccountID AddressBookService_I_ACCOUNT_NODE_REL = 53;
 
+    /**
+     * A state identifier for indirect key users.
+     */
+    proto.IndirectKeyUsersKey TokenService_I_INDIRECT_KEY_USERS = 54;
+
     // Queue states
     /**
      * Queue index for the round receipts queue.
      */
     uint64 RecordCache_I_TRANSACTION_RECEIPTS = 126;
+
+    /**
+     * Queue index for the system task queue.
+     */
+    uint64 SystemTaskService_I_SYSTEM_TASK_QUEUE = 127;
     
     /**
      * Queue index for the `150` upgrade file data.
@@ -344,7 +356,7 @@ message StateKey {
  * </ol>
  */
 message StateValue {
-  oneof value{
+  oneof value {
     /**
      * A state identifier for the next entity Identifier.
      */
@@ -605,11 +617,21 @@ message StateValue {
      * A state identifier for account to node relationships.
      */
     com.hedera.hapi.platform.state.NodeId AddressBookService_I_ACCOUNT_NODE_REL = 53;
+        
+    /**
+     * Prev/next pointers for indirect key users.
+     */
+     proto.IndirectKeyUsersValue TokenService_I_INDIRECT_KEY_USERS = 54;
 
     /**
      * Metadata of the round receipts queue.
      */
     proto.TransactionReceiptEntries RecordCache_I_TRANSACTION_RECEIPTS = 126;
+
+    /**
+     * Contents of the system task queue.
+     */
+    proto.SystemTask SystemTaskService_I_SYSTEM_TASK_QUEUE = 127;
 
     /**
      * Metadata of the queue state.<br/>
@@ -791,7 +813,12 @@ enum SingletonType {
    * Metadata of the round receipts queue.
    */
   RecordCache_I_TRANSACTION_RECEIPTS = 126;
-  
+
+  /**
+   * Metadata of the system tasks queue.
+   */
+  SystemTaskService_I_SYSTEM_TASK_QUEUE = 127;
+
   /**
    * Metadata of the `150` upgrade file data queue.
    */

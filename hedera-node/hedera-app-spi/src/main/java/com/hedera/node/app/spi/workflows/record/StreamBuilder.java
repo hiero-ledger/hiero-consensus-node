@@ -6,6 +6,7 @@ import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategor
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.PRECEDING;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SYSTEM_TASK;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static java.util.Objects.requireNonNull;
 
@@ -220,12 +221,12 @@ public interface StreamBuilder {
     StreamBuilder congestionMultiplier(long congestionMultiplier);
 
     /**
-     * Returns true if this builder's transaction originated from inside another handler or workflow; and not
-     * a user transaction (or scheduled user transaction).
+     * Returns true if this builder's transaction originated from inside another handler, workflow, or system
+     * * task; and not a user transaction (or scheduled user transaction).
      * @return true if this transaction is internal
      */
     default boolean isInternalDispatch() {
-        return category() == CHILD || category() == PRECEDING;
+        return category() == CHILD || category() == PRECEDING || category() == SYSTEM_TASK;
     }
 
     /**
