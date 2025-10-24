@@ -366,6 +366,21 @@ class IngestCheckerTest extends AppTestBase {
         }
 
         @Test
+        void validateBehaviorWhenAuthorizerReturnsUnnecessary() {
+            when(accountStore.getAccountById(any())).thenReturn(nodeAccount);
+            when(nodeAccount.tinybarBalance()).thenReturn(0L);
+            // Simulate non-system account
+            when(authorizer.hasPrivilegedAuthorization(any(), any(), any())).thenReturn(SystemPrivilege.UNNECESSARY);
+            when(authorizer.isSuperUser(any())).thenReturn(true);
+            assertThatCode(() -> subject.verifyNodeAccountBalance(storeFactory, transactionInfo))
+                    .doesNotThrowAnyException();
+            when(authorizer.isSuperUser(any())).thenReturn(false);
+            assertThatThrownBy(() -> subject.verifyNodeAccountBalance(storeFactory, transactionInfo))
+                    .isInstanceOf(PreCheckException.class)
+                    .hasFieldOrPropertyWithValue("responseCode", NODE_ACCOUNT_HAS_ZERO_BALANCE);
+        }
+
+        @Test
         void succeedsIfNodeAccountHasBalance() {
             when(accountStore.getAccountById(any())).thenReturn(nodeAccount);
             when(nodeAccount.tinybarBalance()).thenReturn(100L);

@@ -85,7 +85,7 @@ public class PrivilegesVerifier {
                 checkCryptoDelete(
                         effectiveNumber(txBody.cryptoDeleteOrThrow().deleteAccountIDOrElse(AccountID.DEFAULT)));
             case NODE_CREATE -> checkNodeCreate(payerId);
-            default -> isSuperUser(payerId) ? AUTHORIZED : SystemPrivilege.UNNECESSARY;
+            default -> SystemPrivilege.UNNECESSARY;
         };
     }
 
