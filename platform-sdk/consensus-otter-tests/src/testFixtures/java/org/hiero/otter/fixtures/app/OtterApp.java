@@ -27,7 +27,6 @@ import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.otter.fixtures.app.services.consistency.ConsistencyService;
-import org.hiero.otter.fixtures.app.services.iss.IssService;
 import org.hiero.otter.fixtures.app.services.platform.PlatformStateService;
 import org.hiero.otter.fixtures.app.services.roster.RosterService;
 import org.hiero.otter.fixtures.app.state.OtterStateInitializer;
@@ -67,11 +66,13 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
     public OtterApp(@NonNull final SemanticVersion version) {
         this.version = requireNonNull(version);
 
-        final IssService issService = new IssService();
-        final ConsistencyService consistencyService = new ConsistencyService();
+//        final IssService issService = new IssService();
+//        final ConsistencyService consistencyService = new ConsistencyService();
 
-        this.appServices = List.of(consistencyService, issService);
-        this.allServices = List.of(consistencyService, issService, new PlatformStateService(), new RosterService());
+        this.appServices = List.of();
+        this.allServices = List.of(new PlatformStateService(), new RosterService());
+//        this.appServices = List.of(consistencyService, issService);
+//        this.allServices = List.of(consistencyService, issService, new PlatformStateService(), new RosterService());
     }
 
     /**

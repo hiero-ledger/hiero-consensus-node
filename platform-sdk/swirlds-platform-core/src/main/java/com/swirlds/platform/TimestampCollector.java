@@ -6,6 +6,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -37,17 +38,21 @@ public class TimestampCollector {
     }
 
     public static final int GAP = 10;
-    public static final AtomicLong COUNTER = new AtomicLong();
-
     private static final int MAX_ELEMENTS = 1000;
+    private static final Duration WARMUP = Duration.ofSeconds(10);
+    private static final long thresholdNanos = System.nanoTime() + WARMUP.toNanos();
 
+    public static final AtomicLong COUNTER = new AtomicLong();
     private static final long[][] timestamps = new long[MAX_ELEMENTS][Position.values().length];
 
     public static void timestamp(@NonNull final Position position, final int index) {
         if (index >= MAX_ELEMENTS) {
             return;
         }
-        timestamps[index][position.ordinal()] = System.nanoTime();
+        final long now = System.nanoTime();
+        if (now > thresholdNanos) {
+            timestamps[index][position.ordinal()] = now;
+        }
     }
 
     public static void store() {
