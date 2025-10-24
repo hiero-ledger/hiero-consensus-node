@@ -10,6 +10,8 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0680EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0680EntityIdSchema.HIGHEST_NODE_ID_STATE_LABEL;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
@@ -212,6 +214,12 @@ public class AddressBookTestBase {
                         ENTITY_ID_STATE_LABEL,
                         () -> EntityNumber.newBuilder().build(),
                         c -> {}));
+        given(writableStates.getSingleton(HIGHEST_NODE_ID_STATE_ID))
+                .willReturn(new FunctionWritableSingletonState<>(
+                        HIGHEST_NODE_ID_STATE_ID,
+                        HIGHEST_NODE_ID_STATE_LABEL,
+                        () -> EntityNumber.newBuilder().number(100).build(),
+                        c -> {}));
         given(writableStates.getSingleton(ENTITY_COUNTS_STATE_ID))
                 .willReturn(new FunctionWritableSingletonState<>(
                         ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT, c -> {}));
@@ -219,6 +227,11 @@ public class AddressBookTestBase {
                 .willReturn(new FunctionReadableSingletonState<>(
                         ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.newBuilder()
                                 .build()));
+        given(readableStates.getSingleton(HIGHEST_NODE_ID_STATE_ID))
+                .willReturn(new FunctionReadableSingletonState<>(
+                        HIGHEST_NODE_ID_STATE_ID,
+                        HIGHEST_NODE_ID_STATE_LABEL,
+                        () -> EntityNumber.newBuilder().number(100).build()));
         given(readableStates.getSingleton(ENTITY_COUNTS_STATE_ID))
                 .willReturn(new FunctionReadableSingletonState<>(
                         ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT));
@@ -233,6 +246,12 @@ public class AddressBookTestBase {
                         ENTITY_ID_STATE_LABEL,
                         () -> EntityNumber.newBuilder().build(),
                         c -> {}));
+        given(writableStates.getSingleton(HIGHEST_NODE_ID_STATE_ID))
+                .willReturn(new FunctionWritableSingletonState<>(
+                        HIGHEST_NODE_ID_STATE_ID,
+                        HIGHEST_NODE_ID_STATE_LABEL,
+                        () -> EntityNumber.newBuilder().number(100).build(),
+                        c -> {}));
         given(writableStates.getSingleton(ENTITY_COUNTS_STATE_ID))
                 .willReturn(new FunctionWritableSingletonState<>(
                         ENTITY_COUNTS_STATE_ID,
@@ -243,6 +262,11 @@ public class AddressBookTestBase {
                 .willReturn(new FunctionReadableSingletonState<>(
                         ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.newBuilder()
                                 .build()));
+        given(readableStates.getSingleton(HIGHEST_NODE_ID_STATE_ID))
+                .willReturn(new FunctionReadableSingletonState<>(
+                        HIGHEST_NODE_ID_STATE_ID,
+                        HIGHEST_NODE_ID_STATE_LABEL,
+                        () -> EntityNumber.newBuilder().number(100).build()));
         given(readableStates.getSingleton(ENTITY_COUNTS_STATE_ID))
                 .willReturn(new FunctionReadableSingletonState<>(
                         ENTITY_COUNTS_STATE_ID,
