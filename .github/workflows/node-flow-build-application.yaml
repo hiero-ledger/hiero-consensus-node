@@ -8,11 +8,6 @@ on:
         type: boolean
         required: false
         default: true
-      enable-integration-tests:
-        description: "Integration Testing Enabled"
-        type: boolean
-        required: false
-        default: true
       enable-hapi-tests:
         description: "HAPI Testing Enabled"
         type: boolean
@@ -144,7 +139,7 @@ jobs:
       java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
       java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
       enable-unit-tests: false
-      enable-integration-tests: ${{ github.event_name == 'push' || github.event.inputs.enable-integration-tests == 'true' }}
+      enable-integration-tests: ${{ github.event_name == 'push' || github.event.inputs.enable-unit-tests == 'true' }}
       enable-network-log-capture: true
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
