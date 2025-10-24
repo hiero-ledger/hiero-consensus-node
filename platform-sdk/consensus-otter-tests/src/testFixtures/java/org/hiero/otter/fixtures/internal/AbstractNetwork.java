@@ -703,7 +703,6 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void bumpConfigVersion() {
-        // TODO should this be set in NodeProperties?
         nodes().forEach(Node::bumpConfigVersion);
     }
 
