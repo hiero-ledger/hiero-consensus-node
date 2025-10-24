@@ -243,10 +243,9 @@ public final class IngestChecker {
         }
 
         final var nodeBalance = selfAccount.tinybarBalance();
-        final var privilegesResult =
-                authorizer.hasPrivilegedAuthorization(txInfo.payerID(), txInfo.functionality(), txInfo.txBody());
         final var isPrivilegedAuthorized =
-                privilegesResult == SystemPrivilege.AUTHORIZED || privilegesResult == SystemPrivilege.UNNECESSARY;
+                authorizer.hasPrivilegedAuthorization(txInfo.payerID(), txInfo.functionality(), txInfo.txBody())
+                        == SystemPrivilege.AUTHORIZED;
 
         // Check node account balance and authorization
         if (nodeBalance < 1 && !isPrivilegedAuthorized) {
