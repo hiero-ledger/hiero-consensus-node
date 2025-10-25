@@ -45,7 +45,7 @@ class ContractOperationStreamBuilderTest {
 
     @BeforeEach
     void setUp() {
-        doCallRealMethod().when(subject).withCommonFieldsSetFrom(any(), eq(context), entityIdFactory);
+        doCallRealMethod().when(subject).withCommonFieldsSetFrom(any(), eq(context), eq(entityIdFactory));
     }
 
     @Test
