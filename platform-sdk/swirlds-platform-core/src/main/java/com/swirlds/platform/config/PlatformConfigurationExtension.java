@@ -54,6 +54,7 @@ public class PlatformConfigurationExtension implements ConfigurationExtension {
                 AddressBookConfig.class,
                 BasicCommonConfig.class,
                 BasicConfig.class,
+                ModuleConfig.class,
                 ConsensusConfig.class,
                 CryptoConfig.class,
                 EventConfig.class,

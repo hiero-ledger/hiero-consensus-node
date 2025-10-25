@@ -125,7 +125,7 @@ public class ConsensusNodeManager {
         final PlatformContext platformContext = PlatformContext.create(
                 platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
 
-        otterApp = new OtterApp(version);
+        otterApp = new OtterApp(legacySelfId, version);
 
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
@@ -264,5 +264,14 @@ public class ConsensusNodeManager {
     public void sendQuiescenceCommand(@NonNull final QuiescenceCommand command) {
         this.quiescenceCommand = command;
         platform.quiescenceCommand(command);
+    }
+
+    /**
+     * Handles a ping message received from the test framework.
+     *
+     * @param message the ping message received, must not be {@code null}
+     */
+    public void handlePing(@NonNull final String message) {
+        otterApp.handlePing(message);
     }
 }

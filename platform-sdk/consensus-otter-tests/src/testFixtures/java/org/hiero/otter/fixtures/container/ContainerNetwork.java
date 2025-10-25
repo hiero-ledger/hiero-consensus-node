@@ -44,6 +44,7 @@ public class ContainerNetwork extends AbstractNetwork {
     private final Path rootOutputDirectory;
     private final ContainerTransactionGenerator transactionGenerator;
     private final ImageFromDockerfile dockerImage;
+    private final ImageFromDockerfile instrumentedDockerImage;
     private final Executor executor = Executors.newCachedThreadPool();
 
     private ToxiproxyContainer toxiproxyContainer;
@@ -69,6 +70,9 @@ public class ContainerNetwork extends AbstractNetwork {
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);
         this.dockerImage = new ImageFromDockerfile()
                 .withDockerfile(Path.of("..", "consensus-otter-docker-app", "build", "data", "Dockerfile"));
+        this.instrumentedDockerImage = new ImageFromDockerfile()
+                .withDockerfile(
+                        Path.of("..", "consensus-otter-docker-app", "build", "data", "Dockerfile.instrumented"));
         transactionGenerator.setNodesSupplier(this::nodes);
     }
 
@@ -119,8 +123,8 @@ public class ContainerNetwork extends AbstractNetwork {
     protected InstrumentedNode doCreateInstrumentedNode(
             @NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
-        final InstrumentedContainerNode node =
-                new InstrumentedContainerNode(nodeId, timeManager, keysAndCerts, network, dockerImage, outputDir);
+        final InstrumentedContainerNode node = new InstrumentedContainerNode(
+                nodeId, timeManager, keysAndCerts, network, instrumentedDockerImage, outputDir);
         timeManager.addTimeTickReceiver(node);
         return node;
     }

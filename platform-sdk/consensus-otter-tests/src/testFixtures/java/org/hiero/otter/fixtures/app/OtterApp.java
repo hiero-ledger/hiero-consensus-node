@@ -19,9 +19,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.eventbus.EventBus;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
@@ -46,9 +48,14 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
     public static final String APP_NAME = "OtterApp";
     public static final String SWIRLD_NAME = "123";
 
+    private static final String PING = "ping";
+
     private final SemanticVersion version;
     private final List<OtterService> allServices;
     private final List<OtterService> appServices;
+
+    /** The event bus to use for publishing events. */
+    private final EventBus eventBus;
 
     /**
      * The number of milliseconds to sleep per handled consensus round. Sleeping for long enough over a period of time
@@ -64,7 +71,7 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
      *
      * @param version the software version to set in the state
      */
-    public OtterApp(@NonNull final SemanticVersion version) {
+    public OtterApp(@NonNull final NodeId selfId, @NonNull final SemanticVersion version) {
         this.version = requireNonNull(version);
 
         final IssService issService = new IssService();
@@ -72,6 +79,7 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
 
         this.appServices = List.of(consistencyService, issService);
         this.allServices = List.of(consistencyService, issService, new PlatformStateService(), new RosterService());
+        this.eventBus = EventBus.getInstance(selfId);
     }
 
     /**
@@ -245,6 +253,15 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
      */
     public void updateSyntheticBottleneck(final long millisToSleepPerRound) {
         this.syntheticBottleneckMillis.set(millisToSleepPerRound);
+    }
+
+    /**
+     * Handles a ping message by publishing it to the event bus.
+     *
+     * @param message the ping message
+     */
+    public void handlePing(@NonNull final String message) {
+        eventBus.publish(PING, message);
     }
 
     public void destroy() {
