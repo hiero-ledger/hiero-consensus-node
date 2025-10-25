@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.translators.inputs;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
+import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.CallContractOutput;
@@ -86,7 +88,15 @@ public record BlockTransactionParts(
      * @return the functionality
      */
     public HederaFunctionality functionality() {
-        return transactionParts.function();
+        return requireNonNull(transactionParts).function();
+    }
+
+    /**
+     *  Returns whether this transaction is a hook call.
+     */
+    public boolean isHookCall() {
+        return functionality() == CONTRACT_CALL
+                && body().contractCallOrThrow().contractIDOrThrow().contractNumOrThrow() == HTS_HOOKS_CONTRACT_NUM;
     }
 
     /**

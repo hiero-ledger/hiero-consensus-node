@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.handle.stack;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_SCHEDULING_ALLOWED_AFTER_SCHEDULED_RECURSION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.RECURSIVE_SCHEDULING_LIMIT_REACHED;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
@@ -504,6 +505,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         TransactionID.Builder idBuilder = null;
         int indexOfParentBuilder = 0;
         int topLevelNonce = 0;
+        boolean grouped = false;
         boolean isBatch = false;
         final int n = builders.size();
         for (int i = 0; i < n; i++) {
@@ -514,6 +516,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
                 topLevelNonce = builder.transactionID().nonce();
                 idBuilder = builder.transactionID().copyBuilder();
                 isBatch = builder.functionality() == ATOMIC_BATCH;
+                grouped = isBatch;
                 break;
             }
         }
@@ -522,6 +525,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         var parentConsensusTime = consensusTime;
         for (int i = 0; i < n; i++) {
             final var builder = builders.get(i);
+            grouped |= builder.functionality() == HOOK_DISPATCH;
             final var nonceOffset =
                     switch (builder.category()) {
                         case USER, SCHEDULED, NODE, BATCH_INNER -> 0;
@@ -568,8 +572,6 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
                 }
             }
 
-            // Add trace data for batch inner (or inner child) transaction fields, that are normally computed by state
-            // changes
             switch (streamMode) {
                 case RECORDS -> {
                     final var nextRecord = ((RecordStreamBuilder) builder).build();
@@ -579,16 +581,16 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
                             nextRecord.transactionRecord().receiptOrThrow()));
                 }
                 case BLOCKS -> {
-                    final var batchStateChanges = isBatch ? baseBuilder.getStateChanges() : null;
+                    final var groupStateChanges = grouped ? baseBuilder.getStateChanges() : null;
                     requireNonNull(outputs)
-                            .add(((BlockStreamBuilder) builder).build(builder == baseBuilder, batchStateChanges));
+                            .add(((BlockStreamBuilder) builder).build(builder == baseBuilder, groupStateChanges));
                 }
                 case BOTH -> {
                     final var pairedBuilder = (PairedStreamBuilder) builder;
                     records.add(pairedBuilder.recordStreamBuilder().build());
-                    final var batchStateChanges = isBatch ? baseBuilder.getStateChanges() : null;
+                    final var groupStateChanges = grouped ? baseBuilder.getStateChanges() : null;
                     requireNonNull(outputs)
-                            .add(pairedBuilder.blockStreamBuilder().build(builder == baseBuilder, batchStateChanges));
+                            .add(pairedBuilder.blockStreamBuilder().build(builder == baseBuilder, groupStateChanges));
                 }
             }
         }

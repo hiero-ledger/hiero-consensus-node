@@ -69,6 +69,7 @@ import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.services.bdd.junit.support.translators.impl.AtomicBatchTranslator;
 import com.hedera.services.bdd.junit.support.translators.impl.ContractCallTranslator;
@@ -187,9 +188,15 @@ public class BlockTransactionalUnitTranslator {
 
     /**
      * Constructs a new {@link BlockTransactionalUnitTranslator}.
+     * @param shard the shard number
+     * @param realm the realm number
      */
-    public BlockTransactionalUnitTranslator() {
-        baseTranslator = new BaseTranslator();
+    public BlockTransactionalUnitTranslator(final long shard, final long realm) {
+        baseTranslator = new BaseTranslator(shard, realm);
+    }
+
+    public BaseTranslator getBaseTranslator() {
+        return baseTranslator;
     }
 
     /**
@@ -209,10 +216,11 @@ public class BlockTransactionalUnitTranslator {
     public List<SingleTransactionRecord> translate(@NonNull final BlockTransactionalUnit unit) {
         requireNonNull(unit);
         baseTranslator.prepareForUnit(unit);
-        final List<TraceData> followingTraces = new LinkedList<>(unit.allTraces());
+        final List<ScopedTraceData> followingTraces = new LinkedList<>(unit.allScopedTraces());
         final List<StateChange> remainingStateChanges = new LinkedList<>(unit.stateChanges());
         final List<SingleTransactionRecord> translatedRecords = new ArrayList<>();
         List<TraceData> tracesSoFar = null;
+        List<HookId> followingHookExecIds = unit.allHookExecIds();
         for (final var blockTransactionParts : unit.blockTransactionParts()) {
             final var translator = translators.get(blockTransactionParts.functionality());
             if (translator == null) {
@@ -224,13 +232,24 @@ public class BlockTransactionalUnitTranslator {
                     }
                     tracesSoFar.addAll(blockTransactionParts.tracesOrThrow());
                     // Remove the traces that are part of this transaction from the following traces
-                    followingTraces.removeAll(blockTransactionParts.tracesOrThrow());
+                    for (int i = 0, n = blockTransactionParts.tracesOrThrow().size(); i < n; i++) {
+                        followingTraces.removeFirst();
+                    }
+                }
+                HookId executingHookId = null;
+                if (followingHookExecIds != null && blockTransactionParts.isHookCall()) {
+                    executingHookId = followingHookExecIds.removeFirst();
                 }
                 if (blockTransactionParts.functionality() != STATE_SIGNATURE_TRANSACTION
                         && blockTransactionParts.hasResult()
                         && blockTransactionParts.transactionParts() != null) {
                     final var translation = translator.translate(
-                            blockTransactionParts, baseTranslator, remainingStateChanges, tracesSoFar, followingTraces);
+                            blockTransactionParts,
+                            baseTranslator,
+                            remainingStateChanges,
+                            tracesSoFar,
+                            followingTraces,
+                            executingHookId);
                     translatedRecords.add(translation);
                 }
             }

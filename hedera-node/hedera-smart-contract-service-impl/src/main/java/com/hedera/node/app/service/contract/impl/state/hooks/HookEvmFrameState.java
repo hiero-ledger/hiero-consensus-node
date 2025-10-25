@@ -8,7 +8,7 @@ import static com.hedera.node.app.service.contract.impl.state.WritableEvmHookSto
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniUInt256;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
-import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_ID;
+import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
@@ -63,7 +63,7 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
         this.hook = requireNonNull(hook);
         this.codeFactory = requireNonNull(codeFactory);
         this.writableEvmHookStore = requireNonNull(writableEvmHookStore);
-        this.hooksContractId = entityIdFactory.newContractId(HTS_HOOKS_CONTRACT_ID.contractNumOrThrow());
+        this.hooksContractId = entityIdFactory.newContractId(HTS_HOOKS_CONTRACT_NUM);
     }
 
     /**

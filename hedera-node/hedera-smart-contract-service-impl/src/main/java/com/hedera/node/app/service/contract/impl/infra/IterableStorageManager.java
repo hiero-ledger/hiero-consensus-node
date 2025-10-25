@@ -2,7 +2,7 @@
 package com.hedera.node.app.service.contract.impl.infra;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
-import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_ID;
+import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
@@ -59,10 +59,8 @@ public class IterableStorageManager {
             @NonNull final ContractStateStore store) {
         // map to store the first storage key for each contract
         final Map<ContractID, Bytes> firstKeys = new HashMap<>();
-        final var hooksContract = enhancement
-                .nativeOperations()
-                .entityIdFactory()
-                .newContractId(HTS_HOOKS_CONTRACT_ID.contractNumOrThrow());
+        final var hooksContract =
+                enhancement.nativeOperations().entityIdFactory().newContractId(HTS_HOOKS_CONTRACT_NUM);
 
         // Adjust the storage linked lists for each contract
         allAccesses.forEach(contractAccesses -> contractAccesses.accesses().forEach(access -> {

@@ -3,7 +3,7 @@ package com.hedera.node.app.service.contract.impl.test.state.hooks;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CODE_FACTORY;
-import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_ID;
+import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
@@ -57,7 +57,12 @@ class ProxyEvmHookTest {
         // Storage expectations
         final var key = UInt256.valueOf(42);
         final var expectedStorageValue = UInt256.valueOf(4242);
-        given(state.getStorageValue(HTS_HOOKS_CONTRACT_ID, key)).willReturn(expectedStorageValue);
+        given(state.getStorageValue(
+                        ContractID.newBuilder()
+                                .contractNum(HTS_HOOKS_CONTRACT_NUM)
+                                .build(),
+                        key))
+                .willReturn(expectedStorageValue);
 
         final var subject = new ProxyEvmHook(state, hookState, CODE_FACTORY, entityIdFactory);
 
@@ -66,12 +71,17 @@ class ProxyEvmHookTest {
         assertEquals(hookContractCode, subject.getCode());
         assertEquals(expectedHash, subject.getCodeHash());
         assertEquals(HTS_HOOKS_CONTRACT_ADDRESS, subject.getAddress());
-        assertEquals(HTS_HOOKS_CONTRACT_ID, subject.hederaContractId());
+        assertEquals(HTS_HOOKS_CONTRACT_NUM, subject.hederaContractId().contractNumOrThrow());
         assertEquals(expectedStorageValue, subject.getStorageValue(key));
 
         verify(state, times(2)).getCode(hookContractId);
         verify(state).getCodeHash(hookContractId, CODE_FACTORY);
-        verify(state).getStorageValue(HTS_HOOKS_CONTRACT_ID, key);
+        verify(state)
+                .getStorageValue(
+                        ContractID.newBuilder()
+                                .contractNum(HTS_HOOKS_CONTRACT_NUM)
+                                .build(),
+                        key);
     }
 
     @Test

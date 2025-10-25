@@ -118,7 +118,7 @@ public class Hip1195EnabledTest {
 
     static final String OWNER = "owner";
     static final String PAYER = "payer";
-    static final String HOOK_CONTRACT_NUM = "365";
+    public static final String HOOK_CONTRACT_NUM = "365";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {

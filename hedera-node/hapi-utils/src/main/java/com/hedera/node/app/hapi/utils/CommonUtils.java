@@ -160,7 +160,7 @@ public final class CommonUtils {
      * Converts a long-zero address to a PBJ {@link ScheduleID} using the address as the entity number
      * @param shard the shard of the Hedera network
      * @param realm the realm of the Hedera network
-     * @param address
+     * @param address the long-zero address
      * @return the PBJ {@link ScheduleID}
      */
     public static com.hederahashgraph.api.proto.java.ScheduleID asScheduleId(

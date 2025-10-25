@@ -174,8 +174,14 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      * {@inheritDoc}
      */
     @Override
-    public @NonNull RentFactors getRentFactorsFor(final ContractID contractID) {
+    public @NonNull RentFactors getRentFactorsFor(@NonNull final ContractID contractID) {
         final var account = validatedAccount(contractID);
+        return new RentFactors(account.contractKvPairsNumber(), account.expirationSecond());
+    }
+
+    @Override
+    public @NonNull RentFactors getRentFactorsFor(@NonNull final AccountID accountId) {
+        final var account = validatedAccount(accountId);
         return new RentFactors(account.contractKvPairsNumber(), account.expirationSecond());
     }
 

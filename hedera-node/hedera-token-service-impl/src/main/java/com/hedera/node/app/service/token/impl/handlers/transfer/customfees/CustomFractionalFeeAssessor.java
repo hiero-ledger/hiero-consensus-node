@@ -139,7 +139,7 @@ public class CustomFractionalFeeAssessor {
                 // Add assessed custom fees to the result. This is needed to build transaction record
                 // If there are multiple payers, record the details in the result. This is needed to construct
                 // custom fee proposed transfers with hooks
-                result.addAssessedFeeWithPayerDebits(
+                result.addItemizedAssessedFee(
                         AssessedCustomFee.newBuilder()
                                 .effectivePayerAccountId(finalEffPayerNums.toArray(finalEffPayerNumsArray))
                                 .feeCollectorAccountId(collector)

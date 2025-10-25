@@ -15,7 +15,7 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.node.app.service.token.AliasUtils;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
-import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessedFeeWithPayerDebits;
+import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.ItemizedAssessedFee;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -37,7 +37,7 @@ public class TransferContextImpl implements TransferContext {
     private int numLazyCreations;
     private final Map<Bytes, AccountID> resolutions = new LinkedHashMap<>();
     private final List<TokenAssociation> automaticAssociations = new ArrayList<>();
-    private final List<AssessedFeeWithPayerDebits> assessedFeeWithPayerDebits = new ArrayList<>();
+    private final List<ItemizedAssessedFee> itemizedAssessedFees = new ArrayList<>();
     private CryptoTransferTransactionBody syntheticBody = null;
     private final boolean enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments;
 
@@ -152,20 +152,20 @@ public class TransferContextImpl implements TransferContext {
         return automaticAssociations;
     }
 
-    public void addToAssessedCustomFee(AssessedFeeWithPayerDebits assessedCustomFee) {
-        assessedFeeWithPayerDebits.add(assessedCustomFee);
+    public void addToAssessedCustomFee(ItemizedAssessedFee assessedCustomFee) {
+        itemizedAssessedFees.add(assessedCustomFee);
     }
 
     @Override
     public List<AssessedCustomFee> getAssessedCustomFees() {
-        return new ArrayList<>(assessedFeeWithPayerDebits.stream()
-                .map(AssessedFeeWithPayerDebits::assessedCustomFee)
+        return new ArrayList<>(itemizedAssessedFees.stream()
+                .map(ItemizedAssessedFee::assessedCustomFee)
                 .toList());
     }
 
     @Override
-    public List<AssessedFeeWithPayerDebits> getAssessedFeesWithPayerDebits() {
-        return assessedFeeWithPayerDebits;
+    public List<ItemizedAssessedFee> getItemizedAssessedFees() {
+        return itemizedAssessedFees;
     }
 
     public boolean isEnforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments() {
