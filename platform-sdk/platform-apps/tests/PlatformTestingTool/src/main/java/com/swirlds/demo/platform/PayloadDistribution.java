@@ -26,8 +26,8 @@ public class PayloadDistribution {
     private PAYLOAD_TYPE[] typeDistribution;
     private int[] sizeDistribution;
     private float[] ratioDistribution;
-    /** probability of payload distribution, sum of array should be 100 */
-
+    // /** probability of payload distribution, sum of array should be 100 */
+    //
     // private PayloadDistribution(Builder builder) {
     // this.typeDistribution = builder.typeDistribution;
     // this.sizeDistribution = builder.sizeDistribution;

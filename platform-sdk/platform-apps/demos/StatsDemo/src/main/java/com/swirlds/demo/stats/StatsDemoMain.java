@@ -88,7 +88,6 @@ public class StatsDemoMain extends DefaultSwirldMain<StatsDemoState> {
                 .build();
     }
 
-    /////////////////////////////////////////////////////////////////////
     /** the time of the last call to preEvent */
     long lastEventTime = System.nanoTime();
     /** number of events needed to be created (the non-integer leftover from last preEvent call */

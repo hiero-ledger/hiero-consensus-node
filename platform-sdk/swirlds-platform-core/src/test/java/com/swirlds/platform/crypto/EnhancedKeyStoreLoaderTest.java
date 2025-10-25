@@ -218,9 +218,9 @@ class EnhancedKeyStoreLoaderTest {
         return loadConfigFile(testDataDirectory.resolve("config.txt")).getAddressBook();
     }
 
-    /////////////////////////////////////////////////////////////////////////////
-    //////////////////////// MIGRATION SPECIFIC UNIT TESTS //////////////////////
-    /////////////////////////////////////////////////////////////////////////////
+    //***************************************************************************
+    //********************** MIGRATION SPECIFIC UNIT TESTS **********************
+    //***************************************************************************
 
     /**
      * The Negative Type 2 tests are designed to test the case where the key store loader is able to scan the key

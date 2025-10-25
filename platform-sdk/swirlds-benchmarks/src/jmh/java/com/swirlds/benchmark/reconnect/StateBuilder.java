@@ -12,11 +12,12 @@ import java.util.stream.LongStream;
 
 /**
  * A utility class to help build random states.
+ *
+ * @param keyBuilder Build a key for index 1..size.
+ * @param valueBuilder Build a value for key index 1..size.
  */
 public record StateBuilder(
-        /** Build a key for index 1..size. */
         Function<Long, Bytes> keyBuilder,
-        /** Build a value for key index 1..size. */
         Function<Long, BenchmarkValue> valueBuilder) {
 
     /** Return {@code true} with the given probability. */

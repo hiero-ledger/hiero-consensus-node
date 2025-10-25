@@ -11,10 +11,11 @@ import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
+ * A leaf in the merkle tree that stores a string as its value.
+ *
  * @deprecated This class should be removed together with {@link MerkleStateRoot}.
  */
 @Deprecated
-/** A leaf in the merkle tree that stores a string as its value. */
 public class StringLeaf extends PartialMerkleLeaf implements Labeled, MerkleLeaf {
     private static final long CLASS_ID = 0x9C829FF3B2283L;
     public static final int CLASS_VERSION = 1;

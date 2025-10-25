@@ -98,8 +98,8 @@ public class TransactionSubmitter {
     long accumulatedEvent = 0;
     long accumulatedRound = 0;
 
-    long cycleStartMS = 0;
     /** cycle start time in millisecond unit */
+    long cycleStartMS = 0;
 
     /**
      * pause submission after certain amount of transaction
