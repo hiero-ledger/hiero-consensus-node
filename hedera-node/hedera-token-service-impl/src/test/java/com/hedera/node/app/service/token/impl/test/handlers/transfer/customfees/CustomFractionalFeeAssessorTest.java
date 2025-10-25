@@ -200,8 +200,8 @@ public class CustomFractionalFeeAssessorTest {
 
         verify(fixedFeeAssessor).assessFixedFee(token, payer, fixedFee, result);
 
-        assertThat(result.getAssessedFeesWithPayerDebits()).isNotEmpty();
-        final var deltas = result.getAssessedFeesWithPayerDebits();
+        assertThat(result.getItemizedAssessedFees()).isNotEmpty();
+        final var deltas = result.getItemizedAssessedFees();
 
         final var assessedFees =
                 deltas.stream().map(ItemizedAssessedFee::assessedCustomFee).toList();
@@ -249,8 +249,8 @@ public class CustomFractionalFeeAssessorTest {
 
         // This is not Net of transfers fee, so it is not assessed
         verify(fixedFeeAssessor, never()).assessFixedFee(token, payer, fixedFee, result);
-        assertThat(result.getAssessedFeesWithPayerDebits()).hasSize(1);
-        final var assessedFees = result.getAssessedFeesWithPayerDebits().stream()
+        assertThat(result.getItemizedAssessedFees()).hasSize(1);
+        final var assessedFees = result.getItemizedAssessedFees().stream()
                 .map(ItemizedAssessedFee::assessedCustomFee)
                 .toList();
         assertThat(assessedFees).contains(expectedAssessedFee1);
@@ -289,8 +289,8 @@ public class CustomFractionalFeeAssessorTest {
 
         // This is not Net of transfers fee, so it is not assessed
         verify(fixedFeeAssessor, never()).assessFixedFee(any(), any(), any(), any());
-        assertThat(result.getAssessedFeesWithPayerDebits()).hasSize(1);
-        final var assessedFees = result.getAssessedFeesWithPayerDebits().stream()
+        assertThat(result.getItemizedAssessedFees()).hasSize(1);
+        final var assessedFees = result.getItemizedAssessedFees().stream()
                 .map(ItemizedAssessedFee::assessedCustomFee)
                 .toList();
         assertThat(assessedFees).contains(expectedAssessedFee1);
@@ -314,7 +314,7 @@ public class CustomFractionalFeeAssessorTest {
 
         // This is not Net of transfers fee, so it is not assessed
         verify(fixedFeeAssessor, never()).assessFixedFee(any(), any(), any(), any());
-        assertThat(result.getAssessedFeesWithPayerDebits()).isEmpty();
+        assertThat(result.getItemizedAssessedFees()).isEmpty();
         assertThat(result.getRoyaltiesPaid()).isEmpty();
     }
 
@@ -337,7 +337,7 @@ public class CustomFractionalFeeAssessorTest {
 
         // This is not Net of transfers fee, so it is not assessed
         verify(fixedFeeAssessor, never()).assessFixedFee(any(), any(), any(), any());
-        assertThat(result.getAssessedFeesWithPayerDebits()).isEmpty();
+        assertThat(result.getItemizedAssessedFees()).isEmpty();
         assertThat(result.getRoyaltiesPaid()).isEmpty();
     }
 
@@ -359,7 +359,7 @@ public class CustomFractionalFeeAssessorTest {
 
         // This is not Net of transfers fee, so it is not assessed
         verify(fixedFeeAssessor, never()).assessFixedFee(any(), any(), any(), any());
-        assertThat(result.getAssessedFeesWithPayerDebits()).isEmpty();
+        assertThat(result.getItemizedAssessedFees()).isEmpty();
         assertThat(result.getRoyaltiesPaid()).isEmpty();
     }
 
@@ -481,9 +481,9 @@ public class CustomFractionalFeeAssessorTest {
 
         verify(fixedFeeAssessor, never()).assessFixedFee(any(), any(), any(), any());
 
-        assertThat(result.getAssessedFeesWithPayerDebits()).isNotEmpty();
+        assertThat(result.getItemizedAssessedFees()).isNotEmpty();
 
-        final var assessedFees = result.getAssessedFeesWithPayerDebits().stream()
+        final var assessedFees = result.getItemizedAssessedFees().stream()
                 .map(ItemizedAssessedFee::assessedCustomFee)
                 .toList();
         assertThat(assessedFees).contains(expectedAssessedFee1);
@@ -510,7 +510,7 @@ public class CustomFractionalFeeAssessorTest {
         subject.assessFractionalFees(token, payer, result);
 
         verify(fixedFeeAssessor, never()).assessFixedFee(any(), any(), any(), any());
-        assertThat(result.getAssessedFeesWithPayerDebits()).isEmpty();
+        assertThat(result.getItemizedAssessedFees()).isEmpty();
         assertThat(result.getRoyaltiesPaid()).isEmpty();
     }
 

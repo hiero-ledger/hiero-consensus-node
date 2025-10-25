@@ -163,10 +163,9 @@ public class TransferExecutor extends BaseTokenHandler {
         final var hasHooks = HookUtils.hasHookExecutions(replacedOp);
         HookCalls hookCalls = null;
         if (hasHooks) {
-            final var assessedFeesWithPayerDebits = transferContext.getAssessedFeesWithPayerDebits();
+            final var itemizedAssessedFees = transferContext.getItemizedAssessedFees();
             // Extract the HookCalls from the transaction bodies after custom fee assessment
-            hookCalls =
-                    hookCallsFactory.from(transferContext.getHandleContext(), replacedOp, assessedFeesWithPayerDebits);
+            hookCalls = hookCallsFactory.from(transferContext.getHandleContext(), replacedOp, itemizedAssessedFees);
             dispatchHookCalls(
                     hookCalls.context(),
                     hookCalls.preOnlyHooks(),

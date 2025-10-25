@@ -104,13 +104,13 @@ public class CustomRoyaltyFeeAssessorTest {
 
         subject.assessRoyaltyFees(token, payer, funding, result);
 
-        assertThat(result.getAssessedFeesWithPayerDebits()).isEmpty();
+        assertThat(result.getItemizedAssessedFees()).isEmpty();
         verify(fixedFeeAssessor, never()).assessFixedFee(any(), any(), any(), any());
 
         // We add to the set of royalties paid to track the royalties paid.
         // Even though nothing is paid, once its analyzed it should be added to the set
         assertThat(result.getRoyaltiesPaid()).contains(Pair.of(funding, token.tokenId()));
-        assertThat(result.getAssessedFeesWithPayerDebits()).isEmpty();
+        assertThat(result.getItemizedAssessedFees()).isEmpty();
     }
 
     @Test
@@ -125,7 +125,7 @@ public class CustomRoyaltyFeeAssessorTest {
 
         subject.assessRoyaltyFees(token, payer, funding, result);
 
-        assertThat(result.getAssessedFeesWithPayerDebits()).isEmpty();
+        assertThat(result.getItemizedAssessedFees()).isEmpty();
         // receiver will pay the fallback fee
         verify(fixedFeeAssessor)
                 .assessFixedFee(token, funding, withFixedFee(hbarFallbackFee, targetCollector, false), result);
@@ -146,7 +146,7 @@ public class CustomRoyaltyFeeAssessorTest {
 
         subject.assessRoyaltyFees(token, payer, funding, result);
 
-        assertThat(result.getAssessedFeesWithPayerDebits()).isEmpty();
+        assertThat(result.getItemizedAssessedFees()).isEmpty();
         // receiver will pay the fallback fee
         verify(fixedFeeAssessor)
                 .assessFixedFee(token, funding, withFixedFee(htsFallbackFee, targetCollector, false), result);
@@ -167,7 +167,7 @@ public class CustomRoyaltyFeeAssessorTest {
 
         subject.assessRoyaltyFees(token, payer, funding, result);
 
-        assertThat(result.getAssessedFeesWithPayerDebits()).isEmpty();
+        assertThat(result.getItemizedAssessedFees()).isEmpty();
         // receiver will pay the fallback fee
         verify(fixedFeeAssessor)
                 .assessFixedFee(token, funding, withFixedFee(htsFallbackFee, targetCollector, false), result);
@@ -190,7 +190,7 @@ public class CustomRoyaltyFeeAssessorTest {
 
         subject.assessRoyaltyFees(token, payer, funding, result);
 
-        assertThat(result.getAssessedFeesWithPayerDebits()).isEmpty();
+        assertThat(result.getItemizedAssessedFees()).isEmpty();
 
         verify(fixedFeeAssessor, never()).assessFixedFee(any(), any(), any(), any());
     }
@@ -209,7 +209,7 @@ public class CustomRoyaltyFeeAssessorTest {
 
         subject.assessRoyaltyFees(token, payer, funding, result);
 
-        assertThat(result.getAssessedFeesWithPayerDebits()).isEmpty();
+        assertThat(result.getItemizedAssessedFees()).isEmpty();
 
         verify(fixedFeeAssessor, never()).assessFixedFee(any(), any(), any(), any());
     }
@@ -237,9 +237,9 @@ public class CustomRoyaltyFeeAssessorTest {
 
         subject.assessRoyaltyFees(token, payer, funding, result);
 
-        assertThat(result.getAssessedFeesWithPayerDebits()).isNotEmpty();
-        assertThat(result.getAssessedFeesWithPayerDebits()).contains(new ItemizedAssessedFee(hbarAssessedFee, null));
-        assertThat(result.getAssessedFeesWithPayerDebits()).contains(new ItemizedAssessedFee(htsAssessedFee, null));
+        assertThat(result.getItemizedAssessedFees()).isNotEmpty();
+        assertThat(result.getItemizedAssessedFees()).contains(new ItemizedAssessedFee(hbarAssessedFee, null));
+        assertThat(result.getItemizedAssessedFees()).contains(new ItemizedAssessedFee(htsAssessedFee, null));
         // sender will pay from exchange credits
         verify(fixedFeeAssessor, never()).assessFixedFees(any(), any(), any());
 
@@ -270,7 +270,7 @@ public class CustomRoyaltyFeeAssessorTest {
 
         subject.assessRoyaltyFees(token, payer, funding, result);
 
-        assertThat(result.getAssessedFeesWithPayerDebits()).isEmpty();
+        assertThat(result.getItemizedAssessedFees()).isEmpty();
         // sender will pay from exchange credits
         verify(fixedFeeAssessor, never()).assessFixedFees(any(), any(), any());
     }

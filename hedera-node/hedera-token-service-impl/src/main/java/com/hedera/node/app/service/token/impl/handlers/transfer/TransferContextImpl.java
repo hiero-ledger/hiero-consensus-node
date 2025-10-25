@@ -37,7 +37,7 @@ public class TransferContextImpl implements TransferContext {
     private int numLazyCreations;
     private final Map<Bytes, AccountID> resolutions = new LinkedHashMap<>();
     private final List<TokenAssociation> automaticAssociations = new ArrayList<>();
-    private final List<ItemizedAssessedFee> itemizedAssessedFeeWithPayerDebits = new ArrayList<>();
+    private final List<ItemizedAssessedFee> itemizedAssessedFees = new ArrayList<>();
     private CryptoTransferTransactionBody syntheticBody = null;
     private final boolean enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments;
 
@@ -153,19 +153,19 @@ public class TransferContextImpl implements TransferContext {
     }
 
     public void addToAssessedCustomFee(ItemizedAssessedFee assessedCustomFee) {
-        itemizedAssessedFeeWithPayerDebits.add(assessedCustomFee);
+        itemizedAssessedFees.add(assessedCustomFee);
     }
 
     @Override
     public List<AssessedCustomFee> getAssessedCustomFees() {
-        return new ArrayList<>(itemizedAssessedFeeWithPayerDebits.stream()
+        return new ArrayList<>(itemizedAssessedFees.stream()
                 .map(ItemizedAssessedFee::assessedCustomFee)
                 .toList());
     }
 
     @Override
-    public List<ItemizedAssessedFee> getAssessedFeesWithPayerDebits() {
-        return itemizedAssessedFeeWithPayerDebits;
+    public List<ItemizedAssessedFee> getItemizedAssessedFees() {
+        return itemizedAssessedFees;
     }
 
     public boolean isEnforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments() {

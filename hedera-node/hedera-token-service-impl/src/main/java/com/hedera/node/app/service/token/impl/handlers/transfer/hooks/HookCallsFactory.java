@@ -45,20 +45,20 @@ public class HookCallsFactory {
      *
      * @param handleContext the transaction context
      * @param userTxn the user transaction body
-     * @param itemizedAssessedFeeWithPayerDebits the list of assessed fees with multi-payer deltas
+     * @param itemizedAssessedFees the list of assessed fees with multi-payer deltas
      * @return the created {@link HookCalls}
      */
     public HookCalls from(
             @NonNull final HandleContext handleContext,
             @NonNull final CryptoTransferTransactionBody userTxn,
-            @NonNull final List<ItemizedAssessedFee> itemizedAssessedFeeWithPayerDebits) {
+            @NonNull final List<ItemizedAssessedFee> itemizedAssessedFees) {
         requireNonNull(handleContext);
         requireNonNull(userTxn);
-        requireNonNull(itemizedAssessedFeeWithPayerDebits);
+        requireNonNull(itemizedAssessedFees);
         final var accountStore = handleContext.storeFactory().readableStore(ReadableAccountStore.class);
         final var memo = handleContext.body().memo();
         final long txnFee = handleContext.body().transactionFee();
-        return getProposedTransfers(userTxn, accountStore, memo, txnFee, itemizedAssessedFeeWithPayerDebits);
+        return getProposedTransfers(userTxn, accountStore, memo, txnFee, itemizedAssessedFees);
     }
     /**
      * Encodes the proposed transfers from the user transaction and assessed fees into tuples,

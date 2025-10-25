@@ -95,7 +95,7 @@ public interface TransferContext {
      *
      * @return the custom fees assessed so far in this transfer context with multi-payer deltas for fractional fees
      */
-    List<ItemizedAssessedFee> getAssessedFeesWithPayerDebits();
+    List<ItemizedAssessedFee> getItemizedAssessedFees();
 
     /**
      * Indicates if this transfer context enforces mono-service
