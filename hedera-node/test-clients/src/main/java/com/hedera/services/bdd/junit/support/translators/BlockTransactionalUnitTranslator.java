@@ -187,9 +187,15 @@ public class BlockTransactionalUnitTranslator {
 
     /**
      * Constructs a new {@link BlockTransactionalUnitTranslator}.
+     * @param shard the shard number
+     * @param realm the realm number
      */
-    public BlockTransactionalUnitTranslator() {
-        baseTranslator = new BaseTranslator();
+    public BlockTransactionalUnitTranslator(final long shard, final long realm) {
+        baseTranslator = new BaseTranslator(shard, realm);
+    }
+
+    public BaseTranslator getBaseTranslator() {
+        return baseTranslator;
     }
 
     /**
