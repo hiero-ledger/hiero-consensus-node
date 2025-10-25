@@ -36,6 +36,8 @@ import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeCreateHandler;
 import com.hedera.node.app.service.addressbook.impl.records.NodeCreateStreamBuilder;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
+import com.hedera.node.app.service.entityid.NodeIdGenerator;
+import com.hedera.node.app.service.entityid.WritableEntityIdStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
@@ -75,6 +77,9 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
 
     @Mock
     private StoreFactory storeFactory;
+
+    @Mock
+    private NodeIdGenerator  nodeIdGenerator;
 
     @Mock
     private ReadableAccountStore accountStore;
@@ -548,6 +553,9 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.storeFactory()).willReturn(storeFactory);
+        final long expectedNodeId = 0L;
+        given(handleContext.nodeIdGenerator()).willReturn(nodeIdGenerator);
+        given(nodeIdGenerator.newNodeId()).willReturn(expectedNodeId);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
         given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
         final var stack = mock(HandleContext.SavepointStack.class);
@@ -558,10 +566,10 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         given(handleContext.attributeValidator()).willReturn(validator);
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
-        final var createdNode = writableStore.get(0L);
+        final var createdNode = writableStore.get(expectedNodeId);
         assertNotNull(createdNode);
-        verify(recordBuilder).nodeID(0L);
-        assertEquals(0L, createdNode.nodeId());
+        verify(recordBuilder).nodeID(expectedNodeId);
+        assertEquals(expectedNodeId, createdNode.nodeId());
         assertEquals("Description", createdNode.description());
         assertArrayEquals(
                 (List.of(endpoint1, endpoint2)).toArray(),

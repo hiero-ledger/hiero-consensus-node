@@ -351,6 +351,11 @@ message StateValue {
     proto.EntityNumber EntityIdService_I_ENTITY_ID = 1;
 
     /**
+     * A state identifier for the highest node identifier allocated so far.
+     */
+    proto.EntityNumber EntityIdService_I_HIGHEST_NODE_ID = 54;
+
+    /**
      * A state identifier for the Accounts state.
      */
     proto.Account TokenService_I_ACCOUNTS = 2;
@@ -689,6 +694,11 @@ enum SingletonType {
    * A state identifier for the next entity Identifier.
    */
   EntityIdService_I_ENTITY_ID = 1;
+
+  /**
+   * A state identifier for the highest node identifier allocated so far.
+   */
+  EntityIdService_I_HIGHEST_NODE_ID = 54;
 
   /**
    * A state identifier for network staking rewards.

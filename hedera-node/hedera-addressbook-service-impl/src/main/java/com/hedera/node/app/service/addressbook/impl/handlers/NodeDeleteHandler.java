@@ -3,7 +3,6 @@ package com.hedera.node.app.service.addressbook.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.NODE_DELETED;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.checkDABEnabled;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
@@ -60,7 +59,6 @@ public class NodeDeleteHandler implements TransactionHandler {
 
         final var existingNode = nodeStore.get(op.nodeId());
         validateFalsePreCheck(existingNode == null, INVALID_NODE_ID);
-        validateFalsePreCheck(existingNode.deleted(), NODE_DELETED);
 
         // if payer is not one of the system admin, treasury or address book admin, check the admin key signature
         if (payerNum != accountConfig.treasury()
@@ -90,14 +88,8 @@ public class NodeDeleteHandler implements TransactionHandler {
 
         validateFalse(node == null, INVALID_NODE_ID);
 
-        validateFalse(node.deleted(), NODE_DELETED);
-
-        /* Copy all the fields from existing, and mark deleted flag  */
-        final var nodeBuilder = node.copyBuilder().deleted(true);
-
-        /* --- Put the modified node. It will be in underlying state's modifications map.
-        It will not be committed to state until commit is called on the state.--- */
-        nodeStore.put(nodeBuilder.build());
+        // Remove node from state entirely and update counters
+        nodeStore.remove(nodeId);
         accountNodeRelStore.remove(node.accountId());
     }
 

@@ -15,4 +15,16 @@ public interface WritableEntityIdStore extends ReadableEntityIdStore, WritableEn
      * @return the next new entity number
      */
     long incrementAndGet();
+
+    /**
+     * Returns the next node id that will be used, without updating the state.
+     * If no node id has been allocated yet, returns 0.
+     */
+    long peekAtNextNodeId();
+
+    /**
+     * Increments the current highest node id in state and returns the new value.
+     * If no node id has been allocated yet, initializes to 0.
+     */
+    long incrementHighestNodeIdAndGet();
 }

@@ -11,9 +11,10 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
-import com.hedera.hapi.node.state.primitives.ProtoLong;
+import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.service.addressbook.impl.schemas.V068AddressBookSchema;
+import com.hedera.node.app.service.entityid.impl.schemas.V0680EntityIdSchema;
 import com.hedera.node.app.services.MigrationContextImpl;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -24,6 +25,7 @@ import com.swirlds.state.test.fixtures.MapReadableKVState;
 import com.swirlds.state.test.fixtures.MapReadableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
+import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import java.util.HashMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -55,10 +57,30 @@ class V068AddressBookSchemaTest {
                 .build();
         oldStates = MapReadableStates.builder().state(nodeState).build();
         // initialize empty account-node state (new state)
-        final var accountNodeRelState = MapWritableKVState.<AccountID, ProtoLong>builder(
+        final var accountNodeRelState = MapWritableKVState.<AccountID, NodeId>builder(
                         ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_LABEL)
                 .build();
-        newStates = MapWritableStates.builder().state(accountNodeRelState).build();
+        // initialize writable nodes state in newStates (needed for cleanup loop)
+        final var nodesWritableState = MapWritableKVState.<EntityNumber, Node>builder(NODES_STATE_ID, NODES_STATE_LABEL)
+                .build();
+        // initialize highest node id singleton in newStates
+        final var highestNodeIdSingleton = new FunctionWritableSingletonState<>(
+                V0680EntityIdSchema.HIGHEST_NODE_ID_STATE_ID,
+                V0680EntityIdSchema.HIGHEST_NODE_ID_STATE_LABEL,
+                () -> EntityNumber.newBuilder().number(-1).build(),
+                v -> {});
+        // also ensure entity counts singleton exists if migration references it (defensive)
+        final var entityCountsSingleton = new FunctionWritableSingletonState<>(
+                com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID,
+                com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL,
+                () -> EntityCounts.DEFAULT,
+                v -> {});
+        newStates = MapWritableStates.builder()
+                .state(accountNodeRelState)
+                .state(nodesWritableState)
+                .state(highestNodeIdSingleton)
+                .state(entityCountsSingleton)
+                .build();
         // config and previous version
         config = HederaTestConfigBuilder.createConfig();
         previousVersion =
@@ -75,7 +97,7 @@ class V068AddressBookSchemaTest {
 
         // assert that the map is updated
         final var accountNodeRelations = newStates.<AccountID, NodeId>get(ACCOUNT_NODE_REL_STATE_ID);
-        assertThat(accountNodeRelations.isModified()).isTrue();
+        assertThat(accountNodeRelations.get(accountId)).isNotNull();
         // assert values are correct
         final var nodeIdInState = accountNodeRelations.get(accountId);
         assertThat(nodeIdInState.id()).isEqualTo(node.nodeId());

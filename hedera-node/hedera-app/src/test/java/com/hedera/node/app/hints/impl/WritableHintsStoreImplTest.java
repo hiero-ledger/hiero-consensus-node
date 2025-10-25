@@ -46,7 +46,7 @@ import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.schemas.V059HintsSchema;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
-import com.hedera.node.app.service.entityid.WritableEntityCounters;
+import com.hedera.node.app.service.entityid.WritableEntityIdStore;
 import com.hedera.node.app.service.entityid.impl.EntityIdServiceImpl;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
@@ -117,7 +117,7 @@ class WritableHintsStoreImplTest {
     private WritableStates writableStates;
 
     private State state;
-    private WritableEntityCounters entityCounters;
+    private WritableEntityIdStore writableEntityIdStore;
 
     private WritableHintsStoreImpl subject;
 
@@ -125,7 +125,7 @@ class WritableHintsStoreImplTest {
     void setUp() {
         given(appContext.configSupplier()).willReturn(() -> DEFAULT_CONFIG);
         state = emptyState();
-        entityCounters = new WritableEntityIdStoreImpl(new MapWritableStates(Map.of(
+        writableEntityIdStore = new WritableEntityIdStoreImpl(new MapWritableStates(Map.of(
                 ENTITY_ID_STATE_ID,
                 new FunctionWritableSingletonState<>(
                         ENTITY_ID_STATE_ID,
@@ -138,7 +138,7 @@ class WritableHintsStoreImplTest {
                         ENTITY_COUNTS_STATE_LABEL,
                         () -> EntityCounts.newBuilder().numNodes(2).build(),
                         c -> {}))));
-        subject = new WritableHintsStoreImpl(state.getWritableStates(HintsService.NAME), entityCounters);
+        subject = new WritableHintsStoreImpl(state.getWritableStates(HintsService.NAME), writableEntityIdStore);
     }
 
     @Test
@@ -399,7 +399,7 @@ class WritableHintsStoreImplTest {
                         () -> HintsConstruction.DEFAULT,
                         c -> {}));
 
-        subject = new WritableHintsStoreImpl(writableStates, entityCounters);
+        subject = new WritableHintsStoreImpl(writableStates, writableEntityIdStore);
         subject.setCrsState(crsState);
         return crsState;
     }

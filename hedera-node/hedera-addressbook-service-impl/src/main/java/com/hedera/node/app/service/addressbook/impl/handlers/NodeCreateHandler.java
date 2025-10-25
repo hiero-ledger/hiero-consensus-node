@@ -23,6 +23,7 @@ import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.records.NodeCreateStreamBuilder;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
+import com.hedera.node.app.service.entityid.WritableEntityIdStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
@@ -116,9 +117,9 @@ public class NodeCreateHandler implements TransactionHandler {
             nodeBuilder.grpcProxyEndpoint(op.grpcProxyEndpoint());
         }
 
-        // Since nodes won't be removed from state, we can set the nodeId to the next available id
-        // in the state based on the size of the state.
-        final var node = nodeBuilder.nodeId(nodeStore.sizeOfState()).build();
+        // Assign node id using a dedicated generator to avoid reuse
+        final var nextNodeId = handleContext.nodeIdGenerator().newNodeId();
+        final var node = nodeBuilder.nodeId(nextNodeId).build();
 
         nodeStore.putAndIncrementCount(node);
         // add account id relation

@@ -20,6 +20,7 @@ import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
+import com.hedera.node.app.service.entityid.NodeIdGenerator;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -279,6 +280,11 @@ public interface HandleContext {
      * @return the entity number generator
      */
     EntityNumGenerator entityNumGenerator();
+
+    /**
+     * Returns a {@link NodeIdGenerator} that can be used to generate node IDs.
+     */
+    NodeIdGenerator nodeIdGenerator();
 
     /**
      * Returns the validator for attributes of entities created or updated by handlers.
