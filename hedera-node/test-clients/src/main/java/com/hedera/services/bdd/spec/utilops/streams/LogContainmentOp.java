@@ -11,8 +11,10 @@ import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Files;
 import java.time.Duration;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Assertions;
 
 /**
@@ -28,23 +30,34 @@ public class LogContainmentOp extends UtilOp {
     private final NodeSelector selector;
     private final ExternalPath path;
     private final Containment containment;
-    private final String pattern;
+
+    @Nullable
+    private final String text;
+
+    @Nullable
+    private final Pattern pattern;
+
     private final Duration delay;
 
     public LogContainmentOp(
             @NonNull final NodeSelector selector,
             @NonNull final ExternalPath path,
             @NonNull final Containment containment,
-            @NonNull final String pattern,
+            @Nullable final String text,
+            @Nullable final Pattern pattern,
             @NonNull final Duration delay) {
         if (path != ExternalPath.APPLICATION_LOG
                 && path != ExternalPath.BLOCK_NODE_COMMS_LOG
                 && path != ExternalPath.SWIRLDS_LOG) {
             throw new IllegalArgumentException(path + " is not a log");
         }
+        if ((text == null && pattern == null) || (text != null && pattern != null)) {
+            throw new IllegalArgumentException("Exactly one of text or pattern must be non-null");
+        }
         this.path = requireNonNull(path);
         this.delay = requireNonNull(delay);
-        this.pattern = requireNonNull(pattern);
+        this.text = text;
+        this.pattern = pattern;
         this.selector = requireNonNull(selector);
         this.containment = requireNonNull(containment);
     }
@@ -54,11 +67,15 @@ public class LogContainmentOp extends UtilOp {
         doIfNotInterrupted(() -> MILLISECONDS.sleep(delay.toMillis()));
         spec.targetNetworkOrThrow().nodesFor(selector).forEach(node -> {
             final var logContents = rethrowIO(() -> Files.readString(node.getExternalPath(path)));
-            final var isThere = logContents.contains(pattern);
+            final var isThere = text != null
+                    ? logContents.contains(text)
+                    : requireNonNull(pattern).matcher(logContents).find();
+            final var searchTerm = text != null ? text : pattern.pattern();
             if (isThere && containment == Containment.DOES_NOT_CONTAIN) {
-                Assertions.fail("Log for node '" + node.getName() + "' contains '" + pattern + "' and should not");
+                Assertions.fail("Log for node '" + node.getName() + "' contains '" + searchTerm + "' and should not");
             } else if (!isThere && containment == Containment.CONTAINS) {
-                Assertions.fail("Log for node '" + node.getName() + "' does not contain '" + pattern + "' but should");
+                Assertions.fail(
+                        "Log for node '" + node.getName() + "' does not contain '" + searchTerm + "' but should");
             }
         });
         return false;

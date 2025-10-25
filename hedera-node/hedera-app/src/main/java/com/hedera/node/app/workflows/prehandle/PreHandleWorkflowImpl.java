@@ -125,7 +125,6 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             @NonNull final NodeInfo creatorInfo,
             @NonNull final Stream<Transaction> transactions,
             @NonNull final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback) {
-
         requireNonNull(readableStoreFactory);
         requireNonNull(creatorInfo);
         requireNonNull(transactions);
@@ -199,7 +198,6 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
                 } else {
                     shortCircuitTxnCallback.accept(null, bytes);
                 }
-
                 return PreHandleResult.shortCircuitingTransaction(txInfo);
             }
 

@@ -24,4 +24,15 @@ public interface IngestWorkflow {
      * @param responseBuffer The raw protobuf response bytes.
      */
     void submitTransaction(@NonNull Bytes requestBuffer, @NonNull BufferedData responseBuffer);
+
+    /**
+     * If an implementation has a way to estimate the number of in-flight transactions relevant to quiescence,
+     * it can return that estimate here. Otherwise, it should throw {@code UnsupportedOperationException}.
+     * <p>
+     * An "in-flight" transaction is one that this workflow has seen, that has not failed ingest checks;
+     * but has also not been observed in either the stale event callback or the pre-handle workflow.
+     */
+    default int estimateTxPipelineCount() {
+        throw new UnsupportedOperationException();
+    }
 }

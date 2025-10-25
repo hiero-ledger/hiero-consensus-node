@@ -40,7 +40,7 @@ import org.apache.logging.log4j.Logger;
 public class HintsContext {
     private static final Logger log = LogManager.getLogger(HintsContext.class);
 
-    private static final Duration SIGNING_ATTEMPT_TIMEOUT = Duration.ofSeconds(10);
+    private static final Duration SIGNING_ATTEMPT_TIMEOUT = Duration.ofDays(1);
 
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
