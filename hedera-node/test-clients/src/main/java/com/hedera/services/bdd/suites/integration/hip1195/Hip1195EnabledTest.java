@@ -139,7 +139,7 @@ public class Hip1195EnabledTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> callAndStaticCallUsesOwner() {
+    final Stream<DynamicTest> transferWithCallHook() {
         final var mappingSlot = Bytes.EMPTY;
         final AtomicReference<byte[]> payerMirror = new AtomicReference<>();
         return hapiTest(

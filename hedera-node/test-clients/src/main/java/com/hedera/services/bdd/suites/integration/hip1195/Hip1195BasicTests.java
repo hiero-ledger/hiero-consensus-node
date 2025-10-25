@@ -40,11 +40,16 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_IN_USE
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_HOOK_CREATION_SPEC;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
+import com.hedera.hapi.node.hooks.EvmHookSpec;
+import com.hedera.hapi.node.hooks.HookCreationDetails;
+import com.hedera.hapi.node.hooks.HookExtensionPoint;
+import com.hedera.hapi.node.hooks.LambdaEvmHook;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -310,6 +315,141 @@ public class Hip1195BasicTests {
     }
 
     @HapiTest
+    final Stream<DynamicTest> cryptoCreateWithHooksFailureScenarios() {
+        return hapiTest(
+                // 1) CryptoCreate with HookCreationDetails fails (lambda present but spec missing)
+                cryptoCreate("ccFail_missingSpec")
+                        .withHook(spec -> HookCreationDetails.newBuilder()
+                                .hookId(500L)
+                                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                                .lambdaEvmHook(LambdaEvmHook.newBuilder())
+                                .build())
+                        .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
+                // 4) CryptoCreate with invalid hook contract_id (spec present but no contract_id set)
+                cryptoCreate("ccFail_invalidContractId")
+                        .withHook(spec -> HookCreationDetails.newBuilder()
+                                .hookId(501L)
+                                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                                .lambdaEvmHook(LambdaEvmHook.newBuilder()
+                                        .spec(EvmHookSpec.newBuilder().build()))
+                                .build())
+                        .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
+                // 5) CryptoCreate without hook bytecode (no lambda set)
+                cryptoCreate("ccFail_noLambda")
+                        .withHook(spec -> HookCreationDetails.newBuilder()
+                                .hookId(502L)
+                                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                                .build())
+                        .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
+
+                // Prepare accounts for update scenarios
+                cryptoCreate("acctNoHooks"),
+                cryptoCreate("acctWithHook").withHooks(accountAllowanceHook(503L, TRUE_ALLOWANCE_HOOK.name())),
+
+                // 2) CryptoUpdate with HookCreationDetails for account without hooks fails (missing spec)
+                cryptoUpdate("acctNoHooks")
+                        .withHook(spec -> HookCreationDetails.newBuilder()
+                                .hookId(504L)
+                                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                                .lambdaEvmHook(LambdaEvmHook.newBuilder())
+                                .build())
+                        .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
+                // 6) CryptoUpdate with invalid hook contract_id (spec present but no contract_id set)
+                cryptoUpdate("acctNoHooks")
+                        .withHook(spec -> HookCreationDetails.newBuilder()
+                                .hookId(505L)
+                                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                                .lambdaEvmHook(LambdaEvmHook.newBuilder()
+                                        .spec(EvmHookSpec.newBuilder().build()))
+                                .build())
+                        .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
+                // 3) CryptoUpdate with HookCreationDetails for account with hooks fails (missing spec)
+                cryptoUpdate("acctWithHook")
+                        .withHook(spec -> HookCreationDetails.newBuilder()
+                                .hookId(506L)
+                                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                                .lambdaEvmHook(LambdaEvmHook.newBuilder())
+                                .build())
+                        .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
+                // 7) CryptoUpdate without hook bytecode (no lambda set)
+                cryptoUpdate("acctWithHook")
+                        .withHook(spec -> HookCreationDetails.newBuilder()
+                                .hookId(507L)
+                                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                                .build())
+                        .hasKnownStatus(INVALID_HOOK_CREATION_SPEC));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> contractCreateAndUpdateWithHooksFailureScenarios() {
+        return hapiTest(
+                uploadInitCode("SimpleUpdate"),
+                uploadInitCode("CreateTrivial"),
+
+                // 1) ContractCreate with HookCreationDetails fails (lambda present but spec missing)
+                contractCreate("SimpleUpdate")
+                        .withHooks(spec -> HookCreationDetails.newBuilder()
+                                .hookId(520L)
+                                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                                .lambdaEvmHook(LambdaEvmHook.newBuilder())
+                                .build())
+                        .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
+                // 4) ContractCreate with invalid hook contract_id (spec present but no contract_id set)
+                contractCreate("CreateTrivial")
+                        .withHooks(spec -> HookCreationDetails.newBuilder()
+                                .hookId(521L)
+                                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                                .lambdaEvmHook(LambdaEvmHook.newBuilder()
+                                        .spec(EvmHookSpec.newBuilder().build()))
+                                .build())
+                        .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
+                // 5) ContractCreate without hook bytecode (no lambda set)
+                contractCreate("SimpleUpdate")
+                        .withHooks(spec -> HookCreationDetails.newBuilder()
+                                .hookId(522L)
+                                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                                .build())
+                        .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
+
+                // Prepare contracts for update scenarios
+                contractCreate("SimpleUpdate").withHooks(accountAllowanceHook(523L, TRUE_ALLOWANCE_HOOK.name())),
+                contractCreate("CreateTrivial"),
+
+                // 2) ContractUpdate with HookCreationDetails for contract without hooks fails (missing spec)
+                contractUpdate("CreateTrivial")
+                        .withHooks(spec -> HookCreationDetails.newBuilder()
+                                .hookId(524L)
+                                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                                .lambdaEvmHook(LambdaEvmHook.newBuilder())
+                                .build())
+                        .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
+                // 6) ContractUpdate with invalid hook contract_id (spec present but no contract_id set)
+                contractUpdate("CreateTrivial")
+                        .withHooks(spec -> HookCreationDetails.newBuilder()
+                                .hookId(525L)
+                                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                                .lambdaEvmHook(LambdaEvmHook.newBuilder()
+                                        .spec(EvmHookSpec.newBuilder().build()))
+                                .build())
+                        .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
+                // 3) ContractUpdate with HookCreationDetails for contract with hooks fails (missing spec)
+                contractUpdate("SimpleUpdate")
+                        .withHooks(spec -> HookCreationDetails.newBuilder()
+                                .hookId(526L)
+                                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                                .lambdaEvmHook(LambdaEvmHook.newBuilder())
+                                .build())
+                        .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
+                // 7) ContractUpdate without hook bytecode (no lambda set)
+                contractUpdate("SimpleUpdate")
+                        .withHooks(spec -> HookCreationDetails.newBuilder()
+                                .hookId(527L)
+                                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                                .build())
+                        .hasKnownStatus(INVALID_HOOK_CREATION_SPEC));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> prePostHookExceedsLimitCryptoTransferFails() {
         return hapiTest(
                 cryptoCreate("senderWithFalsePrePostHook")
@@ -534,9 +674,39 @@ public class Hip1195BasicTests {
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
     }
 
-    // ================================================================================================================
-    // CONTRACT HOOK CREATION AND REFERENCE TEST CASES
-    // ================================================================================================================
+    @HapiTest
+    final Stream<DynamicTest> mixedAppearancesRequireSigIfNotAllHookAuthorized() {
+        return hapiTest(
+                newKeyNamed("supplyKey"),
+                cryptoCreate("treasury"),
+                cryptoCreate("senderWithHook").withHooks(accountAllowanceHook(260L, TRUE_ALLOWANCE_HOOK.name())),
+                cryptoCreate("rcvFungible"),
+                cryptoCreate("rcvNft"),
+
+                // Create FT and NFT and distribute to sender
+                tokenCreate("ft").treasury("treasury").supplyKey("supplyKey").initialSupply(1_000L),
+                tokenCreate("nft")
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury("treasury")
+                        .supplyKey("supplyKey")
+                        .initialSupply(0L),
+                tokenAssociate("senderWithHook", List.of("ft", "nft")),
+                tokenAssociate("rcvFungible", "ft"),
+                tokenAssociate("rcvNft", "nft"),
+                mintToken("nft", List.of(ByteString.copyFromUtf8("metadata1"))),
+                cryptoTransfer(
+                        TokenMovement.moving(100, "ft").between("treasury", "senderWithHook"),
+                        TokenMovement.movingUnique("nft", 1L).between("treasury", "senderWithHook")),
+                // Now sender appears twice: once as FT sender (authorized by fungible pre-hook) and
+                // once as NFT sender (no NFT sender hook provided) => must still sign
+                cryptoTransfer(
+                                TokenMovement.moving(10, "ft").between("senderWithHook", "rcvFungible"),
+                                TokenMovement.movingUnique("nft", 1L).between("senderWithHook", "rcvNft"))
+                        .withPreHookFor("senderWithHook", 260L, 25_000L, "")
+                        .payingWith(DEFAULT_PAYER)
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE));
+    }
 
     @HapiTest
     final Stream<DynamicTest> contractCreateWithHookCreationDetails() {
