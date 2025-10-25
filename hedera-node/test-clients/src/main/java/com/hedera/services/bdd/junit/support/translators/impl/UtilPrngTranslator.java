@@ -24,8 +24,7 @@ public class UtilPrngTranslator implements BlockTransactionPartsTranslator {
             @NonNull final List<StateChange> remainingStateChanges,
             @Nullable final List<TraceData> tracesSoFar,
             @NonNull final List<ScopedTraceData> followingUnitTraces,
-            @Nullable final HookId executingHookId,
-            @Nullable final List<HookId> followingHookExecIds) {
+            @Nullable final HookId executingHookId) {
         return baseTranslator.recordFrom(
                 parts,
                 (receiptBuilder, recordBuilder) -> {
@@ -45,7 +44,6 @@ public class UtilPrngTranslator implements BlockTransactionPartsTranslator {
                 },
                 remainingStateChanges,
                 followingUnitTraces,
-                executingHookId,
-                followingHookExecIds);
+                executingHookId);
     }
 }

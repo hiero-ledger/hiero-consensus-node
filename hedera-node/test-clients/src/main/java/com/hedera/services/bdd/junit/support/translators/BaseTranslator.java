@@ -516,7 +516,6 @@ public class BaseTranslator {
      * @param remainingStateChanges the remaining state changes for this transactional unit
      * @param followingUnitTraces any traces following this transaction in its unit
      * @param executingHookId if not null, the hook execution id of these parts
-     * @param followingHookExecIds if not null, the hook execution ids following these parts
      * @return the translated record
      */
     public SingleTransactionRecord recordFrom(
@@ -524,8 +523,7 @@ public class BaseTranslator {
             @NonNull final Spec spec,
             @NonNull final List<StateChange> remainingStateChanges,
             @NonNull final List<ScopedTraceData> followingUnitTraces,
-            @Nullable final HookId executingHookId,
-            @Nullable final List<HookId> followingHookExecIds) {
+            @Nullable final HookId executingHookId) {
         final var txnId = parts.transactionIdOrThrow();
         final var recordBuilder = TransactionRecord.newBuilder()
                 .transactionHash(parts.transactionHash())
@@ -567,8 +565,7 @@ public class BaseTranslator {
                     followingUnitTraces,
                     remainingStateChanges,
                     parts,
-                    executingHookId,
-                    followingHookExecIds);
+                    executingHookId);
         } else {
             rebuiltSidecars = emptyList();
         }
@@ -585,8 +582,7 @@ public class BaseTranslator {
             @NonNull final List<ScopedTraceData> followingUnitTraces,
             @NonNull final List<StateChange> remainingStateChanges,
             @NonNull final BlockTransactionParts parts,
-            @Nullable final HookId executingHookId,
-            @Nullable final List<HookId> followingHookExecIds) {
+            @Nullable final HookId executingHookId) {
         final List<TransactionSidecarRecord> sidecars = new ArrayList<>();
         // First collect all the contract and hook slot updates
         final var slotUpdates = remainingStateChanges.stream()

@@ -249,8 +249,7 @@ public class BlockTransactionalUnitTranslator {
                             remainingStateChanges,
                             tracesSoFar,
                             followingTraces,
-                            executingHookId,
-                            followingHookExecIds);
+                            executingHookId);
                     translatedRecords.add(translation);
                 }
             }

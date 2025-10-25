@@ -35,7 +35,6 @@ public interface BlockTransactionPartsTranslator {
      * @param tracesSoFar if not null, the traces up to this point of the transaction unit
      * @param followingUnitTraces any additional trace data associated with the transaction unit
      * @param executingHookId if not null, the hook execution id of this transaction
-     * @param followingHookExecIds if not null, the hook execution ids following this transaction
      * @return the translated record
      */
     SingleTransactionRecord translate(
@@ -44,6 +43,5 @@ public interface BlockTransactionPartsTranslator {
             @NonNull List<StateChange> remainingStateChanges,
             @Nullable List<TraceData> tracesSoFar,
             @NonNull List<ScopedTraceData> followingUnitTraces,
-            @Nullable HookId executingHookId,
-            @Nullable List<HookId> followingHookExecIds);
+            @Nullable HookId executingHookId);
 }

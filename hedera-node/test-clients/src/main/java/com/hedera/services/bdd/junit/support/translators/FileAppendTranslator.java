@@ -25,8 +25,7 @@ public class FileAppendTranslator implements BlockTransactionPartsTranslator {
             @NonNull final List<StateChange> remainingStateChanges,
             @Nullable final List<TraceData> tracesSoFar,
             @NonNull final List<ScopedTraceData> followingUnitTraces,
-            @Nullable final HookId executingHookId,
-            @Nullable final List<HookId> followingHookExecIds) {
+            @Nullable final HookId executingHookId) {
         requireNonNull(parts);
         requireNonNull(baseTranslator);
         requireNonNull(remainingStateChanges);
@@ -43,7 +42,6 @@ public class FileAppendTranslator implements BlockTransactionPartsTranslator {
                 },
                 remainingStateChanges,
                 followingUnitTraces,
-                executingHookId,
-                followingHookExecIds);
+                executingHookId);
     }
 }

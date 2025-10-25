@@ -28,14 +28,12 @@ public enum NoExplicitSideEffectsTranslator implements BlockTransactionPartsTran
             @NonNull final List<StateChange> remainingStateChanges,
             @Nullable final List<TraceData> tracesSoFar,
             @NonNull final List<ScopedTraceData> followingUnitTraces,
-            @Nullable final HookId executingHookId,
-            @Nullable final List<HookId> followingHookExecIds) {
+            @Nullable final HookId executingHookId) {
         return baseTranslator.recordFrom(
                 parts,
                 (receiptBuilder, recordBuilder) -> {},
                 remainingStateChanges,
                 followingUnitTraces,
-                executingHookId,
-                followingHookExecIds);
+                executingHookId);
     }
 }

@@ -26,8 +26,7 @@ public class TokenDissociateTranslator implements BlockTransactionPartsTranslato
             @NonNull final List<StateChange> remainingStateChanges,
             @Nullable final List<TraceData> tracesSoFar,
             @NonNull final List<ScopedTraceData> followingUnitTraces,
-            @Nullable final HookId executingHookId,
-            @Nullable final List<HookId> followingHookExecIds) {
+            @Nullable final HookId executingHookId) {
         return baseTranslator.recordFrom(
                 parts,
                 (receiptBuilder, recordBuilder) -> {
@@ -39,7 +38,6 @@ public class TokenDissociateTranslator implements BlockTransactionPartsTranslato
                 },
                 remainingStateChanges,
                 followingUnitTraces,
-                executingHookId,
-                followingHookExecIds);
+                executingHookId);
     }
 }
