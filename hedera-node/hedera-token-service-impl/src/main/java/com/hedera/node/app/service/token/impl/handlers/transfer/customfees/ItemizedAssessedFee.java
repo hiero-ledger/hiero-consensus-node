@@ -8,12 +8,10 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
 
 /**
- * A wrapper around an assessed custom fee and the all adjustments happened while reclaiming
- * from multiple payers when assessing a fractional fee.
- *
+ * A wrapper around an assessed custom fee and the all adjustments happened while reclaiming from multiple payers
+ * when assessing a fractional fee.
  * @param assessedCustomFee the assessed custom fee
- * @param multiPayerDeltas the adjustments to the assessed fee's payer in a multi-payer fractional fee scenario,
- *                         or {@code null} if not applicable
+ * @param multiPayerDeltas if applicable, the adjustments to the fee's payers in a multi-payer fractional fee scenario
  */
-public record AssessedFeeWithPayerDebits(
+public record ItemizedAssessedFee(
         @NonNull AssessedCustomFee assessedCustomFee, @Nullable Map<AccountID, Long> multiPayerDeltas) {}

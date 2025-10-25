@@ -26,12 +26,12 @@ import com.hedera.hapi.node.transaction.FixedCustomFee;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
-import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessedFeeWithPayerDebits;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessmentResult;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.CustomFeeAssessor;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.CustomFixedFeeAssessor;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.CustomFractionalFeeAssessor;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.CustomRoyaltyFeeAssessor;
+import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.ItemizedAssessedFee;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.TokensConfig;
@@ -97,7 +97,7 @@ public class CustomFeeAssessmentStep {
         final var config = feeContext.configuration();
         final var result = assessFees(tokenStore, tokenRelStore, config, readableStore, AccountID::hasAlias);
         return result.assessedCustomFees().stream()
-                .map(AssessedFeeWithPayerDebits::assessedCustomFee)
+                .map(ItemizedAssessedFee::assessedCustomFee)
                 .toList();
     }
 
@@ -175,7 +175,7 @@ public class CustomFeeAssessmentStep {
         final var maxCustomFeeDepth = tokensConfig.maxCustomFeeDepth();
 
         // list of total assessed custom fees to be added to the record
-        final List<AssessedFeeWithPayerDebits> customFeesAssessed = new ArrayList<>();
+        final List<ItemizedAssessedFee> customFeesAssessed = new ArrayList<>();
         // the transaction to be assessed
         var txnToAssess = op;
         // list of assessed transactions, to be fed into further steps
@@ -254,7 +254,7 @@ public class CustomFeeAssessmentStep {
      */
     public record CustomFeeAssessmentResult(
             @NonNull List<CryptoTransferTransactionBody> assessedTxns,
-            @NonNull List<AssessedFeeWithPayerDebits> assessedCustomFees) {}
+            @NonNull List<ItemizedAssessedFee> assessedCustomFees) {}
 
     private CryptoTransferTransactionBody changedInputTxn(
             final CryptoTransferTransactionBody op, final AssessmentResult result) {

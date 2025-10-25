@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.integration.hip1195;
 
 import static com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore.minimalKey;
-import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
@@ -63,7 +62,6 @@ import org.junit.jupiter.api.Tag;
 @TargetEmbeddedMode(CONCURRENT)
 public class Hip1195StorageTest {
     private static final String OWNER = "owner";
-    private static final String PAYER = "payer";
     private static final String STRING_ABI =
             "{\"inputs\":[{\"internalType\":\"string\",\"name\":\"_password\",\"type\":\"string\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"}";
 

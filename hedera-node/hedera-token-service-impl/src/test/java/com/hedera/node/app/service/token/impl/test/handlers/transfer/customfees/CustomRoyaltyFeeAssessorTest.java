@@ -27,10 +27,10 @@ import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.RoyaltyFee;
-import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessedFeeWithPayerDebits;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessmentResult;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.CustomFixedFeeAssessor;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.CustomRoyaltyFeeAssessor;
+import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.ItemizedAssessedFee;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import org.apache.commons.lang3.tuple.Pair;
@@ -238,10 +238,8 @@ public class CustomRoyaltyFeeAssessorTest {
         subject.assessRoyaltyFees(token, payer, funding, result);
 
         assertThat(result.getAssessedFeesWithPayerDebits()).isNotEmpty();
-        assertThat(result.getAssessedFeesWithPayerDebits())
-                .contains(new AssessedFeeWithPayerDebits(hbarAssessedFee, null));
-        assertThat(result.getAssessedFeesWithPayerDebits())
-                .contains(new AssessedFeeWithPayerDebits(htsAssessedFee, null));
+        assertThat(result.getAssessedFeesWithPayerDebits()).contains(new ItemizedAssessedFee(hbarAssessedFee, null));
+        assertThat(result.getAssessedFeesWithPayerDebits()).contains(new ItemizedAssessedFee(htsAssessedFee, null));
         // sender will pay from exchange credits
         verify(fixedFeeAssessor, never()).assessFixedFees(any(), any(), any());
 

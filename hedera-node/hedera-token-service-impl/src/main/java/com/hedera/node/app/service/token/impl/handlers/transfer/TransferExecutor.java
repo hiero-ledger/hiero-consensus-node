@@ -32,9 +32,10 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler;
-import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookCallFactory;
 import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookCalls;
+import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookCallsFactory;
 import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookContext;
+import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookInvocation;
 import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HooksABI;
 import com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
@@ -58,7 +59,7 @@ import javax.inject.Singleton;
 @Singleton
 public class TransferExecutor extends BaseTokenHandler {
     private final CryptoTransferValidator validator;
-    private final HookCallFactory hookCallFactory;
+    private final HookCallsFactory hookCallsFactory;
     private final EntityIdFactory entityIdFactory;
 
     /**
@@ -67,11 +68,11 @@ public class TransferExecutor extends BaseTokenHandler {
     @Inject
     public TransferExecutor(
             final CryptoTransferValidator validator,
-            final HookCallFactory hookCallFactory,
+            final HookCallsFactory hookCallsFactory,
             EntityIdFactory entityIdFactory) {
         // For Dagger injection
         this.validator = validator;
-        this.hookCallFactory = hookCallFactory;
+        this.hookCallsFactory = hookCallsFactory;
         this.entityIdFactory = entityIdFactory;
     }
 
@@ -174,7 +175,7 @@ public class TransferExecutor extends BaseTokenHandler {
             final var assessedFeesWithPayerDebits = transferContext.getAssessedFeesWithPayerDebits();
             // Extract the HookCalls from the transaction bodies after custom fee assessment
             hookCalls =
-                    hookCallFactory.from(transferContext.getHandleContext(), replacedOp, assessedFeesWithPayerDebits);
+                    hookCallsFactory.from(transferContext.getHandleContext(), replacedOp, assessedFeesWithPayerDebits);
             dispatchHookCalls(
                     hookCalls.context(),
                     hookCalls.preOnlyHooks(),
@@ -329,7 +330,7 @@ public class TransferExecutor extends BaseTokenHandler {
      */
     private void dispatchHookCalls(
             final HookContext hookContext,
-            final List<HookCallFactory.HookInvocation> hookInvocations,
+            final List<HookInvocation> hookInvocations,
             final HandleContext handleContext,
             com.esaulpaugh.headlong.abi.Function function) {
         for (final var hookInvocation : hookInvocations) {
@@ -479,6 +480,5 @@ public class TransferExecutor extends BaseTokenHandler {
         RECEIVER_KEY_IS_REQUIRED
     }
 
-    public record HookInvocations(
-            List<HookCallFactory.HookInvocation> pre, List<HookCallFactory.HookInvocation> post) {}
+    public record HookInvocations(List<HookInvocation> pre, List<HookInvocation> post) {}
 }

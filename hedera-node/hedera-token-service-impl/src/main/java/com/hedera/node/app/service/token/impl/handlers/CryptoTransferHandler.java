@@ -41,7 +41,7 @@ import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.handlers.transfer.CustomFeeAssessmentStep;
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferContextImpl;
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferExecutor;
-import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookCallFactory;
+import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookCallsFactory;
 import com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -83,9 +83,9 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
     @Inject
     public CryptoTransferHandler(
             @NonNull final CryptoTransferValidator validator,
-            @NonNull final HookCallFactory hookCallFactory,
+            @NonNull final HookCallsFactory hookCallsFactory,
             @NonNull final EntityIdFactory entityIdFactory) {
-        this(validator, true, hookCallFactory, entityIdFactory);
+        this(validator, true, hookCallsFactory, entityIdFactory);
     }
 
     /**
@@ -97,9 +97,9 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
     public CryptoTransferHandler(
             @NonNull final CryptoTransferValidator validator,
             final boolean enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments,
-            @NonNull final HookCallFactory hookCallFactory,
+            @NonNull final HookCallsFactory hookCallsFactory,
             @NonNull final EntityIdFactory entityIdFactory) {
-        super(validator, hookCallFactory, entityIdFactory);
+        super(validator, hookCallsFactory, entityIdFactory);
         this.validator = validator;
         this.enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments =
                 enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments;

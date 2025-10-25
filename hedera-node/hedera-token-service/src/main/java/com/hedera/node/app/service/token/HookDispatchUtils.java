@@ -12,7 +12,6 @@ import static com.hedera.node.app.spi.workflows.record.StreamBuilder.signedTxWit
 
 import com.esaulpaugh.headlong.abi.Function;
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
@@ -34,10 +33,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class HookDispatchUtils {
-    public static final ContractID HTS_HOOKS_CONTRACT_ID =
-            ContractID.newBuilder().contractNum(365L).build();
-    public static final String HTS_HOOKS_EVM_ADDRESS =
-            "0x" + Long.toHexString(HTS_HOOKS_CONTRACT_ID.contractNumOrThrow());
+    public static final long HTS_HOOKS_CONTRACT_NUM = 365L;
+    public static final String HTS_HOOKS_EVM_ADDRESS = "0x" + Long.toHexString(HTS_HOOKS_CONTRACT_NUM);
 
     public static long dispatchHookDeletions(
             final @NonNull HandleContext context,
@@ -144,7 +141,7 @@ public class HookDispatchUtils {
      * @param context the handle context
      * @param execution the hook execution to dispatch
      * @param function the function to decode the result
-     * @param entityIdFactory
+     * @param entityIdFactory the entity id factory
      */
     public static void dispatchExecution(
             final @NonNull HandleContext context,
@@ -153,7 +150,7 @@ public class HookDispatchUtils {
             final EntityIdFactory entityIdFactory) {
         final var hookDispatch =
                 HookDispatchTransactionBody.newBuilder().execution(execution).build();
-        final var hookContractId = entityIdFactory.newContractId(HTS_HOOKS_CONTRACT_ID.contractNumOrThrow());
+        final var hookContractId = entityIdFactory.newContractId(HTS_HOOKS_CONTRACT_NUM);
         final StreamBuilder.SignedTxCustomizer executionCustomizer = signedTx -> {
             try {
                 final var dispatchedBody = TransactionBody.PROTOBUF.parseStrict(

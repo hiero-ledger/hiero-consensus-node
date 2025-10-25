@@ -56,7 +56,7 @@ public class AssessmentResult {
     private final Map<AccountID, Long> immutableInputHbarAdjustments;
     /* And for each "assessable change" that can be charged a custom fee, delegate to our
     fee assessor to update the balance changes with the custom fee. */
-    private final List<AssessedFeeWithPayerDebits> assessedFeesWithPayerDebits;
+    private final List<ItemizedAssessedFee> assessedFeesWithPayerDebits;
 
     /**
      * Constructs an AssessmentResult object with the input token transfers and hbar transfers
@@ -118,7 +118,7 @@ public class AssessmentResult {
      * Returns the assessed custom fees.
      * @return the assessed custom fees
      */
-    public List<AssessedFeeWithPayerDebits> getAssessedFeesWithPayerDebits() {
+    public List<ItemizedAssessedFee> getAssessedFeesWithPayerDebits() {
         return assessedFeesWithPayerDebits;
     }
 
@@ -130,7 +130,7 @@ public class AssessmentResult {
      */
     public void addAssessedFeeWithPayerDebits(
             @NonNull final AssessedCustomFee assessedCustomFee, @NonNull final Map<AccountID, Long> multiPayerDeltas) {
-        assessedFeesWithPayerDebits.add(new AssessedFeeWithPayerDebits(assessedCustomFee, multiPayerDeltas));
+        assessedFeesWithPayerDebits.add(new ItemizedAssessedFee(assessedCustomFee, multiPayerDeltas));
     }
 
     /**
@@ -139,7 +139,7 @@ public class AssessmentResult {
      * @param assessedCustomFee the assessed custom fee
      */
     public void addAssessedCustomFee(@NonNull final AssessedCustomFee assessedCustomFee) {
-        assessedFeesWithPayerDebits.add(new AssessedFeeWithPayerDebits(assessedCustomFee, null));
+        assessedFeesWithPayerDebits.add(new ItemizedAssessedFee(assessedCustomFee, null));
     }
 
     /**

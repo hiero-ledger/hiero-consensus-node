@@ -439,11 +439,6 @@ public class BlockStreamBuilder
      */
     private final SignedTxCustomizer customizer;
 
-    /**
-     * the total duration of contract operations as calculated using the Hedera ops duration schedule
-     */
-    private long opsDuration;
-
     private boolean isContractCreate;
 
     /**
@@ -578,15 +573,14 @@ public class BlockStreamBuilder
      * Builds the list of block items with their translation contexts.
      *
      * @param topLevel if true, indicates the output should always include a following {@link StateChanges} item
-     * @param batchStateChanges if not null, the state changes for the batch tx containing this builder
+     * @param groupStateChanges if not null, the state changes for the group-containing tx owning this builder
      * @return the list of block items
      */
-    public Output build(final boolean topLevel, @Nullable final List<StateChange> batchStateChanges) {
+    public Output build(final boolean topLevel, @Nullable final List<StateChange> groupStateChanges) {
         final var blockItems = new ArrayList<BlockItem>();
         // Construct the context here to capture any additional Ethereum transaction details needed
         // for the legacy record before they are removed from the block stream output item
         final var translationContext = translationContext();
-        final boolean includeAdditionalTraceData = batchStateChanges != null;
         // Don't duplicate the transaction bytes for the batch inner transactions, since the transactions
         // can be inferred from the parent transaction.
         if (category != BATCH_INNER) {
@@ -617,7 +611,7 @@ public class BlockStreamBuilder
                     // If writes are implicit as the non-identical slot updates in the state changes list,
                     // we need to index the corresponding reads to minimize the size of the output stream
                     final Map<ContractID, Map<Bytes, Integer>> implicitWriteIndexes = new HashMap<>();
-                    final var relevantStateChanges = batchStateChanges != null ? batchStateChanges : stateChanges;
+                    final var relevantStateChanges = groupStateChanges != null ? groupStateChanges : stateChanges;
                     for (final var stateChange : relevantStateChanges) {
                         if (stateChange.stateId() != STATE_ID_STORAGE.protoOrdinal()) {
                             continue;
@@ -682,7 +676,7 @@ public class BlockStreamBuilder
         }
 
         // Add trace data for batch inner transaction fields, that are normally computed by state changes
-        if (includeAdditionalTraceData) {
+        if (groupStateChanges != null) {
             // automatic token association trace data
             if (!automaticTokenAssociations.isEmpty() && TOKEN_UPDATE.equals(functionality)) {
                 final var builder = AutoAssociateTraceData.newBuilder()
