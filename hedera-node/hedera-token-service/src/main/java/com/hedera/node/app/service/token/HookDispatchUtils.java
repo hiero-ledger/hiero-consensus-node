@@ -33,6 +33,7 @@ import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.UncheckedParseException;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -43,10 +44,10 @@ public class HookDispatchUtils {
     public static final String HTS_HOOKS_EVM_ADDRESS = "0x" + Long.toHexString(HTS_HOOKS_CONTRACT_NUM);
 
     public static long dispatchHookDeletions(
-            final @NonNull HandleContext context,
-            final List<Long> hooksToDelete,
+            @NonNull final HandleContext context,
+            @NonNull final List<Long> hooksToDelete,
             final long headBefore,
-            final AccountID ownerId) {
+            @NonNull final AccountID ownerId) {
         var currentHead = headBefore;
         for (final var hookId : hooksToDelete) {
             final var hookDispatch = HookDispatchTransactionBody.newBuilder()
@@ -67,23 +68,22 @@ public class HookDispatchUtils {
 
     /**
      * Dispatches the hook creations in reverse order, so that the "next" pointers can be set correctly.
-     *
      * @param context the handle context
      * @param creations the hook creation details
      * @param currentHead the head of the hook list
-     * @param owner the owner of the hooks (the created contract)
+     * @param ownerId the owner of the hooks (the created contract)
      */
     public static void dispatchHookCreations(
-            final HandleContext context,
-            final List<HookCreationDetails> creations,
-            final Long currentHead,
-            final AccountID owner) {
-        final var ownerId = HookEntityId.newBuilder().accountId(owner).build();
+            @NonNull final HandleContext context,
+            @NonNull final List<HookCreationDetails> creations,
+            @Nullable final Long currentHead,
+            @NonNull final AccountID ownerId) {
+        final var hookOwnerId = HookEntityId.newBuilder().accountId(ownerId).build();
         // Build new block A → B → C → currentHead
-        Long nextId = currentHead == 0 ? null : currentHead;
+        var nextId = currentHead;
         for (int i = creations.size() - 1; i >= 0; i--) {
             final var d = creations.get(i);
-            final var creation = HookCreation.newBuilder().entityId(ownerId).details(d);
+            final var creation = HookCreation.newBuilder().entityId(hookOwnerId).details(d);
             if (nextId != null) {
                 creation.nextHookId(nextId);
             }
@@ -98,7 +98,7 @@ public class HookDispatchUtils {
      * @param context the handle context
      * @param creation the hook creation to dispatch
      */
-    static void dispatchCreation(final @NonNull HandleContext context, final HookCreation creation) {
+    static void dispatchCreation(@NonNull final HandleContext context, @NonNull final HookCreation creation) {
         final var hookDispatch =
                 HookDispatchTransactionBody.newBuilder().creation(creation).build();
         final var streamBuilder = context.dispatch(hookDispatch(
@@ -114,7 +114,8 @@ public class HookDispatchUtils {
      * @param details the list of hook creation details
      * @throws PreCheckException if there are duplicate hook IDs
      */
-    public static void validateHookDuplicates(final List<HookCreationDetails> details) throws PreCheckException {
+    public static void validateHookDuplicates(@NonNull final List<HookCreationDetails> details)
+            throws PreCheckException {
         if (!details.isEmpty()) {
             final var hookIds =
                     details.stream().map(HookCreationDetails::hookId).collect(Collectors.toSet());
@@ -131,7 +132,8 @@ public class HookDispatchUtils {
      * @param hookIdsToDelete the list of hook IDs to delete
      * @throws PreCheckException if there are duplicate hook IDs
      */
-    public static void validateHookDuplicates(final List<HookCreationDetails> details, List<Long> hookIdsToDelete)
+    public static void validateHookDuplicates(
+            @NonNull final List<HookCreationDetails> details, @NonNull final List<Long> hookIdsToDelete)
             throws PreCheckException {
         validateHookDuplicates(details);
         if (!hookIdsToDelete.isEmpty()) {

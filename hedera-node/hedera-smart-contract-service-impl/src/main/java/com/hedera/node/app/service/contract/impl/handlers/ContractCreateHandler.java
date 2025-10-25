@@ -134,7 +134,7 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
             final var accountStore = context.storeFactory().readableStore(ReadableAccountStore.class);
             final var created = requireNonNull(accountStore.getContractById(owner));
 
-            dispatchHookCreations(context, op.hookCreationDetails(), 0L, created.accountId());
+            dispatchHookCreations(context, op.hookCreationDetails(), null, created.accountId());
 
             final var updated = created.copyBuilder()
                     .firstHookId(op.hookCreationDetails().getFirst().hookId())

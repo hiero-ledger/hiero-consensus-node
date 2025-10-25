@@ -8,10 +8,12 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.trace.TraceData;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.services.bdd.junit.support.translators.BaseTranslator;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionPartsTranslator;
+import com.hedera.services.bdd.junit.support.translators.ScopedTraceData;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -31,7 +33,9 @@ public class CryptoCreateTranslator implements BlockTransactionPartsTranslator {
             @NonNull final BaseTranslator baseTranslator,
             @NonNull final List<StateChange> remainingStateChanges,
             @Nullable final List<TraceData> tracesSoFar,
-            @NonNull final List<TraceData> followingUnitTraces) {
+            @NonNull final List<ScopedTraceData> followingUnitTraces,
+            @Nullable final HookId executingHookId,
+            @Nullable final List<HookId> followingHookExecIds) {
         requireNonNull(parts);
         requireNonNull(baseTranslator);
         requireNonNull(remainingStateChanges);
@@ -55,6 +59,8 @@ public class CryptoCreateTranslator implements BlockTransactionPartsTranslator {
                     }
                 },
                 remainingStateChanges,
-                followingUnitTraces);
+                followingUnitTraces,
+                executingHookId,
+                followingHookExecIds);
     }
 }

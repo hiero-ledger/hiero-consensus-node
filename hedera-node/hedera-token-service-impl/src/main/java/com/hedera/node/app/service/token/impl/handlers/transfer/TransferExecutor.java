@@ -45,7 +45,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.ArrayList;
 import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -104,7 +103,7 @@ public class TransferExecutor extends BaseTokenHandler {
             checkNftTransfers(transfers.nftTransfers(), context, tokenMeta, op, accountStore, receiverKeyCheck);
         }
 
-        checkFungibleTokenTransfers(hbarTransfers, context, accountStore, true);
+        checkFungibleTokenTransfers(hbarTransfers, context, accountStore, true, RECEIVER_KEY_IS_REQUIRED);
     }
 
     /**
@@ -155,22 +154,14 @@ public class TransferExecutor extends BaseTokenHandler {
         final var topLevelPayer = context.payer();
         transferContext.validateHbarAllowances();
 
-        // Replace all aliases in the transaction body with its account ids
+        // Replace all aliases in the transaction body with its account ids; use in all further steps
         final var replacedOp = ensureAndReplaceAliasesInOp(txn, transferContext, validator);
-
-        // Use the op with replaced aliases in further steps
-        final List<TransferStep> steps = new ArrayList<>();
-        steps.add(new AssociateTokenRecipientsStep(replacedOp));
-        final var customFeeStep = new CustomFeeAssessmentStep(replacedOp);
-
         List<CryptoTransferTransactionBody> txns = List.of(replacedOp);
         if (!skipCustomFee) {
-            txns = customFeeStep.assessCustomFees(transferContext);
+            txns = new CustomFeeAssessmentStep(replacedOp).assessCustomFees(transferContext);
         }
-
         final var hasHooks = HookUtils.hasHookExecutions(replacedOp);
         HookCalls hookCalls = null;
-
         if (hasHooks) {
             final var assessedFeesWithPayerDebits = transferContext.getAssessedFeesWithPayerDebits();
             // Extract the HookCalls from the transaction bodies after custom fee assessment
@@ -354,15 +345,6 @@ public class TransferExecutor extends BaseTokenHandler {
                     .build();
             dispatchExecution(handleContext, execution, function, entityIdFactory, isolated);
         }
-    }
-
-    private void checkFungibleTokenTransfers(
-            @NonNull final List<AccountAmount> transfers,
-            @NonNull final PreHandleContext ctx,
-            @NonNull final ReadableAccountStore accountStore,
-            final boolean hbarTransfer)
-            throws PreCheckException {
-        checkFungibleTokenTransfers(transfers, ctx, accountStore, hbarTransfer, RECEIVER_KEY_IS_REQUIRED);
     }
 
     /**

@@ -82,7 +82,7 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
         switch (op.action().kind()) {
             case CREATION -> {
                 final var creation = op.creationOrThrow();
-                final var details = creation.details();
+                final var details = creation.detailsOrThrow();
                 final var hook = evmHookStore.getEvmHook(new HookId(creation.entityId(), details.hookId()));
                 validateTrue(hook == null, HOOK_ID_IN_USE);
                 if (details.hasAdminKey()) {

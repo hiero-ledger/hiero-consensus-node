@@ -327,7 +327,7 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
     /**
      * Adds gas from pre-tx and pre+post allowance hooks on an account transfer.
      */
-    private static HookInfo getTotalHookGasIfAny(final AccountAmount aa) {
+    private static HookInfo getTotalHookGasIfAny(@NonNull final AccountAmount aa) {
         final var hasPreTxHook = aa.hasPreTxAllowanceHook();
         final var hasPrePostTxHook = aa.hasPrePostTxAllowanceHook();
         if (!hasPreTxHook && !hasPrePostTxHook) {
@@ -339,8 +339,10 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
                     gas, aa.preTxAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
         }
         if (hasPrePostTxHook) {
-            gas = clampedAdd(
-                    gas, aa.prePostTxAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
+            final long gasPerCall = aa.prePostTxAllowanceHookOrThrow()
+                    .evmHookCallOrThrow()
+                    .gasLimit();
+            gas = clampedAdd(clampedAdd(gas, gasPerCall), gasPerCall);
         }
         return new HookInfo(true, gas);
     }
@@ -348,7 +350,7 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
     /**
      * Adds gas from sender/receiver allowance hooks (pre-tx and pre+post) on an NFT transfer.
      */
-    private static HookInfo addNftHookGas(final NftTransfer nft) {
+    private static HookInfo addNftHookGas(@NonNull final NftTransfer nft) {
         final var hasSenderPre = nft.hasPreTxSenderAllowanceHook();
         final var hasSenderPrePost = nft.hasPrePostTxSenderAllowanceHook();
         final var hasReceiverPre = nft.hasPreTxReceiverAllowanceHook();
@@ -363,11 +365,10 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
                     nft.preTxSenderAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
         }
         if (hasSenderPrePost) {
-            gas = clampedAdd(
-                    gas,
-                    nft.prePostTxSenderAllowanceHookOrThrow()
-                            .evmHookCallOrThrow()
-                            .gasLimit());
+            final long gasPerCall = nft.prePostTxSenderAllowanceHookOrThrow()
+                    .evmHookCallOrThrow()
+                    .gasLimit();
+            gas = clampedAdd(clampedAdd(gas, gasPerCall), gasPerCall);
         }
         if (hasReceiverPre) {
             gas = clampedAdd(
@@ -375,11 +376,10 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
                     nft.preTxReceiverAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
         }
         if (hasReceiverPrePost) {
-            gas = clampedAdd(
-                    gas,
-                    nft.prePostTxReceiverAllowanceHookOrThrow()
-                            .evmHookCallOrThrow()
-                            .gasLimit());
+            final long gasPerCall = nft.prePostTxReceiverAllowanceHookOrThrow()
+                    .evmHookCallOrThrow()
+                    .gasLimit();
+            gas = clampedAdd(clampedAdd(gas, gasPerCall), gasPerCall);
         }
         return new HookInfo(true, gas);
     }
