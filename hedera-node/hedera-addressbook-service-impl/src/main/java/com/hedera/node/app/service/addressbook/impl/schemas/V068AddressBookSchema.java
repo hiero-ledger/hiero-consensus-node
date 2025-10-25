@@ -85,8 +85,8 @@ public class V068AddressBookSchema extends Schema<SemanticVersion> {
                 }
             }
 
-            // 3) Populate the account-to-node relation state
-            for (int i = 0; i < highest; i++) {
+            // 3) Populate the account-to-node relation state (include the highest id itself)
+            for (int i = 0; i <= highest; i++) {
                 final var nodeId = EntityNumber.newBuilder().number(i).build();
                 final var node = (Node) nodeState.get(nodeId);
                 if (node != null && node.hasAccountId()) {

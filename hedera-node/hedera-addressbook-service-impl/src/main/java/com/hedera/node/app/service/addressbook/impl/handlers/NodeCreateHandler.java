@@ -117,9 +117,8 @@ public class NodeCreateHandler implements TransactionHandler {
             nodeBuilder.grpcProxyEndpoint(op.grpcProxyEndpoint());
         }
 
-        // Assign node id using the highest node id singleton to avoid reuse.
-        final var entityIdStore = storeFactory.writableStore(WritableEntityIdStore.class);
-        final var nextNodeId = entityIdStore.incrementHighestNodeIdAndGet();
+        // Assign node id using a dedicated generator to avoid reuse
+        final var nextNodeId = handleContext.nodeIdGenerator().newNodeId();
         final var node = nodeBuilder.nodeId(nextNodeId).build();
 
         nodeStore.putAndIncrementCount(node);

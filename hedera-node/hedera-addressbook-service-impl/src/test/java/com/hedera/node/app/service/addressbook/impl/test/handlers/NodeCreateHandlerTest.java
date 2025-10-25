@@ -36,6 +36,7 @@ import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeCreateHandler;
 import com.hedera.node.app.service.addressbook.impl.records.NodeCreateStreamBuilder;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
+import com.hedera.node.app.service.entityid.NodeIdGenerator;
 import com.hedera.node.app.service.entityid.WritableEntityIdStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeCalculator;
@@ -76,6 +77,9 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
 
     @Mock
     private StoreFactory storeFactory;
+
+    @Mock
+    private NodeIdGenerator  nodeIdGenerator;
 
     @Mock
     private ReadableAccountStore accountStore;
@@ -549,9 +553,11 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.storeFactory()).willReturn(storeFactory);
+        final long expectedNodeId = 0L;
+        given(handleContext.nodeIdGenerator()).willReturn(nodeIdGenerator);
+        given(nodeIdGenerator.newNodeId()).willReturn(expectedNodeId);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
         given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
-        given(storeFactory.writableStore(WritableEntityIdStore.class)).willReturn(writableEntityCounters);
         final var stack = mock(HandleContext.SavepointStack.class);
         given(handleContext.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(any())).willReturn(recordBuilder);
@@ -559,7 +565,6 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(handleContext.attributeValidator()).willReturn(validator);
 
-        final var expectedNodeId = writableEntityCounters.peekAtNextNodeId();
         assertDoesNotThrow(() -> subject.handle(handleContext));
         final var createdNode = writableStore.get(expectedNodeId);
         assertNotNull(createdNode);
