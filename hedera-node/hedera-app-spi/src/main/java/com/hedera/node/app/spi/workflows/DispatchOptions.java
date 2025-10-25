@@ -430,14 +430,6 @@ public record DispatchOptions<T extends StreamBuilder>(
      * @return the options for the sub-dispatch
      * @param <T> the type of stream builder to use for the dispatch
      */
-    public static <T extends StreamBuilder> DispatchOptions<T> hookDispatch(
-            @NonNull final AccountID payerId,
-            @NonNull final TransactionBody body,
-            @NonNull final Class<T> streamBuilderType,
-            @NonNull final StreamBuilder.SignedTxCustomizer signedTxCustomizer) {
-        return stepDispatch(payerId, body, streamBuilderType, signedTxCustomizer);
-    }
-
     public static <T extends StreamBuilder> DispatchOptions<T> hookDispatchForExecution(
             @NonNull final AccountID payerId,
             @NonNull final TransactionBody body,
