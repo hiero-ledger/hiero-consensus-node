@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
+import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.esaulpaugh.headlong.abi.TupleType;
@@ -35,7 +36,10 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
+@SuppressWarnings({"rawtypes", "unchecked"})
 public class Hip1195StreamParityTest {
+    private static final TupleType SET_AND_PASS_ARGS = TupleType.parse("(uint32,address)");
+
     @Contract(contract = "Multipurpose", creationGas = 500_000L)
     static SpecContract MULTIPURPOSE;
 
@@ -51,10 +55,32 @@ public class Hip1195StreamParityTest {
 
     @HapiTest
     @Tag(ADHOC)
+    final Stream<DynamicTest> isolatedExecutionWithNonHookStorageSideEffectsPassesParity() {
+        return hapiTest(
+                cryptoCreate("party")
+                        .withHooks(
+                                accountAllowanceHook(1L, SET_AND_PASS_HOOK.name())),
+                cryptoCreate("counterparty"),
+                cryptoTransfer((spec, b) -> b.setTransfers(TransferList.newBuilder()
+                        .addAccountAmounts(AccountAmount.newBuilder()
+                                .setAccountID(spec.registry().getAccountID("party"))
+                                .setAmount(-123L)
+                                .setPrePostTxAllowanceHook(HookCall.newBuilder()
+                                        .setHookId(1L)
+                                        .setEvmHookCall(EvmHookCall.newBuilder()
+                                                .setGasLimit(42_000L)
+                                                .setData(ByteString.copyFrom(
+                                                        SET_AND_PASS_ARGS.encode(Tuple.of(666L, MULTIPURPOSE.addressOn(spec.targetNetworkOrThrow()))))))))
+                        .addAccountAmounts(AccountAmount.newBuilder()
+                                .setAccountID(spec.registry().getAccountID("counterparty"))
+                                .setAmount(+123L)))).signedBy(DEFAULT_PAYER)
+                );
+    }
+
+
+    @HapiTest
     final Stream<DynamicTest> repeatedExecutionsWithNonHookStorageSideEffectsPassParity(
             @FungibleToken SpecFungibleToken aToken, @NonFungibleToken(numPreMints = 1) SpecNonFungibleToken bToken) {
-        final var tupleType = TupleType.parse("(uint32,address)");
-
         return hapiTest(
                 aToken.getInfo(),
                 bToken.getInfo(),
@@ -90,7 +116,7 @@ public class Hip1195StreamParityTest {
                                             .setEvmHookCall(EvmHookCall.newBuilder()
                                                     .setGasLimit(gasLimit)
                                                     .setData(ByteString.copyFrom(
-                                                            tupleType.encode(Tuple.of(1L, targetAddress)))))))
+                                                            SET_AND_PASS_ARGS.encode(Tuple.of(1L, targetAddress)))))))
                             .addAccountAmounts(AccountAmount.newBuilder()
                                     .setAccountID(counterpartyId)
                                     .setAmount(+123L)
@@ -99,7 +125,7 @@ public class Hip1195StreamParityTest {
                                             .setEvmHookCall(EvmHookCall.newBuilder()
                                                     .setGasLimit(gasLimit)
                                                     .setData(ByteString.copyFrom(
-                                                            tupleType.encode(Tuple.of(3L, targetAddress))))))));
+                                                            SET_AND_PASS_ARGS.encode(Tuple.of(3L, targetAddress))))))));
                     // Then the first calls to the pre hooks in the fungible token transfer
                     b.addTokenTransfers(TokenTransferList.newBuilder()
                             .setToken(spec.registry().getTokenID(aToken.name()))
@@ -111,7 +137,7 @@ public class Hip1195StreamParityTest {
                                             .setEvmHookCall(EvmHookCall.newBuilder()
                                                     .setGasLimit(gasLimit)
                                                     .setData(ByteString.copyFrom(
-                                                            tupleType.encode(Tuple.of(2L, targetAddress)))))))
+                                                            SET_AND_PASS_ARGS.encode(Tuple.of(2L, targetAddress)))))))
                             .addTransfers(AccountAmount.newBuilder()
                                     .setAccountID(counterpartyId)
                                     .setAmount(+1L)
@@ -120,7 +146,7 @@ public class Hip1195StreamParityTest {
                                             .setEvmHookCall(EvmHookCall.newBuilder()
                                                     .setGasLimit(gasLimit)
                                                     .setData(ByteString.copyFrom(
-                                                            tupleType.encode(Tuple.of(4L, targetAddress))))))));
+                                                            SET_AND_PASS_ARGS.encode(Tuple.of(4L, targetAddress))))))));
                     // And finally the repeated calls to the pre hooks in the NFT transfer
                     b.addTokenTransfers(TokenTransferList.newBuilder()
                             .setToken(spec.registry().getTokenID(bToken.name()))
@@ -132,14 +158,14 @@ public class Hip1195StreamParityTest {
                                             .setEvmHookCall(EvmHookCall.newBuilder()
                                                     .setGasLimit(gasLimit)
                                                     .setData(ByteString.copyFrom(
-                                                            tupleType.encode(Tuple.of(12L, targetAddress))))))
+                                                            SET_AND_PASS_ARGS.encode(Tuple.of(12L, targetAddress))))))
                                     .setReceiverAccountID(partyId)
                                     .setPreTxReceiverAllowanceHook(HookCall.newBuilder()
                                             .setHookId(2L)
                                             .setEvmHookCall(EvmHookCall.newBuilder()
                                                     .setGasLimit(gasLimit)
                                                     .setData(ByteString.copyFrom(
-                                                            tupleType.encode(Tuple.of(14L, targetAddress))))))));
+                                                            SET_AND_PASS_ARGS.encode(Tuple.of(14L, targetAddress))))))));
                 }));
     }
 }
