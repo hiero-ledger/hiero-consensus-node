@@ -18,6 +18,7 @@ import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -51,8 +52,9 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
     public ContractCreateHandler(
             @NonNull final Provider<TransactionComponent.Factory> provider,
             @NonNull final GasCalculator gasCalculator,
+            @NonNull final EntityIdFactory entityIdFactory,
             @NonNull final ContractServiceComponent component) {
-        super(provider, gasCalculator, component);
+        super(provider, gasCalculator, entityIdFactory, component);
     }
 
     @Override
@@ -64,7 +66,7 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
 
         // Assemble the appropriate top-level record for the result
         final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCreateStreamBuilder.class);
-        outcome.addCreateDetailsTo(streamBuilder, context);
+        outcome.addCreateDetailsTo(streamBuilder, context, entityIdFactory);
 
         throwIfUnsuccessfulCreate(outcome, component.hederaOperations());
 

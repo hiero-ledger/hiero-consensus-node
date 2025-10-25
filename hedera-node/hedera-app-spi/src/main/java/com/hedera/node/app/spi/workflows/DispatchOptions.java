@@ -295,7 +295,8 @@ public record DispatchOptions<T extends StreamBuilder>(
             @NonNull final TransactionBody body,
             @NonNull final Class<T> streamBuilderType,
             @NonNull final StreamBuilder.SignedTxCustomizer signedTxCustomizer) {
-        return stepDispatch(payerId, body, streamBuilderType, signedTxCustomizer, ReversingBehavior.REMOVABLE, EMPTY_METADATA);
+        return stepDispatch(
+                payerId, body, streamBuilderType, signedTxCustomizer, ReversingBehavior.REMOVABLE, EMPTY_METADATA);
     }
     /**
      * Returns options for a dispatch that is a step in the parent dispatch's business logic, but only appropriate
@@ -440,6 +441,7 @@ public record DispatchOptions<T extends StreamBuilder>(
             @NonNull final Class<T> streamBuilderType,
             @NonNull final StreamBuilder.SignedTxCustomizer signedTxCustomizer,
             @NonNull final DispatchMetadata metadata) {
-        return stepDispatch(payerId, body, streamBuilderType, signedTxCustomizer, ReversingBehavior.REVERSIBLE, metadata);
+        return stepDispatch(
+                payerId, body, streamBuilderType, signedTxCustomizer, ReversingBehavior.REVERSIBLE, metadata);
     }
 }
