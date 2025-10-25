@@ -339,9 +339,8 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
                     gas, aa.preTxAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
         }
         if (hasPrePostTxHook) {
-            final long gasPerCall = aa.prePostTxAllowanceHookOrThrow()
-                    .evmHookCallOrThrow()
-                    .gasLimit();
+            final long gasPerCall =
+                    aa.prePostTxAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit();
             gas = clampedAdd(clampedAdd(gas, gasPerCall), gasPerCall);
         }
         return new HookInfo(true, gas);

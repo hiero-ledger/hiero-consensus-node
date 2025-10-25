@@ -81,7 +81,6 @@ import com.hedera.node.app.blocks.impl.contexts.SubmitOpContext;
 import com.hedera.node.app.blocks.impl.contexts.SupplyChangeOpContext;
 import com.hedera.node.app.blocks.impl.contexts.TokenOpContext;
 import com.hedera.node.app.blocks.impl.contexts.TopicOpContext;
-import com.hedera.node.app.hapi.utils.contracts.HookUtils;
 import com.hedera.node.app.service.addressbook.impl.records.NodeCreateStreamBuilder;
 import com.hedera.node.app.service.consensus.impl.records.ConsensusCreateTopicStreamBuilder;
 import com.hedera.node.app.service.consensus.impl.records.ConsensusSubmitMessageStreamBuilder;
@@ -621,32 +620,46 @@ public class BlockStreamBuilder
                             SlotKey slotKey = null;
                             if (stateChange.hasMapUpdate()
                                     && !stateChange.mapUpdateOrThrow().identical()) {
-                                slotKey =
-                                        stateChange.mapUpdateOrThrow().keyOrThrow().slotKeyKeyOrThrow();
+                                slotKey = stateChange
+                                        .mapUpdateOrThrow()
+                                        .keyOrThrow()
+                                        .slotKeyKeyOrThrow();
                             } else if (stateChange.hasMapDelete()) {
-                                slotKey =
-                                        stateChange.mapDeleteOrThrow().keyOrThrow().slotKeyKeyOrThrow();
+                                slotKey = stateChange
+                                        .mapDeleteOrThrow()
+                                        .keyOrThrow()
+                                        .slotKeyKeyOrThrow();
                             }
                             if (slotKey != null) {
                                 // Each contract id gets its own implicit list of writes
-                                final var indexes =
-                                        implicitWriteIndexes.computeIfAbsent(slotKey.contractID(), k -> new HashMap<>());
+                                final var indexes = implicitWriteIndexes.computeIfAbsent(
+                                        slotKey.contractID(), k -> new HashMap<>());
                                 indexes.put(slotKey.key(), indexes.size());
                             }
                         } else if (stateChange.stateId() == STATE_ID_LAMBDA_STORAGE.protoOrdinal()) {
                             SlotKey slotKey = null;
                             if (stateChange.hasMapUpdate()
                                     && !stateChange.mapUpdateOrThrow().identical()) {
-                                slotKey =
-                                        new SlotKey(ContractID.DEFAULT, stateChange.mapUpdateOrThrow().keyOrThrow().lambdaSlotKeyOrThrow().key());
+                                slotKey = new SlotKey(
+                                        ContractID.DEFAULT,
+                                        stateChange
+                                                .mapUpdateOrThrow()
+                                                .keyOrThrow()
+                                                .lambdaSlotKeyOrThrow()
+                                                .key());
                             } else if (stateChange.hasMapDelete()) {
-                                slotKey =
-                                        new SlotKey(ContractID.DEFAULT, stateChange.mapDeleteOrThrow().keyOrThrow().lambdaSlotKeyOrThrow().key());
+                                slotKey = new SlotKey(
+                                        ContractID.DEFAULT,
+                                        stateChange
+                                                .mapDeleteOrThrow()
+                                                .keyOrThrow()
+                                                .lambdaSlotKeyOrThrow()
+                                                .key());
                             }
                             if (slotKey != null) {
                                 // Hook contract has default placeholder id
-                                final var indexes =
-                                        implicitWriteIndexes.computeIfAbsent(slotKey.contractID(), k -> new HashMap<>());
+                                final var indexes = implicitWriteIndexes.computeIfAbsent(
+                                        slotKey.contractID(), k -> new HashMap<>());
                                 indexes.put(slotKey.key(), indexes.size());
                             }
                         }
@@ -676,7 +689,8 @@ public class BlockStreamBuilder
                                         indexedReads.add(read);
                                     }
                                 }
-                                indexedSlotUsages.add(new ContractSlotUsage(slotUsage.contractIdOrThrow(), null, indexedReads));
+                                indexedSlotUsages.add(
+                                        new ContractSlotUsage(slotUsage.contractIdOrThrow(), null, indexedReads));
                             } else {
                                 indexedSlotUsages.add(slotUsage);
                             }

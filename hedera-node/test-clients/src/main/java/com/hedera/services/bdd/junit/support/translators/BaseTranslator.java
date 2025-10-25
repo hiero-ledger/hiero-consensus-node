@@ -71,7 +71,6 @@ import com.hedera.hapi.streams.StorageChange;
 import com.hedera.hapi.streams.TransactionSidecarRecord;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.hapi.utils.contracts.HookUtils;
-import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.pbj.runtime.ParseException;
@@ -677,8 +676,8 @@ public class BaseTranslator {
                                         || contractId.contractNumOrThrow() != HTS_HOOKS_CONTRACT_NUM) {
                                     valueFromState = writtenSlots.get(slotKey);
                                 } else {
-                                    valueFromState =
-                                            writtenLambdaSlots.get(new LambdaSlotKey(executingHookId, minimalKey(slotKey.key())));
+                                    valueFromState = writtenLambdaSlots.get(
+                                            new LambdaSlotKey(executingHookId, minimalKey(slotKey.key())));
                                 }
                                 if (valueFromState == null) {
                                     throw new IllegalStateException("No written value found for write to " + slotKey

@@ -76,65 +76,63 @@ public record BlockTransactionalUnit(
             final List<HookId> allowPostExecHookIds = new ArrayList<>(numHookDispatches);
             for (final var aa : op.transfersOrElse(TransferList.DEFAULT).accountAmounts()) {
                 if (aa.hasPreTxAllowanceHook()) {
-                        allowExecHookIds.add(HookId.newBuilder()
-                                .entityId(HookEntityId.newBuilder().accountId(aa.accountIDOrThrow()))
-                                .hookId(aa.preTxAllowanceHookOrThrow().hookIdOrThrow())
-                                .build());
+                    allowExecHookIds.add(HookId.newBuilder()
+                            .entityId(HookEntityId.newBuilder().accountId(aa.accountIDOrThrow()))
+                            .hookId(aa.preTxAllowanceHookOrThrow().hookIdOrThrow())
+                            .build());
                 } else if (aa.hasPrePostTxAllowanceHook()) {
-                        final var hookId = HookId.newBuilder()
-                                        .entityId(HookEntityId.newBuilder().accountId(aa.accountIDOrThrow()))
-                                        .hookId(aa.prePostTxAllowanceHookOrThrow().hookIdOrThrow())
-                                        .build();
-                        allowPreExecHookIds.add(hookId);
-                        allowPostExecHookIds.add(hookId);
+                    final var hookId = HookId.newBuilder()
+                            .entityId(HookEntityId.newBuilder().accountId(aa.accountIDOrThrow()))
+                            .hookId(aa.prePostTxAllowanceHookOrThrow().hookIdOrThrow())
+                            .build();
+                    allowPreExecHookIds.add(hookId);
+                    allowPostExecHookIds.add(hookId);
                 }
             }
             for (final var ttl : op.tokenTransfers()) {
                 for (final var aa : ttl.transfers()) {
                     if (aa.hasPreTxAllowanceHook()) {
-                            allowExecHookIds.add(HookId.newBuilder()
-                                    .entityId(HookEntityId.newBuilder().accountId(aa.accountIDOrThrow()))
-                                    .hookId(aa.preTxAllowanceHookOrThrow().hookIdOrThrow())
-                                    .build());
+                        allowExecHookIds.add(HookId.newBuilder()
+                                .entityId(HookEntityId.newBuilder().accountId(aa.accountIDOrThrow()))
+                                .hookId(aa.preTxAllowanceHookOrThrow().hookIdOrThrow())
+                                .build());
                     } else if (aa.hasPrePostTxAllowanceHook()) {
-                            final var hookId = HookId.newBuilder()
-                                    .entityId(HookEntityId.newBuilder().accountId(aa.accountIDOrThrow()))
-                                    .hookId(aa.prePostTxAllowanceHookOrThrow().hookIdOrThrow())
-                                    .build();
-                            allowPreExecHookIds.add(hookId);
-                            allowPostExecHookIds.add(hookId);
+                        final var hookId = HookId.newBuilder()
+                                .entityId(HookEntityId.newBuilder().accountId(aa.accountIDOrThrow()))
+                                .hookId(aa.prePostTxAllowanceHookOrThrow().hookIdOrThrow())
+                                .build();
+                        allowPreExecHookIds.add(hookId);
+                        allowPostExecHookIds.add(hookId);
                     }
                 }
                 for (final NftTransfer nft : ttl.nftTransfers()) {
                     if (nft.hasPreTxSenderAllowanceHook()) {
-                            allowExecHookIds.add(HookId.newBuilder()
-                                    .entityId(HookEntityId.newBuilder().accountId(nft.senderAccountIDOrThrow()))
-                                    .hookId(nft.preTxSenderAllowanceHookOrThrow()
-                                            .hookIdOrThrow())
-                                    .build());
+                        allowExecHookIds.add(HookId.newBuilder()
+                                .entityId(HookEntityId.newBuilder().accountId(nft.senderAccountIDOrThrow()))
+                                .hookId(nft.preTxSenderAllowanceHookOrThrow().hookIdOrThrow())
+                                .build());
                     } else if (nft.hasPrePostTxSenderAllowanceHook()) {
-                            final var hookId = HookId.newBuilder()
-                                    .entityId(HookEntityId.newBuilder().accountId(nft.senderAccountIDOrThrow()))
-                                    .hookId(nft.prePostTxSenderAllowanceHookOrThrow()
-                                            .hookIdOrThrow())
-                                    .build();
-                            allowPreExecHookIds.add(hookId);
-                            allowPostExecHookIds.add(hookId);
+                        final var hookId = HookId.newBuilder()
+                                .entityId(HookEntityId.newBuilder().accountId(nft.senderAccountIDOrThrow()))
+                                .hookId(nft.prePostTxSenderAllowanceHookOrThrow()
+                                        .hookIdOrThrow())
+                                .build();
+                        allowPreExecHookIds.add(hookId);
+                        allowPostExecHookIds.add(hookId);
                     }
                     if (nft.hasPreTxReceiverAllowanceHook()) {
-                            allowExecHookIds.add(HookId.newBuilder()
-                                    .entityId(HookEntityId.newBuilder().accountId(nft.receiverAccountIDOrThrow()))
-                                    .hookId(nft.preTxReceiverAllowanceHookOrThrow()
-                                            .hookIdOrThrow())
-                                    .build());
+                        allowExecHookIds.add(HookId.newBuilder()
+                                .entityId(HookEntityId.newBuilder().accountId(nft.receiverAccountIDOrThrow()))
+                                .hookId(nft.preTxReceiverAllowanceHookOrThrow().hookIdOrThrow())
+                                .build());
                     } else if (nft.hasPrePostTxReceiverAllowanceHook()) {
-                            final var hookId = HookId.newBuilder()
-                                    .entityId(HookEntityId.newBuilder().accountId(nft.receiverAccountIDOrThrow()))
-                                    .hookId(nft.prePostTxReceiverAllowanceHookOrThrow()
-                                            .hookIdOrThrow())
-                                    .build();
-                            allowPreExecHookIds.add(hookId);
-                            allowPostExecHookIds.add(hookId);
+                        final var hookId = HookId.newBuilder()
+                                .entityId(HookEntityId.newBuilder().accountId(nft.receiverAccountIDOrThrow()))
+                                .hookId(nft.prePostTxReceiverAllowanceHookOrThrow()
+                                        .hookIdOrThrow())
+                                .build();
+                        allowPreExecHookIds.add(hookId);
+                        allowPostExecHookIds.add(hookId);
                     }
                 }
             }
