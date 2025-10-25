@@ -506,6 +506,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         int indexOfParentBuilder = 0;
         int topLevelNonce = 0;
         boolean grouped = false;
+        boolean isBatch = false;
         final int n = builders.size();
         for (int i = 0; i < n; i++) {
             final var builder = builders.get(i);
@@ -514,7 +515,8 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
                 indexOfParentBuilder = i;
                 topLevelNonce = builder.transactionID().nonce();
                 idBuilder = builder.transactionID().copyBuilder();
-                grouped = builder.functionality() == ATOMIC_BATCH;
+                isBatch = builder.functionality() == ATOMIC_BATCH;
+                grouped = isBatch;
                 break;
             }
         }
@@ -532,7 +534,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             final var txnId = builder.transactionID();
             // If the builder does not already have a transaction id, then complete with the next nonce offset
             if (txnId == null || TransactionID.DEFAULT.equals(txnId)) {
-                if (i > indexOfParentBuilder && grouped) {
+                if (i > indexOfParentBuilder && isBatch) {
                     if (builder.category() == PRECEDING) {
                         for (int j = i + 1; j < n; j++) {
                             if (builders.get(j).category() == BATCH_INNER) {
