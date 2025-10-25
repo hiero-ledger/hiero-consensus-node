@@ -6,9 +6,12 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALL
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.hookDispatch;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.hookDispatchForExecution;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.EXPLICIT_WRITE_TRACING;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.signedTxWith;
+import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Function;
 import com.hedera.hapi.node.base.AccountID;
@@ -23,6 +26,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
@@ -30,9 +34,11 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.UncheckedParseException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public class HookDispatchUtils {
+    private static final DispatchMetadata GROUP_METADATA = new DispatchMetadata(Map.of(EXPLICIT_WRITE_TRACING, true));
     public static final long HTS_HOOKS_CONTRACT_NUM = 365L;
     public static final String HTS_HOOKS_EVM_ADDRESS = "0x" + Long.toHexString(HTS_HOOKS_CONTRACT_NUM);
 
@@ -142,12 +148,18 @@ public class HookDispatchUtils {
      * @param execution the hook execution to dispatch
      * @param function the function to decode the result
      * @param entityIdFactory the entity id factory
+     * @param isolated whether this is an isolated hook execution
      */
     public static void dispatchExecution(
-            final @NonNull HandleContext context,
-            final HookExecution execution,
-            final Function function,
-            final EntityIdFactory entityIdFactory) {
+            @NonNull final HandleContext context,
+            @NonNull final HookExecution execution,
+            @NonNull final Function function,
+            @NonNull final EntityIdFactory entityIdFactory,
+            final boolean isolated) {
+        requireNonNull(context);
+        requireNonNull(execution);
+        requireNonNull(function);
+        requireNonNull(entityIdFactory);
         final var hookDispatch =
                 HookDispatchTransactionBody.newBuilder().execution(execution).build();
         final var hookContractId = entityIdFactory.newContractId(HTS_HOOKS_CONTRACT_NUM);
@@ -174,7 +186,8 @@ public class HookDispatchUtils {
                 context.payer(),
                 TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
                 HookDispatchStreamBuilder.class,
-                executionCustomizer));
+                executionCustomizer,
+                isolated ? EMPTY_METADATA : GROUP_METADATA));
         validateTrue(streamBuilder.status() == SUCCESS, REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK);
         final var result = streamBuilder.getEvmCallResult();
         try {

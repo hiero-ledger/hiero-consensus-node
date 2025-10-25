@@ -156,7 +156,7 @@ public class TransferExecutor extends BaseTokenHandler {
         transferContext.validateHbarAllowances();
 
         // Replace all aliases in the transaction body with its account ids
-        final var replacedOp = ensureAndReplaceAliasesInOp(txn, transferContext, context, validator);
+        final var replacedOp = ensureAndReplaceAliasesInOp(txn, transferContext, validator);
 
         // Use the op with replaced aliases in further steps
         final List<TransferStep> steps = new ArrayList<>();
@@ -287,7 +287,6 @@ public class TransferExecutor extends BaseTokenHandler {
      *
      * @param txn the given transaction body
      * @param transferContext the given transfer context
-     * @param context the given handle context
      * @param validator crypto transfer validator
      * @return the replaced transaction body with all aliases replaced with its account ids
      * @throws HandleException if any error occurs during the process
@@ -295,7 +294,6 @@ public class TransferExecutor extends BaseTokenHandler {
     private CryptoTransferTransactionBody ensureAndReplaceAliasesInOp(
             @NonNull final TransactionBody txn,
             @NonNull final TransferContextImpl transferContext,
-            @NonNull final HandleContext context,
             @NonNull final CryptoTransferValidator validator)
             throws HandleException {
         final var op = txn.cryptoTransferOrThrow();
@@ -333,6 +331,7 @@ public class TransferExecutor extends BaseTokenHandler {
             final List<HookInvocation> hookInvocations,
             final HandleContext handleContext,
             com.esaulpaugh.headlong.abi.Function function) {
+        final boolean isolated = hookInvocations.size() == 1;
         for (final var hookInvocation : hookInvocations) {
             byte[] calldata;
             try {
@@ -353,7 +352,7 @@ public class TransferExecutor extends BaseTokenHandler {
                             .hookId(hookInvocation.hookId())
                             .build())
                     .build();
-            dispatchExecution(handleContext, execution, function, entityIdFactory);
+            dispatchExecution(handleContext, execution, function, entityIdFactory, isolated);
         }
     }
 
