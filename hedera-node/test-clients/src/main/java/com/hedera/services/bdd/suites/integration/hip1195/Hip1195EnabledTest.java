@@ -605,7 +605,7 @@ public class Hip1195EnabledTest {
                 getTxnRecord("customFeeTxn").logged());
     }
 
-    //    @HapiTest
+    @HapiTest
     final Stream<DynamicTest> royaltyAndFractionalTogetherCaseStudy() {
         final var alice = "alice";
         final var amelie = "AMELIE";
@@ -658,7 +658,9 @@ public class Hip1195EnabledTest {
                         .payingWith(amelie)
                         .via(txnFromAmelie)
                         .fee(ONE_HBAR),
-                getTxnRecord(txnFromAmelie).logged());
+                getTxnRecord(txnFromAmelie).logged()
+        // manually check the proposed transfers in logs
+        );
     }
 
     @HapiTest
@@ -1165,4 +1167,5 @@ public class Hip1195EnabledTest {
                     assertEquals(2, a.numberLambdaStorageSlots());
                 }));
     }
+
 }
