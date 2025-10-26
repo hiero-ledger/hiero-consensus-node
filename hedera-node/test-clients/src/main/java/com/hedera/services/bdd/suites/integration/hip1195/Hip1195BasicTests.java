@@ -5,6 +5,7 @@ import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
@@ -94,6 +95,9 @@ public class Hip1195BasicTests {
     @Contract(contract = "Create2OpHook", creationGas = 5_000_000)
     static SpecContract CREATE2_HOOK;
 
+    @Contract(contract = "SelfDestructOpHook", creationGas = 5_000_000)
+    static SpecContract SELF_DESTRUCT_HOOK;
+
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
@@ -103,6 +107,7 @@ public class Hip1195BasicTests {
         testLifecycle.doAdhoc(FALSE_PRE_POST_ALLOWANCE_HOOK.getInfo());
         testLifecycle.doAdhoc(CREATE_HOOK.getInfo());
         testLifecycle.doAdhoc(CREATE2_HOOK.getInfo());
+        testLifecycle.doAdhoc(SELF_DESTRUCT_HOOK.getInfo());
 
         testLifecycle.doAdhoc(withOpContext(
                 (spec, opLog) -> GLOBAL_WATCHER.set(new SidecarWatcher(spec.recordStreamsLoc(byNodeId(0))))));
@@ -1063,5 +1068,23 @@ public class Hip1195BasicTests {
                 getTxnRecord("failedTxn")
                         .andAllChildRecords()
                         .hasChildRecords(TransactionRecordAsserts.recordWith().status(CONTRACT_EXECUTION_EXCEPTION)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> selfDestructOpIsDisabledInHookExecution() {
+        return hapiTest(
+                cryptoCreate(OWNER).withHooks(accountAllowanceHook(123L, SELF_DESTRUCT_HOOK.name())),
+                cryptoCreate(PAYER).receiverSigRequired(true),
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
+                        .withPreHookFor(OWNER, 123L, 2500_000L, "")
+                        .payingWith(PAYER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .via("failedTxn"),
+                getTxnRecord("failedTxn")
+                        .andAllChildRecords()
+                        .hasChildRecords(TransactionRecordAsserts.recordWith()
+                                .contractCallResult(resultWith().error("INVALID_OPERATION")))
+                        .logged());
+
     }
 }
