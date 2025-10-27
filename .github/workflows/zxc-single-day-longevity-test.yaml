@@ -486,7 +486,6 @@ jobs:
           done
           sleep 30
           fi
-          exit 0
           #WORKAROUND:
 
           # Generate the blocknode-values.yaml file inline
