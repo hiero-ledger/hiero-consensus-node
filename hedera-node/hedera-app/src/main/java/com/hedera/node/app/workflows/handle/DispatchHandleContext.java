@@ -433,7 +433,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
                     storeFactory.readableStore(ReadableAccountStore.class),
                     batchInnerTxnBytes,
                     maybeReusablePreHandleResult,
-                    (s) -> {},
+                    (s, b) -> {},
                     InnerTransaction.YES);
         }
 

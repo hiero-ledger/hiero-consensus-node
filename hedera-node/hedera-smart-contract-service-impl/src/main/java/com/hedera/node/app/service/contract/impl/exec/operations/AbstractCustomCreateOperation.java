@@ -5,6 +5,7 @@ import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.ILLEGAL_STATE
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_GAS;
 import static org.hyperledger.besu.evm.internal.Words.clampedToLong;
 
+import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -90,6 +91,9 @@ public abstract class AbstractCustomCreateOperation extends AbstractOperation {
 
     @Override
     public OperationResult execute(@NonNull final MessageFrame frame, @NonNull final EVM evm) {
+        if (FrameUtils.isHookExecution(frame)) {
+            return new OperationResult(0, ExceptionalHaltReason.INVALID_OPERATION);
+        }
         if (!isEnabled(frame)) {
             return INVALID_RESPONSE;
         }

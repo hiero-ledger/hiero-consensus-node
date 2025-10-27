@@ -28,7 +28,6 @@ module com.hedera.state.validator {
     requires com.swirlds.common;
     requires com.swirlds.config.api;
     requires com.swirlds.config.extensions;
-    requires com.swirlds.logging;
     requires com.swirlds.merkledb;
     requires com.swirlds.metrics.api;
     requires com.swirlds.platform.core;

@@ -74,7 +74,7 @@ jobs:
       - name: Print Params
         id: params
         run: |
-          SOLO_GE_0440=$([[ "$(printf '%s\n' "${{vars.ADHOC_SOLO_VERSION}}" "v0.44.0" | sort -V | head -n1)" == "v0.44.0" ]] && echo "true" || echo "false")
+          SOLO_GE_0440=$([[ "$(printf '%s\n' "${{vars.ADHOC_XTS_SOLO_VERSION}}" "v0.44.0" | sort -V | head -n1)" == "v0.44.0" ]] && echo "true" || echo "false")
           HELM_NAME="mirror"
           if [[ "${SOLO_GE_0440}" == "true" ]]; then
             HELM_NAME="mirror-1"
@@ -89,10 +89,10 @@ jobs:
           echo "Enable JSON-RPC Relay Regression Panel: ${{ inputs.enable-rpc-relay-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Block Node Regression Panel: ${{ inputs.enable-block-node-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Additional Parameters: ${{ inputs.additional-parameters }}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          echo "Solo Version: ${{ vars.ADHOC_SOLO_VERSION }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Solo Version: ${{ vars.ADHOC_XTS_SOLO_VERSION }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Helm Release Name: ${HELM_NAME}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
-          echo "solo-version=${{ vars.ADHOC_SOLO_VERSION }}" >> "${GITHUB_OUTPUT}"
+          echo "solo-version=${{ vars.ADHOC_XTS_SOLO_VERSION }}" >> "${GITHUB_OUTPUT}"
           echo "helm-release-name=${HELM_NAME}" >> "${GITHUB_OUTPUT}"
           echo "solo-ge-0440=${SOLO_GE_0440}" >> "${GITHUB_OUTPUT}"
 
