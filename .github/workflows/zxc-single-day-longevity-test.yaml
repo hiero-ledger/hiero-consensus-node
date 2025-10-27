@@ -478,7 +478,7 @@ jobs:
           export BLOCK_NODE_VERSION="${{ env.BlockNode_version }}"
 
           #FIXME: when root access and entrypoint fixed
-          if [ 1 -eq 1 ]
+          if [ 0 -eq 1 ]
           then
           for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
           do
@@ -518,7 +518,10 @@ jobs:
           done
           sleep 180
           wait
-          
+
+          #generates block_node.env
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/block_node_env.sh
+
           BNtarname=$(ls -1 "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/block-node-app-*.tar)
 
           for i in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node-' | awk '{print $1}'`
@@ -539,9 +542,15 @@ jobs:
                 cd /opt/hiero/block-node; \
                 tar xf /tmp/blocknode.tar;"
 
+              sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp block_node.env $i:/opt/hiero/block-node/block_node.env
+
+              sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" \
+                cp "${{ github.workspace }}"/target_block_node/block-node/app/src/main/resources/logging.properties $i:/opt/hiero/block-node/logs/config/logging.properties
+
               if [ "${{ inputs.perf_analysis }}" = "true" ]
               then
-                sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/performance-analysis-automation/node_control/startInstrumentedBN.sh $i:/tmp/startInstrumentedBN.sh
+                sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" \
+                  cp "${{ github.workspace }}"/performance-analysis-automation/node_control/startInstrumentedBN.sh $i:/tmp/startInstrumentedBN.sh
                 #sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c \
                 #  "cd /opt/hiero/block-node/; export SERVER_MAX_MESSAGE_SIZE_BYTES=\"16_777_215\"; MESSAGING_BLOCK_ITEM_QUEUE_SIZE=4096; MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=1024; sh /tmp/startInstrumentedBN.sh"
               else
@@ -908,10 +917,13 @@ jobs:
               if [ "${{ inputs.perf_analysis }}" = "true" ]
               then
                 sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c \
-                  "cd /opt/hiero/block-node/; export BACKFILL_FETCH_BATCH_SIZE=10; export BACKFILL_BLOCK_NODE_SOURCES_PATH=\"/opt/hiero/block-node/backfill/block-node-sources.json\"; export SERVER_MAX_MESSAGE_SIZE_BYTES=\"16_777_215\"; MESSAGING_BLOCK_ITEM_QUEUE_SIZE=4096; MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=1024; export BLOCK_NODE_EARLIEST_MANAGED_BLOCK=$lastBlock; sh /tmp/startInstrumentedBN.sh"
+                  "cd /opt/hiero/block-node/; . block_node.env; export BACKFILL_FETCH_BATCH_SIZE=10; export BACKFILL_BLOCK_NODE_SOURCES_PATH=\"/opt/hiero/block-node/backfill/block-node-sources.json\"; \
+                   export SERVER_MAX_MESSAGE_SIZE_BYTES=\"16_777_215\"; MESSAGING_BLOCK_ITEM_QUEUE_SIZE=4096; MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=1024; \
+                   export BLOCK_NODE_EARLIEST_MANAGED_BLOCK=$lastBlock; sh /tmp/startInstrumentedBN.sh"
               else
                 sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c \
-                  "cd /opt/hiero/block-node/; export BACKFILL_FETCH_BATCH_SIZE=10; export BACKFILL_BLOCK_NODE_SOURCES_PATH=\"/opt/hiero/block-node/backfill/block-node-sources.json\"; export JAVA_OPTS=\"-Xms16G -Xmx28G\"; export SERVER_MAX_MESSAGE_SIZE_BYTES=\"16_777_215\"; MESSAGING_BLOCK_ITEM_QUEUE_SIZE=4096; MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=1024; export BLOCK_NODE_EARLIEST_MANAGED_BLOCK=$lastBlock; bash ./block-node-app-*/bin/block-node-app > ./logs/block-node.log 2>&1 &"
+                  "cd /opt/hiero/block-node/; . block_node.env; export BACKFILL_FETCH_BATCH_SIZE=10; export BACKFILL_BLOCK_NODE_SOURCES_PATH=\"/opt/hiero/block-node/backfill/block-node-sources.json\"; \
+                   export JAVA_OPTS=\"-Xms16G -Xmx28G\"; export SERVER_MAX_MESSAGE_SIZE_BYTES=\"16_777_215\"; MESSAGING_BLOCK_ITEM_QUEUE_SIZE=4096; MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=1024; export BLOCK_NODE_EARLIEST_MANAGED_BLOCK=$lastBlock; bash ./block-node-app-*/bin/block-node-app > ./logs/block-node.log 2>&1 &"
               fi
           done
           for i in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node-' | grep '\-p2\-' | awk '{print $1}'`
