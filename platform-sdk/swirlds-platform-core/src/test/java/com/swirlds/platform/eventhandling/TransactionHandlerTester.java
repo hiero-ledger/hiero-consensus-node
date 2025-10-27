@@ -69,10 +69,8 @@ public class TransactionHandlerTester {
         swirldStateManager = new SwirldStateManager(
                 platformContext,
                 roster,
-                NodeId.FIRST_NODE_ID,
                 statusActionSubmitter,
                 SemanticVersion.newBuilder().major(1).build(),
-                consensusStateEventHandler,
                 platformStateFacade);
         swirldStateManager.setInitialState(consensusState);
         defaultTransactionHandler = new DefaultTransactionHandler(
@@ -80,7 +78,9 @@ public class TransactionHandlerTester {
                 swirldStateManager,
                 statusActionSubmitter,
                 mock(SemanticVersion.class),
-                platformStateFacade);
+                platformStateFacade,
+                consensusStateEventHandler,
+                NodeId.of(1));
     }
 
     /**

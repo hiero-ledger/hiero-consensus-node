@@ -35,6 +35,7 @@ import com.swirlds.platform.metrics.RuntimeMetrics;
 import com.swirlds.platform.publisher.DefaultPlatformPublisher;
 import com.swirlds.platform.publisher.PlatformPublisher;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.state.DefaultFreezePeriodChecker;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.nexus.DefaultLatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
@@ -212,12 +213,14 @@ public class SwirldsPlatform implements Platform {
         /**
          * Handles all interaction with {@link ConsensusStateEventHandler}
          */
-        SwirldStateManager swirldStateManager = blocks.swirldStateManager();
+        final SwirldStateManager swirldStateManager = blocks.swirldStateManager();
         swirldStateManager.setInitialState(initialState.getState());
+        final DefaultFreezePeriodChecker periodChecker =
+                new DefaultFreezePeriodChecker(swirldStateManager, platformStateFacade);
 
         final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
 
-        blocks.freezeCheckHolder().setFreezeCheckRef(swirldStateManager::isInFreezePeriod);
+        blocks.freezeCheckHolder().setFreezeCheckRef(periodChecker::isInFreezePeriod);
 
         final AppNotifier appNotifier = new DefaultAppNotifier(blocks.notificationEngine());
 

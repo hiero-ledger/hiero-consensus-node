@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
-import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -24,8 +22,6 @@ import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
-import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -49,10 +45,8 @@ class SwirldsStateManagerTests {
         swirldStateManager = new SwirldStateManager(
                 platformContext,
                 roster,
-                NodeId.of(0L),
                 mock(StatusActionSubmitter.class),
                 SemanticVersion.newBuilder().major(1).build(),
-                FAKE_CONSENSUS_STATE_EVENT_HANDLER,
                 platformStateFacade);
         swirldStateManager.setInitialState(initialState);
     }
@@ -79,14 +73,6 @@ class SwirldsStateManagerTests {
                 swirldStateManager.getConsensusState().getRoot();
         assertEquals(
                 1, consensusStateAsReservable.getReservationCount(), "The consensus state should have one reference.");
-    }
-
-    @Test
-    @DisplayName("Seal consensus round")
-    void sealConsensusRound() {
-        final var round = mock(Round.class);
-        swirldStateManager.sealConsensusRound(round);
-        verify(round).getRoundNum();
     }
 
     @Test

@@ -436,10 +436,8 @@ public final class PlatformBuilder {
         final SwirldStateManager swirldStateManager = new SwirldStateManager(
                 platformContext,
                 currentRoster,
-                selfId,
                 x -> statusActionSubmitterAtomicReference.get().submitStatusAction(x),
                 softwareVersion,
-                consensusStateEventHandler,
                 platformStateFacade);
 
         if (model == null) {
