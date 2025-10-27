@@ -41,4 +41,4 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "30s") @NodeProperty Duration grpcOverallTimeout,
         @ConfigProperty(defaultValue = "25ms") @NetworkProperty Duration connectionWorkerSleepDuration,
         @ConfigProperty(defaultValue = "200ms") @NetworkProperty Duration maxRequestDelay,
-        @ConfigProperty(defaultValue = "30s") @NodeProperty Duration pipelineOperationTimeout) {}
+        @ConfigProperty(defaultValue = "3s") @NodeProperty Duration pipelineOperationTimeout) {}
