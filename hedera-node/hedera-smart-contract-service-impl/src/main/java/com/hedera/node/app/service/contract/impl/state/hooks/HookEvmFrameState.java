@@ -23,15 +23,18 @@ import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.account.MutableAccount;
@@ -47,23 +50,27 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
     private final WritableEvmHookStore writableEvmHookStore;
     private final EntityIdFactory entityIdFactory;
     private final ContractID hooksContractId;
+    private TokenServiceApi tokenServiceApi;
 
     /**
      * @param nativeOperations the Hedera native operation
      * @param contractStateStore the contract store that manages the key/value states
+     * @param tokenServiceApi the token service API
      */
     public HookEvmFrameState(
             @NonNull final HederaNativeOperations nativeOperations,
             @NonNull final ContractStateStore contractStateStore,
             @NonNull final WritableEvmHookStore writableEvmHookStore,
             @NonNull final CodeFactory codeFactory,
-            @NonNull final EvmHookState hook) {
+            @NonNull final EvmHookState hook,
+            @NonNull final TokenServiceApi tokenServiceApi) {
         super(nativeOperations, contractStateStore, codeFactory);
         this.entityIdFactory = requireNonNull(nativeOperations).entityIdFactory();
         this.hook = requireNonNull(hook);
         this.codeFactory = requireNonNull(codeFactory);
         this.writableEvmHookStore = requireNonNull(writableEvmHookStore);
         this.hooksContractId = entityIdFactory.newContractId(HTS_HOOKS_CONTRACT_NUM);
+        this.tokenServiceApi = requireNonNull(tokenServiceApi);
     }
 
     /**
@@ -136,16 +143,21 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
     public @NonNull TxStorageUsage getTxStorageUsage(final boolean includeChangedKeys) {
         final Map<ContractID, List<StorageAccess>> modifications = new TreeMap<>(CONTRACT_ID_COMPARATOR);
         final Set<SlotKey> changedKeys = includeChangedKeys ? new HashSet<>() : null;
-        writableEvmHookStore.getModifiedSlotKeys().forEach(slotKey -> {
-            final var access = StorageAccess.newWrite(
-                    slotKey.key().equals(ZERO_KEY) ? UInt256.ZERO : pbjToTuweniUInt256(slotKey.key()),
-                    valueOrZero(writableEvmHookStore.getOriginalSlotValue(slotKey)),
-                    valueOrZero(writableEvmHookStore.getSlotValue(slotKey)));
-            modifications
-                    .computeIfAbsent(hooksContractId, k -> new ArrayList<>())
-                    .add(access);
-            if (includeChangedKeys && access.isLogicalChange()) {
-                changedKeys.add(new SlotKey(hooksContractId, slotKey.key()));
+        writableEvmHookStore.getModifiedLambdaSlotKeys().forEach(slotKey -> {
+            try {
+                System.out.println("slotKey: " + slotKey);
+                final var access = StorageAccess.newWrite(
+                        slotKey.key().equals(ZERO_KEY) ? UInt256.ZERO : pbjToTuweniUInt256(slotKey.key()),
+                        valueOrZero(writableEvmHookStore.getOriginalSlotValue(slotKey)),
+                        valueOrZero(writableEvmHookStore.getSlotValue(slotKey)));
+                modifications
+                        .computeIfAbsent(hooksContractId, k -> new ArrayList<>())
+                        .add(access);
+                if (includeChangedKeys && access.isLogicalChange()) {
+                    changedKeys.add(new SlotKey(hooksContractId, slotKey.key()));
+                }
+            } catch (Exception ignore) {
+                System.out.println(ignore);
             }
         });
         final List<StorageAccesses> allChanges = new ArrayList<>();

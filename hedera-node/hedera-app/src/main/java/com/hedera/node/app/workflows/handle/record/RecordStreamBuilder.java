@@ -211,6 +211,7 @@ public class RecordStreamBuilder
     private HederaFunctionality function;
 
     private boolean isContractCreate;
+    private int deltaStorageSlotsUpdated;
 
     /**
      * ops duration used by the contract transaction
@@ -1127,6 +1128,17 @@ public class RecordStreamBuilder
     public Bytes getEvmCallResult() {
         return requireNonNull(contractFunctionResult).contractCallResult();
     }
+
+    @Override
+    public int getDeltaStorageSlotsUpdated() {
+        return deltaStorageSlotsUpdated;
+    }
+
+    @Override
+    public void setDeltaStorageSlotsUpdated(int deltaStorageSlotsUpdated) {
+        this.deltaStorageSlotsUpdated = deltaStorageSlotsUpdated;
+    }
+
 
     /**
      * Sets the contractStateChanges which are part of sidecar records.

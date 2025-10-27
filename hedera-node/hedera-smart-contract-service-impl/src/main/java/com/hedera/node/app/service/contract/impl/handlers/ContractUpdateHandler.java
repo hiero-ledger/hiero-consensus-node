@@ -12,6 +12,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MODIFYING_IMMUTABLE_CON
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
 import static com.hedera.hapi.util.HapiUtils.EMPTY_KEY_LIST;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookCreations;
 import static com.hedera.node.app.service.token.HookDispatchUtils.validateHookDuplicates;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_ACCOUNT_ID;
 import static com.hedera.node.app.spi.fees.Fees.CONSTANT_FEE_DATA;
@@ -164,9 +165,11 @@ public class ContractUpdateHandler implements TransactionHandler {
                     context, op.hookIdsToDelete(), headAfterDeletes, originalAccount.accountIdOrThrow());
         }
         if (!op.hookCreationDetails().isEmpty()) {
-            HookDispatchUtils.dispatchHookCreations(
+            final var numSlotsUpdated = HookDispatchUtils.dispatchHookCreations(
                     context, op.hookCreationDetails(), headAfterDeletes, originalAccount.accountId());
             builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
+            final var currentSlots = originalAccount.numberLambdaStorageSlots() + numSlotsUpdated;
+            builder.numberLambdaStorageSlots(currentSlots);
         } else if (!op.hookIdsToDelete().isEmpty()) {
             builder.firstHookId(headAfterDeletes);
         }

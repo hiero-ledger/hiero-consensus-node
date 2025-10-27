@@ -444,6 +444,8 @@ public class BlockStreamBuilder
 
     private boolean isContractCreate;
 
+    private int deltaStorageSlotsUpdated;
+
     /**
      * Constructs a builder for a user transaction with the given characteristics.
      * @param reversingBehavior the reversing behavior
@@ -1344,6 +1346,16 @@ public class BlockStreamBuilder
     @Override
     public Bytes getEvmCallResult() {
         return requireNonNull(evmTransactionResult).resultData();
+    }
+
+    @Override
+    public int getDeltaStorageSlotsUpdated() {
+        return deltaStorageSlotsUpdated;
+    }
+
+    @Override
+    public void setDeltaStorageSlotsUpdated(int deltaStorageSlotsUpdated) {
+        this.deltaStorageSlotsUpdated = deltaStorageSlotsUpdated;
     }
 
     @Override

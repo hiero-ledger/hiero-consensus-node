@@ -10,6 +10,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_CALL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.getHookOwnerId;
 import static com.hedera.node.app.service.contract.impl.utils.HookValidationUtils.validateHook;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
@@ -24,6 +25,7 @@ import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.contract.impl.state.hooks.HookEvmFrameStateFactory;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
@@ -89,7 +91,8 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
                     context.attributeValidator().validateKey(details.adminKeyOrThrow(), INVALID_HOOK_ADMIN_KEY);
                 }
 
-                evmHookStore.createEvmHook(op.creationOrThrow());
+                final var updatedSlots = evmHookStore.createEvmHook(op.creationOrThrow());
+                recordBuilder.setDeltaStorageSlotsUpdated(updatedSlots);
             }
             case HOOK_ID_TO_DELETE -> {
                 final var deletion = op.hookIdToDeleteOrThrow();
@@ -110,9 +113,10 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
                 final var hook = evmHookStore.getEvmHook(hookKey);
                 validateTrue(hook != null, HOOK_NOT_FOUND);
 
+                final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
                 // Build the strategy that will produce a HookEvmFrameStateFactory for this transaction
                 final EvmFrameStates evmFrameStates = (ops, nativeOps, codeFactory) ->
-                        new HookEvmFrameStateFactory(ops, nativeOps, codeFactory, hook);
+                        new HookEvmFrameStateFactory(ops, nativeOps, codeFactory, hook, tokenServiceApi);
 
                 // Create the transaction-scoped component. Use ContractCall functionality since
                 // we are just calling a contract (the hook)

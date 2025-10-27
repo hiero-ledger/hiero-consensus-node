@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.hip1195;
 import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
+import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -21,7 +22,9 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
+import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.LAZY_MEMO;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenSupplyType.FINITE;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 
@@ -247,7 +250,13 @@ public class Hip1195StreamParityTest {
                         .withPrePostHookFor("civilian", 1L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER, "civilian")
                         .via("transfer"),
-                getTxnRecord("transfer").andAllChildRecords().logged(),
+                getTxnRecord("transfer")
+                        .andAllChildRecords()
+                        .hasNonStakingChildRecordCount(5) // one auto-creation, four hook invocations pre
+                        // and post for hbar and token transfers
+                        .hasChildRecords(recordWith().status(SUCCESS).memo(LAZY_MEMO),
+                                recordWith().status(SUCCESS).memo(LAZY_MEMO))
+                        .logged(),
                 getAliasedAccountInfo("alias")
                         .has(accountWith().balance(10L))
                         .hasToken(relationshipWith("tokenA")));

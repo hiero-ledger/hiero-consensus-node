@@ -74,7 +74,7 @@ class IterableStorageManagerTest {
                 new StorageSizeChange(ContractID.newBuilder().contractNum(3L).build(), 4, 4));
 
         given(enhancement.operations()).willReturn(hederaOperations);
-        subject.persistChanges(enhancement, List.of(), sizeChanges, store);
+        subject.persistChanges(enhancement, List.of(), sizeChanges, store, enhancement.nativeOperations().writableEvmHookStore());
 
         verify(hederaOperations).updateStorageMetadata(CONTRACT_1, Bytes.EMPTY, 1);
         verify(hederaOperations).updateStorageMetadata(CONTRACT_2, Bytes.EMPTY, -1);
@@ -106,7 +106,7 @@ class IterableStorageManagerTest {
         given(store.getSlotValue(new SlotKey(CONTRACT_2, BYTES_1)))
                 .willReturn(new SlotValue(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY));
 
-        subject.persistChanges(enhancement, accesses, sizeChanges, store);
+        subject.persistChanges(enhancement, accesses, sizeChanges, store, enhancement.nativeOperations().writableEvmHookStore());
 
         // Model deleting the second contract storage
         verify(store).getSlotValue(new SlotKey(CONTRACT_2, BYTES_1));
@@ -137,7 +137,7 @@ class IterableStorageManagerTest {
         given(store.getSlotValue(new SlotKey(CONTRACT_1, BYTES_2)))
                 .willReturn(new SlotValue(BYTES_2, BYTES_1, BYTES_3));
 
-        subject.persistChanges(enhancement, accesses, sizeChanges, store);
+        subject.persistChanges(enhancement, accesses, sizeChanges, store, enhancement.nativeOperations().writableEvmHookStore());
 
         // Model deleting the first contract storage
         verify(store).putSlot(new SlotKey(CONTRACT_1, BYTES_2), new SlotValue(BYTES_2, Bytes.EMPTY, BYTES_3));
@@ -166,7 +166,7 @@ class IterableStorageManagerTest {
         // The next slot is missing (invariant failure, should be impossible)
         given(store.getSlotValue(new SlotKey(CONTRACT_1, BYTES_2))).willReturn(null);
 
-        subject.persistChanges(enhancement, accesses, sizeChanges, store);
+        subject.persistChanges(enhancement, accesses, sizeChanges, store, enhancement.nativeOperations().writableEvmHookStore());
 
         // Model deleting the first contract storage
         verify(store).removeSlot(new SlotKey(CONTRACT_1, BYTES_1));
@@ -196,7 +196,7 @@ class IterableStorageManagerTest {
         given(store.getSlotValue(new SlotKey(CONTRACT_1, BYTES_3)))
                 .willReturn(new SlotValue(BYTES_3, BYTES_2, BYTES_3));
 
-        subject.persistChanges(enhancement, accesses, sizeChanges, store);
+        subject.persistChanges(enhancement, accesses, sizeChanges, store, enhancement.nativeOperations().writableEvmHookStore());
 
         // Model deleting the second contract storage
         verify(store).putSlot(new SlotKey(CONTRACT_1, BYTES_1), new SlotValue(BYTES_1, Bytes.EMPTY, BYTES_3));
@@ -222,7 +222,7 @@ class IterableStorageManagerTest {
         given(enhancement.operations()).willReturn(hederaOperations);
         // Looking up the slot value returns null
         given(store.getSlotValue(new SlotKey(CONTRACT_1, BYTES_2))).willReturn(null);
-        subject.persistChanges(enhancement, accesses, sizeChanges, store);
+        subject.persistChanges(enhancement, accesses, sizeChanges, store, enhancement.nativeOperations().writableEvmHookStore());
 
         // The new first key is BYTES_1 as before running the test
         verify(hederaOperations).updateStorageMetadata(CONTRACT_1, BYTES_1, -1);
@@ -243,7 +243,7 @@ class IterableStorageManagerTest {
         given(enhancement.operations()).willReturn(hederaOperations);
 
         // Insert into the second slot
-        subject.persistChanges(enhancement, accesses, sizeChanges, store);
+        subject.persistChanges(enhancement, accesses, sizeChanges, store, enhancement.nativeOperations().writableEvmHookStore());
 
         // Model deleting the second contract storage
         verify(store)
@@ -270,7 +270,7 @@ class IterableStorageManagerTest {
         given(account.firstContractStorageKey()).willReturn(Bytes.EMPTY);
 
         // "Insert" zero into an empty slot
-        subject.persistChanges(enhancement, accesses, sizeChanges, store);
+        subject.persistChanges(enhancement, accesses, sizeChanges, store, enhancement.nativeOperations().writableEvmHookStore());
 
         verify(store).removeSlot(new SlotKey(CONTRACT_1, BYTES_2));
         verifyNoMoreInteractions(store);
@@ -296,7 +296,7 @@ class IterableStorageManagerTest {
                 .willReturn(new SlotValue(tuweniToPbjBytes(UInt256.ONE), Bytes.EMPTY, BYTES_1));
 
         // Should insert into the head of the existing storage list
-        subject.persistChanges(enhancement, accesses, sizeChanges, store);
+        subject.persistChanges(enhancement, accesses, sizeChanges, store, enhancement.nativeOperations().writableEvmHookStore());
 
         // The first insert (BYTES_2)
         verify(store)
@@ -339,7 +339,7 @@ class IterableStorageManagerTest {
                 .willReturn(new SlotValue(tuweniToPbjBytes(UInt256.ONE), Bytes.EMPTY, Bytes.EMPTY));
 
         // Should insert into the head of the existing storage list
-        subject.persistChanges(enhancement, accesses, sizeChanges, store);
+        subject.persistChanges(enhancement, accesses, sizeChanges, store, enhancement.nativeOperations().writableEvmHookStore());
 
         verify(store)
                 .putSlot(
@@ -372,7 +372,7 @@ class IterableStorageManagerTest {
         given(store.getSlotValue(new SlotKey(CONTRACT_1, BYTES_1))).willReturn(null);
 
         // Insert into the second slot
-        subject.persistChanges(enhancement, accesses, sizeChanges, store);
+        subject.persistChanges(enhancement, accesses, sizeChanges, store, enhancement.nativeOperations().writableEvmHookStore());
 
         // Model deleting the second contract storage
         verify(store)

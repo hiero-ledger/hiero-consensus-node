@@ -78,27 +78,4 @@ public class ReadableEvmHookStoreImpl implements ReadableEvmHookStore {
         requireNonNull(key);
         return storage.get(key);
     }
-
-    /**
-     * Returns a list of slot values for the given hook and keys.
-     * @param hookId the hook ID
-     * @param keys the keys
-     * @return a list of slots
-     * @throws HandleException if the hook
-     */
-    public EvmHookView getView(@NonNull final HookId hookId, @NonNull final List<Bytes> keys) throws HandleException {
-        requireNonNull(hookId);
-        requireNonNull(keys);
-        final var state = hookStates.get(hookId);
-        if (state == null) {
-            throw new HandleException(HOOK_NOT_FOUND);
-        }
-        final List<Slot> slots = new ArrayList<>(keys.size());
-        keys.forEach(key -> {
-            final var slotKey = new LambdaSlotKey(hookId, key);
-            final var slotValue = storage.get(slotKey);
-            slots.add(new Slot(slotKey, slotValue));
-        });
-        return new EvmHookView(state, slots);
-    }
 }

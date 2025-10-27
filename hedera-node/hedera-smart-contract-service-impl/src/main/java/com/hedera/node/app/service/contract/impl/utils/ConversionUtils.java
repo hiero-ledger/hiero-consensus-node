@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.utils;
 
 import static com.esaulpaugh.headlong.abi.Address.toChecksumAddress;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.leftPad32;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.NON_CANONICAL_REFERENCE_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
@@ -47,10 +48,12 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.HederaConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.units.bigints.UInt256;
@@ -65,13 +68,21 @@ import org.hyperledger.besu.evm.log.LogsBloomFilter;
  * Some utility methods for converting between PBJ and Besu types and the various kinds of addresses and ids.
  */
 public class ConversionUtils {
-    /** The standard length as long of an address in Ethereum.*/
+    /**
+     * The standard length as long of an address in Ethereum.
+     */
     public static final long EVM_ADDRESS_LENGTH_AS_LONG = 20L;
-    /** The standard length of an address in Ethereum.*/
+    /**
+     * The standard length of an address in Ethereum.
+     */
     public static final int EVM_ADDRESS_LENGTH_AS_INT = 20;
-    /** The count of zero bytes in a long-zero address format.*/
+    /**
+     * The count of zero bytes in a long-zero address format.
+     */
     public static final int NUM_LONG_ZEROS = 12;
-    /** Fee schedule units per tinycent.*/
+    /**
+     * Fee schedule units per tinycent.
+     */
     public static final long FEE_SCHEDULE_UNITS_PER_TINYCENT = 1000;
 
     private static final BigInteger MIN_LONG_VALUE = BigInteger.valueOf(Long.MIN_VALUE);
@@ -171,8 +182,8 @@ public class ConversionUtils {
         final var integralAddress = accountID.hasAccountNum()
                 ? asEvmAddress(accountID.accountNumOrThrow())
                 : accountID
-                        .aliasOrElse(com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY)
-                        .toByteArray();
+                .aliasOrElse(com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY)
+                .toByteArray();
         return asHeadlongAddress(integralAddress);
     }
 
@@ -316,6 +327,7 @@ public class ConversionUtils {
 
     /**
      * Given a list of {@link StorageAccesses}, converts them to a PBJ {@link ContractStateChanges}.
+     *
      * @param storageAccesses the {@link StorageAccesses}
      * @return the PBJ {@link ContractStateChanges}
      */
@@ -334,7 +346,7 @@ public class ConversionUtils {
                         access.isReadOnly()
                                 ? null
                                 : tuweniToPbjBytes(
-                                        requireNonNull(access.writtenValue()).trimLeadingZeros())));
+                                requireNonNull(access.writtenValue()).trimLeadingZeros())));
             }
             allStateChanges.add(new ContractStateChange(storageAccess.contractID(), changes));
         }
@@ -343,6 +355,7 @@ public class ConversionUtils {
 
     /**
      * Given a list of {@link StorageAccesses}, converts them to a list of PBJ {@link ContractSlotUsage}s.
+     *
      * @param storageAccesses the {@link StorageAccesses}
      * @param traceExplicitWrites whether the writes should be traced explicitly
      * @return the list of slot usages
@@ -393,6 +406,7 @@ public class ConversionUtils {
 
     /**
      * Given a Besu {@link Log}, converts it a PBJ {@link ContractLoginfo}.
+     *
      * @param entityIdFactory the entity id factory
      * @param log the Besu {@link Log}
      * @return the PBJ {@link ContractLoginfo}
@@ -430,6 +444,7 @@ public class ConversionUtils {
 
     /**
      * Returns the given Besu {@link Log} as a Hedera {@link EvmTransactionLog}.
+     *
      * @param entityIdFactory the Hedera entity id factory
      * @param log the Besu {@link Log}, using the long-zero address format for the logger's Hedera id number
      * @return the Hedera {@link EvmTransactionLog}
@@ -595,6 +610,7 @@ public class ConversionUtils {
 
     /**
      * Converts a shard, realm, number to a long zero address.
+     *
      * @param number the number to convert
      * @return the long zero address
      */
@@ -690,6 +706,7 @@ public class ConversionUtils {
 
     /**
      * Throws a {@link HandleException} if the given outcome did not succeed for a call.
+     *
      * @param outcome the outcome
      * @param hederaOperations the Hedera operations
      * @param streamBuilder the stream builder
@@ -711,6 +728,7 @@ public class ConversionUtils {
 
     /**
      * Throws a {@link HandleException} if the given outcome did not succeed for a call.
+     *
      * @param outcome the outcome
      * @param hederaOperations the Hedera operations
      */
@@ -776,7 +794,13 @@ public class ConversionUtils {
      * @throws IllegalArgumentException if the bytes are more than 32 bytes long
      */
     public static @NonNull UInt256 pbjToTuweniUInt256(@NonNull final com.hedera.pbj.runtime.io.buffer.Bytes bytes) {
-        return (bytes.length() == 0) ? UInt256.ZERO : UInt256.fromBytes(Bytes32.wrap(clampedBytes(bytes, 0, 32)));
+        if (bytes.length() == 0) {
+            return UInt256.ZERO;
+        } else if (bytes.length() == 32) {
+            return UInt256.fromBytes(Bytes32.wrap(bytes.toByteArray()));
+        } else {
+            return UInt256.fromBytes(Bytes32.wrap(leftPad32(bytes).toByteArray()));
+        }
     }
 
     /**
@@ -880,6 +904,7 @@ public class ConversionUtils {
 
     /**
      * Given a Besu {@link Log}, returns its bloom filter as a PBJ {@link com.hedera.pbj.runtime.io.buffer.Bytes}.
+     *
      * @param log the Besu {@link Log}
      * @return the PBJ {@link com.hedera.pbj.runtime.io.buffer.Bytes} bloom filter
      */
@@ -893,7 +918,7 @@ public class ConversionUtils {
         return isLongZero(address)
                 ? address
                 : asLongZeroAddress(
-                        proxyUpdaterFor(frame).getHederaContractId(address).contractNumOrThrow());
+                proxyUpdaterFor(frame).getHederaContractId(address).contractNumOrThrow());
     }
 
     private static long maybeMissingNumberOf(
@@ -1074,6 +1099,7 @@ public class ConversionUtils {
     /**
      * Returns a tuple of the {@code KeyValue} struct
      * <br><a href="https://github.com/hashgraph/hedera-smart-contracts/blob/main/contracts/hts-precompile/IHederaTokenService.sol#L92">Link</a>
+     *
      * @param key the key to get the tuple for
      * @return Tuple encoding of the KeyValue
      */
@@ -1093,7 +1119,7 @@ public class ConversionUtils {
      * @return remove the leading 0x from an Ethereum content
      */
     public static byte[] removeIfAnyLeading0x(com.hedera.pbj.runtime.io.buffer.Bytes contents) {
-        final var hexPrefix = new byte[] {(byte) '0', (byte) 'x'};
+        final var hexPrefix = new byte[]{(byte) '0', (byte) 'x'};
         final var offset = contents.matchesPrefix(hexPrefix) ? hexPrefix.length : 0L;
         final var len = contents.length() - offset;
         return contents.getBytes(offset, len).toByteArray();
@@ -1132,6 +1158,7 @@ public class ConversionUtils {
      * </ol>
      * If no context is available, returns null. Otherwise returns a {@link TxStorageUsage} with at least the read
      * usage; and, if the updater is available and {@code checkForWrites} is true, also the write usage.
+     *
      * @param updater the proxy world updater to extract write accesses from
      * @param accessTracker the access tracker to extract reads from
      * @param checkForWrites whether to check if the updater has writes to include

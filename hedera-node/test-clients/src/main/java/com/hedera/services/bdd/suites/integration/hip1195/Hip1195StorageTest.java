@@ -9,11 +9,14 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountLambdaSStore;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.encodeParametersForConstructor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
+import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewContract;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.GLOBAL_WATCHER;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.expectContractStateChangesSidecarFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
@@ -21,9 +24,11 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.traceability.EncodingUtils.formattedAssertionValue;
 import static com.hedera.services.bdd.suites.integration.hip1195.Hip1195EnabledTest.HOOK_CONTRACT_NUM;
+import static com.hedera.services.bdd.suites.token.TokenTransactSpecs.MULTIPURPOSE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -76,7 +81,7 @@ public class Hip1195StorageTest {
 
 
     @Contract(contract = "StorageLinkedListHook", creationGas = 5_000_000)
-    static SpecContract STORAGE_LINKED_LIST_HOOK;
+    static SpecContract STORAGE_MODIFICATIONS_HOOK;
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -84,7 +89,7 @@ public class Hip1195StorageTest {
         testLifecycle.doAdhoc(STORAGE_GET_SLOT_HOOK.getInfo());
         testLifecycle.doAdhoc(STORAGE_GET_MAPPING_HOOK.getInfo());
         testLifecycle.doAdhoc(STORAGE_SET_SLOT_HOOK.getInfo());
-        testLifecycle.doAdhoc(STORAGE_LINKED_LIST_HOOK.getInfo());
+        testLifecycle.doAdhoc(STORAGE_MODIFICATIONS_HOOK.getInfo());
         testLifecycle.doAdhoc(withOpContext(
                 (spec, opLog) -> GLOBAL_WATCHER.set(new SidecarWatcher(spec.recordStreamsLoc(byNodeId(0))))));
     }
@@ -338,7 +343,7 @@ public class Hip1195StorageTest {
     final Stream<DynamicTest> hookZeroWriteIntoEmptySlotDoesNotChangeCount() {
         final var opcode = ByteString.copyFrom(new byte[] {0x01});
         return hapiTest(
-                cryptoCreate("ownerZero").withHooks(accountAllowanceHook(246L, STORAGE_LINKED_LIST_HOOK.name())),
+                cryptoCreate("ownerZero").withHooks(accountAllowanceHook(246L, STORAGE_MODIFICATIONS_HOOK.name())),
                 viewAccount("ownerZero", (Account a) -> assertEquals(0, a.numberLambdaStorageSlots())),
                 cryptoTransfer(TokenMovement.movingHbar(10).between("ownerZero", GENESIS))
                         .withPreHookFor("ownerZero", 246L, 250_000L, opcode)
@@ -351,7 +356,7 @@ public class Hip1195StorageTest {
         final var opAdd = ByteString.copyFrom(new byte[] {0x02});
         final var opRemoveAll = ByteString.copyFrom(new byte[] {0x03});
         return hapiTest(
-                cryptoCreate("ownerRemove").withHooks(accountAllowanceHook(247L, STORAGE_LINKED_LIST_HOOK.name())),
+                cryptoCreate("ownerRemove").withHooks(accountAllowanceHook(247L, STORAGE_MODIFICATIONS_HOOK.name())),
                 // Populate three slots
                 cryptoTransfer(TokenMovement.movingHbar(10).between("ownerRemove", GENESIS))
                         .withPreHookFor("ownerRemove", 247L, 250_000L, opAdd)
@@ -365,10 +370,32 @@ public class Hip1195StorageTest {
     }
 
     @HapiTest
+    final Stream<DynamicTest> hookRemoveAllExistingSlotsInOneTransactionContract() {
+        final var opAdd = ByteString.copyFrom(new byte[] {0x02});
+        final var opRemoveAll = ByteString.copyFrom(new byte[] {0x03});
+        return hapiTest(
+                uploadInitCode(MULTIPURPOSE),
+                contractCreate(MULTIPURPOSE)
+                        .balance(ONE_HUNDRED_HBARS)
+                        .withHooks(accountAllowanceHook(247L, STORAGE_MODIFICATIONS_HOOK.name())),
+                viewContract(MULTIPURPOSE, (Account a) -> assertEquals(0, a.numberLambdaStorageSlots())),
+                // Populate three slots
+                cryptoTransfer(TokenMovement.movingHbar(10).between(MULTIPURPOSE, GENESIS))
+                        .withPreHookFor(MULTIPURPOSE, 247L, 250_000L, opAdd)
+                        .signedBy(DEFAULT_PAYER),
+                viewContract(MULTIPURPOSE, (Account a) -> assertEquals(3, a.numberLambdaStorageSlots())),
+                // Remove all slots in one transaction
+                cryptoTransfer(TokenMovement.movingHbar(10).between(MULTIPURPOSE, GENESIS))
+                        .withPreHookFor(MULTIPURPOSE, 247L, 250_000L, opRemoveAll)
+                        .signedBy(DEFAULT_PAYER),
+                viewContract(MULTIPURPOSE, (Account a) -> assertEquals(0, a.numberLambdaStorageSlots())));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> hookAddAndRemoveAllInSingleTransaction() {
         final var opAddRemove = ByteString.copyFrom(new byte[] {0x04});
         return hapiTest(
-                cryptoCreate("ownerAddRem").withHooks(accountAllowanceHook(248L, STORAGE_LINKED_LIST_HOOK.name())),
+                cryptoCreate("ownerAddRem").withHooks(accountAllowanceHook(248L, STORAGE_MODIFICATIONS_HOOK.name())),
                 viewAccount("ownerAddRem", (Account a) -> assertEquals(0, a.numberLambdaStorageSlots())),
                 // Add and remove all in one transaction
                 cryptoTransfer(TokenMovement.movingHbar(10).between("ownerAddRem", GENESIS))
