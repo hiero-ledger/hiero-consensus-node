@@ -220,10 +220,20 @@ final class NodePropertiesTest {
 
             // Now change the network version
             network.nodeWeight(300L);
+            network.version(SemanticVersion.newBuilder().major(2).minor(1).build());
+            network.withConfigValue("testKey1", "testValue1");
+            network.withConfigValue("testKey2", 42);
+            network.withConfigValue("testKey3", true);
 
             // Verify all nodes are updated with the new weight
             for (final Node node : nodes) {
                 assertThat(node.weight()).isEqualTo(300L);
+                assertThat(node.version())
+                        .isEqualTo(
+                                SemanticVersion.newBuilder().major(2).minor(1).build());
+                assertThat(node.configuration().current().getValue("testKey1")).isEqualTo("testValue1");
+                assertThat(node.configuration().current().getValue("testKey2")).isEqualTo("42");
+                assertThat(node.configuration().current().getValue("testKey3")).isEqualTo("true");
             }
 
         } finally {

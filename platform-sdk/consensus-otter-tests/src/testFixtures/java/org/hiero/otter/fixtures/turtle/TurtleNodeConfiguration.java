@@ -48,7 +48,7 @@ public class TurtleNodeConfiguration extends AbstractNodeConfiguration {
         }
     }
 
-    public void setOutputDirectory(@NonNull final Path outputDirectory) {
+    private void setOutputDirectory(@NonNull final Path outputDirectory) {
         overriddenProperties.put(
                 EventConfig_.EVENTS_LOG_DIR, outputDirectory.resolve("hgcapp").toString());
         overriddenProperties.put(

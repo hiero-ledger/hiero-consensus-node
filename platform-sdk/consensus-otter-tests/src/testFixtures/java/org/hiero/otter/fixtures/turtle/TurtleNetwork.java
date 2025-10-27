@@ -36,7 +36,6 @@ import org.hiero.otter.fixtures.network.Topology.ConnectionData;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * An implementation of {@link Network} that is based on the Turtle framework.
@@ -101,7 +100,8 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     }
 
     @Override
-    protected @NotNull NodeProperties nodeProperties() {
+    @NonNull
+    protected NodeProperties nodeProperties() {
         return nodeProperties;
     }
 
