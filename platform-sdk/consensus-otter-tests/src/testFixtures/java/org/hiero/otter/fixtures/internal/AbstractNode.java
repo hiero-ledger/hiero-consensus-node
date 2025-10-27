@@ -58,7 +58,7 @@ public abstract class AbstractNode implements Node {
     private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(1);
 
     protected final NodeId selfId;
-    protected final KeysAndCerts keysAndCerts;
+    protected KeysAndCerts keysAndCerts;
 
     private Roster roster;
     private long weight = UNSET_WEIGHT;
@@ -200,6 +200,12 @@ public abstract class AbstractNode implements Node {
             throw new IllegalArgumentException("Weight must be non-negative");
         }
         this.weight = weight;
+    }
+
+    @Override
+    public void keysAndCerts(@NonNull final KeysAndCerts keysAndCerts) {
+        throwIsNotInLifecycle(LifeCycle.INIT, "KeysAndCerts can only be set during initialization");
+        this.keysAndCerts = requireNonNull(keysAndCerts);
     }
 
     /**

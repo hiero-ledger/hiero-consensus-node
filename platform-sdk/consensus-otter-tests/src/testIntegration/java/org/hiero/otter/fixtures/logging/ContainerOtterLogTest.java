@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.container.logging;
+package org.hiero.otter.fixtures.logging;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
@@ -22,12 +22,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * Comprehensive integration tests for otter.log content in the Container environment.
- *
- * <p>These tests verify that:
- * <ul>
- *     <li>Only INFO level and above messages are logged</li>
- *     <li></li>
- * </ul>
  *
  * <p>Note: Per-node log routing is guaranteed by container isolation, so no explicit routing test is needed.
  */

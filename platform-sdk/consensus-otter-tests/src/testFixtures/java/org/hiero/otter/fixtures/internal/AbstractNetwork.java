@@ -131,6 +131,8 @@ public abstract class AbstractNetwork implements Network {
 
     protected WeightGenerator weightGenerator = WeightGenerators.REAL_NETWORK_GAUSSIAN;
 
+    protected Roster roster;
+
     @Nullable
     private PartitionImpl remainingNetworkPartition;
 
@@ -199,6 +201,14 @@ public abstract class AbstractNetwork implements Network {
         }
         nodeProperties().weight(weight);
         nodes().forEach(n -> n.weight(weight));
+    }
+
+    @Override
+    public @NotNull Roster roster() {
+        if (lifecycle == Lifecycle.INIT) {
+            throw new IllegalStateException("The roster is not available before the network is started.");
+        }
+        return roster;
     }
 
     /**
@@ -289,7 +299,7 @@ public abstract class AbstractNetwork implements Network {
         throwIfInLifecycle(Lifecycle.RUNNING, "Network is already running.");
         log.info("Starting network...");
 
-        final Roster roster = createRoster();
+        roster = createRoster();
         preStartHook(roster);
 
         lifecycle = Lifecycle.RUNNING;
