@@ -22,9 +22,8 @@ import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.metrics.RoundHandlingMetrics;
-import com.swirlds.platform.metrics.StateMetrics;
+import com.swirlds.platform.metrics.TransactionMetrics;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.DefaultFreezePeriodChecker;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
@@ -125,9 +124,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
     /**
      * Stats relevant to the state operations.
      */
-    private final StateMetrics stats;
-
-    private final DefaultFreezePeriodChecker freezePeriodChecker;
+    private final TransactionMetrics transactionMetrics;
 
     /**
      * Constructor
@@ -153,14 +150,13 @@ public class DefaultTransactionHandler implements TransactionHandler {
         this.softwareVersion = requireNonNull(softwareVersion);
         this.consensusStateEventHandler = requireNonNull(consensusStateEventHandler);
         this.selfId = requireNonNull(selfId);
-        this.freezePeriodChecker = new DefaultFreezePeriodChecker(swirldStateManager, platformStateFacade);
 
         this.roundsNonAncient = platformContext
                 .getConfiguration()
                 .getConfigData(ConsensusConfig.class)
                 .roundsNonAncient();
         this.handlerMetrics = new RoundHandlingMetrics(platformContext);
-        this.stats = new StateMetrics(platformContext.getMetrics());
+        this.transactionMetrics = new TransactionMetrics(platformContext.getMetrics());
 
         previousRoundLegacyRunningEventHash = Cryptography.NULL_HASH;
         this.platformStateFacade = platformStateFacade;
@@ -208,7 +204,10 @@ public class DefaultTransactionHandler implements TransactionHandler {
             return null;
         }
 
-        if (freezePeriodChecker.isInFreezePeriod(consensusRound.getConsensusTimestamp())) {
+        if (PlatformStateFacade.isInFreezePeriod(
+                consensusRound.getConsensusTimestamp(),
+                platformStateFacade.freezeTimeOf(swirldStateManager.getConsensusState()),
+                platformStateFacade.lastFrozenTimeOf(swirldStateManager.getConsensusState()))) {
             statusActionSubmitter.submitStatusAction(new FreezePeriodEnteredAction(consensusRound.getRoundNum()));
             freezeRoundReceived = true;
             logger.info(
@@ -275,12 +274,12 @@ public class DefaultTransactionHandler implements TransactionHandler {
 
             // Avoid dividing by zero
             if (round.getNumAppTransactions() == 0) {
-                stats.consensusTransHandleTime(secondsElapsed);
+                transactionMetrics.consensusTransHandleTime(secondsElapsed);
             } else {
-                stats.consensusTransHandleTime(secondsElapsed / round.getNumAppTransactions());
+                transactionMetrics.consensusTransHandleTime(secondsElapsed / round.getNumAppTransactions());
             }
-            stats.consensusTransHandled(round.getNumAppTransactions());
-            stats.consensusToHandleTime(
+            transactionMetrics.consensusTransHandled(round.getNumAppTransactions());
+            transactionMetrics.consensusToHandleTime(
                     round.getReachedConsTimestamp().until(timeOfHandle, ChronoUnit.NANOS) * NANOSECONDS_TO_SECONDS);
         } catch (final Throwable t) {
             logger.error(
@@ -354,7 +353,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
             throws InterruptedException {
         if (freezeRoundReceived) {
             // Let the freeze period checker know we are about to write the saved state for the freeze period
-            freezePeriodChecker.savedStateInFreezePeriod();
+            platformStateFacade.updateLastFrozenTime(swirldStateManager.getConsensusState());
         }
         final MerkleNodeState state = swirldStateManager.getConsensusState();
         final boolean isBoundary = consensusStateEventHandler.onSealConsensusRound(consensusRound, state);

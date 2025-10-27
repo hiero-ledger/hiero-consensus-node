@@ -6,6 +6,7 @@ import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static com.swirlds.platform.StateInitializer.initializeState;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.state.address.RosterMetrics.registerRosterMetrics;
+import static com.swirlds.platform.state.service.PlatformStateFacade.isInFreezePeriod;
 import static org.hiero.base.CompareTo.isLessThan;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -35,7 +36,6 @@ import com.swirlds.platform.metrics.RuntimeMetrics;
 import com.swirlds.platform.publisher.DefaultPlatformPublisher;
 import com.swirlds.platform.publisher.PlatformPublisher;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.DefaultFreezePeriodChecker;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.nexus.DefaultLatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
@@ -212,12 +212,14 @@ public class SwirldsPlatform implements Platform {
         // This object makes a copy of the state. After this point, initialState becomes immutable.
         final SwirldStateManager swirldStateManager = blocks.swirldStateManager();
         swirldStateManager.setState(initialState.getState(), true);
-        final DefaultFreezePeriodChecker periodChecker =
-                new DefaultFreezePeriodChecker(swirldStateManager, platformStateFacade);
 
         final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
 
-        blocks.freezeCheckHolder().setFreezeCheckRef(periodChecker::isInFreezePeriod);
+        blocks.freezeCheckHolder()
+                .setFreezeCheckRef(instant -> isInFreezePeriod(
+                        instant,
+                        platformStateFacade.freezeTimeOf(swirldStateManager.getConsensusState()),
+                        platformStateFacade.lastFrozenTimeOf(swirldStateManager.getConsensusState())));
 
         final AppNotifier appNotifier = new DefaultAppNotifier(blocks.notificationEngine());
 
