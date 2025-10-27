@@ -22,7 +22,7 @@ import java.time.Duration;
  */
 @ConfigData("blockStream")
 public record BlockStreamConfig(
-        @ConfigProperty(defaultValue = "BOTH") @NetworkProperty StreamMode streamMode,
+        @ConfigProperty(defaultValue = "RECORDS") @NetworkProperty StreamMode streamMode,
         @ConfigProperty(defaultValue = "FILE_AND_GRPC") @NodeProperty BlockStreamWriterMode writerMode,
         @ConfigProperty(defaultValue = "/opt/hgcapp/blockStreams") @NodeProperty String blockFileDir,
         @ConfigProperty(defaultValue = "32") @NetworkProperty int hashCombineBatchSize,
