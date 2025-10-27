@@ -1097,18 +1097,15 @@ public class BlockNodeConnectionManager {
     }
 
     /**
-     * Gets the map of block node connections.
-     * @return the map of block node connections
+     * Notifies the connection manager that a connection has been closed.
+     * This allows the manager to update its internal state accordingly.
+     * @param connection the connection that has been closed
      */
-    public Map<BlockNodeConfig, BlockNodeConnection> getConnections() {
-        return connections;
-    }
+    public void notifyConnectionClosed(final BlockNodeConnection connection) {
+        // Remove from active connection if it is the current active
+        activeConnectionRef.compareAndSet(connection, null);
 
-    /**
-     * Gets the atomic reference to the active block node connection.
-     * @return the atomic reference to the active block node connection
-     */
-    public AtomicReference<BlockNodeConnection> getActiveConnectionRef() {
-        return activeConnectionRef;
+        // Remove from connections map
+        connections.remove(connection.getNodeConfig());
     }
 }

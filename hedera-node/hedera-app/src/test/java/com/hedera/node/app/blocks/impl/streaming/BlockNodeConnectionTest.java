@@ -131,10 +131,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final AtomicReference<Thread> workerThreadRef = workerThreadRef();
         workerThreadRef.set(FAKE_WORKER_THREAD);
 
-        //        resetMocks();
-
         lenient().doReturn(requestPipeline).when(grpcServiceClient).publishBlockStream(connection);
-        lenient().when(connectionManager.getActiveConnectionRef()).thenReturn(new AtomicReference<>());
     }
 
     @AfterEach
@@ -1647,7 +1644,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
                         eq(TimeUnit.MILLISECONDS));
 
         reset(connectionManager, bufferService);
-        when(connectionManager.getActiveConnectionRef()).thenReturn(new AtomicReference<>());
 
         // Execute the periodic reset
         final Runnable periodicReset = runnableCaptor.getValue();
@@ -1698,7 +1694,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         connection.createRequestPipeline();
         // reset the mocks interactions to remove tracked interactions as a result of starting the connection
         resetMocks();
-        lenient().when(connectionManager.getActiveConnectionRef()).thenReturn(new AtomicReference<>());
     }
 
     private void resetMocks() {
