@@ -97,7 +97,6 @@ public class QuiescedHeartbeat {
      */
     public void stop() {
         if (heartbeatFuture != null) {
-            log.info("Stopping quiesced heartbeat");
             heartbeatFuture.cancel(false);
             heartbeatFuture = null;
         }
@@ -107,6 +106,7 @@ public class QuiescedHeartbeat {
      * Shuts down the scheduler. This should be called when the heartbeat is no longer needed.
      */
     public void shutdown() {
+        log.info("Shutting down quiescence heartbeat");
         stop();
         scheduler.shutdown();
     }

@@ -15,8 +15,12 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.hapi.platform.state.PlatformState;
+import com.hedera.node.app.quiescence.CurrentBlockTracker;
+import com.hedera.node.app.quiescence.QuiescedHeartbeat;
+import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
+import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
@@ -52,6 +56,18 @@ class BlockOpeningTest {
 
     @Mock
     private BlockRecordStreamProducer streamFileProducer;
+
+    @Mock
+    private CurrentBlockTracker currentBlockTracker;
+
+    @Mock
+    private QuiescenceController quiescenceController;
+
+    @Mock
+    private QuiescedHeartbeat quiescedHeartbeat;
+
+    @Mock
+    private Platform platform;
 
     private BlockRecordManagerImpl subject;
 
@@ -101,6 +117,13 @@ class BlockOpeningTest {
                 .willReturn(runningHashesState);
         given(runningHashesState.get()).willReturn(RunningHashes.DEFAULT);
 
-        subject = new BlockRecordManagerImpl(configProvider, state, streamFileProducer);
+        subject = new BlockRecordManagerImpl(
+                configProvider,
+                state,
+                streamFileProducer,
+                currentBlockTracker,
+                quiescenceController,
+                quiescedHeartbeat,
+                platform);
     }
 }

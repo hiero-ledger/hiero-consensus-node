@@ -5,7 +5,6 @@ import static org.hiero.consensus.model.quiescence.QuiescenceCommand.BREAK_QUIES
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.DONT_QUIESCE;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -315,8 +314,8 @@ class QuiescedHeartbeatTest {
         final var runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
         verify(scheduler).scheduleAtFixedRate(runnableCaptor.capture(), anyLong(), anyLong(), any(TimeUnit.class));
 
-        // Then - should throw the exception
-        assertThrows(RuntimeException.class, () -> runnableCaptor.getValue().run());
+        // Don't propagate the exception to the scheduler
+        assertDoesNotThrow(() -> runnableCaptor.getValue().run());
 
         // Verify that quiescence was ended and heartbeat stopped
         verify(platform).quiescenceCommand(DONT_QUIESCE);
@@ -342,8 +341,8 @@ class QuiescedHeartbeatTest {
         final var runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
         verify(scheduler).scheduleAtFixedRate(runnableCaptor.capture(), anyLong(), anyLong(), any(TimeUnit.class));
 
-        // Then - should throw the exception
-        assertThrows(RuntimeException.class, () -> runnableCaptor.getValue().run());
+        // Don't propagate the exception to the scheduler
+        assertDoesNotThrow(() -> runnableCaptor.getValue().run());
 
         // Verify that quiescence was ended and heartbeat stopped
         verify(platform).quiescenceCommand(DONT_QUIESCE);
@@ -368,8 +367,8 @@ class QuiescedHeartbeatTest {
         final var runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
         verify(scheduler).scheduleAtFixedRate(runnableCaptor.capture(), anyLong(), anyLong(), any(TimeUnit.class));
 
-        // Then - should throw the exception
-        assertThrows(RuntimeException.class, () -> runnableCaptor.getValue().run());
+        // Don't propagate the exception to the scheduler
+        assertDoesNotThrow(() -> runnableCaptor.getValue().run());
 
         // Verify that quiescence was ended and heartbeat stopped
         verify(platform).quiescenceCommand(DONT_QUIESCE);
@@ -394,8 +393,8 @@ class QuiescedHeartbeatTest {
         final var runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
         verify(scheduler).scheduleAtFixedRate(runnableCaptor.capture(), anyLong(), anyLong(), any(TimeUnit.class));
 
-        // Then - should throw the exception
-        assertThrows(RuntimeException.class, () -> runnableCaptor.getValue().run());
+        // Don't propagate the exception to the scheduler
+        assertDoesNotThrow(() -> runnableCaptor.getValue().run());
 
         // Verify that platform.quiescenceCommand was called twice (once in try, once in catch)
         // and heartbeat was stopped
