@@ -22,11 +22,11 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 
 /**
- * The {@link BlockStreamManagerImpl} creates and starts a new heartbeat when the {@link QuiescenceController} first
- * reports a status of {@link QuiescenceCommand#QUIESCE}. Each heartbeat, invokes the {@link TctProbe#findTct()}
- * to find the earliest target consensus timestamp (TCT) that marks where quiescence should end, no matter if user
- * transactions remain dormant. When a non-null TCT is found, sets it on the controller via
- * {@link QuiescenceController#setNextTargetConsensusTime(Instant)}
+ * The {@link BlockStreamManagerImpl} (re)starts the heartbeat when the {@link QuiescenceController} first reports a
+ * status of {@link QuiescenceCommand#QUIESCE}. Each heartbeat, invokes the {@link TctProbe#findTct()} to find the
+ * earliest target consensus timestamp (TCT) that marks where quiescence should end, no matter if user transactions
+ * remain dormant. When a non-null TCT is found, sets it on the controller via
+ * {@link QuiescenceController#setNextTargetConsensusTime(Instant)}.
  * <p>
  * The heartbeat is stopped when the {@link QuiescenceController} reports any status other than
  * {@link QuiescenceCommand#QUIESCE} inside the heartbeat.
@@ -79,7 +79,16 @@ public class QuiescedHeartbeat {
 
         // Schedule the heartbeat task
         heartbeatFuture = scheduler.scheduleAtFixedRate(
-                () -> heartbeat(probe), 0, heartbeatInterval.toMillis(), TimeUnit.MILLISECONDS);
+                () -> {
+                    try {
+                        heartbeat(probe);
+                    } catch (Exception e) {
+                        log.warn("Unhandled exception in quiesced heartbeat", e);
+                    }
+                },
+                0,
+                heartbeatInterval.toMillis(),
+                TimeUnit.MILLISECONDS);
         log.info("Started quiesced heartbeat at interval {}", heartbeatInterval);
     }
 

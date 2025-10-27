@@ -9,15 +9,21 @@ import static com.hedera.node.app.service.token.api.StakingRewardsApi.stakePerio
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
+import com.hedera.hapi.util.HapiUtils;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
+import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
+import com.hedera.node.app.service.networkadmin.impl.ReadableFreezeStoreImpl;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.schedule.impl.ReadableScheduleStoreImpl;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
 
 /**
  * A stateful probe that explores a {@link State} to find the earliest target consensus timestamp (TCT) that marks
@@ -27,6 +33,7 @@ import java.time.Instant;
  * <ol>
  *   <li>When the probe was given a non-negative staking period, the start of the next stake period after `T` is a TCT.</li>
  *   <li>Every second after `T` with a transaction scheduled to execute there is a TCT.</li>
+ *   <li>When the state has a freeze time set, the freeze time is a TCT.</li>
  * </ol>
  */
 public class TctProbe {
@@ -36,6 +43,9 @@ public class TctProbe {
 
     @Nullable
     private Instant nearestTct;
+
+    @Nullable
+    private Instant nextFreezeTime;
 
     @Nullable
     private Instant nextScheduledSecond;
@@ -59,10 +69,20 @@ public class TctProbe {
      * @return the earliest TCT or {@code null} if there is no TCT discovered yet
      */
     public @Nullable Instant findTct() {
-        if (stakePeriodMins > 0 && nextStakePeriodStart == null) {
-            final long currentStakePeriod = stakePeriodAt(lastHandledConsensusTime(), stakePeriodMins);
-            nextStakePeriodStart =
-                    Instant.ofEpochSecond(epochSecondAtStartOfPeriod(currentStakePeriod + 1, stakePeriodMins));
+        if (nextFreezeTime == null) {
+            nextFreezeTime = Optional.ofNullable(
+                            new ReadableFreezeStoreImpl(state.getReadableStates(FreezeServiceImpl.NAME)).freezeTime())
+                    .map(HapiUtils::asInstant)
+                    .orElse(Instant.EPOCH);
+        }
+        if (stakePeriodMins > 0) {
+            if (nextStakePeriodStart == null) {
+                final long currentStakePeriod = stakePeriodAt(lastHandledConsensusTime(), stakePeriodMins);
+                nextStakePeriodStart =
+                        Instant.ofEpochSecond(epochSecondAtStartOfPeriod(currentStakePeriod + 1, stakePeriodMins));
+            }
+        } else {
+            nextStakePeriodStart = Instant.EPOCH;
         }
         if (nextScheduledSecond == null || nextScheduledSecondCouldBeNewNearestTct()) {
             if (nextScheduledSecond == null) {
@@ -81,7 +101,9 @@ public class TctProbe {
             }
         }
         if (nearestTct == null) {
-            nearestTct = nextStakePeriodStart;
+            requireNonNull(nextFreezeTime);
+            requireNonNull(nextStakePeriodStart);
+            nearestTct = Collections.min(List.of(nextStakePeriodStart, nextFreezeTime));
         }
         return nearestTct;
     }
@@ -105,9 +127,9 @@ public class TctProbe {
     }
 
     private boolean nextScheduledSecondCouldBeNewNearestTct() {
-        if (nearestTct == null) {
+        if (nearestTct == null || nearestTct.equals(Instant.EPOCH)) {
             return true;
         }
-        return nearestTct.equals(nextStakePeriodStart);
+        return nearestTct.equals(nextStakePeriodStart) || nearestTct.equals(nextFreezeTime);
     }
 }

@@ -30,11 +30,11 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 /**
- * This test is to verify restart functionality. It submits a burst of mixed operations, then
- * freezes all nodes, shuts them down, restarts them, and submits the same burst of mixed operations
- * again.
+ * First verifies that the network can quiesce and break quiescence.
  * <p>
- * If quiescence is enabled, it also verifies that the network can quiesce and break quiescence.
+ * Then submits a burst of mixed operations, freezes all nodes, shuts them down, restarts them, and submits the same
+ * burst of mixed operations again.
+ * <p>
  */
 @Tag(RESTART)
 public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
