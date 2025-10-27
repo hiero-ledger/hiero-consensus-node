@@ -101,7 +101,7 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
     @BeforeEach
     public void setUp() {
         super.setUp();
-        subject = new CryptoTransferHandler(validator, hookCallFactory, entityIdFactory);
+        subject = new CryptoTransferHandler(validator, hookCallsFactory, entityIdFactory);
         lenient().when(handleContext.savepointStack()).thenReturn(stack);
         lenient().when(stack.getBaseBuilder(StreamBuilder.class)).thenReturn(transferRecordBuilder);
         lenient().when(transferRecordBuilder.category()).thenReturn(HandleContext.TransactionCategory.USER);
@@ -442,7 +442,7 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
     void failsWhenAutoAssociatedTokenHasKycKey() {
         Assertions.setMaxStackTraceElementsDisplayed(200);
 
-        subject = new CryptoTransferHandler(validator, false, hookCallFactory, entityIdFactory);
+        subject = new CryptoTransferHandler(validator, false, hookCallsFactory, entityIdFactory);
         refreshWritableStores();
         givenStoresAndConfig(handleContext);
         given(handleContext.expiryValidator()).willReturn(expiryValidator);
@@ -477,7 +477,7 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
 
     @Test
     void happyPathWorksWithAutoCreation() {
-        subject = new CryptoTransferHandler(validator, false, hookCallFactory, entityIdFactory);
+        subject = new CryptoTransferHandler(validator, false, hookCallsFactory, entityIdFactory);
         refreshWritableStores();
         writableTokenStore.put(nonFungibleToken.copyBuilder().kycKey((Key) null).build());
         writableTokenStore.put(fungibleToken.copyBuilder().kycKey((Key) null).build());
