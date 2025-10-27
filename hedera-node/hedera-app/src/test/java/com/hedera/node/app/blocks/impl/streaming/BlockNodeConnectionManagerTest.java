@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -38,9 +39,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.WatchService;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -70,9 +73,12 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private static final VarHandle retryStatesHandle;
     private static final VarHandle sharedExecutorServiceHandle;
     private static final VarHandle blockNodeConfigDirectoryHandle;
+    private static final VarHandle configWatchServiceHandle;
+    private static final VarHandle configWatcherThreadRef;
     private static final MethodHandle closeAllConnectionsHandle;
     private static final MethodHandle refreshAvailableBlockNodesHandle;
     private static final MethodHandle extractBlockNodesConfigurationsHandle;
+    private static final MethodHandle scheduleConnectionAttemptHandle;
 
     public static final String PBJ_UNIT_TEST_HOST = "pbj-unit-test-host";
 
@@ -98,6 +104,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                             BlockNodeConnectionManager.class, "sharedExecutorService", ScheduledExecutorService.class);
             blockNodeConfigDirectoryHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
                     .findVarHandle(BlockNodeConnectionManager.class, "blockNodeConfigDirectory", Path.class);
+            configWatchServiceHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
+                    .findVarHandle(BlockNodeConnectionManager.class, "configWatchServiceRef", AtomicReference.class);
+            configWatcherThreadRef = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
+                    .findVarHandle(BlockNodeConnectionManager.class, "configWatcherThreadRef", AtomicReference.class);
 
             final Method closeAllConnections =
                     BlockNodeConnectionManager.class.getDeclaredMethod("closeAllConnections");
@@ -113,6 +123,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                     BlockNodeConnectionManager.class.getDeclaredMethod("extractBlockNodesConfigurations", String.class);
             extractBlockNodesConfigurations.setAccessible(true);
             extractBlockNodesConfigurationsHandle = lookup.unreflect(extractBlockNodesConfigurations);
+
+            final Method scheduleConnectionAttempt = BlockNodeConnectionManager.class.getDeclaredMethod(
+                    "scheduleConnectionAttempt", BlockNodeConfig.class, Duration.class, Long.class, boolean.class);
+            scheduleConnectionAttempt.setAccessible(true);
+            scheduleConnectionAttemptHandle = lookup.unreflect(scheduleConnectionAttempt);
         } catch (final Exception e) {
             throw new RuntimeException(e);
         }
@@ -249,6 +264,23 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verifyNoInteractions(bufferService);
         verifyNoInteractions(metrics);
         verifyNoMoreInteractions(connection);
+    }
+
+    @Test
+    void testScheduleConnectionAttempt_streamingDisabledReturnsEarly() {
+        final BlockNodeConfig nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
+        useStreamingDisabledManager();
+        try {
+            scheduleConnectionAttemptHandle.invoke(connectionManager, nodeConfig, Duration.ZERO, null, false);
+        } catch (final Throwable ignored) {
+        }
+
+        // Ensure nothing was scheduled or stored due to early return
+        verifyNoInteractions(executorService);
+        assertThat(connections()).doesNotContainKey(nodeConfig);
+
+        verifyNoInteractions(bufferService);
+        verifyNoInteractions(metrics);
     }
 
     @Test
@@ -1341,7 +1373,53 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testStartConfigWatcher_alreadyRunning() throws Exception {
+        connectionManager.start(); // This starts the config watcher
+
+        // Call startConfigWatcher again via reflection to trigger the "already running" check
+        final var method = BlockNodeConnectionManager.class.getDeclaredMethod("startConfigWatcher");
+        method.setAccessible(true);
+        method.invoke(connectionManager);
+
+        // Verify the manager is still active
+        assertThat(isActiveFlag().get()).isTrue();
+    }
+
+    @Test
+    void testRescheduleConnection_withNullDelay() {
+        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
+        final BlockNodeConfig nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
+        doReturn(nodeConfig).when(connection).getNodeConfig();
+
+        final List<BlockNodeConfig> availableNodes = availableNodes();
+        availableNodes.clear();
+        availableNodes.add(nodeConfig);
+
+        // Call rescheduleConnection with null delay to trigger the calculateJitteredDelayMs path
+        connectionManager.rescheduleConnection(connection, null, null, true);
+
+        // Verify the retry state was created and connection was scheduled
+        final Map<BlockNodeConfig, RetryState> retryStates = retryStates();
+        assertThat(retryStates).containsKey(nodeConfig);
+    }
+
+    @Test
+    void testRecordActiveConnectionIp() throws Exception {
+        final var method =
+                BlockNodeConnectionManager.class.getDeclaredMethod("recordActiveConnectionIp", BlockNodeConfig.class);
+        method.setAccessible(true);
+
+        final BlockNodeConfig config = newBlockNodeConfig("localhost", 8080, 1);
+
+        method.invoke(connectionManager, config);
+
+        verify(metrics).recordActiveConnectionIp(anyLong());
+    }
+
+    @Test
     void testStartConfigWatcher_reactsToCreateModifyDelete() throws Exception {
+        // Ensure the watcher monitors the temp directory used by this test
+        blockNodeConfigDirectoryHandle.set(connectionManager, tempDir);
         connectionManager.start();
         final Path file = tempDir.resolve("block-nodes.json");
         final List<BlockNodeConfig> configs = new ArrayList<>();
@@ -1362,6 +1440,15 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         awaitCondition(() -> !availableNodes().isEmpty(), 5_000);
         Files.deleteIfExists(file);
         awaitCondition(() -> availableNodes().isEmpty(), 2_000);
+
+        // Exercise unchanged path: write back same content and ensure no restart occurs
+        Files.writeString(
+                file, valid, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+        awaitCondition(() -> !availableNodes().isEmpty(), 2_000);
+        final Map<BlockNodeConfig, BlockNodeConnection> before = new HashMap<>(connections());
+        invoke_refreshAvailableBlockNodes();
+        final Map<BlockNodeConfig, BlockNodeConnection> after = new HashMap<>(connections());
+        assertThat(after.keySet()).isEqualTo(before.keySet());
     }
 
     @Test
@@ -1406,6 +1493,324 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         // Should return early without creating pipeline
         verify(connection, never()).createRequestPipeline();
+    }
+
+    @Test
+    void testConnectionTask_preempted_reschedules() {
+        // compareAndSet fails due to preemption, then reschedules
+        isActiveFlag().set(true);
+        final AtomicReference<BlockNodeConnection> activeRef = activeConnection();
+
+        // Start with an active connection of lower priority than the candidate
+        final BlockNodeConnection initialActive = mock(BlockNodeConnection.class);
+        final BlockNodeConfig initialActiveCfg = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8092, 2);
+        doReturn(initialActiveCfg).when(initialActive).getNodeConfig();
+        activeRef.set(initialActive);
+
+        // Candidate has higher priority.
+        final BlockNodeConfig candidateCfg = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8093, 1);
+        final BlockNodeConnection candidate = mock(BlockNodeConnection.class);
+        // Ensure priority comparison path is exercised and pipeline is created
+        doReturn(candidateCfg).when(candidate).getNodeConfig();
+
+        // Ensure candidate's node remains available for reschedule path
+        final List<BlockNodeConfig> avail = availableNodes();
+        avail.add(candidateCfg);
+
+        // Simulate preemption: during pipeline creation, another connection becomes active
+        final BlockNodeConnection preemptor = mock(BlockNodeConnection.class);
+
+        doAnswer(invocation -> {
+                    activeRef.set(preemptor);
+                    return null;
+                })
+                .when(candidate)
+                .createRequestPipeline();
+
+        final BlockNodeConnectionTask task =
+                connectionManager.new BlockNodeConnectionTask(candidate, Duration.ZERO, false);
+        task.run();
+
+        // the task should have been rescheduled
+        verify(executorService).schedule(eq(task), anyLong(), eq(TimeUnit.MILLISECONDS));
+    }
+
+    @Test
+    void testConnectionTask_runStreamingDisabledEarlyReturn() {
+        useStreamingDisabledManager();
+
+        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
+
+        connectionManager.new BlockNodeConnectionTask(connection, Duration.ZERO, false).run();
+
+        verifyNoInteractions(connection);
+        verifyNoInteractions(executorService);
+        verifyNoInteractions(bufferService);
+        verifyNoInteractions(metrics);
+    }
+
+    @Test
+    void testConfigWatcher_handlesExceptionInRefresh() throws Exception {
+        final Path file = tempDir.resolve("block-nodes.json");
+
+        // Start with valid config
+        final List<BlockNodeConfig> configs = new ArrayList<>();
+        configs.add(newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1));
+        final BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(configs);
+        final String valid = BlockNodeConnectionInfo.JSON.toJSON(connectionInfo);
+        Files.writeString(
+                file, valid, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+
+        connectionManager.start();
+
+        // Wait for initial load
+        awaitCondition(() -> !availableNodes().isEmpty(), 2_000);
+
+        // Replace blockNodeConfigDirectory with an invalid path that will cause issues
+        // This will trigger an exception when refreshAvailableBlockNodes() is called
+        final Path invalidPath = Path.of("/invalid/nonexistent/path/that/will/cause/issues");
+        blockNodeConfigDirectoryHandle.set(connectionManager, invalidPath);
+
+        // Modify the file to trigger a watch event
+        Files.writeString(file, valid + "\n", StandardCharsets.UTF_8, StandardOpenOption.APPEND);
+
+        // Give the watcher time to detect the change and handle the exception
+        Thread.sleep(500);
+
+        connectionManager.shutdown();
+    }
+
+    @Test
+    void testConfigWatcher_handlesInterruptedException() throws Exception {
+        final Path file = tempDir.resolve("block-nodes.json");
+        final List<BlockNodeConfig> configs = new ArrayList<>();
+        configs.add(newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1));
+        final BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(configs);
+        final String valid = BlockNodeConnectionInfo.JSON.toJSON(connectionInfo);
+        Files.writeString(
+                file, valid, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+
+        connectionManager.start();
+        awaitCondition(() -> !availableNodes().isEmpty(), 2_000);
+
+        // Shutdown will interrupt the watcher thread
+        connectionManager.shutdown();
+
+        // Verify the watcher thread is no longer running
+        @SuppressWarnings("unchecked")
+        final AtomicReference<Thread> threadRef =
+                (AtomicReference<Thread>) configWatcherThreadRef.get(connectionManager);
+        final Thread watcherThread = threadRef.get();
+        if (watcherThread != null) {
+            watcherThread.join(1000);
+            assertThat(watcherThread.isAlive()).isFalse();
+        }
+    }
+
+    @Test
+    void testConfigWatcher_generalExceptionThenInterrupt_exitsCleanly() throws Exception {
+        final Path file = tempDir.resolve("block-nodes.json");
+        final List<BlockNodeConfig> configs = new ArrayList<>();
+        configs.add(newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1));
+        final BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(configs);
+        final String valid = BlockNodeConnectionInfo.JSON.toJSON(connectionInfo);
+        Files.writeString(
+                file, valid, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+
+        connectionManager.start();
+        awaitCondition(() -> !availableNodes().isEmpty(), 2_000);
+
+        // Force the watch service to throw from take() by closing it,
+        // which will cause a ClosedWatchServiceException wrapped as a general Exception path
+        @SuppressWarnings("unchecked")
+        final AtomicReference<WatchService> wsRef =
+                (AtomicReference<WatchService>) configWatchServiceHandle.get(connectionManager);
+        final WatchService ws = wsRef.get();
+        assertThat(ws).isNotNull();
+        ws.close();
+
+        // Give time for watcher loop to hit the catch(Exception) and evaluate interrupted branch (should be false)
+        Thread.sleep(500);
+
+        // Now interrupt the watcher thread to exercise the interrupted branch inside the exception handler
+        @SuppressWarnings("unchecked")
+        final AtomicReference<Thread> threadRef =
+                (AtomicReference<Thread>) configWatcherThreadRef.get(connectionManager);
+        final Thread watcherThread = threadRef.get();
+        if (watcherThread != null) {
+            watcherThread.interrupt();
+            watcherThread.join(1000);
+        }
+
+        // Ensure we can shutdown cleanly
+        connectionManager.shutdown();
+    }
+
+    @Test
+    void testRescheduleConnection_multipleNodesButSelectNewFalse() {
+        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
+        final BlockNodeConfig nodeConfig1 = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
+        final BlockNodeConfig nodeConfig2 = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8081, 1);
+        doReturn(nodeConfig1).when(connection).getNodeConfig();
+
+        availableNodes().add(nodeConfig1);
+        availableNodes().add(nodeConfig2);
+        connections().put(nodeConfig1, connection);
+
+        connectionManager.rescheduleConnection(connection, Duration.ofSeconds(1), null, false);
+
+        // Verify only one schedule call (for the reschedule, not for new node selection)
+        verify(executorService, times(1))
+                .schedule(any(BlockNodeConnectionTask.class), anyLong(), eq(TimeUnit.MILLISECONDS));
+    }
+
+    @Test
+    void testRescheduleConnection_negativeDelayClampedToZero() {
+        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
+        final BlockNodeConfig nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
+        doReturn(nodeConfig).when(connection).getNodeConfig();
+
+        availableNodes().add(nodeConfig);
+        connections().put(nodeConfig, connection);
+
+        connectionManager.rescheduleConnection(connection, Duration.ofMillis(-5), null, false);
+
+        final ArgumentCaptor<Long> delayCaptor = ArgumentCaptor.forClass(Long.class);
+        verify(executorService)
+                .schedule(any(BlockNodeConnectionTask.class), delayCaptor.capture(), eq(TimeUnit.MILLISECONDS));
+        assertThat(delayCaptor.getValue()).isEqualTo(0L);
+    }
+
+    @Test
+    void testConnectionTask_reschedule_exceedsMaxBackoff() {
+        isActiveFlag().set(true);
+        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
+        final BlockNodeConfig nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
+        doReturn(nodeConfig).when(connection).getNodeConfig();
+        doThrow(new RuntimeException("Connection failed")).when(connection).createRequestPipeline();
+
+        connections().put(nodeConfig, connection);
+        availableNodes().add(nodeConfig);
+
+        // Create task with a very large initial delay to exceed max backoff
+        final BlockNodeConnectionTask task =
+                connectionManager.new BlockNodeConnectionTask(connection, Duration.ofHours(10), false);
+
+        task.run();
+
+        // Verify it was rescheduled
+        verify(executorService).schedule(eq(task), anyLong(), eq(TimeUnit.MILLISECONDS));
+        verify(metrics).recordConnectionCreateFailure();
+    }
+
+    @Test
+    void testIsOnlyOneBlockNodeConfigured_true() {
+        availableNodes().clear();
+        availableNodes().add(newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1));
+
+        assertThat(connectionManager.isOnlyOneBlockNodeConfigured()).isTrue();
+    }
+
+    @Test
+    void testIsOnlyOneBlockNodeConfigured_false() {
+        availableNodes().clear();
+        availableNodes().add(newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1));
+        availableNodes().add(newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8081, 1));
+
+        assertThat(connectionManager.isOnlyOneBlockNodeConfigured()).isFalse();
+    }
+
+    @Test
+    void testIsOnlyOneBlockNodeConfigured_empty() {
+        availableNodes().clear();
+
+        assertThat(connectionManager.isOnlyOneBlockNodeConfigured()).isFalse();
+    }
+
+    @Test
+    void testRecordBlockAckAndCheckLatency_normalLatency() {
+        final BlockNodeConfig nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
+        final Instant sentTime = Instant.now();
+        final Instant ackedTime = sentTime.plusMillis(100); // Normal latency
+
+        connectionManager.recordBlockProofSent(nodeConfig, 1L, sentTime);
+        final BlockNodeStats.HighLatencyResult result =
+                connectionManager.recordBlockAckAndCheckLatency(nodeConfig, 1L, ackedTime);
+
+        assertThat(result.isHighLatency()).isFalse();
+        assertThat(result.shouldSwitch()).isFalse();
+        verify(metrics).recordAcknowledgementLatency(100L);
+    }
+
+    @Test
+    void testGetEndOfStreamCount() {
+        final BlockNodeConfig nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
+
+        connectionManager.recordEndOfStreamAndCheckLimit(nodeConfig, Instant.now());
+        connectionManager.recordEndOfStreamAndCheckLimit(nodeConfig, Instant.now());
+
+        final int count = connectionManager.getEndOfStreamCount(nodeConfig);
+        assertThat(count).isEqualTo(2);
+    }
+
+    @Test
+    void testGetEndOfStreamCount_unknownNode() {
+        final BlockNodeConfig nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
+
+        final int count = connectionManager.getEndOfStreamCount(nodeConfig);
+        assertThat(count).isZero();
+    }
+
+    @Test
+    void testGetEndOfStreamScheduleDelay() {
+        final Duration delay = connectionManager.getEndOfStreamScheduleDelay();
+        assertThat(delay).isNotNull();
+    }
+
+    @Test
+    void testGetEndOfStreamTimeframe() {
+        final Duration timeframe = connectionManager.getEndOfStreamTimeframe();
+        assertThat(timeframe).isNotNull();
+    }
+
+    @Test
+    void testGetMaxEndOfStreamsAllowed() {
+        final int max = connectionManager.getMaxEndOfStreamsAllowed();
+        assertThat(max).isGreaterThan(0);
+    }
+
+    @Test
+    void testShutdownScheduledExecutorService_nullExecutor() {
+        sharedExecutorServiceHandle.set(connectionManager, null);
+
+        // Should handle null executor gracefully
+        connectionManager.shutdown();
+
+        verifyNoInteractions(executorService);
+    }
+
+    @Test
+    void testConnectionTask_closeOldActiveConnectionThrowsException() {
+        isActiveFlag().set(true);
+        final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
+
+        final BlockNodeConnection oldActive = mock(BlockNodeConnection.class);
+        final BlockNodeConfig oldConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 2);
+        doReturn(oldConfig).when(oldActive).getNodeConfig();
+        doThrow(new RuntimeException("Close failed")).when(oldActive).close(true);
+        activeConnectionRef.set(oldActive);
+
+        final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
+        final BlockNodeConfig newConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8081, 1);
+        doReturn(newConfig).when(newConnection).getNodeConfig();
+
+        // Should handle exception gracefully
+        connectionManager.new BlockNodeConnectionTask(newConnection, Duration.ZERO, false).run();
+
+        verify(oldActive).close(true);
+        verify(newConnection).createRequestPipeline();
+        verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
+        assertThat(activeConnectionRef).hasValue(newConnection);
     }
 
     // Utilities
