@@ -494,7 +494,10 @@ public class BlockNodeConnectionManager {
             return false;
         }
 
-        logger.debug("Selected block node {}:{} for connection attempt", selectedNode.address(), selectedNode.port());
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                    "Selected block node {}:{} for connection attempt", selectedNode.address(), selectedNode.port());
+        }
 
         // Immediately schedule the FIRST connection attempt.
         scheduleConnectionAttempt(selectedNode, Duration.ZERO, null, force);
@@ -615,7 +618,9 @@ public class BlockNodeConnectionManager {
                                     final Object ctx = event.context();
                                     if (ctx instanceof final Path changed
                                             && BLOCK_NODES_FILE_NAME.equals(changed.toString())) {
-                                        logger.info("Detected {} event for {}.", kind.name(), changed);
+                                        if (logger.isInfoEnabled()) {
+                                            logger.info("Detected {} event for {}.", kind.name(), changed);
+                                        }
                                         try {
                                             refreshAvailableBlockNodes();
                                         } catch (Exception e) {
@@ -750,13 +755,15 @@ public class BlockNodeConnectionManager {
                     } else if (force) {
                         final BlockNodeConfig newConnConfig = connection.getNodeConfig();
                         final BlockNodeConfig oldConnConfig = activeConnection.getNodeConfig();
-                        logger.debug(
-                                "{} Promoting forced connection with priority={} over active ({}:{} priority={}).",
-                                connection,
-                                newConnConfig.priority(),
-                                oldConnConfig.address(),
-                                oldConnConfig.port(),
-                                oldConnConfig.priority());
+                        if (logger.isDebugEnabled()) {
+                            logger.debug(
+                                    "{} Promoting forced connection with priority={} over active ({}:{} priority={}).",
+                                    connection,
+                                    newConnConfig.priority(),
+                                    oldConnConfig.address(),
+                                    oldConnConfig.port(),
+                                    oldConnConfig.priority());
+                        }
                     } else if (activeConnection.getNodeConfig().priority()
                             <= connection.getNodeConfig().priority()) {
                         // this new connection has a lower (or equal) priority than the existing active connection
@@ -997,12 +1004,14 @@ public class BlockNodeConnectionManager {
             // continuously emits the metric instead of just when a connection is promoted to active.
             ipAsInteger = calculateIpAsInteger(blockAddress);
 
-            logger.info(
-                    "Active block node connection updated to: {}:{} (resolvedIp: {}, resolvedIpAsInt={})",
-                    nodeConfig.address(),
-                    nodeConfig.port(),
-                    blockAddress.getHostAddress(),
-                    ipAsInteger);
+            if (logger.isInfoEnabled()) {
+                logger.info(
+                        "Active block node connection updated to: {}:{} (resolvedIp: {}, resolvedIpAsInt={})",
+                        nodeConfig.address(),
+                        nodeConfig.port(),
+                        blockAddress.getHostAddress(),
+                        ipAsInteger);
+            }
         } catch (final IOException e) {
             logger.debug("Failed to resolve block node host ({}:{})", nodeConfig.address(), nodeConfig.port(), e);
             ipAsInteger = -1L;
@@ -1053,11 +1062,13 @@ public class BlockNodeConnectionManager {
         // Update metrics
         blockStreamMetrics.recordAcknowledgementLatency(latencyMs);
         if (result.isHighLatency()) {
-            logger.debug(
-                    "[{}] A high latency event ({}ms) has occurred. A total of {} consecutive events",
-                    blockNodeConfig,
-                    latencyMs,
-                    result.consecutiveHighLatencyEvents());
+            if (logger.isDebugEnabled()) {
+                logger.debug(
+                        "[{}] A high latency event ({}ms) has occurred. A total of {} consecutive events",
+                        blockNodeConfig,
+                        latencyMs,
+                        result.consecutiveHighLatencyEvents());
+            }
             blockStreamMetrics.recordHighLatencyEvent();
         }
 
