@@ -14,6 +14,7 @@ import static com.hedera.node.app.blocks.impl.BlockStreamManagerImpl.NULL_HASH;
 import static com.hedera.node.app.blocks.impl.ConcurrentStreamingTreeHasher.rootHashFrom;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
+import static com.hedera.node.app.quiescence.QuiescenceUtils.isRelevantTransaction;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.blockHashByBlockNumber;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.nodeSignedTxWith;
@@ -645,7 +646,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             daggerApp.quiescenceController().staleEvent(event);
             // If this is a self-created event, decrement in-flight counts by stale transactions that landed
             if (event.getCreatorId().equals(platform.getSelfId())) {
-                ((IngestWorkflowImpl) daggerApp.ingestWorkflow()).countLanded(transactions.iterator());
+                daggerApp.txPipelineTracker().countLanded(transactions.iterator());
             }
         }
     }
@@ -904,6 +905,9 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             }
             final var payload = SignedTransaction.PROTOBUF.toBytes(nodeSignedTxWith(body));
             requireNonNull(daggerApp).submissionManager().submit(body, payload);
+            if (quiescenceEnabled && isRelevantTransaction(body)) {
+                daggerApp.txPipelineTracker().incrementInFlight();
+            }
         } catch (PreCheckException e) {
             final var reason = e.responseCode();
             if (reason == DUPLICATE_TRANSACTION) {
@@ -1023,7 +1027,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             daggerApp.quiescenceController().onPreHandle(transactions);
             // If this is a self-created event, decrement in-flight counts by the transactions that landed
             if (event.getCreatorId().equals(platform.getSelfId())) {
-                ((IngestWorkflowImpl) daggerApp.ingestWorkflow()).countLanded(event.transactionIterator());
+                daggerApp.txPipelineTracker().countLanded(event.transactionIterator());
             }
         }
     }

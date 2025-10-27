@@ -8,6 +8,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.transaction.TransactionResponse;
 import com.hedera.node.app.quiescence.QuiescenceController;
+import com.hedera.node.app.quiescence.TxPipelineTracker;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -40,14 +41,12 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
     private final Supplier<AutoCloseableWrapper<State>> stateAccessor;
     private final IngestChecker ingestChecker;
     private final SubmissionManager submissionManager;
+    private final TxPipelineTracker txPipelineTracker;
     private final ConfigProvider configProvider;
     private final boolean quiescenceEnabled;
-    private final AtomicInteger preFlightCount = new AtomicInteger();
-    private final AtomicInteger inFlightCount = new AtomicInteger();
 
     /**
      * Constructor of {@code IngestWorkflowImpl}
-     *
      * @param stateAccessor a {@link Supplier} that provides the latest immutable state
      * @param ingestChecker the {@link IngestChecker} with specific checks of an ingest-workflow
      * @param submissionManager the {@link SubmissionManager} to submit transactions to the platform
@@ -59,44 +58,17 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
             @NonNull final Supplier<AutoCloseableWrapper<State>> stateAccessor,
             @NonNull final IngestChecker ingestChecker,
             @NonNull final SubmissionManager submissionManager,
+            @NonNull final TxPipelineTracker txPipelineTracker,
             @NonNull final ConfigProvider configProvider) {
         this.stateAccessor = requireNonNull(stateAccessor);
         this.ingestChecker = requireNonNull(ingestChecker);
         this.submissionManager = requireNonNull(submissionManager);
+        this.txPipelineTracker = requireNonNull(txPipelineTracker);
         this.configProvider = requireNonNull(configProvider);
         this.quiescenceEnabled = configProvider
                 .getConfiguration()
                 .getConfigData(QuiescenceConfig.class)
                 .enabled();
-    }
-
-    @Override
-    public int estimateTxPipelineCount() {
-        return quiescenceEnabled ? (preFlightCount.get() + inFlightCount.get()) : 0;
-    }
-
-    /**
-     * Called with transactions that landed in purview of the {@link QuiescenceController}, either as a result of
-     * pre-handle or stale events, <b>if</b> these transactions were in an event created by this node.
-     * <p>
-     * Note that every user transaction submitted via ingest will certainly be relevant to quiescence, but the
-     * iterator might include other self-created transactions that are not relevant to quiescence.
-     * @param iter iterator of self-created transactions that landed
-     */
-    public void countLanded(@NonNull final Iterator<Transaction> iter) {
-        requireNonNull(iter);
-        if (!quiescenceEnabled) {
-            return;
-        }
-        while (iter.hasNext()) {
-            final var tx = iter.next();
-            if (tx.getMetadata() instanceof PreHandleResult preHandleResult) {
-                final var txInfo = preHandleResult.txInfo();
-                if (txInfo != null && isRelevantTransaction(txInfo.txBody())) {
-                    inFlightCount.accumulateAndGet(-1, (prev, next) -> Math.max(0, prev + next));
-                }
-            }
-        }
     }
 
     @Override
@@ -106,7 +78,7 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
 
         try {
             if (quiescenceEnabled) {
-                preFlightCount.incrementAndGet();
+                txPipelineTracker.incrementPreFlight();
             }
             ResponseCodeEnum result = OK;
             long estimatedFee = 0L;
@@ -127,7 +99,7 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
                 final var txInfo = checkerResult.txnInfoOrThrow();
                 submissionManager.submit(txInfo.txBody(), txInfo.serializedSignedTxOrThrow());
                 if (quiescenceEnabled) {
-                    inFlightCount.incrementAndGet();
+                    txPipelineTracker.incrementInFlight();
                 }
             } catch (final InsufficientBalanceException e) {
                 estimatedFee = e.getEstimatedFee();
@@ -165,7 +137,7 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
             }
         } finally {
             if (quiescenceEnabled) {
-                preFlightCount.decrementAndGet();
+                txPipelineTracker.decrementPreFlight();
             }
         }
     }
