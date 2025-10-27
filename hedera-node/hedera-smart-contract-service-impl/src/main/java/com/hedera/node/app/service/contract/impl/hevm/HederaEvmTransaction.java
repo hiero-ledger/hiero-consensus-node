@@ -12,6 +12,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
+import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
 
 public record HederaEvmTransaction(
@@ -135,12 +136,15 @@ public record HederaEvmTransaction(
                 this.hookDispatch);
     }
 
-    /**
-     * Check if this transaction is a hook dispatch transaction
-     *
-     * @return true if this transaction is a hook dispatch transaction, false otherwise
-     */
-    public boolean isHookDispatch() {
-        return hookDispatch != null;
+    public Address hookOwnerAddress() {
+        if (hookDispatch == null) {
+            return null;
+        }
+        final var ownerEntity = hookDispatch.executionOrThrow().hookEntityIdOrThrow();
+        return ownerEntity.hasContractId()
+                ? Address.fromHexString(
+                        "0x" + Long.toHexString(ownerEntity.contractIdOrThrow().contractNumOrThrow()))
+                : Address.fromHexString(
+                        "0x" + Long.toHexString(ownerEntity.accountIdOrThrow().accountNumOrThrow()));
     }
 }
