@@ -7,10 +7,11 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.metrics.StateMetrics;
+import com.swirlds.platform.metrics.TransactionMetrics;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.merkle.StateMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -22,7 +23,12 @@ public class SwirldStateManager {
     /**
      * Stats relevant to the state operations.
      */
-    private final StateMetrics stats;
+    private final TransactionMetrics transactionMetrics;
+
+    /**
+     *
+     */
+    private final StateMetrics stateMetrics;
 
     /**
      * reference to the state that reflects all known consensus transactions
@@ -57,7 +63,8 @@ public class SwirldStateManager {
         requireNonNull(platformContext);
         requireNonNull(roster);
         this.platformStateFacade = requireNonNull(platformStateFacade);
-        this.stats = new StateMetrics(platformContext.getMetrics());
+        this.transactionMetrics = new TransactionMetrics(platformContext.getMetrics());
+        this.stateMetrics = new StateMetrics(platformContext.getMetrics());
         this.softwareVersion = requireNonNull(softwareVersion);
     }
 
@@ -90,7 +97,7 @@ public class SwirldStateManager {
     }
 
     private void fastCopyAndUpdateRefs(final MerkleNodeState state) {
-        final MerkleNodeState newState = fastCopy(state, stats, softwareVersion, platformStateFacade);
+        final MerkleNodeState newState = fastCopy(state, stateMetrics, softwareVersion, platformStateFacade);
 
         // Set latest immutable first to prevent the newly immutable stateRoot from being deleted between setting the
         // stateRef and the latestImmutableState

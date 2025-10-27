@@ -18,6 +18,7 @@ import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.utils.ConstantUtils;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -47,8 +48,9 @@ public class ContractCallHandler extends AbstractContractTransactionHandler {
     public ContractCallHandler(
             @NonNull final Provider<TransactionComponent.Factory> provider,
             @NonNull final GasCalculator gasCalculator,
+            @NonNull final EntityIdFactory entityIdFactory,
             @NonNull final ContractServiceComponent component) {
-        super(provider, gasCalculator, component);
+        super(provider, gasCalculator, entityIdFactory, component);
     }
 
     @Override
@@ -61,7 +63,7 @@ public class ContractCallHandler extends AbstractContractTransactionHandler {
 
         // Assemble the appropriate top-level record for the result
         final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCallStreamBuilder.class);
-        outcome.addCallDetailsTo(streamBuilder, context);
+        outcome.addCallDetailsTo(streamBuilder, context, entityIdFactory);
 
         throwIfUnsuccessfulCall(outcome, component.hederaOperations(), streamBuilder);
     }
