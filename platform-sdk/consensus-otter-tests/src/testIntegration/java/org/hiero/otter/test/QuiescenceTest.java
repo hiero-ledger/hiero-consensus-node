@@ -70,5 +70,21 @@ public class QuiescenceTest {
                 .map(SingleNodePcesResult::lastPcesEvent).toList();
         assertThat(lastEventWhenQuiesced).isEqualTo(lastEventAfterAWhile);
 
+        // Test the quiescence breaking command
+        network.nodes().getFirst().sendQuiescenceCommand(QuiescenceCommand.BREAK_QUIESCENCE);
+        // This should create an event and write to PCES, so wait for that
+        timeManager.waitFor(Duration.ofSeconds(5));
+        final List<PlatformEvent> lastEventAfterBreak = network.newPcesResults().pcesResults().stream()
+                .map(SingleNodePcesResult::lastPcesEvent).toList();
+        assertThat(lastEventWhenQuiesced.getFirst())
+                .withFailMessage("A new event should have been created after breaking quiescence")
+                .isNotEqualTo(lastEventAfterBreak.getFirst());
+
+        // Stop quiescing all nodes
+        network.nodes().forEach(node -> node.sendQuiescenceCommand(QuiescenceCommand.DONT_QUIESCE));
+        // Wait for all nodes to advance at least 20 rounds beyond the quiescence round
+        timeManager.waitForCondition(
+                () -> network.newConsensusResults().allNodesAdvancedToRound(lastRoundWhenQuiesced + 20),
+                Duration.ofSeconds(120L));
     }
 }
