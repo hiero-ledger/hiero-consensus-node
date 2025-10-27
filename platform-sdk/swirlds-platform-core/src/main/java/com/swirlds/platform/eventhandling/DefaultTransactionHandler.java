@@ -122,7 +122,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
     private long accumulatedHashComplexity = 0;
 
     /**
-     * Stats relevant to the state operations.
+     * Metrics relevant to the transaction handling
      */
     private final TransactionMetrics transactionMetrics;
 
@@ -352,7 +352,6 @@ public class DefaultTransactionHandler implements TransactionHandler {
             @NonNull final Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions)
             throws InterruptedException {
         if (freezeRoundReceived) {
-            // Let the freeze period checker know we are about to write the saved state for the freeze period
             platformStateFacade.updateLastFrozenTime(swirldStateManager.getConsensusState());
         }
         final MerkleNodeState state = swirldStateManager.getConsensusState();
