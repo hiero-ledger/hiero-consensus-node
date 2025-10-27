@@ -42,6 +42,31 @@ public class TurtleTimeManager extends AbstractTimeManager {
      * {@inheritDoc}
      */
     @Override
+    public void waitForRealTime(@NonNull final Duration waitTime) {
+        log.info("Waiting for {} (in real time)...", waitTime);
+
+        final Instant start = Instant.now();
+        final Instant end = start.plus(waitTime);
+
+        Instant now = start;
+        while (now.isBefore(end)) {
+            for (final TimeTickReceiver receiver : timeTickReceivers) {
+                receiver.tick(this.now());
+            }
+            advanceTime(granularity);
+            try {
+                Thread.sleep(granularity); // advance real time
+            } catch (final InterruptedException e) {
+                throw new AssertionError("Interrupted while advancing real time", e);
+            }
+            now = Instant.now();
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void waitForConditionInRealTime(@NonNull final BooleanSupplier condition, @NonNull final Duration waitTime)
             throws TimeoutException {
         waitForConditionInRealTime(condition, waitTime, "Condition not met within the allotted time.");

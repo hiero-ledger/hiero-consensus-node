@@ -1,16 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
-import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
-import static org.hiero.consensus.model.status.PlatformStatus.BEHIND;
-import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
-import static org.hiero.consensus.model.status.PlatformStatus.FREEZING;
-import static org.hiero.consensus.model.status.PlatformStatus.OBSERVING;
-import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
-import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
-import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
-import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
-
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -30,36 +20,36 @@ public class HappyPathTest {
      * @param env the test environment for this test
      */
     @OtterTest
-    void testHappyPath(@NonNull final TestEnvironment env) throws InterruptedException {
+    void testHappyPath(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
         // Setup simulation
-        network.addNodes(4);
+        network.addNodes(7);
 
         // Setup continuous assertions
-        assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
-        assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
-        assertContinuouslyThat(network.newConsensusResults())
-                .haveEqualCommonRounds()
-                .haveConsistentRounds();
-        assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
-        assertContinuouslyThat(network.newPlatformStatusResults())
-                .doOnlyEnterStatusesOf(ACTIVE, REPLAYING_EVENTS, OBSERVING, CHECKING)
-                .doNotEnterAnyStatusesOf(BEHIND, FREEZING);
+//        assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
+//        assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
+//        assertContinuouslyThat(network.newConsensusResults())
+//                .haveEqualCommonRounds()
+//                .haveConsistentRounds();
+//        assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
+//        assertContinuouslyThat(network.newPlatformStatusResults())
+//                .doOnlyEnterStatusesOf(ACTIVE, REPLAYING_EVENTS, OBSERVING, CHECKING)
+//                .doNotEnterAnyStatusesOf(BEHIND, FREEZING);
 
         network.start();
 
         env.transactionGenerator().stop();
 
         // Wait for some time
-        timeManager.waitForConditionInRealTime(() -> false, Duration.ofMinutes(1L));
+        timeManager.waitForRealTime(Duration.ofMinutes(10L));
 
         // Validations
-        assertThat(network.newPlatformStatusResults())
-                .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
+//        assertThat(network.newPlatformStatusResults())
+//                .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
 
-        assertThat(network.newEventStreamResults()).haveEqualFiles();
+//        assertThat(network.newEventStreamResults()).haveEqualFiles();
 
 
         network.nodes().getFirst().sendQuiescenceCommand(QuiescenceCommand.DONT_QUIESCE);

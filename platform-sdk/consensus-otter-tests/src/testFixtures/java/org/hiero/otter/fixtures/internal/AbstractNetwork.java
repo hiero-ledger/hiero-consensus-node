@@ -60,7 +60,7 @@ import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.internal.helpers.Utils;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
-import org.hiero.otter.fixtures.internal.network.GeoMeshTopologyImpl;
+import org.hiero.otter.fixtures.internal.network.MeshTopologyImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeConsensusResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeEventStreamResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeLogResultsImpl;
@@ -142,7 +142,7 @@ public abstract class AbstractNetwork implements Network {
 
     protected AbstractNetwork(@NonNull final Random random, final boolean useRandomNodeIds) {
         this.random = requireNonNull(random);
-        this.topology = new GeoMeshTopologyImpl(random, this::createNodes, this::createInstrumentedNode);
+        this.topology = new MeshTopologyImpl(this::createNodes, this::createInstrumentedNode);
         this.useRandomNodeIds = useRandomNodeIds;
     }
 

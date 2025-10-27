@@ -37,10 +37,10 @@ public class TimestampCollector {
         CONSENSUS_REACHED
     }
 
-    public static final int GAP = 10;
+    public static final int GAP = 100;
     private static final int MAX_ELEMENTS = 1000;
-    private static final Duration WARMUP = Duration.ofSeconds(10);
-    private static final long thresholdNanos = System.nanoTime() + WARMUP.toNanos();
+    private static final Duration WARMUP = Duration.ofMinutes(3L);
+    private static final long THRESHOLD_NANOS = System.nanoTime() + WARMUP.toNanos();
 
     public static final AtomicLong COUNTER = new AtomicLong();
     private static final long[][] timestamps = new long[MAX_ELEMENTS][Position.values().length];
@@ -50,7 +50,7 @@ public class TimestampCollector {
             return;
         }
         final long now = System.nanoTime();
-        if (now > thresholdNanos) {
+        if (now > THRESHOLD_NANOS) {
             timestamps[index][position.ordinal()] = now;
         }
     }
