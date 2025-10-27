@@ -1,5 +1,7 @@
 /**
- * TODO
+ * Proof that some data belongs to the network's chain of trust, starting from
+ * the genesis network whose address book hash formed the ledger id. (In the
+ * current system, this data is always a hinTS verification key.)
  *
  * ### Keywords
  * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
@@ -17,26 +19,21 @@ option java_package = "com.hedera.hapi.block.stream.protoc";
 // <<<pbj.java_package = "com.hedera.hapi.block.stream">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
-/**
- * Proof that some data belongs to the network's chain of trust, starting from
- * the genesis network whose address book hash formed the ledger id. (In the
- * current system, this data is always a hinTS verification key.)
- */
 message ChainOfTrustProof {
-  oneof proof {
-    /**
-     * If there is not yet a SNARK proving the chain of trust from ledger id to
-     * the hinTS verification key, the explicit list of Schnorr signatures on
-     * the concatenation of the ledger id and genesis hinTS verification key
-     * that serve as witnesses for the SNARK prover algorithm.
-     */
-    NodeSignatures node_signatures = 1;
-    /**
-     * If known, a ZK-compressed SNARK proof proving the chain of trust from
-     * the ledger id to this hinTS verification key.
-     */
-    bytes wraps_proof = 2;
-  }
+    oneof proof {
+        /**
+         * If there is not yet a SNARK proving the chain of trust from ledger id to
+         * the hinTS verification key, the explicit list of Schnorr signatures on
+         * the concatenation of the ledger id and genesis hinTS verification key
+         * that serve as witnesses for the SNARK prover algorithm.
+         */
+        NodeSignatures node_signatures = 1;
+        /**
+         * If known, a ZK-compressed SNARK proof proving the chain of trust from
+         * the ledger id to this hinTS verification key.
+         */
+        bytes wraps_proof = 2;
+    }
 }
 
 /**
@@ -48,7 +45,7 @@ message ChainOfTrustProof {
  * until the first recursive proof is available.
  */
 message NodeSignatures {
-  repeated NodeSignature node_signatures = 1;
+    repeated NodeSignature node_signatures = 1;
 }
 
 /**
@@ -56,12 +53,12 @@ message NodeSignatures {
  * message.
  */
 message NodeSignature {
-  /**
-   * The node id of the signer.
-   */
-  uint64 node_id = 1;
-  /**
-   * The signature.
-   */
-  bytes signature = 2;
+    /**
+     * The node id of the signer.
+     */
+    uint64 node_id = 1;
+    /**
+     * The signature.
+     */
+    bytes signature = 2;
 }
