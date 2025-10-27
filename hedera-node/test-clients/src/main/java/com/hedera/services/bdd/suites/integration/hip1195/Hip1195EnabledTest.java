@@ -438,17 +438,13 @@ public class Hip1195EnabledTest {
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 123L, -1L, "")
                         .signedBy(DEFAULT_PAYER)
-                        .hasKnownStatus(INVALID_HOOK_CALL),
+                        .hasKnownStatus(INSUFFICIENT_GAS),
                 // less than minimum intrinsic gas of 1000
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 123L, 999L, "")
                         .signedBy(DEFAULT_PAYER)
-                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .hasKnownStatus(INSUFFICIENT_GAS)
                         .via("txnWithLessThanIntrinsicGas"),
-                getTxnRecord("txnWithLessThanIntrinsicGas")
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INSUFFICIENT_GAS))
-                        .logged(),
                 overriding("contracts.maxGasPerTransaction", "15_000_000"),
                 // more than maximum gas limit of 15 million
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
@@ -481,17 +477,13 @@ public class Hip1195EnabledTest {
                 cryptoTransfer(TokenMovement.moving(10, "token").between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 123L, -1L, "")
                         .signedBy(DEFAULT_PAYER)
-                        .hasKnownStatus(INVALID_HOOK_CALL),
+                        .hasKnownStatus(INSUFFICIENT_GAS),
                 // less than minimum intrinsic gas of 1000
                 cryptoTransfer(TokenMovement.moving(10, "token").between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 123L, 999L, "")
                         .signedBy(DEFAULT_PAYER)
-                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .hasKnownStatus(INSUFFICIENT_GAS)
                         .via("txnWithLessThanIntrinsicGas"),
-                getTxnRecord("txnWithLessThanIntrinsicGas")
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INSUFFICIENT_GAS))
-                        .logged(),
                 overriding("contracts.maxGasPerTransaction", "15_000_000"),
                 // more than maximum gas limit of 15 million
                 cryptoTransfer(TokenMovement.moving(10, "token").between(OWNER, GENESIS))
@@ -530,17 +522,13 @@ public class Hip1195EnabledTest {
                 cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(OWNER, GENESIS))
                         .withNftSenderPreHookFor(OWNER, 123L, -1L, "")
                         .signedBy(DEFAULT_PAYER)
-                        .hasKnownStatus(INVALID_HOOK_CALL),
+                        .hasKnownStatus(INSUFFICIENT_GAS),
                 // less than minimum intrinsic gas of 1000
                 cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(OWNER, GENESIS))
                         .withNftSenderPreHookFor(OWNER, 123L, 999L, "")
                         .signedBy(DEFAULT_PAYER)
-                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .hasKnownStatus(INSUFFICIENT_GAS)
                         .via("txnWithLessThanIntrinsicGas"),
-                getTxnRecord("txnWithLessThanIntrinsicGas")
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INSUFFICIENT_GAS))
-                        .logged(),
                 overriding("contracts.maxGasPerTransaction", "15_000_000"),
                 //                 more than maximum gas limit of 15 million
                 cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(OWNER, GENESIS))

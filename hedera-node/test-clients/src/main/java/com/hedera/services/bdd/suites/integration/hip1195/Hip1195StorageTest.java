@@ -381,6 +381,7 @@ public class Hip1195StorageTest {
     final Stream<DynamicTest> hookRemoveAllExistingSlotsInOneTransactionContract() {
         final var opAdd = ByteString.copyFrom(new byte[] {0x02});
         final var opRemoveAll = ByteString.copyFrom(new byte[] {0x03});
+        final var MULTIPURPOSE = "Multipurpose";
         return hapiTest(
                 uploadInitCode(MULTIPURPOSE),
                 contractCreate(MULTIPURPOSE)
