@@ -266,10 +266,12 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                         .build()))
                 .connectTimeout(timeoutDuration)
                 .build();
-        logger.debug(
-                "Created BlockStreamPublishServiceClient for {}:{}.",
-                blockNodeConfig.address(),
-                blockNodeConfig.port());
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                    "Created BlockStreamPublishServiceClient for {}:{}.",
+                    blockNodeConfig.address(),
+                    blockNodeConfig.port());
+        }
         return clientFactory.createClient(webClient, grpcConfig, OPTIONS);
     }
 
@@ -297,7 +299,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 logger.info("{} Connection state transitioned from {} to {}.", this, expectedCurrentState, newState);
             } else {
                 logger.debug(
-                        "{} Failed to transition state from {} to {} because current state does not match expected state.",
+                        "{} Failed to transition state from {} to {} "
+                                + "because current state does not match expected state.",
                         this,
                         expectedCurrentState,
                         newState);
@@ -421,10 +424,12 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         final var result = blockNodeConnectionManager.recordBlockAckAndCheckLatency(
                 blockNodeConfig, acknowledgedBlockNumber, Instant.now());
         if (result.shouldSwitch() && !blockNodeConnectionManager.isOnlyOneBlockNodeConfigured()) {
-            logger.info(
-                    "{} Block node has exceeded high latency threshold {} times consecutively.",
-                    this,
-                    result.consecutiveHighLatencyEvents());
+            if (logger.isInfoEnabled()) {
+                logger.info(
+                        "{} Block node has exceeded high latency threshold {} times consecutively.",
+                        this,
+                        result.consecutiveHighLatencyEvents());
+            }
             endStreamAndReschedule(TIMEOUT);
         }
     }
@@ -481,13 +486,16 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         // Record the EndOfStream event and check if the rate limit has been exceeded.
         // The connection manager maintains persistent stats for each node across connections.
         if (blockNodeConnectionManager.recordEndOfStreamAndCheckLimit(blockNodeConfig, Instant.now())) {
-            logger.info(
-                    "{} Block node has exceeded the allowed number of EndOfStream responses (received={}, permitted={}, timeWindow={}). Reconnection scheduled for {}.",
-                    this,
-                    blockNodeConnectionManager.getEndOfStreamCount(blockNodeConfig),
-                    blockNodeConnectionManager.getMaxEndOfStreamsAllowed(),
-                    blockNodeConnectionManager.getEndOfStreamTimeframe(),
-                    blockNodeConnectionManager.getEndOfStreamScheduleDelay());
+            if (logger.isInfoEnabled()) {
+                logger.info(
+                        "{} Block node has exceeded the allowed number of EndOfStream responses "
+                                + "(received={}, permitted={}, timeWindow={}). Reconnection scheduled for {}.",
+                        this,
+                        blockNodeConnectionManager.getEndOfStreamCount(blockNodeConfig),
+                        blockNodeConnectionManager.getMaxEndOfStreamsAllowed(),
+                        blockNodeConnectionManager.getEndOfStreamTimeframe(),
+                        blockNodeConnectionManager.getEndOfStreamScheduleDelay());
+            }
             blockStreamMetrics.recordEndOfStreamLimitExceeded();
 
             // Schedule delayed retry through connection manager
@@ -512,7 +520,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 // following the last verified and persisted block number
                 final long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
                 logger.debug(
-                        "{} Block node reported status indicating immediate restart should be attempted. Will restart stream at block {}.",
+                        "{} Block node reported status indicating immediate restart should be attempted. "
+                                + "Will restart stream at block {}.",
                         this,
                         restartBlockNumber);
 
@@ -572,7 +581,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         }
 
         logger.debug(
-                "{} Received SkipBlock response (blockToSkip={}), but we've moved on to another block. Ignoring skip request",
+                "{} Received SkipBlock response (blockToSkip={}), but we've moved on to another block. "
+                        + "Ignoring skip request",
                 this,
                 skipBlockNumber);
     }
@@ -596,7 +606,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             // If we don't have the block state, we schedule retry for this connection and establish new one
             // with different block node
             logger.debug(
-                    "{} Block node requested a ResendBlock for block {} but that block does not exist on this consensus node. Closing connection and will retry later.",
+                    "{} Block node requested a ResendBlock for block {} but that block does not exist "
+                            + "on this consensus node. Closing connection and will retry later.",
                     this,
                     resendBlockNumber);
             closeAndReschedule(THIRTY_SECONDS, true);
@@ -841,9 +852,13 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             blockStreamMetrics.recordConnectionOnError();
 
             if (error instanceof final GrpcException grpcException) {
-                logger.warn("{} Error received (grpcStatus={}).", this, grpcException.status(), grpcException);
+                if (logger.isWarnEnabled()) {
+                    logger.warn("{} Error received (grpcStatus={}).", this, grpcException.status(), grpcException);
+                }
             } else {
-                logger.warn("{} Error received.", this, error);
+                if (logger.isWarnEnabled()) {
+                    logger.warn("{} Error received.", this, error);
+                }
             }
 
             handleStreamFailure();
@@ -987,7 +1002,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                         // There are no other items in the current pending request. This means that the item is too big
                         // to send. We've entered a fatal, non-recoverable situation.
                         logger.error(
-                                "{} !!! FATAL: Request would contain a block item that is too big to send (block={}, itemIndex={}, expectedRequestSize={}, maxAllowed={}). Closing connection.",
+                                "{} !!! FATAL: Request would contain a block item that is too big to send "
+                                        + "(block={}, itemIndex={}, expectedRequestSize={}, maxAllowed={}). "
+                                        + "Closing connection.",
                                 BlockNodeConnection.this,
                                 block.blockNumber(),
                                 itemIndex,
