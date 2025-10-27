@@ -297,7 +297,7 @@ public class Hip1195StorageTest {
                         .withPreHookFor(OWNER, 124L, 25_000L, correctPassword)
                         .signedBy(DEFAULT_PAYER)
                         .via("storageSetTxn"),
-                viewAccount(OWNER, (Account a) -> assertEquals(1, a.numberLambdaStorageSlots())),
+                viewAccount(OWNER, (Account a) -> assertEquals(0, a.numberLambdaStorageSlots())),
                 // since it resets the storage slots we should not be able to do another transfer
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 25_000L, correctPassword)
@@ -322,6 +322,7 @@ public class Hip1195StorageTest {
 
         return hapiTest(
                 cryptoCreate(OWNER).withHooks(accountAllowanceHook(124L, STORAGE_GET_MAPPING_HOOK.name())),
+                viewAccount(OWNER, (Account a) -> assertEquals(0, a.numberLambdaStorageSlots())),
                 withOpContext(
                         (spec, opLog) -> defaultPayerMirror.set(unhex(asHexedSolidityAddress(asAccount(spec, 2))))),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
@@ -339,9 +340,11 @@ public class Hip1195StorageTest {
                                         .value(Bytes.wrap(new byte[] {(byte) 0x01}))
                                         .build())
                         .signedBy(DEFAULT_PAYER, OWNER)),
+                viewAccount(OWNER, (Account a) -> assertEquals(1, a.numberLambdaStorageSlots())),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 25_000L, "")
-                        .signedBy(DEFAULT_PAYER));
+                        .signedBy(DEFAULT_PAYER),
+                viewAccount(OWNER, (Account a) -> assertEquals(1, a.numberLambdaStorageSlots())));
     }
 
     @HapiTest
