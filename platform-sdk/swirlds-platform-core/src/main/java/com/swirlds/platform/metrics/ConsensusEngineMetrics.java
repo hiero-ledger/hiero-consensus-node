@@ -3,11 +3,13 @@ package com.swirlds.platform.metrics;
 
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_SECONDS;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_3;
+import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_6;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_13_2;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_16_0;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_16_2;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_17_1;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_5_3;
+import static com.swirlds.metrics.api.FloatFormats.FORMAT_9_6;
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
@@ -18,6 +20,7 @@ import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.stats.AverageStat;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.temporal.ChronoUnit;
 import java.util.Iterator;
@@ -95,6 +98,30 @@ public class ConsensusEngineMetrics {
             .withDescription("number of transactions in stale self events");
     private final LongAccumulator staleTransactionCount;
 
+    /** number of consensus transactions per second handled by ConsensusStateEventHandler.onHandleConsensusRound() */
+    public static final String TRANSACTIONS_HANDLED_PER_SECOND = "transH_per_sec";
+
+    private static final RunningAverageMetric.Config AVG_SEC_TRANS_HANDLED_CONFIG = new RunningAverageMetric.Config(
+                    INTERNAL_CATEGORY, "secTransH")
+            .withDescription(
+                    "avg time to handle a consensus transaction in ConsensusStateEventHandler.onHandleTransaction "
+                            + "(in seconds)")
+            .withFormat(FORMAT_10_6);
+    private final RunningAverageMetric avgSecTransHandled;
+
+    private static final RunningAverageMetric.Config AVG_CONS_HANDLE_TIME_CONFIG = new RunningAverageMetric.Config(
+                    PLATFORM_CATEGORY, "SecC2H")
+            .withDescription("time from knowing consensus for a transaction to handling it (in seconds)")
+            .withFormat(FORMAT_10_3);
+    private final RunningAverageMetric avgConsHandleTime;
+
+    private static final SpeedometerMetric.Config TRANS_HANDLED_PER_SECOND_CONFIG = new SpeedometerMetric.Config(
+                    INTERNAL_CATEGORY, TRANSACTIONS_HANDLED_PER_SECOND)
+            .withDescription("number of consensus transactions per second handled "
+                    + "by ConsensusStateEventHandler.onHandleTransaction()")
+            .withFormat(FORMAT_9_6);
+    private final SpeedometerMetric transHandledPerSecond;
+
     /**
      * The constructor of {@code AddedEventMetrics}
      *
@@ -122,6 +149,9 @@ public class ConsensusEngineMetrics {
         numTrans = metrics.getOrCreate(NUM_TRANS_CONFIG);
         staleEventCount = metrics.getOrCreate(STALE_EVENTS_CONFIG);
         staleTransactionCount = metrics.getOrCreate(STALE_APP_TRANSACTIONS_CONFIG);
+        avgSecTransHandled = metrics.getOrCreate(AVG_SEC_TRANS_HANDLED_CONFIG);
+        avgConsHandleTime = metrics.getOrCreate(AVG_CONS_HANDLE_TIME_CONFIG);
+        transHandledPerSecond = metrics.getOrCreate(TRANS_HANDLED_PER_SECOND_CONFIG);
     }
 
     /**
@@ -188,5 +218,32 @@ public class ConsensusEngineMetrics {
 
         staleEventCount.update(1);
         staleTransactionCount.update(event.getTransactionCount());
+    }
+
+    /**
+     * Records the amount of time to handle a consensus transaction in {@link State}.
+     *
+     * @param seconds
+     * 		the amount of time in seconds
+     */
+    public void consensusTransHandleTime(final double seconds) {
+        avgSecTransHandled.update(seconds);
+    }
+
+    /**
+     * Records the amount of time between a transaction reaching consensus and being handled in {@link State}.
+     *
+     * @param seconds
+     * 		the amount of time in seconds
+     */
+    public void consensusToHandleTime(final double seconds) {
+        avgConsHandleTime.update(seconds);
+    }
+
+    /**
+     * Records the fact that consensus transactions were handled by {@link State}.
+     */
+    public void consensusTransHandled(final int numTrans) {
+        transHandledPerSecond.update(numTrans);
     }
 }

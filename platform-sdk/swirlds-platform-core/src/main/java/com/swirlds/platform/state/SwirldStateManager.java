@@ -9,6 +9,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.freeze.FreezePeriodChecker;
+import com.swirlds.platform.metrics.ConsensusEngineMetrics;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
@@ -33,7 +34,12 @@ public class SwirldStateManager implements FreezePeriodChecker {
     /**
      * Stats relevant to the state operations.
      */
-    private final StateMetrics stats;
+    private final ConsensusEngineMetrics consensusEngineMetrics;
+
+    /**
+     *
+     */
+    private final StateMetrics stateMetrics;
 
     /**
      * reference to the state that reflects all known consensus transactions
@@ -85,10 +91,11 @@ public class SwirldStateManager implements FreezePeriodChecker {
 
         this.platformStateFacade = requireNonNull(platformStateFacade);
         this.consensusStateEventHandler = consensusStateEventHandler;
-        this.stats = new StateMetrics(platformContext.getMetrics());
+        this.consensusEngineMetrics = new ConsensusEngineMetrics(selfId, platformContext.getMetrics());
+        this.stateMetrics = new StateMetrics(platformContext.getMetrics());
         requireNonNull(statusActionSubmitter);
         this.softwareVersion = requireNonNull(softwareVersion);
-        this.transactionHandler = new TransactionHandler(selfId, stats);
+        this.transactionHandler = new TransactionHandler(selfId, consensusEngineMetrics);
     }
 
     /**
@@ -167,7 +174,7 @@ public class SwirldStateManager implements FreezePeriodChecker {
     }
 
     private void fastCopyAndUpdateRefs(final MerkleNodeState state) {
-        final MerkleNodeState newState = fastCopy(state, stats, softwareVersion, platformStateFacade);
+        final MerkleNodeState newState = fastCopy(state, stateMetrics, softwareVersion, platformStateFacade);
 
         // Set latest immutable first to prevent the newly immutable stateRoot from being deleted between setting the
         // stateRef and the latestImmutableState
