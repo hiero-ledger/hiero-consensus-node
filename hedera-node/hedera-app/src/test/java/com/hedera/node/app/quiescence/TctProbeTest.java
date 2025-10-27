@@ -8,7 +8,6 @@ import static com.hedera.node.app.service.token.api.StakingRewardsApi.epochSecon
 import static com.hedera.node.app.service.token.api.StakingRewardsApi.stakePeriodAt;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -21,6 +20,7 @@ import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.node.state.schedule.ScheduledCounts;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableKVState;
@@ -53,10 +53,16 @@ class TctProbeTest {
     private ReadableStates entityIdReadableStates;
 
     @Mock
+    private ReadableStates freezeReadableStates;
+
+    @Mock
     private ReadableSingletonState<BlockStreamInfo> blockStreamInfoState;
 
     @Mock
     private ReadableKVState<TimestampSeconds, ScheduledCounts> scheduledCountsState;
+
+    @Mock
+    private ReadableSingletonState<Timestamp> freezeTimeState;
 
     private TctProbe subject;
 
@@ -66,12 +72,14 @@ class TctProbeTest {
         lenient().when(state.getReadableStates(BlockStreamService.NAME)).thenReturn(blockStreamReadableStates);
         lenient().when(state.getReadableStates(ScheduleService.NAME)).thenReturn(scheduleReadableStates);
         lenient().when(state.getReadableStates(EntityIdService.NAME)).thenReturn(entityIdReadableStates);
+        lenient().when(state.getReadableStates(FreezeServiceImpl.NAME)).thenReturn(freezeReadableStates);
         lenient()
                 .when(blockStreamReadableStates.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID))
                 .thenReturn(blockStreamInfoState);
         lenient()
                 .when(scheduleReadableStates.<TimestampSeconds, ScheduledCounts>get(anyInt()))
                 .thenReturn(scheduledCountsState);
+        lenient().when(freezeReadableStates.<Timestamp>getSingleton(anyInt())).thenReturn(freezeTimeState);
     }
 
     @Test
@@ -101,28 +109,32 @@ class TctProbeTest {
 
     @Test
     void findTctReturnsNullWhenNoStakePeriodAndNoScheduledTransactions() {
-        // Given - no staking period (stakePeriodMins = 0)
+        // Given - no staking period (stakePeriodMins = 0) and no freeze time
         final var blockStreamInfo = BlockStreamInfo.newBuilder()
                 .lastHandleTime(asTimestamp(LAST_HANDLED_TIME))
                 .build();
         given(blockStreamInfoState.get()).willReturn(blockStreamInfo);
+        given(freezeTimeState.get()).willReturn(null);
 
         subject = new TctProbe(MAX_CONSECUTIVE_SCHEDULE_SECONDS, 0, state);
 
         // When
         final var result = subject.findTct();
 
-        // Then
-        assertNull(result);
+        // Then - should return EPOCH (freeze time defaults to EPOCH when null)
+        assertNotNull(result);
+        assertEquals(Instant.EPOCH, result);
     }
 
     @Test
     void findTctReturnsNextStakePeriodStartWhenNoScheduledTransactions() {
-        // Given
+        // Given - freeze time is far in the future so stake period wins
+        final var farFutureFreezeTime = LAST_HANDLED_TIME.plusSeconds(999999999);
         final var blockStreamInfo = BlockStreamInfo.newBuilder()
                 .lastHandleTime(asTimestamp(LAST_HANDLED_TIME))
                 .build();
         given(blockStreamInfoState.get()).willReturn(blockStreamInfo);
+        given(freezeTimeState.get()).willReturn(asTimestamp(farFutureFreezeTime));
         given(scheduledCountsState.get(any())).willReturn(null);
 
         subject = new TctProbe(MAX_CONSECUTIVE_SCHEDULE_SECONDS, STAKE_PERIOD_MINS, state);
@@ -145,6 +157,7 @@ class TctProbeTest {
                 .lastHandleTime(asTimestamp(LAST_HANDLED_TIME))
                 .build();
         given(blockStreamInfoState.get()).willReturn(blockStreamInfo);
+        given(freezeTimeState.get()).willReturn(null);
 
         // First second has scheduled transactions with unprocessed items
         final var scheduledCounts = ScheduledCounts.newBuilder()
@@ -171,6 +184,7 @@ class TctProbeTest {
                 .lastHandleTime(asTimestamp(LAST_HANDLED_TIME))
                 .build();
         given(blockStreamInfoState.get()).willReturn(blockStreamInfo);
+        given(freezeTimeState.get()).willReturn(null);
 
         // First 3 seconds have no scheduled transactions
         given(scheduledCountsState.get(new TimestampSeconds(LAST_HANDLED_TIME.getEpochSecond())))
@@ -208,6 +222,7 @@ class TctProbeTest {
                 .lastHandleTime(asTimestamp(LAST_HANDLED_TIME))
                 .build();
         given(blockStreamInfoState.get()).willReturn(blockStreamInfo);
+        given(freezeTimeState.get()).willReturn(null);
 
         // Scheduled transactions exist but all are processed
         final var allProcessedCounts = ScheduledCounts.newBuilder()
@@ -238,11 +253,13 @@ class TctProbeTest {
 
     @Test
     void probeStopsAfterMaxConsecutiveScheduleSecondsToFindTct() {
-        // Given
+        // Given - freeze time is far in the future so stake period wins
+        final var farFutureFreezeTime = LAST_HANDLED_TIME.plusSeconds(999999999);
         final var blockStreamInfo = BlockStreamInfo.newBuilder()
                 .lastHandleTime(asTimestamp(LAST_HANDLED_TIME))
                 .build();
         given(blockStreamInfoState.get()).willReturn(blockStreamInfo);
+        given(freezeTimeState.get()).willReturn(asTimestamp(farFutureFreezeTime));
 
         // All seconds within the probe limit have fully processed scheduled transactions
         final var allProcessedCounts = ScheduledCounts.newBuilder()
@@ -270,11 +287,13 @@ class TctProbeTest {
 
     @Test
     void findTctReturnsEarlierOfScheduledSecondAndStakePeriodStart() {
-        // Given - stake period start is sooner than any scheduled transaction
+        // Given - stake period start is sooner than any scheduled transaction, freeze time is far future
+        final var farFutureFreezeTime = LAST_HANDLED_TIME.plusSeconds(999999999);
         final var blockStreamInfo = BlockStreamInfo.newBuilder()
                 .lastHandleTime(asTimestamp(LAST_HANDLED_TIME))
                 .build();
         given(blockStreamInfoState.get()).willReturn(blockStreamInfo);
+        given(freezeTimeState.get()).willReturn(asTimestamp(farFutureFreezeTime));
 
         // No scheduled transactions found within probe limit
         given(scheduledCountsState.get(any())).willReturn(null);
@@ -294,10 +313,12 @@ class TctProbeTest {
 
     @Test
     void findTctUsesEpochWhenLastHandleTimeIsNull() {
-        // Given - BlockStreamInfo with null lastHandleTime
+        // Given - BlockStreamInfo with null lastHandleTime, freeze time far in future
+        final var farFutureFreezeTime = Instant.ofEpochSecond(999999999);
         final var blockStreamInfo =
                 BlockStreamInfo.newBuilder().lastHandleTime((Timestamp) null).build();
         given(blockStreamInfoState.get()).willReturn(blockStreamInfo);
+        given(freezeTimeState.get()).willReturn(asTimestamp(farFutureFreezeTime));
         given(scheduledCountsState.get(any())).willReturn(null);
 
         subject = new TctProbe(MAX_CONSECUTIVE_SCHEDULE_SECONDS, STAKE_PERIOD_MINS, state);
@@ -321,6 +342,7 @@ class TctProbeTest {
                 .lastHandleTime(asTimestamp(LAST_HANDLED_TIME))
                 .build();
         given(blockStreamInfoState.get()).willReturn(blockStreamInfo);
+        given(freezeTimeState.get()).willReturn(null);
 
         // Scheduled transaction exists at the first second
         final var scheduledCounts = ScheduledCounts.newBuilder()
@@ -346,11 +368,13 @@ class TctProbeTest {
 
     @Test
     void multipleFindTctCallsContinueSearchingWhenNearestTctIsStakePeriod() {
-        // Given
+        // Given - freeze time is far in the future so stake period wins initially
+        final var farFutureFreezeTime = LAST_HANDLED_TIME.plusSeconds(999999999);
         final var blockStreamInfo = BlockStreamInfo.newBuilder()
                 .lastHandleTime(asTimestamp(LAST_HANDLED_TIME))
                 .build();
         given(blockStreamInfoState.get()).willReturn(blockStreamInfo);
+        given(freezeTimeState.get()).willReturn(asTimestamp(farFutureFreezeTime));
 
         // First probe: no scheduled transactions found
         given(scheduledCountsState.get(any())).willReturn(null);
@@ -393,6 +417,7 @@ class TctProbeTest {
                 .lastHandleTime(asTimestamp(LAST_HANDLED_TIME))
                 .build();
         given(blockStreamInfoState.get()).willReturn(blockStreamInfo);
+        given(freezeTimeState.get()).willReturn(null);
 
         // Scheduled transaction exists
         final var scheduledCounts = ScheduledCounts.newBuilder()
@@ -419,6 +444,7 @@ class TctProbeTest {
                 .lastHandleTime(asTimestamp(LAST_HANDLED_TIME))
                 .build();
         given(blockStreamInfoState.get()).willReturn(blockStreamInfo);
+        given(freezeTimeState.get()).willReturn(null);
 
         // No scheduled transactions
         given(scheduledCountsState.get(any())).willReturn(null);
@@ -428,17 +454,20 @@ class TctProbeTest {
         // When
         final var result = subject.findTct();
 
-        // Then - should return null since no stake period and no scheduled transactions
-        assertNull(result);
+        // Then - should return EPOCH (freeze time defaults to EPOCH when null)
+        assertNotNull(result);
+        assertEquals(Instant.EPOCH, result);
     }
 
     @Test
     void findTctWithZeroMaxConsecutiveScheduleSecondsStillChecksFirstSecond() {
-        // Given - max consecutive schedule seconds is 0, but it should still check at least once
+        // Given - max consecutive schedule seconds is 0, freeze time is far in future
+        final var farFutureFreezeTime = LAST_HANDLED_TIME.plusSeconds(999999999);
         final var blockStreamInfo = BlockStreamInfo.newBuilder()
                 .lastHandleTime(asTimestamp(LAST_HANDLED_TIME))
                 .build();
         given(blockStreamInfoState.get()).willReturn(blockStreamInfo);
+        given(freezeTimeState.get()).willReturn(asTimestamp(farFutureFreezeTime));
 
         subject = new TctProbe(0, STAKE_PERIOD_MINS, state);
 
@@ -451,5 +480,224 @@ class TctProbeTest {
         final var expectedNextStakePeriodStart =
                 Instant.ofEpochSecond(epochSecondAtStartOfPeriod(currentStakePeriod + 1, STAKE_PERIOD_MINS));
         assertEquals(expectedNextStakePeriodStart, result);
+    }
+
+    @Test
+    void findTctReturnsFreezeTimeWhenItIsEarliest() {
+        // Given - freeze time is set and is earlier than stake period
+        final var freezeTime = LAST_HANDLED_TIME.plusSeconds(100);
+        final var blockStreamInfo = BlockStreamInfo.newBuilder()
+                .lastHandleTime(asTimestamp(LAST_HANDLED_TIME))
+                .build();
+        given(blockStreamInfoState.get()).willReturn(blockStreamInfo);
+        given(freezeTimeState.get()).willReturn(asTimestamp(freezeTime));
+        given(scheduledCountsState.get(any())).willReturn(null);
+
+        subject = new TctProbe(MAX_CONSECUTIVE_SCHEDULE_SECONDS, STAKE_PERIOD_MINS, state);
+
+        // When
+        final var result = subject.findTct();
+
+        // Then - should return freeze time
+        assertNotNull(result);
+        assertEquals(freezeTime, result);
+    }
+
+    @Test
+    void findTctReturnsStakePeriodWhenFreezeTimeIsLater() {
+        // Given - freeze time is set but is later than stake period
+        final var freezeTime = LAST_HANDLED_TIME.plusSeconds(999999999);
+        final var blockStreamInfo = BlockStreamInfo.newBuilder()
+                .lastHandleTime(asTimestamp(LAST_HANDLED_TIME))
+                .build();
+        given(blockStreamInfoState.get()).willReturn(blockStreamInfo);
+        given(freezeTimeState.get()).willReturn(asTimestamp(freezeTime));
+        given(scheduledCountsState.get(any())).willReturn(null);
+
+        subject = new TctProbe(MAX_CONSECUTIVE_SCHEDULE_SECONDS, STAKE_PERIOD_MINS, state);
+
+        // When
+        final var result = subject.findTct();
+
+        // Then - should return next stake period start
+        assertNotNull(result);
+        final long currentStakePeriod = stakePeriodAt(LAST_HANDLED_TIME, STAKE_PERIOD_MINS);
+        final var expectedNextStakePeriodStart =
+                Instant.ofEpochSecond(epochSecondAtStartOfPeriod(currentStakePeriod + 1, STAKE_PERIOD_MINS));
+        assertEquals(expectedNextStakePeriodStart, result);
+    }
+
+    @Test
+    void findTctUsesEpochWhenFreezeTimeIsNull() {
+        // Given - no freeze time is set (null), so it defaults to EPOCH
+        final var blockStreamInfo = BlockStreamInfo.newBuilder()
+                .lastHandleTime(asTimestamp(LAST_HANDLED_TIME))
+                .build();
+        given(blockStreamInfoState.get()).willReturn(blockStreamInfo);
+        given(freezeTimeState.get()).willReturn(null);
+        given(scheduledCountsState.get(any())).willReturn(null);
+
+        subject = new TctProbe(MAX_CONSECUTIVE_SCHEDULE_SECONDS, STAKE_PERIOD_MINS, state);
+
+        // When
+        final var result = subject.findTct();
+
+        // Then - should return EPOCH (freeze time defaults to EPOCH when null, which is earlier than stake period)
+        assertNotNull(result);
+        assertEquals(Instant.EPOCH, result);
+    }
+
+    @Test
+    void findTctReturnsScheduledSecondWhenEarlierThanFreezeTime() {
+        // Given - scheduled transaction exists and is earlier than freeze time
+        final var freezeTime = LAST_HANDLED_TIME.plusSeconds(1000);
+        final var blockStreamInfo = BlockStreamInfo.newBuilder()
+                .lastHandleTime(asTimestamp(LAST_HANDLED_TIME))
+                .build();
+        given(blockStreamInfoState.get()).willReturn(blockStreamInfo);
+        given(freezeTimeState.get()).willReturn(asTimestamp(freezeTime));
+
+        // Scheduled transaction exists at the first second
+        final var scheduledCounts = ScheduledCounts.newBuilder()
+                .numberScheduled(5)
+                .numberProcessed(2)
+                .build();
+        given(scheduledCountsState.get(new TimestampSeconds(LAST_HANDLED_TIME.getEpochSecond())))
+                .willReturn(scheduledCounts);
+
+        subject = new TctProbe(MAX_CONSECUTIVE_SCHEDULE_SECONDS, STAKE_PERIOD_MINS, state);
+
+        // When
+        final var result = subject.findTct();
+
+        // Then - should return scheduled second, not freeze time
+        assertNotNull(result);
+        assertEquals(LAST_HANDLED_TIME, result);
+    }
+
+    @Test
+    void findTctReturnsFreezeTimeWhenEarlierThanScheduledSecond() {
+        // Given - freeze time is earlier than any scheduled transaction
+        final var freezeTime = LAST_HANDLED_TIME.plusSeconds(2);
+        final var blockStreamInfo = BlockStreamInfo.newBuilder()
+                .lastHandleTime(asTimestamp(LAST_HANDLED_TIME))
+                .build();
+        given(blockStreamInfoState.get()).willReturn(blockStreamInfo);
+        given(freezeTimeState.get()).willReturn(asTimestamp(freezeTime));
+
+        // No scheduled transactions in first 2 seconds (up to freeze time)
+        given(scheduledCountsState.get(new TimestampSeconds(LAST_HANDLED_TIME.getEpochSecond())))
+                .willReturn(null);
+        given(scheduledCountsState.get(
+                        new TimestampSeconds(LAST_HANDLED_TIME.plusSeconds(1).getEpochSecond())))
+                .willReturn(null);
+        given(scheduledCountsState.get(
+                        new TimestampSeconds(LAST_HANDLED_TIME.plusSeconds(2).getEpochSecond())))
+                .willReturn(null);
+
+        subject = new TctProbe(MAX_CONSECUTIVE_SCHEDULE_SECONDS, STAKE_PERIOD_MINS, state);
+
+        // When
+        final var result = subject.findTct();
+
+        // Then - should return freeze time
+        assertNotNull(result);
+        assertEquals(freezeTime, result);
+    }
+
+    @Test
+    void findTctWithFreezeTimeAndNoStakePeriod() {
+        // Given - freeze time is set but no stake period (stakePeriodMins = 0)
+        // When stakePeriodMins = 0, nextStakePeriodStart is set to EPOCH
+        final var freezeTime = LAST_HANDLED_TIME.plusSeconds(500);
+        final var blockStreamInfo = BlockStreamInfo.newBuilder()
+                .lastHandleTime(asTimestamp(LAST_HANDLED_TIME))
+                .build();
+        given(blockStreamInfoState.get()).willReturn(blockStreamInfo);
+        given(freezeTimeState.get()).willReturn(asTimestamp(freezeTime));
+        // No scheduled transactions
+        for (int i = 0; i < MAX_CONSECUTIVE_SCHEDULE_SECONDS; i++) {
+            given(scheduledCountsState.get(new TimestampSeconds(
+                            LAST_HANDLED_TIME.plusSeconds(i).getEpochSecond())))
+                    .willReturn(null);
+        }
+
+        subject = new TctProbe(MAX_CONSECUTIVE_SCHEDULE_SECONDS, 0, state);
+
+        // When
+        final var result = subject.findTct();
+
+        // Then - should return EPOCH (min of EPOCH for stake period and freezeTime)
+        // When stakePeriodMins = 0, nextStakePeriodStart is EPOCH, which is earlier than freezeTime
+        assertNotNull(result);
+        assertEquals(Instant.EPOCH, result);
+    }
+
+    @Test
+    void multipleFindTctCallsContinueSearchingWhenNearestTctIsFreezeTime() {
+        // Given - freeze time is the nearest TCT initially
+        final var freezeTime = LAST_HANDLED_TIME.plusSeconds(100);
+        final var blockStreamInfo = BlockStreamInfo.newBuilder()
+                .lastHandleTime(asTimestamp(LAST_HANDLED_TIME))
+                .build();
+        given(blockStreamInfoState.get()).willReturn(blockStreamInfo);
+        given(freezeTimeState.get()).willReturn(asTimestamp(freezeTime));
+
+        // First probe: no scheduled transactions found
+        given(scheduledCountsState.get(any())).willReturn(null);
+
+        subject = new TctProbe(MAX_CONSECUTIVE_SCHEDULE_SECONDS, STAKE_PERIOD_MINS, state);
+
+        // When - first probe
+        final var result1 = subject.findTct();
+
+        // Then - should return freeze time
+        assertNotNull(result1);
+        assertEquals(freezeTime, result1);
+
+        // Given - now add a scheduled transaction that could be a new nearest TCT
+        final var scheduledCounts = ScheduledCounts.newBuilder()
+                .numberScheduled(3)
+                .numberProcessed(1)
+                .build();
+        // The probe should continue from where it left off (nextScheduledSecond was incremented)
+        given(scheduledCountsState.get(new TimestampSeconds(LAST_HANDLED_TIME
+                        .plusSeconds(MAX_CONSECUTIVE_SCHEDULE_SECONDS)
+                        .getEpochSecond())))
+                .willReturn(scheduledCounts);
+
+        // When - second probe
+        final var result2 = subject.findTct();
+
+        // Then - should find the scheduled transaction
+        assertNotNull(result2);
+        assertEquals(LAST_HANDLED_TIME.plusSeconds(MAX_CONSECUTIVE_SCHEDULE_SECONDS), result2);
+    }
+
+    @Test
+    void findTctReturnsFreezeTimeWhenAllThreeTctsExist() {
+        // Given - all three TCT sources exist: freeze time (earliest), scheduled transaction, and stake period
+        final var freezeTime = LAST_HANDLED_TIME.plusSeconds(50);
+        final var blockStreamInfo = BlockStreamInfo.newBuilder()
+                .lastHandleTime(asTimestamp(LAST_HANDLED_TIME))
+                .build();
+        given(blockStreamInfoState.get()).willReturn(blockStreamInfo);
+        given(freezeTimeState.get()).willReturn(asTimestamp(freezeTime));
+
+        // No scheduled transactions in the first MAX_CONSECUTIVE_SCHEDULE_SECONDS
+        for (int i = 0; i < MAX_CONSECUTIVE_SCHEDULE_SECONDS; i++) {
+            given(scheduledCountsState.get(new TimestampSeconds(
+                            LAST_HANDLED_TIME.plusSeconds(i).getEpochSecond())))
+                    .willReturn(null);
+        }
+
+        subject = new TctProbe(MAX_CONSECUTIVE_SCHEDULE_SECONDS, STAKE_PERIOD_MINS, state);
+
+        // When
+        final var result = subject.findTct();
+
+        // Then - should return freeze time as it's the earliest
+        assertNotNull(result);
+        assertEquals(freezeTime, result);
     }
 }
