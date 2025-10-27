@@ -193,6 +193,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void nodeWeight(final long weight) {
+        throwIfInLifecycle(Lifecycle.RUNNING, "Cannot set weight generator when the network is running.");
         if (weight <= 0) {
             throw new IllegalArgumentException("Weight must be positive");
         }
@@ -612,6 +613,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Network withConfigValue(@NonNull final String key, @NonNull final String value) {
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
         nodeProperties().configuration().set(key, value);
         nodes().forEach(node -> node.configuration().set(key, value));
         return this;
@@ -622,6 +624,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public @NotNull Network withConfigValue(@NotNull final String key, @NotNull final Duration value) {
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
         nodeProperties().configuration().set(key, value);
         nodes().forEach(node -> node.configuration().set(key, value));
         return this;
@@ -633,6 +636,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Network withConfigValue(@NonNull final String key, final int value) {
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
         nodeProperties().configuration().set(key, value);
         nodes().forEach(node -> node.configuration().set(key, value));
         return this;
@@ -644,6 +648,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Network withConfigValue(@NonNull final String key, final long value) {
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
         nodeProperties().configuration().set(key, value);
         nodes().forEach(node -> node.configuration().set(key, value));
         return this;
@@ -655,6 +660,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Network withConfigValue(@NonNull final String key, @NonNull final Path value) {
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
         nodeProperties().configuration().set(key, value);
         nodes().forEach(node -> node.configuration().set(key, value));
         return this;
@@ -666,6 +672,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Network withConfigValue(@NonNull final String key, final boolean value) {
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
         nodeProperties().configuration().set(key, value);
         nodes().forEach(node -> node.configuration().set(key, value));
         return this;
@@ -700,6 +707,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void version(@NonNull final SemanticVersion version) {
+        throwIfInLifecycle(Lifecycle.RUNNING, "Cannot set version while the network is running");
         nodeProperties().version(version);
         nodes().forEach(node -> node.version(version));
     }

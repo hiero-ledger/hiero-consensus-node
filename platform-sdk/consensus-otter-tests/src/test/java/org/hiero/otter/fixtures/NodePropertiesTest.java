@@ -268,4 +268,46 @@ final class NodePropertiesTest {
             env.destroy();
         }
     }
+
+    // ============================================================================
+    // 9. Lifecycle and State Tests
+    // ============================================================================
+
+    /**
+     * Test that setting NodeProperties fields on the network throws an exception when the network is in the RUNNING
+     * lifecycle phase.
+     */
+    @Test
+    void testNodePropertiesThrowExceptionWhenNetworkIsRunning() {
+        final TestEnvironment env = new TurtleTestEnvironment();
+        try {
+            final Network network = env.network();
+
+            // Add nodes
+            network.addNodes(2);
+
+            // Start the network
+            network.start();
+
+            // Verify that attempting to set nodeWeight throws an exception
+            assertThatThrownBy(() -> network.nodeWeight(700L))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("Cannot set weight");
+
+            // Verify that attempting to set version throws an exception
+            final SemanticVersion newVersion =
+                    SemanticVersion.newBuilder().major(2).minor(0).patch(0).build();
+            assertThatThrownBy(() -> network.version(newVersion))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("Cannot set version");
+
+            // Verify that attempting to set configuration values throws an exception
+            assertThatThrownBy(() -> network.withConfigValue("testKey", "testValue"))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("running");
+
+        } finally {
+            env.destroy();
+        }
+    }
 }
