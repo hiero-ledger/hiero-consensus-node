@@ -129,7 +129,6 @@ import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
@@ -1008,27 +1007,13 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             @NonNull final State state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         final var readableStoreFactory = new ReadableStoreFactory(state);
+        // Will be null if the submitting node is no longer in the address book
         final var creatorInfo =
                 daggerApp.networkInfo().nodeInfo(event.getCreatorId().id());
-        if (creatorInfo == null) {
-            // It's normal immediately post-upgrade to still see events from a node removed from the address book
-            final var platformStateStore = readableStoreFactory.getStore(ReadablePlatformStateStore.class);
-            if (event.getEventCore().birthRound() > platformStateStore.getLatestFreezeRound()) {
-                logger.warn(
-                        "Received event with birth round {}, last freeze round is {}, from node {} "
-                                + "which is not in the address book",
-                        event.getEventCore().birthRound(),
-                        platformStateStore.getLatestFreezeRound(),
-                        event.getCreatorId());
-            }
-            return;
-        }
-
         final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback = (txn, ignored) -> {
             final var scopedTxn = new ScopedSystemTransaction<>(event.getCreatorId(), event.getBirthRound(), txn);
             stateSignatureTxnCallback.accept(scopedTxn);
         };
-
         final var transactions = new ArrayList<Transaction>(1000);
         event.forEachTransaction(transactions::add);
         daggerApp

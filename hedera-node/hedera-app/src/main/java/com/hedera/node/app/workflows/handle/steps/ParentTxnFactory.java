@@ -188,6 +188,8 @@ public class ParentTxnFactory {
                 creatorInfo, platformTxn, readableStoreFactory, shortCircuitTxnCallback);
         // In case we got this without a prehandle call, ensure there's metadata for quiescence controller
         if (platformTxn.getMetadata() == null) {
+            log.error(
+                    "Transaction {} has no metadata (preHandleResult={}), creating one", platformTxn, preHandleResult);
             platformTxn.setMetadata(preHandleResult);
         }
         final var txnInfo = preHandleResult.txInfo();
