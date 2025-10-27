@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_ENDPOINT
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_REQUIRED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,6 +32,7 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeCreateHandler;
@@ -250,15 +252,17 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
     @Test
     void accountIdMustInState() {
         txn = new NodeCreateBuilder().withAccountId(accountId).build(payerId);
-        given(accountStore.contains(accountId)).willReturn(false);
+        given(accountStore.getAccountById(accountId)).willReturn(null);
         given(handleContext.body()).willReturn(txn);
         final var config = HederaTestConfigBuilder.create()
                 .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 10)
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.storeFactory()).willReturn(storeFactory);
+        given(handleContext.expiryValidator()).willReturn(expiryValidator);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
         assertEquals(ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID, msg.getStatus());
@@ -626,7 +630,11 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.storeFactory()).willReturn(storeFactory);
-        given(accountStore.contains(accountId)).willReturn(true);
+        given(handleContext.expiryValidator()).willReturn(expiryValidator);
+        given(expiryValidator.expirationStatus(
+                        EntityType.ACCOUNT, account.expiredAndPendingRemoval(), account.tinybarBalance()))
+                .willReturn(OK);
+        given(accountStore.getAccountById(accountId)).willReturn(account);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
         given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);

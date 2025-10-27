@@ -39,6 +39,7 @@ import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
+import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -172,6 +173,9 @@ public class AddressBookTestBase {
 
     @Mock
     protected WritableStates writableStates;
+
+    @Mock
+    protected ExpiryValidator expiryValidator;
 
     protected ReadableEntityIdStore readableEntityCounters;
     protected WritableEntityIdStoreImpl writableEntityCounters;

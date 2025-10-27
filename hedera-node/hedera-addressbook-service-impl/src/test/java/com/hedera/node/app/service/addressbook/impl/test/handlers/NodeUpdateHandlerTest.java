@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GRPC_CERTIFICAT
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_IPV4_ADDRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UPDATE_NODE_ACCOUNT_NOT_ALLOWED;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_LABEL;
@@ -37,6 +38,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
@@ -388,17 +390,16 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .withAccountId(updateAccountId)
                 .withAdminKey(key)
                 .build();
-        given(handleContext.body()).willReturn(txn);
+        setupHandle();
+
         given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
-        final var config = HederaTestConfigBuilder.create().getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(config);
-        given(handleContext.storeFactory()).willReturn(storeFactory);
-        given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
-        given(accountStore.contains(updateAccountId)).willReturn(true);
         given(accountStore.getAccountById(updateAccountId)).willReturn(account);
         given(account.tinybarBalance()).willReturn(10L);
-        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(handleContext.attributeValidator()).willReturn(validator);
+        given(handleContext.expiryValidator()).willReturn(expiryValidator);
+        given(expiryValidator.expirationStatus(
+                        EntityType.ACCOUNT, account.expiredAndPendingRemoval(), account.tinybarBalance()))
+                .willReturn(OK);
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
         final var updatedNode = writableStore.get(1L);
@@ -429,6 +430,10 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         given(account.tinybarBalance()).willReturn(10L);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(handleContext.attributeValidator()).willReturn(validator);
+        given(handleContext.expiryValidator()).willReturn(expiryValidator);
+        given(expiryValidator.expirationStatus(
+                        EntityType.ACCOUNT, account.expiredAndPendingRemoval(), account.tinybarBalance()))
+                .willReturn(OK);
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
         assertEquals(ResponseCodeEnum.ACCOUNT_IS_LINKED_TO_A_NODE, msg.getStatus());
@@ -865,8 +870,10 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         given(accountStore.getAccountById(newAccountId)).willReturn(account);
         given(account.tinybarBalance()).willReturn(10L);
         given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
-
-        given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
+        given(handleContext.expiryValidator()).willReturn(expiryValidator);
+        given(expiryValidator.expirationStatus(
+                        EntityType.ACCOUNT, account.expiredAndPendingRemoval(), account.tinybarBalance()))
+                .willReturn(OK);
 
         // Execute the method
         assertDoesNotThrow(() -> subject.handle(handleContext));
@@ -913,15 +920,12 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
     }
 
     private void setupHandle() {
         setupMinimalHandle();
-        given(accountStore.contains(accountId)).willReturn(true);
-        given(accountStore.getAccountById(any())).willReturn(account);
-        given(account.tinybarBalance()).willReturn(10L);
-
-        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(accountStore.contains(any())).willReturn(true);
     }
 
     private PreHandleContext setupPreHandle(boolean updateAccountIdAllowed, TransactionBody txn)
