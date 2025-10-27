@@ -726,7 +726,7 @@ jobs:
           retention-days: 7
 
       - name: Fast Otter Testing
-        id: gradle-otter-tests
+        id: gradle-fast-otter-tests
         if: ${{ inputs.enable-fast-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         env:
           LC_ALL: en.UTF-8
@@ -734,7 +734,7 @@ jobs:
         run: ${GRADLE_EXEC} :consensus-otter-tests:testOtter
 
       - name: Full Otter Testing
-        id: gradle-otter-tests
+        id: gradle-full-otter-tests
         if: ${{ inputs.enable-full-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         env:
           LC_ALL: en.UTF-8
