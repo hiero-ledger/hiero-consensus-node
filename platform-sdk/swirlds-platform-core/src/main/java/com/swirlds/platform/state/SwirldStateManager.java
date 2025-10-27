@@ -9,7 +9,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.freeze.FreezePeriodChecker;
-import com.swirlds.platform.metrics.ConsensusEngineMetrics;
+import com.swirlds.platform.metrics.TransactionMetrics;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
@@ -34,7 +34,7 @@ public class SwirldStateManager implements FreezePeriodChecker {
     /**
      * Stats relevant to the state operations.
      */
-    private final ConsensusEngineMetrics consensusEngineMetrics;
+    private final TransactionMetrics transactionMetrics;
 
     /**
      *
@@ -91,11 +91,11 @@ public class SwirldStateManager implements FreezePeriodChecker {
 
         this.platformStateFacade = requireNonNull(platformStateFacade);
         this.consensusStateEventHandler = consensusStateEventHandler;
-        this.consensusEngineMetrics = new ConsensusEngineMetrics(selfId, platformContext.getMetrics());
+        this.transactionMetrics = new TransactionMetrics(platformContext.getMetrics());
         this.stateMetrics = new StateMetrics(platformContext.getMetrics());
         requireNonNull(statusActionSubmitter);
         this.softwareVersion = requireNonNull(softwareVersion);
-        this.transactionHandler = new TransactionHandler(selfId, consensusEngineMetrics);
+        this.transactionHandler = new TransactionHandler(selfId, transactionMetrics);
     }
 
     /**
