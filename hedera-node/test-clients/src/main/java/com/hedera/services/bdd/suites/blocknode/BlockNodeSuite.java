@@ -47,8 +47,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(BLOCK_NODE)
 @OrderedInIsolation
 public class BlockNodeSuite {
-
-    private static final int BLOCK_TTL_MINUTES = 2;
     private static final int BLOCK_PERIOD_SECONDS = 2;
 
     @HapiTest

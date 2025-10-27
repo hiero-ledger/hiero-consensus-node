@@ -217,11 +217,7 @@ public class BlockBufferService {
                 .getConfiguration()
                 .getConfigData(BlockBufferConfig.class)
                 .maxBufferedBlocks();
-        if (maxBufferedBlocks <= 0) {
-            return DEFAULT_BUFFER_SIZE;
-        } else {
-            return maxBufferedBlocks;
-        }
+        return maxBufferedBlocks <= 0 ? DEFAULT_BUFFER_SIZE : maxBufferedBlocks;
     }
 
     /**
@@ -448,15 +444,15 @@ public class BlockBufferService {
         synchronized (blockBuffer) {
             sizeSnapshot = blockBuffer.size();
             if (sizeSnapshot >= capacity) {
-                final long earliest = earliestBlockNumber.get();
+                long earliest = earliestBlockNumber.get();
                 if (earliest != Long.MIN_VALUE && highestAckedBlockNumber.get() >= earliest) {
                     // Remove the earliest block to make space if it has been acknowledged
                     blockBuffer.remove(earliest);
                     prunedBlocks++;
                     // Advance the earliest pointer to the next present block number if possible
-                    long next = earliest + 1;
-                    if (next <= lastProducedBlockNumber.get() && blockBuffer.containsKey(next)) {
-                        earliestBlockNumber.set(next);
+                    earliest++;
+                    if (earliest <= lastProducedBlockNumber.get() && blockBuffer.containsKey(earliest)) {
+                        earliestBlockNumber.set(earliest);
                     } else {
                         earliestBlockNumber.set(Long.MIN_VALUE);
                     }
