@@ -35,6 +35,9 @@ public class WireListSplitter<T> {
             @NonNull final String splitterInputName) {
         final TaskScheduler<T> taskScheduler = model.<T>schedulerBuilder(splitterName)
                 .withType(TaskSchedulerType.DIRECT_THREADSAFE)
+                .withUncaughtExceptionHandler((t, e) -> {
+                    throw new RuntimeException("Uncaught exception in WireListSplitter task scheduler", e);
+                })
                 .build();
 
         inputWire = taskScheduler.buildInputWire(splitterInputName);

@@ -171,6 +171,7 @@ public abstract class OutputWire<OUT> {
 
         final TaskScheduler<Void> directScheduler = model.<Void>schedulerBuilder(handlerName)
                 .withType(TaskSchedulerType.DIRECT)
+                .withUncaughtExceptionHandler((t,e)->{throw new RuntimeException(e);})
                 .build();
 
         final BindableInputWire<OUT, Void> directSchedulerInputWire = directScheduler.buildInputWire(inputWireLabel);

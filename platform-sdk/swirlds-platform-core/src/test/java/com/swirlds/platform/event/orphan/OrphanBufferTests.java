@@ -8,13 +8,22 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.common.test.fixtures.WeightGenerators;
+import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.gossip.IntakeEventCounter;
+import com.swirlds.platform.internal.EventImpl;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
+import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterFactory;
+import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
+import com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -186,9 +195,30 @@ class OrphanBufferTests {
         eventsExitedIntakePipeline = new AtomicLong(0);
     }
 
+    private static final PlatformContext CONTEXT =
+            TestPlatformContextBuilder.create().build();
+
+    private static final int NUMBER_OF_EVENTS_PER_TEST = 10_000;
     @Test
     @DisplayName("Test standard orphan buffer operation")
     void standardOperation() {
+
+        final Randotron random = Randotron.create(-3833760021351545904L);
+        final int minNodes = 4;
+        final int maxNodes = 15;
+        final int shunnedNodeIndex = 0; // the first node will be shunned
+        final Roster roster = RandomRosterBuilder.create(random)
+                .withWeightGenerator(WeightGenerators.BALANCED)
+                .withSize(random.nextInt(minNodes, maxNodes))
+                .build();
+        final StandardEventEmitter eventEmitter = new EventEmitterFactory(CONTEXT, random, roster).newStandardEmitter();
+        eventEmitter
+                .getGraphGenerator()
+                .setOtherParentAffinity(OtherParentMatrixFactory.createShunnedNodeOtherParentAffinityMatrix(
+                        roster.rosterEntries().size(), shunnedNodeIndex));
+        final List<PlatformEvent> generatedEvents = eventEmitter.emitEvents(NUMBER_OF_EVENTS_PER_TEST).stream()
+                .map(EventImpl::getBaseEvent)
+                .toList();
 
         final IntakeEventCounter intakeEventCounter = mock(IntakeEventCounter.class);
         doAnswer(invocation -> {
@@ -208,7 +238,11 @@ class OrphanBufferTests {
         final Collection<Hash> emittedEventHashes = new HashSet<>();
         final List<PlatformEvent> emittedEvents = new ArrayList<>();
 
-        for (final PlatformEvent intakeEvent : intakeEvents) {
+        Collections.shuffle(new ArrayList<>(generatedEvents), random);
+        final ArrayList<PlatformEvent> copy = new ArrayList<>(generatedEvents);
+        Collections.shuffle(copy, random);
+
+        for (final PlatformEvent intakeEvent : copy) {
 
             final List<PlatformEvent> unorphanedEvents = new ArrayList<>(orphanBuffer.handleEvent(intakeEvent));
             assertValidNgen(unorphanedEvents);

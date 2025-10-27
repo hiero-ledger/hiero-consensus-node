@@ -2,6 +2,7 @@
 package com.swirlds.platform.test.fixtures.consensus;
 
 import static com.swirlds.component.framework.wires.SolderType.INJECT;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
@@ -30,11 +31,15 @@ import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import com.swirlds.platform.wiring.components.PassThroughWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -97,6 +102,7 @@ public class TestIntake {
         hasherWiring.getOutputWire().solderTo(postHashCollectorWiring.getInputWire());
         postHashCollectorWiring.getOutputWire().solderTo(orphanBufferWiring.getInputWire(OrphanBuffer::handleEvent));
         final OutputWire<PlatformEvent> splitOutput = orphanBufferWiring.getSplitOutput();
+        splitOutput.solderTo("asdasdas", "adasdsffffa", this::assertOB);
         splitOutput.solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::addEvent));
 
         final OutputWire<ConsensusRound> consensusRoundOutputWire = consensusEngineWiring
@@ -105,6 +111,10 @@ public class TestIntake {
                 .buildSplitter("consensusRoundsSplitter", "consensusRounds");
         consensusRoundOutputWire.solderTo(
                 eventWindowManagerWiring.getInputWire(EventWindowManager::extractEventWindow));
+
+        consensusRoundOutputWire.solderTo("aaaa", "bbbb", r->{
+            eventWindow = r.getEventWindow();
+        });
         consensusEngineWiring
                 .getOutputWire()
                 .solderTo("consensusOutputTestTool", "consensus output", output::consensusEngineOutput);
@@ -120,6 +130,39 @@ public class TestIntake {
         consensusEngineWiring.getInputWire(ConsensusEngine::outOfBandSnapshotUpdate);
 
         model.start();
+    }
+
+    final Collection<Hash> emittedEventHashes = new HashSet<>();
+    EventWindow eventWindow = EventWindow.getGenesisEventWindow();
+
+    private void assertOB(final PlatformEvent unorphanedEvent){
+        assertValidParents(unorphanedEvent, eventWindow, emittedEventHashes);
+        emittedEventHashes.add(unorphanedEvent.getHash());
+    }
+
+    private static void assertValidParents(
+            @NonNull final PlatformEvent event,
+            @NonNull final EventWindow eventWindow,
+            @NonNull final Collection<Hash> emittedEvents) {
+        for (final EventDescriptorWrapper parent : event.getAllParents()) {
+            assertThat(eventEmittedOrAncient(parent, eventWindow, emittedEvents))
+                    .isTrue();
+        }
+    }
+
+    /**
+     * Check if an event has been emitted or is ancient
+     *
+     * @param event       the event to check
+     * @param eventWindow the event window defining ancient.
+     * @return true if the event has been emitted or is ancient, false otherwise
+     */
+    private static boolean eventEmittedOrAncient(
+            @NonNull final EventDescriptorWrapper event,
+            @NonNull final EventWindow eventWindow,
+            @NonNull final Collection<Hash> emittedEvents) {
+
+        return emittedEvents.contains(event.hash()) || eventWindow.isAncient(event);
     }
 
     /**
@@ -142,6 +185,7 @@ public class TestIntake {
 
     public void loadSnapshot(@NonNull final ConsensusSnapshot snapshot) {
         final EventWindow eventWindow = EventWindowUtils.createEventWindow(snapshot, roundsNonAncient);
+        this.eventWindow = eventWindow;
 
         orphanBufferWiring.getInputWire(OrphanBuffer::setEventWindow).put(eventWindow);
         consensusEngineWiring

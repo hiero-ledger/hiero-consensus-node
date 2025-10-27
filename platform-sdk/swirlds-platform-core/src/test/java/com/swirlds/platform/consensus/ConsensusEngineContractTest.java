@@ -123,7 +123,7 @@ public class ConsensusEngineContractTest {
         final int shunnedNodeIndex = 0; // the first node will be shunned
 
         // setup
-        final Randotron random = Randotron.create();
+        final Randotron random = Randotron.create(-3833760021351545904L);
         final Roster roster = RandomRosterBuilder.create(random)
                 .withWeightGenerator(WeightGenerators.BALANCED)
                 .withSize(random.nextInt(minNodes, maxNodes))
