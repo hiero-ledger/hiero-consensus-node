@@ -126,7 +126,7 @@ public class NodeUpdateHandler implements TransactionHandler {
             final var accountId = op.accountIdOrThrow();
             validateTrue(accountStore.contains(accountId), INVALID_NODE_ACCOUNT_ID);
             if (!accountId.equals(existingNode.accountId())) {
-                final var account = addressBookValidator.getIfUsable(
+                final var account = addressBookValidator.validateAccount(
                         accountId, accountStore, accountNodeRelStore, handleContext.expiryValidator());
 
                 validateTrue(account.tinybarBalance() > 0, NODE_ACCOUNT_HAS_ZERO_BALANCE);

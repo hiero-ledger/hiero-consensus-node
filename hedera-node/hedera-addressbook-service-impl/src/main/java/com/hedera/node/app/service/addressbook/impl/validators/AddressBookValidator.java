@@ -152,7 +152,7 @@ public class AddressBookValidator {
                 !requireNonNull(accountId).hasAccountNum() && accountId.hasAlias(), INVALID_NODE_ACCOUNT_ID);
     }
 
-    public Account getIfUsable(
+    public Account validateAccount(
             @NonNull final AccountID accountId,
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final ReadableAccountNodeRelStore accountNodeRelStore,

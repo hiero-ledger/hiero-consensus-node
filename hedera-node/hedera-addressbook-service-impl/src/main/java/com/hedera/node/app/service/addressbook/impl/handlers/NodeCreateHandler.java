@@ -92,7 +92,8 @@ public class NodeCreateHandler implements TransactionHandler {
         final var accountId = op.accountIdOrElse(AccountID.DEFAULT);
 
         validateFalse(nodeStore.sizeOfState() >= nodeConfig.maxNumber(), MAX_NODES_CREATED);
-        addressBookValidator.getIfUsable(accountId, accountStore, accountNodeRelStore, handleContext.expiryValidator());
+        addressBookValidator.validateAccount(
+                accountId, accountStore, accountNodeRelStore, handleContext.expiryValidator());
         addressBookValidator.validateDescription(op.description(), nodeConfig);
         addressBookValidator.validateGossipEndpoint(op.gossipEndpoint(), nodeConfig);
         addressBookValidator.validateServiceEndpoint(op.serviceEndpoint(), nodeConfig);
