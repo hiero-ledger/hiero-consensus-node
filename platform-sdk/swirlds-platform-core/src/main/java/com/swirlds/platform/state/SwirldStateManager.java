@@ -9,8 +9,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.metrics.StateMetrics;
 import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -48,13 +46,11 @@ public class SwirldStateManager {
      *
      * @param platformContext       the platform context
      * @param roster                the current roster
-     * @param statusActionSubmitter enables submitting platform status actions
      * @param softwareVersion       the current software version
      */
     public SwirldStateManager(
             @NonNull final PlatformContext platformContext,
             @NonNull final Roster roster,
-            @NonNull final StatusActionSubmitter statusActionSubmitter,
             @NonNull final SemanticVersion softwareVersion,
             @NonNull final PlatformStateFacade platformStateFacade) {
 
@@ -62,7 +58,6 @@ public class SwirldStateManager {
         requireNonNull(roster);
         this.platformStateFacade = requireNonNull(platformStateFacade);
         this.stats = new StateMetrics(platformContext.getMetrics());
-        requireNonNull(statusActionSubmitter);
         this.softwareVersion = requireNonNull(softwareVersion);
     }
 
@@ -71,13 +66,13 @@ public class SwirldStateManager {
      *
      * @param state the initial state
      */
-    public void setInitialState(@NonNull final MerkleNodeState state) {
+    public void setState(@NonNull final MerkleNodeState state, boolean onInit) {
         requireNonNull(state);
 
         state.throwIfDestroyed("state must not be destroyed");
         state.throwIfImmutable("state must be mutable");
 
-        if (stateRef.get() != null) {
+        if (onInit && stateRef.get() != null) {
             throw new IllegalStateException("Attempt to set initial state when there is already a state reference.");
         }
 
@@ -94,27 +89,13 @@ public class SwirldStateManager {
         return stateRef.get();
     }
 
-    /**
-     * Loads all necessary data from the {@code reservedSignedState}.
-     *
-     * @param signedState the signed state to load
-     */
-    public void loadFromSignedState(@NonNull final SignedState signedState) {
-        MerkleNodeState state = signedState.getState();
-
-        state.throwIfDestroyed("state must not be destroyed");
-        state.throwIfImmutable("state must be mutable");
-
-        fastCopyAndUpdateRefs(state);
-    }
-
     private void fastCopyAndUpdateRefs(final MerkleNodeState state) {
         final MerkleNodeState newState = fastCopy(state, stats, softwareVersion, platformStateFacade);
 
         // Set latest immutable first to prevent the newly immutable stateRoot from being deleted between setting the
         // stateRef and the latestImmutableState
         setLatestImmutableState(state);
-        setState(newState);
+        updateStateRef(newState);
     }
 
     /**
@@ -122,7 +103,7 @@ public class SwirldStateManager {
      *
      * @param state a new mutable state
      */
-    private void setState(final MerkleNodeState state) {
+    private void updateStateRef(final MerkleNodeState state) {
         final var currVal = stateRef.get();
         if (currVal != null) {
             currVal.release();

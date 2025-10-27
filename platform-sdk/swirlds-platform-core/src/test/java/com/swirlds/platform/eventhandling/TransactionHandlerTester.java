@@ -67,12 +67,8 @@ public class TransactionHandlerTester {
                 .onHandleConsensusRound(any(), same(consensusState), any());
         final StatusActionSubmitter statusActionSubmitter = submittedActions::add;
         swirldStateManager = new SwirldStateManager(
-                platformContext,
-                roster,
-                statusActionSubmitter,
-                SemanticVersion.newBuilder().major(1).build(),
-                platformStateFacade);
-        swirldStateManager.setInitialState(consensusState);
+                platformContext, roster, SemanticVersion.newBuilder().major(1).build(), platformStateFacade);
+        swirldStateManager.setState(consensusState, true);
         defaultTransactionHandler = new DefaultTransactionHandler(
                 platformContext,
                 swirldStateManager,

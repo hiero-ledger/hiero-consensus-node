@@ -16,7 +16,6 @@ import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
@@ -43,12 +42,8 @@ class SwirldsStateManagerTests {
                 TestPlatformContextBuilder.create().build();
 
         swirldStateManager = new SwirldStateManager(
-                platformContext,
-                roster,
-                mock(StatusActionSubmitter.class),
-                SemanticVersion.newBuilder().major(1).build(),
-                platformStateFacade);
-        swirldStateManager.setInitialState(initialState);
+                platformContext, roster, SemanticVersion.newBuilder().major(1).build(), platformStateFacade);
+        swirldStateManager.setState(initialState, true);
     }
 
     @AfterEach
@@ -77,10 +72,10 @@ class SwirldsStateManagerTests {
 
     @Test
     @DisplayName("Load From Signed State - state reference counts")
-    void loadFromSignedStateRefCount() {
+    void setStateRefCount() {
         final SignedState ss1 = newSignedState();
         final Reservable state1 = ss1.getState().getRoot();
-        swirldStateManager.loadFromSignedState(ss1);
+        swirldStateManager.setState(ss1.getState(), false);
 
         assertEquals(
                 2,
@@ -94,7 +89,7 @@ class SwirldsStateManagerTests {
                 "The current consensus state should have a single reference count.");
 
         final SignedState ss2 = newSignedState();
-        swirldStateManager.loadFromSignedState(ss2);
+        swirldStateManager.setState(ss2.getState(), false);
         final MerkleNodeState consensusState2 = swirldStateManager.getConsensusState();
 
         Reservable state2 = ss2.getState().getRoot();
