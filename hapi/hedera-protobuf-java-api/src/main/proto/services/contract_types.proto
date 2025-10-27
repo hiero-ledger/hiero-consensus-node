@@ -80,6 +80,14 @@ message EvmTransactionResult {
      * internal call producing this result.
      */
     InternalCallContext internal_call_context = 6;
+
+    /**
+     * A list of contract account nonce values.<br/>
+     * This list SHALL contain a nonce value for each contract account modified
+     * as a result of this contract call. These nonce values SHALL be the value
+     * after the contract call is completed.
+     */
+    repeated ContractNonceInfo contract_nonces = 7;
 }
 
 /**

@@ -126,7 +126,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                         requireNonNull(hevmTransaction.exception()).getStatus());
                 outcome = CallOutcome.fromResultsWithoutSidecars(
                         result.asProtoResultOf(null, rootProxyWorldUpdater, null),
-                        result.asEvmTxResultOf(null, null),
+                        result.asEvmTxResultOf(null, rootProxyWorldUpdater, null),
                         null,
                         null,
                         null,
@@ -208,7 +208,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                     : null;
             final var outcome = CallOutcome.fromResultsWithMaybeSidecars(
                     result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater, callData),
-                    result.asEvmTxResultOf(ethTxDataIfApplicable(), callData),
+                    result.asEvmTxResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater, callData),
                     result.isSuccess() ? rootProxyWorldUpdater.getUpdatedContractNonces() : null,
                     result.isSuccess() ? rootProxyWorldUpdater.getCreatedContractIds() : null,
                     result.isSuccess() ? result.evmAddressIfCreatedIn(rootProxyWorldUpdater) : null,
@@ -309,7 +309,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                 : null;
         return CallOutcome.fromResultsWithoutSidecars(
                 result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater, ethCallData),
-                result.asEvmTxResultOf(ethTxDataIfApplicable(), ethCallData),
+                result.asEvmTxResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater, ethCallData),
                 null,
                 null,
                 null,

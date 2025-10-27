@@ -90,19 +90,10 @@ message SystemDeleteContractOutput {}
  * the original transaction.
  */
 message EthereumOutput {
-    oneof transaction_result {
-        /**
-         * An EVM transaction result for an Ethereum transaction executed as a
-         * call. Contains just the information not already externalized in the
-         * matching transaction body.
-         */
-        proto.EvmTransactionResult evm_call_transaction_result = 1;
-
-        /**
-         * An EVM transaction result for an Ethereum transaction executed as a
-         * create. Contains just the information not already externalized in the
-         * matching transaction body.
-         */
-        proto.EvmTransactionResult evm_create_transaction_result = 2;
-    }
+    /**
+     * An EVM transaction result for an Ethereum transaction; execution was as a
+     * create if the corresponding EthereumTransaction body had a null to address,
+     * and as a call otherwise.
+     */
+    proto.EvmTransactionResult evm_transaction_result = 1;
 }
