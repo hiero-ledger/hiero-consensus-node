@@ -26,6 +26,7 @@ import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -115,12 +116,19 @@ public class NodeUpdateHandler implements TransactionHandler {
         final var nodeConfig = configuration.getConfigData(NodesConfig.class);
         final var storeFactory = handleContext.storeFactory();
         final var nodeStore = storeFactory.writableStore(WritableNodeStore.class);
+        final var accountNodeRelStore = storeFactory.writableStore(WritableAccountNodeRelStore.class);
         final var accountStore = storeFactory.readableStore(ReadableAccountStore.class);
 
         final var existingNode = nodeStore.get(op.nodeId());
         validateFalse(existingNode == null, INVALID_NODE_ID);
         if (op.hasAccountId()) {
-            validateTrue(accountStore.contains(op.accountIdOrThrow()), INVALID_NODE_ACCOUNT_ID);
+            final var accountId = op.accountIdOrThrow();
+            validateTrue(accountStore.contains(accountId), INVALID_NODE_ACCOUNT_ID);
+            if (!accountId.equals(existingNode.accountId())) {
+                // update account node relation
+                accountNodeRelStore.remove(existingNode.accountId());
+                accountNodeRelStore.put(accountId, existingNode.nodeId());
+            }
         }
         if (op.hasDescription()) {
             addressBookValidator.validateDescription(op.description(), nodeConfig);

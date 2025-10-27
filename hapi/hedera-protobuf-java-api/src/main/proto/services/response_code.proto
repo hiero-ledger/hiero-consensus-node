@@ -1892,4 +1892,21 @@ enum ResponseCodeEnum {
      *  Hooks are not supported to be used in TokenAirdrop transactions
      */
     HOOKS_ARE_NOT_SUPPORTED_IN_AIRDROPS = 523;
+
+    /**
+     * This operation cannot be completed because the target
+     * account is a "Node Account".<br/>
+     * This account is currently in use as the "Node Account" for a
+     * consensus node, and therefore the requested change is
+     * not permitted. The transaction may be resubmitted once the
+     * account is no longer in use as a "Node Account" for any
+     * consensus node.
+     */
+    ACCOUNT_IS_LINKED_TO_A_NODE = 524;
+
+    /**
+     *  Hooks are not supported to be used in Batch transactions and Scheduled transactions.
+     * They are only supported in a top level CryptoTransfer transaction.
+     */
+    HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER = 525;
 }

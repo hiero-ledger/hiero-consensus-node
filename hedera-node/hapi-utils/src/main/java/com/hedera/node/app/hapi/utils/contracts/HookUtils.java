@@ -76,7 +76,7 @@ public class HookUtils {
      * @param op the crypto transfer operation
      * @return true if the crypto transfer operation has any hooks set in any of the account amounts or nft transfers
      */
-    public static boolean hasHooks(final @NonNull CryptoTransferTransactionBody op) {
+    public static boolean hasHookExecutions(final @NonNull CryptoTransferTransactionBody op) {
         for (final AccountAmount aa : op.transfersOrElse(TransferList.DEFAULT).accountAmounts()) {
             if (aa.hasPreTxAllowanceHook() || aa.hasPrePostTxAllowanceHook()) {
                 return true;
