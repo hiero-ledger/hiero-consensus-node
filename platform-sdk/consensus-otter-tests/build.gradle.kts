@@ -36,45 +36,49 @@ testModuleInfo {
     requires("com.swirlds.metrics.api")
     requires("org.hiero.consensus.utility")
     requires("org.apache.logging.log4j")
+    requires("awaitility")
+    runtimeOnly("io.grpc.netty.shaded")
 }
 
 testing.suites {
     val testOtter by
-        registering(JvmTestSuite::class) {
-            useJUnitJupiter()
+    registering(JvmTestSuite::class) {
+        useJUnitJupiter()
 
-            dependencies {
-                implementation(project())
-                implementation(project.dependencies.testFixtures(project()))
-                implementation(project(":swirlds-common"))
-                implementation(project(":swirlds-platform-core"))
-                implementation("org.assertj:assertj-core")
-                implementation("org.junit.jupiter:junit-jupiter-params")
-                implementation("com.github.spotbugs:spotbugs-annotations")
-                runtimeOnly("io.grpc:grpc-netty-shaded")
-            }
+        dependencies {
+            implementation(project())
+            implementation(project.dependencies.testFixtures(project()))
+            implementation(project(":swirlds-common"))
+            implementation(project(":swirlds-platform-core"))
+            implementation("org.assertj:assertj-core")
+            implementation("org.junit.jupiter:junit-jupiter-params")
+            implementation("com.github.spotbugs:spotbugs-annotations")
+            runtimeOnly("io.grpc:grpc-netty-shaded")
+        }
 
-            targets {
-                all {
-                    testTask.configure {
-                        // Disable all parallelism
-                        systemProperty("junit.jupiter.execution.parallel.enabled", false)
-                        systemProperty(
-                            "junit.jupiter.testclass.order.default",
-                            "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
-                        )
+        targets {
+            all {
+                testTask.configure {
+                    // Disable all parallelism
+                    systemProperty("junit.jupiter.execution.parallel.enabled", false)
+                    systemProperty(
+                        "junit.jupiter.testclass.order.default",
+                        "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
+                    )
 
-                        // Limit heap and number of processors
-                        maxHeapSize = "8g"
-                        jvmArgs("-XX:ActiveProcessorCount=6")
-                    }
+                    // Limit heap and number of processors
+                    maxHeapSize = "8g"
+                    jvmArgs("-XX:ActiveProcessorCount=6")
                 }
             }
         }
+    }
 }
 
 testIntegrationModuleInfo {
     requires("com.swirlds.common.test.fixtures")
+    requires("com.swirlds.logging")
+    requires("org.hiero.base.crypto")
     requires("org.hiero.otter.fixtures")
     requires("org.assertj.core")
     requires("org.junit.jupiter.params")

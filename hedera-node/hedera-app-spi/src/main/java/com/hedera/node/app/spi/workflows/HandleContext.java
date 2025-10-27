@@ -179,7 +179,7 @@ public interface HandleContext {
              */
             EXPLICIT_WRITE_TRACING,
             /**
-             * Batch inner transaction bytes. Used to prehandle inner transaction while dispatching them.
+             * Batch inner transaction bytes. Used to pre-handle inner transaction while dispatching them.
              */
             INNER_TRANSACTION_BYTES,
             /**
