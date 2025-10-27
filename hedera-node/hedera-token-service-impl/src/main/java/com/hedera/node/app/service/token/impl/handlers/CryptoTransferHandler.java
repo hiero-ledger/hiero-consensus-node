@@ -41,7 +41,7 @@ import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.handlers.transfer.CustomFeeAssessmentStep;
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferContextImpl;
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferExecutor;
-import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookCallFactory;
+import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookCallsFactory;
 import com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -83,9 +83,9 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
     @Inject
     public CryptoTransferHandler(
             @NonNull final CryptoTransferValidator validator,
-            @NonNull final HookCallFactory hookCallFactory,
+            @NonNull final HookCallsFactory hookCallsFactory,
             @NonNull final EntityIdFactory entityIdFactory) {
-        this(validator, true, hookCallFactory, entityIdFactory);
+        this(validator, true, hookCallsFactory, entityIdFactory);
     }
 
     /**
@@ -97,9 +97,9 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
     public CryptoTransferHandler(
             @NonNull final CryptoTransferValidator validator,
             final boolean enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments,
-            @NonNull final HookCallFactory hookCallFactory,
+            @NonNull final HookCallsFactory hookCallsFactory,
             @NonNull final EntityIdFactory entityIdFactory) {
-        super(validator, hookCallFactory, entityIdFactory);
+        super(validator, hookCallsFactory, entityIdFactory);
         this.validator = validator;
         this.enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments =
                 enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments;
@@ -327,7 +327,7 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
     /**
      * Adds gas from pre-tx and pre+post allowance hooks on an account transfer.
      */
-    private static HookInfo getTotalHookGasIfAny(final AccountAmount aa) {
+    private static HookInfo getTotalHookGasIfAny(@NonNull final AccountAmount aa) {
         final var hasPreTxHook = aa.hasPreTxAllowanceHook();
         final var hasPrePostTxHook = aa.hasPrePostTxAllowanceHook();
         if (!hasPreTxHook && !hasPrePostTxHook) {
@@ -339,8 +339,9 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
                     gas, aa.preTxAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
         }
         if (hasPrePostTxHook) {
-            gas = clampedAdd(
-                    gas, aa.prePostTxAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
+            final long gasPerCall =
+                    aa.prePostTxAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit();
+            gas = clampedAdd(clampedAdd(gas, gasPerCall), gasPerCall);
         }
         return new HookInfo(true, gas);
     }
@@ -348,7 +349,7 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
     /**
      * Adds gas from sender/receiver allowance hooks (pre-tx and pre+post) on an NFT transfer.
      */
-    private static HookInfo addNftHookGas(final NftTransfer nft) {
+    private static HookInfo addNftHookGas(@NonNull final NftTransfer nft) {
         final var hasSenderPre = nft.hasPreTxSenderAllowanceHook();
         final var hasSenderPrePost = nft.hasPrePostTxSenderAllowanceHook();
         final var hasReceiverPre = nft.hasPreTxReceiverAllowanceHook();
@@ -363,11 +364,10 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
                     nft.preTxSenderAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
         }
         if (hasSenderPrePost) {
-            gas = clampedAdd(
-                    gas,
-                    nft.prePostTxSenderAllowanceHookOrThrow()
-                            .evmHookCallOrThrow()
-                            .gasLimit());
+            final long gasPerCall = nft.prePostTxSenderAllowanceHookOrThrow()
+                    .evmHookCallOrThrow()
+                    .gasLimit();
+            gas = clampedAdd(clampedAdd(gas, gasPerCall), gasPerCall);
         }
         if (hasReceiverPre) {
             gas = clampedAdd(
@@ -375,11 +375,10 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
                     nft.preTxReceiverAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
         }
         if (hasReceiverPrePost) {
-            gas = clampedAdd(
-                    gas,
-                    nft.prePostTxReceiverAllowanceHookOrThrow()
-                            .evmHookCallOrThrow()
-                            .gasLimit());
+            final long gasPerCall = nft.prePostTxReceiverAllowanceHookOrThrow()
+                    .evmHookCallOrThrow()
+                    .gasLimit();
+            gas = clampedAdd(clampedAdd(gas, gasPerCall), gasPerCall);
         }
         return new HookInfo(true, gas);
     }
