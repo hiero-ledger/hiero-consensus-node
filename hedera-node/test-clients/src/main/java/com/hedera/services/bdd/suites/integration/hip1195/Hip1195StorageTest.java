@@ -76,12 +76,17 @@ public class Hip1195StorageTest {
     @Contract(contract = "StorageAccessHook", creationGas = 5_000_000)
     static SpecContract STORAGE_GET_SLOT_HOOK;
 
+
+    @Contract(contract = "StorageLinkedListHook", creationGas = 5_000_000)
+    static SpecContract STORAGE_LINKED_LIST_HOOK;
+
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
         testLifecycle.doAdhoc(STORAGE_GET_SLOT_HOOK.getInfo());
         testLifecycle.doAdhoc(STORAGE_GET_MAPPING_HOOK.getInfo());
         testLifecycle.doAdhoc(STORAGE_SET_SLOT_HOOK.getInfo());
+        testLifecycle.doAdhoc(STORAGE_LINKED_LIST_HOOK.getInfo());
         testLifecycle.doAdhoc(withOpContext(
                 (spec, opLog) -> GLOBAL_WATCHER.set(new SidecarWatcher(spec.recordStreamsLoc(byNodeId(0))))));
     }
@@ -329,6 +334,50 @@ public class Hip1195StorageTest {
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER));
+    }
+
+
+    @HapiTest
+    final Stream<DynamicTest> hookZeroWriteIntoEmptySlotDoesNotChangeCount() {
+        final var opcode = ByteString.copyFrom(new byte[] {0x01});
+        return hapiTest(
+                cryptoCreate("ownerZero").withHooks(accountAllowanceHook(246L, STORAGE_LINKED_LIST_HOOK.name())),
+                viewAccount("ownerZero", (Account a) -> assertEquals(0, a.numberLambdaStorageSlots())),
+                cryptoTransfer(TokenMovement.movingHbar(10).between("ownerZero", GENESIS))
+                        .withPreHookFor("ownerZero", 246L, 250_000L, opcode)
+                        .signedBy(DEFAULT_PAYER),
+                viewAccount("ownerZero", (Account a) -> assertEquals(0, a.numberLambdaStorageSlots())));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hookRemoveAllExistingSlotsInOneTransaction() {
+        final var opAdd = ByteString.copyFrom(new byte[] {0x02});
+        final var opRemoveAll = ByteString.copyFrom(new byte[] {0x03});
+        return hapiTest(
+                cryptoCreate("ownerRemove").withHooks(accountAllowanceHook(247L, STORAGE_LINKED_LIST_HOOK.name())),
+                // Populate three slots
+                cryptoTransfer(TokenMovement.movingHbar(10).between("ownerRemove", GENESIS))
+                        .withPreHookFor("ownerRemove", 247L, 250_000L, opAdd)
+                        .signedBy(DEFAULT_PAYER),
+                viewAccount("ownerRemove", (Account a) -> assertEquals(3, a.numberLambdaStorageSlots())),
+                // Remove all slots in one transaction
+                cryptoTransfer(TokenMovement.movingHbar(10).between("ownerRemove", GENESIS))
+                        .withPreHookFor("ownerRemove", 247L, 250_000L, opRemoveAll)
+                        .signedBy(DEFAULT_PAYER),
+                viewAccount("ownerRemove", (Account a) -> assertEquals(0, a.numberLambdaStorageSlots())));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hookAddAndRemoveAllInSingleTransaction() {
+        final var opAddRemove = ByteString.copyFrom(new byte[] {0x04});
+        return hapiTest(
+                cryptoCreate("ownerAddRem").withHooks(accountAllowanceHook(248L, STORAGE_LINKED_LIST_HOOK.name())),
+                viewAccount("ownerAddRem", (Account a) -> assertEquals(0, a.numberLambdaStorageSlots())),
+                // Add and remove all in one transaction
+                cryptoTransfer(TokenMovement.movingHbar(10).between("ownerAddRem", GENESIS))
+                        .withPreHookFor("ownerAddRem", 248L, 250_000L, opAddRemove)
+                        .signedBy(DEFAULT_PAYER),
+                viewAccount("ownerAddRem", (Account a) -> assertEquals(0, a.numberLambdaStorageSlots())));
     }
 
     @HapiTest
