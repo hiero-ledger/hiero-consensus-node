@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.test.records;
 
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -44,7 +45,7 @@ class ContractOperationStreamBuilderTest {
 
     @BeforeEach
     void setUp() {
-        doCallRealMethod().when(subject).withCommonFieldsSetFrom(any(), eq(context));
+        doCallRealMethod().when(subject).withCommonFieldsSetFrom(any(), eq(context), eq(entityIdFactory));
     }
 
     @Test
@@ -72,7 +73,7 @@ class ContractOperationStreamBuilderTest {
                                 List.of(new StorageAccess(UInt256.MAX_VALUE, UInt256.ZERO, UInt256.ZERO)))),
                         null));
         given(context.configuration()).willReturn(DEFAULT_CONFIG);
-        final var builder = subject.withCommonFieldsSetFrom(outcome, context);
+        final var builder = subject.withCommonFieldsSetFrom(outcome, context, entityIdFactory);
 
         verify(subject).addContractActions(ContractActions.DEFAULT, false);
         verify(subject).addContractStateChanges(stateChanges, false);
@@ -93,7 +94,7 @@ class ContractOperationStreamBuilderTest {
                 null,
                 null,
                 null);
-        final var builder = subject.withCommonFieldsSetFrom(outcome, context);
+        final var builder = subject.withCommonFieldsSetFrom(outcome, context, entityIdFactory);
 
         verify(subject, never()).addContractActions(any(), anyBoolean());
         verify(subject, never()).addContractStateChanges(any(), anyBoolean());
