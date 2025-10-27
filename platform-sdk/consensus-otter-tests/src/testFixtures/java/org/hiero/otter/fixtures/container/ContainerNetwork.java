@@ -119,7 +119,6 @@ public class ContainerNetwork extends AbstractNetwork {
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         final ContainerNode node =
                 new ContainerNode(nodeId, timeManager, keysAndCerts, network, dockerImage, outputDir);
-        node.applyNodeProperties(nodeProperties);
         timeManager.addTimeTickReceiver(node);
         return node;
     }

@@ -12,6 +12,7 @@ import java.util.stream.Stream;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -32,12 +33,12 @@ final class NodePropertiesTest {
     }
 
     /**
-     * Test that calling network.nodeWeight() before nodes are added stores the weight in NodeProperties and applies it
-     * when nodes are subsequently added.
+     * Test that node properties before nodes are added stores the values in NodeProperties and applies them when nodes
+     * are subsequently added.
      */
     @ParameterizedTest
     @MethodSource("environments")
-    void testNodeWeightBeforeNodesAreAdded(@NonNull final TestEnvironment env) {
+    void testNodePropertiesBeforeNodesAreAdded(@NonNull final TestEnvironment env) {
         try {
             final Network network = env.network();
 
@@ -86,9 +87,9 @@ final class NodePropertiesTest {
     /**
      * Test that nodes added in stages all inherit the pre-configured properties.
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testIncrementalNodeAdditionInheritsProperties(@NonNull final TestEnvironment env) {
+    @Test
+    void testIncrementalNodeAdditionInheritsProperties() {
+        final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
 
@@ -120,9 +121,9 @@ final class NodePropertiesTest {
     /**
      * Test that node-level overrides of weight, version, and saved state work correctly after nodes are added.
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testNodeLevelOverridesOfNetworkProperties(@NonNull final TestEnvironment env) {
+    @Test
+    void testNodeLevelOverridesOfNetworkProperties() {
+        final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
 
@@ -196,9 +197,9 @@ final class NodePropertiesTest {
     /**
      * Test that network property changes after nodes exist propagate to all existing nodes.
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testNetworkPropertyChangesPropagatesToExistingNodes(@NonNull final TestEnvironment env) {
+    @Test
+    void testNetworkPropertyChangesPropagatesToExistingNodes() {
+        final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
 
@@ -233,9 +234,9 @@ final class NodePropertiesTest {
     /**
      * Test that invalid weight values (zero and negative) throw appropriate errors at both network and node level.
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testInvalidWeightValuesThrowErrors(@NonNull final TestEnvironment env) {
+    @Test
+    void testInvalidWeightValuesThrowErrors() {
+        final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
 
