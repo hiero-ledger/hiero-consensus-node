@@ -3,14 +3,27 @@ package com.hedera.services.bdd.suites.hip1195;
 
 import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.queries.crypto.ExpectedTokenRel.relationshipWith;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
+import static com.hederahashgraph.api.proto.java.TokenSupplyType.FINITE;
+import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 
 import com.esaulpaugh.headlong.abi.Single;
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -55,12 +68,16 @@ public class Hip1195StreamParityTest {
     @Contract(contract = "ThreePassesHook", creationGas = 1_000_000L)
     static SpecContract THREE_PASSES_HOOK;
 
+    @Contract(contract = "TruePrePostHook", creationGas = 5_000_000)
+    static SpecContract TRUE_PRE_POST_ALLOWANCE_HOOK;
+
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
         testLifecycle.doAdhoc(MULTIPURPOSE.getInfo());
         testLifecycle.doAdhoc(SET_AND_PASS_HOOK.getInfo());
         testLifecycle.doAdhoc(THREE_PASSES_HOOK.getInfo());
+        testLifecycle.doAdhoc(TRUE_PRE_POST_ALLOWANCE_HOOK.getInfo());
     }
 
     @HapiTest
@@ -201,5 +218,38 @@ public class Hip1195StreamParityTest {
                                                     .setData(ByteString.copyFrom(SET_AND_PASS_ARGS.encode(
                                                             Tuple.of(14L, targetAddress))))))));
                 }));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hookExecutionsWithAutoCreations(){
+        final var initialTokenSupply = 1000;
+        return hapiTest(
+                newKeyNamed("alias"),
+                cryptoCreate(TOKEN_TREASURY).balance(10 * ONE_HUNDRED_HBARS),
+                cryptoCreate("civilian")
+                        .balance(ONE_HUNDRED_HBARS)
+                        .maxAutomaticTokenAssociations(2)
+                        .withHook(accountAllowanceHook(1L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
+                tokenCreate("tokenA")
+                        .tokenType(FUNGIBLE_COMMON)
+                        .supplyType(FINITE)
+                        .initialSupply(initialTokenSupply)
+                        .maxSupply(10L * initialTokenSupply)
+                        .treasury(TOKEN_TREASURY)
+                        .via("tokenCreation"),
+                getTxnRecord("tokenCreation").hasNewTokenAssociation("tokenA", TOKEN_TREASURY),
+                tokenAssociate("civilian", "tokenA"),
+                cryptoTransfer(moving(10, "tokenA").between(TOKEN_TREASURY, "civilian")),
+                getAccountInfo("civilian").hasToken(relationshipWith("tokenA").balance(10)),
+                cryptoTransfer(
+                        movingHbar(10L).between("civilian", "alias"),
+                        moving(1, "tokenA").between("civilian", "alias"))
+                        .withPrePostHookFor("civilian", 1L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER, "civilian")
+                        .via("transfer"),
+                getTxnRecord("transfer").andAllChildRecords().logged(),
+                getAliasedAccountInfo("alias")
+                        .has(accountWith().balance(10L))
+                        .hasToken(relationshipWith("tokenA")));
     }
 }
