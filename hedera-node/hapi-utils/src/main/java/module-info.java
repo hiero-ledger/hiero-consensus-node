@@ -20,6 +20,7 @@ module com.hedera.node.app.hapi.utils {
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.common;
+    requires transitive com.swirlds.state.api;
     requires transitive org.hiero.base.utility;
     requires transitive com.esaulpaugh.headlong;
     requires transitive com.google.protobuf;
