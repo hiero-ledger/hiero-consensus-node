@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.metrics;
+package com.swirlds.state.merkle;
 
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_3;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_6;
@@ -11,13 +11,15 @@ import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.system.PlatformStatNames;
 import com.swirlds.state.State;
 
 /**
  * Collection of metrics related to the state lifecycle
  */
 public class StateMetrics {
+
+    /** number of consensus transactions per second handled by ConsensusStateEventHandler.onHandleConsensusRound() */
+    public static final String TRANSACTIONS_HANDLED_PER_SECOND = "transH_per_sec";
 
     private static final RunningAverageMetric.Config AVG_SEC_TRANS_HANDLED_CONFIG = new RunningAverageMetric.Config(
                     INTERNAL_CATEGORY, "secTransH")
@@ -34,7 +36,7 @@ public class StateMetrics {
     private final RunningAverageMetric avgConsHandleTime;
 
     private static final SpeedometerMetric.Config TRANS_HANDLED_PER_SECOND_CONFIG = new SpeedometerMetric.Config(
-                    INTERNAL_CATEGORY, PlatformStatNames.TRANSACTIONS_HANDLED_PER_SECOND)
+                    INTERNAL_CATEGORY, TRANSACTIONS_HANDLED_PER_SECOND)
             .withDescription("number of consensus transactions per second handled "
                     + "by ConsensusStateEventHandler.onHandleTransaction()")
             .withFormat(FORMAT_9_6);
