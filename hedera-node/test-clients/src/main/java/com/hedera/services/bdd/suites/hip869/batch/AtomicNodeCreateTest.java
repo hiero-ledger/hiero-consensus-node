@@ -422,7 +422,7 @@ class AtomicNodeCreateTest {
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
-    private static HapiNodeCreate canonicalNodeCreate(String nodeAccount) throws CertificateEncodingException {
+    private static HapiNodeCreate canonicalNodeCreate(final String nodeAccount) throws CertificateEncodingException {
         return nodeCreate("nodeCreate", nodeAccount)
                 .description("hello")
                 .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())

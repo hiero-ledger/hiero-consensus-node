@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl.handlers;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_IS_LINKED_TO_A_NODE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.GRPC_WEB_PROXY_NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE;
@@ -126,10 +125,11 @@ public class NodeUpdateHandler implements TransactionHandler {
         if (op.hasAccountId()) {
             final var accountId = op.accountIdOrThrow();
             validateTrue(accountStore.contains(accountId), INVALID_NODE_ACCOUNT_ID);
-            final var account = accountStore.getAccountById(accountId);
-            validateTrue(account.tinybarBalance() > 0, NODE_ACCOUNT_HAS_ZERO_BALANCE);
             if (!accountId.equals(existingNode.accountId())) {
-                validateTrue(accountNodeRelStore.get(accountId) == null, ACCOUNT_IS_LINKED_TO_A_NODE);
+                final var account = addressBookValidator.getIfUsable(
+                        accountId, accountStore, accountNodeRelStore, handleContext.expiryValidator());
+
+                validateTrue(account.tinybarBalance() > 0, NODE_ACCOUNT_HAS_ZERO_BALANCE);
                 // update account node relation
                 accountNodeRelStore.remove(existingNode.accountId());
                 accountNodeRelStore.put(accountId, existingNode.nodeId());

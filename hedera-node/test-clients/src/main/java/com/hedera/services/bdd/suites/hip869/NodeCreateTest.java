@@ -11,6 +11,7 @@ import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFu
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.WRONG_LENGTH_EDDSA_KEY;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewNode;
@@ -25,6 +26,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.NONSENSE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_ADMIN;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_IS_LINKED_TO_A_NODE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GOSSIP_ENDPOINTS_EXCEEDED_LIMIT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GOSSIP_ENDPOINT_CANNOT_HAVE_FQDN;
@@ -375,7 +377,7 @@ public class NodeCreateTest {
                         .hasKnownStatus(INVALID_SERVICE_ENDPOINT));
     }
 
-    private static HapiNodeCreate canonicalNodeCreate(String nodeAccount) throws CertificateEncodingException {
+    private static HapiNodeCreate canonicalNodeCreate(final String nodeAccount) throws CertificateEncodingException {
         return nodeCreate("nodeCreate", nodeAccount)
                 .description("hello")
                 .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
@@ -692,6 +694,23 @@ public class NodeCreateTest {
                         .accountId(account)
                         .hasKnownStatus(ACCOUNT_IS_LINKED_TO_A_NODE),
                 nodeDelete(node1));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> nodeCreateWithDeletedAccountFails() throws CertificateEncodingException {
+        final var adminKey = "adminKey";
+        final var account = "account";
+        final var node = "node";
+        return hapiTest(
+                cryptoCreate(account),
+                cryptoDelete(account),
+                newKeyNamed(adminKey),
+                // validate create node will fail
+                nodeCreate(node, account)
+                        .adminKey("adminKey")
+                        .accountId(account)
+                        .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
+                        .hasKnownStatus(ACCOUNT_DELETED));
     }
 
     private static void assertEqualServiceEndpoints(

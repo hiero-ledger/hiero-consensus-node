@@ -28,6 +28,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_IS_LINKED_TO_A_NODE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
@@ -388,5 +389,26 @@ public class UpdateAccountEnabledTest {
                 nodeUpdate(node).accountId(zeroBalanceAccount).signedByPayerAnd(zeroBalanceAccount, adminKey),
                 // clear nodes from state
                 nodeDelete(node).signedByPayerAnd(adminKey));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> nodeUpdateWithDeletedAccount() throws CertificateEncodingException {
+        final var adminKey = "adminKey";
+        final var account = "account";
+        final var deletedAccount = "deletedAccount";
+        final var node = "testNode";
+        return hapiTest(
+                cryptoCreate(account),
+                newKeyNamed(adminKey),
+                nodeCreate(node, account)
+                        .adminKey("adminKey")
+                        .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
+                cryptoCreate(deletedAccount),
+                cryptoDelete(deletedAccount),
+                // Verify node update will fail
+                nodeUpdate(node)
+                        .accountId(deletedAccount)
+                        .signedByPayerAnd(deletedAccount, adminKey)
+                        .hasKnownStatus(ACCOUNT_DELETED));
     }
 }
