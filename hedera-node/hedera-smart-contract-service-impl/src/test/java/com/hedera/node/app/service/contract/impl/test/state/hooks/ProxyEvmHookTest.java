@@ -17,6 +17,8 @@ import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameState;
 import com.hedera.node.app.service.contract.impl.state.hooks.ProxyEvmHook;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Hash;
@@ -31,6 +33,8 @@ class ProxyEvmHookTest {
 
     @Mock
     private EvmFrameState state;
+
+    private final EntityIdFactory entityIdFactory = new FakeEntityIdFactoryImpl(0, 0);
 
     @Test
     void coversAllPathsWithAccountOwnedHook() {
@@ -55,7 +59,7 @@ class ProxyEvmHookTest {
         final var expectedStorageValue = UInt256.valueOf(4242);
         given(state.getStorageValue(HTS_HOOKS_CONTRACT_ID, key)).willReturn(expectedStorageValue);
 
-        final var subject = new ProxyEvmHook(state, hookState, CODE_FACTORY);
+        final var subject = new ProxyEvmHook(state, hookState, CODE_FACTORY, entityIdFactory);
 
         final var code = subject.getEvmCode(Bytes.wrap(new byte[] {1, 2, 3, 4}), CODE_FACTORY);
         assertEquals(expectedCode, code);
@@ -90,7 +94,7 @@ class ProxyEvmHookTest {
         given(state.getCode(hookContractId)).willReturn(hookContractCode);
         given(state.getCodeHash(hookContractId, CODE_FACTORY)).willReturn(expectedCode.getCodeHash());
 
-        final var subject = new ProxyEvmHook(state, hookState, CODE_FACTORY);
+        final var subject = new ProxyEvmHook(state, hookState, CODE_FACTORY, entityIdFactory);
 
         assertEquals(expectedCode, subject.getEvmCode(Bytes.EMPTY, CODE_FACTORY));
         assertEquals(expectedCode.getCodeHash(), subject.getCodeHash());
@@ -98,6 +102,6 @@ class ProxyEvmHookTest {
 
     @Test
     void constructorRejectsNullHookState() {
-        assertThrows(NullPointerException.class, () -> new ProxyEvmHook(state, null, CODE_FACTORY));
+        assertThrows(NullPointerException.class, () -> new ProxyEvmHook(state, null, CODE_FACTORY, entityIdFactory));
     }
 }
