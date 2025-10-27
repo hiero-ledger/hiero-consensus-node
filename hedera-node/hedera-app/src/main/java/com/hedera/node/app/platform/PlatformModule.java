@@ -8,7 +8,6 @@ import com.hedera.node.app.quiescence.TxPipelineTracker;
 import com.hedera.node.app.state.listeners.FatalIssListenerImpl;
 import com.hedera.node.app.state.listeners.ReconnectListener;
 import com.hedera.node.app.state.listeners.WriteStateToDiskListener;
-import com.hedera.node.app.workflows.ingest.IngestWorkflow;
 import com.hedera.node.config.data.QuiescenceConfig;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;

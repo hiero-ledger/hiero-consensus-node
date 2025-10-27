@@ -142,7 +142,8 @@ class IngestWorkflowImplTest extends AppTestBase {
                 .runAllChecks(eq(state), eq(requestBuffer), eq(configuration), any());
 
         // Create the workflow we are going to test with
-        workflow = new IngestWorkflowImpl(stateAccessor, ingestChecker, submissionManager, txPipelineTracker, configProvider);
+        workflow = new IngestWorkflowImpl(
+                stateAccessor, ingestChecker, submissionManager, txPipelineTracker, configProvider);
     }
 
     @Test

@@ -1,16 +1,16 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.quiescence;
-
-import com.hedera.node.app.workflows.prehandle.PreHandleResult;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.model.transaction.Transaction;
-
-import javax.inject.Inject;
-import javax.inject.Singleton;
-import java.util.Iterator;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.hedera.node.app.quiescence.QuiescenceUtils.isRelevantTransaction;
 import static java.util.Objects.requireNonNull;
+
+import com.hedera.node.app.workflows.prehandle.PreHandleResult;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Iterator;
+import java.util.concurrent.atomic.AtomicInteger;
+import javax.inject.Inject;
+import javax.inject.Singleton;
+import org.hiero.consensus.model.transaction.Transaction;
 
 @Singleton
 public class TxPipelineTracker {
