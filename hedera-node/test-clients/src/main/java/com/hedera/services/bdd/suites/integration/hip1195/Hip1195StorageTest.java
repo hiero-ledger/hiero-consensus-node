@@ -79,7 +79,6 @@ public class Hip1195StorageTest {
     @Contract(contract = "StorageAccessHook", creationGas = 5_000_000)
     static SpecContract STORAGE_GET_SLOT_HOOK;
 
-
     @Contract(contract = "StorageLinkedListHook", creationGas = 5_000_000)
     static SpecContract STORAGE_MODIFICATIONS_HOOK;
 
@@ -271,6 +270,11 @@ public class Hip1195StorageTest {
 
         return hapiTest(
                 cryptoCreate(OWNER).withHooks(accountAllowanceHook(124L, STORAGE_SET_SLOT_HOOK.name())),
+                viewAccount(OWNER, (Account a) -> {
+                    assertEquals(124L, a.firstHookId());
+                    assertEquals(1, a.numberHooksInUse());
+                    assertEquals(0, a.numberLambdaStorageSlots());
+                }),
                 // gets rejected because the return value from the allow function is false bye default
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 25_000L, "")
@@ -281,6 +285,7 @@ public class Hip1195StorageTest {
                 accountLambdaSStore(OWNER, 124L)
                         .putSlot(Bytes.EMPTY, passHash32)
                         .signedBy(DEFAULT_PAYER, OWNER),
+                viewAccount(OWNER, (Account a) -> assertEquals(1, a.numberLambdaStorageSlots())),
                 // since the contract calls abi.decode on the input bytes, we need to pass in the encoded
                 // parameters
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
@@ -292,6 +297,7 @@ public class Hip1195StorageTest {
                         .withPreHookFor(OWNER, 124L, 25_000L, correctPassword)
                         .signedBy(DEFAULT_PAYER)
                         .via("storageSetTxn"),
+                viewAccount(OWNER, (Account a) -> assertEquals(1, a.numberLambdaStorageSlots())),
                 // since it resets the storage slots we should not be able to do another transfer
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 25_000L, correctPassword)
@@ -337,7 +343,6 @@ public class Hip1195StorageTest {
                         .withPreHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER));
     }
-
 
     @HapiTest
     final Stream<DynamicTest> hookZeroWriteIntoEmptySlotDoesNotChangeCount() {

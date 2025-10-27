@@ -187,6 +187,8 @@ public interface HederaOperations {
      */
     void updateStorageMetadata(ContractID contractID, @NonNull Bytes firstKey, int netChangeInSlotsUsed);
 
+    void updateLambdaStorageSlots(@NonNull AccountID accountId, int netChangeInSlotsUsed);
+
     /**
      * Creates a new contract with the given entity number and EVM address; and also "links" the alias
      * if it is set.

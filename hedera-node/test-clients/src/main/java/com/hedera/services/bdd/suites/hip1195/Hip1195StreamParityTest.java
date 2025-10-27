@@ -224,7 +224,7 @@ public class Hip1195StreamParityTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> hookExecutionsWithAutoCreations(){
+    final Stream<DynamicTest> hookExecutionsWithAutoCreations() {
         final var initialTokenSupply = 1000;
         return hapiTest(
                 newKeyNamed("alias"),
@@ -245,8 +245,8 @@ public class Hip1195StreamParityTest {
                 cryptoTransfer(moving(10, "tokenA").between(TOKEN_TREASURY, "civilian")),
                 getAccountInfo("civilian").hasToken(relationshipWith("tokenA").balance(10)),
                 cryptoTransfer(
-                        movingHbar(10L).between("civilian", "alias"),
-                        moving(1, "tokenA").between("civilian", "alias"))
+                                movingHbar(10L).between("civilian", "alias"),
+                                moving(1, "tokenA").between("civilian", "alias"))
                         .withPrePostHookFor("civilian", 1L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER, "civilian")
                         .via("transfer"),
@@ -254,11 +254,10 @@ public class Hip1195StreamParityTest {
                         .andAllChildRecords()
                         .hasNonStakingChildRecordCount(5) // one auto-creation, four hook invocations pre
                         // and post for hbar and token transfers
-                        .hasChildRecords(recordWith().status(SUCCESS).memo(LAZY_MEMO),
+                        .hasChildRecords(
+                                recordWith().status(SUCCESS).memo(LAZY_MEMO),
                                 recordWith().status(SUCCESS).memo(LAZY_MEMO))
                         .logged(),
-                getAliasedAccountInfo("alias")
-                        .has(accountWith().balance(10L))
-                        .hasToken(relationshipWith("tokenA")));
+                getAliasedAccountInfo("alias").has(accountWith().balance(10L)).hasToken(relationshipWith("tokenA")));
     }
 }

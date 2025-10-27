@@ -195,8 +195,9 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                     dispatchHookDeletions(context, op.hookIdsToDelete(), currentHead, op.accountIDToUpdate());
         }
         if (!op.hookCreationDetails().isEmpty()) {
-            final var updatedSlots = dispatchHookCreations(context, op.hookCreationDetails(), headAfterDeletes, op.accountIDToUpdate());
-             builder.numberLambdaStorageSlots(targetAccount.numberLambdaStorageSlots() + updatedSlots);
+            final var updatedSlots =
+                    dispatchHookCreations(context, op.hookCreationDetails(), headAfterDeletes, op.accountIDToUpdate());
+            builder.numberLambdaStorageSlots(targetAccount.numberLambdaStorageSlots() + updatedSlots);
         }
         // Update firstHookId in the account if needed.
         // If there are creations, always the first hookId created will be the firstHookId.

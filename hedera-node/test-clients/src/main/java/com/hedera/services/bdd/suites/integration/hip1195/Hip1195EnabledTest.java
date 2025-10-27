@@ -659,8 +659,8 @@ public class Hip1195EnabledTest {
                         .via(txnFromAmelie)
                         .fee(ONE_HBAR),
                 getTxnRecord(txnFromAmelie).logged()
-        // manually check the proposed transfers in logs
-        );
+                // manually check the proposed transfers in logs
+                );
     }
 
     @HapiTest
@@ -1167,5 +1167,4 @@ public class Hip1195EnabledTest {
                     assertEquals(2, a.numberLambdaStorageSlots());
                 }));
     }
-
 }

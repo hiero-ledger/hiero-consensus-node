@@ -1139,7 +1139,6 @@ public class RecordStreamBuilder
         this.deltaStorageSlotsUpdated = deltaStorageSlotsUpdated;
     }
 
-
     /**
      * Sets the contractStateChanges which are part of sidecar records.
      *

@@ -309,7 +309,6 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
         return minimalKey;
     }
 
-
     public static LambdaSlotKey minimalKey(@NonNull final HookId hookId, @NonNull final Bytes key) {
         return new LambdaSlotKey(hookId, minimalKey(key));
     }

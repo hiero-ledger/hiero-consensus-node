@@ -333,7 +333,7 @@ public class Hip1195BasicTests {
                         .withHooks(accountAllowanceHook(228L, FALSE_TRUE_ALLOWANCE_HOOK.name())),
                 cryptoCreate("receiverAccount").balance(0L),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR)
-                        .between("senderWithPrePostHook", "receiverAccount"))
+                                .between("senderWithPrePostHook", "receiverAccount"))
                         .withPrePostHookFor("senderWithPrePostHook", 228L, 25_000L, "")
                         .payingWith(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
@@ -1091,7 +1091,6 @@ public class Hip1195BasicTests {
                         .hasChildRecords(TransactionRecordAsserts.recordWith()
                                 .contractCallResult(resultWith().error("INVALID_OPERATION")))
                         .logged());
-
     }
 
     @HapiTest
