@@ -99,12 +99,6 @@ public class CryptoDeleteHandler implements TransactionHandler {
                         usageEstimator.getCryptoDeleteTxFeeMatrices(CommonPbjConverters.fromPbj(body), sigValueObj));
     }
 
-    /**
-     * Calculates the fee result for a CryptoDelete transaction using Simple Fees
-     *
-     * @param feeContext the fee context containing transaction data and configuration
-     * @return the calculated fee result in tinycents (node, network, service)
-     */
     @NonNull
     @Override
     public FeeResult calculateFeeResult(@NonNull final FeeContext feeContext) {

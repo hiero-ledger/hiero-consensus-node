@@ -680,14 +680,6 @@ public class CryptoApproveAllowanceHandler implements TransactionHandler {
         return totalSerials;
     }
 
-    /**
-     * Calculates the fee result for a CryptoApproveAllowance transaction using Simple Fees (HIP-1261).
-     * Fee calculation considers the number of signatures and the total count of allowances
-     * (crypto + token + NFT allowances).
-     *
-     * @param feeContext the fee context containing transaction data and configuration
-     * @return the calculated fee result in tinycents (node, network, service)
-     */
     @NonNull
     @Override
     public FeeResult calculateFeeResult(@NonNull final FeeContext feeContext) {

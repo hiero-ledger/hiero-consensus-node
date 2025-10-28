@@ -216,12 +216,6 @@ public class CryptoGetAccountInfoHandler extends PaidQueryHandler {
         return cryptoOpsUsage.cryptoInfoUsage(CommonPbjConverters.fromPbj(query), ctx);
     }
 
-    /**
-     * Calculates the fee result for a CryptoGetInfo query using Simple Fees
-     *
-     * @param queryContext the query context containing transaction data and configuration
-     * @return the calculated fee result in tinycents (node, network, service)
-     */
     @Override
     @NonNull
     public FeeResult computeFeeResult(@NonNull final QueryContext queryContext) {

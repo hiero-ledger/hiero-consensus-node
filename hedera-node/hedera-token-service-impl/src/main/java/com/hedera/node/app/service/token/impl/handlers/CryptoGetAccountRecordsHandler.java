@@ -132,12 +132,6 @@ public class CryptoGetAccountRecordsHandler extends PaidQueryHandler {
         return usageEstimator.getCryptoAccountRecordsQueryFeeMatrices(records, null);
     }
 
-    /**
-     * Calculates the fee result for a CryptoGetAccountRecords query using Simple Fees
-     *
-     * @param queryContext the query context containing transaction data and configuration
-     * @return the calculated fee result in tinycents (node, network, service)
-     */
     @Override
     @NonNull
     public FeeResult computeFeeResult(@NonNull final QueryContext queryContext) {

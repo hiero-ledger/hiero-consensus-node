@@ -518,11 +518,6 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         return FIRST_SYSTEM_FILE_ENTITY <= entityNum && entityNum < FIRST_POST_SYSTEM_FILE_ENTITY;
     }
 
-    /**
-     * Calculates the fee result for a CryptoCreate transaction using Simple Fees (HIP-1261).
-     * @param feeContext the fee context containing transaction data and configuration
-     * @return the calculated fee result in tinycents (node, network, service)
-     */
     @NonNull
     @Override
     public FeeResult calculateFeeResult(@NonNull final FeeContext feeContext) {

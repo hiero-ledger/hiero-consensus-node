@@ -516,11 +516,6 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         return fees.calculate();
     }
 
-    /**
-     * Calculates the fee result for a CryptoUpdate transaction using Simple Fees
-     *
-     * @return the calculated fee result in tinycents (node, network, service)
-     */
     @NonNull
     @Override
     public FeeResult calculateFeeResult(@NonNull final FeeContext feeContext) {

@@ -450,10 +450,6 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
         public static final HookInfo NO_HOOKS = new HookInfo(false, 0L);
     }
 
-    /**
-     * Result of analyzing a transfer.
-     * Contains all metrics needed for fee calculation.
-     */
     private record TransferEstimate(
             long hbarTransfers,
             long standardFungibleTokens,
@@ -464,9 +460,6 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
             long createdAccounts,
             long createdAutoAssociations) {}
 
-    /**
-     * Cache for store lookups during transfer analysis.
-     */
     private static class TransferEstimationCache {
         private final Map<TokenID, Token> tokenCache = new HashMap<>();
         private final Map<AccountID, Account> accountCache = new HashMap<>();
@@ -519,21 +512,6 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
         }
     }
 
-    /**
-     * Calculates the fee result for a CryptoTransfer transaction using Simple Fees (HIP-1261).
-     * This is the most complex fee calculation, considering:
-     * <ul>
-     *   <li>Number of signatures</li>
-     *   <li>Number of HBAR account transfers</li>
-     *   <li>Token transfers (fungible and NFTs), distinguishing between standard and custom-fee tokens</li>
-     *   <li>NFT serial numbers being transferred</li>
-     *   <li>Accounts created via alias auto-creation</li>
-     *   <li>Token auto-associations created</li>
-     * </ul>
-     *
-     * @param feeContext the fee context containing transaction data and configuration
-     * @return the calculated fee result in tinycents (node, network, service)
-     */
     @NonNull
     @Override
     public FeeResult calculateFeeResult(@NonNull final FeeContext feeContext) {
@@ -569,14 +547,6 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
         return model.computeFee(params, feeCalculator.getSimpleFeesSchedule());
     }
 
-    /**
-     * Performs estimation for all transfers in the transaction.
-     *
-     * @param op the crypto transfer transaction body
-     * @param cache the cache for store lookups
-     * @param entitiesConfig the entities configuration
-     * @return complete transfer analysis with all metrics
-     */
     private static TransferEstimate estimateCryptoTransfer(
             @NonNull final CryptoTransferTransactionBody op,
             @NonNull final TransferEstimationCache cache,
@@ -690,10 +660,6 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
                 createdAutoAssociations);
     }
 
-    /**
-     * Checks if an alias will trigger account creation using the cache.
-     * @return 1 if account will be created, 0 otherwise
-     */
     private static int checkAliasCreationCached(
             @NonNull final AccountID accountId,
             @NonNull final TransferEstimationCache cache,
@@ -712,11 +678,6 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
         return (existingAccount == null) ? 1 : 0;
     }
 
-    /**
-     * Determines if an auto-association will be created using the cache.
-     *
-     * @return true if auto-association will be created, false otherwise
-     */
     private static boolean willCreateAutoAssociationCached(
             @NonNull final AccountID accountId,
             @NonNull final TokenID tokenId,

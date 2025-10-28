@@ -190,8 +190,7 @@ public class CryptoDeleteAllowanceHandler implements TransactionHandler {
     /**
      * Validate the transaction body fields that include state or configuration.
      * We can use payerAccount for validations since it's not mutated in validateSemantics.
-     *
-     * @param context      the context of the transaction
+     * @param context the context of the transaction
      * @param payerAccount the account of the payer
      * @param accountStore the account store
      */
@@ -228,14 +227,6 @@ public class CryptoDeleteAllowanceHandler implements TransactionHandler {
         return totalSerials;
     }
 
-    /**
-     * Calculates the fee result for a CryptoDeleteAllowance transaction using Simple Fees (HIP-1261).
-     * Fee calculation considers the number of signatures and the count of NFT allowances being deleted.
-     *
-     * @param feeContext the fee context containing transaction data and configuration
-     * @return the calculated fee result in tinycents (node, network, service)
-     * @throws NullPointerException if {@code feeContext} is {@code null}
-     */
     @NonNull
     @Override
     public FeeResult calculateFeeResult(@NonNull final FeeContext feeContext) {
