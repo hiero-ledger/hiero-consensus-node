@@ -34,7 +34,6 @@ import org.junit.jupiter.api.Tag;
  * <p>
  * Then submits a burst of mixed operations, freezes all nodes, shuts them down, restarts them, and submits the same
  * burst of mixed operations again.
- * <p>
  */
 @Tag(RESTART)
 public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
