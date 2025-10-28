@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.fees;
 
-import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
+import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -25,7 +25,7 @@ class NoopFeeChargingTest {
 
     @Test
     void validationAlwaysPasses() {
-        final var validation = NOOP_FEE_CHARGING.validate(
+        final var validation = UNIVERSAL_NOOP_FEE_CHARGING.validate(
                 Account.DEFAULT,
                 AccountID.DEFAULT,
                 Fees.FREE,
@@ -39,7 +39,7 @@ class NoopFeeChargingTest {
 
     @Test
     void chargingIsNoop() {
-        NOOP_FEE_CHARGING.charge(ctx, validation, Fees.FREE);
+        UNIVERSAL_NOOP_FEE_CHARGING.charge(ctx, validation, Fees.FREE);
         verifyNoInteractions(ctx, validation);
     }
 }
