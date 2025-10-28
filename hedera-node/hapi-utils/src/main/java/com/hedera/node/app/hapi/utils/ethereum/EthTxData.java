@@ -38,7 +38,7 @@ public record EthTxData(
         Object[] accessListAsRlp,
         byte[] authorizationList,
         int recId, // "recovery id" part of a v,r,s ECDSA signature - range 0..1
-        byte[] v, // actual `v` value, incoming, recovery id (`recId` above) (possibly) encoded with chain id
+        byte[] v, // actual `v` value, incoming, recovery id (`yParity` above) (possibly) encoded with chain id
         byte[] r,
         byte[] s) {
 
@@ -176,7 +176,7 @@ public record EthTxData(
                                 to,
                                 Integers.toBytesUnsigned(value),
                                 callData,
-                                List.of(/*accessList*/ ),
+                                accessListAsRlp() != null ? accessListAsRlp() : new Object[0],
                                 Integers.toBytes(recId),
                                 r,
                                 s));
@@ -192,7 +192,7 @@ public record EthTxData(
                                 to,
                                 Integers.toBytesUnsigned(value),
                                 callData,
-                                List.of(/*accessList*/ ),
+                                accessListAsRlp() != null ? accessListAsRlp() : new Object[0],
                                 Integers.toBytes(recId),
                                 r,
                                 s));
@@ -208,8 +208,8 @@ public record EthTxData(
                                 to,
                                 Integers.toBytesUnsigned(value),
                                 callData,
-                                List.of(/*accessList*/ ),
-                                List.of(/*authorizationList*/ ),
+                                accessListAsRlp() != null ? accessListAsRlp() : new Object[0],
+                                List.of(authorizationList),
                                 Integers.toBytes(recId),
                                 r,
                                 s));
@@ -341,7 +341,7 @@ public record EthTxData(
                 .add("callData", Hex.encodeHexString(callData))
                 .add("accessList", accessList == null ? null : Hex.encodeHexString(accessList))
                 .add("authorizationList", authorizationList == null ? null : Hex.encodeHexString(authorizationList))
-                .add("recId", recId)
+                .add("yParity", recId)
                 .add("v", v == null ? null : Hex.encodeHexString(v))
                 .add("r", Hex.encodeHexString(r))
                 .add("s", Hex.encodeHexString(s))
@@ -455,7 +455,7 @@ public record EthTxData(
     }
 
     @NonNull
-    public List<CodeDelegation> extractCodeDelegations() {
+    public List<CodeDelegation> extractCodeDelegations() throws IllegalArgumentException {
         final List<CodeDelegation> codeDelegations = new ArrayList<>();
         if (authorizationList != null) {
             final var decoder = RLPDecoder.RLP_STRICT.sequenceIterator(authorizationList);
@@ -466,19 +466,20 @@ public record EthTxData(
 
             for (final var rlpInner : rlpItem.asRLPList().elements()) {
                 if (!rlpInner.isList()) {
-                    continue;
+                    throw new IllegalArgumentException("Code authorization is not a list");
                 }
 
                 final var rlpInnerList = rlpItem.asRLPList().elements();
                 if (rlpInnerList.size() != 6) {
-                    continue;
+                    throw new IllegalArgumentException(
+                            "Code authorization is does not contain expected number of elements");
                 }
 
                 codeDelegations.add(new CodeDelegation(
                         rlpInnerList.get(0).data(), // chainId)
                         rlpInnerList.get(1).data(), // address
                         asLong(rlpInnerList.get(2)), // nonce
-                        asByte(rlpInnerList.get(3)), // recId
+                        asByte(rlpInnerList.get(3)), // yParity
                         rlpInnerList.get(4).data(), // r
                         rlpInnerList.get(5).data() // s
                         ));
@@ -571,7 +572,7 @@ public record EthTxData(
                         ? encodeRlpList(rlpList.get(8).asRLPList())
                         : new Object[0], // accessList as RLPList
                 null, // authorizationList
-                asByte(rlpList.get(9)), // recId
+                asByte(rlpList.get(9)), // yParity
                 null, // v
                 rlpList.get(10).data(), // r
                 rlpList.get(11).data() // s
@@ -579,7 +580,7 @@ public record EthTxData(
     }
 
     /**
-     * Encodes the transaction data into a EthTxData according to EIP 2930 RLP format.
+     * Decodes the transaction data into a EthTxData according to EIP 2930 RLP format.
      *
      * @return the encoded transaction data
      */
@@ -610,7 +611,7 @@ public record EthTxData(
                         ? encodeRlpList(rlpList.get(7).asRLPList())
                         : new Object[0], // accessList encoded as Object
                 null, // authorizationList
-                asByte(rlpList.get(8)), // recId
+                asByte(rlpList.get(8)), // yParity
                 null, // v
                 rlpList.get(9).data(), // r
                 rlpList.get(10).data() // s
@@ -649,7 +650,7 @@ public record EthTxData(
                         ? encodeRlpList(rlpList.get(8).asRLPList())
                         : new Object[0], // accessList as RLPList
                 rlpList.get(9).data(), // authorizationList
-                asByte(rlpList.get(10)), // recId
+                asByte(rlpList.get(10)), // yParity
                 null, // v
                 rlpList.get(11).data(), // r
                 rlpList.get(12).data() // s

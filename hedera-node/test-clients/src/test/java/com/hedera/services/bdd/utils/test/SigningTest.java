@@ -22,6 +22,7 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
 import com.hedera.services.bdd.utils.Signing;
 import java.math.BigInteger;
+import java.util.Optional;
 import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -260,13 +261,13 @@ class SigningTest {
                 CHAINID_TESTNET,
                 TRUFFLE0_ADDRESS,
                 1,
-                signedTx[64] + 1, // recId parity was flipped when signing so adjust here
+                signedTx[64] + 1, // yParity parity was flipped when signing so adjust here
                 r,
                 s);
 
-        final EthTxSigs auth = EthTxSigs.extractAuthoritySignature(signedCodeDelegation);
+        final Optional<EthTxSigs> auth = EthTxSigs.extractAuthoritySignature(signedCodeDelegation);
 
-        Assertions.assertArrayEquals(TRUFFLE0_ADDRESS, auth.address());
-        Assertions.assertArrayEquals(TRUFFLE0_PUBLIC_ECDSA_KEY, auth.publicKey());
+        Assertions.assertArrayEquals(TRUFFLE0_ADDRESS, auth.get().address());
+        Assertions.assertArrayEquals(TRUFFLE0_PUBLIC_ECDSA_KEY, auth.get().publicKey());
     }
 }

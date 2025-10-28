@@ -402,7 +402,7 @@ class EthTxDataTest {
 
         assertNull(EthTxData.populateEthTxData(RLPEncoder.sequence(new byte[] {2}, invalidGasDataNegative)));
 
-        // invalid recId
+        // invalid yParity
         normalData = normalRlpData();
         normalData[9] = wrongData;
         final var invalidRecIdData = Arrays.asList(normalData);
@@ -753,8 +753,8 @@ class EthTxDataTest {
 
         final var oneByte = new byte[] {1};
         final EthTxData ethTxData = new EthTxData(
-                oneByte, type, oneByte, 1, oneByte, oneByte, oneByte, 1, oneByte, bigValue, oneByte, null, null, null,
-                1, oneByte, oneByte, oneByte);
+                oneByte, type, oneByte, 1, oneByte, oneByte, oneByte, 1, oneByte, bigValue, oneByte, null, null,
+                oneByte, 1, oneByte, oneByte, oneByte);
         final var encoded = ethTxData.encodeTx();
 
         final var populateEthTxData = EthTxData.populateEthTxData(encoded);
@@ -789,7 +789,7 @@ class EthTxDataTest {
                     d.chainId(),
                     d.address(),
                     Integers.toBytes(d.nonce()), // nonce as RLP integer
-                    new byte[] {(byte) d.recId()}, // recId as single byte
+                    new byte[] {(byte) d.yParity()}, // yParity as single byte
                     d.r(),
                     d.s()
                 });
@@ -822,7 +822,7 @@ class EthTxDataTest {
                             rlpInnerList.get(0).data(), // chainId
                             rlpInnerList.get(1).data(), // address
                             asLong(rlpInnerList.get(2)), // nonce
-                            asByte(rlpInnerList.get(3)), // recId
+                            asByte(rlpInnerList.get(3)), // yParity
                             rlpInnerList.get(4).data(), // r
                             rlpInnerList.get(5).data() // s
                             ));
@@ -867,7 +867,7 @@ class EthTxDataTest {
             new byte[] {0x01}, // chainId
             fillBytes(20, 0x10), // address
             Integers.toBytes(7), // nonce
-            new byte[] {0x1B}, // recId (27)
+            new byte[] {0x1B}, // yParity (27)
             fillBytes(32, 0x21), // r
             fillBytes(32, 0x41) // s
         };
@@ -889,7 +889,7 @@ class EthTxDataTest {
         assertArrayEquals(new byte[] {0x01}, cd.chainId());
         assertArrayEquals(fillBytes(20, 0x10), cd.address());
         assertEquals(7L, cd.nonce());
-        assertEquals(0x1B, cd.recId());
+        assertEquals(0x1B, cd.yParity());
         assertArrayEquals(fillBytes(32, 0x21), cd.r());
         assertArrayEquals(fillBytes(32, 0x41), cd.s());
     }

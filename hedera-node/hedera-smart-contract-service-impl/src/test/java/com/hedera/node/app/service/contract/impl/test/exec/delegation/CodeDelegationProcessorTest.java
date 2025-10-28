@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.test.exec.delegation;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -11,6 +12,7 @@ import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationP
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import java.math.BigInteger;
 import java.util.List;
+import java.util.Optional;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.account.Account;
@@ -28,15 +30,14 @@ class CodeDelegationProcessorTest {
     private static final BigInteger HALF_ORDER =
             new BigInteger("7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0", 16);
 
-    private static Object mockAuthorityWithAddress(final Address addr) throws Exception {
+    private static Optional<EthTxSigs> mockAuthorityWithAddress(final Address addr) throws Exception {
         final var method = EthTxSigs.class.getMethod("extractAuthoritySignature", CodeDelegation.class);
-        final Class<?> returnType = method.getReturnType();
-        return mock(returnType, invocation -> {
+        return Optional.of(mock(EthTxSigs.class, invocation -> {
             if ("address".equals(invocation.getMethod().getName())) {
                 return addr.toArrayUnsafe();
             }
             return null; // unused
-        });
+        }));
     }
 
     @Test
@@ -104,7 +105,7 @@ class CodeDelegationProcessorTest {
     }
 
     @Test
-    void skipsWhenAuthoritySignatureNull() {
+    void throwsWhenAuthoritySignatureNull() {
         final var world = mock(WorldUpdater.class);
         final var tx = mock(HederaEvmTransaction.class);
         final var del = mock(CodeDelegation.class);
@@ -119,8 +120,7 @@ class CodeDelegationProcessorTest {
         try (MockedStatic<EthTxSigs> mocked = mockStatic(EthTxSigs.class)) {
             mocked.when(() -> EthTxSigs.extractAuthoritySignature(del)).thenReturn(null);
 
-            final var result = p.process(world, tx);
-            assertNotNull(result);
+            final var result = assertThrowsExactly(NullPointerException.class, () -> p.process(world, tx));
 
             verify(world, never()).getAccount(any(Address.class));
             verify(world, never()).createAccount(any(Address.class));
@@ -141,6 +141,8 @@ class CodeDelegationProcessorTest {
         when(del.getChainId()).thenReturn(CHAIN_ID);
         when(del.nonce()).thenReturn(0L);
         when(del.getS()).thenReturn(BigInteger.ONE);
+        when(del.getR()).thenReturn(BigInteger.ONE);
+        when(del.getYParity()).thenReturn(1);
 
         when(world.getAccount(authAddr)).thenReturn(null);
         when(world.createAccount(authAddr)).thenReturn(acct);
@@ -172,6 +174,8 @@ class CodeDelegationProcessorTest {
         when(del.getChainId()).thenReturn(CHAIN_ID);
         when(del.nonce()).thenReturn(7L);
         when(del.getS()).thenReturn(BigInteger.ONE);
+        when(del.getR()).thenReturn(BigInteger.ONE);
+        when(del.getYParity()).thenReturn(1);
 
         when(world.getAccount(authAddr)).thenReturn(null);
 
@@ -202,6 +206,8 @@ class CodeDelegationProcessorTest {
         when(del.getChainId()).thenReturn(CHAIN_ID);
         when(del.nonce()).thenReturn(5L);
         when(del.getS()).thenReturn(BigInteger.ONE);
+        when(del.getR()).thenReturn(BigInteger.ONE);
+        when(del.getYParity()).thenReturn(1);
 
         when(world.getAccount(authAddr)).thenReturn(acct);
         when(acct.getCode()).thenReturn(Bytes.EMPTY);
@@ -235,6 +241,8 @@ class CodeDelegationProcessorTest {
         when(del.getChainId()).thenReturn(CHAIN_ID);
         when(del.nonce()).thenReturn(1L);
         when(del.getS()).thenReturn(BigInteger.ONE);
+        when(del.getR()).thenReturn(BigInteger.ONE);
+        when(del.getYParity()).thenReturn(1);
 
         when(world.getAccount(authAddr)).thenReturn(acct);
         when(acct.getCode()).thenReturn(Bytes.fromHexString("0xabcdef"));
@@ -266,6 +274,8 @@ class CodeDelegationProcessorTest {
         when(del.getChainId()).thenReturn(CHAIN_ID);
         when(del.nonce()).thenReturn(9L);
         when(del.getS()).thenReturn(BigInteger.ONE);
+        when(del.getR()).thenReturn(BigInteger.ONE);
+        when(del.getYParity()).thenReturn(1);
 
         when(world.getAccount(authAddr)).thenReturn(acct);
         when(acct.getCode()).thenReturn(Bytes.EMPTY);
@@ -298,6 +308,8 @@ class CodeDelegationProcessorTest {
         when(del.getChainId()).thenReturn(CHAIN_ID);
         when(del.nonce()).thenReturn(0L);
         when(del.getS()).thenReturn(BigInteger.ONE);
+        when(del.getR()).thenReturn(BigInteger.ONE);
+        when(del.getYParity()).thenReturn(1);
 
         when(world.getAccount(zeroAddr)).thenReturn(acct);
         when(acct.getCode()).thenReturn(Bytes.EMPTY);

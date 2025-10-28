@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.ethereum;
 
+import static com.hedera.node.app.hapi.utils.ethereum.CodeDelegation.MAGIC;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -13,6 +15,7 @@ import com.esaulpaugh.headlong.rlp.RLPEncoder;
 import java.math.BigInteger;
 import java.util.Optional;
 import org.apache.commons.codec.binary.Hex;
+import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
@@ -36,7 +39,7 @@ class CodeDelegationTest {
         final var cd = new CodeDelegation(chainId, address, 7L, 1, r, s);
 
         try (MockedStatic<EthTxSigs> mocked = mockStatic(EthTxSigs.class)) {
-            mocked.when(() -> EthTxSigs.extractAuthoritySignature(cd)).thenReturn(null);
+            mocked.when(() -> EthTxSigs.extractAuthoritySignature(cd)).thenReturn(Optional.empty());
 
             final Optional<EthTxSigs> result = cd.computeAuthority();
             assertTrue(result.isEmpty());
@@ -52,24 +55,24 @@ class CodeDelegationTest {
 
         final var cd = new CodeDelegation(chainId, address, 1L, 27, r, s);
 
-        final EthTxSigs mockSigs = mock(EthTxSigs.class);
+        final Optional<EthTxSigs> mockSigs = Optional.of(mock(EthTxSigs.class));
         try (MockedStatic<EthTxSigs> mocked = mockStatic(EthTxSigs.class)) {
             mocked.when(() -> EthTxSigs.extractAuthoritySignature(cd)).thenReturn(mockSigs);
 
             final Optional<EthTxSigs> result = cd.computeAuthority();
             assertTrue(result.isPresent());
-            assertSame(mockSigs, result.get());
+            assertSame(mockSigs.get(), result.get());
         }
     }
 
     @Test
-    void getChainIdReturnsZeroWhenNull() {
+    void getChainIdThrowsWhenNull() {
         final var address = fillBytes(20, 0x00);
         final var r = fillBytes(32, 0x33);
         final var s = fillBytes(32, 0x44);
 
-        final var cd = new CodeDelegation(null, address, 0L, 0, r, s);
-        assertEquals(0L, cd.getChainId());
+        final var cd =
+                assertThrowsExactly(NullPointerException.class, () -> new CodeDelegation(null, address, 0L, 0, r, s));
     }
 
     @Test
@@ -93,8 +96,11 @@ class CodeDelegationTest {
 
         final var cd = new CodeDelegation(chainId, address, nonce, 0, r, s);
 
-        final byte[] expected =
-                RLPEncoder.sequence(chainId, address, com.google.common.primitives.Longs.toByteArray(nonce));
+        final byte[] expected = Bytes.concatenate(
+                        MAGIC,
+                        Bytes.wrap(RLPEncoder.sequence(
+                                chainId, address, com.google.common.primitives.Longs.toByteArray(nonce))))
+                .toArray();
         assertArrayEquals(expected, cd.calculateSignableMessage());
     }
 
@@ -171,20 +177,8 @@ class CodeDelegationTest {
         assertTrue(str.contains("chainId=" + Hex.encodeHexString(chainId)));
         assertTrue(str.contains("address=" + Hex.encodeHexString(address)));
         assertTrue(str.contains("nonce=99"));
-        assertTrue(str.contains("recId=1"));
+        assertTrue(str.contains("yParity=1"));
         assertTrue(str.contains("r=" + Hex.encodeHexString(r)));
         assertTrue(str.contains("s=" + Hex.encodeHexString(s)));
-    }
-
-    @Test
-    void toStringShowsNullsForNullableFields() {
-        final var r = fillBytes(32, 0x0A);
-        final var s = fillBytes(32, 0x0B);
-
-        final var cd = new CodeDelegation(null, null, 0L, 0, r, s);
-        final String str = cd.toString();
-
-        assertTrue(str.contains("chainId=null"));
-        assertTrue(str.contains("address=null"));
     }
 }

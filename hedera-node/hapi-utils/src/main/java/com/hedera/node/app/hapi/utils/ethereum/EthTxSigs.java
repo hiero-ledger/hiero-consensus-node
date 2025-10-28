@@ -16,6 +16,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Optional;
 import org.apache.commons.codec.binary.Hex;
 import org.bouncycastle.asn1.sec.SECNamedCurves;
 import org.bouncycastle.jcajce.provider.digest.Keccak;
@@ -28,19 +29,19 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
         final var message = calculateSignableMessage(ethTx);
         final var pubKey = extractSig(ethTx.recId(), ethTx.r(), ethTx.s(), message);
         final var address = recoverAddressFromPubKey(pubKey);
-        final var compressedKey = recoverCompressedPubKey(pubKey);
+        final var compressedKey = serializeIntoCompressedKeyBytes(pubKey);
         return new EthTxSigs(compressedKey, address);
     }
 
-    public static EthTxSigs extractAuthoritySignature(CodeDelegation codeDelegation) {
+    public static Optional<EthTxSigs> extractAuthoritySignature(CodeDelegation codeDelegation) {
         try {
             final var message = codeDelegation.calculateSignableMessage();
-            final var pubKey = extractSig(codeDelegation.recId(), codeDelegation.r(), codeDelegation.s(), message);
+            final var pubKey = extractSig(codeDelegation.yParity(), codeDelegation.r(), codeDelegation.s(), message);
             final var address = recoverAddressFromPubKey(pubKey);
-            final var compressedKey = recoverCompressedPubKey(pubKey);
-            return new EthTxSigs(compressedKey, address);
+            final var compressedKey = serializeIntoCompressedKeyBytes(pubKey);
+            return Optional.of(new EthTxSigs(compressedKey, address));
         } catch (final Exception e) {
-            return null;
+            return Optional.empty();
         }
     }
 
@@ -109,8 +110,8 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
         });
     }
 
-    // EIP7702 introduces the authorizationList field, which allows one to specifying
-    // a list of EOA addresses (via signatures) that are authorized to call the code of a contract
+    // EIP7702 introduces the authorizationList field, which allows one to specify
+    // a list of EOA addresses (via signatures) that are then associated with the code of a contract
     // More details: https://eips.ethereum.org/EIPS/eip-7702
     static byte[] resolveEIP7702(final EthTxData ethTx) {
         return RLPEncoder.sequence(Integers.toBytes(1), new Object[] {
@@ -126,7 +127,7 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
         });
     }
 
-    static byte[] recoverCompressedPubKey(LibSecp256k1.secp256k1_pubkey pubKey) {
+    static byte[] serializeIntoCompressedKeyBytes(LibSecp256k1.secp256k1_pubkey pubKey) {
         final ByteBuffer recoveredFullKey = ByteBuffer.allocate(33);
         final LongByReference fullKeySize = new LongByReference(recoveredFullKey.limit());
         LibSecp256k1.secp256k1_ec_pubkey_serialize(
@@ -190,6 +191,7 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
     }
 
     @Override
+    @NonNull
     public String toString() {
         return MoreObjects.toStringHelper(this)
                 .add("publicKey", Hex.encodeHexString(publicKey))

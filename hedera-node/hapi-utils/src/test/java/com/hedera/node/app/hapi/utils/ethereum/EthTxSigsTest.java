@@ -13,8 +13,8 @@ import static com.hedera.node.app.hapi.utils.ethereum.TestingConstants.TRUFFLE0_
 import static com.hedera.node.app.hapi.utils.ethereum.TestingConstants.TRUFFLE1_ADDRESS;
 import static com.hedera.node.app.hapi.utils.ethereum.TestingConstants.ZERO_BYTES;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -23,6 +23,7 @@ import com.esaulpaugh.headlong.rlp.RLPEncoder;
 import com.esaulpaugh.headlong.util.Integers;
 import java.math.BigInteger;
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.SplittableRandom;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
@@ -178,20 +179,20 @@ class EthTxSigsTest {
 
         final var cd = new CodeDelegation(chainId, address, 1L, 27, r, s);
 
-        final var result = EthTxSigs.extractAuthoritySignature(cd);
-        assertNull(result);
+        final Optional<EthTxSigs> result = EthTxSigs.extractAuthoritySignature(cd);
+        assertTrue(result.isEmpty());
     }
 
     @Test
     void extractAuthoritySignatureWhenCalculateMessageThrows() {
         final var cd = mock(CodeDelegation.class, RETURNS_DEEP_STUBS);
         when(cd.calculateSignableMessage()).thenThrow(new RuntimeException("boom"));
-        when(cd.recId()).thenReturn(27);
+        when(cd.yParity()).thenReturn(27);
         when(cd.r()).thenReturn(new byte[] {0x01});
         when(cd.s()).thenReturn(new byte[] {0x02});
 
-        final var result = EthTxSigs.extractAuthoritySignature(cd);
-        assertNull(result);
+        final Optional<EthTxSigs> result = EthTxSigs.extractAuthoritySignature(cd);
+        assertTrue(result.isEmpty());
     }
 
     @Test

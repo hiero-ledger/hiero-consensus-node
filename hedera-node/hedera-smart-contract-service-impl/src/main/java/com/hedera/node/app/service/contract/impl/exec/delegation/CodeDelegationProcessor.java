@@ -16,12 +16,14 @@ import org.hyperledger.besu.evm.worldstate.WorldUpdater;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public record CodeDelegationProcessor(long maybeChainId) {
+public record CodeDelegationProcessor(long chainId) {
     private static final Logger LOG = LoggerFactory.getLogger(CodeDelegationProcessor.class);
 
     // The half of the secp256k1 curve order, used to validate the signature.
-    private static final BigInteger halfCurveOrder =
+    private static final BigInteger HALF_CURVE_ORDER =
             new BigInteger("7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0", 16);
+
+    private static final int MAX_Y_PARITY = 2 ^ 8;
 
     public static final Bytes CODE_DELEGATION_PREFIX = Bytes.fromHexString("ef0100");
 
@@ -59,16 +61,16 @@ public record CodeDelegationProcessor(long maybeChainId) {
 
         transaction
                 .codeDelegations()
-                .forEach(codeDelegation -> processCodeDelegation(worldUpdater, codeDelegation, result));
+                .forEach(codeDelegation -> setAccountCodeToDelegationIndicator(worldUpdater, codeDelegation, result));
 
         return result;
     }
 
-    private void processCodeDelegation(
+    private void setAccountCodeToDelegationIndicator(
             final WorldUpdater worldUpdater, final CodeDelegation codeDelegation, final CodeDelegationResult result) {
         LOG.trace("Processing code delegation: {}", codeDelegation);
 
-        if ((codeDelegation.getChainId() != 0) && (maybeChainId != codeDelegation.getChainId())) {
+        if ((codeDelegation.getChainId() != 0) && (chainId != codeDelegation.getChainId())) {
             return;
         }
 
@@ -76,16 +78,24 @@ public record CodeDelegationProcessor(long maybeChainId) {
             return;
         }
 
-        if (codeDelegation.getS().compareTo(halfCurveOrder) > 0) {
+        if (codeDelegation.getS().compareTo(HALF_CURVE_ORDER) > 0) {
             return;
         }
 
-        final var authorizer = EthTxSigs.extractAuthoritySignature(codeDelegation);
-        if (authorizer == null) {
+        if (codeDelegation.getR().compareTo(HALF_CURVE_ORDER) > 0) {
             return;
         }
 
-        final var authorizerAddress = Address.wrap(Bytes.wrap(authorizer.address()));
+        if (codeDelegation.getYParity() >= MAX_Y_PARITY) {
+            return;
+        }
+
+        final Optional<EthTxSigs> authorizer = EthTxSigs.extractAuthoritySignature(codeDelegation);
+        if (authorizer.isEmpty()) {
+            return;
+        }
+
+        final var authorizerAddress = Address.wrap(Bytes.wrap(authorizer.get().address()));
         final Optional<MutableAccount> maybeAuthorityAccount =
                 Optional.ofNullable(worldUpdater.getAccount(authorizerAddress));
 
@@ -117,7 +127,7 @@ public record CodeDelegationProcessor(long maybeChainId) {
             result.incrementAlreadyExistingDelegators();
         }
 
-        processCodeDelegation(authority, authorizerAddress);
+        setAccountCodeToDelegationIndicator(authority, authorizerAddress);
         authority.incrementNonce();
     }
 
@@ -131,7 +141,8 @@ public record CodeDelegationProcessor(long maybeChainId) {
                 && code.slice(0, CODE_DELEGATION_PREFIX.size()).equals(CODE_DELEGATION_PREFIX);
     }
 
-    private void processCodeDelegation(final MutableAccount account, final Address codeDelegationAddress) {
+    private void setAccountCodeToDelegationIndicator(
+            final MutableAccount account, final Address codeDelegationAddress) {
         // code delegation to zero address removes any delegated code
         if (codeDelegationAddress.equals(Address.ZERO)) {
             account.setCode(Bytes.EMPTY);

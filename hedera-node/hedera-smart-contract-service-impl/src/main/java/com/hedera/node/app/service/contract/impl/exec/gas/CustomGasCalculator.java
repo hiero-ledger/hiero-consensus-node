@@ -13,20 +13,16 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.MessageFrame;
-import org.hyperledger.besu.evm.gascalculator.CancunGasCalculator;
+import org.hyperledger.besu.evm.gascalculator.PragueGasCalculator;
 
 /**
  * FUTURE(#12991): GasCalculators for specific EVM versions should be injected based on
- * `evm.version` configuration setting, just like EVM modules themselves.  Right now (0.49-0.50
- * timeframe) it is ok to just fix our CustomGasCalculator at Besu's Cancun level because the only
- * changes it has over Besu's Shanghai level is that it has defaults for blob gas prices, and those
- * methods are never called at the Shanghai level anyway, nor at the Cancun level because we don't
- * support blobs.
- * too many parents
+ * `evm.version` configuration setting, just like EVM modules themselves.  Updating to inherit
+ * from PragueGasCalculator.
  */
 @SuppressWarnings("java:S110")
 @Singleton
-public class CustomGasCalculator extends CancunGasCalculator implements HederaGasCalculator {
+public class CustomGasCalculator extends PragueGasCalculator implements HederaGasCalculator {
     private static final long TX_DATA_ZERO_COST = 4L;
     private static final long ISTANBUL_TX_DATA_NON_ZERO_COST = 16L;
     private static final long TX_BASE_COST = 21_000L;
