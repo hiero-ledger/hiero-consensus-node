@@ -5,6 +5,9 @@ import static com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountAmount;
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransferList;
@@ -98,5 +101,30 @@ public class HookUtils {
             }
         }
         return false;
+    }
+
+    /**
+     * Returns the owner AccountID of the given HookEntityId.
+     *
+     * @param hookEntityId the HookEntityId
+     * @return the owner AccountID
+     */
+    public static AccountID getHookOwnerId(final @NonNull HookEntityId hookEntityId) {
+        return requireNonNull(hookEntityId).hasAccountId()
+                ? hookEntityId.accountIdOrThrow()
+                : asAccountId(hookEntityId.contractIdOrThrow());
+    }
+    /**
+     * Converts a ContractID to an AccountID.
+     *
+     * @param contractID the ContractID to convert
+     * @return the corresponding AccountID
+     */
+    private static AccountID asAccountId(final ContractID contractID) {
+        return AccountID.newBuilder()
+                .shardNum(contractID.shardNum())
+                .realmNum(contractID.realmNum())
+                .accountNum(contractID.contractNumOrThrow())
+                .build();
     }
 }

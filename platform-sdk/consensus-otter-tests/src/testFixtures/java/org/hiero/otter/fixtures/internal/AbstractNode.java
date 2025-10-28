@@ -34,7 +34,7 @@ import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
  */
 public abstract class AbstractNode implements Node {
 
-    static final long UNSET_WEIGHT = -1;
+    protected static final long UNSET_WEIGHT = -1;
 
     /**
      * Represents the lifecycle states of a node.
@@ -91,6 +91,23 @@ public abstract class AbstractNode implements Node {
     protected AbstractNode(@NonNull final NodeId selfId, @NonNull final KeysAndCerts keysAndCerts) {
         this.selfId = requireNonNull(selfId);
         this.keysAndCerts = requireNonNull(keysAndCerts);
+    }
+
+    /**
+     * Applies the given node properties, set network wide, to this node.
+     *
+     * @param nodeProperties the node properties to apply
+     */
+    public void applyNodeProperties(@NonNull final NodeProperties nodeProperties) {
+        ((AbstractNodeConfiguration) configuration()).apply(nodeProperties.configuration());
+        if (nodeProperties.weight() != UNSET_WEIGHT) {
+            weight(nodeProperties.weight());
+        }
+        version(nodeProperties.version());
+        final Path savedStateDirectory = nodeProperties.savedStateDirectory();
+        if (savedStateDirectory != null) {
+            startFromSavedState(savedStateDirectory);
+        }
     }
 
     /**
@@ -220,6 +237,10 @@ public abstract class AbstractNode implements Node {
         throwIfInLifecycle(LifeCycle.DESTROYED, "Cannot set saved state directory after the node has been destroyed");
 
         this.savedStateDirectory = OtterSavedStateUtils.findSaveState(requireNonNull(savedStateDirectory));
+    }
+
+    public Path savedStateDirectory() {
+        return savedStateDirectory;
     }
 
     /**
