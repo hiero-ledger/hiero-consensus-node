@@ -5,6 +5,7 @@
 module com.hedera.node.app.service.token.impl {
     requires transitive com.hedera.node.app.hapi.fees;
     requires transitive com.hedera.node.app.hapi.utils;
+    requires transitive com.hedera.node.app.service.addressbook;
     requires transitive com.hedera.node.app.service.entityid;
     requires transitive com.hedera.node.app.service.token;
     requires transitive com.hedera.node.app.spi;
@@ -24,7 +25,6 @@ module com.hedera.node.app.service.token.impl {
     requires com.google.common;
     requires org.apache.logging.log4j;
     requires org.bouncycastle.provider;
-    requires org.slf4j;
     requires tuweni.bytes;
 
     exports com.hedera.node.app.service.token.impl.handlers;

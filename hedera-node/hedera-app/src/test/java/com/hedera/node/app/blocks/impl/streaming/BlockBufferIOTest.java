@@ -79,7 +79,7 @@ class BlockBufferIOTest {
             final File directory = new File(testDirFile, Long.toString(dirName));
             Files.createDirectories(directory.toPath());
             ++blockNum;
-            final BlockState block = generateRandomBlock(blockNum, 25);
+            final BlockState block = generateRandomBlock(blockNum);
             final File file = new File(directory, "block-" + blockNum + ".bin");
             writeBlockToDisk(block, true, file);
 
@@ -110,7 +110,7 @@ class BlockBufferIOTest {
         final File[] subdirectories = testDirFile.listFiles();
         assertThat(subdirectories).hasSize(5);
 
-        final List<BlockState> blocksToWrite = generateRandomBlocks(5, 25);
+        final List<BlockState> blocksToWrite = generateRandomBlocks(5);
 
         // write the blocks out. this should trigger a cleanup of other directories
         bufferIO.write(blocksToWrite, 5L);
@@ -131,8 +131,7 @@ class BlockBufferIOTest {
     @Test
     void testReadAndWrite() throws Exception {
         final long latestAckedBlockActual = 8;
-        final int batchSize = 10;
-        final List<BlockState> blocksToWrite = generateRandomBlocks(10, batchSize);
+        final List<BlockState> blocksToWrite = generateRandomBlocks(10);
         bufferIO.write(blocksToWrite, latestAckedBlockActual);
 
         final List<BufferedBlock> blocksFromDisk = bufferIO.read();
@@ -142,7 +141,7 @@ class BlockBufferIOTest {
         long latestAckedBlock = -1;
 
         for (final BufferedBlock bfd : blocksFromDisk) {
-            readBlocks.put(bfd.blockNumber(), toBlockState(bfd, batchSize));
+            readBlocks.put(bfd.blockNumber(), toBlockState(bfd));
             if (bfd.isAcknowledged()) {
                 latestAckedBlock = Math.max(latestAckedBlock, bfd.blockNumber());
             }
@@ -151,10 +150,10 @@ class BlockBufferIOTest {
         for (final BlockState block : blocksToWrite) {
             final BlockState readBlock = readBlocks.get(block.blockNumber());
             assertThat(readBlock).isNotNull();
-            assertThat(readBlock.numRequestsCreated()).isEqualTo(block.numRequestsCreated());
-            for (int i = 0; i < readBlock.numRequestsCreated(); ++i) {
-                assertThat(readBlock.getRequest(i)).isEqualTo(block.getRequest(i));
-                assertThat(readBlock.closedTimestamp()).isEqualTo(block.closedTimestamp());
+            assertThat(readBlock.itemCount()).isEqualTo(block.itemCount());
+            assertThat(readBlock.closedTimestamp()).isEqualTo(block.closedTimestamp());
+            for (int i = 0; i < block.itemCount(); ++i) {
+                assertThat(readBlock.blockItem(i)).isEqualTo(block.blockItem(i));
             }
         }
     }

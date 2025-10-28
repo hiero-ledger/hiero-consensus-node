@@ -227,7 +227,7 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                         timeRef::get,
                         Duration.ofMinutes(2),
                         Duration.ofMinutes(2),
-                        "Current streaming block number is",
+                        String.format("/localhost:%s/ACTIVE] Sending request to block node", portNumbers.getFirst()),
                         String.format(
                                 "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
                                 portNumbers.getFirst()))),

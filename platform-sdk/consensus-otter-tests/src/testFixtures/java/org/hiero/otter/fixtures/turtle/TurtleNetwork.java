@@ -25,7 +25,9 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
+import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
+import org.hiero.otter.fixtures.internal.NodeProperties;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.logging.context.ContextAwareThreadFactory;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
@@ -48,16 +50,17 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     private final Path rootOutputDirectory;
     private final TurtleTransactionGenerator transactionGenerator;
     private final SimulatedNetwork simulatedNetwork;
+    private final NodeProperties nodeProperties;
 
     private ExecutorService executorService;
 
     /**
      * Constructor for TurtleNetwork.
      *
-     * @param randotron            the random generator
-     * @param timeManager          the time manager
-     * @param logging              the logging utility
-     * @param rootOutputDirectory  the directory where the node output will be stored, like saved state and so on
+     * @param randotron the random generator
+     * @param timeManager the time manager
+     * @param logging the logging utility
+     * @param rootOutputDirectory the directory where the node output will be stored, like saved state and so on
      * @param transactionGenerator the transaction generator that generates a steady flow of transactions to all nodes
      * @param useRandomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
      */
@@ -75,6 +78,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);
         this.transactionGenerator = requireNonNull(transactionGenerator);
         this.simulatedNetwork = new SimulatedNetwork(randotron);
+        this.nodeProperties = new NodeProperties(new TurtleNodeConfiguration(() -> LifeCycle.INIT));
     }
 
     /**
@@ -93,6 +97,12 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     @NonNull
     protected TransactionGenerator transactionGenerator() {
         return transactionGenerator;
+    }
+
+    @Override
+    @NonNull
+    protected NodeProperties nodeProperties() {
+        return nodeProperties;
     }
 
     /**
@@ -133,20 +143,19 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
         executorService = NodeLoggingContext.wrap(Executors.newFixedThreadPool(
                 Math.min(size, Runtime.getRuntime().availableProcessors()), new ContextAwareThreadFactory()));
 
-        // Synchronize FakeTime for nodes starting from a saved state.
+        // Synchronize FakeTime when starting from a saved state.
         // This ensures time never goes backward when starting from saved state.
-        final boolean runFromState =
-                nodes().stream().map(TurtleNode.class::cast).anyMatch(TurtleNode::startFromSavedState);
-        if (runFromState) {
-            synchronizeTimeWithSavedState();
+        final Path savedStateDirectory = nodeProperties.savedStateDirectory();
+        if (savedStateDirectory != null) {
+            synchronizeTimeWithSavedState(savedStateDirectory);
         }
     }
 
     /**
-     * Synchronizes FakeTime to the saved state's WALL_CLOCK_TIME plus one hour.
-     * This ensures time never goes backward when starting from a saved state, and is instantaneous.
+     * Synchronizes FakeTime to the saved state's WALL_CLOCK_TIME plus one hour. This ensures time never goes backward
+     * when starting from a saved state, and is instantaneous.
      */
-    private void synchronizeTimeWithSavedState() {
+    private void synchronizeTimeWithSavedState(@NonNull final Path savedStateDirectory) {
         try {
             final Instant requiredTime = OtterSavedStateUtils.loadSavedStateWallClockTime(savedStateDirectory)
                     .plus(Duration.ofHours(1));

@@ -38,6 +38,20 @@ public class SortedExportCommand implements Runnable {
     private String stateKey;
 
     @Option(
+            names = {"-f", "--first-leaf-path"},
+            defaultValue = "-1",
+            description =
+                    "First leaf path in the export range (inclusive). If not specified, defaults to the actual first leaf path in the supplied state. Must be within the range of actual leaf paths in the supplied state.")
+    private long firstLeafPath;
+
+    @Option(
+            names = {"-l", "--last-leaf-path"},
+            defaultValue = "-1",
+            description =
+                    "Last leaf path in the export range (inclusive). If not specified, defaults to the actual last leaf path in the supplied state. Must be within the range of actual leaf paths in the supplied state.")
+    private long lastLeafPath;
+
+    @Option(
             names = {"-o", "--out"},
             required = true,
             description = "Directory where the exported JSON files are written. Must exist before invocation.")
@@ -69,11 +83,12 @@ public class SortedExportCommand implements Runnable {
 
         if (serviceName == null) {
             // processing all
-            final SortedJsonExporter exporter =
-                    new SortedJsonExporter(outputDir, state, prepareServiceNamesAndStateKeys());
+            final SortedJsonExporter exporter = new SortedJsonExporter(
+                    outputDir, state, prepareServiceNamesAndStateKeys(), firstLeafPath, lastLeafPath);
             exporter.export();
         } else {
-            final SortedJsonExporter exporter = new SortedJsonExporter(outputDir, state, serviceName, stateKey);
+            final SortedJsonExporter exporter =
+                    new SortedJsonExporter(outputDir, state, serviceName, stateKey, firstLeafPath, lastLeafPath);
             exporter.export();
         }
         log.info("Total time is {} seconds.", (System.currentTimeMillis() - start) / 1000);

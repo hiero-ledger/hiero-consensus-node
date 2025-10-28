@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GRPC_CERTIFICAT
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_IPV4_ADDRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UPDATE_NODE_ACCOUNT_NOT_ALLOWED;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_LABEL;
@@ -37,8 +38,10 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
+import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeUpdateHandler;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
@@ -169,7 +172,6 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     void nodeIdMustInState() {
         txn = new NodeUpdateBuilder().withNodeId(2L).build();
         given(handleContext.body()).willReturn(txn);
-        refreshStoresWithCurrentNodeInWritable();
         final var config = HederaTestConfigBuilder.create()
                 .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 10)
                 .getOrCreateConfig();
@@ -187,7 +189,6 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         txn = new NodeUpdateBuilder().withNodeId(1L).withAccountId(accountId).build();
         given(accountStore.contains(accountId)).willReturn(false);
         given(handleContext.body()).willReturn(txn);
-        refreshStoresWithCurrentNodeInWritable();
         final var config = HederaTestConfigBuilder.create()
                 .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 10)
                 .getOrCreateConfig();
@@ -209,7 +210,6 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .build();
         setupHandle();
 
-        refreshStoresWithCurrentNodeInWritable();
         final var config = HederaTestConfigBuilder.create()
                 .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 10)
                 .getOrCreateConfig();
@@ -361,19 +361,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .withAdminKey(key)
                 .withDeclineReward(true)
                 .build();
-        given(handleContext.body()).willReturn(txn);
-        refreshStoresWithMoreNodeInWritable();
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 12)
-                .withValue("nodes.maxGossipEndpoint", 4)
-                .withValue("nodes.maxServiceEndpoint", 3)
-                .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(config);
-        given(handleContext.storeFactory()).willReturn(storeFactory);
-        given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
-        given(accountStore.contains(accountId)).willReturn(true);
-        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
-        given(handleContext.attributeValidator()).willReturn(validator);
+        setupHandle();
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
         final var updatedNode = writableStore.get(1L);
@@ -395,10 +383,66 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
+    void handleAccountUpdateWorkAsExpected() {
+        final var updateAccountId = AccountID.newBuilder().accountNum(5L).build();
+        txn = new NodeUpdateBuilder()
+                .withNodeId(1L)
+                .withAccountId(updateAccountId)
+                .withAdminKey(key)
+                .build();
+        setupHandle();
+
+        given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
+        given(accountStore.getAccountById(updateAccountId)).willReturn(account);
+        given(account.tinybarBalance()).willReturn(10L);
+        given(handleContext.attributeValidator()).willReturn(validator);
+        given(handleContext.expiryValidator()).willReturn(expiryValidator);
+        given(expiryValidator.expirationStatus(
+                        EntityType.ACCOUNT, account.expiredAndPendingRemoval(), account.tinybarBalance()))
+                .willReturn(OK);
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+        final var updatedNode = writableStore.get(1L);
+        assertNotNull(updatedNode);
+        assertEquals(1, updatedNode.nodeId());
+        assertEquals(updateAccountId, updatedNode.accountId());
+    }
+
+    @Test
+    void updateWithRelatedAccountFail() {
+        // build state with two nodes and two relations
+        rebuildState(2);
+        // the account ID of the second node
+        final var relatedAccountId =
+                AccountID.newBuilder().accountNum(WELL_KNOWN_ACCOUNT_ID + 1).build();
+        txn = new NodeUpdateBuilder()
+                .withNodeId(1L)
+                .withAccountId(relatedAccountId)
+                .build();
+        given(handleContext.body()).willReturn(txn);
+        given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
+        final var config = HederaTestConfigBuilder.create().getOrCreateConfig();
+        given(handleContext.configuration()).willReturn(config);
+        given(handleContext.storeFactory()).willReturn(storeFactory);
+        given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
+        given(accountStore.contains(relatedAccountId)).willReturn(true);
+        given(accountStore.getAccountById(relatedAccountId)).willReturn(account);
+        given(account.tinybarBalance()).willReturn(10L);
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(handleContext.attributeValidator()).willReturn(validator);
+        given(handleContext.expiryValidator()).willReturn(expiryValidator);
+        given(expiryValidator.expirationStatus(
+                        EntityType.ACCOUNT, account.expiredAndPendingRemoval(), account.tinybarBalance()))
+                .willReturn(OK);
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(ResponseCodeEnum.ACCOUNT_IS_LINKED_TO_A_NODE, msg.getStatus());
+    }
+
+    @Test
     void nothingHappensIfUpdateHasNoop() {
         txn = new NodeUpdateBuilder().withNodeId(1L).build();
         given(handleContext.body()).willReturn(txn);
-        refreshStoresWithCurrentNodeInWritable();
         final var config = HederaTestConfigBuilder.create()
                 .withValue("nodes.maxGossipEndpoint", 2)
                 .getOrCreateConfig();
@@ -447,7 +491,8 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     @Test
     void preHandleFailedWhenNodeDeleted() throws PreCheckException {
         givenValidNode(true);
-        refreshStoresWithCurrentNodeInReadable();
+        // refresh state with deleted node
+        rebuildState(1);
         txn = new NodeUpdateBuilder().withNodeId(nodeId.number()).build();
         final var context = setupPreHandle(true, txn);
         assertThrowsPreCheck(() -> subject.preHandle(context), INVALID_NODE_ID);
@@ -456,7 +501,8 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     @Test
     void preHandleFailedWhenOldAdminKeyInValid() throws PreCheckException {
         givenValidNodeWithAdminKey(invalidKey);
-        refreshStoresWithCurrentNodeInReadable();
+        // refresh state with updated node
+        rebuildState(1);
         txn = new NodeUpdateBuilder().withNodeId(nodeId.number()).build();
         final var context = setupPreHandle(true, txn);
         assertThrowsPreCheck(() -> subject.preHandle(context), INVALID_ADMIN_KEY);
@@ -529,7 +575,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
 
         // Set up the readable node state with our node - using correct builder pattern
         readableNodeState =
-                emptyReadableNodeStateBuilder().value(nodeId, nodeWithAccount).build();
+                readableNodeStateBuilder(0).value(nodeId, nodeWithAccount).build();
 
         given(readableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(readableNodeState);
         readableStore = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
@@ -579,9 +625,8 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 Node.newBuilder().nodeId(nodeId.number()).adminKey(key).build();
 
         // Set up the readable node state with our modified node
-        readableNodeState = emptyReadableNodeStateBuilder()
-                .value(nodeId, nodeWithoutAccount)
-                .build();
+        readableNodeState =
+                readableNodeStateBuilder(0).value(nodeId, nodeWithoutAccount).build();
 
         given(readableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(readableNodeState);
 
@@ -612,8 +657,6 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .build();
 
         given(handleContext.body()).willReturn(txn);
-        refreshStoresWithCurrentNodeInWritable();
-
         final var config = HederaTestConfigBuilder.create()
                 .withValue("nodes.webProxyEndpointsEnabled", false)
                 .getOrCreateConfig();
@@ -824,6 +867,13 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(accountStore.contains(newAccountId)).willReturn(true);
+        given(accountStore.getAccountById(newAccountId)).willReturn(account);
+        given(account.tinybarBalance()).willReturn(10L);
+        given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
+        given(handleContext.expiryValidator()).willReturn(expiryValidator);
+        given(expiryValidator.expirationStatus(
+                        EntityType.ACCOUNT, account.expiredAndPendingRemoval(), account.tinybarBalance()))
+                .willReturn(OK);
 
         // Execute the method
         assertDoesNotThrow(() -> subject.handle(handleContext));
@@ -870,19 +920,12 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
     }
 
     private void setupHandle() {
-        given(handleContext.body()).willReturn(txn);
-        refreshStoresWithCurrentNodeInWritable();
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("nodes.maxGossipEndpoint", 2)
-                .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(config);
-        given(handleContext.storeFactory()).willReturn(storeFactory);
-        given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
-        given(accountStore.contains(accountId)).willReturn(true);
-        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+        setupMinimalHandle();
+        given(accountStore.contains(any())).willReturn(true);
     }
 
     private PreHandleContext setupPreHandle(boolean updateAccountIdAllowed, TransactionBody txn)
