@@ -188,6 +188,13 @@ public abstract class AbstractCustomCreateOperation extends AbstractOperation {
         frame.setPC(currentPC + 1);
     }
 
+    /**
+     * Returns the sender address for the next frame.
+     * This is the recipient address for normal contract creation, but the hook owner address for HTS hook executions.
+     *
+     * @param frame the frame
+     * @return the sender address
+     */
     protected Address getSender(final @NonNull MessageFrame frame) {
         return frame.getRecipientAddress().equals(HTS_HOOKS_CONTRACT_ADDRESS)
                 ? FrameUtils.hookOwnerAddress(frame)
