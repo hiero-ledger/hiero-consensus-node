@@ -439,8 +439,20 @@ public class BlockNodeSuite {
                         String.format(
                                 "/localhost:%s/CLOSED] Connection state transitioned from CLOSING to CLOSED.",
                                 portNumbers.get(3)))),
-                doingContextual(
-                        spec -> LockSupport.parkNanos(Duration.ofSeconds(20).toNanos())));
+                doingContextual(spec -> connectionDropTime.set(Instant.now())),
+                blockNode(3).startImmediately(), // Pri 3
+                blockNode(1).shutDownImmediately(), // Pri 1
+                sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
+                        byNodeId(0),
+                        connectionDropTime::get,
+                        Duration.ofMinutes(1),
+                        Duration.ofSeconds(45),
+                        String.format(
+                                "/localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING.",
+                                portNumbers.get(3)),
+                        String.format(
+                                "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
+                                portNumbers.get(3)))));
     }
 
     @HapiTest
