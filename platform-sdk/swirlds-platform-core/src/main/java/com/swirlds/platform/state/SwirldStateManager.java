@@ -6,38 +6,22 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.freeze.FreezePeriodChecker;
-import com.swirlds.platform.metrics.TransactionMetrics;
 import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.merkle.StateMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.time.Instant;
-import java.util.Queue;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
-import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 /**
- * Manages all interactions with the state object required by {@link ConsensusStateEventHandler}.
+ * This class is responsible for maintaining references to the mutable state and the latest immutable state.
+ * It also updates these references upon state signing.
  */
-public class SwirldStateManager implements FreezePeriodChecker {
+public class SwirldStateManager {
 
     /**
-     * Stats relevant to the state operations.
-     */
-    private final TransactionMetrics transactionMetrics;
-
-    /**
-     *
+     * Metrics for the state object
      */
     private final StateMetrics stateMetrics;
 
@@ -52,16 +36,9 @@ public class SwirldStateManager implements FreezePeriodChecker {
     private final AtomicReference<MerkleNodeState> latestImmutableState = new AtomicReference<>();
 
     /**
-     * Handle transactions by applying them to a state
-     */
-    private final TransactionHandler transactionHandler;
-
-    /**
      * The current software version.
      */
     private final SemanticVersion softwareVersion;
-
-    private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
 
     private final PlatformStateFacade platformStateFacade;
 
@@ -70,32 +47,19 @@ public class SwirldStateManager implements FreezePeriodChecker {
      *
      * @param platformContext       the platform context
      * @param roster                the current roster
-     * @param selfId                this node's id
-     * @param statusActionSubmitter enables submitting platform status actions
      * @param softwareVersion       the current software version
-     * @param consensusStateEventHandler       the state lifecycles
      */
     public SwirldStateManager(
             @NonNull final PlatformContext platformContext,
             @NonNull final Roster roster,
-            @NonNull final NodeId selfId,
-            @NonNull final StatusActionSubmitter statusActionSubmitter,
             @NonNull final SemanticVersion softwareVersion,
-            @NonNull final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler,
             @NonNull final PlatformStateFacade platformStateFacade) {
 
         requireNonNull(platformContext);
         requireNonNull(roster);
-        requireNonNull(selfId);
-        requireNonNull(consensusStateEventHandler);
-
         this.platformStateFacade = requireNonNull(platformStateFacade);
-        this.consensusStateEventHandler = consensusStateEventHandler;
-        this.transactionMetrics = new TransactionMetrics(platformContext.getMetrics());
         this.stateMetrics = new StateMetrics(platformContext.getMetrics());
-        requireNonNull(statusActionSubmitter);
         this.softwareVersion = requireNonNull(softwareVersion);
-        this.transactionHandler = new TransactionHandler(selfId, transactionMetrics);
     }
 
     /**
@@ -103,40 +67,19 @@ public class SwirldStateManager implements FreezePeriodChecker {
      *
      * @param state the initial state
      */
-    public void setInitialState(@NonNull final MerkleNodeState state) {
+    public void setState(@NonNull final MerkleNodeState state, boolean onInit) {
         requireNonNull(state);
 
         state.throwIfDestroyed("state must not be destroyed");
         state.throwIfImmutable("state must be mutable");
 
-        if (stateRef.get() != null) {
+        if (onInit && stateRef.get() != null) {
             throw new IllegalStateException("Attempt to set initial state when there is already a state reference.");
         }
 
         // Create a fast copy so there is always an immutable state to
         // invoke handleTransaction on for pre-consensus transactions
         fastCopyAndUpdateRefs(state);
-    }
-
-    /**
-     * Handles the events in a consensus round. Implementations are responsible for invoking
-     * {@link ConsensusStateEventHandler#onHandleConsensusRound(Round, MerkleNodeState, Consumer)} .
-     *
-     * @param round the round to handle
-     */
-    public Queue<ScopedSystemTransaction<StateSignatureTransaction>> handleConsensusRound(final ConsensusRound round) {
-        final MerkleNodeState state = stateRef.get();
-        return transactionHandler.handleRound(round, consensusStateEventHandler, state);
-    }
-
-    /**
-     * Seals the platform's state changes for the given round.
-     * @param round the round to seal
-     */
-    public boolean sealConsensusRound(@NonNull final Round round) {
-        requireNonNull(round);
-        final MerkleNodeState state = stateRef.get();
-        return consensusStateEventHandler.onSealConsensusRound(round, state);
     }
 
     /**
@@ -147,39 +90,13 @@ public class SwirldStateManager implements FreezePeriodChecker {
         return stateRef.get();
     }
 
-    /**
-     * Invoked when a signed state is about to be created for the current freeze period.
-     * <p>
-     * Invoked only by the consensus handling thread, so there is no chance of the state being modified by a concurrent
-     * thread.
-     * </p>
-     */
-    public void savedStateInFreezePeriod() {
-        // set current DualState's lastFrozenTime to be current freezeTime
-        platformStateFacade.updateLastFrozenTime(stateRef.get());
-    }
-
-    /**
-     * Loads all necessary data from the {@code reservedSignedState}.
-     *
-     * @param signedState the signed state to load
-     */
-    public void loadFromSignedState(@NonNull final SignedState signedState) {
-        MerkleNodeState state = signedState.getState();
-
-        state.throwIfDestroyed("state must not be destroyed");
-        state.throwIfImmutable("state must be mutable");
-
-        fastCopyAndUpdateRefs(state);
-    }
-
     private void fastCopyAndUpdateRefs(final MerkleNodeState state) {
         final MerkleNodeState newState = fastCopy(state, stateMetrics, softwareVersion, platformStateFacade);
 
         // Set latest immutable first to prevent the newly immutable stateRoot from being deleted between setting the
         // stateRef and the latestImmutableState
         setLatestImmutableState(state);
-        setState(newState);
+        updateStateRef(newState);
     }
 
     /**
@@ -187,7 +104,7 @@ public class SwirldStateManager implements FreezePeriodChecker {
      *
      * @param state a new mutable state
      */
-    private void setState(final MerkleNodeState state) {
+    private void updateStateRef(final MerkleNodeState state) {
         final var currVal = stateRef.get();
         if (currVal != null) {
             currVal.release();
@@ -204,17 +121,6 @@ public class SwirldStateManager implements FreezePeriodChecker {
         }
         immutableState.getRoot().reserve();
         latestImmutableState.set(immutableState);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean isInFreezePeriod(final Instant timestamp) {
-        return PlatformStateFacade.isInFreezePeriod(
-                timestamp,
-                platformStateFacade.freezeTimeOf(getConsensusState()),
-                platformStateFacade.lastFrozenTimeOf(getConsensusState()));
     }
 
     /**
