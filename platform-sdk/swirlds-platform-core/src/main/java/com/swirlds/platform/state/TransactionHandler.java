@@ -5,7 +5,7 @@ import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_SECONDS;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.swirlds.platform.metrics.StateMetrics;
+import com.swirlds.platform.metrics.TransactionMetrics;
 import com.swirlds.state.MerkleNodeState;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -26,9 +26,9 @@ public class TransactionHandler {
     private final NodeId selfId;
 
     /** Stats relevant to the state operations. */
-    private final StateMetrics stats;
+    private final TransactionMetrics stats;
 
-    public TransactionHandler(final NodeId selfId, final StateMetrics stats) {
+    public TransactionHandler(final NodeId selfId, final TransactionMetrics stats) {
         this.selfId = selfId;
         this.stats = stats;
     }
