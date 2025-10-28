@@ -184,13 +184,15 @@ public class ThrottleAccumulator {
             @NonNull final TransactionInfo txnInfo,
             @NonNull final Instant now,
             @NonNull final State state,
-            @Nullable final List<ThrottleUsage> throttleUsages) {
+            @Nullable final List<ThrottleUsage> throttleUsages,
+            final boolean gasThrottleAlwaysEnabled) {
         if (throttleType == NOOP_THROTTLE) {
             return false;
         }
         resetLastAllowedUse();
         lastTxnWasGasThrottled = false;
-        if (shouldThrottleTxn(false, txnInfo, now, state, throttleUsages)) {
+
+        if (shouldThrottleTxn(txnInfo, now, state, throttleUsages, gasThrottleAlwaysEnabled)) {
             reclaimLastAllowedUse();
             return true;
         }
@@ -249,6 +251,7 @@ public class ThrottleAccumulator {
         if (isGasThrottled(queryFunction)) {
             final var enforceGasThrottle =
                     configuration.getConfigData(ContractsConfig.class).throttleThrottleByGas();
+
             return enforceGasThrottle
                     && !gasThrottle.allow(
                             now,
@@ -412,11 +415,11 @@ public class ThrottleAccumulator {
     }
 
     private boolean shouldThrottleTxn(
-            final boolean isScheduled,
             @NonNull final TransactionInfo txnInfo,
             @NonNull final Instant now,
             @NonNull final State state,
-            List<ThrottleUsage> throttleUsages) {
+            List<ThrottleUsage> throttleUsages,
+            final boolean gasThrottleAlwaysEnabled) {
         final var function = txnInfo.functionality();
         final var configuration = configSupplier.get();
         final boolean isJumboTransactionsEnabled =
@@ -434,7 +437,10 @@ public class ThrottleAccumulator {
             return false;
         }
 
-        if (isGasExhausted(txnInfo, now, configuration, throttleUsages)) {
+        final boolean throttleThrottleByGasFlag =
+                configuration.getConfigData(ContractsConfig.class).throttleThrottleByGas();
+        final boolean shouldThrottleByGas = throttleThrottleByGasFlag || gasThrottleAlwaysEnabled;
+        if (shouldThrottleByGas && isGasExhausted(txnInfo, now, configuration, throttleUsages)) {
             lastTxnWasGasThrottled = true;
             return true;
         }
@@ -460,12 +466,7 @@ public class ThrottleAccumulator {
         }
 
         return switch (function) {
-            case SCHEDULE_CREATE -> {
-                if (isScheduled) {
-                    throw new IllegalStateException("ScheduleCreate cannot be a child!");
-                }
-                yield shouldThrottleScheduleCreate(manager, txnInfo, now, state, throttleUsages);
-            }
+            case SCHEDULE_CREATE -> shouldThrottleScheduleCreate(manager, txnInfo, now, state, throttleUsages);
             case TOKEN_MINT ->
                 shouldThrottleMint(manager, txnInfo.txBody().tokenMint(), now, configuration, throttleUsages);
             case CRYPTO_TRANSFER -> {
@@ -619,9 +620,7 @@ public class ThrottleAccumulator {
             @NonNull final Instant now,
             @NonNull final Configuration configuration,
             @Nullable final List<ThrottleUsage> throttleUsages) {
-        final boolean shouldThrottleByGas =
-                configuration.getConfigData(ContractsConfig.class).throttleThrottleByGas();
-        if (shouldThrottleByGas && isGasThrottled(txnInfo.functionality())) {
+        if (isGasThrottled(txnInfo.functionality())) {
             final long amount = getGasLimitForContractTx(txnInfo.txBody(), txnInfo.functionality());
             final boolean answer = !gasThrottle.allow(now, amount);
             if (!answer && throttleUsages != null) {
