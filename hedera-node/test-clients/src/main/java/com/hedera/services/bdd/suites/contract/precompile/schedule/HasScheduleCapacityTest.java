@@ -125,7 +125,8 @@ public class HasScheduleCapacityTest {
         final BigInteger closeToMaxGasLimit = BigInteger.valueOf(14_000_000);
         return hapiTest(
                 UtilVerbs.overriding(CAPACITY_CONFIG_NAME, "15000000"),
-                UtilVerbs.overriding(THROTTLE_BY_GAS_CONFIG_NAME, "false"), // It should work even if gas throttle is off
+                UtilVerbs.overriding(
+                        THROTTLE_BY_GAS_CONFIG_NAME, "false"), // It should work even if gas throttle is off
                 hasScheduleCapacity(true, FUNCTION_NAME, expirySecond, testGasLimit),
                 contract.call("scheduleCallWithDefaultCallData", expirySecond, closeToMaxGasLimit)
                         .gas(2_000_000)
