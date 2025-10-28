@@ -5,6 +5,7 @@ import static org.hiero.metrics.api.utils.MetricUtils.load;
 
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -19,6 +20,7 @@ import org.hiero.metrics.api.export.MetricsExporter;
 import org.hiero.metrics.api.export.MetricsExporterFactory;
 import org.hiero.metrics.api.export.PullingMetricsExporter;
 import org.hiero.metrics.api.export.PushingMetricsExporter;
+import org.hiero.metrics.internal.export.config.MetricsExportManagerConfig;
 import org.hiero.metrics.api.utils.MetricUtils;
 import org.hiero.metrics.internal.core.MetricRegistryImpl;
 import org.hiero.metrics.internal.export.DefaultMetricsExportManager;
@@ -138,6 +140,13 @@ public final class MetricsFacade {
             @NonNull Configuration configuration,
             @NonNull Supplier<ScheduledExecutorService> executorServiceFactory,
             int exportIntervalSeconds) {
+        MetricsExportManagerConfig exportConfig = configuration.getConfigData(MetricsExportManagerConfig.class);
+
+        if (!exportConfig.enabled()) {
+            logger.info("Metrics export manager is disabled in configuration. Using no-op export manager.");
+            return NoOpMetricsExportManager.INSTANCE;
+        }
+
         List<MetricsExporterFactory> exporterFactories = load(MetricsExporterFactory.class);
 
         List<PullingMetricsExporter> pullingExporters = new ArrayList<>();
@@ -157,6 +166,17 @@ public final class MetricsFacade {
             }
 
             MetricsExporter exporter = optionalExporter.get();
+            if (!exportConfig.isExporterEnabled(exporter.name())) {
+                logger.info("Metrics exporter {} is disabled in configuration. Skipping.", exporter.name());
+                try {
+                    exporter.close();
+                } catch (IOException e) {
+                    throw new RuntimeException(
+                            "Failed to close metrics exporter, which is disabled: " + exporter.name(), e);
+                }
+                continue;
+            }
+
             if (exporter instanceof PullingMetricsExporter pullingExporter) {
                 pullingExporters.add(pullingExporter);
             } else if (exporter instanceof PushingMetricsExporter pushingExporter) {
@@ -170,7 +190,7 @@ public final class MetricsFacade {
         }
 
         if (pullingExporters.isEmpty() && pushingExporters.isEmpty()) {
-            logger.info("No metrics exporters found. Using no-op export manager.");
+            logger.info("No enabled metrics exporters found. Using no-op export manager.");
             return NoOpMetricsExportManager.INSTANCE;
         }
 
