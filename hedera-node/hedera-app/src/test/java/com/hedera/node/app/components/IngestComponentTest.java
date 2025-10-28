@@ -4,7 +4,7 @@ package com.hedera.node.app.components;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.spi.AppContext.Gossip.UNAVAILABLE_GOSSIP;
-import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
+import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.state.recordcache.schemas.V0490RecordCacheSchema.TRANSACTION_RECEIPTS_STATE_ID;
 import static com.swirlds.platform.system.address.AddressBookUtils.endpointFor;
 import static java.util.concurrent.CompletableFuture.completedFuture;
@@ -125,7 +125,7 @@ class IngestComponentTest {
                 () -> DEFAULT_NODE_INFO,
                 () -> NO_OP_METRICS,
                 throttleFactory,
-                () -> NOOP_FEE_CHARGING,
+                () -> UNIVERSAL_NOOP_FEE_CHARGING,
                 new AppEntityIdFactory(configuration));
         final var hintsService = new HintsServiceImpl(
                 NO_OP_METRICS,
