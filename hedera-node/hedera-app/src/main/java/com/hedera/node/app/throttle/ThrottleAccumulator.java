@@ -178,6 +178,8 @@ public class ThrottleAccumulator {
      * @param now the instant of time the transaction throttling should be checked for
      * @param state the current state of the node
      * @param throttleUsages if not null, a list to accumulate throttle usages into
+     * @param gasThrottleAlwaysEnabled if set, gas throttle is always enforced within this call,
+     *                                 even if the throttleByGas configuration flag is off
      * @return whether the transaction should be throttled
      */
     public boolean checkAndEnforceThrottle(
@@ -437,10 +439,10 @@ public class ThrottleAccumulator {
             return false;
         }
 
-        final boolean throttleThrottleByGasFlag =
+        final boolean throttleByGasFlag =
                 configuration.getConfigData(ContractsConfig.class).throttleThrottleByGas();
-        final boolean shouldThrottleByGas = throttleThrottleByGasFlag || gasThrottleAlwaysEnabled;
-        if (shouldThrottleByGas && isGasExhausted(txnInfo, now, configuration, throttleUsages)) {
+        final boolean shouldThrottleByGas = throttleByGasFlag || gasThrottleAlwaysEnabled;
+        if (shouldThrottleByGas && isGasExhausted(txnInfo, now, throttleUsages)) {
             lastTxnWasGasThrottled = true;
             return true;
         }
@@ -618,7 +620,6 @@ public class ThrottleAccumulator {
     private boolean isGasExhausted(
             @NonNull final TransactionInfo txnInfo,
             @NonNull final Instant now,
-            @NonNull final Configuration configuration,
             @Nullable final List<ThrottleUsage> throttleUsages) {
         if (isGasThrottled(txnInfo.functionality())) {
             final long amount = getGasLimitForContractTx(txnInfo.txBody(), txnInfo.functionality());

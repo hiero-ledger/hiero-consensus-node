@@ -147,9 +147,12 @@ public class HasScheduleCapacityTest {
         return hapiTest(
                 // limit is controlled by 'contracts.maxGasPerSecBackend' property
                 UtilVerbs.overriding(CAPACITY_CONFIG_NAME, "15000000"),
+                UtilVerbs.overriding(
+                        THROTTLE_BY_GAS_CONFIG_NAME, "false"), // It should work even if gas throttle is off
                 hasScheduleCapacity(false, FUNCTION_NAME, expirySecond, BigInteger.valueOf(15_000_001)),
                 UtilVerbs.overriding(CAPACITY_CONFIG_NAME, "30000000"),
                 hasScheduleCapacity(true, FUNCTION_NAME, expirySecond, BigInteger.valueOf(15_000_001)),
+                UtilVerbs.restoreDefault(THROTTLE_BY_GAS_CONFIG_NAME),
                 UtilVerbs.restoreDefault(CAPACITY_CONFIG_NAME));
     }
 
