@@ -8,8 +8,10 @@ import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.CLASSIC_FIRST_NODE_ACCOUNT_NUM;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
@@ -36,7 +38,9 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNAT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NODE_ACCOUNT_HAS_ZERO_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -45,6 +49,7 @@ import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hederahashgraph.api.proto.java.AccountID;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.file.Paths;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
@@ -169,7 +174,7 @@ public class UpdateAccountEnabledTest {
                                 "testNode",
                                 node -> assertEquals(
                                         newAccountNum.get(),
-                                        node.accountId().accountNum(),
+                                        node.accountIdOrThrow().accountNum(),
                                         "Node accountId should be updated")))));
     }
 
@@ -225,11 +230,6 @@ public class UpdateAccountEnabledTest {
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> updateAccountIdRequiredSignatures() {
-        final AccountID sentinelValue = AccountID.newBuilder()
-                .setShardNum(0)
-                .setRealmNum(0)
-                .setAccountNum(0)
-                .build();
         final AtomicReference<AccountID> initialNodeAccountId = new AtomicReference<>();
         final AtomicReference<AccountID> newAccountId = new AtomicReference<>();
         return hapiTest(
@@ -248,7 +248,7 @@ public class UpdateAccountEnabledTest {
                 }),
                 // signed with correct sig fails if account is sentinel
                 nodeUpdate("testNode")
-                        .fullAccountId(sentinelValue)
+                        .accountId("0.0.0")
                         .payingWith(DEFAULT_PAYER)
                         .signedByPayerAnd("initialNodeAccount")
                         .hasPrecheck(INVALID_NODE_ACCOUNT_ID),
@@ -410,5 +410,29 @@ public class UpdateAccountEnabledTest {
                         .accountId(deletedAccount)
                         .signedByPayerAnd(deletedAccount, adminKey)
                         .hasKnownStatus(ACCOUNT_DELETED));
+    }
+
+    @Tag(ONLY_SUBPROCESS)
+    @HapiTest
+    final Stream<DynamicTest> accountUpdateBuildsProperRecordPath() {
+        final AtomicReference<AccountID> newAccountId = new AtomicReference<>();
+        final AtomicReference<AccountID> oldNodeAccountId = new AtomicReference<>();
+        final String nodeToUpdate = "3";
+        final String baseDir = "build/hapi-test/node" + nodeToUpdate + "/data/recordStreams/";
+
+        return hapiTest(
+                cryptoCreate("newAccount").exposingCreatedIdTo(newAccountId::set),
+                // account 6 is the node account of node 3
+                getAccountInfo("6").exposingIdTo(oldNodeAccountId::set),
+                nodeUpdate(nodeToUpdate).accountId("newAccount").signedByPayerAnd("newAccount"),
+                // create a transaction after the update so record files are generated
+                cryptoCreate("foo"),
+                // assert record paths
+                withOpContext((spec, log) -> {
+                    final var oldRecordPath = Paths.get(baseDir + "record" + asAccountString(oldNodeAccountId.get()));
+                    final var newRecordPath = Paths.get(baseDir + "record" + asAccountString(newAccountId.get()));
+                    assertTrue(oldRecordPath.toFile().exists());
+                    assertFalse(newRecordPath.toFile().exists());
+                }));
     }
 }
