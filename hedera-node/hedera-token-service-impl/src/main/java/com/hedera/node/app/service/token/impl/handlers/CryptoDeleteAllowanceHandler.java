@@ -247,9 +247,7 @@ public class CryptoDeleteAllowanceHandler implements TransactionHandler {
         params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
 
         // Count allowances
-        long allowanceCount = CollectionUtil.isEmpty(op.nftAllowances())
-                ? 0
-                : op.nftAllowances().size();
+        long allowanceCount = op.nftAllowances().size();
         params.put(Extra.ALLOWANCES, allowanceCount);
 
         return model.computeFee(
