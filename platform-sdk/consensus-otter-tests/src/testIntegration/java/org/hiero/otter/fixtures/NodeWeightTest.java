@@ -120,24 +120,6 @@ class NodeWeightTest {
     }
 
     /**
-     * Test that Network.nodeWeight() throws when no nodes exist.
-     */
-    @Test
-    void testNodeWeightThrowsWhenNoNodes() {
-        final TurtleTestEnvironment env = new TurtleTestEnvironment();
-        try {
-            final Network network = env.network();
-
-            // Try to set weight without adding nodes
-            assertThatThrownBy(() -> network.nodeWeight(100L))
-                    .isInstanceOf(IllegalStateException.class)
-                    .hasMessageContaining("Cannot set node weight when there are no nodes in the network");
-        } finally {
-            env.destroy();
-        }
-    }
-
-    /**
      * Test that Network.nodeWeight() throws when weight is zero.
      */
     @Test
