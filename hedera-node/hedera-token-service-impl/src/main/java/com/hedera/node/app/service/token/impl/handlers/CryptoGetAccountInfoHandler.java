@@ -217,11 +217,10 @@ public class CryptoGetAccountInfoHandler extends PaidQueryHandler {
     }
 
     /**
-     * Calculates the fee result for a CryptoGetInfo query using Simple Fees (HIP-1261).
+     * Calculates the fee result for a CryptoGetInfo query using Simple Fees
      *
      * @param queryContext the query context containing transaction data and configuration
      * @return the calculated fee result in tinycents (node, network, service)
-     * @throws NullPointerException if {@code queryContext} is {@code null}
      */
     @Override
     @NonNull

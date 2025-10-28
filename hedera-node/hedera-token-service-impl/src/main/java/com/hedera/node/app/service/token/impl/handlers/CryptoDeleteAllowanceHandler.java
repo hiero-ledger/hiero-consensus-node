@@ -59,7 +59,6 @@ public class CryptoDeleteAllowanceHandler implements TransactionHandler {
 
     /**
      * Default constructor for injection.
-     *
      * @param validator the validator for validating a delete allowance transaction
      */
     @Inject
@@ -124,9 +123,8 @@ public class CryptoDeleteAllowanceHandler implements TransactionHandler {
      * Clears spender on the provided nft serials if the owner owns the serials.
      * If owner is not specified payer is considered as the owner.
      * If the owner doesn't own these serials throws an exception.
-     *
-     * @param context      handle context
-     * @param payer        payer for the transaction
+     * @param context handle context
+     * @param payer payer for the transaction
      * @param accountStore account store
      * @throws HandleException if any of the nft serials are not owned by owner
      */
@@ -152,12 +150,11 @@ public class CryptoDeleteAllowanceHandler implements TransactionHandler {
     /**
      * Clear spender on the provided nft serials. If the owner is not provided in any allowance,
      * considers payer of the transaction as owner while checking if nft is owned by owner.
-     *
      * @param nftAllowances given nftAllowances
-     * @param payerAccount  payer for the transaction
-     * @param accountStore  account Store
-     * @param tokenStore    token Store
-     * @param nftStore      nft Store
+     * @param payerAccount payer for the transaction
+     * @param accountStore account Store
+     * @param tokenStore token Store
+     * @param nftStore nft Store
      */
     private void deleteNftSerials(
             final List<NftRemoveAllowance> nftAllowances,

@@ -517,8 +517,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
     }
 
     /**
-     * Calculates the fee result for a CryptoUpdate transaction using Simple Fees (HIP-1261).
-     * Fee calculation considers the number of signatures and whether a key is being updated.
+     * Calculates the fee result for a CryptoUpdate transaction using Simple Fees
      *
      * @return the calculated fee result in tinycents (node, network, service)
      */

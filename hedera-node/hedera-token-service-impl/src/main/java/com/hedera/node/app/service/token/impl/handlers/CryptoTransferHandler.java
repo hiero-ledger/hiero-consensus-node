@@ -451,7 +451,7 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
     }
 
     /**
-     * Result of analyzing a transfer in a single pass.
+     * Result of analyzing a transfer.
      * Contains all metrics needed for fee calculation.
      */
     private record TransferEstimate(
@@ -465,8 +465,7 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
             long createdAutoAssociations) {}
 
     /**
-     * Cache for store lookups during transfer analysis to avoid redundant reads.
-     * Caches token metadata, account metadata, and token relations for efficient access.
+     * Cache for store lookups during transfer analysis.
      */
     private static class TransferEstimationCache {
         private final Map<TokenID, Token> tokenCache = new HashMap<>();
@@ -571,10 +570,7 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
     }
 
     /**
-     * Performs a single-pass analysis of all transfers in the transaction.
-     * This method combines what were previously 4 separate passes through the data:
-     * counting HBAR transfers, token transfers, created accounts, and auto-associations.
-     * Uses caching to minimize redundant store lookups.
+     * Performs estimation for all transfers in the transaction.
      *
      * @param op the crypto transfer transaction body
      * @param cache the cache for store lookups
@@ -595,7 +591,6 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
         long createdAccounts = 0;
         long createdAutoAssociations = 0;
 
-        // Track processed aliases to avoid double-counting account creations
         final var processedAliases = new HashSet<Bytes>();
 
         // estimate HBAR transfers (early exit if empty)
