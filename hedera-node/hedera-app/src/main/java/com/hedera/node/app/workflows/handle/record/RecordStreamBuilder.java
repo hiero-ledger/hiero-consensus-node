@@ -211,6 +211,10 @@ public class RecordStreamBuilder
     private HederaFunctionality function;
 
     private boolean isContractCreate;
+    /**
+     * The number of storage slots updated during hook creation or update. Slots updated during hook execution are
+     * tracked and updated through RootProxyWorldUpdater.
+     */
     private int deltaStorageSlotsUpdated;
 
     /**

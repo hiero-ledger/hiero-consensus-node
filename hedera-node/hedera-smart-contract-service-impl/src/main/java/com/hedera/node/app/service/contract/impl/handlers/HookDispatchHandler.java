@@ -115,7 +115,7 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
                 final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
                 // Build the strategy that will produce a HookEvmFrameStateFactory for this transaction
                 final EvmFrameStates evmFrameStates = (ops, nativeOps, codeFactory) ->
-                        new HookEvmFrameStateFactory(ops, nativeOps, codeFactory, hook, tokenServiceApi);
+                        new HookEvmFrameStateFactory(ops, nativeOps, codeFactory, hook);
 
                 // Create the transaction-scoped component. Use ContractCall functionality since
                 // we are just calling a contract (the hook)

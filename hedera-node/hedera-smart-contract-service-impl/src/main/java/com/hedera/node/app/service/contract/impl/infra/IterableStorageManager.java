@@ -135,6 +135,7 @@ public class IterableStorageManager {
             store.adjustSlotCount(slotUsageChange);
         }
 
+        // Persist any changes to lambda storage slots for hook storage
         final var slotKeys = writableEvmHookStore.getModifiedLambdaSlotKeys();
         if (!slotKeys.isEmpty()) {
             HookId hookId = null;

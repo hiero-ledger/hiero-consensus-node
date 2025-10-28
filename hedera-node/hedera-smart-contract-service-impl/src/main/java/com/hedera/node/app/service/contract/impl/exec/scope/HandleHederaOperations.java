@@ -300,6 +300,9 @@ public class HandleHederaOperations implements HederaOperations {
         tokenServiceApi.updateStorageMetadata(contractID, firstKey, netChangeInSlotsUsed);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void updateLambdaStorageSlots(@NonNull final AccountID accountId, int netChangeInSlotsUsed) {
         requireNonNull(accountId);

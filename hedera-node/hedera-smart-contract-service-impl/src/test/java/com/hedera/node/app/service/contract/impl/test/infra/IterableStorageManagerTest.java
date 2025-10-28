@@ -3,15 +3,22 @@ package com.hedera.node.app.service.contract.impl.test.infra;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.HookEntityId;
+import com.hedera.hapi.node.base.HookId;
+import com.hedera.hapi.node.hooks.LambdaStorageSlot;
+import com.hedera.hapi.node.hooks.LambdaStorageUpdate;
 import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
+import com.hedera.hapi.node.state.hooks.LambdaSlotKey;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
@@ -26,6 +33,7 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
+import java.util.Set;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,6 +47,8 @@ class IterableStorageManagerTest {
             ContractID.newBuilder().contractNum(1L).build();
     private final ContractID CONTRACT_2 =
             ContractID.newBuilder().contractNum(2L).build();
+    private final AccountID ACCOUNT_ID_1 = AccountID.newBuilder().accountNum(1L).build();
+    private final AccountID ACCOUNT_ID_2 = AccountID.newBuilder().accountNum(2L).build();
     private final Bytes BYTES_1 = tuweniToPbjBytes(UInt256.ONE);
     private final Bytes BYTES_2 = tuweniToPbjBytes(UInt256.valueOf(2L));
     private final Bytes BYTES_3 = tuweniToPbjBytes(UInt256.valueOf(3L));
@@ -123,6 +133,37 @@ class IterableStorageManagerTest {
         // Model call to modify metadata for CONTRACT_2.
         // The new first key is Bytes.EMPTY as the last slot for the contract was deleted.
         verify(hederaOperations).updateStorageMetadata(CONTRACT_2, Bytes.EMPTY, -1);
+        verifyNoMoreInteractions(hederaOperations);
+    }
+
+    @Test
+    void updatedHookStorageNumberOfSlots() {
+        final var hookEntity = HookId.newBuilder()
+                .hookId(1L)
+                .entityId(HookEntityId.newBuilder().contractId(CONTRACT_2).build())
+                .build();
+        final var slotKey = new LambdaSlotKey(hookEntity, BYTES_1);
+
+        given(enhancement.nativeOperations()).willReturn(hederaNativeOperations);
+        given(enhancement.operations()).willReturn(hederaOperations);
+        // Deleting the last slot contract storage for CONTRACT_2
+        given(writableEvmHookStore.getSlotValue(slotKey))
+                .willReturn(new SlotValue(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY));
+        given(writableEvmHookStore.getModifiedLambdaSlotKeys()).willReturn(Set.of(slotKey));
+        given(writableEvmHookStore.updateStorage(any(), anyList())).willReturn(-1);
+
+        subject.persistChanges(enhancement, List.of(), List.of(), store, writableEvmHookStore);
+
+        verify(writableEvmHookStore)
+                .updateStorage(
+                        hookEntity,
+                        List.of(LambdaStorageUpdate.newBuilder()
+                                .storageSlot(LambdaStorageSlot.newBuilder()
+                                        .key(BYTES_1)
+                                        .value(Bytes.EMPTY)
+                                        .build())
+                                .build()));
+        verify(hederaOperations).updateLambdaStorageSlots(ACCOUNT_ID_2, -1);
         verifyNoMoreInteractions(hederaOperations);
     }
 

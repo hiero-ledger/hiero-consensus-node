@@ -103,13 +103,24 @@ public class HookUtils {
         return false;
     }
 
+    /**
+     * Returns the owner AccountID of the given HookEntityId.
+     *
+     * @param hookEntityId the HookEntityId
+     * @return the owner AccountID
+     */
     public static AccountID getHookOwnerId(final @NonNull HookEntityId hookEntityId) {
         return requireNonNull(hookEntityId).hasAccountId()
                 ? hookEntityId.accountIdOrThrow()
                 : asAccountId(hookEntityId.contractIdOrThrow());
     }
-
-    public static AccountID asAccountId(final ContractID contractID) {
+    /**
+     * Converts a ContractID to an AccountID.
+     *
+     * @param contractID the ContractID to convert
+     * @return the corresponding AccountID
+     */
+    private static AccountID asAccountId(final ContractID contractID) {
         return AccountID.newBuilder()
                 .shardNum(contractID.shardNum())
                 .realmNum(contractID.realmNum())
