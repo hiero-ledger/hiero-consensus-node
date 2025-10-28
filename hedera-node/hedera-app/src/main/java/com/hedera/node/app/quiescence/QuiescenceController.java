@@ -64,51 +64,6 @@ public class QuiescenceController {
         blockTrackers = new ConcurrentHashMap<>();
     }
 
-    public void finishHandlingInProgressBlock() {
-        if (isDisabled()) {
-            return;
-        }
-        try {
-            requireNonNull(inProgressBlockTracker).finishedHandlingTransactions();
-        } catch (Exception e) {
-            disableQuiescence(e);
-        }
-    }
-
-    public void inProgressBlockTransaction(@NonNull final ConsensusTransaction txn) {
-        if (isDisabled()) {
-            return;
-        }
-        try {
-            requireNonNull(inProgressBlockTracker).blockTransaction(txn);
-            inProgressBlockTracker.consensusTimeAdvanced(txn.getConsensusTimestamp());
-        } catch (final Exception e) {
-            disableQuiescence(e);
-        }
-    }
-
-    /**
-     * If there is a block in progress, switches the block tracker, synchronously marking the previous block as just finished.
-     * <p>
-     * Only used by the {@link BlockRecordManagerImpl}, whose concept of finality does not extend to achieving a
-     * TSS signature.
-     * @param blockNumber the block number being started
-     * @return whether the previous block was being tracked
-     */
-    public boolean switchTracker(final long blockNumber) {
-        if (isDisabled()) {
-            return false;
-        }
-        final var tracker = requireNonNull(startingBlock(blockNumber));
-        boolean finishedPrevious = false;
-        if (inProgressBlockTracker != null) {
-            inProgressBlockTracker.finishedHandlingTransactions();
-            finishedPrevious = true;
-        }
-        inProgressBlockTracker = tracker;
-        return finishedPrevious;
-    }
-
     /**
      * Notifies the controller that a list of transactions have been sent to be pre-handled. There transactions will be
      * handled soon or will become stale.
@@ -141,6 +96,81 @@ public class QuiescenceController {
         }
         inProgressBlockTracker = new QuiescenceBlockTracker(blockNumber, this);
         return inProgressBlockTracker;
+    }
+
+    /**
+     * Notifies the controller that the in-progress block has finished handling all transactions.
+     * This method should be called after all transactions in the current block have been processed
+     * and the block is ready to be finalized.
+     * <p>
+     * This method delegates to the in-progress block tracker's {@code finishedHandlingTransactions()}
+     * method. If quiescence is disabled or if an exception occurs during the operation, quiescence
+     * will be disabled.
+     * <p>
+     * Note: This method expects that {@link #startingBlock(long)} has been called previously to
+     * initialize the in-progress block tracker.
+     *
+     * @throws NullPointerException if no in-progress block tracker exists (wrapped and handled internally)
+     */
+    public void finishHandlingInProgressBlock() {
+        if (isDisabled()) {
+            return;
+        }
+        try {
+            requireNonNull(inProgressBlockTracker).finishedHandlingTransactions();
+        } catch (Exception e) {
+            disableQuiescence(e);
+        }
+    }
+
+    /**
+     * Notifies the controller that a consensus transaction has been processed in the in-progress block.
+     * This method should be called for each transaction as it is handled within the current block.
+     * <p>
+     * This method performs two operations:
+     * <ol>
+     *   <li>Records the transaction in the in-progress block tracker via {@code blockTransaction()}</li>
+     *   <li>Updates the consensus time tracker with the transaction's consensus timestamp via
+     *       {@code consensusTimeAdvanced()}</li>
+     * </ol>
+     * <p>
+     * If quiescence is disabled or if an exception occurs during the operation, quiescence will be disabled.
+     * <p>
+     * Note: This method expects that {@link #startingBlock(long)} has been called previously to
+     * initialize the in-progress block tracker.
+     *
+     * @param txn the consensus transaction that has been processed in the block
+     * @throws NullPointerException if no in-progress block tracker exists (wrapped and handled internally)
+     */
+    public void inProgressBlockTransaction(@NonNull final ConsensusTransaction txn) {
+        if (isDisabled()) {
+            return;
+        }
+        try {
+            requireNonNull(inProgressBlockTracker).blockTransaction(txn);
+            inProgressBlockTracker.consensusTimeAdvanced(txn.getConsensusTimestamp());
+        } catch (final Exception e) {
+            disableQuiescence(e);
+        }
+    }
+
+    /**
+     * If there is a block in progress, switches the block tracker, synchronously marking the previous block as
+     * having finished handling transactions.
+     * <p>
+     * Only used by the {@link BlockRecordManagerImpl}, whose concept of finality does not extend to achieving a
+     * TSS signature.
+     * @param blockNumber the block number being started
+     * @return whether the previous block was being tracked
+     */
+    public boolean switchTracker(final long blockNumber) {
+        if (isDisabled()) {
+            return false;
+        }
+        final boolean finishedPrevious = inProgressBlockTracker != null;
+        // Has side effect of setting inProgressBlockTracker
+        startingBlock(blockNumber);
+        return finishedPrevious;
     }
 
     /**
