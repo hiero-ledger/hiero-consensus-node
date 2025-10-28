@@ -7,10 +7,10 @@ import org.hiero.metrics.api.datapoint.BooleanGaugeDataPoint;
 import org.hiero.metrics.internal.core.AbstractStatefulMetric;
 import org.hiero.metrics.internal.core.LabelValues;
 import org.hiero.metrics.internal.datapoint.DataPointHolder;
-import org.hiero.metrics.internal.export.snapshot.OneValueDataPointSnapshotImpl;
+import org.hiero.metrics.internal.export.snapshot.LongValueDataPointSnapshotImpl;
 
 public final class BooleanGaugeImpl
-        extends AbstractStatefulMetric<BooleanSupplier, BooleanGaugeDataPoint, OneValueDataPointSnapshotImpl>
+        extends AbstractStatefulMetric<BooleanSupplier, BooleanGaugeDataPoint, LongValueDataPointSnapshotImpl>
         implements BooleanGauge {
 
     public BooleanGaugeImpl(BooleanGauge.Builder builder) {
@@ -23,14 +23,14 @@ public final class BooleanGaugeImpl
     }
 
     @Override
-    protected OneValueDataPointSnapshotImpl createDataPointSnapshot(
+    protected LongValueDataPointSnapshotImpl createDataPointSnapshot(
             BooleanGaugeDataPoint datapoint, LabelValues dynamicLabelValues) {
-        return new OneValueDataPointSnapshotImpl(dynamicLabelValues, false);
+        return new LongValueDataPointSnapshotImpl(dynamicLabelValues);
     }
 
     @Override
     protected void updateDatapointSnapshot(
-            DataPointHolder<BooleanGaugeDataPoint, OneValueDataPointSnapshotImpl> dataPointHolder) {
+            DataPointHolder<BooleanGaugeDataPoint, LongValueDataPointSnapshotImpl> dataPointHolder) {
         dataPointHolder.snapshot().set(dataPointHolder.dataPoint().getAsLong());
     }
 }

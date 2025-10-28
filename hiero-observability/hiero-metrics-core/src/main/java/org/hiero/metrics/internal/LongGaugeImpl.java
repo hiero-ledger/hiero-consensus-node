@@ -8,10 +8,10 @@ import org.hiero.metrics.api.datapoint.LongGaugeDataPoint;
 import org.hiero.metrics.internal.core.AbstractStatefulMetric;
 import org.hiero.metrics.internal.core.LabelValues;
 import org.hiero.metrics.internal.datapoint.DataPointHolder;
-import org.hiero.metrics.internal.export.snapshot.OneValueDataPointSnapshotImpl;
+import org.hiero.metrics.internal.export.snapshot.LongValueDataPointSnapshotImpl;
 
 public final class LongGaugeImpl
-        extends AbstractStatefulMetric<LongSupplier, LongGaugeDataPoint, OneValueDataPointSnapshotImpl>
+        extends AbstractStatefulMetric<LongSupplier, LongGaugeDataPoint, LongValueDataPointSnapshotImpl>
         implements LongGauge {
 
     private final ToLongFunction<LongGaugeDataPoint> exportValueSupplier;
@@ -24,14 +24,14 @@ public final class LongGaugeImpl
     }
 
     @Override
-    protected OneValueDataPointSnapshotImpl createDataPointSnapshot(
+    protected LongValueDataPointSnapshotImpl createDataPointSnapshot(
             LongGaugeDataPoint datapoint, LabelValues dynamicLabelValues) {
-        return new OneValueDataPointSnapshotImpl(dynamicLabelValues, false);
+        return new LongValueDataPointSnapshotImpl(dynamicLabelValues);
     }
 
     @Override
     protected void updateDatapointSnapshot(
-            DataPointHolder<LongGaugeDataPoint, OneValueDataPointSnapshotImpl> dataPointHolder) {
+            DataPointHolder<LongGaugeDataPoint, LongValueDataPointSnapshotImpl> dataPointHolder) {
         dataPointHolder.snapshot().set(exportValueSupplier.applyAsLong(dataPointHolder.dataPoint()));
     }
 

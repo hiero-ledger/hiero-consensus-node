@@ -9,7 +9,7 @@ import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
  * Base interface for metrics exporters.
  * <p>
  * Metrics exporter able to handle {@link MetricsSnapshot} into specific destination.
- * Implementations expected to be synchronous to properly re-use snapshots.
+ * It also extends {@link Closeable} to allow proper resource management.
  *
  * @see PullingMetricsExporter
  * @see PushingMetricsExporter

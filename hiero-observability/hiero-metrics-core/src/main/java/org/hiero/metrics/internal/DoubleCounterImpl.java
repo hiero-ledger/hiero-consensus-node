@@ -7,10 +7,10 @@ import org.hiero.metrics.api.datapoint.DoubleCounterDataPoint;
 import org.hiero.metrics.internal.core.AbstractStatefulMetric;
 import org.hiero.metrics.internal.core.LabelValues;
 import org.hiero.metrics.internal.datapoint.DataPointHolder;
-import org.hiero.metrics.internal.export.snapshot.OneValueDataPointSnapshotImpl;
+import org.hiero.metrics.internal.export.snapshot.DoubleValueDataPointSnapshotImpl;
 
 public final class DoubleCounterImpl
-        extends AbstractStatefulMetric<DoubleSupplier, DoubleCounterDataPoint, OneValueDataPointSnapshotImpl>
+        extends AbstractStatefulMetric<DoubleSupplier, DoubleCounterDataPoint, DoubleValueDataPointSnapshotImpl>
         implements DoubleCounter {
 
     public DoubleCounterImpl(DoubleCounter.Builder builder) {
@@ -23,14 +23,14 @@ public final class DoubleCounterImpl
     }
 
     @Override
-    protected OneValueDataPointSnapshotImpl createDataPointSnapshot(
+    protected DoubleValueDataPointSnapshotImpl createDataPointSnapshot(
             DoubleCounterDataPoint datapoint, LabelValues dynamicLabelValues) {
-        return new OneValueDataPointSnapshotImpl(dynamicLabelValues, true);
+        return new DoubleValueDataPointSnapshotImpl(dynamicLabelValues);
     }
 
     @Override
     protected void updateDatapointSnapshot(
-            DataPointHolder<DoubleCounterDataPoint, OneValueDataPointSnapshotImpl> dataPointHolder) {
+            DataPointHolder<DoubleCounterDataPoint, DoubleValueDataPointSnapshotImpl> dataPointHolder) {
         dataPointHolder.snapshot().set(dataPointHolder.dataPoint().getAsDouble());
     }
 }
