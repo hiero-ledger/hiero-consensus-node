@@ -9,12 +9,13 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.freeze.FreezePeriodChecker;
-import com.swirlds.platform.metrics.StateMetrics;
+import com.swirlds.platform.metrics.TransactionMetrics;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.merkle.StateMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Queue;
@@ -33,7 +34,12 @@ public class SwirldStateManager implements FreezePeriodChecker {
     /**
      * Stats relevant to the state operations.
      */
-    private final StateMetrics stats;
+    private final TransactionMetrics transactionMetrics;
+
+    /**
+     *
+     */
+    private final StateMetrics stateMetrics;
 
     /**
      * reference to the state that reflects all known consensus transactions
@@ -85,10 +91,11 @@ public class SwirldStateManager implements FreezePeriodChecker {
 
         this.platformStateFacade = requireNonNull(platformStateFacade);
         this.consensusStateEventHandler = consensusStateEventHandler;
-        this.stats = new StateMetrics(platformContext.getMetrics());
+        this.transactionMetrics = new TransactionMetrics(platformContext.getMetrics());
+        this.stateMetrics = new StateMetrics(platformContext.getMetrics());
         requireNonNull(statusActionSubmitter);
         this.softwareVersion = requireNonNull(softwareVersion);
-        this.transactionHandler = new TransactionHandler(selfId, stats);
+        this.transactionHandler = new TransactionHandler(selfId, transactionMetrics);
     }
 
     /**
@@ -167,7 +174,7 @@ public class SwirldStateManager implements FreezePeriodChecker {
     }
 
     private void fastCopyAndUpdateRefs(final MerkleNodeState state) {
-        final MerkleNodeState newState = fastCopy(state, stats, softwareVersion, platformStateFacade);
+        final MerkleNodeState newState = fastCopy(state, stateMetrics, softwareVersion, platformStateFacade);
 
         // Set latest immutable first to prevent the newly immutable stateRoot from being deleted between setting the
         // stateRef and the latestImmutableState
