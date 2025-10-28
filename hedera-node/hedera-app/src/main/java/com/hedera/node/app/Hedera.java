@@ -139,6 +139,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -969,7 +970,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             return;
         }
 
-        final Consumer<StateSignatureTransaction> simplifiedStateSignatureTxnCallback = txn -> {
+        final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback = (txn, ignored) -> {
             final var scopedTxn = new ScopedSystemTransaction<>(event.getCreatorId(), event.getBirthRound(), txn);
             stateSignatureTxnCallback.accept(scopedTxn);
         };
@@ -978,8 +979,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         event.forEachTransaction(transactions::add);
         daggerApp
                 .preHandleWorkflow()
-                .preHandle(
-                        readableStoreFactory, creatorInfo, transactions.stream(), simplifiedStateSignatureTxnCallback);
+                .preHandle(readableStoreFactory, creatorInfo, transactions.stream(), shortCircuitTxnCallback);
     }
 
     public void onNewRecoveredState() {

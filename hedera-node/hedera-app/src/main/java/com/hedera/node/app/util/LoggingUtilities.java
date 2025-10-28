@@ -17,7 +17,7 @@ public class LoggingUtilities {
      */
     public static String threadInfo() {
         final Thread currentThread = Thread.currentThread();
-        return String.format("[Thread:%s/ID:%d]", currentThread.getName(), currentThread.threadId());
+        return String.format("[%s/%d]", currentThread.getName(), currentThread.threadId());
     }
 
     /**

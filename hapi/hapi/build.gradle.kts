@@ -4,7 +4,7 @@ plugins {
     id("org.hiero.gradle.feature.protobuf")
     id("org.hiero.gradle.feature.test-fixtures")
     // ATTENTION: keep pbj version in sync with 'hiero-dependency-versions/build.gradle.kts'
-    id("com.hedera.pbj.pbj-compiler") version "0.12.1"
+    id("com.hedera.pbj.pbj-compiler") version "0.12.2"
 }
 
 description = "Hedera API"

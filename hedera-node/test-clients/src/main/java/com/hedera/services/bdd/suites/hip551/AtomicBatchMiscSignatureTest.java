@@ -122,10 +122,12 @@ class AtomicBatchMiscSignatureTest {
         @DisplayName("Node delete inside of a batch can be executed only with privileged account")
         final Stream<DynamicTest> nodeDeleteCanBeExecutedOnlyWithPrivilegedAccount()
                 throws CertificateEncodingException {
+            final var nodeAccount = "nodeAccount";
             return hapiTest(
                     cryptoCreate("payer"),
                     cryptoCreate("batchOperator"),
-                    nodeCreate("node100")
+                    cryptoCreate(nodeAccount),
+                    nodeCreate("node100", nodeAccount)
                             .description("desc")
                             .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                     // The inner txn is not signed by system account, so the transaction will fail
@@ -144,11 +146,13 @@ class AtomicBatchMiscSignatureTest {
         @DisplayName("Node update inside of a batch can be executed only with privileged account")
         final Stream<DynamicTest> nodeUpdateCanBeExecutedOnlyWithPrivilegedAccount()
                 throws CertificateEncodingException {
+            final var nodeAccount = "nodeAccount";
             return hapiTest(
                     newKeyNamed("adminKey"),
                     cryptoCreate("payer"),
                     cryptoCreate("batchOperator"),
-                    nodeCreate("node100")
+                    cryptoCreate(nodeAccount),
+                    nodeCreate("node100", nodeAccount)
                             .adminKey("adminKey")
                             .description("desc")
                             .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
