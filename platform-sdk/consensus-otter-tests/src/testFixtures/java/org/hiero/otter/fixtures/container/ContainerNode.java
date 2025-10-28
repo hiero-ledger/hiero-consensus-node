@@ -481,6 +481,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                     Path.of("build", "container", NODE_IDENTIFIER_FORMAT.formatted(selfId.id()));
             downloadConsensusFiles(localOutputDirectory);
             downloadConsistencyServiceFiles(localOutputDirectory);
+            downloadFlightRecorderFiles(localOutputDirectory);
 
 
             downloadTimestampFile(localOutputDirectory);
@@ -500,6 +501,10 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         resultsCollector.destroy();
         platformStatus = null;
         lifeCycle = DESTROYED;
+    }
+
+    private void downloadFlightRecorderFiles(final Path localOutputDirectory) {
+        copyFileFromContainerIfExists(localOutputDirectory, "/tmp/recording.jfr", "recording-%d.jfr".formatted(selfId.id()));
     }
 
     private void downloadTimestampFile(final Path localOutputDirectory) {
@@ -560,7 +565,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             @NonNull final Path localOutputDirectory,
             @NonNull final String relativeSourcePath,
             @NonNull final String relativeTargetPath) {
-        final String containerPath = CONTAINER_APP_WORKING_DIR + relativeSourcePath;
+        final String containerPath = relativeSourcePath.startsWith("/")? relativeSourcePath : CONTAINER_APP_WORKING_DIR + relativeSourcePath;
         final String localPath =
                 localOutputDirectory.resolve(relativeTargetPath).toString();
 
