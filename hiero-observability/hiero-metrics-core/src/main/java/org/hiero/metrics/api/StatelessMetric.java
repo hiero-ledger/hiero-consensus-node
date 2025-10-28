@@ -87,7 +87,7 @@ public interface StatelessMetric extends Metric {
      */
     final class Builder extends Metric.Builder<Builder, StatelessMetric> {
 
-        private final List<String[]> labelKeysAndValues = new ArrayList<>();
+        private final List<String[]> labelNamesAndValues = new ArrayList<>();
         private final List<LongOrDoubleSupplier> valuesSuppliers = new ArrayList<>();
 
         private Builder(MetricKey<StatelessMetric> key) {
@@ -140,7 +140,7 @@ public interface StatelessMetric extends Metric {
                 @NonNull LongOrDoubleSupplier valueSupplier, @NonNull String... labelNamesAndValues) {
             // labels will be validated during metric construction
             valuesSuppliers.add(valueSupplier);
-            labelKeysAndValues.add(labelNamesAndValues);
+            this.labelNamesAndValues.add(labelNamesAndValues);
             return this;
         }
 
@@ -150,7 +150,7 @@ public interface StatelessMetric extends Metric {
 
         @NonNull
         public String[] getDataPointsLabelNamesAndValues(int idx) {
-            return labelKeysAndValues.get(idx);
+            return labelNamesAndValues.get(idx);
         }
 
         @NonNull
