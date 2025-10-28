@@ -19,8 +19,8 @@ public record ContractsConfig(
                 boolean noncesExternalizationEnabled,
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean enforceCreationThrottle,
         @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerTransaction,
-        @ConfigProperty(defaultValue = "1500000000") @NetworkProperty long maxGasPerSec,
-        @ConfigProperty(defaultValue = "1500000000") @NetworkProperty long maxGasPerSecBackend,
+        @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerSec,
+        @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerSecBackend,
         @ConfigProperty(defaultValue = "500000000") @NetworkProperty long opsDurationThrottleCapacity,
         @ConfigProperty(defaultValue = "500000000") @NetworkProperty long opsDurationThrottleUnitsFreedPerSecond,
         @ConfigProperty(value = "maxKvPairs.aggregate", defaultValue = "500000000") @NetworkProperty
