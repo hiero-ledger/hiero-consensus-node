@@ -73,11 +73,12 @@ public class HookDispatchUtils {
      * @param currentHead the head of the hook list
      * @param ownerId the owner of the hooks (the created contract)
      */
-    public static void dispatchHookCreations(
+    public static int dispatchHookCreations(
             @NonNull final HandleContext context,
             @NonNull final List<HookCreationDetails> creations,
             @Nullable final Long currentHead,
             @NonNull final AccountID ownerId) {
+        var totalStorageSlotsUpdated = 0;
         final var hookOwnerId = HookEntityId.newBuilder().accountId(ownerId).build();
         // Build new block A → B → C → currentHead
         var nextId = currentHead;
@@ -87,9 +88,10 @@ public class HookDispatchUtils {
             if (nextId != null) {
                 creation.nextHookId(nextId);
             }
-            dispatchCreation(context, creation.build());
+            totalStorageSlotsUpdated += dispatchCreation(context, creation.build());
             nextId = d.hookId();
         }
+        return totalStorageSlotsUpdated;
     }
 
     /**
@@ -98,7 +100,7 @@ public class HookDispatchUtils {
      * @param context the handle context
      * @param creation the hook creation to dispatch
      */
-    static void dispatchCreation(@NonNull final HandleContext context, @NonNull final HookCreation creation) {
+    static int dispatchCreation(@NonNull final HandleContext context, @NonNull final HookCreation creation) {
         final var hookDispatch =
                 HookDispatchTransactionBody.newBuilder().creation(creation).build();
         final var streamBuilder = context.dispatch(hookDispatch(
@@ -106,6 +108,7 @@ public class HookDispatchUtils {
                 TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
                 HookDispatchStreamBuilder.class));
         validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
+        return streamBuilder.getDeltaStorageSlotsUpdated();
     }
 
     /**

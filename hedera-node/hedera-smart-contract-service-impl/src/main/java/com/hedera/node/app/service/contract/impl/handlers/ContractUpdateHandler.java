@@ -164,9 +164,11 @@ public class ContractUpdateHandler implements TransactionHandler {
                     context, op.hookIdsToDelete(), headAfterDeletes, originalAccount.accountIdOrThrow());
         }
         if (!op.hookCreationDetails().isEmpty()) {
-            HookDispatchUtils.dispatchHookCreations(
+            final var numSlotsUpdated = HookDispatchUtils.dispatchHookCreations(
                     context, op.hookCreationDetails(), headAfterDeletes, originalAccount.accountId());
             builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
+            final var currentSlots = originalAccount.numberLambdaStorageSlots() + numSlotsUpdated;
+            builder.numberLambdaStorageSlots(currentSlots);
         } else if (!op.hookIdsToDelete().isEmpty()) {
             builder.firstHookId(headAfterDeletes);
         }
