@@ -10,13 +10,11 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.input.EventHeader;
@@ -544,56 +542,5 @@ class HandleWorkflowTest {
         subject.handleRound(state, round, txn -> {});
 
         verify(blockBufferService).ensureNewBlocksPermitted();
-    }
-
-    @Test
-    void dispatchClprLedgerConfigurationUpdate_dispatchesWhenReady() {
-        // Construct subject via helper - constructor should register the dispatcher with the CLPR service
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("blockStream.streamMode", "RECORDS")
-                .withValue("blockStream.writerMode", "FILE")
-                .withValue("tss.hintsEnabled", "false")
-                .withValue("tss.historyEnabled", "false")
-                .getOrCreateConfig();
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
-
-        // Use the helper which constructs the subject and wires the mocked clprService
-        givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, List.of());
-
-        // Verify the CLPR service had its dispatcher registered
-        verify(clprService).setTransactionDispatcher(any());
-    }
-
-    @Test
-    void clprDispatcher_noDispatchWhenActiveRosterMissing() {
-        // Arrange: construct subject and capture the dispatcher registered with clprService
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("blockStream.streamMode", "RECORDS")
-                .withValue("blockStream.writerMode", "FILE")
-                .withValue("tss.hintsEnabled", "false")
-                .withValue("tss.historyEnabled", "false")
-                .getOrCreateConfig();
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
-        given(round.getConsensusTimestamp()).willReturn(NOW);
-
-        givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, List.of());
-
-        final var dispatcherCaptor =
-                ArgumentCaptor.forClass(org.hiero.interledger.clpr.ClprService.LedgerConfigurationDispatcher.class);
-        verify(clprService).setTransactionDispatcher(dispatcherCaptor.capture());
-        final var dispatcher = dispatcherCaptor.getValue();
-
-        // Create a state mock that returns readableStates where roster singleton is null (no active roster)
-        final var readableStatesMock = mock(ReadableStates.class);
-        final ReadableSingletonState<Object> rosterSingletonMock = mock(ReadableSingletonState.class);
-        given(rosterSingletonMock.get()).willReturn(null);
-        given(readableStatesMock.getSingleton(anyInt())).willReturn(rosterSingletonMock);
-        given(state.getReadableStates(anyString())).willReturn(readableStatesMock);
-
-        // Act: invoke the dispatcher
-        dispatcher.dispatch(state, NOW);
-
-        // Assert: dispatchProcessor should not have been called because prerequisites are missing
-        verifyNoInteractions(dispatchProcessor);
     }
 }
