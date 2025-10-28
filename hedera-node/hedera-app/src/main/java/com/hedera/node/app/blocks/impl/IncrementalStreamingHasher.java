@@ -3,7 +3,6 @@ package com.hedera.node.app.blocks.impl;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -24,26 +23,16 @@ public class IncrementalStreamingHasher {
     /** A list to store intermediate hashes as we build the tree. */
     private final LinkedList<byte[]> hashList = new LinkedList<>();
     /** The count of leaves in the tree. */
-    private int leafCount = 0;
+    private int leafCount;
 
-    /** Create a new StreamingHasher with an empty state. */
-    public IncrementalStreamingHasher() {
-        try {
-            digest = MessageDigest.getInstance("SHA-384");
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
+    /** Create a StreamingHasher with an existing intermediate hashing state. */
+    public IncrementalStreamingHasher(final MessageDigest digest, List<byte[]> intermediateHashingState) {
+        if (digest == null) {
+            throw new IllegalArgumentException("digest must not be null");
         }
-    }
-
-    /**
-     * Create a StreamingHasher with an existing intermediate hashing state.
-     * This allows resuming hashing from a previous state.
-     *
-     * @param intermediateHashingState the intermediate hashing state
-     */
-    public IncrementalStreamingHasher(List<byte[]> intermediateHashingState) {
-        this();
+        this.digest = digest;
         this.hashList.addAll(intermediateHashingState);
+        this.leafCount = intermediateHashingState.size();
     }
 
     /**
@@ -67,9 +56,16 @@ public class IncrementalStreamingHasher {
      * Compute the Merkle tree root hash from the current state. This does not modify the internal state, so can be
      * called at any time and more leaves can be added afterward.
      *
-     * @return the Merkle tree root hash
+     * @return the Merkle tree root hash, or {@code Bytes.EMPTY} if no leaves exist
      */
     public byte[] computeRootHash() {
+        if (hashList.isEmpty()) {
+            return Bytes.EMPTY.toByteArray();
+        }
+        if (hashList.size() == 1) {
+            return hashList.getFirst();
+        }
+
         byte[] merkleRootHash = hashList.getLast();
         for (int i = hashList.size() - 2; i >= 0; i--) {
             merkleRootHash = hashInternalNode(hashList.get(i), merkleRootHash);
@@ -103,6 +99,7 @@ public class IncrementalStreamingHasher {
      * @return the hash of the leaf node
      */
     private byte[] hashLeaf(final byte[] leafData) {
+        digest.reset();
         digest.update(LEAF_PREFIX);
         return digest.digest(leafData);
     }
@@ -115,6 +112,7 @@ public class IncrementalStreamingHasher {
      * @return the hash of the internal node
      */
     private byte[] hashInternalNode(final byte[] firstChild, final byte[] secondChild) {
+        digest.reset();
         digest.update(INTERNAL_NODE_PREFIX);
         digest.update(firstChild);
         return digest.digest(secondChild);

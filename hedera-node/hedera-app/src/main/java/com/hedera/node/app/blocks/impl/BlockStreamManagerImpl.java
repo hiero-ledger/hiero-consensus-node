@@ -9,6 +9,7 @@ import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
+import static com.hedera.node.app.blocks.impl.ConcurrentStreamingTreeHasher.rootHashFrom;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.blockDirFor;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.cleanUpPendingBlock;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.loadContiguousPendingBlocks;
@@ -148,17 +149,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private BlockItemWriter writer;
     private Instant firstConsensusTimeOfCurrentBlock;
 
-    // block merkle tree
-    private IncrementalStreamingHasher previousBlockHashes; // ALL previous hashes, but streaming-collapsed
-    // TODO: still needed?
+    // Block merkle subtrees and leaves
+    private IncrementalStreamingHasher previousBlockHashes;
     private Bytes stateHashAtStartOfBlock;
-
     private StreamingTreeHasher consensusHeaderHasher;
     private StreamingTreeHasher inputTreeHasher;
     private StreamingTreeHasher outputTreeHasher;
     private StreamingTreeHasher stateChangesHasher;
     private StreamingTreeHasher traceDataHasher;
-    // end block merkle tree
 
     private BlockStreamManagerTask worker;
     private final boolean hintsEnabled;
@@ -264,7 +262,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         .withDescription("Number of blocks closed with indirect proofs"));
 
         log.info(
-                "Initialized BlockStreamManager from round {} with end-of-round hash {}",
+                "Initialized BlockStreamManager from round {} with end-of-round state hash {}",
                 lastRoundOfPrevBlock,
                 hashFuture.isDone() ? hashFuture.join().toHex() : "<PENDING>");
     }
@@ -289,32 +287,40 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         blockStreamInfo.trailingBlockHashes(),
                         blockStreamInfo.blockNumber() - 1,
                         blockStreamInfo.blockNumber() - 1);
-        requireNonNull(prevBlockHash);
         // Branch 2
-        final var prevBlocksHasher = blockStreamInfo.intermediatePreviousBlockRootHashes().stream()
+        final var prevBlocksIntermediateHashes = blockStreamInfo.intermediatePreviousBlockRootHashes().stream()
                 .map(Bytes::toByteArray)
                 .toList();
-        previousBlockHashes = new IncrementalStreamingHasher(prevBlocksHasher);
-        final var allPrevBlocksHash = Bytes.wrap(new IncrementalStreamingHasher(prevBlocksHasher).computeRootHash());
+        previousBlockHashes =
+                new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), prevBlocksIntermediateHashes);
+        final var allPrevBlocksHash = Bytes.wrap(previousBlockHashes.computeRootHash());
+
         // Branch 3: Retrieve the previous block's starting state hash (not done right here, just part of the calculated
         // last block hash below)
-        // Branches 4-8
-        resetBlockOnlyBranches();
 
         // We have to calculate the final hash of the previous block's state changes subtree because only the
-        // penultimate state hash is in the block stream info object
-        final var lastBlockPenultimateStateHash = blockStreamInfo.penultimateStateChangeItemRootHash();
-        // Reconstruct the final state change block item that would have been emitted
+        // penultimate state hash is in the block stream info object (constructed from numPrecedingStateChangesItems and
+        // rightmostPrecedingStateChangesTreeHashes)
+        final var penultimateStateChangesTreeStatus = new StreamingTreeHasher.Status(
+                blockStreamInfo.numPrecedingStateChangesItems(),
+                blockStreamInfo.rightmostPrecedingStateChangesTreeHashes());
+
+        // Reconstruct the final state change block item that would have been emitted by the previous block
         final var lastBlockFinalStateChange = StateChange.newBuilder()
                 .stateId(STATE_ID_BLOCK_STREAM_INFO.protoOrdinal())
                 .singletonUpdate(SingletonUpdateChange.newBuilder()
                         .blockStreamInfoValue(blockStreamInfo)
                         .build())
                 .build();
-        final var changeBytes = StateChange.PROTOBUF.toBytes(lastBlockFinalStateChange);
-        // Combine the penultimate hash and the hash of the reconstructed state change item to produce the previous
-        // block's final state changes hash
-        final var lastBlockFinalStateChangesHash = BlockImplUtils.combine(lastBlockPenultimateStateHash, changeBytes);
+        final var lastStateChanges = BlockItem.newBuilder()
+                .stateChanges(new StateChanges(blockStreamInfo.blockEndTime(), List.of(lastBlockFinalStateChange)))
+                .build();
+        // Hash the reconstructed (final) state changes block item
+        final var lastLeafHash = noThrowSha384HashOf(BlockItem.PROTOBUF.toBytes(lastStateChanges));
+
+        // Combine the penultimate tree status and the hash of the reconstructed state change item to produce the
+        // previous block's final state changes hash
+        final var lastBlockFinalStateChangesHash = rootHashFrom(penultimateStateChangesTreeStatus, lastLeafHash);
 
         final var calculatedLastBlockHash = Optional.ofNullable(lastBlockHash)
                 .orElseGet(() -> BlockStreamManagerImpl.combine(
@@ -345,6 +351,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // In case we hash this round, include a future for the end-of-round state hash
         endRoundStateHashes.put(round.getRoundNum(), new CompletableFuture<>());
 
+        if (lastRoundOfPrevBlock > 0) {
+            stateHashAtStartOfBlock =
+                    endRoundStateHashes.get(lastRoundOfPrevBlock).join();
+        }
+
         // Writer will be null when beginning a new block
         if (writer == null) {
             writer = writerSupplier.get();
@@ -360,7 +371,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
             lifecycle.onOpenBlock(state);
 
-            resetBlockOnlyBranches();
+            resetContainedSubtrees();
 
             blockNumber = blockStreamInfo.blockNumber() + 1;
             if (hintsEnabled && !hasCheckedForPendingBlocks) {
@@ -519,7 +530,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Branch 2
             final var prevBlockRootsHash = Bytes.wrap(previousBlockHashes.computeRootHash());
             // Branch 3: blockStartStateHash
-
             // Calculate hashes for branches 4-8
             final Map<SubMerkleTree, Bytes> computedHashes = new HashMap<>();
             final var future = CompletableFuture.allOf(
@@ -531,10 +541,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     inputTreeHasher.rootHash().thenAccept(b -> computedHashes.put(SubMerkleTree.INPUT_ITEMS_TREE, b)),
                     // Branch 6
                     outputTreeHasher.rootHash().thenAccept(b -> computedHashes.put(SubMerkleTree.OUTPUT_ITEMS_TREE, b)),
-                    // Branch 7
-                    stateChangesHasher
-                            .rootHash()
-                            .thenAccept(b -> computedHashes.put(SubMerkleTree.STATE_CHANGE_ITEMS_TREE, b)),
+                    // Branch 7 will be computed below after adding the final state change item
                     // Branch 8
                     traceDataHasher
                             .rootHash()
@@ -547,9 +554,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final var inputsHash = computedHashes.get(SubMerkleTree.INPUT_ITEMS_TREE);
             // Branch 6 final hash:
             final var outputsHash = computedHashes.get(SubMerkleTree.OUTPUT_ITEMS_TREE);
-            // Branch 7 (penultimate because there will be one more state change when the block stream info object is
-            // stored)
-            final var penultimateStateChangesHash = computedHashes.get(SubMerkleTree.STATE_CHANGE_ITEMS_TREE);
+            // Branch 7 (penultimate status only because there will be one more state change when the block stream info
+            // object is stored)
+            final var penultimateStateChangesTreeStatus = stateChangesHasher.status();
             // Branch 8 final hash:
             final var traceDataHash = computedHashes.get(SubMerkleTree.TRACE_DATA_ITEMS_TREE);
 
@@ -563,8 +570,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     blockHashManager.blockHashes(),
                     inputsHash,
                     blockStartStateHash,
-                    stateChangesHasher.status().numLeaves(),
-                    previousBlockHashes.intermediateHashingState(),
+                    penultimateStateChangesTreeStatus.numLeaves(),
+                    penultimateStateChangesTreeStatus.rightmostHashes(),
                     lastUsedTime,
                     pendingWork != POST_UPGRADE_WORK,
                     version,
@@ -572,15 +579,17 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     asTimestamp(lastTopLevelTime),
                     consensusHeaderHash,
                     outputsHash,
-                    penultimateStateChangesHash,
                     traceDataHash,
-                    asTimestamp(firstConsensusTimeOfCurrentBlock));
+                    asTimestamp(firstConsensusTimeOfCurrentBlock),
+                    previousBlockHashes.intermediateHashingState());
             blockStreamInfoState.put(newBlockStreamInfo);
             ((CommittableWritableStates) writableState).commit();
 
             // Produce one more state change item (i.e. putting the block stream info just constructed into state)
             worker.addItem(flushChangesFromListener(boundaryStateChangeListener));
             worker.sync();
+
+            final var stateChangesHash = stateChangesHasher.rootHash().join();
 
             // Reconstruct the final state change in order to calculate the final state change subtree hash
             final var blockStreamInfoChange = StateChange.newBuilder()
@@ -589,9 +598,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                             .blockStreamInfoValue(newBlockStreamInfo)
                             .build())
                     .build();
-            final var changeBytes = StateChange.PROTOBUF.toBytes(blockStreamInfoChange);
+            final var hashedChangeBytes = noThrowSha384HashOf(StateChange.PROTOBUF.toBytes(blockStreamInfoChange));
             // Combine the penultimate state change leaf with the final state change leaf
-            final var finalStateChangesHash = BlockImplUtils.combine(penultimateStateChangesHash, changeBytes);
+            final var finalStateChangesHash = BlockImplUtils.combine(stateChangesHash, hashedChangeBytes);
 
             final var rootAndSiblingHashes = combine(
                     lastBlockHash,
@@ -633,6 +642,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
             // Update in-memory state to prepare for the next block
             lastBlockHash = finalBlockRootHash;
+            previousBlockHashes.addLeaf(lastBlockHash.toByteArray());
             writer = null;
 
             // Special case when signing with hinTS and this is the freeze round; we have to wait
@@ -906,9 +916,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                             TRANSACTION_OUTPUT,
                             STATE_CHANGES,
                             ROUND_HEADER,
-                            BLOCK_HEADER
-                        // Also EndBlock?
-                        -> {
+                            BLOCK_HEADER,
+                            TRACE_DATA -> {
                         MessageDigest digest = sha384DigestOrThrow();
                         bytes.writeTo(digest);
                         hash = ByteBuffer.wrap(digest.digest());
@@ -947,6 +956,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 }
                 case TRANSACTION_OUTPUT, BLOCK_HEADER -> outputTreeHasher.addLeaf(hash);
                 case STATE_CHANGES -> stateChangesHasher.addLeaf(hash);
+                case TRACE_DATA -> traceDataHasher.addLeaf(hash);
                 case BLOCK_FOOTER, BLOCK_PROOF -> {
                     // BlockFooter and BlockProof are not included in any merkle tree
                     // They are metadata about the block, not part of the hashed content
@@ -1125,7 +1135,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         return BlockItem.newBuilder().stateChanges(stateChanges).build();
     }
 
-    private void resetBlockOnlyBranches() {
+    /**
+     * Resets the subtree hashers for branches 4-8 to empty states. Since these subtrees only contain data specific to
+     * the current block, they need to be reset whenever a new block starts.
+     */
+    private void resetContainedSubtrees() {
         // Branch 4
         consensusHeaderHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
         // Branch 5
@@ -1140,16 +1154,43 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     private record RootAndSiblingHashes(Bytes blockRootHash, MerkleSiblingHash[] siblingHashes) {}
 
+    /**
+     * Combines the given branch hashes into a block root hash and sibling hashes for a pending proof.
+     * Since it's not known whether the pending proof will be directly signed, the sibling hashes
+     * required for an indirect proof are also computed.
+     * @return the block root hash and all possibly-required sibling hashes, ordered from bottom (the
+     * leaf level) to top (the root)
+     */
     private static RootAndSiblingHashes combine(
-            final Bytes prevBlockHash,
-            final Bytes prevBlockRootsHash,
-            final Bytes startingStateHash,
-            final Bytes consensusHeaderHash,
-            final Bytes inputsHash,
-            final Bytes outputsHash,
-            final Bytes stateChangesHash,
-            final Bytes traceDataHash,
+            @Nullable final Bytes maybePrevBlockHash,
+            @Nullable final Bytes maybePrevBlockRootsHash,
+            @Nullable final Bytes maybeStartingStateHash,
+            @Nullable final Bytes maybeConsensusHeaderHash,
+            @Nullable final Bytes maybeInputsHash,
+            @Nullable final Bytes maybeOutputsHash,
+            @Nullable final Bytes maybeStateChangesHash,
+            @Nullable final Bytes maybeTraceDataHash,
             final Timestamp firstConsensusTimeOfCurrentBlock) {
+        final var prevBlockHash =
+                (maybePrevBlockHash != null && maybePrevBlockHash.length() > 0) ? maybePrevBlockHash : NULL_HASH;
+        final var prevBlockRootsHash = (maybePrevBlockRootsHash != null && maybePrevBlockRootsHash.length() > 0)
+                ? maybePrevBlockRootsHash
+                : NULL_HASH;
+        final var startingStateHash = (maybeStartingStateHash != null && maybeStartingStateHash.length() > 0)
+                ? maybeStartingStateHash
+                : NULL_HASH;
+        final var consensusHeaderHash = (maybeConsensusHeaderHash != null && maybeConsensusHeaderHash.length() > 0)
+                ? maybeConsensusHeaderHash
+                : NULL_HASH;
+        final var inputsHash = (maybeInputsHash != null && maybeInputsHash.length() > 0) ? maybeInputsHash : NULL_HASH;
+        final var outputsHash =
+                (maybeOutputsHash != null && maybeOutputsHash.length() > 0) ? maybeOutputsHash : NULL_HASH;
+        final var stateChangesHash = (maybeStartingStateHash != null && maybeStartingStateHash.length() > 0)
+                ? maybeStartingStateHash
+                : NULL_HASH;
+        final var traceDataHash =
+                (maybeTraceDataHash != null && maybeTraceDataHash.length() > 0) ? maybeTraceDataHash : NULL_HASH;
+
         // Compute depth four hashes
         final var depth4Node1 = BlockImplUtils.combine(prevBlockHash, prevBlockRootsHash);
         final var depth4Node2 = BlockImplUtils.combine(startingStateHash, consensusHeaderHash);
