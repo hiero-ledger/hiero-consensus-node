@@ -70,9 +70,10 @@ public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOpera
     }
 
     /**
-     * Validate if command should fail.
+     * Indicates that the Yahcli command is expected to fail when executed.
+     * If set, a non-zero exit code will be treated as a valid outcome rather than a test failure.
      *
-     * @return this operation instance for method chaining
+     * @return this {@link YahcliCallOperation} instance for method chaining
      */
     public YahcliCallOperation expectFail() {
         this.expectFail = true;
