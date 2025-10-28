@@ -144,9 +144,15 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * Mechanism to retrieve configuration properties related to block-node communication.
      */
     private final ConfigProvider configProvider;
-
+    /**
+     * Factory used to create the block node clients.
+     */
     private final BlockNodeClientFactory clientFactory;
-    private final AtomicReference<Instant> connectionStartTimestamp = new AtomicReference<>();
+    /**
+     * Flag indicating if this connection should be closed at the next block boundary. For example: if set to true while
+     * the connection is actively streaming a block, then the connection will continue to stream the remaining block and
+     * once it is finished it will close the connection.
+     */
     private final AtomicBoolean closeAtNextBlockBoundary = new AtomicBoolean(false);
 
     /**
@@ -323,8 +329,10 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         return true;
     }
 
+    /**
+     * Perform necessary setup steps once the connection has entered the ACTIVE state.
+     */
     private void handleConnectionActive() {
-        connectionStartTimestamp.set(Instant.now());
         scheduleStreamReset();
         // start worker thread to handle sending requests
         final Thread workerThread = new Thread(new ConnectionWorkerLoopTask(), "bn-conn-worker-" + connectionId);
@@ -905,6 +913,12 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         return connectionState.get();
     }
 
+    /**
+     * Indicates that this connection should be closed at the next block boundary. If this connection is actively
+     * streaming a block, then the connection will wait until the block is fully sent before closing. If the connection
+     * is waiting to stream a block that is not available, then the connection will be closed without sending any items
+     * for the pending block.
+     */
     public void closeAtBlockBoundary() {
         logger.info("{} Connection will be closed at the next block boundary", this);
         closeAtNextBlockBoundary.set(true);
@@ -985,11 +999,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             // if we exit the worker loop, then this thread is over... remove it from the worker thread reference
             logger.info("Worker thread exiting");
             workerThreadRef.compareAndSet(Thread.currentThread(), null);
-        }
-
-        private void closeConnection(final EndStream.Code endCode) {
-            endTheStreamWith(endCode);
-            blockNodeConnectionManager.connectionResetsTheStream(BlockNodeConnection.this);
         }
 
         private void doWork() {
@@ -1075,6 +1084,11 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             maybeAdvanceBlock();
         }
 
+        /**
+         * Checks if the current block has all of its items sent. If so, then the next block is loaded into the worker.
+         * Additionally, if there is a request to close the connection at a block boundary and the current block is
+         * finished, then this connection will be closed.
+         */
         private void maybeAdvanceBlock() {
             final boolean finishedWithCurrentBlock = pendingRequestItems.isEmpty() // no more items ready to send
                     && block.isClosed() // the block is closed, so no more items are expected
@@ -1087,9 +1101,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             /*
             We are now down with the current block and have two options.
             1) We advance to the next block (normal case).
-            2) We check with the connection manager and determine if we should gracefully close the connection. This can
-               happen if we are switching connections, but we wanted to finish streaming the current block before
-               closing this connection. This allows us to switch connections at block boundaries, instead of mid-block.
+            2) This connection has been marked for closure after we are finished processing the current block. If this
+               is true, then we will close this connection. This allows us to close the connection at a block boundary
+               instead of closing the connection mid-block.
              */
 
             if (closeAtNextBlockBoundary.get()) {
@@ -1111,6 +1125,16 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                             nextBlockNumber);
                 }
             }
+        }
+
+        /**
+         * Attempts to send the specified end stream code to the block node, and then closes this connection.
+         *
+         * @param endCode the end stream code to attempt to send to the block node before closing
+         */
+        private void closeConnection(final EndStream.Code endCode) {
+            endTheStreamWith(endCode);
+            blockNodeConnectionManager.connectionResetsTheStream(BlockNodeConnection.this);
         }
 
         /**
