@@ -308,7 +308,6 @@ jobs:
       - name: Compile BN
         run: |
           cd "${{ github.workspace }}"/target_block_node
-          echo "com.hedera.pbj.grpc.helidon = FINEST" >> block-node/app/src/main/resources/logging.properties
           ./gradlew block-node-app:distTar
           #produces ./block-node/app/build/distributions/block-node-app-0.18.0-SNAPSHOT.tar
 
@@ -545,7 +544,7 @@ jobs:
               sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp block_node.env $i:/opt/hiero/block-node/block_node.env
 
               sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" \
-                cp "${{ github.workspace }}"/target_block_node/block-node/app/src/main/resources/logging.properties $i:/opt/hiero/block-node/logs/config/logging.properties
+                cp "${{ github.workspace }}"/.github/workflows/support/citr/logging.properties $i:/opt/hiero/block-node/logs/config/logging.properties
 
               if [ "${{ inputs.perf_analysis }}" = "true" ]
               then
