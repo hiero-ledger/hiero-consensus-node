@@ -6,6 +6,7 @@ import static org.assertj.core.api.Fail.fail;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.RedactedItem;
 import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.ParentEventReference;
 import com.hedera.hapi.node.base.TransactionID;
@@ -15,16 +16,22 @@ import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.crypto.PbjStreamHasher;
+import org.hiero.base.crypto.HashingOutputStream;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
@@ -42,7 +49,7 @@ public class BlockStreamEventBuilder {
     private final Map<Hash, PlatformEvent> eventHashToEvent = new HashMap<>();
 
     /** A list of transactions to include in the current event */
-    private final List<Bytes> currentTransactions = new ArrayList<>();
+    private final List<TransactionWrapper> currentTransactions = new ArrayList<>();
 
     /** A list of all reconstructed events */
     private final List<PlatformEvent> events = new ArrayList<>();
@@ -66,8 +73,8 @@ public class BlockStreamEventBuilder {
     }
 
     /**
-     * Reconstructs GossipEvent objects from BlockItems across all blocks. Events are processed in order to handle
-     * parent index references correctly.
+     * Reconstructs GossipEvent objects from BlockItems across all blocks. Events are processed to handle parent index
+     * references correctly.
      *
      * <p><strong>Important:</strong> The events in the returned list are in consensus order,
      * which also means they are in topological order. This ordering is critical for proper event hash chain validation,
@@ -87,6 +94,9 @@ public class BlockStreamEventBuilder {
                     case SIGNED_TRANSACTION:
                         signedTransaction(item.item().as());
                         break;
+                    case REDACTED_ITEM:
+                        redactedItem(item.item().as());
+                        break;
                     default:
                         // Skip other item types (block headers, proofs, etc.)
                         break;
@@ -94,6 +104,13 @@ public class BlockStreamEventBuilder {
             }
             endOfBlock();
         }
+    }
+
+    private void redactedItem(@NonNull final RedactedItem redactedItem) {
+        if (currentEventHeader == null) {
+            fail("Unexpected redacted item without an active event header!");
+        }
+        currentTransactions.add(TransactionWrapper.ofTransactionHash(redactedItem.signedTransactionHash()));
     }
 
     private void startOfBlock() {
@@ -121,7 +138,7 @@ public class BlockStreamEventBuilder {
             if (currentEventHeader == null) {
                 fail("Unexpected transaction item without an active event header!");
             }
-            currentTransactions.add(transactionBytes);
+            currentTransactions.add(TransactionWrapper.ofTransaction(transactionBytes));
         }
     }
 
@@ -151,7 +168,7 @@ public class BlockStreamEventBuilder {
      * @param transactionBytes the transaction bytes
      * @return the parsed transaction body
      */
-    private static TransactionBody getTransactionBody(@NonNull final Bytes transactionBytes) {
+    public static TransactionBody getTransactionBody(@NonNull final Bytes transactionBytes) {
         try {
             final SignedTransaction signedTransaction = SignedTransaction.PROTOBUF.parse(transactionBytes);
             return TransactionBody.PROTOBUF.parse(signedTransaction.bodyBytes());
@@ -177,13 +194,13 @@ public class BlockStreamEventBuilder {
      * lookup.
      *
      * @param eventHeader the event header containing core event data
-     * @param transactions the list of transaction bytes
+     * @param wrappedTransactions the list of wrapped transactions
      * @param eventIndexToEvent map for looking up parent events
      * @return reconstructed PlatformEvent with calculated hash
      */
     private PlatformEvent createEventFromData(
             @NonNull final EventHeader eventHeader,
-            @NonNull final List<Bytes> transactions,
+            @NonNull final List<TransactionWrapper> wrappedTransactions,
             @NonNull final Map<Integer, PlatformEvent> eventIndexToEvent) {
 
         final EventCore eventCore = eventHeader.eventCore();
@@ -194,21 +211,28 @@ public class BlockStreamEventBuilder {
         // Resolve parent hashes from EventHeader parent references
         final List<EventDescriptor> resolvedParents = resolveParentReferences(eventHeader.parents(), eventIndexToEvent);
 
-        // Create GossipEvent with parents and transactions
+        final List<Bytes> transactionBytes = new ArrayList<>();
+        for (final TransactionWrapper wrappedTransaction : wrappedTransactions) {
+            if (wrappedTransaction.isTransaction()) {
+                transactionBytes.add(wrappedTransaction.transaction);
+            } else {
+                transactionBytes.add(wrappedTransaction.transactionHash);
+            }
+        }
+
+        final Hash eventHash =
+                new RedactedEventHasher().hashEvent(eventHeader.eventCore(), resolvedParents, wrappedTransactions);
+
+        // Create GossipEvent with parents and transactions.
         final GossipEvent gossipEvent = GossipEvent.newBuilder()
                 .eventCore(eventCore)
-                .signature(Bytes.EMPTY) // EventHeader doesn't have a signature so use empty
+                .signature(Bytes.EMPTY) // EventHeader doesn't have signature, use empty for now
                 .parents(resolvedParents)
-                .transactions(transactions)
+                .transactions(transactionBytes) // may not match original if there are filtered transactions
                 .build();
         final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
-        calculateEventHash(platformEvent);
+        platformEvent.setHash(eventHash);
         return platformEvent;
-    }
-
-    private void calculateEventHash(final PlatformEvent platformEvent) {
-        final PbjStreamHasher hasher = new PbjStreamHasher();
-        hasher.hashEvent(platformEvent);
     }
 
     /**
@@ -281,5 +305,68 @@ public class BlockStreamEventBuilder {
             reconstructEventsFromBlocks();
         }
         return crossBlockParentHashes;
+    }
+
+    private static class RedactedEventHasher {
+        /** The hashing stream for the event. */
+        private final MessageDigest eventDigest = DigestType.SHA_384.buildDigest();
+
+        final WritableSequentialData eventStream = new WritableStreamingData(new HashingOutputStream(eventDigest));
+        /** The hashing stream for the transactions. */
+        private final MessageDigest transactionDigest = DigestType.SHA_384.buildDigest();
+
+        final WritableSequentialData transactionStream =
+                new WritableStreamingData(new HashingOutputStream(transactionDigest));
+
+        @NonNull
+        public Hash hashEvent(
+                @NonNull final EventCore eventCore,
+                @NonNull final List<EventDescriptor> parents,
+                @NonNull final List<TransactionWrapper> wrappedTransactions) {
+
+            try {
+                EventCore.PROTOBUF.write(eventCore, eventStream);
+                for (final EventDescriptor parent : parents) {
+                    EventDescriptor.PROTOBUF.write(parent, eventStream);
+                }
+                for (final TransactionWrapper transaction : wrappedTransactions) {
+                    processTransactionHash(transaction);
+                }
+            } catch (final IOException e) {
+                throw new RuntimeException("An exception occurred while trying to hash an event!", e);
+            }
+
+            return new Hash(eventDigest.digest(), DigestType.SHA_384);
+        }
+
+        private void processTransactionHash(@NonNull final TransactionWrapper wrappedTransaction) {
+            if (wrappedTransaction.isTransaction()) {
+                transactionStream.writeBytes(wrappedTransaction.transaction());
+                final byte[] hash = transactionDigest.digest();
+                eventStream.writeBytes(hash);
+            } else {
+                eventStream.writeBytes(wrappedTransaction.transactionHash());
+            }
+        }
+    }
+
+    /**
+     * A wrapper for either a full transaction or just its hash.
+     *
+     * @param transaction the full transaction bytes, or null if only the hash is available
+     * @param transactionHash the transaction hash, or null if the full transaction is available
+     */
+    private record TransactionWrapper(@Nullable Bytes transaction, @Nullable Bytes transactionHash) {
+        public boolean isTransaction() {
+            return transaction != null;
+        }
+
+        public static TransactionWrapper ofTransaction(@NonNull final Bytes transaction) {
+            return new TransactionWrapper(transaction, null);
+        }
+
+        public static TransactionWrapper ofTransactionHash(@NonNull final Bytes transactionHash) {
+            return new TransactionWrapper(null, transactionHash);
+        }
     }
 }
