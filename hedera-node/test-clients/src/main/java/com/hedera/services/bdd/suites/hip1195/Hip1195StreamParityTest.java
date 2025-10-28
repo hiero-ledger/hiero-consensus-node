@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.hip1195;
 import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
+import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
@@ -22,7 +23,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
-import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.LAZY_MEMO;
+import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.AUTO_MEMO;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenSupplyType.FINITE;
@@ -60,6 +61,8 @@ import org.junit.jupiter.api.Tag;
 @SuppressWarnings({"rawtypes", "unchecked"})
 @Tag(ADHOC)
 public class Hip1195StreamParityTest {
+    public static final String HOOK_CONTRACT = "0.0.365";
+
     private static final TupleType SET_AND_PASS_ARGS = TupleType.parse("(uint32,address)");
 
     @Contract(contract = "Multipurpose", creationGas = 500_000L)
@@ -252,11 +255,13 @@ public class Hip1195StreamParityTest {
                         .via("transfer"),
                 getTxnRecord("transfer")
                         .andAllChildRecords()
-                        .hasNonStakingChildRecordCount(5) // one auto-creation, four hook invocations pre
-                        // and post for hbar and token transfers
+                        .hasNonStakingChildRecordCount(5)
                         .hasChildRecords(
-                                recordWith().status(SUCCESS).memo(LAZY_MEMO),
-                                recordWith().status(SUCCESS).memo(LAZY_MEMO))
+                                recordWith().status(SUCCESS).memo(AUTO_MEMO),
+                                recordWith().status(SUCCESS).contractCallResult(resultWith().contract(HOOK_CONTRACT)),
+                                recordWith().status(SUCCESS).contractCallResult(resultWith().contract(HOOK_CONTRACT)),
+                                recordWith().status(SUCCESS).contractCallResult(resultWith().contract(HOOK_CONTRACT)),
+                                recordWith().status(SUCCESS).contractCallResult(resultWith().contract(HOOK_CONTRACT)))
                         .logged(),
                 getAliasedAccountInfo("alias").has(accountWith().balance(10L)).hasToken(relationshipWith("tokenA")));
     }
