@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.operations;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_GAS;
 import static org.hyperledger.besu.evm.internal.Words.clampedToLong;
@@ -91,9 +92,6 @@ public abstract class AbstractCustomCreateOperation extends AbstractOperation {
 
     @Override
     public OperationResult execute(@NonNull final MessageFrame frame, @NonNull final EVM evm) {
-        if (FrameUtils.isHookExecution(frame)) {
-            return new OperationResult(0, ExceptionalHaltReason.INVALID_OPERATION);
-        }
         if (!isEnabled(frame)) {
             return INVALID_RESPONSE;
         }
@@ -108,7 +106,9 @@ public abstract class AbstractCustomCreateOperation extends AbstractOperation {
             return new Operation.OperationResult(cost, INSUFFICIENT_GAS);
         }
         final var value = Wei.wrap(frame.getStackItem(0));
-        final var account = frame.getWorldUpdater().getAccount(frame.getRecipientAddress());
+
+        final var sender = getSender(frame);
+        final var account = frame.getWorldUpdater().getAccount(sender);
         frame.clearReturnData();
         if (value.compareTo(account.getBalance()) > 0 || frame.getDepth() >= MAX_STACK_DEPTH) {
             fail(frame);
@@ -123,7 +123,9 @@ public abstract class AbstractCustomCreateOperation extends AbstractOperation {
         final var cost = cost(frame);
         frame.decrementRemainingGas(cost);
 
-        final var account = frame.getWorldUpdater().getAccount(frame.getRecipientAddress());
+        final var sender = getSender(frame);
+
+        final var account = frame.getWorldUpdater().getAccount(sender);
         account.incrementNonce();
 
         final var value = Wei.wrap(frame.getStackItem(0));
@@ -139,6 +141,7 @@ public abstract class AbstractCustomCreateOperation extends AbstractOperation {
 
         final var childGasStipend = gasCalculator().gasAvailableForChildCreate(frame.getRemainingGas());
         frame.decrementRemainingGas(childGasStipend);
+
         // child frame is added to frame stack via build method
         MessageFrame.builder()
                 .parentMessageFrame(frame)
@@ -147,7 +150,7 @@ public abstract class AbstractCustomCreateOperation extends AbstractOperation {
                 .address(contractAddress)
                 .contract(contractAddress)
                 .inputData(Bytes.EMPTY)
-                .sender(frame.getRecipientAddress())
+                .sender(sender)
                 .value(value)
                 .apparentValue(value)
                 .code(codeFactory.createCode(inputData, false))
@@ -183,5 +186,11 @@ public abstract class AbstractCustomCreateOperation extends AbstractOperation {
         }
         final var currentPC = frame.getPC();
         frame.setPC(currentPC + 1);
+    }
+
+    protected Address getSender(final @NonNull MessageFrame frame) {
+        return frame.getRecipientAddress().equals(HTS_HOOKS_CONTRACT_ADDRESS)
+                ? FrameUtils.hookOwnerAddress(frame)
+                : frame.getRecipientAddress();
     }
 }
