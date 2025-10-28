@@ -86,16 +86,16 @@
       <DefaultRolloverStrategy max="10"/>
     </RollingFile>
 
-      <RollingFile name="BlockNodeCommsFile" fileName="output/blocknode-comms.log"
+    <RollingFile name="BlockNodeCommsFile" fileName="output/blocknode-comms.log"
                    filePattern="output/blocknode-comms-%i.log">
           <PatternLayout>
               <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p %-4L %c{1} - %m{nolookups}%n</pattern>
           </PatternLayout>
           <Policies>
-              <SizeBasedTriggeringPolicy size="100 MB"/>
+              <SizeBasedTriggeringPolicy size="500 MB"/>
           </Policies>
           <DefaultRolloverStrategy max="10"/>
-      </RollingFile>
+    </RollingFile>
 
   </Appenders>
   <Loggers>
@@ -225,10 +225,6 @@
       </Filters>
     </Logger>
 
-    <Logger name="com.hedera.node.app.blocks.impl.streaming" level="DEBUG" additivity="false">
-      <AppenderRef ref="Console"/>
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
 
     <!-- Send transaction state logs to their own appender   -->
     <Logger name="com.hedera.node.app.state.logging.TransactionStateLogger" level="info" additivity="false">
@@ -244,7 +240,7 @@
       <AppenderRef ref="Console"/>
       <AppenderRef ref="RollingFile"/>
     </Logger>
-    <Logger name="com.hedera.node.app.blocks.impl.streaming" level="INFO" additivity="false">
+    <Logger name="com.hedera.node.app.blocks.impl.streaming" level="DEBUG" additivity="false">
       <AppenderRef ref="BlockNodeCommsFile"/>
     </Logger>
     <Logger name="com.hedera.services.sigs" level="error" additivity="false">

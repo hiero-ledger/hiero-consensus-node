@@ -519,6 +519,7 @@ jobs:
           wait
 
           #generates block_node.env
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get svc > get_svc.txt
           sh "${{ github.workspace }}"/.github/workflows/support/citr/block_node_env.sh
 
           BNtarname=$(ls -1 "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/block-node-app-*.tar)
@@ -907,8 +908,8 @@ jobs:
           do
               cN=$(echo $i | perl -ne 'print "$1\n" if /^.*block-node-(\d+)-network-load-generator-.*$/')
               sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec network-node${cN}-0 -- bash -c \
-                "grep -E 'BlockNodeConnectionManager.*Opening block with number' /opt/hgcapp/services-hedera/HapiApp2.0/output/hgcaa.log | tail -n 1" > /tmp/$$.tmpout.txt
-              lastBlock=`cat /tmp/$$.tmpout.txt | perl -ne 'print "$1\n" if /^.*Opening block with number (\d+)\b.*$/'`
+                "grep -E 'Opening block' /opt/hgcapp/services-hedera/HapiApp2.0/output/blocknode-comms.log | tail -n 1" > /tmp/$$.tmpout.txt
+              lastBlock=`cat /tmp/$$.tmpout.txt | perl -ne 'print "$1\n" if /^.*Opening block (\d+)\b.*$/'`
               rm -f /tmp/$$.tmpout.txt
               echo "Last block at node $cN is $lastBlock"
               lastBlock=`expr $lastBlock + 100` # 100 block ahead to let BN time to start
@@ -929,8 +930,8 @@ jobs:
           do
               cN=$(echo $i | perl -ne 'print "$1\n" if /^.*block-node-p2-(\d+)-network-load-generator-.*$/')
               sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec network-node${cN}-0 -- bash -c \
-                "grep -E 'BlockNodeConnectionManager.*Opening block with number' /opt/hgcapp/services-hedera/HapiApp2.0/output/hgcaa.log | tail -n 1" > /tmp/$$.tmpout.txt
-              lastBlock=`cat /tmp/$$.tmpout.txt | perl -ne 'print "$1\n" if /^.*Opening block with number (\d+)\b.*$/'`
+                "grep -E 'Opening block' /opt/hgcapp/services-hedera/HapiApp2.0/output/blocknode-comms.log | tail -n 1" > /tmp/$$.tmpout.txt
+              lastBlock=`cat /tmp/$$.tmpout.txt | perl -ne 'print "$1\n" if /^.*Opening block (\d+)\b.*$/'`
               rm -f /tmp/$$.tmpout.txt
               echo "Last block at node $cN is $lastBlock"
               lastBlock=`expr $lastBlock + 100` # 100 block ahead to let BN time to start
