@@ -148,6 +148,7 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
             if (item.hasEventHeader()) {
                 transactionDigest = DigestType.SHA_384.buildDigest();
                 transactionStream = new WritableStreamingData(new HashingOutputStream(transactionDigest));
+                redactedItems.add(item);
             } else if (item.hasSignedTransaction()) {
                 // Update transaction hash stream with transaction bytes
                 final Bytes txBytes = item.item().as();
