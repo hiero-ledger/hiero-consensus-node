@@ -798,8 +798,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         // re-create the connection so we get the worker thread to run
         final long blockNumber = 10;
         final BlockState block = new BlockState(blockNumber);
-        when(bufferService.getBlockState(blockNumber))
-                .thenReturn(block);
+        when(bufferService.getBlockState(blockNumber)).thenReturn(block);
 
         connection = new BlockNodeConnection(
                 configProvider,

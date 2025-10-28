@@ -2,13 +2,6 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
-<<<<<<< HEAD
-import static org.apache.logging.log4j.Level.DEBUG;
-import static org.apache.logging.log4j.Level.ERROR;
-import static org.apache.logging.log4j.Level.INFO;
-import static org.apache.logging.log4j.Level.WARN;
-=======
->>>>>>> main
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.RESET;
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TIMEOUT;
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TOO_FAR_BEHIND;
@@ -678,9 +671,16 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     PublishStreamRequest#protobufSize does the size calculation lazily and thus calling this can incur
                     a performance penality. Therefore, we only want to log the byte size at trace level.
                      */
-                    logger.trace("{} Sending request to block node (type={}, bytes={})", this, request.request().kind(), request.protobufSize());
+                    logger.trace(
+                            "{} Sending request to block node (type={}, bytes={})",
+                            this,
+                            request.request().kind(),
+                            request.protobufSize());
                 } else if (logger.isDebugEnabled()) {
-                    logger.debug("{} Sending request to block node (type={})", this, request.request().kind());
+                    logger.debug(
+                            "{} Sending request to block node (type={})",
+                            this,
+                            request.request().kind());
                 }
 
                 final long startMs = System.currentTimeMillis();
@@ -1000,7 +1000,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 if (closeAtNextBlockBoundary.get()) {
                     // The flag to indicate that we should close the connection at a block boundary is set to true
                     // since no block is available to stream, we are at a safe "boundary" and can close the connection
-                    logger.info("{} Block boundary reached; closing connection (no block available)", BlockNodeConnection.this);
+                    logger.info(
+                            "{} Block boundary reached; closing connection (no block available)",
+                            BlockNodeConnection.this);
                     closeConnection(EndStream.Code.RESET);
                 }
 
@@ -1011,7 +1013,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
             while ((item = block.blockItem(itemIndex)) != null) {
                 if (itemIndex == 0) {
-                    logger.trace("{} Starting to process items for block {}", BlockNodeConnection.this, block.blockNumber());
+                    logger.trace(
+                            "{} Starting to process items for block {}", BlockNodeConnection.this, block.blockNumber());
                     if (lastSendTimeMillis == -1) {
                         // if we've never sent a request and this is the first time we are processing a block, update
                         // the last send time to the current time. this will avoid prematurely sending a request
@@ -1059,7 +1062,12 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 final long diffMillis = System.currentTimeMillis() - lastSendTimeMillis;
                 final long maxDelayMillis = maxRequestDelayMillis();
                 if (diffMillis >= maxDelayMillis) {
-                    logger.trace("{} Max delay exceeded (target: {}ms, actual: {}ms) - sending {} item(s)", BlockNodeConnection.this, maxDelayMillis, diffMillis, pendingRequestItems.size());
+                    logger.trace(
+                            "{} Max delay exceeded (target: {}ms, actual: {}ms) - sending {} item(s)",
+                            BlockNodeConnection.this,
+                            maxDelayMillis,
+                            diffMillis,
+                            pendingRequestItems.size());
                     sendPendingRequest();
                 }
             }
@@ -1068,8 +1076,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         }
 
         private void maybeAdvanceBlock() {
-            final boolean finishedWithCurrentBlock =
-                    pendingRequestItems.isEmpty() // no more items ready to send
+            final boolean finishedWithCurrentBlock = pendingRequestItems.isEmpty() // no more items ready to send
                     && block.isClosed() // the block is closed, so no more items are expected
                     && block.itemCount() == itemIndex; // we've exhausted all items in the block
 
@@ -1087,7 +1094,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
             if (closeAtNextBlockBoundary.get()) {
                 // the connection manager wants us to gracefully stop this connection
-                logger.info("{} Block boundary reached; closing connection (finished sending block)", BlockNodeConnection.this);
+                logger.info(
+                        "{} Block boundary reached; closing connection (finished sending block)",
+                        BlockNodeConnection.this);
                 closeConnection(EndStream.Code.RESET);
             } else {
                 // the connection manager hasn't informed us to close this connection, so we are now free to advance to
@@ -1096,7 +1105,10 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 if (streamingBlockNumber.compareAndSet(block.blockNumber(), nextBlockNumber)) {
                     logger.trace("{} Advancing to block {}", BlockNodeConnection.this, nextBlockNumber);
                 } else {
-                    logger.trace("{} Tried to advance to block {} but the block to stream was updated externally", BlockNodeConnection.this, nextBlockNumber);
+                    logger.trace(
+                            "{} Tried to advance to block {} but the block to stream was updated externally",
+                            BlockNodeConnection.this,
+                            nextBlockNumber);
                 }
             }
         }
@@ -1134,8 +1146,16 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     }
                 }
 
-                logger.trace("{} Request details: block={}, request={}, items={}, headerIndex={}, otherItemsIndexRange=[{}, {}], proofIndex={}",
-                        BlockNodeConnection.this, block.blockNumber(), requestCtr.get(), pendingRequestItems.size(), headerIndex, itemStartIndex, itemEndIndex, proofIndex);
+                logger.trace(
+                        "{} Request details: block={}, request={}, items={}, headerIndex={}, otherItemsIndexRange=[{}, {}], proofIndex={}",
+                        BlockNodeConnection.this,
+                        block.blockNumber(),
+                        requestCtr.get(),
+                        pendingRequestItems.size(),
+                        headerIndex,
+                        itemStartIndex,
+                        itemEndIndex,
+                        proofIndex);
             }
 
             try {
@@ -1197,11 +1217,17 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             requestCtr.set(1);
 
             if (block == null) {
-                logger.trace("{} Wanted to switch from block {} to block {}, but it is not available",
-                        BlockNodeConnection.this, (oldBlock == null ? -1 : oldBlock.blockNumber()), latestActiveBlockNumber);
+                logger.trace(
+                        "{} Wanted to switch from block {} to block {}, but it is not available",
+                        BlockNodeConnection.this,
+                        (oldBlock == null ? -1 : oldBlock.blockNumber()),
+                        latestActiveBlockNumber);
             } else {
-                logger.trace("{} Switched from block {} to block {}", BlockNodeConnection.this,
-                        (oldBlock == null ? -1 : oldBlock.blockNumber()), latestActiveBlockNumber);
+                logger.trace(
+                        "{} Switched from block {} to block {}",
+                        BlockNodeConnection.this,
+                        (oldBlock == null ? -1 : oldBlock.blockNumber()),
+                        latestActiveBlockNumber);
             }
         }
 
