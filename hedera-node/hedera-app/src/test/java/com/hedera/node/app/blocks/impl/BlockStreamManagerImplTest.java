@@ -49,7 +49,6 @@ import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
-import com.hedera.node.app.quiescence.CurrentBlockTracker;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
@@ -180,9 +179,6 @@ class BlockStreamManagerImplTest {
     @Mock
     private QuiescedHeartbeat quiescedHeartbeat;
 
-    @Mock
-    private CurrentBlockTracker currentBlockTracker;
-
     private final AtomicReference<Bytes> lastAItem = new AtomicReference<>();
     private final AtomicReference<Bytes> lastBItem = new AtomicReference<>();
     private final AtomicReference<PlatformState> stateRef = new AtomicReference<>();
@@ -254,7 +250,6 @@ class BlockStreamManagerImplTest {
                 configProvider,
                 boundaryStateChangeListener,
                 platform,
-                currentBlockTracker,
                 quiescenceController,
                 hashInfo,
                 SemanticVersion.DEFAULT,
@@ -281,7 +276,6 @@ class BlockStreamManagerImplTest {
                 configProvider,
                 boundaryStateChangeListener,
                 platform,
-                currentBlockTracker,
                 quiescenceController,
                 hashInfo,
                 SemanticVersion.DEFAULT,
@@ -964,7 +958,6 @@ class BlockStreamManagerImplTest {
                 configProvider,
                 boundaryStateChangeListener,
                 platform,
-                currentBlockTracker,
                 quiescenceController,
                 hashInfo,
                 SemanticVersion.DEFAULT,

@@ -41,7 +41,7 @@ import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.info.CurrentPlatformStatus;
-import com.hedera.node.app.quiescence.CurrentBlockTracker;
+import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.service.entityid.EntityIdService;
@@ -153,7 +153,7 @@ public class HandleWorkflow {
     private final BlockHashSigner blockHashSigner;
     private final BlockBufferService blockBufferService;
     private final Map<Class<?>, ServiceApiProvider<?>> apiProviders;
-    private final CurrentBlockTracker currentBlockTracker;
+    private final QuiescenceController quiescenceController;
 
     @Nullable
     private final AtomicBoolean systemEntitiesCreatedFlag;
@@ -199,7 +199,7 @@ public class HandleWorkflow {
             @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final Map<Class<?>, ServiceApiProvider<?>> apiProviders,
-            @NonNull final CurrentBlockTracker currentBlockTracker) {
+            @NonNull final QuiescenceController quiescenceController) {
         this.networkInfo = requireNonNull(networkInfo);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.dispatchProcessor = requireNonNull(dispatchProcessor);
@@ -221,6 +221,7 @@ public class HandleWorkflow {
         this.immediateStateChangeListener = requireNonNull(immediateStateChangeListener);
         this.scheduleService = requireNonNull(scheduleService);
         this.congestionMetrics = requireNonNull(congestionMetrics);
+        this.quiescenceController = requireNonNull(quiescenceController);
         final var config = configProvider.getConfiguration();
         this.streamMode = config.getConfigData(BlockStreamConfig.class).streamMode();
         this.quiescenceEnabled = config.getConfigData(QuiescenceConfig.class).enabled();
@@ -233,7 +234,6 @@ public class HandleWorkflow {
         this.platformStateFacade = requireNonNull(platformStateFacade);
         this.blockBufferService = requireNonNull(blockBufferService);
         this.apiProviders = requireNonNull(apiProviders);
-        this.currentBlockTracker = requireNonNull(currentBlockTracker);
     }
 
     /**
@@ -391,11 +391,8 @@ public class HandleWorkflow {
                                     + "While this node may not die right away, it is in a bad way, most likely fatally.",
                             e);
                 }
-                if (quiescenceEnabled) {
-                    final var tracker = currentBlockTracker.trackerOrThrow();
-                    tracker.blockTransaction(platformTxn);
-                    tracker.consensusTimeAdvanced(platformTxn.getConsensusTimestamp());
-                }
+                // No-op if quiescence is disabled
+                quiescenceController.inProgressBlockTransaction(platformTxn);
                 // Clear tx metadata now that we won't use it again
                 platformTxn.setMetadata(null);
             }

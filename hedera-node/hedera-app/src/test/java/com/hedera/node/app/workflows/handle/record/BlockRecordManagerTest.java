@@ -28,7 +28,6 @@ import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.info.NodeInfoImpl;
-import com.hedera.node.app.quiescence.CurrentBlockTracker;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordService;
@@ -95,9 +94,6 @@ final class BlockRecordManagerTest extends AppTestBase {
 
     private BlockRecordFormat blockRecordFormat;
     private BlockRecordWriterFactory blockRecordWriterFactory;
-
-    @Mock
-    private CurrentBlockTracker currentBlockTracker;
 
     @Mock
     private QuiescenceController quiescenceController;
@@ -197,7 +193,6 @@ final class BlockRecordManagerTest extends AppTestBase {
                 app.configProvider(),
                 app.workingStateAccessor().getState(),
                 producer,
-                currentBlockTracker,
                 quiescenceController,
                 quiescedHeartbeat,
                 platform)) {
@@ -290,7 +285,6 @@ final class BlockRecordManagerTest extends AppTestBase {
                 app.configProvider(),
                 app.workingStateAccessor().getState(),
                 producer,
-                currentBlockTracker,
                 quiescenceController,
                 quiescedHeartbeat,
                 platform)) {
@@ -444,7 +438,6 @@ final class BlockRecordManagerTest extends AppTestBase {
                 app.configProvider(),
                 state,
                 mock(BlockRecordStreamProducer.class),
-                currentBlockTracker,
                 quiescenceController,
                 quiescedHeartbeat,
                 platform);
@@ -462,7 +455,6 @@ final class BlockRecordManagerTest extends AppTestBase {
                 app.configProvider(),
                 state,
                 mock(BlockRecordStreamProducer.class),
-                currentBlockTracker,
                 quiescenceController,
                 quiescedHeartbeat,
                 platform);

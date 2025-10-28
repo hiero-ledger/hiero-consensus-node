@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records;
 
-import com.hedera.node.app.quiescence.CurrentBlockTracker;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
@@ -66,7 +65,6 @@ public abstract class BlockRecordInjectionModule {
             @NonNull final ConfigProvider configProvider,
             @NonNull final WorkingStateAccessor state,
             @NonNull final BlockRecordStreamProducer streamFileProducer,
-            @NonNull final CurrentBlockTracker currentBlockTracker,
             @NonNull final QuiescenceController quiescenceController,
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
             @NonNull final Platform platform) {
@@ -75,13 +73,7 @@ public abstract class BlockRecordInjectionModule {
             throw new IllegalStateException("Merkle state is null");
         }
         return new BlockRecordManagerImpl(
-                configProvider,
-                merkleState,
-                streamFileProducer,
-                currentBlockTracker,
-                quiescenceController,
-                quiescedHeartbeat,
-                platform);
+                configProvider, merkleState, streamFileProducer, quiescenceController, quiescedHeartbeat, platform);
     }
 
     @Provides

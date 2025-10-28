@@ -10,6 +10,7 @@ import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.quiescence.QuiescenceCommand.DONT_QUIESCE;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -17,7 +18,6 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.hedera.node.app.quiescence.CurrentBlockTracker;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.quiescence.TctProbe;
@@ -27,7 +27,6 @@ import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
-import com.hedera.node.config.data.QuiescenceConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -79,14 +78,12 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      */
     private final BlockRecordStreamProducer streamFileProducer;
 
-    private final CurrentBlockTracker currentBlockTracker;
     private final QuiescenceController quiescenceController;
     private final QuiescedHeartbeat quiescedHeartbeat;
     private final ConfigProvider configProvider;
     private final Platform platform;
 
-    private final AtomicReference<QuiescenceCommand> lastQuiescenceCommand = new AtomicReference<>();
-    private final boolean quiescenceEnabled;
+    private final AtomicReference<QuiescenceCommand> lastQuiescenceCommand = new AtomicReference<>(DONT_QUIESCE);
     private final StreamMode streamMode;
 
     /**
@@ -112,20 +109,17 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             @NonNull final ConfigProvider configProvider,
             @NonNull final State state,
             @NonNull final BlockRecordStreamProducer streamFileProducer,
-            @NonNull final CurrentBlockTracker currentBlockTracker,
             @NonNull final QuiescenceController quiescenceController,
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
             @NonNull final Platform platform) {
         this.platform = platform;
         requireNonNull(state);
-        this.currentBlockTracker = requireNonNull(currentBlockTracker);
         this.quiescenceController = requireNonNull(quiescenceController);
         this.quiescedHeartbeat = requireNonNull(quiescedHeartbeat);
         this.streamFileProducer = requireNonNull(streamFileProducer);
         this.configProvider = requireNonNull(configProvider);
         final var config = configProvider.getConfiguration();
         this.streamMode = config.getConfigData(BlockStreamConfig.class).streamMode();
-        this.quiescenceEnabled = config.getConfigData(QuiescenceConfig.class).enabled();
 
         // FUTURE: check if we were started in event recover mode and if event recovery needs to be completed before we
         // write any new records to stream
@@ -207,8 +201,9 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                     .build();
             putLastBlockInfo(state);
             streamFileProducer.switchBlocks(-1, 0, consensusTime);
-            if (streamMode == RECORDS && quiescenceEnabled) {
-                currentBlockTracker.setTracker(quiescenceController.startingBlock(0));
+            if (streamMode == RECORDS) {
+                // No-op if quiescence is disabled
+                quiescenceController.startingBlock(0);
             }
             return true;
         }
@@ -278,8 +273,9 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     public void switchBlocksAt(@NonNull final Instant consensusTime, State state) {
         final long blockNo = lastBlockInfo.lastBlockNumber() + 1;
         streamFileProducer.switchBlocks(lastBlockInfo.lastBlockNumber(), blockNo, consensusTime);
-        if (streamMode == RECORDS && quiescenceEnabled) {
-            if (currentBlockTracker.switchTracker(quiescenceController.startingBlock(blockNo))) {
+        if (streamMode == RECORDS) {
+            // All no-ops below if quiescence is disabled
+            if (quiescenceController.switchTracker(blockNo)) {
                 // There is no asynchronous signing concept in the record stream, do it now
                 quiescenceController.blockFullySigned(blockNo - 1);
             }

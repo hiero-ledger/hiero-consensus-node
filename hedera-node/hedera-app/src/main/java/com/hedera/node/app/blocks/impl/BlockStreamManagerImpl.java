@@ -41,7 +41,6 @@ import com.hedera.node.app.blocks.StreamingTreeHasher;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.info.DiskStartupNetworks.InfoType;
-import com.hedera.node.app.quiescence.CurrentBlockTracker;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.quiescence.TctProbe;
@@ -127,7 +126,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final BlockHashManager blockHashManager;
     private final RunningHashManager runningHashManager;
     private final Platform platform;
-    private final CurrentBlockTracker currentBlockTracker;
     private final QuiescenceController quiescenceController;
     private final QuiescedHeartbeat quiescedHeartbeat;
 
@@ -230,7 +228,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final ConfigProvider configProvider,
             @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
             @NonNull final Platform platform,
-            @NonNull final CurrentBlockTracker currentBlockTracker,
             @NonNull final QuiescenceController quiescenceController,
             @NonNull final InitialStateHash initialStateHash,
             @NonNull final SemanticVersion version,
@@ -240,7 +237,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final Metrics metrics) {
         this.blockHashSigner = requireNonNull(blockHashSigner);
         this.platform = requireNonNull(platform);
-        this.currentBlockTracker = requireNonNull(currentBlockTracker);
         this.quiescenceController = requireNonNull(quiescenceController);
         this.version = requireNonNull(version);
         this.writerSupplier = requireNonNull(writerSupplier);
@@ -334,10 +330,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 }
                 hasCheckedForPendingBlocks = true;
             }
-            if (quiescenceEnabled) {
-                currentBlockTracker.setTracker(quiescenceController.startingBlock(blockNumber));
-            }
-
+            // No-op if quiescence is disabled
+            quiescenceController.startingBlock(blockNumber);
             worker = new BlockStreamManagerTask();
             final var header = BlockHeader.newBuilder()
                     .number(blockNumber)
@@ -446,9 +440,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final boolean closesBlock = shouldCloseBlock(roundNum, freezeRoundNumber);
         if (closesBlock) {
             lifecycle.onCloseBlock(state);
-            if (quiescenceEnabled) {
-                currentBlockTracker.trackerOrThrow().finishedHandlingTransactions();
-            }
+            // No-op if quiescence is disabled
+            quiescenceController.finishHandlingInProgressBlock();
             // FUTURE WORK: the state should always be an instance of VirtualMapState
             // https://github.com/hiero-ledger/hiero-consensus-node/issues/21284
             if (state instanceof VirtualMapState hederaNewStateRoot) {

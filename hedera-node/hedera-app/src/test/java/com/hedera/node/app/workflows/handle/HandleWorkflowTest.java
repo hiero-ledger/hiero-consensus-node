@@ -31,7 +31,7 @@ import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
-import com.hedera.node.app.quiescence.CurrentBlockTracker;
+import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
@@ -57,7 +57,6 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableSingletonState;
-import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
@@ -85,6 +84,9 @@ class HandleWorkflowTest {
 
     @Mock
     private HintsService hintsService;
+
+    @Mock
+    private QuiescenceController quiescenceController;
 
     @Mock
     private BlockHashSigner blockHashSigner;
@@ -169,12 +171,6 @@ class HandleWorkflowTest {
 
     @Mock
     private BlockBufferService blockBufferService;
-
-    @Mock
-    private ReadableStates readableStates;
-
-    @Mock
-    private EventCore eventCore;
 
     @Mock
     private ReadableSingletonState<Object> platformStateReadableSingletonState;
@@ -502,7 +498,7 @@ class HandleWorkflowTest {
                 platformStateFacade,
                 blockBufferService,
                 Map.of(),
-                new CurrentBlockTracker());
+                quiescenceController);
     }
 
     @Test
