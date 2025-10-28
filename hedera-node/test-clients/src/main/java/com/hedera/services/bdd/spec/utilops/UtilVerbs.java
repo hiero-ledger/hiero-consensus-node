@@ -491,7 +491,7 @@ public class UtilVerbs {
      * application logs do not contain the given pattern.
      *
      * @param selector the selector for the node whose log to validate
-     * @param pattern the pattern that must be present
+     * @param pattern the pattern that must not be present
      * @param delay the delay before validation
      * @return the operation that validates the logs of the target network
      */
@@ -502,10 +502,24 @@ public class UtilVerbs {
 
     /**
      * Returns an operation that delays for the given time and then validates that the selected nodes'
-     * block node comms logs do not contain the given pattern.
+     * block node comms logs contain the given pattern.
      *
      * @param selector the selector for the node whose log to validate
      * @param pattern the pattern that must be present
+     * @param delay the delay before validation
+     * @return the operation that validates the logs of the target network
+     */
+    public static LogContainmentOp assertBlockNodeCommsLogContains(
+            @NonNull final NodeSelector selector, @NonNull final String pattern, @NonNull final Duration delay) {
+        return new LogContainmentOp(selector, BLOCK_NODE_COMMS_LOG, CONTAINS, pattern, delay);
+    }
+
+    /**
+     * Returns an operation that delays for the given time and then validates that the selected nodes'
+     * block node comms logs do not contain the given pattern.
+     *
+     * @param selector the selector for the node whose log to validate
+     * @param pattern the pattern that must not be present
      * @param delay the delay before validation
      * @return the operation that validates the logs of the target network
      */
