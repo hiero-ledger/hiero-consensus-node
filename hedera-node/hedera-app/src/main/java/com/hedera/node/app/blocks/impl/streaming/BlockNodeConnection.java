@@ -746,6 +746,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                             }
                         }
                     }
+                } else {
+                    blockStreamMetrics.recordRequestSent(request.request().kind());
                 }
 
                 return true;

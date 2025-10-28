@@ -1138,6 +1138,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(requestPipeline, atLeastOnce()).onNext(requestCaptor.capture());
         final List<PublishStreamRequest> requests4 = requestCaptor.getAllValues();
         final int totalRequestsSent = requests4.size();
+        final int endOfBlockRequest = 1;
+
         reset(requestPipeline);
         requests4.removeAll(requests1);
         requests4.removeAll(requests2);
@@ -1146,8 +1148,9 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         assertThat(streamingBlockNumber).hasValue(11);
 
-        verify(metrics, times(totalRequestsSent)).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
-        verify(metrics, times(totalRequestsSent)).recordBlockItemsSent(anyInt());
+        verify(metrics, times(endOfBlockRequest)).recordRequestSent(RequestOneOfType.END_OF_BLOCK);
+        verify(metrics, times(totalRequestsSent - endOfBlockRequest)).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
+        verify(metrics, times(totalRequestsSent - endOfBlockRequest)).recordBlockItemsSent(anyInt());
         verify(metrics, times(totalRequestsSent)).recordRequestLatency(anyLong());
         verify(connectionManager).recordBlockProofSent(eq(connection.getNodeConfig()), eq(10L), any(Instant.class));
         verify(bufferService, atLeastOnce()).getBlockState(10);
