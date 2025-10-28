@@ -7,12 +7,14 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.hiero.metrics.api.StatelessMetric;
 import org.hiero.metrics.api.core.LongOrDoubleSupplier;
+import org.hiero.metrics.api.export.snapshot.SingleValueDataPointSnapshot;
 import org.hiero.metrics.internal.core.AbstractMetric;
 import org.hiero.metrics.internal.core.LabelValues;
 import org.hiero.metrics.internal.datapoint.DataPointHolder;
-import org.hiero.metrics.internal.export.snapshot.OneValueDataPointSnapshotImpl;
+import org.hiero.metrics.internal.export.snapshot.DoubleValueDataPointSnapshotImpl;
+import org.hiero.metrics.internal.export.snapshot.LongValueDataPointSnapshotImpl;
 
-public final class StatelessMetricImpl extends AbstractMetric<LongOrDoubleSupplier, OneValueDataPointSnapshotImpl>
+public final class StatelessMetricImpl extends AbstractMetric<LongOrDoubleSupplier, SingleValueDataPointSnapshot>
         implements StatelessMetric {
 
     private final Set<LabelValues> labelValuesSet = ConcurrentHashMap.newKeySet();
@@ -27,19 +29,25 @@ public final class StatelessMetricImpl extends AbstractMetric<LongOrDoubleSuppli
     }
 
     @Override
-    protected OneValueDataPointSnapshotImpl createDataPointSnapshot(
+    protected SingleValueDataPointSnapshot createDataPointSnapshot(
             LongOrDoubleSupplier datapoint, LabelValues dynamicLabelValues) {
-        return new OneValueDataPointSnapshotImpl(dynamicLabelValues, datapoint.isDoubleSupplier());
+        if (datapoint.isDoubleSupplier()) {
+            return new DoubleValueDataPointSnapshotImpl(dynamicLabelValues);
+        } else {
+            return new LongValueDataPointSnapshotImpl(dynamicLabelValues);
+        }
     }
 
     @Override
     protected void updateDatapointSnapshot(
-            DataPointHolder<LongOrDoubleSupplier, OneValueDataPointSnapshotImpl> dataPointHolder) {
+            DataPointHolder<LongOrDoubleSupplier, SingleValueDataPointSnapshot> dataPointHolder) {
         LongOrDoubleSupplier datapoint = dataPointHolder.dataPoint();
         if (datapoint.isDoubleSupplier()) {
-            dataPointHolder.snapshot().set(datapoint.getDoubleValueSupplier().getAsDouble());
+            ((DoubleValueDataPointSnapshotImpl) dataPointHolder.snapshot())
+                    .set(datapoint.getDoubleValueSupplier().getAsDouble());
         } else {
-            dataPointHolder.snapshot().set(datapoint.getLongValueSupplier().getAsLong());
+            ((LongValueDataPointSnapshotImpl) dataPointHolder.snapshot())
+                    .set(datapoint.getLongValueSupplier().getAsLong());
         }
     }
 

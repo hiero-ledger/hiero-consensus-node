@@ -7,9 +7,9 @@ import org.hiero.metrics.api.GaugeAdapter;
 import org.hiero.metrics.internal.core.AbstractStatefulMetric;
 import org.hiero.metrics.internal.core.LabelValues;
 import org.hiero.metrics.internal.datapoint.DataPointHolder;
-import org.hiero.metrics.internal.export.snapshot.OneValueDataPointSnapshotImpl;
+import org.hiero.metrics.internal.export.snapshot.DoubleValueDataPointSnapshotImpl;
 
-public final class DoubleGaugeAdapterImpl<I, D> extends AbstractStatefulMetric<I, D, OneValueDataPointSnapshotImpl>
+public final class DoubleGaugeAdapterImpl<I, D> extends AbstractStatefulMetric<I, D, DoubleValueDataPointSnapshotImpl>
         implements GaugeAdapter<I, D> {
 
     private final ToDoubleFunction<D> exportGetter;
@@ -23,12 +23,12 @@ public final class DoubleGaugeAdapterImpl<I, D> extends AbstractStatefulMetric<I
     }
 
     @Override
-    protected OneValueDataPointSnapshotImpl createDataPointSnapshot(D datapoint, LabelValues dynamicLabelValues) {
-        return new OneValueDataPointSnapshotImpl(dynamicLabelValues, true);
+    protected DoubleValueDataPointSnapshotImpl createDataPointSnapshot(D datapoint, LabelValues dynamicLabelValues) {
+        return new DoubleValueDataPointSnapshotImpl(dynamicLabelValues);
     }
 
     @Override
-    protected void updateDatapointSnapshot(DataPointHolder<D, OneValueDataPointSnapshotImpl> dataPointHolder) {
+    protected void updateDatapointSnapshot(DataPointHolder<D, DoubleValueDataPointSnapshotImpl> dataPointHolder) {
         dataPointHolder.snapshot().set(exportGetter.applyAsDouble(dataPointHolder.dataPoint()));
     }
 

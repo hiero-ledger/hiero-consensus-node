@@ -2,6 +2,7 @@
 package org.hiero.metrics.internal.export;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 import java.util.Objects;
 import org.hiero.metrics.api.export.PullingMetricsExporter;
 
@@ -30,5 +31,14 @@ public class SinglePullingExporterMetricsExportManager extends AbstractMetricsEx
     @Override
     public boolean hasRunningExportThread() {
         return false;
+    }
+
+    @Override
+    public void shutdown() {
+        try {
+            exporter.close();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

@@ -13,10 +13,12 @@ import org.hiero.metrics.api.core.Label;
 import org.hiero.metrics.api.core.MetricMetadata;
 import org.hiero.metrics.api.core.MetricType;
 import org.hiero.metrics.api.export.snapshot.DataPointSnapshot;
+import org.hiero.metrics.api.export.snapshot.DoubleValueDataPointSnapshot;
+import org.hiero.metrics.api.export.snapshot.LongValueDataPointSnapshot;
 import org.hiero.metrics.api.export.snapshot.MetricSnapshot;
 import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
 import org.hiero.metrics.api.export.snapshot.MultiValueDataPointSnapshot;
-import org.hiero.metrics.api.export.snapshot.OneValueDataPointSnapshot;
+import org.hiero.metrics.api.export.snapshot.SingleValueDataPointSnapshot;
 import org.hiero.metrics.api.export.snapshot.StateSetDataPointSnapshot;
 
 /**
@@ -89,10 +91,13 @@ public class OpenMetricsSnapshotsWriter
         byte[][] variables = new byte[3][]; // max 3 variables: value type, value, timestamp
 
         switch (dataPointSnapshot) {
-            case OneValueDataPointSnapshot snapshot -> {
-                byte[] convertedValue = snapshot.isFloatingPoint()
-                        ? convertValue(snapshot.getAsDouble())
-                        : convertValue(snapshot.getAsLong());
+            case LongValueDataPointSnapshot snapshot -> {
+                byte[] convertedValue = convertValue(snapshot.getAsLong());
+                int varIdx = addValueAndTimestampVariables(timestamp, variables, convertedValue, 0);
+                writeDataLine(template, varIdx, variables, output);
+            }
+            case DoubleValueDataPointSnapshot snapshot -> {
+                byte[] convertedValue = convertValue(snapshot.getAsDouble());
                 int varIdx = addValueAndTimestampVariables(timestamp, variables, convertedValue, 0);
                 writeDataLine(template, varIdx, variables, output);
             }
@@ -249,7 +254,7 @@ public class OpenMetricsSnapshotsWriter
         @Override
         protected ByteArrayTemplate buildDataPointExportTemplate(DataPointSnapshot dataPointSnapshot) {
             return switch (dataPointSnapshot) {
-                case OneValueDataPointSnapshot snapshot -> buildSingleValueTemplate(snapshot);
+                case SingleValueDataPointSnapshot snapshot -> buildSingleValueTemplate(snapshot);
                 case MultiValueDataPointSnapshot snapshot -> buildGenericMultiValueTemplate(snapshot);
                 case StateSetDataPointSnapshot<?> snapshot -> buildStateSetTemplate(snapshot);
                 default ->
@@ -258,7 +263,7 @@ public class OpenMetricsSnapshotsWriter
             };
         }
 
-        private ByteArrayTemplate buildSingleValueTemplate(OneValueDataPointSnapshot dataPointSnapshot) {
+        private ByteArrayTemplate buildSingleValueTemplate(SingleValueDataPointSnapshot dataPointSnapshot) {
             ByteArrayTemplate.Builder builder = ByteArrayTemplate.builder();
 
             builder.append(metricNameBytes);

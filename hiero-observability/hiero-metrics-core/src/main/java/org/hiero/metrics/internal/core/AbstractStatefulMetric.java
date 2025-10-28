@@ -80,12 +80,14 @@ public abstract class AbstractStatefulMetric<I, D, S extends DataPointSnapshot> 
     @NonNull
     @Override
     public D getOrCreateLabeled(@NonNull String... namesAndValues) {
-        if (dynamicLabelNames().isEmpty()) {
-            throw new IllegalStateException("This metric has no dynamic labels, so you must call getNotLabeled()");
+        final LabelValues labelValues = createLabelValues(namesAndValues);
+        if (labelValues.size() == 0) {
+            return getOrCreateNotLabeled();
+        } else {
+            return dataPoints
+                    .computeIfAbsent(labelValues, this::createAndTrackDataPointHolder)
+                    .dataPoint();
         }
-        return dataPoints
-                .computeIfAbsent(createLabelValues(namesAndValues), this::createAndTrackDataPointHolder)
-                .dataPoint();
     }
 
     @NonNull

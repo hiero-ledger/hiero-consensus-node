@@ -12,7 +12,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * Exporters must cast to specific implementation classes to access additional data
  * beyond the {@link DataPointSnapshot} interface. Existing extensions are:
  * <ul>
- *     <li> {@link OneValueDataPointSnapshot}
+ *     <li> {@link LongValueDataPointSnapshot}
+ *     <li> {@link DoubleValueDataPointSnapshot}
  *     <li> {@link MultiValueDataPointSnapshot}
  *     <li> {@link StateSetDataPointSnapshot}
  * </ul>
