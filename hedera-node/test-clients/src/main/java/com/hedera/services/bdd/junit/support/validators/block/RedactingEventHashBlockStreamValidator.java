@@ -10,7 +10,9 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -24,6 +26,7 @@ import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.HashingOutputStream;
 
 /**
  * A BlockStreamValidator implementation that redacts transaction content by replacing transaction data with their
@@ -137,16 +140,34 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
 
         int transactionCount = 0;
 
+        MessageDigest transactionDigest = DigestType.SHA_384.buildDigest();
+        WritableSequentialData transactionStream =
+                new WritableStreamingData(new HashingOutputStream(transactionDigest));
+
         for (final BlockItem item : originalItems) {
-            final SignedTransaction maybeEventTransaction = getEventTransactionOrNull(item);
-            // Redact the transaction if it is a user transaction
-            if (maybeEventTransaction != null) {
-                final BlockItem redactedItem = redactTransactionItem(maybeEventTransaction);
-                redactedItems.add(redactedItem);
-                transactionCount++;
-            } else {
-                // Non-transaction items always pass through unchanged
-                redactedItems.add(item);
+            if (item.hasEventHeader()) {
+                transactionDigest = DigestType.SHA_384.buildDigest();
+                transactionStream = new WritableStreamingData(new HashingOutputStream(transactionDigest));
+            } else if (item.hasSignedTransaction()) {
+                // Update transaction hash stream with transaction bytes
+                final Bytes txBytes = item.item().as();
+                transactionStream.writeBytes(txBytes);
+                byte[] runningTransactionHash = transactionDigest.digest();
+
+                final SignedTransaction maybeEventTransaction = getEventTransactionOrNull(item);
+                // Redact the transaction if it is a user transaction
+                if (maybeEventTransaction != null) {
+                    final BlockItem redactedItem = BlockItem.newBuilder()
+                            .filteredItemHash(FilteredItemHash.newBuilder()
+                                    .itemHash(Bytes.wrap(runningTransactionHash))
+                                    .build())
+                            .build();
+                    redactedItems.add(redactedItem);
+                    transactionCount++;
+                } else {
+                    // Non-transaction items always pass through unchanged
+                    redactedItems.add(item);
+                }
             }
         }
 
