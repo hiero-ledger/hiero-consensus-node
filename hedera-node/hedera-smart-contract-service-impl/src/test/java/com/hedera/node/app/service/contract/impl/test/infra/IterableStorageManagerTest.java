@@ -20,9 +20,12 @@ import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.contract.impl.state.StorageAccess;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.contract.impl.state.StorageSizeChange;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import org.apache.tuweni.units.bigints.UInt256;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -53,7 +56,15 @@ class IterableStorageManagerTest {
     @Mock
     private Account account;
 
+    private EntityIdFactory entityIdFactory = new FakeEntityIdFactoryImpl(0, 0);
+
     private final IterableStorageManager subject = new IterableStorageManager();
+
+    @BeforeEach
+    void setUp() {
+        given(enhancement.nativeOperations()).willReturn(hederaNativeOperations);
+        given(hederaNativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+    }
 
     @Test
     void rewriteUpdatesKvCountStorageMetadataOnly() {

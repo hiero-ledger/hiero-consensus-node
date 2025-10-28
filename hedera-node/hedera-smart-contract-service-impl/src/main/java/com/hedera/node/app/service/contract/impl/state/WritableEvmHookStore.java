@@ -106,8 +106,7 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
     public int updateStorage(@NonNull final LambdaSlotKey key, @NonNull final SlotValue value) {
         requireNonNull(key);
         requireNonNull(value);
-
-        final var hookId = key.hookId();
+        final var hookId = key.hookIdOrThrow();
         Bytes newValue = value.value();
         if (isAllZeroWord(newValue)) {
             // if value is empty we remove the slot
@@ -209,11 +208,9 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
                 log.warn("Inconsistent state: next hook {} not found when linking {}", next, hookId);
             }
         }
-        if (type == LAMBDA) {
-            final var initialUpdates = details.lambdaEvmHookOrThrow().storageUpdates();
-            if (!initialUpdates.isEmpty()) {
-                updateStorage(hookId, initialUpdates);
-            }
+        final var initialUpdates = details.lambdaEvmHookOrThrow().storageUpdates();
+        if (!initialUpdates.isEmpty()) {
+            updateStorage(hookId, initialUpdates);
         }
         entityCounters.incrementEntityTypeCount(HOOK);
     }
