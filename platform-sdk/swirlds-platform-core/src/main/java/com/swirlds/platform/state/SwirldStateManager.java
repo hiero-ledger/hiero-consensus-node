@@ -7,7 +7,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.metrics.TransactionMetrics;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
@@ -16,17 +15,13 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Manages all interactions with the state object required by {@link ConsensusStateEventHandler}.
+ * This class is responsible for maintaining references to the mutable state and the latest immutable state.
+ * It also updates these references upon state signing.
  */
 public class SwirldStateManager {
 
     /**
-     * Stats relevant to the state operations.
-     */
-    private final TransactionMetrics transactionMetrics;
-
-    /**
-     *
+     * Metrics for the state object
      */
     private final StateMetrics stateMetrics;
 
@@ -63,7 +58,6 @@ public class SwirldStateManager {
         requireNonNull(platformContext);
         requireNonNull(roster);
         this.platformStateFacade = requireNonNull(platformStateFacade);
-        this.transactionMetrics = new TransactionMetrics(platformContext.getMetrics());
         this.stateMetrics = new StateMetrics(platformContext.getMetrics());
         this.softwareVersion = requireNonNull(softwareVersion);
     }

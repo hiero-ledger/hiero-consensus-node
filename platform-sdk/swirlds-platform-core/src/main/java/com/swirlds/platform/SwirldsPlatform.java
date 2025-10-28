@@ -216,10 +216,8 @@ public class SwirldsPlatform implements Platform {
         final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
 
         blocks.freezeCheckHolder()
-                .setFreezeCheckRef(instant -> isInFreezePeriod(
-                        instant,
-                        platformStateFacade.freezeTimeOf(swirldStateManager.getConsensusState()),
-                        platformStateFacade.lastFrozenTimeOf(swirldStateManager.getConsensusState())));
+                .setFreezeCheckRef(instant ->
+                        isInFreezePeriod(instant, swirldStateManager.getConsensusState(), platformStateFacade));
 
         final AppNotifier appNotifier = new DefaultAppNotifier(blocks.notificationEngine());
 
