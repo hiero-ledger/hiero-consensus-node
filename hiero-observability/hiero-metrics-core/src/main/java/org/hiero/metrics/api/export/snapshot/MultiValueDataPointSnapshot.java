@@ -34,7 +34,7 @@ public interface MultiValueDataPointSnapshot extends DataPointSnapshot {
     int valuesCount();
 
     /**
-     * @return {@code true} if all value at provided index is {@code long}, {@code false} if {@code double}.
+     * @return {@code true} if all value at provided index is {@code double}, {@code false} if {@code long}.
      */
     boolean isFloatingPointAt(int idx);
 

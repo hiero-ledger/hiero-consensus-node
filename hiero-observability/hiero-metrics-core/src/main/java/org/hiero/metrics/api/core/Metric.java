@@ -161,10 +161,11 @@ public interface Metric {
          */
         @NonNull
         public final B withUnit(@Nullable String unit) {
-            if (unit != null && unit.isBlank()) {
-                MetricUtils.validateNameCharacters(unit);
+            if (unit != null && !unit.isBlank()) {
+                this.unit = MetricUtils.validateNameCharacters(unit);
+            } else {
+                this.unit = null;
             }
-            this.unit = unit;
             return self();
         }
 

@@ -7,10 +7,10 @@ import org.hiero.metrics.api.datapoint.LongCounterDataPoint;
 import org.hiero.metrics.internal.core.AbstractStatefulMetric;
 import org.hiero.metrics.internal.core.LabelValues;
 import org.hiero.metrics.internal.datapoint.DataPointHolder;
-import org.hiero.metrics.internal.export.snapshot.OneValueDataPointSnapshotImpl;
+import org.hiero.metrics.internal.export.snapshot.LongValueDataPointSnapshotImpl;
 
 public final class LongCounterImpl
-        extends AbstractStatefulMetric<LongSupplier, LongCounterDataPoint, OneValueDataPointSnapshotImpl>
+        extends AbstractStatefulMetric<LongSupplier, LongCounterDataPoint, LongValueDataPointSnapshotImpl>
         implements LongCounter {
 
     public LongCounterImpl(LongCounter.Builder builder) {
@@ -23,14 +23,14 @@ public final class LongCounterImpl
     }
 
     @Override
-    protected OneValueDataPointSnapshotImpl createDataPointSnapshot(
+    protected LongValueDataPointSnapshotImpl createDataPointSnapshot(
             LongCounterDataPoint datapoint, LabelValues dynamicLabelValues) {
-        return new OneValueDataPointSnapshotImpl(dynamicLabelValues, false);
+        return new LongValueDataPointSnapshotImpl(dynamicLabelValues);
     }
 
     @Override
     protected void updateDatapointSnapshot(
-            DataPointHolder<LongCounterDataPoint, OneValueDataPointSnapshotImpl> dataPointHolder) {
+            DataPointHolder<LongCounterDataPoint, LongValueDataPointSnapshotImpl> dataPointHolder) {
         dataPointHolder.snapshot().set(dataPointHolder.dataPoint().getAsLong());
     }
 }

@@ -13,9 +13,10 @@ import java.util.Iterator;
 import java.util.List;
 import org.hiero.metrics.api.core.Label;
 import org.hiero.metrics.api.export.snapshot.DataPointSnapshot;
+import org.hiero.metrics.api.export.snapshot.DoubleValueDataPointSnapshot;
+import org.hiero.metrics.api.export.snapshot.LongValueDataPointSnapshot;
 import org.hiero.metrics.api.export.snapshot.MetricSnapshot;
 import org.hiero.metrics.api.export.snapshot.MultiValueDataPointSnapshot;
-import org.hiero.metrics.api.export.snapshot.OneValueDataPointSnapshot;
 import org.hiero.metrics.api.export.snapshot.StateSetDataPointSnapshot;
 
 /**
@@ -65,12 +66,12 @@ public class CsvMetricsSnapshotsWriter
         variables[0] = timestamp.toString().getBytes(StandardCharsets.UTF_8);
 
         switch (dataPointSnapshot) {
-            case OneValueDataPointSnapshot snapshot -> {
-                if (snapshot.isFloatingPoint()) {
-                    variables[1] = format(snapshot.getAsDouble()).getBytes(StandardCharsets.UTF_8);
-                } else {
-                    variables[1] = format(snapshot.getAsLong()).getBytes(StandardCharsets.UTF_8);
-                }
+            case LongValueDataPointSnapshot snapshot -> {
+                variables[1] = format(snapshot.getAsLong()).getBytes(StandardCharsets.UTF_8);
+                writeDataLine(template, 2, variables, output);
+            }
+            case DoubleValueDataPointSnapshot snapshot -> {
+                variables[1] = format(snapshot.getAsDouble()).getBytes(StandardCharsets.UTF_8);
                 writeDataLine(template, 2, variables, output);
             }
             case MultiValueDataPointSnapshot snapshot -> {
