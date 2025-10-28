@@ -67,8 +67,13 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.hapi.fees.FeeModelRegistry;
+import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
 
 /**
  * This class contains all workflow-related functionality regarding {@link HederaFunctionality#CRYPTO_UPDATE}.
@@ -509,5 +514,29 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                     (op.hookCreationDetails().size() + op.hookIdsToDelete().size()) * HOUR_TO_SECOND_MULTIPLIER);
         }
         return fees.calculate();
+    }
+
+    /**
+     * Calculates the fee result for a CryptoUpdate transaction using Simple Fees (HIP-1261).
+     * Fee calculation considers the number of signatures and whether a key is being updated.
+     *
+     * @return the calculated fee result in tinycents (node, network, service)
+     */
+    @NonNull
+    @Override
+    public FeeResult calculateFeeResult(@NonNull final FeeContext feeContext) {
+        requireNonNull(feeContext);
+        final var model = FeeModelRegistry.lookupModel(HederaFunctionality.CRYPTO_UPDATE);
+        final var op = feeContext.body().cryptoUpdateAccountOrThrow();
+
+        Map<Extra, Long> params = new HashMap<>();
+        params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
+
+        // Count keys (0 if not present, 1 if present)
+        params.put(Extra.KEYS, op.hasKey() ? 1L : 0L);
+
+        return model.computeFee(
+                params,
+                feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT).getSimpleFeesSchedule());
     }
 }

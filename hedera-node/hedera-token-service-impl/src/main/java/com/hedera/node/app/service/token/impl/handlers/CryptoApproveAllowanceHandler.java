@@ -57,11 +57,16 @@ import com.swirlds.base.utility.Pair;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.hapi.fees.FeeModelRegistry;
+import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
 
 /**
  * This class contains all workflow-related functionality regarding
@@ -673,5 +678,34 @@ public class CryptoApproveAllowanceHandler implements TransactionHandler {
             totalSerials += allowance.serialNumbers().size();
         }
         return totalSerials;
+    }
+
+    /**
+     * Calculates the fee result for a CryptoApproveAllowance transaction using Simple Fees (HIP-1261).
+     * Fee calculation considers the number of signatures and the total count of allowances
+     * (crypto + token + NFT allowances).
+     *
+     * @param feeContext the fee context containing transaction data and configuration
+     * @return the calculated fee result in tinycents (node, network, service)
+     */
+    @NonNull
+    @Override
+    public FeeResult calculateFeeResult(@NonNull final FeeContext feeContext) {
+        requireNonNull(feeContext);
+        final var model = FeeModelRegistry.lookupModel(HederaFunctionality.CRYPTO_APPROVE_ALLOWANCE);
+        final var op = feeContext.body().cryptoApproveAllowanceOrThrow();
+
+        Map<Extra, Long> params = new HashMap<>();
+        params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
+
+        // Count allowances
+        long allowanceCount = op.cryptoAllowances().size()
+                + op.tokenAllowances().size()
+                + op.nftAllowances().size();
+        params.put(Extra.ALLOWANCES, allowanceCount);
+
+        return model.computeFee(
+                params,
+                feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT).getSimpleFeesSchedule());
     }
 }

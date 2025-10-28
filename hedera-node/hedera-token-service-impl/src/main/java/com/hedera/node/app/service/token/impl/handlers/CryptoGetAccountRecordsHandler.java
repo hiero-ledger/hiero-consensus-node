@@ -30,9 +30,14 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.hapi.fees.FeeModelRegistry;
+import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
 
 /**
  * This class contains all workflow-related functionality regarding {@link
@@ -125,5 +130,23 @@ public class CryptoGetAccountRecordsHandler extends PaidQueryHandler {
         final var records =
                 pbjRecords.stream().map(CommonPbjConverters::fromPbj).toList();
         return usageEstimator.getCryptoAccountRecordsQueryFeeMatrices(records, null);
+    }
+
+    /**
+     * Calculates the fee result for a CryptoGetAccountRecords query using Simple Fees (HIP-1261).
+     *
+     * @param queryContext the query context containing transaction data and configuration
+     * @return the calculated fee result in tinycents (node, network, service)
+     * @throws NullPointerException if {@code queryContext} is {@code null}
+     */
+    @Override
+    @NonNull
+    public FeeResult computeFeeResult(@NonNull final QueryContext queryContext) {
+        requireNonNull(queryContext);
+        final var model = FeeModelRegistry.lookupModel(HederaFunctionality.CRYPTO_GET_ACCOUNT_RECORDS);
+
+        Map<Extra, Long> params = new HashMap<>();
+        params.put(Extra.SIGNATURES, 1L);
+        return model.computeFee(params, queryContext.feeCalculator().getSimpleFeesSchedule());
     }
 }

@@ -23,8 +23,13 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.HashMap;
+import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.hapi.fees.FeeModelRegistry;
+import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
 
 /**
  * This class contains all workflow-related functionality regarding {@link
@@ -92,5 +97,26 @@ public class CryptoDeleteHandler implements TransactionHandler {
                 .feeCalculator(SubType.DEFAULT)
                 .legacyCalculate(sigValueObj ->
                         usageEstimator.getCryptoDeleteTxFeeMatrices(CommonPbjConverters.fromPbj(body), sigValueObj));
+    }
+
+    /**
+     * Calculates the fee result for a CryptoDelete transaction using Simple Fees (HIP-1261).
+     * Fee calculation is based on the number of transaction signatures.
+     *
+     * @param feeContext the fee context containing transaction data and configuration
+     * @return the calculated fee result in tinycents (node, network, service)
+     */
+    @NonNull
+    @Override
+    public FeeResult calculateFeeResult(@NonNull final FeeContext feeContext) {
+        requireNonNull(feeContext);
+        final var model = FeeModelRegistry.lookupModel(HederaFunctionality.CRYPTO_DELETE);
+
+        Map<Extra, Long> params = new HashMap<>();
+        params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
+
+        return model.computeFee(
+                params,
+                feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT).getSimpleFeesSchedule());
     }
 }

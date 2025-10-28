@@ -81,9 +81,14 @@ import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.hapi.fees.FeeModelRegistry;
+import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
 
 /**
  * This class contains all workflow-related functionality regarding {@link HederaFunctionality#CRYPTO_CREATE}. A
@@ -511,5 +516,26 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
 
     private boolean isSystemFile(final long entityNum) {
         return FIRST_SYSTEM_FILE_ENTITY <= entityNum && entityNum < FIRST_POST_SYSTEM_FILE_ENTITY;
+    }
+
+    /**
+     * Calculates the fee result for a CryptoCreate transaction using Simple Fees (HIP-1261).
+     * @param feeContext the fee context containing transaction data and configuration
+     * @return the calculated fee result in tinycents (node, network, service)
+     */
+    @NonNull
+    @Override
+    public FeeResult calculateFeeResult(@NonNull final FeeContext feeContext) {
+        requireNonNull(feeContext);
+        final var model = FeeModelRegistry.lookupModel(HederaFunctionality.CRYPTO_CREATE);
+        final var op = feeContext.body().cryptoCreateAccountOrThrow();
+
+        Map<Extra, Long> params = new HashMap<>();
+        params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
+
+        params.put(Extra.KEYS, op.hasKey() ? 1L : 0L);
+        return model.computeFee(
+                params,
+                feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT).getSimpleFeesSchedule());
     }
 }

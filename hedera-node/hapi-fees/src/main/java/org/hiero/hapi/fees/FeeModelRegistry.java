@@ -16,6 +16,8 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_APPROVE_ALLOW
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_DELETE_ALLOWANCE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_GET_ACCOUNT_RECORDS;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_GET_INFO;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_APPEND;
@@ -85,6 +87,8 @@ public class FeeModelRegistry {
         register(new StandardFeeModel(CRYPTO_CREATE, "Create a new account"));
         register(new StandardFeeModel(CRYPTO_APPROVE_ALLOWANCE, "Approve an allowance for a spender"));
         register(new StandardFeeModel(CRYPTO_DELETE_ALLOWANCE, "Delete an allowance for a spender"));
+        register(new StandardFeeModel(CRYPTO_GET_INFO, "Get information about an account"));
+        register(new StandardFeeModel(CRYPTO_GET_ACCOUNT_RECORDS, "Get transaction records for an account"));
 
         register(new StandardFeeModel(CONTRACT_CALL, "Execute a smart contract call"));
         register(new StandardFeeModel(CONTRACT_CREATE, "Create a smart contract"));

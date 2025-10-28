@@ -38,9 +38,15 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.hapi.fees.FeeModelRegistry;
+import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
+import org.identityconnectors.common.CollectionUtil;
 
 /**
  * This class contains all workflow-related functionality regarding {@link
@@ -53,6 +59,7 @@ public class CryptoDeleteAllowanceHandler implements TransactionHandler {
 
     /**
      * Default constructor for injection.
+     *
      * @param validator the validator for validating a delete allowance transaction
      */
     @Inject
@@ -117,8 +124,9 @@ public class CryptoDeleteAllowanceHandler implements TransactionHandler {
      * Clears spender on the provided nft serials if the owner owns the serials.
      * If owner is not specified payer is considered as the owner.
      * If the owner doesn't own these serials throws an exception.
-     * @param context handle context
-     * @param payer payer for the transaction
+     *
+     * @param context      handle context
+     * @param payer        payer for the transaction
      * @param accountStore account store
      * @throws HandleException if any of the nft serials are not owned by owner
      */
@@ -144,11 +152,12 @@ public class CryptoDeleteAllowanceHandler implements TransactionHandler {
     /**
      * Clear spender on the provided nft serials. If the owner is not provided in any allowance,
      * considers payer of the transaction as owner while checking if nft is owned by owner.
+     *
      * @param nftAllowances given nftAllowances
-     * @param payerAccount payer for the transaction
-     * @param accountStore account Store
-     * @param tokenStore token Store
-     * @param nftStore nft Store
+     * @param payerAccount  payer for the transaction
+     * @param accountStore  account Store
+     * @param tokenStore    token Store
+     * @param nftStore      nft Store
      */
     private void deleteNftSerials(
             final List<NftRemoveAllowance> nftAllowances,
@@ -184,7 +193,8 @@ public class CryptoDeleteAllowanceHandler implements TransactionHandler {
     /**
      * Validate the transaction body fields that include state or configuration.
      * We can use payerAccount for validations since it's not mutated in validateSemantics.
-     * @param context the context of the transaction
+     *
+     * @param context      the context of the transaction
      * @param payerAccount the account of the payer
      * @param accountStore the account store
      */
@@ -219,5 +229,34 @@ public class CryptoDeleteAllowanceHandler implements TransactionHandler {
             totalSerials += allowance.serialNumbers().size();
         }
         return totalSerials;
+    }
+
+    /**
+     * Calculates the fee result for a CryptoDeleteAllowance transaction using Simple Fees (HIP-1261).
+     * Fee calculation considers the number of signatures and the count of NFT allowances being deleted.
+     *
+     * @param feeContext the fee context containing transaction data and configuration
+     * @return the calculated fee result in tinycents (node, network, service)
+     * @throws NullPointerException if {@code feeContext} is {@code null}
+     */
+    @NonNull
+    @Override
+    public FeeResult calculateFeeResult(@NonNull final FeeContext feeContext) {
+        requireNonNull(feeContext);
+        final var model = FeeModelRegistry.lookupModel(HederaFunctionality.CRYPTO_DELETE_ALLOWANCE);
+        final var op = feeContext.body().cryptoDeleteAllowance();
+
+        Map<Extra, Long> params = new HashMap<>();
+        params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
+
+        // Count allowances
+        long allowanceCount = CollectionUtil.isEmpty(op.nftAllowances())
+                ? 0
+                : op.nftAllowances().size();
+        params.put(Extra.ALLOWANCES, allowanceCount);
+
+        return model.computeFee(
+                params,
+                feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT).getSimpleFeesSchedule());
     }
 }
