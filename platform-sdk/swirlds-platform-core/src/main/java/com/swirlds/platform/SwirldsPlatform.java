@@ -6,7 +6,6 @@ import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static com.swirlds.platform.StateInitializer.initializeState;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.state.address.RosterMetrics.registerRosterMetrics;
-import static com.swirlds.platform.state.service.PlatformStateFacade.isInFreezePeriod;
 import static org.hiero.base.CompareTo.isLessThan;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -217,7 +216,7 @@ public class SwirldsPlatform implements Platform {
 
         blocks.freezeCheckHolder()
                 .setFreezeCheckRef(instant ->
-                        isInFreezePeriod(instant, swirldStateManager.getConsensusState(), platformStateFacade));
+                        platformStateFacade.isInFreezePeriod(instant, swirldStateManager.getConsensusState()));
 
         final AppNotifier appNotifier = new DefaultAppNotifier(blocks.notificationEngine());
 

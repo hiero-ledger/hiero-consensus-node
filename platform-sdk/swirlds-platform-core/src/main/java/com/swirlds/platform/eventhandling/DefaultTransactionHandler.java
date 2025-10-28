@@ -204,8 +204,8 @@ public class DefaultTransactionHandler implements TransactionHandler {
             return null;
         }
 
-        if (PlatformStateFacade.isInFreezePeriod(
-                consensusRound.getConsensusTimestamp(), swirldStateManager.getConsensusState(), platformStateFacade)) {
+        if (platformStateFacade.isInFreezePeriod(
+                consensusRound.getConsensusTimestamp(), swirldStateManager.getConsensusState())) {
             statusActionSubmitter.submitStatusAction(new FreezePeriodEnteredAction(consensusRound.getRoundNum()));
             freezeRoundReceived = true;
             logger.info(

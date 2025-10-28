@@ -73,15 +73,10 @@ public class PlatformStateFacade {
      *
      * @param consensusTime  the consensus time to check
      * @param state     the state object to extract the data from
-     * @param platformStateFacade the platform state facade to use for data extraction
      * @return true is the {@code timestamp} is in a freeze period
      */
-    public static boolean isInFreezePeriod(
-            @NonNull final Instant consensusTime,
-            @NonNull final MerkleNodeState state,
-            @NonNull final PlatformStateFacade platformStateFacade) {
-        return PlatformStateFacade.isInFreezePeriod(
-                consensusTime, platformStateFacade.freezeTimeOf(state), platformStateFacade.lastFrozenTimeOf(state));
+    public boolean isInFreezePeriod(@NonNull final Instant consensusTime, @NonNull final MerkleNodeState state) {
+        return PlatformStateFacade.isInFreezePeriod(consensusTime, freezeTimeOf(state), lastFrozenTimeOf(state));
     }
 
     /**
