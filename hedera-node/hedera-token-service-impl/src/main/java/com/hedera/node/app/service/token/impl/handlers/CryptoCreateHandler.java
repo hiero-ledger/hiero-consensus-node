@@ -273,7 +273,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         if (!op.hookCreationDetails().isEmpty()) {
             final var owner =
                     entityIdFactory.newAccountId(context.entityNumGenerator().peekAtNewEntityNum());
-            dispatchHookCreations(context, op.hookCreationDetails(), 0L, owner);
+            dispatchHookCreations(context, op.hookCreationDetails(), null, owner);
         }
 
         // Build the new account to be persisted based on the transaction body and save the newly created account

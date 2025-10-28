@@ -18,18 +18,15 @@ import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessedFeeWithPayerDebits;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessmentResult;
+import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.ItemizedAssessedFee;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Factory for creating {@link HookCalls} from a CryptoTransfer transaction to be dispatched to the EVM through
@@ -38,28 +35,30 @@ import org.slf4j.LoggerFactory;
  * It collects pre-transaction and pre-post-transaction hook invocations for accounts involved in
  * the transfers.
  */
-public class HookCallFactory {
-    private static final Logger log = LoggerFactory.getLogger(HookCallFactory.class);
-
+public class HookCallsFactory {
     @Inject
-    public HookCallFactory() {}
+    public HookCallsFactory() {}
+
     /**
      * Creates {@link HookCalls} for a CryptoTransfer transaction, including both direct transfers and
      * custom fee transfers, along with any pre-transaction and pre-post-transaction hook invocations.
      *
      * @param handleContext the transaction context
      * @param userTxn the user transaction body
-     * @param assessedFeeWithPayerDebits the list of assessed fees with multi-payer deltas
+     * @param itemizedAssessedFees the list of assessed fees with multi-payer deltas
      * @return the created {@link HookCalls}
      */
     public HookCalls from(
             @NonNull final HandleContext handleContext,
-            CryptoTransferTransactionBody userTxn,
-            List<AssessedFeeWithPayerDebits> assessedFeeWithPayerDebits) {
+            @NonNull final CryptoTransferTransactionBody userTxn,
+            @NonNull final List<ItemizedAssessedFee> itemizedAssessedFees) {
+        requireNonNull(handleContext);
+        requireNonNull(userTxn);
+        requireNonNull(itemizedAssessedFees);
         final var accountStore = handleContext.storeFactory().readableStore(ReadableAccountStore.class);
         final var memo = handleContext.body().memo();
-        final var txnFee = handleContext.body().transactionFee();
-        return getProposedTransfers(userTxn, accountStore, memo, txnFee, assessedFeeWithPayerDebits);
+        final long txnFee = handleContext.body().transactionFee();
+        return getProposedTransfers(userTxn, accountStore, memo, txnFee, itemizedAssessedFees);
     }
     /**
      * Encodes the proposed transfers from the user transaction and assessed fees into tuples,
@@ -69,15 +68,15 @@ public class HookCallFactory {
      * @param accountStore the account store for resolving account information
      * @param memo the transaction memo
      * @param txnFee the transaction fee
-     * @param assessedFeeWithPayerDebits the list of assessed fees with multi-payer debits
+     * @param itemizedAssessedFees the list of assessed fees with multi-payer debits
      * @return the created {@link HookCalls}
      */
     private HookCalls getProposedTransfers(
-            final CryptoTransferTransactionBody userTxn,
-            final ReadableAccountStore accountStore,
-            final String memo,
+            @NonNull final CryptoTransferTransactionBody userTxn,
+            @NonNull final ReadableAccountStore accountStore,
+            @NonNull final String memo,
             final long txnFee,
-            final List<AssessedFeeWithPayerDebits> assessedFeeWithPayerDebits) {
+            @NonNull final List<ItemizedAssessedFee> itemizedAssessedFees) {
         final var preOnly = new ArrayList<HookInvocation>();
         final var prePost = new ArrayList<HookInvocation>();
         // Encode direct transfers
@@ -88,7 +87,7 @@ public class HookCallFactory {
                 preOnly,
                 prePost);
         // Encode custom fee transfers
-        final var customFeeTransfers = encodeCustomFees(accountStore, assessedFeeWithPayerDebits);
+        final var customFeeTransfers = encodeCustomFees(accountStore, itemizedAssessedFees);
         return new HookCalls(
                 new HookContext(Tuple.of(directTransfers, customFeeTransfers), memo, txnFee), preOnly, prePost);
     }
@@ -96,24 +95,22 @@ public class HookCallFactory {
      * Encodes the custom fee transfers into tuples, aggregating amounts per account and token.
      *
      * @param accountStore the account store for resolving account information
-     * @param assessedFeeWithPayerDebits the list of assessed fees with multi-payer deltas
+     * @param itemizedAssessedFees the list of assessed fees with multi-payer deltas
      * @return a tuple containing the encoded HBAR transfers and token transfers
      */
     private Tuple encodeCustomFees(
-            final ReadableAccountStore accountStore,
-            final List<AssessedFeeWithPayerDebits> assessedFeeWithPayerDebits) {
-        if (assessedFeeWithPayerDebits.isEmpty()) {
+            @NonNull final ReadableAccountStore accountStore,
+            @NonNull final List<ItemizedAssessedFee> itemizedAssessedFees) {
+        if (itemizedAssessedFees.isEmpty()) {
             return EMPTY_TRANSFERS;
         }
         final Map<TokenID, Map<AccountID, Long>> deltas = new LinkedHashMap<>();
-        for (final var assessedFee : assessedFeeWithPayerDebits) {
+        for (final var assessedFee : itemizedAssessedFees) {
             final var fee = assessedFee.assessedCustomFee();
             final var token = fee.hasTokenId() ? fee.tokenIdOrThrow() : AssessmentResult.HBAR_TOKEN_ID;
             final var map = deltas.computeIfAbsent(token, t -> new LinkedHashMap<>());
-
             map.merge(fee.feeCollectorAccountIdOrThrow(), +fee.amount(), Long::sum);
-
-            // if exactly one effective payer, debit it now; else skip, multi-payer handled below
+            // If exactly one effective payer, debit it now; else skip, multi-payer handled below
             if (fee.effectivePayerAccountId().size() == 1) {
                 final var payer = fee.effectivePayerAccountId().getFirst();
                 map.merge(payer, -fee.amount(), Long::sum);
@@ -138,8 +135,7 @@ public class HookCallFactory {
                         .build())
                 .toList();
         // Reuse the normal encoder; used empty hook collector as custom fees don't introduce new hooks
-        final var encoded = encodeTransfers(hbarTransfers, tokenTransfers, accountStore, List.of(), List.of());
-        return encoded;
+        return encodeTransfers(hbarTransfers, tokenTransfers, accountStore, List.of(), List.of());
     }
     /**
      * Converts a map of AccountID to Long amounts into a list of AccountAmount,
@@ -148,7 +144,7 @@ public class HookCallFactory {
      * @param map the map of AccountID to Long amounts
      * @return the list of AccountAmount
      */
-    private static List<AccountAmount> toAccountAmounts(final Map<AccountID, Long> map) {
+    private static List<AccountAmount> toAccountAmounts(@NonNull final Map<AccountID, Long> map) {
         final var out = new ArrayList<AccountAmount>(map.size());
         for (final var e : map.entrySet()) {
             final var amt = e.getValue();
@@ -168,11 +164,11 @@ public class HookCallFactory {
      * NOTE the hbar list is wrapped as a *tuple containing the array* to match your XFER_LIST_TUPLE "( (address,int64,bool)[] )"
      */
     private Tuple encodeTransfers(
-            TransferList hbarTransfers,
-            List<TokenTransferList> tokenTransfersList,
-            ReadableAccountStore accountStore,
-            List<HookInvocation> preOnly,
-            List<HookInvocation> prePost) {
+            @NonNull final TransferList hbarTransfers,
+            @NonNull final List<TokenTransferList> tokenTransfersList,
+            @NonNull final ReadableAccountStore accountStore,
+            @NonNull final List<HookInvocation> preOnly,
+            @NonNull final List<HookInvocation> prePost) {
         final var hbarXfers = encodeAccountAmounts(hbarTransfers.accountAmounts(), accountStore, preOnly, prePost);
         final var tokenTransfers = tokenTransfersList.stream()
                 .map(ttl -> encodeTokenTransfers(ttl, accountStore, preOnly, prePost))
@@ -182,10 +178,10 @@ public class HookCallFactory {
 
     @NonNull
     private Tuple encodeTokenTransfers(
-            TokenTransferList ttl,
-            ReadableAccountStore accounts,
-            List<HookInvocation> preOnly,
-            List<HookInvocation> prePost) {
+            @NonNull final TokenTransferList ttl,
+            @NonNull final ReadableAccountStore accounts,
+            @NonNull final List<HookInvocation> preOnly,
+            @NonNull final List<HookInvocation> prePost) {
         final var tokenAddress = headlongAddressOf(ttl.tokenOrThrow());
         final var transfers = encodeAccountAmounts(ttl.transfers(), accounts, preOnly, prePost);
         final var nftTransfers = encodeNftTransfers(ttl.nftTransfers(), accounts, preOnly, prePost);
@@ -193,10 +189,10 @@ public class HookCallFactory {
     }
 
     private Tuple[] encodeNftTransfers(
-            final List<NftTransfer> nftTransfers,
-            final ReadableAccountStore accounts,
-            List<HookInvocation> preOnly,
-            List<HookInvocation> prePost) {
+            @NonNull final List<NftTransfer> nftTransfers,
+            @NonNull final ReadableAccountStore accounts,
+            @NonNull final List<HookInvocation> preOnly,
+            @NonNull final List<HookInvocation> prePost) {
         return nftTransfers.stream()
                 .map(nft -> {
                     final var sender = resolveAccountAddress(accounts, nft.senderAccountIDOrThrow());
@@ -244,10 +240,10 @@ public class HookCallFactory {
     }
 
     private Tuple[] encodeAccountAmounts(
-            List<AccountAmount> items,
-            ReadableAccountStore accountStore,
-            List<HookInvocation> preOnly,
-            List<HookInvocation> prePost) {
+            @NonNull final List<AccountAmount> items,
+            @NonNull final ReadableAccountStore accountStore,
+            @NonNull final List<HookInvocation> preOnly,
+            @NonNull final List<HookInvocation> prePost) {
         return items.stream()
                 .map(aa -> {
                     final var address = resolveAccountAddress(accountStore, aa.accountIDOrThrow());
@@ -276,7 +272,8 @@ public class HookCallFactory {
     }
 
     /* ---------- Address helpers ---------- */
-    private static Address resolveAccountAddress(final ReadableAccountStore accountStore, final AccountID ownerId) {
+    private static Address resolveAccountAddress(
+            @NonNull final ReadableAccountStore accountStore, @NonNull final AccountID ownerId) {
         final var owner = accountStore.getAccountById(ownerId);
         return priorityAddressOf(requireNonNull(owner));
     }
@@ -316,6 +313,4 @@ public class HookCallFactory {
         requireNonNull(tokenId);
         return asHeadlongAddress(asEvmAddress(tokenId.tokenNum()));
     }
-
-    public record HookInvocation(AccountID ownerId, long hookId, Address ownerAddress, Bytes calldata, long gasLimit) {}
 }

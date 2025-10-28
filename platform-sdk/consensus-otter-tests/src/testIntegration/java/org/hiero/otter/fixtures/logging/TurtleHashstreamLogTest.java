@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.turtle.logging;
+package org.hiero.otter.fixtures.logging;
 
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
 import static com.swirlds.logging.legacy.LogMarker.PLATFORM_STATUS;
@@ -36,7 +36,7 @@ import org.junit.jupiter.params.provider.ValueSource;
  *     <li>The build/turtle folder structure contains only node directories</li>
  * </ul>
  */
-class TurtleHashstreamLogTest {
+final class TurtleHashstreamLogTest {
 
     /**
      * List of markers that commonly appear during normal Turtle node operation, but should not be present in the
