@@ -88,7 +88,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
     private BlockNodeConnection connection;
     private BlockNodeConfig nodeConfig;
-
+    private ConfigProvider configProvider;
     private BlockNodeConnectionManager connectionManager;
     private BlockBufferService bufferService;
     private BlockStreamPublishServiceClient grpcServiceClient;
@@ -96,11 +96,12 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     private Pipeline<? super PublishStreamRequest> requestPipeline;
     private ScheduledExecutorService executorService;
     private BlockNodeStats.HighLatencyResult latencyResult;
+    private BlockNodeClientFactory clientFactory;
 
     @BeforeEach
     @SuppressWarnings("unchecked")
     void beforeEach() {
-        final ConfigProvider configProvider = createConfigProvider(createDefaultConfigProvider());
+        configProvider = createConfigProvider(createDefaultConfigProvider());
         nodeConfig = newBlockNodeConfig(8080, 1);
         connectionManager = mock(BlockNodeConnectionManager.class);
         bufferService = mock(BlockBufferService.class);
@@ -110,7 +111,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         executorService = mock(ScheduledExecutorService.class);
         latencyResult = mock(BlockNodeStats.HighLatencyResult.class);
 
-        final BlockNodeClientFactory clientFactory = mock(BlockNodeClientFactory.class);
+        clientFactory = mock(BlockNodeClientFactory.class);
         lenient()
                 .doReturn(grpcServiceClient)
                 .when(clientFactory)
@@ -130,8 +131,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         // connection that does nothing.
         final AtomicReference<Thread> workerThreadRef = workerThreadRef();
         workerThreadRef.set(FAKE_WORKER_THREAD);
-
-        //        resetMocks();
 
         lenient().doReturn(requestPipeline).when(grpcServiceClient).publishBlockStream(connection);
     }
@@ -677,6 +676,163 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoInteractions(requestPipeline);
         verifyNoInteractions(connectionManager);
         verifyNoInteractions(bufferService);
+    }
+
+    @Test
+    void testCloseAtBlockBoundary_noActiveBlock() throws Exception {
+        // re-create the connection so we get the worker thread to run
+        final long blockNumber = 10;
+        // indicate we want to start with block 10, but don't add the block to the buffer
+
+        connection = new BlockNodeConnection(
+                configProvider,
+                nodeConfig,
+                connectionManager,
+                bufferService,
+                metrics,
+                executorService,
+                blockNumber, // start streaming with block 10
+                clientFactory);
+
+        lenient().doReturn(requestPipeline).when(grpcServiceClient).publishBlockStream(connection);
+
+        connection.createRequestPipeline();
+        connection.updateConnectionState(ConnectionState.ACTIVE); // this will start the worker thread
+
+        assertThat(workerThreadRef()).doesNotHaveNullValue();
+
+        // sleep for a bit to let the worker run
+        Thread.sleep(250);
+
+        // signal to close at the block boundary
+        connection.closeAtBlockBoundary();
+
+        // the worker should determine there is no block available to stream and with the flag enabled to close at the
+        // nearest block boundary, the connection should be closed without sending any items
+
+        // sleep for a short period to make sure the worker as run after setting the flag
+        Thread.sleep(100);
+
+        // now the connection should be closed and all the items are sent
+        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CLOSED);
+
+        final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);
+
+        // only one request should be sent and it should be the EndStream message
+        verify(requestPipeline).onNext(requestCaptor.capture());
+
+        assertThat(requestCaptor.getAllValues()).hasSize(1);
+        final PublishStreamRequest req = requestCaptor.getAllValues().getFirst();
+        final EndStream endStream = req.endStream();
+        assertThat(endStream).isNotNull();
+        assertThat(endStream.endCode()).isEqualTo(EndStream.Code.RESET);
+
+        verify(requestPipeline).onComplete();
+        verify(bufferService, atLeastOnce()).getBlockState(blockNumber);
+        verify(bufferService).getEarliestAvailableBlockNumber();
+        verify(bufferService).getHighestAckedBlockNumber();
+        verify(metrics).recordConnectionOpened();
+        verify(metrics).recordRequestLatency(anyLong());
+        verify(metrics).recordRequestEndStreamSent(EndStream.Code.RESET);
+        verify(metrics).recordConnectionClosed();
+        verify(metrics).recordActiveConnectionIp(-1L);
+
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestPipeline);
+        verifyNoMoreInteractions(bufferService);
+    }
+
+    @Test
+    void testCloseAtBlockBoundary_activeBlock() throws Exception {
+        // re-create the connection so we get the worker thread to run
+        final long blockNumber = 10;
+        final BlockState block = new BlockState(blockNumber);
+        when(bufferService.getBlockState(blockNumber))
+                .thenReturn(block);
+
+        connection = new BlockNodeConnection(
+                configProvider,
+                nodeConfig,
+                connectionManager,
+                bufferService,
+                metrics,
+                executorService,
+                blockNumber, // start streaming with block 10
+                clientFactory);
+
+        lenient().doReturn(requestPipeline).when(grpcServiceClient).publishBlockStream(connection);
+
+        connection.createRequestPipeline();
+        connection.updateConnectionState(ConnectionState.ACTIVE); // this will start the worker thread
+
+        assertThat(workerThreadRef()).doesNotHaveNullValue();
+
+        block.addItem(newBlockHeaderItem(blockNumber));
+        block.addItem(newBlockTxItem(1_345));
+
+        Thread.sleep(500); // sleep for a bit to ensure the items get sent
+
+        // now signal to close the connection at the block boundary
+        connection.closeAtBlockBoundary();
+
+        // sleep for a little bit, then add more items including the proof and ensure they are all sent
+        Thread.sleep(100);
+
+        block.addItem(newBlockTxItem(5_039));
+        block.addItem(newBlockTxItem(590));
+        block.addItem(newBlockProofItem(blockNumber, 3_501));
+        block.closeBlock();
+
+        Thread.sleep(500);
+
+        // now the connection should be closed and all the items are sent
+        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CLOSED);
+
+        final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);
+
+        verify(requestPipeline, atLeastOnce()).onNext(requestCaptor.capture());
+        // Do NOT try to verify the number of requests sent beyond more than 1
+        // Due to timing and multiple threads, there could be different number of requests sent. Instead, only validate
+        // the number of items and end stream items sent, since that should always be the same
+
+        final List<BlockItem> items = new ArrayList<>();
+        final List<EndStream> endStreams = new ArrayList<>();
+
+        for (final PublishStreamRequest request : requestCaptor.getAllValues()) {
+            final BlockItemSet itemSet = request.blockItems();
+            if (itemSet != null) {
+                items.addAll(itemSet.blockItems());
+            }
+
+            final EndStream endStream = request.endStream();
+            if (endStream != null) {
+                endStreams.add(endStream);
+            }
+        }
+
+        // all of our items should be sent, 1 header + 3 TX items + 1 proof
+        assertThat(items).hasSize(5);
+        assertThat(endStreams).hasSize(1);
+
+        // an EndStream request should also be sent with the RESET code
+        final EndStream endStream = endStreams.getFirst();
+        assertThat(endStream.endCode()).isEqualTo(EndStream.Code.RESET);
+
+        verify(requestPipeline).onComplete();
+        verify(bufferService).getBlockState(blockNumber);
+        verify(bufferService).getEarliestAvailableBlockNumber();
+        verify(bufferService).getHighestAckedBlockNumber();
+        verify(metrics).recordConnectionOpened();
+        verify(metrics, atLeastOnce()).recordRequestLatency(anyLong());
+        verify(metrics, atLeastOnce()).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
+        verify(metrics, atLeastOnce()).recordBlockItemsSent(anyInt());
+        verify(metrics).recordRequestEndStreamSent(EndStream.Code.RESET);
+        verify(metrics).recordConnectionClosed();
+        verify(metrics).recordActiveConnectionIp(-1L);
+
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestPipeline);
+        verifyNoMoreInteractions(bufferService);
     }
 
     @Test
