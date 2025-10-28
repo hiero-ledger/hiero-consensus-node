@@ -258,10 +258,18 @@ public class Hip1195StreamParityTest {
                         .hasNonStakingChildRecordCount(5)
                         .hasChildRecords(
                                 recordWith().status(SUCCESS).memo(AUTO_MEMO),
-                                recordWith().status(SUCCESS).contractCallResult(resultWith().contract(HOOK_CONTRACT)),
-                                recordWith().status(SUCCESS).contractCallResult(resultWith().contract(HOOK_CONTRACT)),
-                                recordWith().status(SUCCESS).contractCallResult(resultWith().contract(HOOK_CONTRACT)),
-                                recordWith().status(SUCCESS).contractCallResult(resultWith().contract(HOOK_CONTRACT)))
+                                recordWith()
+                                        .status(SUCCESS)
+                                        .contractCallResult(resultWith().contract(HOOK_CONTRACT)),
+                                recordWith()
+                                        .status(SUCCESS)
+                                        .contractCallResult(resultWith().contract(HOOK_CONTRACT)),
+                                recordWith()
+                                        .status(SUCCESS)
+                                        .contractCallResult(resultWith().contract(HOOK_CONTRACT)),
+                                recordWith()
+                                        .status(SUCCESS)
+                                        .contractCallResult(resultWith().contract(HOOK_CONTRACT)))
                         .logged(),
                 getAliasedAccountInfo("alias").has(accountWith().balance(10L)).hasToken(relationshipWith("tokenA")));
     }
