@@ -813,7 +813,7 @@ public class BlockNodeConnectionManager {
                                 logger.error(
                                         "Failed to schedule reschedule for previous active connection after forced switch.",
                                         e);
-                                connections.remove(connection.getNodeConfig());
+                                connections.remove(activeConnection.getNodeConfig());
                             }
                         }
                     } catch (final RuntimeException e) {
@@ -1101,7 +1101,7 @@ public class BlockNodeConnectionManager {
      * This allows the manager to update its internal state accordingly.
      * @param connection the connection that has been closed
      */
-    public void notifyConnectionClosed(final BlockNodeConnection connection) {
+    public void notifyConnectionClosed(@NonNull final BlockNodeConnection connection) {
         // Remove from active connection if it is the current active
         activeConnectionRef.compareAndSet(connection, null);
 
