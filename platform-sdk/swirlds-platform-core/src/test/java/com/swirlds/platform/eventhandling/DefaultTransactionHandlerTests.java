@@ -16,6 +16,7 @@ import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
 import com.swirlds.platform.system.status.actions.FreezePeriodEnteredAction;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
+import com.swirlds.state.MerkleNodeState;
 import java.util.List;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.ConsensusEvent;
@@ -153,8 +154,9 @@ class DefaultTransactionHandlerTests {
     void freezeHandling() throws InterruptedException {
         final TransactionHandlerTester tester = new TransactionHandlerTester(roster);
         final ConsensusRound consensusRound = newConsensusRound(false);
-        when(tester.getPlatformStateFacade().freezeTimeOf(tester.getConsensusState()))
-                .thenReturn(consensusRound.getConsensusTimestamp());
+        when(tester.getPlatformStateFacade().isInFreezePeriod(consensusRound.getConsensusTimestamp(), (MerkleNodeState)
+                        tester.getConsensusState()))
+                .thenReturn(true);
 
         final TransactionHandlerResult handlerOutput =
                 tester.getTransactionHandler().handleConsensusRound(consensusRound);
