@@ -46,7 +46,6 @@ import javax.inject.Singleton;
 import org.hiero.hapi.fees.FeeModelRegistry;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.Extra;
-import org.identityconnectors.common.CollectionUtil;
 
 /**
  * This class contains all workflow-related functionality regarding {@link
