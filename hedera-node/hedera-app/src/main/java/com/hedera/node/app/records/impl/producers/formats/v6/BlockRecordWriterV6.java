@@ -74,7 +74,6 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
     private final Signer signer;
     /** The maximum size of a sidecar file in bytes. */
     private final int maxSideCarSizeInBytes;
-    /** Whether to compress the record file and sidecar files. */
     /** The node-specific path to the directory where record files are written */
     private final Path nodeScopedRecordDir;
     /**
