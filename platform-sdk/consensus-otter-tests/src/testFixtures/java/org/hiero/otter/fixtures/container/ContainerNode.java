@@ -9,6 +9,7 @@ import static org.hiero.otter.fixtures.container.utils.ContainerConstants.EVENT_
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.HASHSTREAM_LOG_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.METRICS_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.NODE_COMMUNICATION_PORT;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.OTTER_LOG_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.SWIRLDS_LOG_PATH;
 import static org.hiero.otter.fixtures.internal.AbstractNetwork.NODE_IDENTIFIER_FORMAT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
@@ -367,6 +368,17 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     }
 
     /**
+     * Gets the container instance for this node. This allows direct access to the underlying
+     * Testcontainers container for operations like retrieving console logs.
+     *
+     * @return the container instance
+     */
+    @NonNull
+    public ContainerImage container() {
+        return container;
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override
@@ -473,12 +485,13 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             throw new UncheckedIOException("Failed to copy files from container", e);
         }
 
-        if (lifeCycle == RUNNING) {
-            log.info("Destroying container of node {}...", selfId);
-            containerControlChannel.shutdownNow();
-            nodeCommChannel.shutdownNow();
+        log.info("Destroying container of node {}...", selfId);
+        containerControlChannel.shutdownNow();
+        nodeCommChannel.shutdownNow();
+        if (container.isRunning()) {
             container.stop();
         }
+
         resultsCollector.destroy();
         platformStatus = null;
         lifeCycle = DESTROYED;
@@ -510,6 +523,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
         copyFileFromContainerIfExists(localOutputDirectory, SWIRLDS_LOG_PATH);
         copyFileFromContainerIfExists(localOutputDirectory, HASHSTREAM_LOG_PATH);
+        copyFileFromContainerIfExists(localOutputDirectory, OTTER_LOG_PATH);
         copyFileFromContainerIfExists(localOutputDirectory, METRICS_PATH.formatted(selfId.id()));
     }
 
