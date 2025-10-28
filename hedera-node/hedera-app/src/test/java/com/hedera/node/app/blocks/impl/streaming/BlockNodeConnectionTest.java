@@ -185,8 +185,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     @Test
     void testConstructorWithInitialBlock() {
         final ConfigProvider configProvider = createConfigProvider(createDefaultConfigProvider());
-        final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
-        final BlockNodeClientFactory clientFactory = mock(BlockNodeClientFactory.class);
 
         // Create connection with initial block number
         final BlockNodeConnection connectionWithInitialBlock = new BlockNodeConnection(

@@ -273,6 +273,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         try {
             scheduleConnectionAttemptHandle.invoke(connectionManager, nodeConfig, Duration.ZERO, null, false);
         } catch (final Throwable ignored) {
+            // Intentionally ignored — safe to continue
         }
 
         // Ensure nothing was scheduled or stored due to early return
