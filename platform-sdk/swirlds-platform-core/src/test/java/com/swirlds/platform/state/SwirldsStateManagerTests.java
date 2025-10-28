@@ -41,8 +41,7 @@ class SwirldsStateManagerTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        swirldStateManager = new SwirldStateManager(
-                platformContext, roster, SemanticVersion.newBuilder().major(1).build(), platformStateFacade);
+        swirldStateManager = new SwirldStateManager(platformContext, roster);
         swirldStateManager.setState(initialState, true);
     }
 

@@ -211,6 +211,7 @@ public class SwirldsPlatform implements Platform {
         // This object makes a copy of the state. After this point, initialState becomes immutable.
         final SwirldStateManager swirldStateManager = blocks.swirldStateManager();
         swirldStateManager.setState(initialState.getState(), true);
+        platformStateFacade.setCreationSoftwareVersionTo(swirldStateManager.getConsensusState(), blocks.appVersion());
 
         final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
 

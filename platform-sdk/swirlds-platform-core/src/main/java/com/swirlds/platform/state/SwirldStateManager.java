@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
-import static com.swirlds.platform.state.SwirldStateManagerUtils.fastCopy;
+import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_MICROSECONDS;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.merkle.StateMetrics;
@@ -36,30 +34,15 @@ public class SwirldStateManager {
     private final AtomicReference<MerkleNodeState> latestImmutableState = new AtomicReference<>();
 
     /**
-     * The current software version.
-     */
-    private final SemanticVersion softwareVersion;
-
-    private final PlatformStateFacade platformStateFacade;
-
-    /**
      * Constructor.
      *
      * @param platformContext       the platform context
      * @param roster                the current roster
-     * @param softwareVersion       the current software version
      */
-    public SwirldStateManager(
-            @NonNull final PlatformContext platformContext,
-            @NonNull final Roster roster,
-            @NonNull final SemanticVersion softwareVersion,
-            @NonNull final PlatformStateFacade platformStateFacade) {
-
+    public SwirldStateManager(@NonNull final PlatformContext platformContext, @NonNull final Roster roster) {
         requireNonNull(platformContext);
         requireNonNull(roster);
-        this.platformStateFacade = requireNonNull(platformStateFacade);
         this.stateMetrics = new StateMetrics(platformContext.getMetrics());
-        this.softwareVersion = requireNonNull(softwareVersion);
     }
 
     /**
@@ -77,9 +60,7 @@ public class SwirldStateManager {
             throw new IllegalStateException("Attempt to set initial state when there is already a state reference.");
         }
 
-        // Create a fast copy so there is always an immutable state to
-        // invoke handleTransaction on for pre-consensus transactions
-        fastCopyAndUpdateRefs(state);
+        updateStateRefs(state);
     }
 
     /**
@@ -90,13 +71,20 @@ public class SwirldStateManager {
         return stateRef.get();
     }
 
-    private void fastCopyAndUpdateRefs(final MerkleNodeState state) {
-        final MerkleNodeState newState = fastCopy(state, stateMetrics, softwareVersion, platformStateFacade);
-
+    private void updateStateRefs(MerkleNodeState state) {
+        // Create a fast copy so there is always an immutable state to
+        // invoke handleTransaction on for pre-consensus transactions
+        final long copyStart = System.nanoTime();
+        // Create a fast copy
+        final MerkleNodeState copy = state.copy();
+        // Increment the reference count because this reference becomes the new value
+        copy.getRoot().reserve();
+        final long copyEnd = System.nanoTime();
+        stateMetrics.stateCopyMicros((copyEnd - copyStart) * NANOSECONDS_TO_MICROSECONDS);
         // Set latest immutable first to prevent the newly immutable stateRoot from being deleted between setting the
         // stateRef and the latestImmutableState
         setLatestImmutableState(state);
-        updateStateRef(newState);
+        updateStateRef(copy);
     }
 
     /**
@@ -136,7 +124,8 @@ public class SwirldStateManager {
      * @see State#copy()
      */
     public MerkleNodeState getStateForSigning() {
-        fastCopyAndUpdateRefs(stateRef.get());
+        final MerkleNodeState state = stateRef.get();
+        updateStateRefs(state);
         return latestImmutableState.get();
     }
 }
