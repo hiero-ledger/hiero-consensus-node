@@ -267,7 +267,7 @@ class ReconnectControllerTest {
         verify(platformCoordinator, times(1)).pauseGossip();
         verify(platformCoordinator, atLeast(1)).clear();
         verify(merkleCryptography, times(1)).digestTreeAsync(any());
-        verify(swirldStateManager, times(1)).loadFromSignedState(any());
+        verify(swirldStateManager, times(1)).setState(any(), false);
         verify(platformCoordinator, times(1)).submitStatusAction(any(ReconnectCompleteAction.class));
         verify(platformCoordinator, times(1)).resumeGossip();
     }
