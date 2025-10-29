@@ -59,6 +59,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
 /**
@@ -434,5 +435,70 @@ public class UpdateAccountEnabledTest {
                     assertTrue(oldRecordPath.toFile().exists());
                     assertFalse(newRecordPath.toFile().exists());
                 }));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updateAccountToAdmin() throws CertificateEncodingException {
+        final var adminKey = "adminKey";
+        return hapiTest(
+                newKeyNamed(adminKey),
+                cryptoCreate("nodeAccount"),
+                cryptoCreate("newAccount").key(adminKey),
+                nodeCreate("testNode", "nodeAccount")
+                        .adminKey(adminKey)
+                        .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
+                nodeUpdate("testNode").accountId("newAccount").signedByPayerAnd(adminKey));
+    }
+
+    @Nested
+    public class NegativeCases {
+
+        @HapiTest
+        final Stream<DynamicTest> updateAccountNegSignatures() throws CertificateEncodingException {
+            return hapiTest(
+                    newKeyNamed("adminKey"),
+                    cryptoCreate("nodeAccount"),
+                    cryptoCreate("newAccount"),
+                    nodeCreate("testNode", "nodeAccount")
+                            .adminKey("adminKey")
+                            .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
+
+                    // not signed by 'newAccount' so it should fail
+                    nodeUpdate("testNode")
+                            .accountId("newAccount")
+                            .signedByPayerAnd("adminKey")
+                            .hasKnownStatus(INVALID_SIGNATURE),
+                    // not signed by 'adminKey' so it should fail
+                    nodeUpdate("testNode")
+                            .accountId("newAccount")
+                            .signedByPayerAnd("newAccount")
+                            .hasKnownStatus(INVALID_SIGNATURE),
+                    // signed with both passes
+                    nodeUpdate("testNode").accountId("newAccount").signedByPayerAnd("adminKey", "newAccount"));
+        }
+
+        @HapiTest
+        final Stream<DynamicTest> updateAccountNegSignaturesWithoutAdminKey() throws CertificateEncodingException {
+            return hapiTest(
+                    newKeyNamed("adminKey"),
+                    cryptoCreate("nodeAccount"),
+                    cryptoCreate("newAccount"),
+                    nodeCreate("testNode", "nodeAccount")
+                            .adminKey("adminKey")
+                            .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
+
+                    // not signed by 'newAccount' so it should fail
+                    nodeUpdate("testNode")
+                            .accountId("newAccount")
+                            .signedByPayerAnd("nodeAccount")
+                            .hasKnownStatus(INVALID_SIGNATURE),
+                    // not signed by 'nodeAccount' so it should fail
+                    nodeUpdate("testNode")
+                            .accountId("newAccount")
+                            .signedByPayerAnd("newAccount")
+                            .hasKnownStatus(INVALID_SIGNATURE),
+                    // signed with both passes
+                    nodeUpdate("testNode").accountId("newAccount").signedByPayerAnd("nodeAccount", "newAccount"));
+        }
     }
 }
