@@ -2073,6 +2073,16 @@ public class UtilVerbs {
         return validateChargedUsdWithin(txn, expectedUsd, allowedPercentDiff);
     }
 
+    public static CustomSpecAssert validateChargedFee(String txn, long expectedFee) {
+        return assertionsHold((spec, assertLog) -> {
+            final var actualFeeCharged = getChargedFee(spec, txn);
+            assertEquals(
+                    expectedFee,
+                    actualFeeCharged,
+                    String.format("%s fee (%s) is different than expected!", actualFeeCharged, txn));
+        });
+    }
+
     public static CustomSpecAssert validateChargedUsdWithChild(
             String txn, double expectedUsd, double allowedPercentDiff) {
         return assertionsHold((spec, assertLog) -> {
@@ -2740,6 +2750,15 @@ public class UtilVerbs {
                 / rcd.getReceipt().getExchangeRate().getCurrentRate().getHbarEquiv()
                 * rcd.getReceipt().getExchangeRate().getCurrentRate().getCentEquiv()
                 / 100;
+    }
+
+    private static long getChargedFee(@NonNull final HapiSpec spec, @NonNull final String txn) {
+        requireNonNull(spec);
+        requireNonNull(txn);
+        var subOp = getTxnRecord(txn).logged();
+        allRunFor(spec, subOp);
+        final var rcd = subOp.getResponseRecord();
+        return rcd.getTransactionFee();
     }
 
     private static double getChargedUsedForInnerTxn(

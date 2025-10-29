@@ -13,6 +13,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountLambdaSStore;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
@@ -28,6 +29,7 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.roy
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.GLOBAL_WATCHER;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
@@ -115,6 +117,12 @@ public class Hip1195EnabledTest {
     @Contract(contract = "TokenRedirectHook", creationGas = 5_000_000)
     static SpecContract TOKEN_REDIRECT_HOOK;
 
+    @Contract(contract = "CreateOpHook", creationGas = 5_000_000)
+    static SpecContract CREATE_OP_HOOK;
+
+    @Contract(contract = "Create2OpHook", creationGas = 5_000_000)
+    static SpecContract CREATE2_OP_HOOK;
+
     static final String OWNER = "owner";
     static final String PAYER = "payer";
     public static final String HOOK_CONTRACT_NUM = "365";
@@ -124,6 +132,9 @@ public class Hip1195EnabledTest {
         testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
         testLifecycle.doAdhoc(FALSE_ALLOWANCE_HOOK.getInfo());
         testLifecycle.doAdhoc(TRUE_ALLOWANCE_HOOK.getInfo());
+        testLifecycle.doAdhoc(CREATE_OP_HOOK.getInfo());
+        testLifecycle.doAdhoc(CREATE2_OP_HOOK.getInfo());
+
         testLifecycle.doAdhoc(TRUE_PRE_POST_ALLOWANCE_HOOK.getInfo());
         testLifecycle.doAdhoc(FALSE_PRE_POST_ALLOWANCE_HOOK.getInfo());
         testLifecycle.doAdhoc(TRANSFER_HOOK.getInfo());
@@ -1152,6 +1163,79 @@ public class Hip1195EnabledTest {
                     assertEquals(1L, a.firstHookId());
                     assertEquals(1, a.numberHooksInUse());
                     assertEquals(2, a.numberLambdaStorageSlots());
+                }));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> createOpHook_createsChildOwnedByHookOwner_and_onlyOwnerChecks() {
+        final String ONLY_OWNER_ABI =
+                "{\"inputs\":[],\"name\":\"onlyOwner\",\"outputs\":[],\"stateMutability\":\"view\",\"type\":\"function\"}";
+        return hapiTest(
+                cryptoCreate(PAYER),
+                cryptoCreate(OWNER).withHooks(accountAllowanceHook(210L, CREATE_OP_HOOK.name())),
+                cryptoTransfer(movingHbar(1).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 210L, 5_000_000L, "")
+                        .payingWith(PAYER)
+                        .via("createHookTxn"),
+                withOpContext((spec, opLog) -> {
+                    final var successTxn = getTxnRecord("createHookTxn")
+                            .andAllChildRecords()
+                            .hasNonStakingChildRecordCount(2)
+                            .logged();
+                    allRunFor(spec, successTxn);
+
+                    spec.registry()
+                            .saveContractId(
+                                    "HOOK_CHILD",
+                                    successTxn.getChildRecord(1).getReceipt().getContractID());
+
+                    final var op1 = contractCallWithFunctionAbi("HOOK_CHILD", ONLY_OWNER_ABI)
+                            .payingWith(OWNER)
+                            .gas(100_000)
+                            .via("onlyOwnerByOwner");
+                    final var op2 = contractCallWithFunctionAbi("HOOK_CHILD", ONLY_OWNER_ABI)
+                            .payingWith(PAYER)
+                            .gas(100_000)
+                            .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                            .via("onlyOwnerByNonOwner");
+                    allRunFor(spec, op1, op2);
+                }));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> create2OpHook_createsChildOwnedByHookOwner_and_onlyOwnerChecks() {
+        final String ONLY_OWNER_ABI =
+                "{\"inputs\":[],\"name\":\"onlyOwner\",\"outputs\":[],\"stateMutability\":\"view\",\"type\":\"function\"}";
+        final AtomicReference<String> creation = new AtomicReference<>();
+        return hapiTest(
+                cryptoCreate(PAYER),
+                cryptoCreate(OWNER).withHooks(accountAllowanceHook(211L, CREATE2_OP_HOOK.name())),
+                cryptoTransfer(movingHbar(1).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 211L, 5_000_000L, "")
+                        .payingWith(OWNER)
+                        .via("create2HookTxn"),
+                withOpContext((spec, opLog) -> {
+                    final var successTxn = getTxnRecord("create2HookTxn")
+                            .andAllChildRecords()
+                            .hasNonStakingChildRecordCount(2)
+                            .logged();
+                    allRunFor(spec, successTxn);
+
+                    spec.registry()
+                            .saveContractId(
+                                    "HOOK_CHILD2",
+                                    successTxn.getChildRecord(1).getReceipt().getContractID());
+
+                    final var op1 = contractCallWithFunctionAbi("HOOK_CHILD2", ONLY_OWNER_ABI)
+                            .payingWith(OWNER)
+                            .gas(100_000)
+                            .via("onlyOwner2ByOwner");
+                    final var op2 = contractCallWithFunctionAbi("HOOK_CHILD2", ONLY_OWNER_ABI)
+                            .payingWith(PAYER)
+                            .gas(100_000)
+                            .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                            .via("onlyOwner2ByNonOwner");
+                    allRunFor(spec, op1, op2);
                 }));
     }
 }

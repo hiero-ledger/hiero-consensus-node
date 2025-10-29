@@ -49,7 +49,7 @@ public class AppFeeCharging implements FeeCharging {
             @NonNull final AccountID creatorId,
             @NonNull final Fees fees,
             @NonNull final TransactionBody body,
-            boolean isDuplicate,
+            final boolean isDuplicate,
             @NonNull final HederaFunctionality function,
             @NonNull final HandleContext.TransactionCategory category) {
         requireNonNull(payer);
