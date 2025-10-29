@@ -127,6 +127,8 @@ class SimulatedGossipTests {
                             mock(BindableInputWire.class),
                             mock(BindableInputWire.class),
                             mock(BindableInputWire.class),
+                            mock(BindableInputWire.class),
+                            mock(BindableInputWire.class),
                             mock(StandardOutputWire.class));
             model.start();
         }
