@@ -1046,7 +1046,9 @@ public class PlatformComponentBuilder {
                     blocks.swirldStateManager(),
                     blocks.statusActionSubmitterReference().get(),
                     blocks.appVersion(),
-                    blocks.platformStateFacade());
+                    blocks.platformStateFacade(),
+                    blocks.consensusStateEventHandler(),
+                    blocks.selfId());
         }
         return transactionHandler;
     }

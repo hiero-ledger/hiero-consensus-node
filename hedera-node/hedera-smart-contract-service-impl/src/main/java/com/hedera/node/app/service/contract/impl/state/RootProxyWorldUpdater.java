@@ -94,7 +94,8 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
                 enhancement,
                 writes,
                 sizeEffects.sizeChanges(),
-                enhancement.operations().getStore());
+                enhancement.operations().getStore(),
+                enhancement.nativeOperations().writableEvmHookStore());
 
         // We now have an apparently valid change set, and want to capture some summary
         // information for the Hedera record

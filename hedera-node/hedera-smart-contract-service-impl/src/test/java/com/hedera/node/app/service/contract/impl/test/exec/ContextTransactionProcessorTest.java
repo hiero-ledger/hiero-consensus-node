@@ -526,6 +526,7 @@ class ContextTransactionProcessorTest {
         given(hevmTransactionFactory.fromHapiTransaction(transactionBody, payer))
                 .willReturn(HEVM_CREATION);
         given(transactionBody.transactionIDOrThrow()).willReturn(transactionID);
+        given(transactionBody.transactionIDOrElse(any())).willReturn(transactionID);
         given(transactionID.accountIDOrThrow()).willReturn(SENDER_ID);
         given(rootProxyWorldUpdater.enhancement()).willReturn(enhancement);
         given(enhancement.operations()).willReturn(hederaOperations);

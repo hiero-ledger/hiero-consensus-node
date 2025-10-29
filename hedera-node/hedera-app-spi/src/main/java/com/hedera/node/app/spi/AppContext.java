@@ -13,7 +13,7 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
-import com.hedera.node.app.spi.throttle.Throttle;
+import com.hedera.node.app.spi.throttle.ScheduleThrottle;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.Service;
@@ -215,10 +215,10 @@ public interface AppContext {
     Supplier<Metrics> metricsSupplier();
 
     /**
-     * The application's strategy for creating {@link Throttle} instances.
+     * The application's strategy for creating {@link ScheduleThrottle} instances.
      * @return the throttle factory
      */
-    Throttle.Factory throttleFactory();
+    ScheduleThrottle.Factory throttleFactory();
 
     /**
      * Supplier of the application's strategy for charging fees.
