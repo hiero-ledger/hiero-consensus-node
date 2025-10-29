@@ -1,22 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip869.hip1299;
-
-import com.hedera.services.bdd.junit.EmbeddedHapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
-import com.hedera.services.bdd.spec.keys.KeyShape;
-import com.hedera.services.bdd.spec.keys.SigControl;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Tag;
-
-import java.security.cert.CertificateEncodingException;
-import java.security.cert.X509Certificate;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Stream;
 
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
@@ -50,6 +33,23 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NODE_ACCOUNT_H
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
+import com.hedera.services.bdd.junit.EmbeddedHapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.keys.KeyShape;
+import com.hedera.services.bdd.spec.keys.SigControl;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.security.cert.CertificateEncodingException;
+import java.security.cert.X509Certificate;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
+
 @HapiTestLifecycle
 @Tag(MATS)
 public class UpdateNodeAccountTest {
@@ -76,19 +76,15 @@ public class UpdateNodeAccountTest {
                     cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
                     cryptoCreate(initialNodeAccount),
                     cryptoCreate(newNodeAccount).exposingCreatedIdTo(id -> newAccountId.set(id.getAccountNum())),
-
                     nodeCreate("testNode", initialNodeAccount)
                             .adminKey("adminKey")
                             .gossipCaCertificate(certificateBytes),
-
                     nodeUpdate("testNode")
                             .accountId(newNodeAccount)
                             .payingWith(PAYER)
                             .signedBy(PAYER, initialNodeAccount, newNodeAccount, "adminKey")
                             .via("updateTxn"),
-
                     validateChargedUsd("updateTxn", 0.0012),
-
                     withOpContext((spec, log) -> allRunFor(
                             spec,
                             viewNode(
@@ -100,7 +96,8 @@ public class UpdateNodeAccountTest {
         }
 
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
-        final Stream<DynamicTest> updateNodeAccountIdSuccessfullySignedByOldAndNewKeys() throws CertificateEncodingException {
+        final Stream<DynamicTest> updateNodeAccountIdSuccessfullySignedByOldAndNewKeys()
+                throws CertificateEncodingException {
             final String initialNodeAccount = "initialNodeAccount";
             final String newNodeAccount = "newNodeAccount";
             final var certificateBytes = gossipCertificates.getFirst().getEncoded();
@@ -109,15 +106,12 @@ public class UpdateNodeAccountTest {
                     newKeyNamed("adminKey"),
                     cryptoCreate(initialNodeAccount),
                     cryptoCreate(newNodeAccount).exposingCreatedIdTo(id -> newAccountId.set(id.getAccountNum())),
-
                     nodeCreate("testNode", initialNodeAccount)
                             .adminKey("adminKey")
                             .gossipCaCertificate(certificateBytes),
-
                     nodeUpdate("testNode")
                             .accountId(newNodeAccount)
                             .signedByPayerAnd(initialNodeAccount, newNodeAccount),
-
                     withOpContext((spec, log) -> allRunFor(
                             spec,
                             viewNode(
@@ -129,7 +123,8 @@ public class UpdateNodeAccountTest {
         }
 
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
-        final Stream<DynamicTest> updateNodeAccountIdSuccessfullySignedByNewAndAdminKeys() throws CertificateEncodingException {
+        final Stream<DynamicTest> updateNodeAccountIdSuccessfullySignedByNewAndAdminKeys()
+                throws CertificateEncodingException {
             final String initialNodeAccount = "initialNodeAccount";
             final String newNodeAccount = "newNodeAccount";
             final var certificateBytes = gossipCertificates.getFirst().getEncoded();
@@ -138,15 +133,10 @@ public class UpdateNodeAccountTest {
                     newKeyNamed("adminKey"),
                     cryptoCreate(initialNodeAccount),
                     cryptoCreate(newNodeAccount).exposingCreatedIdTo(id -> newAccountId.set(id.getAccountNum())),
-
                     nodeCreate("testNode", initialNodeAccount)
                             .adminKey("adminKey")
                             .gossipCaCertificate(certificateBytes),
-
-                    nodeUpdate("testNode")
-                            .accountId(newNodeAccount)
-                            .signedByPayerAnd(newNodeAccount, "adminKey"),
-
+                    nodeUpdate("testNode").accountId(newNodeAccount).signedByPayerAnd(newNodeAccount, "adminKey"),
                     withOpContext((spec, log) -> allRunFor(
                             spec,
                             viewNode(
@@ -166,15 +156,10 @@ public class UpdateNodeAccountTest {
             return hapiTest(
                     cryptoCreate(initialNodeAccount),
                     cryptoCreate(adminAccount).exposingCreatedIdTo(id -> newAccountId.set(id.getAccountNum())),
-
                     nodeCreate("testNode", initialNodeAccount)
                             .adminKey(adminAccount)
                             .gossipCaCertificate(certificateBytes),
-
-                    nodeUpdate("testNode")
-                            .accountId(adminAccount)
-                            .signedByPayerAnd(adminAccount),
-
+                    nodeUpdate("testNode").accountId(adminAccount).signedByPayerAnd(adminAccount),
                     withOpContext((spec, log) -> allRunFor(
                             spec,
                             viewNode(
@@ -194,14 +179,10 @@ public class UpdateNodeAccountTest {
             return hapiTest(
                     cryptoCreate(initialNodeAccount),
                     cryptoCreate(newNodeAccount).exposingCreatedIdTo(id -> newAccountId.set(id.getAccountNum())),
-
-                    nodeCreate("testNode", initialNodeAccount)
-                            .gossipCaCertificate(certificateBytes),
-
+                    nodeCreate("testNode", initialNodeAccount).gossipCaCertificate(certificateBytes),
                     nodeUpdate("testNode")
                             .accountId(newNodeAccount)
                             .signedByPayerAnd(initialNodeAccount, newNodeAccount),
-
                     withOpContext((spec, log) -> allRunFor(
                             spec,
                             viewNode(
@@ -223,16 +204,13 @@ public class UpdateNodeAccountTest {
                     newKeyNamed("newAdminKey"),
                     cryptoCreate(initialNodeAccount),
                     cryptoCreate(newNodeAccount).exposingCreatedIdTo(id -> newAccountId.set(id.getAccountNum())),
-
                     nodeCreate("testNode", initialNodeAccount)
                             .adminKey("adminKey")
                             .gossipCaCertificate(certificateBytes),
-
                     nodeUpdate("testNode")
                             .adminKey("newAdminKey")
                             .accountId(newNodeAccount)
                             .signedByPayerAnd(newNodeAccount, "adminKey", "newAdminKey"),
-
                     withOpContext((spec, log) -> allRunFor(
                             spec,
                             viewNode(
@@ -244,7 +222,8 @@ public class UpdateNodeAccountTest {
         }
 
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
-        final Stream<DynamicTest> updateNodeAccountAdminKeyAndUpdateNodeAccountIdSeparately() throws CertificateEncodingException {
+        final Stream<DynamicTest> updateNodeAccountAdminKeyAndUpdateNodeAccountIdSeparately()
+                throws CertificateEncodingException {
             final String initialNodeAccount = "initialNodeAccount";
             final String newNodeAccount = "newNodeAccount";
             final var certificateBytes = gossipCertificates.getFirst().getEncoded();
@@ -254,19 +233,11 @@ public class UpdateNodeAccountTest {
                     newKeyNamed("newAdminKey"),
                     cryptoCreate(initialNodeAccount),
                     cryptoCreate(newNodeAccount).exposingCreatedIdTo(id -> newAccountId.set(id.getAccountNum())),
-
                     nodeCreate("testNode", initialNodeAccount)
                             .adminKey("adminKey")
                             .gossipCaCertificate(certificateBytes),
-
-                    nodeUpdate("testNode")
-                            .adminKey("newAdminKey")
-                            .signedByPayerAnd("adminKey", "newAdminKey"),
-
-                    nodeUpdate("testNode")
-                            .accountId(newNodeAccount)
-                            .signedByPayerAnd(newNodeAccount, "newAdminKey"),
-
+                    nodeUpdate("testNode").adminKey("newAdminKey").signedByPayerAnd("adminKey", "newAdminKey"),
+                    nodeUpdate("testNode").accountId(newNodeAccount).signedByPayerAnd(newNodeAccount, "newAdminKey"),
                     withOpContext((spec, log) -> allRunFor(
                             spec,
                             viewNode(
@@ -278,7 +249,8 @@ public class UpdateNodeAccountTest {
         }
 
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
-        final Stream<DynamicTest> updateNodeAccountWithThresholdKeySuccessfullyWithNewNodeAccountID() throws CertificateEncodingException {
+        final Stream<DynamicTest> updateNodeAccountWithThresholdKeySuccessfullyWithNewNodeAccountID()
+                throws CertificateEncodingException {
             final String initialNodeAccount = "initialNodeAccount";
             final String newNodeAccount = "newNodeAccount";
             final var certificateBytes = gossipCertificates.getFirst().getEncoded();
@@ -294,16 +266,13 @@ public class UpdateNodeAccountTest {
                     newKeyNamed("accountKey").shape(thresholdKey),
                     cryptoCreate(initialNodeAccount).key("accountKey"),
                     cryptoCreate(newNodeAccount).exposingCreatedIdTo(id -> newAccountId.set(id.getAccountNum())),
-
                     nodeCreate("testNode", initialNodeAccount)
                             .adminKey("adminKey")
                             .gossipCaCertificate(certificateBytes),
-
                     nodeUpdate("testNode")
                             .accountId(newNodeAccount)
                             .sigControl(forKey("accountKey", validSig))
                             .signedByPayerAnd(initialNodeAccount, newNodeAccount),
-
                     withOpContext((spec, log) -> allRunFor(
                             spec,
                             viewNode(
@@ -315,7 +284,8 @@ public class UpdateNodeAccountTest {
         }
 
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
-        final Stream<DynamicTest> updateNodeAccountSuccessfullyWithNewNodeAccountWithThresholdKey() throws CertificateEncodingException {
+        final Stream<DynamicTest> updateNodeAccountSuccessfullyWithNewNodeAccountWithThresholdKey()
+                throws CertificateEncodingException {
             final String initialNodeAccount = "initialNodeAccount";
             final String newNodeAccount = "newNodeAccount";
             final var certificateBytes = gossipCertificates.getFirst().getEncoded();
@@ -333,16 +303,13 @@ public class UpdateNodeAccountTest {
                     cryptoCreate(newNodeAccount)
                             .key("accountKey")
                             .exposingCreatedIdTo(id -> newAccountId.set(id.getAccountNum())),
-
                     nodeCreate("testNode", initialNodeAccount)
                             .adminKey("adminKey")
                             .gossipCaCertificate(certificateBytes),
-
                     nodeUpdate("testNode")
                             .accountId(newNodeAccount)
                             .sigControl(forKey("accountKey", validSig))
                             .signedByPayerAnd(initialNodeAccount, newNodeAccount),
-
                     withOpContext((spec, log) -> allRunFor(
                             spec,
                             viewNode(
@@ -354,7 +321,8 @@ public class UpdateNodeAccountTest {
         }
 
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
-        final Stream<DynamicTest> updateNodeAccountSuccessfullyWithNewNodeAccountWithKeyList() throws CertificateEncodingException {
+        final Stream<DynamicTest> updateNodeAccountSuccessfullyWithNewNodeAccountWithKeyList()
+                throws CertificateEncodingException {
             final String initialNodeAccount = "initialNodeAccount";
             final String newNodeAccount = "newNodeAccount";
             final var certificateBytes = gossipCertificates.getFirst().getEncoded();
@@ -372,16 +340,13 @@ public class UpdateNodeAccountTest {
                     cryptoCreate(newNodeAccount)
                             .key("accountKey")
                             .exposingCreatedIdTo(id -> newAccountId.set(id.getAccountNum())),
-
                     nodeCreate("testNode", initialNodeAccount)
                             .adminKey("adminKey")
                             .gossipCaCertificate(certificateBytes),
-
                     nodeUpdate("testNode")
                             .accountId(newNodeAccount)
                             .sigControl(forKey("accountKey", validSig))
                             .signedByPayerAnd(initialNodeAccount, newNodeAccount),
-
                     withOpContext((spec, log) -> allRunFor(
                             spec,
                             viewNode(
@@ -393,7 +358,8 @@ public class UpdateNodeAccountTest {
         }
 
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
-        final Stream<DynamicTest> updateNodeAccountIdSuccessfullyWithContractWithAdminKey() throws CertificateEncodingException {
+        final Stream<DynamicTest> updateNodeAccountIdSuccessfullyWithContractWithAdminKey()
+                throws CertificateEncodingException {
             final String initialNodeAccount = "initialNodeAccount";
             final String PAYER = "payer";
             final String contractWithAdminKey = "nonCryptoAccount";
@@ -407,21 +373,16 @@ public class UpdateNodeAccountTest {
                             .exposingContractIdTo(id -> newAccountId.set(id.getContractNum())),
                     cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
                     cryptoCreate(initialNodeAccount),
-
                     nodeCreate("testNode", initialNodeAccount)
                             .adminKey("adminKey")
                             .gossipCaCertificate(certificateBytes),
-
                     cryptoTransfer(movingHbar(ONE_HBAR).between(PAYER, contractWithAdminKey)),
-
                     nodeUpdate("testNode")
                             .accountId(contractWithAdminKey)
                             .payingWith(PAYER)
                             .signedBy(PAYER, initialNodeAccount, contractWithAdminKey, "adminKey")
                             .via("updateTxn"),
-
                     validateChargedUsd("updateTxn", 0.0012),
-
                     withOpContext((spec, log) -> allRunFor(
                             spec,
                             viewNode(
@@ -429,12 +390,12 @@ public class UpdateNodeAccountTest {
                                     node -> assertEquals(
                                             newAccountId.get(),
                                             node.accountId().accountNum(),
-                                            "Node accountId should be updated"))))
-            );
+                                            "Node accountId should be updated")))));
         }
 
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
-        final Stream<DynamicTest> updateNodeAccountIdSuccessfullyWithContractWithoutAdminKey() throws CertificateEncodingException {
+        final Stream<DynamicTest> updateNodeAccountIdSuccessfullyWithContractWithoutAdminKey()
+                throws CertificateEncodingException {
             final String initialNodeAccount = "initialNodeAccount";
             final String PAYER = "payer";
             final String contractWithoutAdminKey = "nonCryptoAccount";
@@ -446,21 +407,16 @@ public class UpdateNodeAccountTest {
                             .exposingContractIdTo(id -> newAccountId.set(id.getContractNum())),
                     cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
                     cryptoCreate(initialNodeAccount),
-
                     nodeCreate("testNode", initialNodeAccount)
                             .adminKey("adminKey")
                             .gossipCaCertificate(certificateBytes),
-
                     cryptoTransfer(movingHbar(ONE_HBAR).between(PAYER, contractWithoutAdminKey)),
-
                     nodeUpdate("testNode")
                             .accountId(contractWithoutAdminKey)
                             .payingWith(PAYER)
                             .signedBy(PAYER, initialNodeAccount, contractWithoutAdminKey, "adminKey")
                             .via("updateTxn"),
-
                     validateChargedUsd("updateTxn", 0.0012),
-
                     withOpContext((spec, log) -> allRunFor(
                             spec,
                             viewNode(
@@ -468,8 +424,7 @@ public class UpdateNodeAccountTest {
                                     node -> assertEquals(
                                             newAccountId.get(),
                                             node.accountId().accountNum(),
-                                            "Node accountId should be updated"))))
-            );
+                                            "Node accountId should be updated")))));
         }
     }
 
@@ -485,16 +440,13 @@ public class UpdateNodeAccountTest {
                     newKeyNamed("adminKey"),
                     cryptoCreate(initialNodeAccount),
                     cryptoCreate(newNodeAccount).exposingCreatedIdTo(id -> newAccountId.set(id.getAccountNum())),
-
                     nodeCreate("testNode", initialNodeAccount)
                             .adminKey("adminKey")
                             .gossipCaCertificate(certificateBytes),
-
                     nodeUpdate("testNode")
                             .accountId(newNodeAccount)
                             .signedByPayerAnd(initialNodeAccount, "adminKey")
                             .hasKnownStatus(INVALID_SIGNATURE),
-
                     withOpContext((spec, log) -> allRunFor(
                             spec,
                             viewNode(
@@ -515,16 +467,13 @@ public class UpdateNodeAccountTest {
                     newKeyNamed("adminKey"),
                     cryptoCreate(initialNodeAccount),
                     cryptoCreate(newNodeAccount).exposingCreatedIdTo(id -> newAccountId.set(id.getAccountNum())),
-
                     nodeCreate("testNode", initialNodeAccount)
                             .adminKey("adminKey")
                             .gossipCaCertificate(certificateBytes),
-
                     nodeUpdate("testNode")
                             .accountId(newNodeAccount)
                             .signedByPayerAnd(newNodeAccount)
                             .hasKnownStatus(INVALID_SIGNATURE),
-
                     withOpContext((spec, log) -> allRunFor(
                             spec,
                             viewNode(
@@ -545,16 +494,13 @@ public class UpdateNodeAccountTest {
                     newKeyNamed("adminKey"),
                     cryptoCreate(initialNodeAccount),
                     cryptoCreate(newNodeAccount).exposingCreatedIdTo(id -> newAccountId.set(id.getAccountNum())),
-
                     nodeCreate("testNode", initialNodeAccount)
                             .adminKey("adminKey")
                             .gossipCaCertificate(certificateBytes),
-
                     nodeUpdate("testNode")
                             .accountId(newNodeAccount)
                             .signedByPayerAnd(initialNodeAccount)
                             .hasKnownStatus(INVALID_SIGNATURE),
-
                     withOpContext((spec, log) -> allRunFor(
                             spec,
                             viewNode(
@@ -566,7 +512,8 @@ public class UpdateNodeAccountTest {
         }
 
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
-        final Stream<DynamicTest> updateNodeAccountAdminKeyNotSignedByNewAdminKeyFails() throws CertificateEncodingException {
+        final Stream<DynamicTest> updateNodeAccountAdminKeyNotSignedByNewAdminKeyFails()
+                throws CertificateEncodingException {
             final String initialNodeAccount = "initialNodeAccount";
             final String newNodeAccount = "newNodeAccount";
             final var certificateBytes = gossipCertificates.getFirst().getEncoded();
@@ -576,17 +523,14 @@ public class UpdateNodeAccountTest {
                     newKeyNamed("newAdminKey"),
                     cryptoCreate(initialNodeAccount),
                     cryptoCreate(newNodeAccount).exposingCreatedIdTo(id -> newAccountId.set(id.getAccountNum())),
-
                     nodeCreate("testNode", initialNodeAccount)
                             .adminKey("adminKey")
                             .gossipCaCertificate(certificateBytes),
-
                     nodeUpdate("testNode")
                             .adminKey("newAdminKey")
                             .accountId(newNodeAccount)
                             .signedByPayerAnd(newNodeAccount, "adminKey")
                             .hasKnownStatus(INVALID_SIGNATURE),
-
                     withOpContext((spec, log) -> allRunFor(
                             spec,
                             viewNode(
@@ -598,7 +542,8 @@ public class UpdateNodeAccountTest {
         }
 
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
-        final Stream<DynamicTest> updateNodeAccountAdminKeyNotSignedByOldAdminKeyFails() throws CertificateEncodingException {
+        final Stream<DynamicTest> updateNodeAccountAdminKeyNotSignedByOldAdminKeyFails()
+                throws CertificateEncodingException {
             final String initialNodeAccount = "initialNodeAccount";
             final String newNodeAccount = "newNodeAccount";
             final var certificateBytes = gossipCertificates.getFirst().getEncoded();
@@ -608,17 +553,14 @@ public class UpdateNodeAccountTest {
                     newKeyNamed("newAdminKey"),
                     cryptoCreate(initialNodeAccount),
                     cryptoCreate(newNodeAccount).exposingCreatedIdTo(id -> newAccountId.set(id.getAccountNum())),
-
                     nodeCreate("testNode", initialNodeAccount)
                             .adminKey("adminKey")
                             .gossipCaCertificate(certificateBytes),
-
                     nodeUpdate("testNode")
                             .adminKey("newAdminKey")
                             .accountId(newNodeAccount)
                             .signedByPayerAnd(newNodeAccount, "newAdminKey")
                             .hasKnownStatus(INVALID_SIGNATURE),
-
                     withOpContext((spec, log) -> allRunFor(
                             spec,
                             viewNode(
@@ -630,7 +572,8 @@ public class UpdateNodeAccountTest {
         }
 
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
-        final Stream<DynamicTest> updateNodeAccountAdminKeyAndUpdateNodeAccountIdSeparatelyNotSignedByNewAdminKeyFails() throws CertificateEncodingException {
+        final Stream<DynamicTest> updateNodeAccountAdminKeyAndUpdateNodeAccountIdSeparatelyNotSignedByNewAdminKeyFails()
+                throws CertificateEncodingException {
             final String initialNodeAccount = "initialNodeAccount";
             final String newNodeAccount = "newNodeAccount";
             final var certificateBytes = gossipCertificates.getFirst().getEncoded();
@@ -640,20 +583,14 @@ public class UpdateNodeAccountTest {
                     newKeyNamed("newAdminKey"),
                     cryptoCreate(initialNodeAccount),
                     cryptoCreate(newNodeAccount).exposingCreatedIdTo(id -> newAccountId.set(id.getAccountNum())),
-
                     nodeCreate("testNode", initialNodeAccount)
                             .adminKey("adminKey")
                             .gossipCaCertificate(certificateBytes),
-
-                    nodeUpdate("testNode")
-                            .adminKey("newAdminKey")
-                            .signedByPayerAnd("adminKey", "newAdminKey"),
-
+                    nodeUpdate("testNode").adminKey("newAdminKey").signedByPayerAnd("adminKey", "newAdminKey"),
                     nodeUpdate("testNode")
                             .accountId(newNodeAccount)
                             .signedByPayerAnd(newNodeAccount, "adminKey")
                             .hasKnownStatus(INVALID_SIGNATURE),
-
                     withOpContext((spec, log) -> allRunFor(
                             spec,
                             viewNode(
@@ -665,7 +602,8 @@ public class UpdateNodeAccountTest {
         }
 
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
-        final Stream<DynamicTest> updateNodeAccountWithThresholdKeyWithNewNodeAccountNotSignedByRequiredThresholdFails() throws CertificateEncodingException {
+        final Stream<DynamicTest> updateNodeAccountWithThresholdKeyWithNewNodeAccountNotSignedByRequiredThresholdFails()
+                throws CertificateEncodingException {
             final String initialNodeAccount = "initialNodeAccount";
             final String newNodeAccount = "newNodeAccount";
             final var certificateBytes = gossipCertificates.getFirst().getEncoded();
@@ -681,17 +619,14 @@ public class UpdateNodeAccountTest {
                     newKeyNamed("accountKey").shape(thresholdKey),
                     cryptoCreate(initialNodeAccount).key("accountKey"),
                     cryptoCreate(newNodeAccount).exposingCreatedIdTo(id -> newAccountId.set(id.getAccountNum())),
-
                     nodeCreate("testNode", initialNodeAccount)
                             .adminKey("adminKey")
                             .gossipCaCertificate(certificateBytes),
-
                     nodeUpdate("testNode")
                             .accountId(newNodeAccount)
                             .sigControl(forKey("accountKey", invalidSig))
                             .signedByPayerAnd(initialNodeAccount, newNodeAccount)
                             .hasKnownStatus(INVALID_SIGNATURE),
-
                     withOpContext((spec, log) -> allRunFor(
                             spec,
                             viewNode(
@@ -703,7 +638,9 @@ public class UpdateNodeAccountTest {
         }
 
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
-        final Stream<DynamicTest> updateNodeAccountWithNewNodeAccountWithThresholdKeyNodSignedWithRequiredThresholdFails() throws CertificateEncodingException {
+        final Stream<DynamicTest>
+                updateNodeAccountWithNewNodeAccountWithThresholdKeyNodSignedWithRequiredThresholdFails()
+                        throws CertificateEncodingException {
             final String initialNodeAccount = "initialNodeAccount";
             final String newNodeAccount = "newNodeAccount";
             final var certificateBytes = gossipCertificates.getFirst().getEncoded();
@@ -721,17 +658,14 @@ public class UpdateNodeAccountTest {
                     cryptoCreate(newNodeAccount)
                             .key("accountKey")
                             .exposingCreatedIdTo(id -> newAccountId.set(id.getAccountNum())),
-
                     nodeCreate("testNode", initialNodeAccount)
                             .adminKey("adminKey")
                             .gossipCaCertificate(certificateBytes),
-
                     nodeUpdate("testNode")
                             .accountId(newNodeAccount)
                             .sigControl(forKey("accountKey", invalidSig))
                             .signedByPayerAnd(initialNodeAccount, newNodeAccount)
                             .hasKnownStatus(INVALID_SIGNATURE),
-
                     withOpContext((spec, log) -> allRunFor(
                             spec,
                             viewNode(
@@ -743,7 +677,8 @@ public class UpdateNodeAccountTest {
         }
 
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
-        final Stream<DynamicTest> updateNodeAccountWithNewNodeAccountWithKeyListNotSignedWithRequiredKeysFails() throws CertificateEncodingException {
+        final Stream<DynamicTest> updateNodeAccountWithNewNodeAccountWithKeyListNotSignedWithRequiredKeysFails()
+                throws CertificateEncodingException {
             final String initialNodeAccount = "initialNodeAccount";
             final String newNodeAccount = "newNodeAccount";
             final var certificateBytes = gossipCertificates.getFirst().getEncoded();
@@ -761,17 +696,14 @@ public class UpdateNodeAccountTest {
                     cryptoCreate(newNodeAccount)
                             .key("accountKey")
                             .exposingCreatedIdTo(id -> newAccountId.set(id.getAccountNum())),
-
                     nodeCreate("testNode", initialNodeAccount)
                             .adminKey("adminKey")
                             .gossipCaCertificate(certificateBytes),
-
                     nodeUpdate("testNode")
                             .accountId(newNodeAccount)
                             .sigControl(forKey("accountKey", invalidSig))
                             .signedByPayerAnd(initialNodeAccount, newNodeAccount)
                             .hasKnownStatus(INVALID_SIGNATURE),
-
                     withOpContext((spec, log) -> allRunFor(
                             spec,
                             viewNode(
@@ -783,7 +715,8 @@ public class UpdateNodeAccountTest {
         }
 
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
-        final Stream<DynamicTest> updateNodeAccountIdWithContractWithAdminKeyWithZeroBalanceFails() throws CertificateEncodingException {
+        final Stream<DynamicTest> updateNodeAccountIdWithContractWithAdminKeyWithZeroBalanceFails()
+                throws CertificateEncodingException {
             final String initialNodeAccount = "initialNodeAccount";
             final String PAYER = "payer";
             final String contractWithAdminKey = "nonCryptoAccount";
@@ -797,20 +730,16 @@ public class UpdateNodeAccountTest {
                             .exposingContractIdTo(id -> newAccountId.set(id.getContractNum())),
                     cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
                     cryptoCreate(initialNodeAccount),
-
                     nodeCreate("testNode", initialNodeAccount)
                             .adminKey("adminKey")
                             .gossipCaCertificate(certificateBytes),
-
                     nodeUpdate("testNode")
                             .accountId(contractWithAdminKey)
                             .payingWith(PAYER)
                             .signedBy(PAYER, initialNodeAccount, contractWithAdminKey, "adminKey")
                             .via("updateTxn")
                             .hasKnownStatus(NODE_ACCOUNT_HAS_ZERO_BALANCE),
-
                     validateChargedUsd("updateTxn", 0.0012),
-
                     withOpContext((spec, log) -> allRunFor(
                             spec,
                             viewNode(
@@ -818,8 +747,7 @@ public class UpdateNodeAccountTest {
                                     node -> assertNotEquals(
                                             newAccountId.get(),
                                             node.accountId().accountNum(),
-                                            "Node accountId should not be updated"))))
-            );
+                                            "Node accountId should not be updated")))));
         }
 
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
@@ -832,19 +760,16 @@ public class UpdateNodeAccountTest {
                     newKeyNamed("adminKey"),
                     cryptoCreate(initialNodeAccount),
                     cryptoCreate(newNodeAccount).exposingCreatedIdTo(id -> newAccountId.set(id.getAccountNum())),
-
                     nodeCreate("testNode", initialNodeAccount)
                             .adminKey("adminKey")
                             .gossipCaCertificate(certificateBytes),
 
                     // Delete the node
                     nodeDelete("testNode").signedByPayerAnd("adminKey"),
-
                     nodeUpdate("testNode")
                             .accountId(newNodeAccount)
                             .signedByPayerAnd(initialNodeAccount, "adminKey")
                             .hasKnownStatus(INVALID_NODE_ID),
-
                     withOpContext((spec, log) -> allRunFor(
                             spec,
                             viewNode(
@@ -865,20 +790,17 @@ public class UpdateNodeAccountTest {
                     newKeyNamed("adminKey"),
                     cryptoCreate(initialNodeAccount),
                     cryptoCreate(newNodeAccount).exposingCreatedIdTo(id -> newAccountId.set(id.getAccountNum())),
-
                     nodeCreate("testNode", initialNodeAccount)
                             .adminKey("adminKey")
                             .gossipCaCertificate(certificateBytes),
 
                     // Create empty key list
                     newKeyNamed("emptyKeyList").shape(listOf(0)),
-
                     nodeUpdate("testNode")
                             .adminKey("emptyKeyList")
                             .accountId(newNodeAccount)
                             .signedByPayerAnd(initialNodeAccount, "adminKey")
                             .hasPrecheck(KEY_REQUIRED),
-
                     withOpContext((spec, log) -> allRunFor(
                             spec,
                             viewNode(
@@ -889,5 +811,4 @@ public class UpdateNodeAccountTest {
                                             "Node accountId should not be updated")))));
         }
     }
-
 }
