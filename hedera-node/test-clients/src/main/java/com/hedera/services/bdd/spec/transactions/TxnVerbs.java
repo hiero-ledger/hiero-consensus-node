@@ -269,8 +269,12 @@ public class TxnVerbs {
     }
 
     /* NODE */
-    public static HapiNodeCreate nodeCreate(String node) {
-        return new HapiNodeCreate(node);
+    public static HapiNodeCreate nodeCreate(String node, Long accountNum) {
+        return new HapiNodeCreate(node, accountNum);
+    }
+
+    public static HapiNodeCreate nodeCreate(String node, String account) {
+        return new HapiNodeCreate(node, account);
     }
 
     public static HapiNodeUpdate nodeUpdate(String node) {

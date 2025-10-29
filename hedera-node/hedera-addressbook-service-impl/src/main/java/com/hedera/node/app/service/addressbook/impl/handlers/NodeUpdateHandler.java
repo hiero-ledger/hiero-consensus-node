@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GRPC_CERTIFICAT
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.NODE_ACCOUNT_HAS_ZERO_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UPDATE_NODE_ACCOUNT_NOT_ALLOWED;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.checkDABEnabled;
 import static com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator.validateX509Certificate;
@@ -26,6 +27,7 @@ import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -115,12 +117,23 @@ public class NodeUpdateHandler implements TransactionHandler {
         final var nodeConfig = configuration.getConfigData(NodesConfig.class);
         final var storeFactory = handleContext.storeFactory();
         final var nodeStore = storeFactory.writableStore(WritableNodeStore.class);
+        final var accountNodeRelStore = storeFactory.writableStore(WritableAccountNodeRelStore.class);
         final var accountStore = storeFactory.readableStore(ReadableAccountStore.class);
 
         final var existingNode = nodeStore.get(op.nodeId());
         validateFalse(existingNode == null, INVALID_NODE_ID);
         if (op.hasAccountId()) {
-            validateTrue(accountStore.contains(op.accountIdOrThrow()), INVALID_NODE_ACCOUNT_ID);
+            final var accountId = op.accountIdOrThrow();
+            validateTrue(accountStore.contains(accountId), INVALID_NODE_ACCOUNT_ID);
+            if (!accountId.equals(existingNode.accountId())) {
+                final var account = addressBookValidator.validateAccount(
+                        accountId, accountStore, accountNodeRelStore, handleContext.expiryValidator());
+
+                validateTrue(account.tinybarBalance() > 0, NODE_ACCOUNT_HAS_ZERO_BALANCE);
+                // update account node relation
+                accountNodeRelStore.remove(existingNode.accountId());
+                accountNodeRelStore.put(accountId, existingNode.nodeId());
+            }
         }
         if (op.hasDescription()) {
             addressBookValidator.validateDescription(op.description(), nodeConfig);

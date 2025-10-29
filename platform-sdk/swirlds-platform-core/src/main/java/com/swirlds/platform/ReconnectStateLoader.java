@@ -98,7 +98,6 @@ public class ReconnectStateLoader {
             final Hash reconnectHash = signedState.getState().getHash();
             final MerkleNodeState state = signedState.getState();
             final SemanticVersion creationSoftwareVersion = platformStateFacade.creationSoftwareVersionOf(state);
-            signedState.init(platformContext);
             consensusStateEventHandler.onStateInitialized(
                     state, platform, InitTrigger.RECONNECT, creationSoftwareVersion);
 
@@ -118,7 +117,7 @@ public class ReconnectStateLoader {
                         + Roster.JSON.toJSON(stateRoster) + ")");
             }
 
-            swirldStateManager.loadFromSignedState(signedState);
+            swirldStateManager.setState(signedState.getState(), false);
             // kick off transition to RECONNECT_COMPLETE before beginning to save the reconnect state to disk
             // this guarantees that the platform status will be RECONNECT_COMPLETE before the state is saved
             platformCoordinator.submitStatusAction(new ReconnectCompleteAction(signedState.getRound()));

@@ -231,10 +231,11 @@ public record PreHandleResult(
     }
 
     /**
-     * Creates a new {@link PreHandleResult} when encountering a {@link com.hedera.hapi.platform.event.StateSignatureTransaction}.
+     * Creates a new {@link PreHandleResult} when encountering any transaction type that doesn't need to
+     * pass through the entire handle workflow (e.g. a {@link com.hedera.hapi.platform.event.StateSignatureTransaction}).
      */
     @NonNull
-    public static PreHandleResult stateSignatureTransactionEncountered(@NonNull final TransactionInfo txInfo) {
+    public static PreHandleResult shortCircuitingTransaction(@Nullable final TransactionInfo txInfo) {
         return new PreHandleResult(
                 null, null, Status.SO_FAR_SO_GOOD, UNKNOWN, txInfo, null, null, null, null, null, UNKNOWN_VERSION);
     }

@@ -185,4 +185,13 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
     public Configuration current() {
         return createConfiguration(overriddenProperties);
     }
+
+    /**
+     * Applies the overridden properties from another configuration to this one.
+     *
+     * @param configuration the configuration whose properties are to be applied
+     */
+    public void apply(@NonNull final AbstractNodeConfiguration configuration) {
+        overriddenProperties.putAll(configuration.overriddenProperties);
+    }
 }
