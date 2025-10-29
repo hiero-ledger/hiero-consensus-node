@@ -105,7 +105,6 @@ class AtomicBatchHandlerTest {
     @BeforeEach
     void setUp() {
         final var config = HederaTestConfigBuilder.create()
-                .withValue("atomicBatch.isEnabled", true)
                 .withValue("atomicBatch.maxNumberOfTransactions", 2)
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);

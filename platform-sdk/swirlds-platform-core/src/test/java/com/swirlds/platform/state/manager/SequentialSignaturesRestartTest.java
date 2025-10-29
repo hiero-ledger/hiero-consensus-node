@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.manager;
 
-import static com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils.buildFakeSignature;
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
@@ -20,14 +17,9 @@ import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
-import java.security.PublicKey;
+import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import java.util.HashMap;
-import java.util.Map;
-import org.hiero.base.crypto.Hash;
-import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -89,23 +81,12 @@ public class SequentialSignaturesRestartTest extends AbstractStateSignatureColle
                 .stateHasEnoughSignaturesConsumer(stateHasEnoughSignaturesConsumer())
                 .build();
 
-        // Simulate a restart (i.e. loading a state from disk)
-        final Hash stateHash = randomHash(random);
-        final Map<NodeId, Signature> signatures = new HashMap<>();
-        for (final RosterEntry node : roster.rosterEntries()) {
-            final PublicKey publicKey =
-                    RosterUtils.fetchGossipCaCertificate(node).getPublicKey();
-            signatures.put(NodeId.of(node.nodeId()), buildFakeSignature(publicKey, stateHash));
-        }
-
         final SignedState stateFromDisk = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
                 .setRound(firstRound)
-                .setSignatures(signatures)
-                .setCalculateHash(true)
-                .setState(new TestMerkleStateRoot()) // FUTURE WORK: remove this line to use TestHederaVirtualMapState
+                .useSignatureSupplierFromRoster()
+                .setState(new TestVirtualMapState())
                 .build();
-        stateFromDisk.getState().setHash(stateHash);
 
         signedStates.put(firstRound, stateFromDisk);
         // the validation in stateHasEnoughSignaturesConsumer does not work well with adding a complete state,
@@ -120,7 +101,6 @@ public class SequentialSignaturesRestartTest extends AbstractStateSignatureColle
             final SignedState signedState = new RandomSignedStateGenerator(random)
                     .setRoster(roster)
                     .setRound(round)
-                    .setCalculateHash(true)
                     .setSignatures(new HashMap<>())
                     .build();
 

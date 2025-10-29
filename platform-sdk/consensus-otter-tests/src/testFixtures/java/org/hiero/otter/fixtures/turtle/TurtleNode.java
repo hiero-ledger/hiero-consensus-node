@@ -8,13 +8,11 @@ import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialSta
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.fail;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
-import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBin;
@@ -23,41 +21,57 @@ import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.model.DeterministicWiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
+import com.swirlds.platform.builder.internal.StaticPlatformBuilder;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.state.service.PlatformStateFacade;
+import com.swirlds.platform.state.service.PlatformStateService;
+import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.wiring.PlatformComponents;
-import com.swirlds.state.State;
+import com.swirlds.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Objects;
+import java.util.Random;
 import java.util.function.Consumer;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
+import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterAppState;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
+import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
+import org.hiero.otter.fixtures.internal.result.SingleNodeEventStreamResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodeMarkerFileResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
+import org.hiero.otter.fixtures.internal.result.SingleNodeReconnectResultImpl;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContextScope;
 import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
+import org.hiero.otter.fixtures.result.SingleNodeEventStreamResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
@@ -66,6 +80,7 @@ import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
+import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 import org.hiero.otter.fixtures.util.SecureRandomBuilder;
 
 /**
@@ -74,16 +89,24 @@ import org.hiero.otter.fixtures.util.SecureRandomBuilder;
  * <p>This class implements the {@link Node} interface and provides methods to control the state of the node.
  */
 public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.TimeTickReceiver {
+    private static final Logger log = LogManager.getLogger();
+    /**
+     * Logger for startup messages that should appear in per-node logs (uses platform package to bypass org.hiero.otter
+     * exclusion)
+     */
+    private static final Logger startupLogger = LogManager.getLogger("com.swirlds.platform.node.startup");
 
     private final Randotron randotron;
-    private final Time time;
+    private final TurtleTimeManager timeManager;
     private final SimulatedNetwork network;
     private final TurtleLogging logging;
     private final TurtleNodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
     private final TurtleMarkerFileObserver markerFileObserver;
+    private final Path outputDirectory;
 
-    private PlatformContext platformContext;
+    @NonNull
+    private QuiescenceCommand quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
 
     @Nullable
     private DeterministicWiringModel model;
@@ -97,11 +120,14 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Nullable
     private PlatformComponents platformComponent;
 
+    @Nullable
+    private OtterApp otterApp;
+
     /**
      * Constructor of {@link TurtleNode}.
      *
      * @param randotron the random number generator
-     * @param time the time provider
+     * @param timeManager the time manager for this test
      * @param selfId the node ID of the node
      * @param keysAndCerts the keys and certificates of the node
      * @param network the simulated network
@@ -110,7 +136,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      */
     public TurtleNode(
             @NonNull final Randotron randotron,
-            @NonNull final Time time,
+            @NonNull final TurtleTimeManager timeManager,
             @NonNull final NodeId selfId,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final SimulatedNetwork network,
@@ -118,10 +144,11 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             @NonNull final Path outputDirectory) {
         super(selfId, keysAndCerts);
         try (final LoggingContextScope ignored = installNodeContext()) {
+            this.outputDirectory = requireNonNull(outputDirectory);
             logging.addNodeLogging(selfId, outputDirectory);
 
             this.randotron = requireNonNull(randotron);
-            this.time = requireNonNull(time);
+            this.timeManager = requireNonNull(timeManager);
             this.network = requireNonNull(network);
             this.logging = requireNonNull(logging);
             this.nodeConfiguration = new TurtleNodeConfiguration(() -> lifeCycle, outputDirectory);
@@ -136,8 +163,19 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     protected void doStart(@NonNull final Duration timeout) {
         try (final LoggingContextScope ignored = installNodeContext()) {
-            throwIfIn(RUNNING, "Node has already been started.");
-            throwIfIn(DESTROYED, "Node has already been destroyed.");
+            throwIfInLifecycle(RUNNING, "Node has already been started.");
+            throwIfInLifecycle(DESTROYED, "Node has already been destroyed.");
+
+            // Log the startup message using the same STARTUP marker and message as production nodes
+            // Uses a platform logger to ensure it routes through per-node appenders
+            startupLogger.info(LogMarker.STARTUP.getMarker(), "\n\n" + StaticPlatformBuilder.STARTUP_MESSAGE + "\n");
+            if (savedStateDirectory != null) {
+                try {
+                    OtterSavedStateUtils.copySaveState(selfId, savedStateDirectory, outputDirectory);
+                } catch (final IOException exception) {
+                    log.error("Failed to copy save state to output directory", exception);
+                }
+            }
 
             // Start node from current state
             final Configuration currentConfiguration = nodeConfiguration.current();
@@ -151,53 +189,80 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             }
 
             final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
+            try {
+                // If a previous test didn't clean up properly, remove any existing metrics for this node
+                // This can happen if a test fails during platform initialization
+                getMetricsProvider().removePlatformMetrics(selfId);
+            } catch (final InterruptedException | IllegalArgumentException e) {
+                // ignore, this is just a fallback in case an earlier test didn't clean up properly
+            }
             final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
             final FileSystemManager fileSystemManager = FileSystemManager.create(currentConfiguration);
             final RecycleBin recycleBin = RecycleBin.create(
-                    metrics, currentConfiguration, getStaticThreadManager(), time, fileSystemManager, selfId);
+                    metrics,
+                    currentConfiguration,
+                    getStaticThreadManager(),
+                    timeManager.time(),
+                    fileSystemManager,
+                    selfId);
 
-            platformContext = TestPlatformContextBuilder.create()
-                    .withTime(time)
+            final PlatformContext platformContext = TestPlatformContextBuilder.create()
+                    .withTime(timeManager.time())
                     .withConfiguration(currentConfiguration)
                     .withFileSystemManager(fileSystemManager)
                     .withMetrics(metrics)
                     .withRecycleBin(recycleBin)
                     .build();
 
-            model = WiringModelBuilder.create(platformContext.getMetrics(), time)
+            model = WiringModelBuilder.create(platformContext.getMetrics(), timeManager.time())
                     .withDeterministicModeEnabled(true)
                     .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
                     .build();
 
+            otterApp = new OtterApp(currentConfiguration, version);
+
             final HashedReservedSignedState reservedState = loadInitialState(
                     recycleBin,
                     version,
-                    () -> OtterAppState.createGenesisState(currentConfiguration, roster(), metrics, version),
+                    () -> OtterAppState.createGenesisState(
+                            currentConfiguration,
+                            metrics,
+                            timeManager.time(),
+                            roster(),
+                            version,
+                            otterApp.allServices()),
                     OtterApp.APP_NAME,
                     OtterApp.SWIRLD_NAME,
                     selfId,
                     platformStateFacade,
                     platformContext,
-                    OtterAppState::new);
+                    virtualMap -> new OtterAppState(virtualMap, metrics, timeManager.time()));
+
             final ReservedSignedState initialState = reservedState.state();
+            final MerkleNodeState state = initialState.get().getState();
 
-            final State state = initialState.get().getState();
+            // Set active the roster
+            final ReadablePlatformStateStore store =
+                    new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
+            RosterUtils.setActiveRoster(state, roster(), store.getRound() + 1);
+
             final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
-            final String eventStreamLoc = selfId.toString();
+            final String eventStreamLoc = Long.toString(selfId.id());
 
-            this.executionLayer = new OtterExecutionLayer(platformContext.getMetrics());
+            this.executionLayer = new OtterExecutionLayer(
+                    new Random(randotron.nextLong()), platformContext.getMetrics(), timeManager.time());
 
             final PlatformBuilder platformBuilder = PlatformBuilder.create(
                             OtterApp.APP_NAME,
                             OtterApp.SWIRLD_NAME,
                             version,
                             initialState,
-                            OtterApp.INSTANCE,
+                            otterApp,
                             selfId,
                             eventStreamLoc,
                             rosterHistory,
                             platformStateFacade,
-                            OtterAppState::new)
+                            virtualMap -> new OtterAppState(virtualMap, metrics, timeManager.time()))
                     .withPlatformContext(platformContext)
                     .withConfiguration(currentConfiguration)
                     .withKeysAndCerts(keysAndCerts)
@@ -226,7 +291,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             wrapConsumerWithNodeContext(resultsCollector::addConsensusRounds));
 
             platformComponent
-                    .statusStateMachineWiring()
+                    .platformMonitorWiring()
                     .getOutputWire()
                     .solderTo(
                             "nodePlatformStatusCollector",
@@ -234,43 +299,66 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             wrapConsumerWithNodeContext(this::handlePlatformStatusChange));
 
             InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
-                resultsCollector.addLogEntry(logEntry);
+                if (Objects.equals(logEntry.nodeId(), selfId)) {
+                    resultsCollector.addLogEntry(logEntry);
+                }
                 return lifeCycle == DESTROYED ? UNSUBSCRIBE : CONTINUE;
             });
 
             platform = platformComponentBuilder.build();
             platformStatus = PlatformStatus.STARTING_UP;
+
             platform.start();
 
+            quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
             lifeCycle = RUNNING;
         }
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>This method must <emphasize>NEVER</emphasize> be called from inside the
+     * {@link org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver#tick(Instant)} because this method
+     * requires time to pass using that method.
+     */
     @Override
     protected void doKillImmediately(@NonNull final Duration timeout) {
         try (final LoggingContextScope ignored = installNodeContext()) {
-            if (lifeCycle == RUNNING) {
-                markerFileObserver.stopObserving();
-                assert platform != null; // platform must be initialized if lifeCycle is STARTED
-                try {
+            markerFileObserver.stopObserving();
+            try {
+                if (platform != null) {
                     platform.destroy();
-                } catch (final InterruptedException e) {
-                    throw new AssertionError("Unexpected interruption during platform shutdown", e);
                 }
-                platformStatus = null;
-                platform = null;
-                platformComponent = null;
-                model = null;
+            } catch (final InterruptedException e) {
+                throw new AssertionError("Unexpected interruption during platform shutdown", e);
             }
+            platformStatus = null;
+            platform = null;
+            platformComponent = null;
+            executionLayer = null;
+            otterApp = null;
+            model = null;
+            quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
             lifeCycle = SHUTDOWN;
+
+            // Wait a bit to allow a simulated gossip cycle to pass.
+            // This is important to ensure that the node receives all
+            // necessary events when/if it is restarted.
+            timeManager.waitFor(Duration.ofSeconds(1));
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     protected void doStartSyntheticBottleneck(@NonNull final Duration delayPerRound, @NonNull final Duration timeout) {
         throw new UnsupportedOperationException("startSyntheticBottleneck is not supported in TurtleNode.");
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     protected void doStopSyntheticBottleneck(@NonNull final Duration timeout) {
         throw new UnsupportedOperationException("stopSyntheticBottleneck is not supported in TurtleNode.");
@@ -280,15 +368,30 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * {@inheritDoc}
      */
     @Override
-    public void submitTransaction(@NonNull final byte[] transaction) {
+    protected void doSendQuiescenceCommand(@NonNull final QuiescenceCommand command, @NonNull final Duration timeout) {
+        assert platform != null; // platform must be initialized if node is RUNNING
+        platform.quiescenceCommand(requireNonNull(command));
+
+        this.quiescenceCommand = command;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void submitTransaction(@NonNull final OtterTransaction transaction) {
         try (final LoggingContextScope ignored = installNodeContext()) {
-            throwIfIn(INIT, "Node has not been started yet.");
-            throwIfIn(SHUTDOWN, "Node has been shut down.");
-            throwIfIn(DESTROYED, "Node has been destroyed.");
+            throwIsNotInLifecycle(RUNNING, "Cannot submit transaction when the network is not running.");
             assert platform != null; // platform must be initialized if lifeCycle is STARTED
             assert executionLayer != null; // executionLayer must be initialized
 
-            executionLayer.submitApplicationTransaction(transaction);
+            if (quiescenceCommand == QuiescenceCommand.QUIESCE) {
+                // When quiescing, ignore new transactions
+                return;
+            }
+
+            assert executionLayer != null; // executionLayer must be initialized
+            executionLayer.submitApplicationTransaction(transaction.toByteArray());
         }
     }
 
@@ -334,7 +437,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     @NonNull
     public SingleNodePcesResult newPcesResult() {
-        return new SingleNodePcesResultImpl(selfId(), platformContext.getConfiguration());
+        final Configuration currentConfiguration = configuration().current();
+        return new SingleNodePcesResultImpl(selfId(), currentConfiguration);
     }
 
     /**
@@ -345,7 +449,12 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     @NonNull
     public SingleNodeReconnectResult newReconnectResult() {
-        throw new UnsupportedOperationException("Reconnect is not supported in TurtleNode.");
+        // Turtle networks do not support reconnects. However we can
+        // still provide a result object that contains the base results.
+        // Doing so allows tests that can run in multiple environments can
+        // still make basic verifications, like the absence of reconnects.
+        return new SingleNodeReconnectResultImpl(
+                selfId, resultsCollector.newStatusProgression(), resultsCollector.newLogResult());
     }
 
     /**
@@ -355,6 +464,45 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @NonNull
     public SingleNodeMarkerFileResult newMarkerFileResult() {
         return new SingleNodeMarkerFileResultImpl(resultsCollector);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public SingleNodeEventStreamResult newEventStreamResult() {
+        final Configuration currentConfiguration = configuration().current();
+        final EventConfig eventConfig = currentConfiguration.getConfigData(EventConfig.class);
+        final Path eventStreamDir = Path.of(eventConfig.eventsLogDir());
+
+        return new SingleNodeEventStreamResultImpl(selfId, eventStreamDir, currentConfiguration, newReconnectResult());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    protected Random random() {
+        return randotron;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    protected TimeManager timeManager() {
+        return timeManager;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isAlive() {
+        return lifeCycle == RUNNING;
     }
 
     /**
@@ -380,6 +528,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
         try (final LoggingContextScope ignored = installNodeContext()) {
             resultsCollector.destroy();
+            if (otterApp != null) {
+                otterApp.destroy();
+            }
             lifeCycle = DESTROYED;
 
             logging.removeNodeLogging(selfId);
@@ -404,5 +555,14 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                 consumer.accept(value);
             }
         };
+    }
+
+    /**
+     * Indicated if the node starts from a saved state
+     *
+     * @return {@code true} if node starts from saved state
+     */
+    public boolean startFromSavedState() {
+        return savedStateDirectory != null;
     }
 }

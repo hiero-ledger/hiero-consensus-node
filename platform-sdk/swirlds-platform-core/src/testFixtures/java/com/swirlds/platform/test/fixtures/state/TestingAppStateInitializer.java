@@ -2,36 +2,29 @@
 package com.swirlds.platform.test.fixtures.state;
 
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
-import static com.swirlds.state.merkle.StateUtils.registerWithSystem;
-import static java.util.Objects.requireNonNull;
+import static com.swirlds.state.test.fixtures.merkle.StateClassIdUtils.singletonClassId;
+import static com.swirlds.state.test.fixtures.merkle.TestStateUtils.registerWithSystem;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.block.stream.output.StateChanges.Builder;
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.config.FileSystemManagerConfig;
-import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.platform.config.AddressBookConfig;
-import com.swirlds.platform.config.BasicConfig;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
-import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.state.merkle.singleton.SingletonNode;
-import com.swirlds.state.merkle.singleton.StringLeaf;
 import com.swirlds.state.spi.CommittableWritableStates;
+import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
+import com.swirlds.state.test.fixtures.merkle.singleton.SingletonNode;
+import com.swirlds.state.test.fixtures.merkle.singleton.StringLeaf;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
@@ -50,61 +43,48 @@ import org.hiero.consensus.roster.RosterStateId;
  * This class is used to initialize the state of test applications. It allows to register the necessary
  * constructables and initializes the platform and roster states.
  */
-public class TestingAppStateInitializer {
+public final class TestingAppStateInitializer {
 
-    public static final Configuration CONFIGURATION = ConfigurationBuilder.create()
-            .withConfigDataType(AddressBookConfig.class)
-            .withConfigDataType(BasicConfig.class)
-            .withConfigDataType(MerkleDbConfig.class)
-            .withConfigDataType(VirtualMapConfig.class)
-            .withConfigDataType(TemporaryFileConfig.class)
-            .withConfigDataType(StateCommonConfig.class)
-            .withConfigDataType(FileSystemManagerConfig.class)
-            .build();
+    private TestingAppStateInitializer() {}
 
-    public static final TestingAppStateInitializer DEFAULT = new TestingAppStateInitializer(CONFIGURATION);
-
-    private final Configuration configuration;
-
-    /**
-     * Constructor for {@link TestingAppStateInitializer}
-     *
-     * @param configuration the configuration to use for the initialized state
-     */
-    public TestingAppStateInitializer(@NonNull final Configuration configuration) {
-        this.configuration = requireNonNull(configuration);
-    }
-
-    /**
-     * Register the class IDs for the {@link MerkleStateRoot} and its required children, specifically those
-     * used by the {@link PlatformStateService} and {@code RosterService}.
-     */
     public static void registerMerkleStateRootClassIds() {
         try {
             ConstructableRegistry registry = ConstructableRegistry.getInstance();
-            registry.registerConstructable(
-                    new ClassConstructorPair(TestMerkleStateRoot.class, TestMerkleStateRoot::new));
             registry.registerConstructable(new ClassConstructorPair(SingletonNode.class, SingletonNode::new));
             registry.registerConstructable(new ClassConstructorPair(StringLeaf.class, StringLeaf::new));
-            registry.registerConstructable(
-                    new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(CONFIGURATION)));
-            registry.registerConstructable(new ClassConstructorPair(
-                    MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(CONFIGURATION)));
-            registry.registerConstructable(new ClassConstructorPair(
-                    VirtualNodeCache.class,
-                    () -> new VirtualNodeCache(CONFIGURATION.getConfigData(VirtualMapConfig.class))));
-            registerConstructablesForSchema(registry, new V0540PlatformStateSchema(), PlatformStateService.NAME);
-            registerConstructablesForSchema(registry, new V0540RosterBaseSchema(), RosterStateId.SERVICE_NAME);
         } catch (ConstructableRegistryException e) {
             throw new IllegalStateException(e);
         }
     }
 
+    public static void registerConstructablesForStorage(@NonNull final Configuration configuration) {
+        try {
+            ConstructableRegistry registry = ConstructableRegistry.getInstance();
+            registry.registerConstructable(
+                    new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(configuration)));
+            registry.registerConstructable(new ClassConstructorPair(
+                    MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(configuration)));
+            registry.registerConstructable(new ClassConstructorPair(
+                    VirtualNodeCache.class,
+                    () -> new VirtualNodeCache(configuration.getConfigData(VirtualMapConfig.class))));
+        } catch (ConstructableRegistryException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    public static void registerConstructablesForSchemas() {
+        ConstructableRegistry registry = ConstructableRegistry.getInstance();
+        registerConstructablesForSchema(registry, new V0540PlatformStateSchema(), PlatformStateService.NAME);
+        registerConstructablesForSchema(registry, new V0540RosterBaseSchema(), RosterStateId.SERVICE_NAME);
+    }
+
     private static void registerConstructablesForSchema(
-            @NonNull final ConstructableRegistry registry, @NonNull final Schema schema, @NonNull final String name) {
+            @NonNull final ConstructableRegistry registry,
+            @NonNull final Schema<SemanticVersion> schema,
+            @NonNull final String name) {
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateKey))
-                .forEach(def -> registerWithSystem(new StateMetadata<>(name, schema, def), registry));
+                .forEach(def -> registerWithSystem(new StateMetadata<>(name, def), registry, schema.getVersion()));
     }
 
     /**
@@ -112,12 +92,14 @@ public class TestingAppStateInitializer {
      * platform and roster states.
      *
      * @param state the state to initialize
+     * @param configuration configuration to use
      * @return a list of builders for the states that were initialized. Currently, returns an empty list.
      */
-    public List<Builder> initStates(@NonNull final MerkleNodeState state) {
+    public static List<Builder> initConsensusModuleStates(
+            @NonNull final MerkleNodeState state, @NonNull final Configuration configuration) {
         List<Builder> list = new ArrayList<>();
         list.addAll(initPlatformState(state));
-        list.addAll(initRosterState(state));
+        list.addAll(initRosterState(state, configuration));
         return list;
     }
 
@@ -128,22 +110,22 @@ public class TestingAppStateInitializer {
      * @param state the state to initialize
      * @return a list of builders for the states that were initialized. Currently, returns an empty list.
      */
-    public List<Builder> initPlatformState(@NonNull final MerkleNodeState state) {
+    public static List<Builder> initPlatformState(@NonNull final MerkleNodeState state) {
         final var schema = new V0540PlatformStateSchema(
                 config -> SemanticVersion.newBuilder().minor(1).build());
         schema.statesToCreate().stream()
-                .sorted(Comparator.comparing(StateDefinition::stateKey))
+                .sorted(Comparator.comparing(StateDefinition::stateId))
                 .forEach(def -> {
-                    final var md = new StateMetadata<>(PlatformStateService.NAME, schema, def);
+                    final var md = new StateMetadata<>(PlatformStateService.NAME, def);
                     if (def.singleton()) {
+                        final String serviceName = md.serviceName();
+                        final String stateKey = md.stateDefinition().stateKey();
                         initializeServiceState(
                                 state,
                                 md,
                                 () -> new SingletonNode<>(
-                                        computeLabel(
-                                                md.serviceName(),
-                                                md.stateDefinition().stateKey()),
-                                        md.singletonClassId(),
+                                        computeLabel(serviceName, stateKey),
+                                        singletonClassId(serviceName, stateKey, schema.getVersion()),
                                         md.stateDefinition().valueCodec(),
                                         null));
                     } else {
@@ -165,7 +147,8 @@ public class TestingAppStateInitializer {
      * @param state the state to initialize
      * @return a list of builders for the states that were initialized. Currently, returns an empty list.
      */
-    public List<Builder> initRosterState(@NonNull final MerkleNodeState state) {
+    public static List<Builder> initRosterState(
+            @NonNull final MerkleNodeState state, @NonNull final Configuration configuration) {
         if (!(state instanceof MerkleStateRoot<?>) && !(state instanceof VirtualMapState<?>)) {
             throw new IllegalArgumentException("Can only be used with MerkleStateRoot or VirtualMapState instances");
         }
@@ -173,8 +156,10 @@ public class TestingAppStateInitializer {
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateId))
                 .forEach(def -> {
-                    final var md = new StateMetadata<>(RosterStateId.SERVICE_NAME, schema, def);
+                    final var md = new StateMetadata<>(RosterStateId.SERVICE_NAME, def);
                     if (def.singleton()) {
+                        final String serviceName = md.serviceName();
+                        final String stateKey = md.stateDefinition().stateKey();
                         initializeServiceState(
                                 state,
                                 md,
@@ -182,14 +167,14 @@ public class TestingAppStateInitializer {
                                         computeLabel(
                                                 md.serviceName(),
                                                 md.stateDefinition().stateKey()),
-                                        md.singletonClassId(),
+                                        singletonClassId(serviceName, stateKey, schema.getVersion()),
                                         md.stateDefinition().valueCodec(),
                                         null));
                     } else if (def.onDisk()) {
                         initializeServiceState(state, md, () -> {
                             final var label = StateMetadata.computeLabel(RosterStateId.SERVICE_NAME, def.stateKey());
-                            final var dsBuilder = new MerkleDbDataSourceBuilder(CONFIGURATION, def.maxKeysHint(), 16);
-                            final var virtualMap = new VirtualMap(label, dsBuilder, CONFIGURATION);
+                            final var dsBuilder = new MerkleDbDataSourceBuilder(configuration, def.maxKeysHint(), 16);
+                            final var virtualMap = new VirtualMap(label, dsBuilder, configuration);
                             return virtualMap;
                         });
                     } else {
@@ -212,7 +197,8 @@ public class TestingAppStateInitializer {
     private static void initializeServiceState(
             MerkleNodeState state, StateMetadata<?, ?> md, Supplier<? extends MerkleNode> nodeSupplier) {
         switch (state) {
-            case MerkleStateRoot<?> ignored -> state.putServiceStateIfAbsent(md, nodeSupplier);
+            case MerkleStateRoot<?> ignored ->
+                ((MerkleStateRoot) state).putServiceStateIfAbsent(md, nodeSupplier, n -> {});
             case VirtualMapState<?> ignored -> state.initializeState(md);
             default ->
                 throw new IllegalStateException(

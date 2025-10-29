@@ -4,6 +4,7 @@ package com.hedera.node.app.service.token.impl.test.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
@@ -26,6 +27,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -33,6 +35,7 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HookCall;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
@@ -87,6 +90,9 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
     @Mock
     private CryptoTransferStreamBuilder transferRecordBuilder;
 
+    @Mock
+    private StreamBuilder streamBuilder;
+
     private static final TokenID TOKEN_1357 = asToken(1357);
     private static final TokenID TOKEN_9191 = asToken(9191);
     private Configuration config;
@@ -95,7 +101,10 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
     @BeforeEach
     public void setUp() {
         super.setUp();
-        subject = new CryptoTransferHandler(validator);
+        subject = new CryptoTransferHandler(validator, hookCallsFactory, entityIdFactory);
+        lenient().when(handleContext.savepointStack()).thenReturn(stack);
+        lenient().when(stack.getBaseBuilder(StreamBuilder.class)).thenReturn(transferRecordBuilder);
+        lenient().when(transferRecordBuilder.category()).thenReturn(HandleContext.TransactionCategory.USER);
     }
 
     @Test
@@ -433,7 +442,7 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
     void failsWhenAutoAssociatedTokenHasKycKey() {
         Assertions.setMaxStackTraceElementsDisplayed(200);
 
-        subject = new CryptoTransferHandler(validator, false);
+        subject = new CryptoTransferHandler(validator, false, hookCallsFactory, entityIdFactory);
         refreshWritableStores();
         givenStoresAndConfig(handleContext);
         given(handleContext.expiryValidator()).willReturn(expiryValidator);
@@ -468,7 +477,7 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
 
     @Test
     void happyPathWorksWithAutoCreation() {
-        subject = new CryptoTransferHandler(validator, false);
+        subject = new CryptoTransferHandler(validator, false, hookCallsFactory, entityIdFactory);
         refreshWritableStores();
         writableTokenStore.put(nonFungibleToken.copyBuilder().kycKey((Key) null).build());
         writableTokenStore.put(fungibleToken.copyBuilder().kycKey((Key) null).build());
@@ -585,6 +594,55 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS));
+    }
+
+    @Test
+    void failsIfHookExecutionsInChildTxn() {
+        final var txnBody = CryptoTransferTransactionBody.newBuilder()
+                .transfers(TransferList.newBuilder()
+                        .accountAmounts(
+                                aaWith(ownerId, -2_000)
+                                        .copyBuilder()
+                                        .prePostTxAllowanceHook(HookCall.DEFAULT)
+                                        .build(),
+                                aaWith(unknownAliasedId, +2_000))
+                        .build())
+                .build();
+        refreshWritableStores();
+        givenStoresAndConfig(handleContext);
+        givenTxn(txnBody, payerId);
+        given(handleContext.configuration())
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("hooks.hooksEnabled", true)
+                        .getOrCreateConfig());
+        given(handleContext.dispatchMetadata()).willReturn(DispatchMetadata.EMPTY_METADATA);
+        given(handleContext.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(StreamBuilder.class)).willReturn(streamBuilder);
+        given(streamBuilder.category()).willReturn(HandleContext.TransactionCategory.CHILD);
+        given(handleContext.dispatch(
+                        argThat(options -> CryptoCreateStreamBuilder.class.equals(options.streamBuilderType())
+                                && payerId.equals(options.payerId()))))
+                .will((invocation) -> {
+                    final var copy =
+                            account.copyBuilder().accountId(hbarReceiverId).build();
+                    writableAccountStore.put(copy);
+                    writableAliases.put(ecKeyAlias, asAccount(0L, 0L, hbarReceiver));
+                    given(cryptoCreateRecordBuilder.status()).willReturn(SUCCESS);
+                    return cryptoCreateRecordBuilder;
+                })
+                .will((invocation) -> {
+                    final var copy =
+                            account.copyBuilder().accountId(tokenReceiverId).build();
+                    writableAccountStore.put(copy);
+                    writableAliases.put(edKeyAlias, asAccount(0L, 0L, tokenReceiver));
+                    given(cryptoCreateRecordBuilder.status()).willReturn(SUCCESS);
+                    return cryptoCreateRecordBuilder;
+                });
+        given(storeFactory.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER));
     }
 
     @Test
@@ -727,6 +785,9 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
         final var context = mock(HandleContext.class);
         given(context.configuration()).willReturn(config);
         given(context.body()).willReturn(txn);
+        given(context.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(StreamBuilder.class)).willReturn(transferRecordBuilder);
+        given(transferRecordBuilder.category()).willReturn(HandleContext.TransactionCategory.USER);
         return context;
     }
 

@@ -61,15 +61,8 @@ class AtomicAliasTest {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled",
-                "true",
-                "atomicBatch.maxNumberOfTransactions",
-                "50",
-                "contracts.throttle.throttleByGas",
-                "false",
-                "cryptoCreateWithAlias.enabled",
-                "false"));
+        testLifecycle.overrideInClass(
+                Map.of("contracts.throttle.throttleByGas", "false", "cryptoCreateWithAlias.enabled", "false"));
         testLifecycle.doAdhoc(
                 newKeyNamed(ALIAS).shape(SECP_256K1_SHAPE),
                 createHollow(1, i -> ALIAS),

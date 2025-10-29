@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.wiring;
 
+import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
+
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
+import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.deduplication.EventDeduplicator;
@@ -18,20 +22,25 @@ import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.publisher.PlatformPublisher;
 import com.swirlds.platform.state.hashlogger.HashLogger;
 import com.swirlds.platform.state.iss.IssDetector;
+import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
+import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.StatusStateMachine;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
+import com.swirlds.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * Responsible for coordinating activities through the component's wire for the platform.
@@ -83,7 +92,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
 
         // Phase 0: flush the status state machine.
         // When reconnecting, this will force us to adopt a status that will halt event creation and gossip.
-        components.statusStateMachineWiring().flush();
+        components.platformMonitorWiring().flush();
 
         // Phase 1: squelch
         // Break cycles in the system. Flush squelched components just in case there is a task being executed when
@@ -142,6 +151,20 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
     }
 
     /**
+     * Resume gossiping.
+     */
+    public void resumeGossip() {
+        components.gossipWiring().resumeInput().inject(NoInput.getInstance());
+    }
+
+    /**
+     * Pause gossiping.
+     */
+    public void pauseGossip() {
+        components.gossipWiring().pauseInput().inject(NoInput.getInstance());
+    }
+
+    /**
      * Forward a state to the hash logger.
      *
      * @param signedState the state to forward
@@ -189,19 +212,6 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
                 .issDetectorWiring()
                 .getInputWire(IssDetector::signalEndOfPreconsensusReplay)
                 .put(NoInput.getInstance());
-    }
-
-    /**
-     * Get the status action submitter.
-     *
-     * @return the status action submitter
-     */
-    @NonNull
-    public StatusActionSubmitter getStatusActionSubmitter() {
-        return action -> components
-                .statusStateMachineWiring()
-                .getInputWire(StatusStateMachine::submitStatusAction)
-                .put(action);
     }
 
     /**
@@ -274,8 +284,8 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
      */
     public void submitStatusAction(@NonNull final PlatformStatusAction action) {
         components
-                .statusStateMachineWiring()
-                .getInputWire(StatusStateMachine::submitStatusAction)
+                .platformMonitorWiring()
+                .getInputWire(PlatformMonitor::submitStatusAction)
                 .put(action);
     }
 
@@ -355,5 +365,52 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
                 .stateSignatureCollectorWiring()
                 .getInputWire(StateSignatureCollector::addReservedState)
                 .put(reservedSignedState);
+    }
+
+    /**
+     * @see EventCreatorModule#quiescenceCommand(QuiescenceCommand)
+     */
+    public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
+        components
+                .platformMonitorWiring()
+                .getInputWire(PlatformMonitor::quiescenceCommand)
+                .inject(quiescenceCommand);
+        components
+                .eventCreationManagerWiring()
+                .getInputWire(EventCreatorModule::quiescenceCommand)
+                .inject(quiescenceCommand);
+    }
+
+    /**
+     * Load the received signed state into the platform (inline former ReconnectStateLoader#loadReconnectState).
+     */
+    public void loadReconnectState(@NonNull final Configuration configuration, @NonNull final SignedState signedState) {
+        this.overrideIssDetectorState(signedState.reserve("reconnect state to issDetector"));
+
+        components
+                .latestImmutableStateNexusWiring()
+                .getInputWire(SignedStateNexus::setState)
+                .put(signedState.reserve("set latest immutable to reconnect state"));
+        this.sendStateToHashLogger(signedState);
+        // this will send the state to the signature collector which will send it to be written to disk.
+        // in the future, we might not send it to the collector because it already has all the signatures
+        // if this is the case, we must make sure to send it to the writer directly
+        this.putSignatureCollectorState(signedState.reserve("loading reconnect state into sig collector"));
+
+        final MerkleNodeState state = signedState.getState();
+
+        final ConsensusSnapshot consensusSnapshot =
+                Objects.requireNonNull(DEFAULT_PLATFORM_STATE_FACADE.consensusSnapshotOf(state));
+        this.consensusSnapshotOverride(consensusSnapshot);
+
+        final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
+        this.injectRosterHistory(rosterHistory);
+
+        this.updateEventWindow(EventWindowUtils.createEventWindow(consensusSnapshot, configuration));
+
+        final RunningEventHashOverride runningEventHashOverride =
+                new RunningEventHashOverride(DEFAULT_PLATFORM_STATE_FACADE.legacyRunningEventHashOf(state), true);
+        this.updateRunningHash(runningEventHashOverride);
+        this.registerPcesDiscontinuity(signedState.getRound());
     }
 }

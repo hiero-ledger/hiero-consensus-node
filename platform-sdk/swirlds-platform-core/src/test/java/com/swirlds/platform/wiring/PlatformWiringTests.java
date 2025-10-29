@@ -45,7 +45,7 @@ import com.swirlds.platform.state.signed.StateGarbageCollector;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.signer.StateSigner;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
-import com.swirlds.platform.system.status.StatusStateMachine;
+import com.swirlds.platform.system.PlatformMonitor;
 import java.security.SecureRandom;
 import java.util.stream.Stream;
 import org.hiero.consensus.crypto.EventHasher;
@@ -102,7 +102,7 @@ class PlatformWiringTests {
                 .withEventCreator(mock(EventCreatorModule.class))
                 .withConsensusEngine(mock(ConsensusEngine.class))
                 .withConsensusEventStream(mock(ConsensusEventStream.class))
-                .withStatusStateMachine(mock(StatusStateMachine.class))
+                .withPlatformMonitor(mock(PlatformMonitor.class))
                 .withTransactionPrehandler(mock(TransactionPrehandler.class))
                 .withInlinePcesWriter(mock(InlinePcesWriter.class))
                 .withSignedStateSentinel(mock(SignedStateSentinel.class))
@@ -129,6 +129,8 @@ class PlatformWiringTests {
                         startInput,
                         stopInput,
                         clearInput,
+                        resumeInput,
+                        pauseInput,
                         systemHealthInput,
                         platformStatusInput,
                         syncLagOutput) -> {
@@ -137,6 +139,8 @@ class PlatformWiringTests {
                     startInput.bindConsumer(noInput -> {});
                     stopInput.bindConsumer(noInput -> {});
                     clearInput.bindConsumer(noInput -> {});
+                    resumeInput.bindConsumer(noInput -> {});
+                    pauseInput.bindConsumer(noInput -> {});
                     systemHealthInput.bindConsumer(duration -> {});
                     platformStatusInput.bindConsumer(platformStatus -> {});
                 });

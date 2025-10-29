@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.consistency;
 
+import static com.swirlds.demo.consistency.ConsistencyTestingToolMain.CONFIGURATION;
 import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -11,12 +12,18 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
+import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -30,6 +37,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -55,9 +63,18 @@ public class ConsistencyTestingToolStateTest {
 
     @BeforeAll
     static void initState() {
-        state = new ConsistencyTestingToolState();
+        final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
+        final VirtualDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(
+                CONFIGURATION, merkleDbConfig.initialCapacity(), merkleDbConfig.hashesRamToDiskThreshold());
+        final VirtualMap virtualMap = new VirtualMap("ConsistencyTestingToolStateTest", dsBuilder, CONFIGURATION);
+        state = new ConsistencyTestingToolState(virtualMap, new NoOpMetrics(), Time.getCurrent());
         stateLifecycle = new ConsistencyTestingToolConsensusStateEventHandler(DEFAULT_PLATFORM_STATE_FACADE);
-        TestingAppStateInitializer.DEFAULT.initStates(state);
+        TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
+    }
+
+    @AfterAll
+    static void tearDown() {
+        state.release();
     }
 
     @BeforeEach

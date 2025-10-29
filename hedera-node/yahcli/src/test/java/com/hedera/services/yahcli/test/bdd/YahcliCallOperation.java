@@ -14,6 +14,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.function.Consumer;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
 import picocli.CommandLine;
 
@@ -22,10 +24,18 @@ import picocli.CommandLine;
  * the {@link SubProcessNetwork} targeted by the containing spec.
  */
 public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOperation> {
+    static final Logger log = LogManager.getLogger(YahcliCallOperation.class);
+
     private final String[] args;
 
     @Nullable
     private Consumer<String> outputCb;
+
+    private String payer;
+
+    private boolean schedule = false;
+
+    private boolean expectFail = false;
 
     public YahcliCallOperation(@NonNull final String[] args) {
         this.args = requireNonNull(args);
@@ -33,6 +43,40 @@ public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOpera
 
     public YahcliCallOperation exposingOutputTo(@NonNull final Consumer<String> outputCb) {
         this.outputCb = requireNonNull(outputCb);
+        return this;
+    }
+
+    /**
+     * Configures the Yahcli command to use the specified account as the payer.
+     * This adds the "-p" option to the command with the provided account ID.
+     *
+     * @param payer the account ID to be used as the transaction payer
+     * @return this operation instance for method chaining
+     */
+    public YahcliCallOperation payingWith(String payer) {
+        this.payer = payer;
+        return this;
+    }
+
+    /**
+     * Configures the Yahcli command to be executed as a scheduled transaction.
+     * This adds the "--schedule" flag to the command.
+     *
+     * @return this operation instance for method chaining
+     */
+    public YahcliCallOperation schedule() {
+        this.schedule = true;
+        return this;
+    }
+
+    /**
+     * Indicates that the Yahcli command is expected to fail when executed.
+     * If set, a non-zero exit code will be treated as a valid outcome rather than a test failure.
+     *
+     * @return this {@link YahcliCallOperation} instance for method chaining
+     */
+    public YahcliCallOperation expectFail() {
+        this.expectFail = true;
         return this;
     }
 
@@ -54,6 +98,12 @@ public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOpera
             final var c = configLocOrThrow();
             finalizedArgs = prepend(finalizedArgs, "-c", c);
         }
+        if (schedule) {
+            finalizedArgs = prepend(finalizedArgs, "--schedule");
+        }
+        if (payer != null) {
+            finalizedArgs = prepend(finalizedArgs, "-p", payer);
+        }
         try {
             Path outputPath = null;
             if (outputCb != null) {
@@ -63,8 +113,13 @@ public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOpera
             }
             final int rc = commandLine.execute(finalizedArgs);
             if (rc != 0) {
-                Assertions.fail(
-                        "Yahcli command <<" + String.join(" ", finalizedArgs) + ">> failed with exit code " + rc);
+                final var msg =
+                        "Yahcli command <<" + String.join(" ", finalizedArgs) + ">> failed with exit code " + rc;
+                if (expectFail) {
+                    log.error(msg);
+                } else {
+                    Assertions.fail(msg);
+                }
             }
             if (outputPath != null) {
                 final var output = Files.readString(outputPath);

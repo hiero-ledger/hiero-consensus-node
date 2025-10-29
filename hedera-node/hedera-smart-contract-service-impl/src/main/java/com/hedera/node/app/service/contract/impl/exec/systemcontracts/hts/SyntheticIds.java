@@ -12,6 +12,7 @@ import static java.util.Objects.requireNonNull;
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
+import com.hedera.node.app.service.contract.impl.utils.ConstantUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
@@ -23,7 +24,7 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class SyntheticIds {
-    private static final Address ZERO_ADDRESS = Address.wrap("0x0000000000000000000000000000000000000000");
+
     private static final AccountID DEBIT_NON_CANONICAL_REFERENCE_ID =
             AccountID.newBuilder().accountNum(0L).build();
     private static final AccountID CREDIT_NON_CANONICAL_REFERENCE_ID =
@@ -75,7 +76,7 @@ public class SyntheticIds {
             final var explicit = explicitFromHeadlong(address);
 
             // References to missing addresses are synthesized as ids of the zero address
-            if (address.equals(ZERO_ADDRESS)) {
+            if (address.equals(ConstantUtils.ZERO_ADDRESS)) {
                 return isCredit
                         ? nativeOperations.entityIdFactory().newAccountIdWithAlias(Bytes.wrap(explicit))
                         : AccountID.newBuilder().accountNum(0L).build();

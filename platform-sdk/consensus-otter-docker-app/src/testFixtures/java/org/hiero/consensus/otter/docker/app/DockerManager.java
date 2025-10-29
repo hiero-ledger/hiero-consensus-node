@@ -28,6 +28,7 @@ import org.hiero.consensus.otter.docker.app.platform.NodeCommunicationService;
 import org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc;
 import org.hiero.otter.fixtures.container.proto.InitRequest;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
+import org.hiero.otter.fixtures.container.proto.PingResponse;
 
 /**
  * gRPC service implementation for communication between the test framework and the container to start and stop the
@@ -42,10 +43,10 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
     private static final Logger log = LogManager.getLogger(DockerManager.class);
 
     /** The string location of the docker application jar */
-    private static final String DOCKER_APP_JAR = CONTAINER_APP_WORKING_DIR + "/apps/DockerApp.jar";
+    private static final String DOCKER_APP_JAR = CONTAINER_APP_WORKING_DIR + "apps/DockerApp.jar";
 
     /** The string location of the docker application libraries */
-    private static final String DOCKER_APP_LIBS = CONTAINER_APP_WORKING_DIR + "/lib/*";
+    private static final String DOCKER_APP_LIBS = CONTAINER_APP_WORKING_DIR + "lib/*";
 
     /**
      * The main class in the docker application jar that starts the
@@ -131,6 +132,8 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
             Thread.currentThread().interrupt();
             responseObserver.onError(e);
         }
+
+        log.info("Init request completed.");
     }
 
     /**
@@ -188,5 +191,22 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
         }
         responseObserver.onNext(Empty.getDefaultInstance());
         responseObserver.onCompleted();
+        log.info("Kill request completed.");
+    }
+
+    /**
+     * Pings the node communication service to check if it is alive.
+     *
+     * @param request An empty request.
+     * @param responseObserver The observer used to receive the ping response.
+     */
+    @Override
+    public void nodePing(@NonNull final Empty request, @NonNull final StreamObserver<PingResponse> responseObserver) {
+        log.info("Received ping request");
+        responseObserver.onNext(PingResponse.newBuilder()
+                .setAlive(process != null && process.isAlive())
+                .build());
+        responseObserver.onCompleted();
+        log.debug("Ping response sent");
     }
 }

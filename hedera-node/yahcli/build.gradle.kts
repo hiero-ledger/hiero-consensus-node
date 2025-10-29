@@ -15,6 +15,7 @@ mainModuleInfo {
 }
 
 testModuleInfo {
+    requires("com.fasterxml.jackson.databind")
     requires("org.assertj.core")
     requires("org.junit.jupiter.params")
     requires("org.junit.platform.launcher")
@@ -68,6 +69,9 @@ tasks.test {
 }
 
 tasks.register<Test>("testSubprocess") {
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
+
     useJUnitPlatform { includeTags("REGRESSION") }
 
     systemProperty("hapi.spec.initial.port", 25000)

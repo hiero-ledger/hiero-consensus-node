@@ -160,7 +160,7 @@ public final class CommonUtils {
      * Converts a long-zero address to a PBJ {@link ScheduleID} using the address as the entity number
      * @param shard the shard of the Hedera network
      * @param realm the realm of the Hedera network
-     * @param address
+     * @param address the long-zero address
      * @return the PBJ {@link ScheduleID}
      */
     public static com.hederahashgraph.api.proto.java.ScheduleID asScheduleId(
@@ -170,5 +170,19 @@ public final class CommonUtils {
                 .setRealmNum(realm)
                 .setScheduleNum(address.value().longValueExact())
                 .build();
+    }
+
+    /**
+     * Adds two longs, returning {@link Long#MAX_VALUE} or {@link Long#MIN_VALUE} if overflow or underflow occurs.
+     * @param addendA the first addend
+     * @param addendB the second addend
+     * @return the sum, or {@link Long#MAX_VALUE} or {@link Long#MIN_VALUE} if overflow or underflow occurs
+     */
+    public static long clampedAdd(final long addendA, final long addendB) {
+        try {
+            return Math.addExact(addendA, addendB);
+        } catch (final ArithmeticException ae) {
+            return addendA > 0 ? Long.MAX_VALUE : Long.MIN_VALUE;
+        }
     }
 }

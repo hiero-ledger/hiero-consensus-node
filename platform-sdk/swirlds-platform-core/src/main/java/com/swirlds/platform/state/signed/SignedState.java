@@ -11,9 +11,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.ReferenceCounter;
 import com.swirlds.common.utility.RuntimeObjectRecord;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
@@ -21,11 +19,10 @@ import com.swirlds.common.utility.Threshold;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.crypto.SignatureVerifier;
-import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
+import com.swirlds.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.cert.X509Certificate;
@@ -204,18 +201,6 @@ public class SignedState {
         this.freezeState = freezeState;
         this.deleteOnBackgroundThread = deleteOnBackgroundThread;
         this.pcesRound = pcesRound;
-    }
-
-    public void init(@NonNull PlatformContext platformContext) {
-        state.init(
-                platformContext.getTime(),
-                platformContext.getConfiguration(),
-                platformContext.getMetrics(),
-                platformContext.getMerkleCryptography(),
-                () -> {
-                    final ConsensusSnapshot consensusSnapshot = platformStateFacade.consensusSnapshotOf(state);
-                    return consensusSnapshot == null ? PlatformStateAccessor.GENESIS_ROUND : consensusSnapshot.round();
-                });
     }
 
     /**
@@ -464,8 +449,11 @@ public class SignedState {
      */
     @Override
     public String toString() {
+        // `state.getHash()` would start hashing if the state is not hashed already,
+        // we'd like to avoid that, so let's make sure that we don't do that
+        final String hashString = state.isHashed() ? state.getHash().toString() : "not hashed";
         return "SS(round: %d, sigs: %d/%s, hash: %s)"
-                .formatted(getRound(), signingWeight, RosterUtils.computeTotalWeight(getRoster()), state.getHash());
+                .formatted(getRound(), signingWeight, RosterUtils.computeTotalWeight(getRoster()), hashString);
     }
 
     /**

@@ -73,6 +73,7 @@ on:
         default: "MUST_BE_SET_BY_CALL"
         type: string
         description: "Algorithmic analysis GHP"
+
 defaults:
   run:
     shell: bash
@@ -134,18 +135,21 @@ jobs:
     with:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
-      solo-version: "v0.43.2"
+      solo-version: "${{ vars.CITR_SOLO_VERSION }}"
       #"${{ vars.CITR_SOLO_VERSION }}"
+
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
       add-settings: "${{ inputs.add-settings }}"
       crypto-bench-merkle-db-java-args: "${{ inputs.crypto-bench-merkle-db-java-args }}"
       crypto-bench-merkle-db-test-params: "${{ inputs.crypto-bench-merkle-db-test-params }}"
+      delete-namespace: ${{ inputs.delete-namespace }}
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       rootly-api-token: ${{ secrets.ROOTLY_API_TOKEN }}
       perf_ghp: ${{ inputs.perf_ghp }}
+
   tag-sdpt-result:
     name: Tag SDPT Result
     runs-on: hiero-citr-linux-medium
@@ -480,7 +484,7 @@ jobs:
           details: ${{ steps.rootly-summary.outputs.details }}
           notification_target_type: "Service"
           notification_target: "CI/CD Workflows"
-          set_as_noise: "true"
+          set_as_noise: "false"
           alert_urgency: "Medium"
           environments: "CITR"
           external_id: ${{ github.run_id }}
