@@ -120,6 +120,6 @@ public class OpenMetricsHttpEndpoint extends PullingMetricsExporterAdapter {
     @Override
     public void close() throws IOException {
         super.close();
-        server.stop(1);
+        server.stop(0);
     }
 }
