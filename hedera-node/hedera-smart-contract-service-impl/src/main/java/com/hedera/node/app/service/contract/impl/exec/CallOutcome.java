@@ -15,6 +15,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -210,19 +211,24 @@ public record CallOutcome(
 
     /**
      * Adds the call details to the given stream builder.
+     *
      * @param streamBuilder the stream builder
      * @param context the HandleContext
+     * @param idFactory the entity id factory
      */
     public void addCallDetailsTo(
-            @NonNull final ContractCallStreamBuilder streamBuilder, @NonNull final HandleContext context) {
+            @NonNull final ContractCallStreamBuilder streamBuilder,
+            @NonNull final HandleContext context,
+            @NonNull final EntityIdFactory idFactory) {
         requireNonNull(streamBuilder);
         requireNonNull(context);
+        requireNonNull(idFactory);
         addCalledContractIfNotAborted(streamBuilder);
         // (FUTURE) Remove after switching to block stream
         streamBuilder.contractCallResult(result);
         // No-op for the RecordStreamBuilder
         streamBuilder.evmCallTransactionResult(txResult);
-        streamBuilder.withCommonFieldsSetFrom(this, context);
+        streamBuilder.withCommonFieldsSetFrom(this, context, idFactory);
     }
 
     /**
@@ -241,9 +247,12 @@ public record CallOutcome(
      *
      * @param streamBuilder the stream builder
      * @param context the handle context
+     * @param idFactory the entity id factory
      */
     public void addCreateDetailsTo(
-            @NonNull final ContractCreateStreamBuilder streamBuilder, @NonNull final HandleContext context) {
+            @NonNull final ContractCreateStreamBuilder streamBuilder,
+            @NonNull final HandleContext context,
+            @NonNull final EntityIdFactory idFactory) {
         requireNonNull(streamBuilder);
         requireNonNull(context);
         // (FUTURE) Remove after switching to block stream
@@ -252,7 +261,7 @@ public record CallOutcome(
                 .createdContractID(recipientIdIfCreated())
                 .createdEvmAddress(createdEvmAddress)
                 .evmCreateTransactionResult(txResult)
-                .withCommonFieldsSetFrom(this, context);
+                .withCommonFieldsSetFrom(this, context, idFactory);
     }
 
     /**

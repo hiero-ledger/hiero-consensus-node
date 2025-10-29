@@ -18,7 +18,7 @@ import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.utility.Threshold;
 import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus;
+import com.swirlds.platform.reconnect.FallenBehindStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
@@ -26,7 +26,6 @@ import java.security.KeyStoreException;
 import java.security.cert.CertificateEncodingException;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -35,7 +34,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -131,9 +129,9 @@ public abstract class AbstractNetwork implements Network {
 
     protected Lifecycle lifecycle = Lifecycle.INIT;
 
-    protected Path savedStateDirectory;
-
     protected WeightGenerator weightGenerator = WeightGenerators.REAL_NETWORK_GAUSSIAN;
+
+    protected Roster roster;
 
     @Nullable
     private PartitionImpl remainingNetworkPartition;
@@ -171,6 +169,9 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     protected abstract TransactionGenerator transactionGenerator();
 
+    @NonNull
+    protected abstract NodeProperties nodeProperties();
+
     /**
      * {@inheritDoc}
      */
@@ -194,13 +195,20 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void nodeWeight(final long weight) {
+        throwIfInLifecycle(Lifecycle.RUNNING, "Cannot set weight generator when the network is running.");
         if (weight <= 0) {
             throw new IllegalArgumentException("Weight must be positive");
         }
-        if (nodes().isEmpty()) {
-            throw new IllegalStateException("Cannot set node weight when there are no nodes in the network.");
-        }
+        nodeProperties().weight(weight);
         nodes().forEach(n -> n.weight(weight));
+    }
+
+    @Override
+    public @NotNull Roster roster() {
+        if (lifecycle == Lifecycle.INIT) {
+            throw new IllegalStateException("The roster is not available before the network is started.");
+        }
+        return roster;
     }
 
     /**
@@ -220,16 +228,13 @@ public abstract class AbstractNetwork implements Network {
         try {
             final List<NodeId> nodeIds =
                     IntStream.range(0, count).mapToObj(i -> getNextNodeId()).toList();
-            final List<Node> nodes = new ArrayList<>(nodeIds.size());
-            for (final Entry<NodeId, KeysAndCerts> entry :
-                    CryptoStatic.generateKeysAndCerts(nodeIds, null).entrySet()) {
-                final Node node = doCreateNode(entry.getKey(), entry.getValue());
-                if (savedStateDirectory != null) {
-                    node.startFromSavedState(savedStateDirectory);
-                }
-                nodes.add(node);
-            }
-            return nodes;
+            return CryptoStatic.generateKeysAndCerts(nodeIds, null).entrySet().stream()
+                    .map(e -> {
+                        final Node node = doCreateNode(e.getKey(), e.getValue());
+                        ((AbstractNode) node).applyNodeProperties(nodeProperties());
+                        return node;
+                    })
+                    .toList();
         } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
             throw new RuntimeException("Exception while generating KeysAndCerts", e);
         }
@@ -254,7 +259,9 @@ public abstract class AbstractNetwork implements Network {
             final NodeId nodeId = getNextNodeId();
             final KeysAndCerts keysAndCerts =
                     CryptoStatic.generateKeysAndCerts(List.of(nodeId), null).get(nodeId);
-            return doCreateInstrumentedNode(nodeId, keysAndCerts);
+            final InstrumentedNode node = doCreateInstrumentedNode(nodeId, keysAndCerts);
+            ((AbstractNode) node).applyNodeProperties(nodeProperties());
+            return node;
         } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
             throw new RuntimeException("Exception while generating KeysAndCerts", e);
         }
@@ -292,7 +299,7 @@ public abstract class AbstractNetwork implements Network {
         throwIfInLifecycle(Lifecycle.RUNNING, "Network is already running.");
         log.info("Starting network...");
 
-        final Roster roster = createRoster();
+        roster = createRoster();
         preStartHook(roster);
 
         lifecycle = Lifecycle.RUNNING;
@@ -474,7 +481,7 @@ public abstract class AbstractNetwork implements Network {
     }
 
     /**
-     *  {@inheritDoc}
+     * {@inheritDoc}
      */
     @Override
     public void setLatencyForAllConnections(@NonNull final Node sender, @NonNull final LatencyRange latencyRange) {
@@ -616,7 +623,8 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Network withConfigValue(@NonNull final String key, @NonNull final String value) {
-        requireNodesBeforeConfigChange();
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
+        nodeProperties().configuration().set(key, value);
         nodes().forEach(node -> node.configuration().set(key, value));
         return this;
     }
@@ -626,7 +634,8 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public @NotNull Network withConfigValue(@NotNull final String key, @NotNull final Duration value) {
-        requireNodesBeforeConfigChange();
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
+        nodeProperties().configuration().set(key, value);
         nodes().forEach(node -> node.configuration().set(key, value));
         return this;
     }
@@ -637,7 +646,8 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Network withConfigValue(@NonNull final String key, final int value) {
-        requireNodesBeforeConfigChange();
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
+        nodeProperties().configuration().set(key, value);
         nodes().forEach(node -> node.configuration().set(key, value));
         return this;
     }
@@ -648,7 +658,8 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Network withConfigValue(@NonNull final String key, final long value) {
-        requireNodesBeforeConfigChange();
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
+        nodeProperties().configuration().set(key, value);
         nodes().forEach(node -> node.configuration().set(key, value));
         return this;
     }
@@ -659,7 +670,8 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Network withConfigValue(@NonNull final String key, @NonNull final Path value) {
-        requireNodesBeforeConfigChange();
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
+        nodeProperties().configuration().set(key, value);
         nodes().forEach(node -> node.configuration().set(key, value));
         return this;
     }
@@ -670,15 +682,10 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Network withConfigValue(@NonNull final String key, final boolean value) {
-        requireNodesBeforeConfigChange();
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
+        nodeProperties().configuration().set(key, value);
         nodes().forEach(node -> node.configuration().set(key, value));
         return this;
-    }
-
-    private void requireNodesBeforeConfigChange() {
-        if (nodes().isEmpty()) {
-            throw new IllegalStateException("Cannot update configuration without nodes in the network.");
-        }
     }
 
     /**
@@ -710,6 +717,8 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void version(@NonNull final SemanticVersion version) {
+        throwIfInLifecycle(Lifecycle.RUNNING, "Cannot set version while the network is running");
+        nodeProperties().version(version);
         nodes().forEach(node -> node.version(version));
     }
 
@@ -815,8 +824,8 @@ public abstract class AbstractNetwork implements Network {
                     maybeAheadNode.newConsensusResult().getLatestEventWindow();
 
             // If any peer in the required list says the "self" node is not behind, the node is not behind.
-            if (SyncFallenBehindStatus.getStatus(selfEventWindow, peerEventWindow)
-                    != SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
+            if (FallenBehindStatus.getStatus(selfEventWindow, peerEventWindow)
+                    != FallenBehindStatus.SELF_FALLEN_BEHIND) {
                 weightOfAheadNodes += maybeAheadNode.weight();
             }
         }
@@ -852,8 +861,8 @@ public abstract class AbstractNetwork implements Network {
                                         - 5)); // add buffer to account for unpropagated event windows
 
                 // If any peer in the required list says the "self" node is behind, it is ahead so add it to the count
-                if (SyncFallenBehindStatus.getStatus(selfEventWindow, peerEventWindowWithBuffer)
-                        == SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
+                if (FallenBehindStatus.getStatus(selfEventWindow, peerEventWindowWithBuffer)
+                        == FallenBehindStatus.SELF_FALLEN_BEHIND) {
                     numNodesAhead++;
                 }
             }
@@ -865,7 +874,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     public void savedStateDirectory(@NonNull final Path savedStateDirectory) {
         final Path resolvedPath = OtterSavedStateUtils.findSaveState(requireNonNull(savedStateDirectory));
-        this.savedStateDirectory = resolvedPath;
+        nodeProperties().savedStateDirectory(resolvedPath);
         nodes().forEach(node -> node.startFromSavedState(resolvedPath));
     }
 
