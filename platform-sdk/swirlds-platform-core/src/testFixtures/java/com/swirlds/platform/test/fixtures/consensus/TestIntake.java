@@ -130,9 +130,8 @@ public class TestIntake {
     /**
      * This method wires the orphanBuffer output to consensusEngine's input.
      * It is done using binding a custom lambda that is solving an edge case that is particularly important when using direct task schedulers:
-     *  In a direct scheduler pipeline, when the orphan buffer releases an event to the consensus component, consensus may output an EventWindow that feeds back to the same orphan buffer which might produce that the orphan buffer releases a second batch of events.
-     *  Because it's a DIRECT scheduler (synchronous, single-threaded), this causes reentrancy - the new list starts processing immediately, interrupting the previous list iteration.
-     *  This means a child event from the new list can be processed before its parent from the original list, breaking topological order.
+     * In a direct scheduler pipeline, when the orphan buffer releases an event to the consensus component, the consensus component may output an `EventWindow` that feeds back to the same orphan buffer, which might then release a second batch of events. Because it's a DIRECT scheduler (synchronous, single-threaded),  the new list starts processing immediately, interrupting the previous list iteration.
+     * This means a child event from the new list can be processed before its parent from the original list, breaking topological order.
      *
      *  This method solves this issue using a queue of events and a flag indicating that there is a current integration in progress.
      *  Only one iteration at the time will feed elements to consensus, allowing us to maintain the topological order.
@@ -179,16 +178,6 @@ public class TestIntake {
         throwComponentExceptionsIfAny();
     }
 
-    public void stop() {
-        // Important: the order of the lines within this function matters. Do not alter the order of these
-        // lines without understanding the implications of doing so. Consult the wiring diagram when deciding
-        // whether to change the order of these lines.
-
-        hasherWiring.flush();
-        orphanBufferWiring.flush();
-        consensusEngineWiring.flush();
-        model.stop();
-    }
     /**
      * @return a queue of all rounds that have reached consensus
      */
