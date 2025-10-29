@@ -6,7 +6,7 @@
 2. [Definitions](#definitions)
 3. [Component Responsibilities](#component-responsibilities)
 4. [Component Interaction](#component-interaction)
-5. [State Management](#state-management)
+5. [Lifecycle](#lifecycle)
 6. [State Machine Diagrams](#state-machine-diagrams)
 7. [Error Handling](#error-handling)
 
@@ -226,7 +226,7 @@ The connection implements a configurable rate limiting mechanism for EndOfStream
 <dt>blockNode.maxRequestDelay</dt>
 <dd>The maximum amount of time between attempting to send block items to a block node, regardless of the number of items ready to send.</dd>
 
-<dt>blockNode.pipelineOperationTimeout</dt>
+<dt>pipelineOperationTimeout</dt>
 <dd>The maximum duration allowed for pipeline onNext() and onComplete() operations before considering the block node unresponsive. Default: 30 seconds.</dd>
 </dl>
 
@@ -236,7 +236,7 @@ To detect unresponsive block nodes during message transmission and connection es
 
 #### Timeout Behavior
 
-Pipeline operations (`onNext()`, `onComplete()`, and pipeline creation) are potentially blocking I/O operations that are executed on a dedicated virtual thread executor with timeout enforcement using `Future.get(timeout)`. Each connection instance creates its own virtual thread executor to isolate pipeline operations from other tasks and prevent blocking.
+Pipeline operations (`onNext()`, `onComplete()`, and pipeline creation) are potentially blocking I/O operations that are executed on a dedicated virtual thread executor with timeout enforcement using `Future.get(timeout)`. The executor is provided via dependency injection through the constructor, allowing for flexible configuration and easier testing.
 
 - **Pipeline creation timeout**: When establishing the gRPC connection via `createRequestPipeline()`, both the gRPC client creation and bidirectional stream setup are executed with timeout protection. If the operation does not complete within the configured timeout period:
   - The Future is cancelled to interrupt the blocked operation
@@ -257,7 +257,7 @@ Pipeline operations (`onNext()`, `onComplete()`, and pipeline creation) are pote
   - Since the connection is already in CLOSING state, only the timeout is logged
   - The connection completes the close operation normally
 
-**Note**: The dedicated virtual thread executor is properly shut down when the connection closes with a 5-second grace period for termination, ensuring no resource leaks. If tasks don't complete within the grace period, `shutdownNow()` is called to forcefully terminate them.
+**Note**: The dedicated executor (typically a virtual thread executor in production) is provided during construction and properly shut down when the connection closes with a 5-second grace period for termination, ensuring no resource leaks. If tasks don't complete within the grace period, `shutdownNow()` is called to forcefully terminate them.
 
 #### Exception Handling
 

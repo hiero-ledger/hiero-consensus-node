@@ -30,7 +30,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
@@ -211,6 +210,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * @param blockBufferService the block stream state manager for block node connections
      * @param blockStreamMetrics the block stream metrics for block node connections
      * @param executorService the scheduled executor service used to perform async connection reconnects
+     * @param pipelineExecutor the executor service used for the block processing pipeline
+     * @param initialBlockToStream the initial block number to start streaming from, or null to use default
+     * @param clientFactory the factory for creating block stream clients
      */
     public BlockNodeConnection(
             @NonNull final ConfigProvider configProvider,
@@ -219,6 +221,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final BlockStreamMetrics blockStreamMetrics,
             @NonNull final ScheduledExecutorService executorService,
+            @NonNull final ExecutorService pipelineExecutor,
             @Nullable final Long initialBlockToStream,
             @NonNull final BlockNodeClientFactory clientFactory) {
         this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
@@ -229,12 +232,13 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
         this.connectionState = new AtomicReference<>(ConnectionState.UNINITIALIZED);
         this.executorService = requireNonNull(executorService, "executorService must not be null");
-        this.pipelineExecutor = Executors.newVirtualThreadPerTaskExecutor();
+        this.pipelineExecutor = requireNonNull(pipelineExecutor, "pipelineExecutor must not be null");
         final var blockNodeConnectionConfig =
                 configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
         this.streamResetPeriod = blockNodeConnectionConfig.streamResetPeriod();
         this.clientFactory = requireNonNull(clientFactory, "clientFactory must not be null");
         this.pipelineOperationTimeout = blockNodeConnectionConfig.pipelineOperationTimeout();
+
         connectionId = String.format("%04d", connectionIdCounter.incrementAndGet());
 
         if (initialBlockToStream != null) {
@@ -264,10 +268,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 blockStreamMetrics.recordConnectionOpened();
             } catch (final TimeoutException e) {
                 future.cancel(true);
-                logger.debug(
-                        "{} Pipeline creation timed out after {}ms",
-                        this,
-                        pipelineOperationTimeout.toMillis());
+                logger.debug("{} Pipeline creation timed out after {}ms", this, pipelineOperationTimeout.toMillis());
                 blockStreamMetrics.recordPipelineOperationTimeout();
                 throw new RuntimeException("Pipeline creation timed out", e);
             } catch (final InterruptedException e) {
@@ -680,7 +681,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         try {
             sendRequest(endStream);
         } catch (final RuntimeException e) {
-            logger.warn(formatLogMessage("Error sending EndStream request", this), e);
+            logger.warn("{} Error sending EndStream request", this, e);
         }
         close(true);
     }
@@ -723,21 +724,17 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 } catch (final TimeoutException e) {
                     future.cancel(true); // Cancel the task if it times out
                     if (getConnectionState() == ConnectionState.ACTIVE) {
-                        logWithContext(
-                                logger,
-                                DEBUG,
-                                this,
-                                "Pipeline onNext() timed out after {}ms",
-                                pipelineOperationTimeout.toMillis());
+                        logger.debug(
+                                "{} Pipeline onNext() timed out after {}ms", this, pipelineOperationTimeout.toMillis());
                         blockStreamMetrics.recordPipelineOperationTimeout();
                         handleStreamFailure();
                     }
                 } catch (final InterruptedException e) {
                     Thread.currentThread().interrupt(); // Restore interrupt status
-                    logWithContext(logger, DEBUG, this, "Interrupted while waiting for pipeline.onNext()", e);
+                    logger.debug("{} Interrupted while waiting for pipeline.onNext()", this, e);
                     throw new RuntimeException("Interrupted while waiting for pipeline.onNext()", e);
                 } catch (final ExecutionException e) {
-                    logWithContext(logger, DEBUG, this, "Error executing pipeline.onNext()", e.getCause());
+                    logger.debug("{} Error executing pipeline.onNext()", this, e.getCause());
                     throw new RuntimeException("Error executing pipeline.onNext()", e.getCause());
                 }
 
@@ -823,7 +820,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
                 pipelineExecutor.shutdownNow();
-                logger.error(formatLogMessage("Error occurred while shutting down pipeline executor.", this), e);
+                logger.error("{} Error occurred while shutting down pipeline executor.", this, e);
             }
             blockStreamMetrics.recordConnectionClosed();
             blockStreamMetrics.recordActiveConnectionIp(-1L);

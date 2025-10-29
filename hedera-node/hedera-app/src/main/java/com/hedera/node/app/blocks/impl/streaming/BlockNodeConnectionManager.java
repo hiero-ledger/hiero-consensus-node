@@ -580,6 +580,7 @@ public class BlockNodeConnectionManager {
                 blockBufferService,
                 blockStreamMetrics,
                 sharedExecutorService,
+                Executors.newVirtualThreadPerTaskExecutor(),
                 initialBlockToStream,
                 clientFactory);
 

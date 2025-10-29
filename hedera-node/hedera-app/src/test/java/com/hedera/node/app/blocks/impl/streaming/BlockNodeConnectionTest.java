@@ -38,13 +38,13 @@ import io.helidon.webclient.api.WebClient;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.VarHandle;
-import java.lang.reflect.Field;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
@@ -52,7 +52,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.block.api.BlockItemSet;
@@ -104,12 +103,13 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     private BlockStreamMetrics metrics;
     private Pipeline<? super PublishStreamRequest> requestPipeline;
     private ScheduledExecutorService executorService;
+    private ExecutorService pipelineExecutor;
     private BlockNodeStats.HighLatencyResult latencyResult;
     private BlockNodeClientFactory clientFactory;
 
     @BeforeEach
     @SuppressWarnings("unchecked")
-    void beforeEach() {
+    void beforeEach() throws Exception {
         final ConfigProvider configProvider = createConfigProvider(createDefaultConfigProvider());
         nodeConfig = newBlockNodeConfig(8080, 1);
         connectionManager = mock(BlockNodeConnectionManager.class);
@@ -118,7 +118,38 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         metrics = mock(BlockStreamMetrics.class);
         requestPipeline = mock(Pipeline.class);
         executorService = mock(ScheduledExecutorService.class);
+        pipelineExecutor = mock(ExecutorService.class);
         latencyResult = mock(BlockNodeStats.HighLatencyResult.class);
+
+        // Set up default behavior for pipelineExecutor using a real executor
+        // This ensures proper Future semantics while still being fast for tests
+        // Individual tests can override this with their own specific mocks for timeout scenarios
+        final ExecutorService realExecutor = Executors.newCachedThreadPool();
+        lenient()
+                .doAnswer(invocation -> {
+                    Runnable runnable = invocation.getArgument(0);
+                    return realExecutor.submit(runnable);
+                })
+                .when(pipelineExecutor)
+                .submit(any(Runnable.class));
+
+        // Also handle shutdown for cleanup
+        lenient()
+                .doAnswer(invocation -> {
+                    realExecutor.shutdown();
+                    return null;
+                })
+                .when(pipelineExecutor)
+                .shutdown();
+
+        lenient()
+                .doAnswer(invocation -> {
+                    long timeout = invocation.getArgument(0);
+                    TimeUnit unit = invocation.getArgument(1);
+                    return realExecutor.awaitTermination(timeout, unit);
+                })
+                .when(pipelineExecutor)
+                .awaitTermination(anyLong(), any(TimeUnit.class));
 
         clientFactory = mock(BlockNodeClientFactory.class);
         lenient()
@@ -132,6 +163,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
                 bufferService,
                 metrics,
                 executorService,
+                pipelineExecutor,
                 null,
                 clientFactory);
 
@@ -199,6 +231,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
                 bufferService,
                 metrics,
                 executorService,
+                pipelineExecutor,
                 100L,
                 clientFactory);
 
@@ -218,14 +251,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final Future<Object> mockFuture = mock(Future.class);
         when(mockFuture.get(anyLong(), any(TimeUnit.class))).thenThrow(new TimeoutException("Simulated timeout"));
 
-        // Mock the executor to return our mock future
-        final ExecutorService mockPipelineExecutor = mock(ExecutorService.class);
-        doReturn(mockFuture).when(mockPipelineExecutor).submit(any(Runnable.class));
-
-        // Use reflection to replace the pipelineExecutor with the mock
-        final Field executorField = BlockNodeConnection.class.getDeclaredField("pipelineExecutor");
-        executorField.setAccessible(true);
-        executorField.set(connection, mockPipelineExecutor);
+        // Set up the pipelineExecutor to return mock future
+        doReturn(mockFuture).when(pipelineExecutor).submit(any(Runnable.class));
 
         // Attempt to create pipeline - should timeout and throw
         final RuntimeException exception = catchRuntimeException(() -> connection.createRequestPipeline());
@@ -255,14 +282,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         when(mockFuture.get(anyLong(), any(TimeUnit.class)))
                 .thenThrow(new InterruptedException("Simulated interruption"));
 
-        // Mock the executor to return our mock future
-        final ExecutorService mockPipelineExecutor = mock(ExecutorService.class);
-        doReturn(mockFuture).when(mockPipelineExecutor).submit(any(Runnable.class));
-
-        // Use reflection to replace the pipelineExecutor with the mock
-        final Field executorField = BlockNodeConnection.class.getDeclaredField("pipelineExecutor");
-        executorField.setAccessible(true);
-        executorField.set(connection, mockPipelineExecutor);
+        // Set up the pipelineExecutor to return mock future
+        doReturn(mockFuture).when(pipelineExecutor).submit(any(Runnable.class));
 
         // Attempt to create pipeline - should handle interruption and throw
         final RuntimeException exception = catchRuntimeException(() -> connection.createRequestPipeline());
@@ -291,14 +312,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
                 .thenThrow(new java.util.concurrent.ExecutionException(
                         "Simulated execution error", new RuntimeException("Underlying cause")));
 
-        // Mock the executor to return our mock future
-        final ExecutorService mockPipelineExecutor = mock(ExecutorService.class);
-        doReturn(mockFuture).when(mockPipelineExecutor).submit(any(Runnable.class));
-
-        // Use reflection to replace the pipelineExecutor with the mock
-        final Field executorField = BlockNodeConnection.class.getDeclaredField("pipelineExecutor");
-        executorField.setAccessible(true);
-        executorField.set(connection, mockPipelineExecutor);
+        // Set up the pipelineExecutor to return mock future
+        doReturn(mockFuture).when(pipelineExecutor).submit(any(Runnable.class));
 
         // Attempt to create pipeline - should handle execution exception and throw
         final RuntimeException exception = catchRuntimeException(() -> connection.createRequestPipeline());
@@ -1987,7 +2002,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         // Verify close completed successfully
         verify(requestPipeline).onComplete();
-        verify(connectionManager).jumpToBlock(-1L);
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
 
@@ -2009,7 +2023,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         // Verify onComplete was not called on pipeline
         verifyNoInteractions(requestPipeline);
-        verify(connectionManager).jumpToBlock(-1L);
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
 
@@ -2091,14 +2104,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final Future<Object> mockFuture = mock(Future.class);
         when(mockFuture.get(anyLong(), any(TimeUnit.class))).thenThrow(new TimeoutException("Simulated timeout"));
 
-        // Mock the executor to return our mock future
-        final ExecutorService mockPipelineExecutor = mock(ExecutorService.class);
-        doReturn(mockFuture).when(mockPipelineExecutor).submit(any(Runnable.class));
-
-        // Use reflection to replace the pipelineExecutor with the mock
-        final Field executorField = BlockNodeConnection.class.getDeclaredField("pipelineExecutor");
-        executorField.setAccessible(true);
-        executorField.set(connection, mockPipelineExecutor);
+        // Set up the pipelineExecutor to return mock future
+        doReturn(mockFuture).when(pipelineExecutor).submit(any(Runnable.class));
 
         final PublishStreamRequest request = createRequest(newBlockHeaderItem());
 
@@ -2134,14 +2141,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final Future<Object> mockFuture = mock(Future.class);
         when(mockFuture.get(anyLong(), any(TimeUnit.class))).thenThrow(new TimeoutException("Simulated timeout"));
 
-        // Mock the executor to return our mock future
-        final ExecutorService mockPipelineExecutor = mock(ExecutorService.class);
-        doReturn(mockFuture).when(mockPipelineExecutor).submit(any(Runnable.class));
-
-        // Use reflection to replace the pipelineExecutor with our mock
-        final Field executorField = BlockNodeConnection.class.getDeclaredField("pipelineExecutor");
-        executorField.setAccessible(true);
-        executorField.set(connection, mockPipelineExecutor);
+        // Set up the pipelineExecutor to return mock future
+        doReturn(mockFuture).when(pipelineExecutor).submit(any(Runnable.class));
 
         // Close connection - should trigger timeout during onComplete
         connection.close(true);
@@ -2151,7 +2152,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(mockFuture).cancel(true);
         verify(metrics).recordPipelineOperationTimeout();
         verify(metrics).recordConnectionClosed();
-        verify(connectionManager).jumpToBlock(-1L);
 
         // Connection should still be CLOSED despite timeout
         assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CLOSED);
@@ -2172,28 +2172,32 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         when(mockFuture.get(anyLong(), any(TimeUnit.class)))
                 .thenThrow(new InterruptedException("Simulated interruption"));
 
-        // Mock the executor to return our mock future
-        final ExecutorService mockPipelineExecutor = mock(ExecutorService.class);
-        doReturn(mockFuture).when(mockPipelineExecutor).submit(any(Runnable.class));
+        // Set up the pipelineExecutor to return mock future
+        doReturn(mockFuture).when(pipelineExecutor).submit(any(Runnable.class));
 
-        // Use reflection to replace the pipelineExecutor with our mock
-        final Field executorField = BlockNodeConnection.class.getDeclaredField("pipelineExecutor");
-        executorField.setAccessible(true);
-        executorField.set(connection, mockPipelineExecutor);
+        // Close connection in a separate thread to verify interrupt status is restored
+        final AtomicBoolean isInterrupted = new AtomicBoolean(false);
+        final CountDownLatch latch = new CountDownLatch(1);
+        Thread.ofVirtual().start(() -> {
+            try {
+                connection.close(true);
+            } finally {
+                isInterrupted.set(Thread.currentThread().isInterrupted());
+                latch.countDown();
+            }
+        });
 
-        // Close connection - should handle interruption during onComplete
-        connection.close(true);
+        // Wait for the close operation to complete
+        assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
 
         // Verify interruption was handled gracefully
         verify(mockFuture).get(anyLong(), any(TimeUnit.class));
         verify(metrics).recordConnectionClosed();
-        verify(connectionManager).jumpToBlock(-1L);
 
         // Connection should still be CLOSED despite interruption
         assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CLOSED);
 
-        // Verify thread interrupt status was restored
-        // (Note: Can't directly test this in unit test, but the code does Thread.currentThread().interrupt())
+        assertThat(isInterrupted.get()).isTrue();
     }
 
     /**
@@ -2205,28 +2209,21 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         openConnectionAndResetMocks();
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
-        // Mock the executor to throw InterruptedException during awaitTermination
-        final ExecutorService mockPipelineExecutor = mock(ExecutorService.class);
-        when(mockPipelineExecutor.awaitTermination(anyLong(), any(TimeUnit.class)))
+        // Set up the pipelineExecutor to throw InterruptedException during awaitTermination
+        when(pipelineExecutor.awaitTermination(anyLong(), any(TimeUnit.class)))
                 .thenThrow(new InterruptedException("Simulated shutdown interruption"));
-
-        // Use reflection to replace the pipelineExecutor with our mock
-        final Field executorField = BlockNodeConnection.class.getDeclaredField("pipelineExecutor");
-        executorField.setAccessible(true);
-        executorField.set(connection, mockPipelineExecutor);
 
         // Close connection - should handle interruption during executor shutdown
         connection.close(true);
 
         // Verify executor shutdown was attempted
-        verify(mockPipelineExecutor).shutdown();
-        verify(mockPipelineExecutor).awaitTermination(5, TimeUnit.SECONDS);
+        verify(pipelineExecutor).shutdown();
+        verify(pipelineExecutor).awaitTermination(5, TimeUnit.SECONDS);
 
         // Verify shutdownNow was called after interruption
-        verify(mockPipelineExecutor).shutdownNow();
+        verify(pipelineExecutor).shutdownNow();
 
         verify(metrics).recordConnectionClosed();
-        verify(connectionManager).jumpToBlock(-1L);
 
         // Connection should still be CLOSED despite interruption
         assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CLOSED);
