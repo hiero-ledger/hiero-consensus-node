@@ -245,12 +245,11 @@ public class BlockNodeConnectionManager {
             final BlockNodeConnectionInfo protoConfig = BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(jsonConfig));
             List<BlockNodeConnectionConfig> nodes = new ArrayList<>();
             for (BlockNodeConfig nodeConfig : protoConfig.nodes()) {
-                nodes.add(
-                        new BlockNodeConnectionConfig(
-                                nodeConfig,
-                                extractOptionalHttp2ClientProtocolConfig(nodeConfig),
-                                extractOptionalGrpcClientProtocolConfig(nodeConfig),
-                                nodeConfig.maxMessageSizeBytes()));
+                nodes.add(new BlockNodeConnectionConfig(
+                        nodeConfig,
+                        extractOptionalHttp2ClientProtocolConfig(nodeConfig),
+                        extractOptionalGrpcClientProtocolConfig(nodeConfig),
+                        nodeConfig.maxMessageSizeBytes()));
             }
             return nodes;
         } catch (final IOException | ParseException e) {
@@ -423,7 +422,8 @@ public class BlockNodeConnectionManager {
                 delayMs,
                 retryAttempt);
 
-        scheduleConnectionAttempt(connection.getBlockNodeConnectionConfig(), Duration.ofMillis(delayMs), blockNumber, false);
+        scheduleConnectionAttempt(
+                connection.getBlockNodeConnectionConfig(), Duration.ofMillis(delayMs), blockNumber, false);
 
         if (!isOnlyOneBlockNodeConfigured() && selectNewBlockNode) {
             // Immediately try to find and connect to the next available node
@@ -455,7 +455,7 @@ public class BlockNodeConnectionManager {
      */
     private void removeConnectionAndClearActive(@NonNull final BlockNodeConnection connection) {
         requireNonNull(connection);
-        connections.remove(connection.getNodeConfig(), connection);
+        connections.remove(connection.getBlockNodeConnectionConfig(), connection);
         activeConnectionRef.compareAndSet(connection, null);
     }
 
@@ -484,7 +484,7 @@ public class BlockNodeConnectionManager {
             logger.debug("{} Successfully scheduled reconnection task.", newConnection);
         } catch (final Exception e) {
             logger.error("{} Failed to schedule connection task for block node.", newConnection, e);
-            connections.remove(newConnection.getNodeConfig());
+            connections.remove(newConnection.getBlockNodeConnectionConfig());
             newConnection.close(true);
         }
     }
@@ -592,7 +592,9 @@ public class BlockNodeConnectionManager {
 
         if (logger.isDebugEnabled()) {
             logger.debug(
-                    "Selected block node {}:{} for connection attempt", selectedNode.blockNodeConfig().address(), selectedNode.blockNodeConfig().port());
+                    "Selected block node {}:{} for connection attempt",
+                    selectedNode.blockNodeConfig().address(),
+                    selectedNode.blockNodeConfig().port());
         }
 
         // Immediately schedule the FIRST connection attempt.
@@ -615,12 +617,9 @@ public class BlockNodeConnectionManager {
             snapshot = new ArrayList<>(availableBlockNodes);
         }
 
-        final SortedMap<Integer, List<BlockNodeConnectionConfig>> priorityGroups =
-                snapshot.stream()
-                        .collect(Collectors.groupingBy(
-                                config -> config.blockNodeConfig().priority(),
-                                TreeMap::new,
-                                Collectors.toList()));
+        final SortedMap<Integer, List<BlockNodeConnectionConfig>> priorityGroups = snapshot.stream()
+                .collect(Collectors.groupingBy(
+                        config -> config.blockNodeConfig().priority(), TreeMap::new, Collectors.toList()));
 
         BlockNodeConnectionConfig selectedNode = null;
 
@@ -647,7 +646,8 @@ public class BlockNodeConnectionManager {
      * @param nodes list of possible nodes to connect to
      * @return a node that is a candidate to connect to, or null if no candidate was found
      */
-    private @Nullable BlockNodeConnectionConfig findAvailableNode(@NonNull final List<BlockNodeConnectionConfig> nodes) {
+    private @Nullable BlockNodeConnectionConfig findAvailableNode(
+            @NonNull final List<BlockNodeConnectionConfig> nodes) {
         requireNonNull(nodes, "nodes must not be null");
         // Only allow the selection of nodes which are not currently in the connections map
         return nodes.stream()
@@ -947,9 +947,9 @@ public class BlockNodeConnectionManager {
             try {
                 // No-op if node was removed from available list
                 synchronized (availableBlockNodes) {
-                    if (!availableBlockNodes.contains(connection.getNodeConfig())) {
+                    if (!availableBlockNodes.contains(connection.getBlockNodeConnectionConfig())) {
                         logger.debug("{} Node no longer available, skipping reschedule.", connection);
-                        connections.remove(connection.getNodeConfig());
+                        connections.remove(connection.getBlockNodeConnectionConfig());
                         return;
                     }
                 }
@@ -959,7 +959,7 @@ public class BlockNodeConnectionManager {
                 logger.error("{} Failed to reschedule connection attempt. Removing from retry map.", connection, e);
                 // If rescheduling fails, close the connection and remove it from the connection map. A periodic task
                 // will handle checking if there are no longer any connections
-                connections.remove(connection.getNodeConfig());
+                connections.remove(connection.getBlockNodeConnectionConfig());
                 connection.close(true);
             }
         }

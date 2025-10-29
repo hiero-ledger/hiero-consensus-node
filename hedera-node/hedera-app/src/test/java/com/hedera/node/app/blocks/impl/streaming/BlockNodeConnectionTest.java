@@ -27,7 +27,6 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.internal.network.BlockNodeConfig;
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClientConfig;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.grpc.GrpcException;
@@ -42,7 +41,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Flow;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -1393,7 +1391,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         // Provide a protocol config with a smaller max message size than the hard cap
         final int configuredMax = 1_000_000;
 
-        // Recreate connection to pick up protocol config through manager on worker construction
+        // Recreate connection with a protocol config that sets a smaller max message size
         final ConfigProvider configProvider = createConfigProvider(createDefaultConfigProvider());
         final BlockNodeClientFactory localFactory = mock(BlockNodeClientFactory.class);
         lenient()
@@ -1401,9 +1399,13 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
                 .when(localFactory)
                 .createClient(any(WebClient.class), any(PbjGrpcClientConfig.class), any(RequestOptions.class));
 
+        final int maxBytes = configuredMax;
+        final BlockNodeConnectionConfig cfgWithMax =
+                new BlockNodeConnectionConfig(nodeConfig.blockNodeConfig(), null, null, maxBytes);
+
         connection = new BlockNodeConnection(
                 configProvider,
-                nodeConfig,
+                cfgWithMax,
                 connectionManager,
                 bufferService,
                 metrics,
