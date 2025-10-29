@@ -13,6 +13,7 @@ import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
+import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.platform.components.DefaultEventWindowManager;
 import com.swirlds.platform.components.EventWindowManager;
@@ -30,9 +31,11 @@ import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import com.swirlds.platform.wiring.components.PassThroughWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.ArrayDeque;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -67,7 +70,9 @@ public class TestIntake {
 
         output = new ConsensusOutput();
 
-        model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
+        model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
+                .deterministic()
+                .build();
 
         hasherWiring = new ComponentWiring<>(model, EventHasher.class, directScheduler("eventHasher"));
         final EventHasher eventHasher = new DefaultEventHasher();
@@ -96,8 +101,8 @@ public class TestIntake {
 
         hasherWiring.getOutputWire().solderTo(postHashCollectorWiring.getInputWire());
         postHashCollectorWiring.getOutputWire().solderTo(orphanBufferWiring.getInputWire(OrphanBuffer::handleEvent));
-        final OutputWire<PlatformEvent> splitOutput = orphanBufferWiring.getSplitOutput();
-        splitOutput.solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::addEvent));
+
+        wireOrphanBufferAndConsensusEngine(orphanBufferWiring, consensusEngineWiring);
 
         final OutputWire<ConsensusRound> consensusRoundOutputWire = consensusEngineWiring
                 .getOutputWire()
@@ -123,6 +128,47 @@ public class TestIntake {
     }
 
     /**
+     * This method wires the orphanBuffer output to consensusEngine's input.
+     * It is done using binding a custom lambda that is solving an edge case that is particularly important when using direct task schedulers:
+     *  In a direct scheduler pipeline, when the orphan buffer releases an event to the consensus component, consensus may output an EventWindow that feeds back to the same orphan buffer which might produce that the orphan buffer releases a second batch of events.
+     *  Because it's a DIRECT scheduler (synchronous, single-threaded), this causes reentrancy - the new list starts processing immediately, interrupting the previous list iteration.
+     *  This means a child event from the new list can be processed before its parent from the original list, breaking topological order.
+     *
+     *  This method solves this issue using a queue of events and a flag indicating that there is a current integration in progress.
+     *  Only one iteration at the time will feed elements to consensus, allowing us to maintain the topological order.
+     * @param orphanBufferWiring the orphan buffer wiring
+     * @param consensusEngineWiring the consensus engine wiring
+     */
+    private static void wireOrphanBufferAndConsensusEngine(
+            final ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring,
+            final ComponentWiring<ConsensusEngine, ConsensusEngineOutput> consensusEngineWiring) {
+        final Queue<List<PlatformEvent>> pendingEventsLists = new ArrayDeque<>();
+        final AtomicBoolean isProcessing = new AtomicBoolean(false);
+        final InputWire<PlatformEvent> consensusInputWire =
+                consensusEngineWiring.getInputWire(ConsensusEngine::addEvent);
+
+        orphanBufferWiring.getOutputWire().solderTo("splitOrphanBufferOutput", "list of events", list -> {
+            pendingEventsLists.add(list);
+
+            if (isProcessing.compareAndExchange(false, true)) {
+                // If already processing, some other iteration in the stack will handle the newly added list
+                return;
+            }
+
+            try {
+                while (!pendingEventsLists.isEmpty()) {
+                    final List<PlatformEvent> currentList = pendingEventsLists.poll();
+                    for (final PlatformEvent t : currentList) {
+                        consensusInputWire.inject(t);
+                    }
+                }
+            } finally {
+                isProcessing.set(false);
+            }
+        });
+    }
+
+    /**
      * Link an event to its parents and add it to consensus and shadowgraph
      *
      * @param event the event to add
@@ -133,6 +179,16 @@ public class TestIntake {
         throwComponentExceptionsIfAny();
     }
 
+    public void stop() {
+        // Important: the order of the lines within this function matters. Do not alter the order of these
+        // lines without understanding the implications of doing so. Consult the wiring diagram when deciding
+        // whether to change the order of these lines.
+
+        hasherWiring.flush();
+        orphanBufferWiring.flush();
+        consensusEngineWiring.flush();
+        model.stop();
+    }
     /**
      * @return a queue of all rounds that have reached consensus
      */

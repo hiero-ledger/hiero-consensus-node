@@ -447,15 +447,9 @@ public final class PlatformBuilder {
             logger.info(STARTUP.getMarker(), "Default platform pool parallelism: {}", parallelism);
 
             model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
-                    .withJvmAnchorEnabled(true)
+                    .jvmAnchorEnabled()
                     .withDefaultPool(defaultPool)
-                    .withHealthMonitorEnabled(wiringConfig.healthMonitorEnabled())
-                    .withHardBackpressureEnabled(wiringConfig.hardBackpressureEnabled())
-                    .withHealthMonitorCapacity(wiringConfig.healthMonitorSchedulerCapacity())
-                    .withHealthMonitorPeriod(wiringConfig.healthMonitorHeartbeatPeriod())
-                    .withHealthLogThreshold(wiringConfig.healthLogThreshold())
-                    .withHealthLogPeriod(wiringConfig.healthLogPeriod())
-                    .withHealthyReportThreshold(wiringConfig.healthyReportThreshold())
+                    .withComponentConfig(wiringConfig)
                     .build();
         }
 

@@ -99,7 +99,7 @@ class SimulatedGossipTests {
         // Wire things up
         for (final NodeId nodeId : nodeIds) {
             final WiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
-                    .withDeterministicModeEnabled(true)
+                    .deterministic()
                     .build();
 
             final TaskScheduler<Void> eventInputShim = model.<Void>schedulerBuilder("eventInputShim")
