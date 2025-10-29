@@ -772,9 +772,9 @@ public class BlockNodeConnectionManager {
                             try {
                                 final Duration delay = getForcedSwitchRescheduleDelay();
                                 scheduleConnectionAttempt(activeConnection.getNodeConfig(), delay, null, false);
-                                logWithContext(
-                                        DEBUG,
-                                        "Scheduled previously active connection in {} ms due to forced switch.",
+                                logger.debug(
+                                        "Scheduled previously active connection {} in {} ms due to forced switch.",
+                                        activeConnection,
                                         delay.toMillis());
                             } catch (final Exception e) {
                                 logger.error(
