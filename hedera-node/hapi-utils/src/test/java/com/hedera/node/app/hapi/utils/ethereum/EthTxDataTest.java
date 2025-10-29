@@ -17,15 +17,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.esaulpaugh.headlong.rlp.RLPDecoder;
 import com.esaulpaugh.headlong.rlp.RLPEncoder;
-import com.esaulpaugh.headlong.rlp.RLPItem;
 import com.esaulpaugh.headlong.rlp.RLPList;
 import com.esaulpaugh.headlong.util.Integers;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.math.BigInteger;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import org.bouncycastle.asn1.sec.SECNamedCurves;
@@ -859,11 +855,22 @@ class EthTxDataTest {
     @Test
     void returnsEmptyWhenAuthorizationTopLevelNotList() throws Exception {
         // authorizationList is a single non-list byte (RLP item 0x01)
-        final byte[] auth = new byte[] { 0x01 };
+        final byte[] auth = new byte[] {0x01};
 
-        final byte[] raw = buildType4Raw(fillBytes(2, 0x01), 1, fillBytes(3, 0x02), fillBytes(3, 0x03),
-                100, fillBytes(20, 0x04), 0L, new byte[] {}, new Object[] {}, auth, 27,
-                fillBytes(32, 0x05), fillBytes(32, 0x06));
+        final byte[] raw = buildType4Raw(
+                fillBytes(2, 0x01),
+                1,
+                fillBytes(3, 0x02),
+                fillBytes(3, 0x03),
+                100,
+                fillBytes(20, 0x04),
+                0L,
+                new byte[] {},
+                new Object[] {},
+                auth,
+                27,
+                fillBytes(32, 0x05),
+                fillBytes(32, 0x06));
 
         final EthTxData tx = EthTxData.populateEthTxData(raw);
         assertNotNull(tx);
@@ -876,11 +883,22 @@ class EthTxDataTest {
     @Test
     void extractCodeDelegationsTrowsWhenInnerItemNotList() throws Exception {
         // authorizationList is an outer list (len=1) containing a single non-list element 0x01
-        final byte[] auth = new byte[] { (byte) 0xC1, 0x01 };
+        final byte[] auth = new byte[] {(byte) 0xC1, 0x01};
 
-        final byte[] raw = buildType4Raw(fillBytes(2, 0x0A), 2, fillBytes(3, 0x0B), fillBytes(3, 0x0C),
-                200, fillBytes(20, 0x0D), 0L, new byte[] {}, new Object[] {}, auth, 28,
-                fillBytes(32, 0x0E), fillBytes(32, 0x0F));
+        final byte[] raw = buildType4Raw(
+                fillBytes(2, 0x0A),
+                2,
+                fillBytes(3, 0x0B),
+                fillBytes(3, 0x0C),
+                200,
+                fillBytes(20, 0x0D),
+                0L,
+                new byte[] {},
+                new Object[] {},
+                auth,
+                28,
+                fillBytes(32, 0x0E),
+                fillBytes(32, 0x0F));
 
         final EthTxData tx = EthTxData.populateEthTxData(raw);
         assertNotNull(tx);
@@ -891,11 +909,22 @@ class EthTxDataTest {
     @Test
     void extractCodeDelegationsThrowsWhenTopLevelListSizeNotSix() throws Exception {
         // authorizationList is an outer list with a single empty inner list: 0xC1 0xC0
-        final byte[] auth = new byte[] { (byte) 0xC1, (byte) 0xC0 };
+        final byte[] auth = new byte[] {(byte) 0xC1, (byte) 0xC0};
 
-        final byte[] raw = buildType4Raw(fillBytes(2, 0x1A), 3, fillBytes(3, 0x1B), fillBytes(3, 0x1C),
-                300, fillBytes(20, 0x1D), 0L, new byte[] {}, new Object[] {}, auth, 29,
-                fillBytes(32, 0x1E), fillBytes(32, 0x1F));
+        final byte[] raw = buildType4Raw(
+                fillBytes(2, 0x1A),
+                3,
+                fillBytes(3, 0x1B),
+                fillBytes(3, 0x1C),
+                300,
+                fillBytes(20, 0x1D),
+                0L,
+                new byte[] {},
+                new Object[] {},
+                auth,
+                29,
+                fillBytes(32, 0x1E),
+                fillBytes(32, 0x1F));
 
         final EthTxData tx = EthTxData.populateEthTxData(raw);
         assertNotNull(tx);
@@ -916,22 +945,21 @@ class EthTxDataTest {
             byte[] authorizationList,
             int recId,
             byte[] r,
-            byte[] s
-    ) {
+            byte[] s) {
         return RLPEncoder.sequence(Integers.toBytes(4), new Object[] {
-                chainId,
-                Integers.toBytes(nonce),
-                maxPriorityGas,
-                maxGas,
-                Integers.toBytes(gasLimit),
-                to,
-                Integers.toBytesUnsigned(java.math.BigInteger.valueOf(value)),
-                callData,
-                accessListList,
-                authorizationList,
-                new byte[] {(byte) recId},
-                r,
-                s
+            chainId,
+            Integers.toBytes(nonce),
+            maxPriorityGas,
+            maxGas,
+            Integers.toBytes(gasLimit),
+            to,
+            Integers.toBytesUnsigned(java.math.BigInteger.valueOf(value)),
+            callData,
+            accessListList,
+            authorizationList,
+            new byte[] {(byte) recId},
+            r,
+            s
         });
     }
 

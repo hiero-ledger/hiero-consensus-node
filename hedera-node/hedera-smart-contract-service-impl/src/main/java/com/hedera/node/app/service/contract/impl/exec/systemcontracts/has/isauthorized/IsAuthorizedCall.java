@@ -76,7 +76,8 @@ public class IsAuthorizedCall extends AbstractCall {
         sigMap = stripRecoveryIdFromEcdsaSignatures(sigMap);
 
         final var keyCounts = signatureVerifier.countSimpleKeys(key);
-        final long gasRequirement = keyCounts.numEcdsaKeys() * hederaGasCalculatorImpl.getEcrecPrecompiledContractGasCost()
+        final long gasRequirement = keyCounts.numEcdsaKeys()
+                        * hederaGasCalculatorImpl.getEcrecPrecompiledContractGasCost()
                 + keyCounts.numEddsaKeys() * hederaGasCalculatorImpl.getEdSignatureVerificationSystemContractGasCost();
 
         final var authorized = verifyMessage(
