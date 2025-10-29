@@ -30,6 +30,8 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClientConfig;
 import com.hedera.pbj.runtime.OneOf;
+import com.hedera.pbj.runtime.grpc.GrpcException;
+import com.hedera.pbj.runtime.grpc.GrpcStatus;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions;
 import io.helidon.webclient.api.WebClient;
@@ -204,6 +206,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.PENDING);
         verify(grpcServiceClient).publishBlockStream(connection);
+        verify(clientFactory)
+                .createClient(any(WebClient.class), any(PbjGrpcClientConfig.class), any(RequestOptions.class));
     }
 
     @Test
@@ -213,6 +217,27 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(grpcServiceClient).publishBlockStream(connection); // should only be called once
         verifyNoMoreInteractions(grpcServiceClient);
+    }
+
+    @Test
+    void testConstructorWithInitialBlock() {
+        final ConfigProvider configProvider = createConfigProvider(createDefaultConfigProvider());
+
+        // Create connection with initial block number
+        final BlockNodeConnection connectionWithInitialBlock = new BlockNodeConnection(
+                configProvider,
+                nodeConfig,
+                connectionManager,
+                bufferService,
+                metrics,
+                executorService,
+                pipelineExecutor,
+                100L,
+                clientFactory);
+
+        // Verify the streamingBlockNumber was set
+        final AtomicLong streamingBlockNumber = streamingBlockNumber(connectionWithInitialBlock);
+        assertThat(streamingBlockNumber).hasValue(100L);
     }
 
     /**
@@ -471,6 +496,32 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(bufferService);
+    }
+
+    @Test
+    void testOnNext_acknowledgement_highLatencyShouldSwitch() {
+        final AtomicLong streamingBlockNumber = streamingBlockNumber();
+        streamingBlockNumber.set(10);
+        final PublishStreamResponse response = createBlockAckResponse(10L);
+
+        when(bufferService.getLastBlockNumberProduced()).thenReturn(10L);
+        when(connectionManager.recordBlockAckAndCheckLatency(eq(connection.getNodeConfig()), eq(10L), any()))
+                .thenReturn(latencyResult);
+        when(latencyResult.shouldSwitch()).thenReturn(true);
+        when(latencyResult.consecutiveHighLatencyEvents()).thenReturn(5);
+        when(connectionManager.isOnlyOneBlockNodeConfigured()).thenReturn(false);
+
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+        connection.onNext(response);
+
+        // Should not jump to block since acknowledgement is not newer
+        assertThat(streamingBlockNumber).hasValue(10L);
+
+        verify(bufferService).getLastBlockNumberProduced();
+        verify(bufferService).setLatestAcknowledgedBlock(10L);
+        verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
+        verify(connectionManager).isOnlyOneBlockNodeConfigured();
+        verify(connectionManager).rescheduleConnection(eq(connection), any(Duration.class), eq(null), eq(true));
     }
 
     @Test
@@ -993,6 +1044,41 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testClose_stateChangedDuringClose() {
+        openConnectionAndResetMocks();
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        // Create a spy to intercept the close method and change state during execution
+        final BlockNodeConnection spyConnection = spy(connection);
+        final AtomicBoolean stateChanged = new AtomicBoolean(false);
+
+        // Override getConnectionState to trigger state change on first call
+        doAnswer(invocation -> {
+                    ConnectionState result = (ConnectionState) invocation.callRealMethod();
+                    if (!stateChanged.get()) {
+                        stateChanged.set(true);
+                        // Change the actual internal state to cause fail
+                        final AtomicReference<ConnectionState> state = connectionState();
+                        state.set(ConnectionState.PENDING);
+                    }
+                    return result;
+                })
+                .when(spyConnection)
+                .getConnectionState();
+
+        // Now call close - it will get ACTIVE from getConnectionState,
+        // but then the state will be PENDING when it tries to CAS
+        spyConnection.close(true);
+
+        // The close should have aborted due to state mismatch
+        // State should still be PENDING (not changed to CLOSING or CLOSED)
+        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.PENDING);
+
+        // No interactions should have occurred since close aborted early
+        verifyNoInteractions(requestPipeline);
+    }
+
+    @Test
     void testOnError_activeConnection() {
         openConnectionAndResetMocks();
         connection.updateConnectionState(ConnectionState.ACTIVE);
@@ -1010,6 +1096,26 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(requestPipeline);
         verifyNoMoreInteractions(connectionManager);
         verifyNoInteractions(bufferService);
+    }
+
+    @Test
+    void testOnError_grpcException() {
+        openConnectionAndResetMocks();
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        // Create a real GrpcException
+        final GrpcException grpcException =
+                new GrpcException(GrpcStatus.UNAVAILABLE, new RuntimeException("Service unavailable"));
+
+        connection.onError(grpcException);
+
+        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CLOSED);
+
+        verify(metrics).recordConnectionOnError();
+        verify(metrics).recordConnectionClosed();
+        verify(metrics).recordActiveConnectionIp(-1L);
+        verify(requestPipeline).onComplete();
+        verify(connectionManager).rescheduleConnection(connection, Duration.ofSeconds(30), null, true);
     }
 
     @Test
@@ -2255,6 +2361,10 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
     private AtomicLong streamingBlockNumber() {
         return (AtomicLong) streamingBlockNumberHandle.get(connection);
+    }
+
+    private AtomicLong streamingBlockNumber(final BlockNodeConnection conn) {
+        return (AtomicLong) streamingBlockNumberHandle.get(conn);
     }
 
     @SuppressWarnings("unchecked")
