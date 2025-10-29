@@ -61,7 +61,7 @@ import org.junit.jupiter.api.Tag;
 @SuppressWarnings({"rawtypes", "unchecked"})
 @Tag(ADHOC)
 public class Hip1195StreamParityTest {
-    public static final String HOOK_CONTRACT = "0.0.365";
+    public static final String HOOK_CONTRACT_NUM = "365";
 
     private static final TupleType SET_AND_PASS_ARGS = TupleType.parse("(uint32,address)");
 
@@ -260,16 +260,16 @@ public class Hip1195StreamParityTest {
                                 recordWith().status(SUCCESS).memo(AUTO_MEMO),
                                 recordWith()
                                         .status(SUCCESS)
-                                        .contractCallResult(resultWith().contract(HOOK_CONTRACT)),
+                                        .contractCallResult(resultWith().contract(HOOK_CONTRACT_NUM)),
                                 recordWith()
                                         .status(SUCCESS)
-                                        .contractCallResult(resultWith().contract(HOOK_CONTRACT)),
+                                        .contractCallResult(resultWith().contract(HOOK_CONTRACT_NUM)),
                                 recordWith()
                                         .status(SUCCESS)
-                                        .contractCallResult(resultWith().contract(HOOK_CONTRACT)),
+                                        .contractCallResult(resultWith().contract(HOOK_CONTRACT_NUM)),
                                 recordWith()
                                         .status(SUCCESS)
-                                        .contractCallResult(resultWith().contract(HOOK_CONTRACT)))
+                                        .contractCallResult(resultWith().contract(HOOK_CONTRACT_NUM)))
                         .logged(),
                 getAliasedAccountInfo("alias").has(accountWith().balance(10L)).hasToken(relationshipWith("tokenA")));
     }
