@@ -135,7 +135,7 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
         return recoveredFullKey.array();
     }
 
-    private static LibSecp256k1.secp256k1_pubkey extractSig(int recId, byte[] r, byte[] s, byte[] message) {
+    static LibSecp256k1.secp256k1_pubkey extractSig(int recId, byte[] r, byte[] s, byte[] message) {
         // The only meaningful recovery ids are 0 and 1 (even if the high order bytes
         // were used to encode the chain id, the parity is all that matters here)
         recId = Math.floorMod(recId, 2);

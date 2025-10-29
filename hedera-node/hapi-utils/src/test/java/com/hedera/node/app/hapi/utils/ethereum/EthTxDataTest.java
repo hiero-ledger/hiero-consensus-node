@@ -854,7 +854,6 @@ class EthTxDataTest {
 
     @Test
     void returnsEmptyWhenAuthorizationTopLevelNotList() throws Exception {
-        // authorizationList is a single non-list byte (RLP item 0x01)
         final byte[] auth = new byte[] {0x01};
 
         final byte[] raw = buildType4Raw(
@@ -882,7 +881,6 @@ class EthTxDataTest {
 
     @Test
     void extractCodeDelegationsTrowsWhenInnerItemNotList() throws Exception {
-        // authorizationList is an outer list (len=1) containing a single non-list element 0x01
         final byte[] auth = new byte[] {(byte) 0xC1, 0x01};
 
         final byte[] raw = buildType4Raw(
@@ -908,7 +906,6 @@ class EthTxDataTest {
 
     @Test
     void extractCodeDelegationsThrowsWhenTopLevelListSizeNotSix() throws Exception {
-        // authorizationList is an outer list with a single empty inner list: 0xC1 0xC0
         final byte[] auth = new byte[] {(byte) 0xC1, (byte) 0xC0};
 
         final byte[] raw = buildType4Raw(
@@ -967,5 +964,151 @@ class EthTxDataTest {
         final Object entry = alRlp[index];
         assertTrue(entry instanceof Object[], "access list entry must be a list");
         return entry;
+    }
+
+    @Test
+    void extractCodeDelegationsWithValidAuthorizationListYieldsOneDelegation() throws Exception {
+        byte[] chainId = new byte[] {0x01};
+        byte[] address = repeat((byte) 0x11, 20);
+        int nonce = 5;
+        int yParity = 1;
+        byte[] r = repeat((byte) 0x22, 32);
+        byte[] s = repeat((byte) 0x33, 32);
+
+        byte[] innerList = rlpList(
+                rlpBytes(chainId), rlpBytes(address), rlpUInt(nonce), rlpUInt(yParity), rlpBytes(r), rlpBytes(s));
+
+        byte[] authorizationList = rlpList(innerList);
+
+        final byte[] raw = buildType4Raw(
+                fillBytes(2, 0x01),
+                1,
+                fillBytes(3, 0x02),
+                fillBytes(3, 0x03),
+                100,
+                fillBytes(20, 0x04),
+                0L,
+                new byte[] {},
+                new Object[] {},
+                authorizationList,
+                27,
+                fillBytes(32, 0x05),
+                fillBytes(32, 0x06));
+
+        final EthTxData tx = EthTxData.populateEthTxData(raw);
+
+        // Assert
+        final var delegations = tx.extractCodeDelegations();
+        assertNotNull(delegations);
+        assertEquals(1, delegations.size());
+
+        CodeDelegation cd = delegations.get(0);
+        assertArrayEquals(chainId, cd.chainId());
+        assertArrayEquals(address, cd.address());
+        assertEquals(nonce, cd.nonce());
+        assertEquals((byte) yParity, cd.yParity());
+        assertArrayEquals(r, cd.r());
+        assertArrayEquals(s, cd.s());
+    }
+
+    @Test
+    void populateEip7702EthTxDataReturnsNullWhenItemIsNotList() throws Exception {
+        byte[] chainId = new byte[] {0x01};
+        final var raw = RLPEncoder.sequence(Integers.toBytes(4), chainId);
+
+        final EthTxData tx = EthTxData.populateEthTxData(raw);
+
+        assertNull(tx);
+    }
+
+    @Test
+    void populateEip7702EthTxDataReturnsNullWhenWrongNumberOfItemsInList() throws Exception {
+        byte[] chainId = new byte[] {0x01};
+        final var raw = RLPEncoder.sequence(Integers.toBytes(4), new Object[] {chainId});
+
+        final EthTxData tx = EthTxData.populateEthTxData(raw);
+
+        assertNull(tx);
+    }
+
+    private static byte[] rlpBytes(byte[] bytes) {
+        if (bytes.length == 1 && (bytes[0] & 0xFF) < 0x80) {
+            return new byte[] {bytes[0]};
+        }
+        if (bytes.length <= 55) {
+            byte[] out = new byte[1 + bytes.length];
+            out[0] = (byte) (0x80 + bytes.length);
+            System.arraycopy(bytes, 0, out, 1, bytes.length);
+            return out;
+        }
+        // length > 55
+        byte[] lenEnc = encodeLen(bytes.length);
+        byte[] out = new byte[1 + lenEnc.length + bytes.length];
+        out[0] = (byte) (0xB7 + lenEnc.length);
+        System.arraycopy(lenEnc, 0, out, 1, lenEnc.length);
+        System.arraycopy(bytes, 0, out, 1 + lenEnc.length, bytes.length);
+        return out;
+    }
+
+    private static byte[] rlpUInt(int value) {
+        if (value == 0) {
+            return new byte[] {(byte) 0x80}; // empty (zero)
+        }
+        // minimal big-endian
+        int v = value;
+        int size = 0;
+        byte[] tmp = new byte[8];
+        while (v != 0) {
+            tmp[7 - size] = (byte) (v & 0xFF);
+            v >>>= 8;
+            size++;
+        }
+        byte[] be = new byte[size];
+        System.arraycopy(tmp, 8 - size, be, 0, size);
+        return rlpBytes(be);
+    }
+
+    private static byte[] rlpList(byte[]... items) {
+        int payloadLen = 0;
+        for (byte[] it : items) payloadLen += it.length;
+        byte[] payload = new byte[payloadLen];
+        int off = 0;
+        for (byte[] it : items) {
+            System.arraycopy(it, 0, payload, off, it.length);
+            off += it.length;
+        }
+        if (payloadLen <= 55) {
+            byte[] out = new byte[1 + payloadLen];
+            out[0] = (byte) (0xC0 + payloadLen);
+            System.arraycopy(payload, 0, out, 1, payloadLen);
+            return out;
+        }
+        byte[] lenEnc = encodeLen(payloadLen);
+        byte[] out = new byte[1 + lenEnc.length + payloadLen];
+        out[0] = (byte) (0xF7 + lenEnc.length);
+        System.arraycopy(lenEnc, 0, out, 1, lenEnc.length);
+        System.arraycopy(payload, 0, out, 1 + lenEnc.length, payloadLen);
+        return out;
+    }
+
+    private static byte[] encodeLen(int len) {
+        // big-endian, minimal
+        int n = len;
+        int size = 0;
+        byte[] tmp = new byte[8];
+        while (n != 0) {
+            tmp[7 - size] = (byte) (n & 0xFF);
+            n >>>= 8;
+            size++;
+        }
+        byte[] out = new byte[size];
+        System.arraycopy(tmp, 8 - size, out, 0, size);
+        return out;
+    }
+
+    private static byte[] repeat(byte b, int n) {
+        byte[] out = new byte[n];
+        java.util.Arrays.fill(out, b);
+        return out;
     }
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.delegation;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 import static org.mockito.ArgumentMatchers.any;
@@ -102,6 +103,69 @@ class CodeDelegationProcessorTest {
 
         assertNotNull(result);
         verifyNoInteractions(world);
+    }
+
+    @Test
+    void skipsWhenRAboveHalfOrder() {
+        final var world = mock(WorldUpdater.class);
+        final var tx = mock(HederaEvmTransaction.class);
+        final var del = mock(CodeDelegation.class);
+
+        when(tx.codeDelegations()).thenReturn(List.of(del));
+        when(del.getChainId()).thenReturn(CHAIN_ID);
+        when(del.nonce()).thenReturn(0L);
+        when(del.getS()).thenReturn(HALF_ORDER.subtract(BigInteger.ONE));
+        when(del.getR()).thenReturn(HALF_ORDER.add(BigInteger.ONE));
+
+        final var p = new CodeDelegationProcessor(CHAIN_ID);
+        final var result = p.process(world, tx);
+
+        assertNotNull(result);
+        verifyNoInteractions(world);
+    }
+
+    @Test
+    void skipsWhenYParityTooBig() {
+        final var world = mock(WorldUpdater.class);
+        final var tx = mock(HederaEvmTransaction.class);
+        final var del = mock(CodeDelegation.class);
+
+        when(tx.codeDelegations()).thenReturn(List.of(del));
+        when(del.getChainId()).thenReturn(CHAIN_ID);
+        when(del.nonce()).thenReturn(0L);
+        when(del.getS()).thenReturn(HALF_ORDER.subtract(BigInteger.ONE));
+        when(del.getR()).thenReturn(HALF_ORDER.subtract(BigInteger.ONE));
+        when(del.getYParity()).thenReturn(2 ^ 8);
+
+        final var p = new CodeDelegationProcessor(CHAIN_ID);
+        final var result = p.process(world, tx);
+
+        assertNotNull(result);
+        verifyNoInteractions(world);
+    }
+
+    @Test
+    void skipsWhenAuthoritySignatureIsEmpty() {
+        final var world = mock(WorldUpdater.class);
+        final var tx = mock(HederaEvmTransaction.class);
+        final var del = mock(CodeDelegation.class);
+
+        when(tx.codeDelegations()).thenReturn(List.of(del));
+        when(del.getChainId()).thenReturn(CHAIN_ID);
+        when(del.nonce()).thenReturn(0L);
+        when(del.getS()).thenReturn(HALF_ORDER.subtract(BigInteger.ONE));
+        when(del.getR()).thenReturn(HALF_ORDER.subtract(BigInteger.ONE));
+        when(del.getYParity()).thenReturn(2 ^ 8);
+
+        try (MockedStatic<EthTxSigs> mocked = mockStatic(EthTxSigs.class)) {
+            mocked.when(() -> EthTxSigs.extractAuthoritySignature(del)).thenReturn(Optional.empty());
+
+            final var p = new CodeDelegationProcessor(CHAIN_ID);
+            final var result = p.process(world, tx);
+
+            assertNotNull(result);
+            verifyNoInteractions(world);
+        }
     }
 
     @Test
@@ -327,5 +391,31 @@ class CodeDelegationProcessorTest {
             verify(acct).setCode(Bytes.EMPTY);
             verify(acct).incrementNonce();
         }
+    }
+
+    @Test
+    void getRandSReturnBigInteger() {
+        final byte[] sampleChainId = new byte[] {0x01};
+        final byte[] sampleAddress = Bytes.fromHexString("0x1122").toArray();
+        final long sampleNonce = 42L;
+        final int sampleY = 1;
+        final byte[] sampleR = new byte[] {0x03, 0x04};
+        final byte[] sampleS = new byte[] {0x05, 0x06};
+
+        var cd = new CodeDelegation(sampleChainId, sampleAddress, sampleNonce, sampleY, sampleR, sampleS);
+        assertEquals(new BigInteger(1, sampleR), cd.getR());
+        assertEquals(new BigInteger(1, sampleS), cd.getS());
+    }
+
+    @Test
+    void getYParityReturnsValue() {
+        final byte[] sampleChainId = new byte[] {0x01};
+        final byte[] sampleAddress = Bytes.fromHexString("0x1122").toArray();
+        final long sampleNonce = 42L;
+        final int sampleY = 1;
+        final byte[] sampleR = new byte[] {0x03, 0x04};
+        final byte[] sampleS = new byte[] {0x05, 0x06};
+        var cd = new CodeDelegation(sampleChainId, sampleAddress, sampleNonce, 7, sampleR, sampleS);
+        assertEquals(7, cd.getYParity());
     }
 }

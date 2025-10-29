@@ -23,8 +23,4 @@ public class CodeDelegationResult {
     public Set<Address> accessedDelegatorAddresses() {
         return accessedDelegatorAddresses;
     }
-
-    public long alreadyExistingDelegators() {
-        return alreadyExistingDelegators;
-    }
 }

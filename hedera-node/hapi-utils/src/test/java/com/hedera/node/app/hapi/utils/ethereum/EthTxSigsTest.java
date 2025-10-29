@@ -21,13 +21,17 @@ import static org.mockito.Mockito.when;
 
 import com.esaulpaugh.headlong.rlp.RLPEncoder;
 import com.esaulpaugh.headlong.util.Integers;
+import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.SplittableRandom;
 import org.hiero.base.utility.CommonUtils;
+import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 class EthTxSigsTest {
     private final SplittableRandom random = new SplittableRandom();
@@ -277,5 +281,54 @@ class EthTxSigsTest {
         });
 
         assertArrayEquals(expected, actual);
+    }
+
+    @Test
+    void extractAuthoritySignatureHappyPath() {
+        final byte yParity = (byte) 1;
+        final byte[] r = new byte[32];
+        final byte[] s = new byte[32];
+        final byte[] message = new byte[] {0x01, 0x02, 0x03};
+
+        final byte[] expectedCompressedKey = new byte[] {0x55, 0x66, 0x77};
+        final byte[] expectedAddress = new byte[] {
+            0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11,
+            0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19,
+            0x1A, 0x1B, 0x1C, 0x1D
+        };
+
+        final CodeDelegation codeDelegation = Mockito.mock(CodeDelegation.class);
+        Mockito.when(codeDelegation.yParity()).thenReturn((int) yParity);
+        Mockito.when(codeDelegation.r()).thenReturn(r);
+        Mockito.when(codeDelegation.s()).thenReturn(s);
+        Mockito.when(codeDelegation.calculateSignableMessage()).thenReturn(message);
+
+        final LibSecp256k1.secp256k1_pubkey fakePubKey = Mockito.mock(LibSecp256k1.secp256k1_pubkey.class);
+
+        try (MockedStatic<EthTxSigs> sigsMock = Mockito.mockStatic(EthTxSigs.class);
+                MockedStatic<EthSigsUtils> addrMock = Mockito.mockStatic(EthSigsUtils.class)) {
+
+            // Stub every helper used by extractAuthoritySignature to avoid native paths.
+            sigsMock.when(() -> EthTxSigs.extractSig(
+                            Mockito.anyByte(),
+                            Mockito.any(byte[].class),
+                            Mockito.any(byte[].class),
+                            Mockito.any(byte[].class)))
+                    .thenReturn(fakePubKey);
+
+            sigsMock.when(() ->
+                            EthTxSigs.serializeIntoCompressedKeyBytes(Mockito.any(LibSecp256k1.secp256k1_pubkey.class)))
+                    .thenReturn(expectedCompressedKey);
+
+            addrMock.when(() -> EthSigsUtils.recoverAddressFromPubKey(Mockito.any(LibSecp256k1.secp256k1_pubkey.class)))
+                    .thenReturn(expectedAddress);
+
+            sigsMock.when(() -> EthTxSigs.extractAuthoritySignature(codeDelegation))
+                    .thenCallRealMethod();
+
+            Optional<EthTxSigs> result = EthTxSigs.extractAuthoritySignature(codeDelegation);
+
+            assertTrue(result.isPresent());
+        }
     }
 }

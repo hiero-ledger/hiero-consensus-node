@@ -469,10 +469,10 @@ public record EthTxData(
                     throw new IllegalArgumentException("Code authorization is not a list");
                 }
 
-                final var rlpInnerList = rlpItem.asRLPList().elements();
+                final var rlpInnerList = rlpInner.asRLPList().elements();
                 if (rlpInnerList.size() != 6) {
                     throw new IllegalArgumentException(
-                            "Code authorization is does not contain expected number of elements");
+                            "Code authorization does not contain expected number of elements");
                 }
 
                 codeDelegations.add(new CodeDelegation(
