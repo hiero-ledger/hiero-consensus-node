@@ -42,7 +42,7 @@ import com.hedera.node.app.signature.impl.SignatureVerifierImpl;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
-import com.hedera.node.app.spi.throttle.Throttle;
+import com.hedera.node.app.spi.throttle.ScheduleThrottle;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
@@ -78,7 +78,7 @@ class IngestComponentTest {
     private TransactionPoolNexus transactionPool;
 
     @Mock
-    private Throttle.Factory throttleFactory;
+    private ScheduleThrottle.Factory throttleFactory;
 
     @Mock
     private StartupNetworks startupNetworks;

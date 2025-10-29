@@ -413,7 +413,7 @@ tasks:
     silent: true
     cmds:
       - |
-        if ! kubectl get svc -l app.kubernetes.io/instance=minio-operator --all-namespaces --no-headers | grep -q . ; then
+        if ! kubectl get pods -l app.kubernetes.io/instance=minio-operator -l app.kubernetes.io/name=operator --all-namespaces --no-headers | grep -q . ; then
           echo "No services found with label app.kubernetes.io/name=operator app.kubernetes.io/instance=minio-operator"
           echo "--minio" > {{ .minio_flag_file }}
         else
@@ -431,9 +431,9 @@ tasks:
       - |
         export MINIO_FLAG=$(cat {{ .minio_flag_file }})
         if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
-          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo cluster-ref config setup --cluster-setup-namespace "${SOLO_CLUSTER_SETUP_NAMESPACE}" ${MINIO_FLAG} ${SOLO_CHARTS_DIR_FLAG} ${CLUSTER_TLS_FLAGS} -q --dev
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo cluster-ref config setup --cluster-setup-namespace "${SOLO_CLUSTER_SETUP_NAMESPACE}" ${MINIO_FLAG} ${SOLO_CHARTS_DIR_FLAG} ${CLUSTER_TLS_FLAGS} --no-prometheus-stack -q --dev
         else
-          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo cluster-ref setup --cluster-setup-namespace "${SOLO_CLUSTER_SETUP_NAMESPACE}" ${MINIO_FLAG} ${SOLO_CHARTS_DIR_FLAG} ${CLUSTER_TLS_FLAGS} -q --dev
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo cluster-ref setup --cluster-setup-namespace "${SOLO_CLUSTER_SETUP_NAMESPACE}" ${MINIO_FLAG} ${SOLO_CHARTS_DIR_FLAG} ${CLUSTER_TLS_FLAGS} --no-prometheus-stack -q --dev
         fi
 
   solo:node:addresses:
