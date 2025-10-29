@@ -15,11 +15,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-/**
- * Parameterized tests for crypto fee model calculations.
- * These tests verify the arithmetic of fee models (base + extras calculation)
- * without testing handler implementation details.
- */
 class CryptoFeeModelTests {
 
     @ParameterizedTest(name = "{0}: {1}")
