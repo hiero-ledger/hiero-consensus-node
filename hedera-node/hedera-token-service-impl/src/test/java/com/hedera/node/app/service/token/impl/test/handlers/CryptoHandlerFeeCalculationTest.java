@@ -1,7 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.*;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static org.hiero.hapi.fees.FeeScheduleUtils.*;
 import static org.hiero.hapi.support.fees.Extra.*;
 import static org.hiero.hapi.support.fees.NetworkFee.*;
@@ -14,13 +14,11 @@ import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.NftTransfer;
+import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransferList;
-import com.hedera.hapi.node.base.QueryHeader;
-import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.token.CryptoAllowance;
 import com.hedera.hapi.node.token.CryptoApproveAllowanceTransactionBody;
@@ -30,13 +28,11 @@ import com.hedera.hapi.node.token.CryptoDeleteTransactionBody;
 import com.hedera.hapi.node.token.CryptoGetAccountRecordsQuery;
 import com.hedera.hapi.node.token.CryptoGetInfoQuery;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
-import com.hedera.hapi.node.token.NftAllowance;
 import com.hedera.hapi.node.token.NftRemoveAllowance;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
-import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
@@ -55,13 +51,14 @@ import com.hedera.node.app.service.token.impl.validators.DeleteAllowanceValidato
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.time.InstantSource;
-
+import java.util.stream.Stream;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.NodeFee;
 import org.junit.jupiter.api.BeforeEach;
@@ -72,8 +69,6 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.util.stream.Stream;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Crypto Handler Fee Calculation Tests")
@@ -129,10 +124,7 @@ class CryptoHandlerFeeCalculationTest {
     @MethodSource("cryptoCreateTestCases")
     @DisplayName("CryptoCreate handler fee calculations")
     void testCryptoCreateFeeCalculation(
-            String description,
-            CryptoCreateTransactionBody op,
-            int numSignatures,
-            long expectedFee) {
+            String description, CryptoCreateTransactionBody op, int numSignatures, long expectedFee) {
         // Arrange
         final var txBody = TransactionBody.newBuilder().cryptoCreateAccount(op).build();
         final var feeContext = createMockFeeContext(txBody, numSignatures);
@@ -158,8 +150,8 @@ class CryptoHandlerFeeCalculationTest {
             long expectedFee) {
         // Arrange
         final var txBody = TransactionBody.newBuilder().cryptoTransfer(op).build();
-        final var feeContext = createMockFeeContextWithStores(
-                txBody, numSignatures, accountStore, tokenStore, tokenRelStore);
+        final var feeContext =
+                createMockFeeContextWithStores(txBody, numSignatures, accountStore, tokenStore, tokenRelStore);
 
         // Act
         final var result = transferHandler.calculateFeeResult(feeContext);
@@ -173,10 +165,7 @@ class CryptoHandlerFeeCalculationTest {
     @MethodSource("cryptoDeleteTestCases")
     @DisplayName("CryptoDelete handler fee calculations")
     void testCryptoDeleteFeeCalculation(
-            String description,
-            CryptoDeleteTransactionBody op,
-            int numSignatures,
-            long expectedFee) {
+            String description, CryptoDeleteTransactionBody op, int numSignatures, long expectedFee) {
         // Arrange
         final var txBody = TransactionBody.newBuilder().cryptoDelete(op).build();
         final var feeContext = createMockFeeContext(txBody, numSignatures);
@@ -193,12 +182,10 @@ class CryptoHandlerFeeCalculationTest {
     @MethodSource("cryptoApproveAllowanceTestCases")
     @DisplayName("CryptoApproveAllowance handler fee calculations")
     void testCryptoApproveAllowanceFeeCalculation(
-            String description,
-            CryptoApproveAllowanceTransactionBody op,
-            int numSignatures,
-            long expectedFee) {
+            String description, CryptoApproveAllowanceTransactionBody op, int numSignatures, long expectedFee) {
         // Arrange
-        final var txBody = TransactionBody.newBuilder().cryptoApproveAllowance(op).build();
+        final var txBody =
+                TransactionBody.newBuilder().cryptoApproveAllowance(op).build();
         final var feeContext = createMockFeeContext(txBody, numSignatures);
 
         // Act
@@ -213,12 +200,10 @@ class CryptoHandlerFeeCalculationTest {
     @MethodSource("cryptoDeleteAllowanceTestCases")
     @DisplayName("CryptoDeleteAllowance handler fee calculations")
     void testCryptoDeleteAllowanceFeeCalculation(
-            String description,
-            CryptoDeleteAllowanceTransactionBody op,
-            int numSignatures,
-            long expectedFee) {
+            String description, CryptoDeleteAllowanceTransactionBody op, int numSignatures, long expectedFee) {
         // Arrange
-        final var txBody = TransactionBody.newBuilder().cryptoDeleteAllowance(op).build();
+        final var txBody =
+                TransactionBody.newBuilder().cryptoDeleteAllowance(op).build();
         final var feeContext = createMockFeeContext(txBody, numSignatures);
 
         // Act
@@ -232,10 +217,7 @@ class CryptoHandlerFeeCalculationTest {
     @ParameterizedTest(name = "CryptoGetAccountInfo: {0}")
     @MethodSource("cryptoGetAccountInfoTestCases")
     @DisplayName("CryptoGetAccountInfo handler fee calculations")
-    void testCryptoGetAccountInfoFeeCalculation(
-            String description,
-            CryptoGetInfoQuery op,
-            long expectedFee) {
+    void testCryptoGetAccountInfoFeeCalculation(String description, CryptoGetInfoQuery op, long expectedFee) {
         // Arrange
         final var query = Query.newBuilder().cryptoGetInfo(op).build();
         final var queryContext = createMockQueryContext(query);
@@ -252,9 +234,7 @@ class CryptoHandlerFeeCalculationTest {
     @MethodSource("cryptoGetAccountRecordsTestCases")
     @DisplayName("CryptoGetAccountRecords handler fee calculations")
     void testCryptoGetAccountRecordsFeeCalculation(
-            String description,
-            CryptoGetAccountRecordsQuery op,
-            long expectedFee) {
+            String description, CryptoGetAccountRecordsQuery op, long expectedFee) {
         // Arrange
         final var query = Query.newBuilder().cryptoGetAccountRecords(op).build();
         final var queryContext = createMockQueryContext(query);
@@ -273,7 +253,8 @@ class CryptoHandlerFeeCalculationTest {
                         "Create without key",
                         CryptoCreateTransactionBody.newBuilder()
                                 .initialBalance(1000L)
-                                .autoRenewPeriod(Duration.newBuilder().seconds(7776000L).build())
+                                .autoRenewPeriod(
+                                        Duration.newBuilder().seconds(7776000L).build())
                                 .build(),
                         1,
                         22L),
@@ -284,7 +265,8 @@ class CryptoHandlerFeeCalculationTest {
                                 .key(Key.newBuilder()
                                         .ed25519(Bytes.wrap(new byte[32]))
                                         .build())
-                                .autoRenewPeriod(Duration.newBuilder().seconds(7776000L).build())
+                                .autoRenewPeriod(
+                                        Duration.newBuilder().seconds(7776000L).build())
                                 .build(),
                         1,
                         22L),
@@ -295,11 +277,12 @@ class CryptoHandlerFeeCalculationTest {
                                 .key(Key.newBuilder()
                                         .ed25519(Bytes.wrap(new byte[32]))
                                         .build())
-                                .autoRenewPeriod(Duration.newBuilder().seconds(7776000L).build())
+                                .autoRenewPeriod(
+                                        Duration.newBuilder().seconds(7776000L).build())
                                 .build(),
                         3,
                         120_000_022L) // 22 + (3-1)*60_000_000
-        );
+                );
     }
 
     static Stream<Arguments> cryptoTransferTestCases() {
@@ -310,11 +293,15 @@ class CryptoHandlerFeeCalculationTest {
                                 .transfers(TransferList.newBuilder()
                                         .accountAmounts(
                                                 AccountAmount.newBuilder()
-                                                        .accountID(AccountID.newBuilder().accountNum(1001L).build())
+                                                        .accountID(AccountID.newBuilder()
+                                                                .accountNum(1001L)
+                                                                .build())
                                                         .amount(-1000L)
                                                         .build(),
                                                 AccountAmount.newBuilder()
-                                                        .accountID(AccountID.newBuilder().accountNum(1002L).build())
+                                                        .accountID(AccountID.newBuilder()
+                                                                .accountNum(1002L)
+                                                                .build())
                                                         .amount(1000L)
                                                         .build())
                                         .build())
@@ -330,23 +317,33 @@ class CryptoHandlerFeeCalculationTest {
                                 .transfers(TransferList.newBuilder()
                                         .accountAmounts(
                                                 AccountAmount.newBuilder()
-                                                        .accountID(AccountID.newBuilder().accountNum(1001L).build())
+                                                        .accountID(AccountID.newBuilder()
+                                                                .accountNum(1001L)
+                                                                .build())
                                                         .amount(-1000L)
                                                         .build(),
                                                 AccountAmount.newBuilder()
-                                                        .accountID(AccountID.newBuilder().accountNum(1002L).build())
+                                                        .accountID(AccountID.newBuilder()
+                                                                .accountNum(1002L)
+                                                                .build())
                                                         .amount(1000L)
                                                         .build())
                                         .build())
                                 .tokenTransfers(TokenTransferList.newBuilder()
-                                        .token(TokenID.newBuilder().tokenNum(2001L).build())
+                                        .token(TokenID.newBuilder()
+                                                .tokenNum(2001L)
+                                                .build())
                                         .transfers(
                                                 AccountAmount.newBuilder()
-                                                        .accountID(AccountID.newBuilder().accountNum(1001L).build())
+                                                        .accountID(AccountID.newBuilder()
+                                                                .accountNum(1001L)
+                                                                .build())
                                                         .amount(-100L)
                                                         .build(),
                                                 AccountAmount.newBuilder()
-                                                        .accountID(AccountID.newBuilder().accountNum(1002L).build())
+                                                        .accountID(AccountID.newBuilder()
+                                                                .accountNum(1002L)
+                                                                .build())
                                                         .amount(100L)
                                                         .build())
                                         .build())
@@ -362,12 +359,14 @@ class CryptoHandlerFeeCalculationTest {
                                 .transfers(TransferList.newBuilder()
                                         .accountAmounts(
                                                 AccountAmount.newBuilder()
-                                                        .accountID(AccountID.newBuilder().accountNum(1001L).build())
+                                                        .accountID(AccountID.newBuilder()
+                                                                .accountNum(1001L)
+                                                                .build())
                                                         .amount(-2000L)
                                                         .build(),
                                                 AccountAmount.newBuilder()
                                                         .accountID(AccountID.newBuilder()
-                                                                .alias(Bytes.wrap(new byte[]{1, 2, 3}))
+                                                                .alias(Bytes.wrap(new byte[] {1, 2, 3}))
                                                                 .build())
                                                         .amount(2000L)
                                                         .build())
@@ -378,7 +377,7 @@ class CryptoHandlerFeeCalculationTest {
                         createEmptyTokenStore(),
                         createEmptyTokenRelStore(),
                         24L) // 18 + (2-1)*3 accounts + 1*3 created account
-        );
+                );
     }
 
     static Stream<Arguments> cryptoDeleteTestCases() {
@@ -386,20 +385,24 @@ class CryptoHandlerFeeCalculationTest {
                 Arguments.of(
                         "Delete with 1 signature",
                         CryptoDeleteTransactionBody.newBuilder()
-                                .deleteAccountID(AccountID.newBuilder().accountNum(1001L).build())
-                                .transferAccountID(AccountID.newBuilder().accountNum(1002L).build())
+                                .deleteAccountID(
+                                        AccountID.newBuilder().accountNum(1001L).build())
+                                .transferAccountID(
+                                        AccountID.newBuilder().accountNum(1002L).build())
                                 .build(),
                         1,
                         15L),
                 Arguments.of(
                         "Delete with 2 signatures",
                         CryptoDeleteTransactionBody.newBuilder()
-                                .deleteAccountID(AccountID.newBuilder().accountNum(1001L).build())
-                                .transferAccountID(AccountID.newBuilder().accountNum(1002L).build())
+                                .deleteAccountID(
+                                        AccountID.newBuilder().accountNum(1001L).build())
+                                .transferAccountID(
+                                        AccountID.newBuilder().accountNum(1002L).build())
                                 .build(),
                         2,
                         60_000_015L) // 15 + (2-1)*60_000_000
-        );
+                );
     }
 
     static Stream<Arguments> cryptoApproveAllowanceTestCases() {
@@ -408,8 +411,12 @@ class CryptoHandlerFeeCalculationTest {
                         "Approve 1 allowance",
                         CryptoApproveAllowanceTransactionBody.newBuilder()
                                 .cryptoAllowances(CryptoAllowance.newBuilder()
-                                        .owner(AccountID.newBuilder().accountNum(1001L).build())
-                                        .spender(AccountID.newBuilder().accountNum(1002L).build())
+                                        .owner(AccountID.newBuilder()
+                                                .accountNum(1001L)
+                                                .build())
+                                        .spender(AccountID.newBuilder()
+                                                .accountNum(1002L)
+                                                .build())
                                         .amount(1000L)
                                         .build())
                                 .build(),
@@ -420,24 +427,36 @@ class CryptoHandlerFeeCalculationTest {
                         CryptoApproveAllowanceTransactionBody.newBuilder()
                                 .cryptoAllowances(
                                         CryptoAllowance.newBuilder()
-                                                .owner(AccountID.newBuilder().accountNum(1001L).build())
-                                                .spender(AccountID.newBuilder().accountNum(1002L).build())
+                                                .owner(AccountID.newBuilder()
+                                                        .accountNum(1001L)
+                                                        .build())
+                                                .spender(AccountID.newBuilder()
+                                                        .accountNum(1002L)
+                                                        .build())
                                                 .amount(1000L)
                                                 .build(),
                                         CryptoAllowance.newBuilder()
-                                                .owner(AccountID.newBuilder().accountNum(1001L).build())
-                                                .spender(AccountID.newBuilder().accountNum(1003L).build())
+                                                .owner(AccountID.newBuilder()
+                                                        .accountNum(1001L)
+                                                        .build())
+                                                .spender(AccountID.newBuilder()
+                                                        .accountNum(1003L)
+                                                        .build())
                                                 .amount(2000L)
                                                 .build(),
                                         CryptoAllowance.newBuilder()
-                                                .owner(AccountID.newBuilder().accountNum(1001L).build())
-                                                .spender(AccountID.newBuilder().accountNum(1004L).build())
+                                                .owner(AccountID.newBuilder()
+                                                        .accountNum(1001L)
+                                                        .build())
+                                                .spender(AccountID.newBuilder()
+                                                        .accountNum(1004L)
+                                                        .build())
                                                 .amount(3000L)
                                                 .build())
                                 .build(),
                         1,
                         20L + 4000L) // 20 + (3-1)*2000
-        );
+                );
     }
 
     static Stream<Arguments> cryptoDeleteAllowanceTestCases() {
@@ -446,7 +465,9 @@ class CryptoHandlerFeeCalculationTest {
                         "Delete 1 allowance",
                         CryptoDeleteAllowanceTransactionBody.newBuilder()
                                 .nftAllowances(NftRemoveAllowance.newBuilder()
-                                        .owner(AccountID.newBuilder().accountNum(1001L).build())
+                                        .owner(AccountID.newBuilder()
+                                                .accountNum(1001L)
+                                                .build())
                                         .serialNumbers(1L)
                                         .build())
                                 .build(),
@@ -457,41 +478,41 @@ class CryptoHandlerFeeCalculationTest {
                         CryptoDeleteAllowanceTransactionBody.newBuilder()
                                 .nftAllowances(
                                         NftRemoveAllowance.newBuilder()
-                                                .owner(AccountID.newBuilder().accountNum(1001L).build())
+                                                .owner(AccountID.newBuilder()
+                                                        .accountNum(1001L)
+                                                        .build())
                                                 .serialNumbers(1L)
                                                 .build(),
                                         NftRemoveAllowance.newBuilder()
-                                                .owner(AccountID.newBuilder().accountNum(1001L).build())
+                                                .owner(AccountID.newBuilder()
+                                                        .accountNum(1001L)
+                                                        .build())
                                                 .serialNumbers(2L)
                                                 .build())
                                 .build(),
                         1,
                         15L + 2000L) // 15 + (2-1)*2000
-        );
+                );
     }
 
     static Stream<Arguments> cryptoGetAccountInfoTestCases() {
-        return Stream.of(
-                Arguments.of(
-                        "Get account info",
-                        CryptoGetInfoQuery.newBuilder()
-                                .accountID(AccountID.newBuilder().accountNum(1001L).build())
-                                .header(QueryHeader.DEFAULT)
-                                .build(),
-                        10L)
-        );
+        return Stream.of(Arguments.of(
+                "Get account info",
+                CryptoGetInfoQuery.newBuilder()
+                        .accountID(AccountID.newBuilder().accountNum(1001L).build())
+                        .header(QueryHeader.DEFAULT)
+                        .build(),
+                10L));
     }
 
     static Stream<Arguments> cryptoGetAccountRecordsTestCases() {
-        return Stream.of(
-                Arguments.of(
-                        "Get account records",
-                        CryptoGetAccountRecordsQuery.newBuilder()
-                                .accountID(AccountID.newBuilder().accountNum(1001L).build())
-                                .header(QueryHeader.DEFAULT)
-                                .build(),
-                        15L)
-        );
+        return Stream.of(Arguments.of(
+                "Get account records",
+                CryptoGetAccountRecordsQuery.newBuilder()
+                        .accountID(AccountID.newBuilder().accountNum(1001L).build())
+                        .header(QueryHeader.DEFAULT)
+                        .build(),
+                15L));
     }
 
     // ========== Helper Methods ==========
@@ -527,7 +548,9 @@ class CryptoHandlerFeeCalculationTest {
         final var feeContext = createMockFeeContext(txBody, numSignatures);
         lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
         lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
-        lenient().when(feeContext.readableStore(ReadableTokenRelationStore.class)).thenReturn(tokenRelStore);
+        lenient()
+                .when(feeContext.readableStore(ReadableTokenRelationStore.class))
+                .thenReturn(tokenRelStore);
         return feeContext;
     }
 
@@ -596,16 +619,8 @@ class CryptoHandlerFeeCalculationTest {
                 .network(DEFAULT.copyBuilder().multiplier(2).build())
                 .services(makeService(
                         "Crypto",
-                        makeServiceFee(
-                                CRYPTO_CREATE,
-                                22,
-                                makeExtraIncluded(SIGNATURES, 1),
-                                makeExtraIncluded(KEYS, 1)),
-                        makeServiceFee(
-                                CRYPTO_UPDATE,
-                                22,
-                                makeExtraIncluded(SIGNATURES, 1),
-                                makeExtraIncluded(KEYS, 1)),
+                        makeServiceFee(CRYPTO_CREATE, 22, makeExtraIncluded(SIGNATURES, 1), makeExtraIncluded(KEYS, 1)),
+                        makeServiceFee(CRYPTO_UPDATE, 22, makeExtraIncluded(SIGNATURES, 1), makeExtraIncluded(KEYS, 1)),
                         makeServiceFee(
                                 CRYPTO_TRANSFER,
                                 18,
@@ -618,10 +633,7 @@ class CryptoHandlerFeeCalculationTest {
                                 makeExtraIncluded(CUSTOM_FEE_NON_FUNGIBLE_TOKENS, 0),
                                 makeExtraIncluded(CREATED_AUTO_ASSOCIATIONS, 0),
                                 makeExtraIncluded(CREATED_ACCOUNTS, 0)),
-                        makeServiceFee(
-                                CRYPTO_DELETE,
-                                15,
-                                makeExtraIncluded(SIGNATURES, 1)),
+                        makeServiceFee(CRYPTO_DELETE, 15, makeExtraIncluded(SIGNATURES, 1)),
                         makeServiceFee(
                                 CRYPTO_APPROVE_ALLOWANCE,
                                 20,
@@ -632,14 +644,8 @@ class CryptoHandlerFeeCalculationTest {
                                 15,
                                 makeExtraIncluded(SIGNATURES, 1),
                                 makeExtraIncluded(ALLOWANCES, 1)),
-                        makeServiceFee(
-                                CRYPTO_GET_INFO,
-                                10,
-                                makeExtraIncluded(SIGNATURES, 1)),
-                        makeServiceFee(
-                                CRYPTO_GET_ACCOUNT_RECORDS,
-                                15,
-                                makeExtraIncluded(SIGNATURES, 1))))
+                        makeServiceFee(CRYPTO_GET_INFO, 10, makeExtraIncluded(SIGNATURES, 1)),
+                        makeServiceFee(CRYPTO_GET_ACCOUNT_RECORDS, 15, makeExtraIncluded(SIGNATURES, 1))))
                 .build();
     }
 }

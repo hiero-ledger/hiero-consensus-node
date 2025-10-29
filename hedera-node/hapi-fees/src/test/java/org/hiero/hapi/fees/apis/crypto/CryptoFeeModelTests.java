@@ -21,10 +21,7 @@ class CryptoFeeModelTests {
     @MethodSource("cryptoFeeTestCases")
     @DisplayName("Crypto fee model calculations")
     void testCryptoFeeCalculation(
-            HederaFunctionality functionality,
-            String description,
-            Map<Extra, Long> params,
-            long expectedTotal) {
+            HederaFunctionality functionality, String description, Map<Extra, Long> params, long expectedTotal) {
         final var feeSchedule = createTestFeeSchedule();
         final var model = FeeModelRegistry.lookupModel(functionality);
         final var fee = model.computeFee(params, feeSchedule);
@@ -34,11 +31,7 @@ class CryptoFeeModelTests {
     static Stream<Arguments> cryptoFeeTestCases() {
         return Stream.of(
                 // CryptoCreate tests
-                Arguments.of(
-                        CRYPTO_CREATE,
-                        "Create with no key",
-                        Map.of(Extra.SIGNATURES, 1L, Extra.KEYS, 0L),
-                        22L),
+                Arguments.of(CRYPTO_CREATE, "Create with no key", Map.of(Extra.SIGNATURES, 1L, Extra.KEYS, 0L), 22L),
                 Arguments.of(
                         CRYPTO_CREATE,
                         "Create with 1 key (included)",
@@ -56,16 +49,9 @@ class CryptoFeeModelTests {
                         1_740_000_022L), // service: 22 + 840M, node: 300M, network: 600M
 
                 // CryptoUpdate tests
+                Arguments.of(CRYPTO_UPDATE, "Update without key", Map.of(Extra.SIGNATURES, 1L, Extra.KEYS, 0L), 22L),
                 Arguments.of(
-                        CRYPTO_UPDATE,
-                        "Update without key",
-                        Map.of(Extra.SIGNATURES, 1L, Extra.KEYS, 0L),
-                        22L),
-                Arguments.of(
-                        CRYPTO_UPDATE,
-                        "Update with key (included)",
-                        Map.of(Extra.SIGNATURES, 1L, Extra.KEYS, 1L),
-                        22L),
+                        CRYPTO_UPDATE, "Update with key (included)", Map.of(Extra.SIGNATURES, 1L, Extra.KEYS, 1L), 22L),
                 Arguments.of(
                         CRYPTO_UPDATE,
                         "Update with 3 signatures",
@@ -73,16 +59,9 @@ class CryptoFeeModelTests {
                         22L + 120_000_000L),
 
                 // CryptoDelete tests
+                Arguments.of(CRYPTO_DELETE, "Delete with 1 signature", Map.of(Extra.SIGNATURES, 1L), 15L),
                 Arguments.of(
-                        CRYPTO_DELETE,
-                        "Delete with 1 signature",
-                        Map.of(Extra.SIGNATURES, 1L),
-                        15L),
-                Arguments.of(
-                        CRYPTO_DELETE,
-                        "Delete with 2 signatures",
-                        Map.of(Extra.SIGNATURES, 2L),
-                        15L + 60_000_000L),
+                        CRYPTO_DELETE, "Delete with 2 signatures", Map.of(Extra.SIGNATURES, 2L), 15L + 60_000_000L),
 
                 // CryptoTransfer tests
                 Arguments.of(
@@ -220,16 +199,7 @@ class CryptoFeeModelTests {
                         15L + 4_000L), // base + (3-1)*2000
 
                 // Query tests
-                Arguments.of(
-                        CRYPTO_GET_INFO,
-                        "Get account info",
-                        Map.of(Extra.SIGNATURES, 1L),
-                        10L),
-                Arguments.of(
-                        CRYPTO_GET_ACCOUNT_RECORDS,
-                        "Get account records",
-                        Map.of(Extra.SIGNATURES, 1L),
-                        15L)
-        );
+                Arguments.of(CRYPTO_GET_INFO, "Get account info", Map.of(Extra.SIGNATURES, 1L), 10L),
+                Arguments.of(CRYPTO_GET_ACCOUNT_RECORDS, "Get account records", Map.of(Extra.SIGNATURES, 1L), 15L));
     }
 }
