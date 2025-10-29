@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXC: [CITR] Mini Longevity Test"
+name: "ZXC: [CITR] Merge queue Longevity Test"
 
 on:
   workflow_call:
@@ -80,6 +80,19 @@ env:
   #Release version from jFrog
   NLG_VERSION: 0.8.0
 
+  #Thresholds for performance
+  #benchmarks
+  #CryptoTransfer   HCS   NftTransfer SmartContract
+  #        20467  20832         12407          7817
+  #-15%
+  #        17397   1707         10545          6644
+  MinNFTscore: 10545
+  MinHCSLoadTest: 1707
+  MinCryptoTransferLoadTest: 17397
+  MinSmartContractLoadTest: 6644
+  ReconnectExitCode: 0
+  ValidatorExitCode: 0
+
 jobs:
   longevity-tests-start:
     name: Start
@@ -88,7 +101,6 @@ jobs:
       namespace: ${{ steps.set-namespace.outputs.namespace }}
       commit-sha: ${{ steps.hederahash.outputs.sha }}
       kubernetes-cluster: ${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
-
       NFTscore: ${{ steps.NftTransferLoadTestLogs.outputs.value }}
       Cryptoscore: ${{ steps.CryptoTransferLoadTestLogs.outputs.value }}
       HCSscore: ${{ steps.HCSLoadTestLogs.outputs.value }}
@@ -703,13 +715,6 @@ jobs:
           grep -E 'Finished NftTransferLoadTest' "${{ github.workspace }}"/report/client.log | head -n 1 | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
           grep -E 'Finished NftTransferLoadTest' "${{ github.workspace }}"/report/client.log | head -n 1 | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
 
-      - name: Extract benchmark score of HeliSwapLoadTest test
-        if: false
-        id: HeliSwapLoadTestLogs
-        run: |
-          grep -E 'Finished HeliSwapLoadTest' "${{ github.workspace }}"/report/client.log | head -n 1 | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
-          grep -E 'Finished HeliSwapLoadTest' "${{ github.workspace }}"/report/client.log | head -n 1 | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
-
       - name: Extract benchmark score of CryptoTransferLoadTest test
         id: CryptoTransferLoadTestLogs
         run: |
@@ -759,83 +764,119 @@ jobs:
           sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ steps.set-namespace.outputs.namespace }}"
 
   # Send this output back to the caller workflow
-  mini-longevity-test-result:
+  merge-queue-test-result:
     name: Calculate Result
     runs-on: hiero-citr-linux-large
     if: ${{ !cancelled() }}
     needs:
       - longevity-tests-start
     outputs:
-      result: ${{ steps.sdlt-status.outputs.result }}
-    steps:
-      - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
-        with:
-          egress-policy: audit
-
-      - name: Set output
-        id: sdlt-status
-        run: |
-          RESULT="failure"
-          NFT="${{ needs.longevity-tests-start.outputs.NFTscore }}"
-          #HELI="${{ needs.longevity-tests-start.outputs.Heliscore }}"
-          CRYPTO="${{ needs.longevity-tests-start.outputs.Cryptoscore }}"
-          HCS="${{ needs.longevity-tests-start.outputs.HCSscore }}"
-          SMART="${{ needs.longevity-tests-start.outputs.Smartscore }}"
-
-          # Check if any variable is empty. If it is, we set the result to failure.
-          if [ -z "${NFT}" ] || [ -z "${CRYPTO}" ] || [ -z "${HCS}" ] || [ -z "${SMART}" ]; then
-            RESULT="failure"
-          else
-            RESULT="success"
-          fi
-
-          echo "### Mini Longevity Result" >> "${GITHUB_STEP_SUMMARY}"
-          echo "result=${RESULT}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "result=${RESULT}" >> "${GITHUB_OUTPUT}"
-
-  longevity-report-to-rootly:
-    if: false
-    name: Report Failures to Rootly
-    runs-on: hiero-citr-linux-medium
-    needs:
-      - longevity-tests-start
-      - mini-longevity-test-result
-    #if: ${{ (needs.longevity-tests-start.result != 'success' ||
-    #  needs.mini-longevity-test-result.result != 'success') &&
-    #  !cancelled() && always() }}
+      result: ${{ steps.sdpt-status.outputs.result }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
-      - name: Check Test Asset
-        id: check-test-asset
-        run: |
-          ADHOC="false"
-          if [[ "${{ inputs.test-asset }}" =~ ^AdHoc(SD)?[0-9]+$ ]]; then
-            ADHOC="true"
-          fi
-          echo "is-adhoc=${ADHOC}" >> "${GITHUB_OUTPUT}"
+      - name: Set output
+        id: sdpt-status
+        env:
+          nft_transfer_load_result: ${{ needs.longevity-tests-start.outputs.NFTscore }}
+          hcs_load_result: ${{ needs.longevity-tests-start.outputs.HCSscore }}
+          crypto_transfer_load_result: ${{ needs.longevity-tests-start.outputs.Cryptoscore }}
+          smart_contract_load_result: ${{ needs.longevity-tests-start.outputs.Smartscore }}
+          reconnect_result: ${{ needs.longevity-tests-start.outputs.ReconnectStatus }}
+          validator_result: ${{ needs.longevity-tests-start.outputs.ValidatorStatus }}
 
-      - name: Set Rootly Service Name
-        id: set-rootly-service
         run: |
-          ROOTLY_SERVICE_NAME="CITR SDLT"
-          echo "service=${ROOTLY_SERVICE_NAME}" >> "${GITHUB_OUTPUT}"
+          # result is 'success' or 'failure'. If any of the tests failed, we return 'failure'
+          RESULT="failure"
+          if [[ "${nft_transfer_load_result}" != "" && \
+                "${hcs_load_result}" != "" && \
+                "${crypto_transfer_load_result}" != "" && \
+                "${heli_swap_load_result}" != "" && \
+                "${smart_contract_load_result}" != ""  && \
+                "${reconnect_result}" != ""  && \
+                "${validator_result}" != "" ]]; then
+              RESULT="success"
+          fi
+
+          if [ "0${{ env.nft_transfer_load_result }}" -lt "${{ env.MinNFTscore }}" ]
+          then
+            echo "Benchmark NFTscore ${{ env.nft_transfer_load_result }} is below ${{ env.MinNFTscore }}" >> "${GITHUB_STEP_SUMMARY}"
+            RESULT="failure"
+          fi
+
+          if [ "0${{ env.hcs_load_result }}" -lt "${{ env.MinHCSLoadTest }}" ]
+          then
+            echo "Benchmark HCSLoadTest ${{ env.hcs_load_result }} is below ${{ env.MinHCSLoadTest }}" >> "${GITHUB_STEP_SUMMARY}"
+            RESULT="failure"
+          fi
+
+          if [ "0${{ env.crypto_transfer_load_result }}" -lt "${{ env.MinCryptoTransferLoadTest }}" ]
+          then
+            echo "Benchmark CryptoTransferLoadTest ${{ env.crypto_transfer_load_result }} is below ${{ env.MinCryptoTransferLoadTest }}" >> "${GITHUB_STEP_SUMMARY}"
+            RESULT="failure"
+          fi
+
+          if [ "0${{ env.smart_contract_load_result }}" -lt "${{ env.MinSmartContractLoadTest }}" ]
+          then
+            echo "Benchmark SmartContractLoadTest ${{ env.smart_contract_load_result }} is below ${{ env.MinSmartContractLoadTest }}" >> "${GITHUB_STEP_SUMMARY}"
+            RESULT="failure"
+          fi
+
+          if [ "0${{ env.reconnect_result }}" -ne "${{ env.ReconnectExitCode }}" ]
+          then
+            echo "Reconnect exit code ${{ env.reconnect_result }} is not ${{ env.ReconnectExitCode }}" >> "${GITHUB_STEP_SUMMARY}"
+            RESULT="failure"
+          fi
+
+          if [ "0${{ env.validator_result }}" -ne "${{ env.ValidatorExitCode }}" ]
+          then
+            echo "Validator exit code ${{ env.validator_result }} is not ${{ env.ValidatorExitCode }}" >> "${GITHUB_STEP_SUMMARY}"
+            RESULT="failure"
+          fi
+
+          echo "result=${RESULT}" >> "${GITHUB_OUTPUT}"
+
+          echo "### Merge Queue Longevity Test Result" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "result=${RESULT}" | tee -a "${GITHUB_STEP_SUMMARY}"
+
+      - name: Delete namespace
+        if: ${{ inputs.delete-namespace == true }}
+        run: |
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace "${{ needs.performance-tests-start.outputs.namespace }}"
+
+  merge-queue-report-to-rootly:
+    name: Report Failures to Rootly
+    runs-on: hiero-citr-linux-medium
+    needs:
+      - longevity-tests-start
+      - merge-queue-test-result
+    if: ${{ ( needs.merge-queue-test-result.outputs.result != 'success' ) &&
+      !cancelled() && always() }}
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
 
       - name: Build Rootly Summary
-        id: rootly-summary
+        id: summary
         run: |
-          title="The Mini Longevity Test workflow failed (SDLT ${{ inputs.test-asset }} - ${{ inputs.ref }})"
+          title="The Single Day Performance Test workflow failed (SDPT ${{ inputs.test-asset }} - ${{ inputs.ref }})"
           echo "title=${title}" >> "${GITHUB_OUTPUT}"
           {
             echo 'summary<<EOF'
             echo "------------------------------------"
             echo "Status of each jobs:"
-            echo "- Longevity Tests Start: ${{ needs.longevity-tests-start.result }}"
-            echo "- Mini Longevity Test Result: ${{ needs.mini-longevity-test-result.result }}"
+            echo "- NFT Transfer Load Test: ${{ needs.longevity-tests-start.outputs.NFTscore }}"
+            echo "- HCS Load Test: ${{ needs.longevity-tests-start.outputs.HCSscore }}"
+            echo "- Crypto Transfer Load Test: ${{ needs.longevity-tests-start.outputs.Cryptoscore }}"
+            echo "- SmartContract Load Test: ${{ needs.longevity-tests-start.outputs.Smartscore }}"
+            echo "- Reconnect: ${{ needs.longevity-tests-start.outputs.ReconnectStatus }}"
+            echo "- Validator: ${{ needs.longevity-tests-start.outputs.ValidatorStatus }}"
+
             echo "------------------------------------"
             echo "Commit information:"
             echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.longevity-tests-start.outputs.commit-sha }}>"
@@ -843,42 +884,19 @@ jobs:
             echo EOF
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Log Rootly Summary
+      - name: Log Summary
         run: |
           echo "## Rootly Summary" >> "${GITHUB_STEP_SUMMARY}"
-          echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "### Rootly Service" >> "${GITHUB_STEP_SUMMARY}"
-          echo "${{ steps.set-rootly-service.outputs.service }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "### AdHoc Run?" >> "${GITHUB_STEP_SUMMARY}"
-          echo "${{ steps.check-test-asset.outputs.is-adhoc }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Title: ${{ steps.summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
 
-      - name: Create Rootly Alert
-        id: rootly-alert
-        if: ${{ steps.check-test-asset.outputs.is-adhoc == 'false' }}
-        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
-        continue-on-error: true
-        with:
-          api_key: ${{ secrets.rootly-api-token }}
-          summary: ${{ steps.rootly-summary.outputs.title }}
-          details: ${{ steps.rootly-summary.outputs.summary }}
-          notification_target_type: "Service"
-          notification_target: ${{ steps.set-rootly-service.outputs.service }}
-          set_as_noise: "true"
-          alert_urgency: "High"
-          external_id: ${{ github.run_id }}
-          external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          environments: "CITR"
-
-  longevity-report-to-Slack:
+  performance-report-to-slack:
     runs-on: hiero-citr-linux-medium
     needs:
       - longevity-tests-start
-      - mini-longevity-test-result
-
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -903,15 +921,21 @@ jobs:
       - name: Build Slack Payload Message
         id: payload
         run: |
-
           report="\
-            NftTransferLoadTest ${{ needs.longevity-tests-start.outputs.NFTscore }} \n\
-            HCSLoadTest ${{ needs.longevity-tests-start.outputs.HCSscore }} \n\
-            CryptoTransferLoadTest ${{ needs.longevity-tests-start.outputs.Cryptoscore }} \n\
-            SmartContractLoadTest ${{ needs.longevity-tests-start.outputs.Smartscore }}"
-          #last line is 5, it does not need comma block separator
-          freport=`/usr/bin/echo -e "$report" | awk '{print $1" "$2}'| perl -ne 'if ($. < 4) {$comma=","} else {$comma="";} ($t,$d)=split(/\s+/,$_,2);printf("{\"type\": \"text\",\"text\": \"%-25s %7d \\\n\"}%s",$t,$d,$comma);'`
-          freport="{\"type\": \"text\",\"text\": \"Name                          TPS\n\"},$freport"
+            NftTransferLoadTest ${{ needs.longevity-tests-start.outputs.NFTscore }} ${{ env.MinNFTscore }}\n\
+            HCSLoadTest ${{ needs.longevity-tests-start.outputs.HCSscore }} ${{ env.MinHCSLoadTest }}\n\
+            CryptoTransferLoadTest ${{ needs.longevity-tests-start.outputs.Cryptoscore }} ${{ env.MinCryptoTransferLoadTest }}\n\
+            SmartContractLoadTest ${{ needs.longevity-tests-start.outputs.Smartscore }} ${{ env.MinSmartContractLoadTest }}"\n\
+            ReconnectTest ${{ needs.longevity-tests-start.outputs.ReconnectStatus }} "${{ env.ReconnectExitCode }}""\n\
+            ValidatorTest ${{ needs.longevity-tests-start.outputs.ValidatorStatus }} "${{ env.ValidatorExitCode }}""
+
+          #last line is 6, it does not need comma block separator
+          # use back-ticks for proper substitution in the json report
+          freport=`/usr/bin/echo -e "$report" | awk '{print $1" "$2" "$3}' |\
+            perl -ne 'if ($. < 6) {$comma=","} else {$comma="";} ($t,$d,$l)=split(/\s+/,$_,3); $p=int(($d-$l)/100); \
+            $excl=""; if ($d < $l) {$excl="\\\u2757";}
+            printf("{\"type\": \"text\",\"text\": \"%-25s %7d     %5d%% %7d %s\\\n\"}%s",$t,$d,$p,$l,$excl,$comma);'`
+          freport="{\"type\": \"text\",\"text\": \"Name                          TPS         Above min\n\"},$freport"
 
           cat <<EOF > slack_payload.json
           {
@@ -923,7 +947,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": "NLG Longevity Test Report (SDLT) - ${{ steps.clean-branch-name.outputs.clean_ref }}",
+                      "text": "NLG Performance Test Report (SDPT) - ${{ needs.clean-branch-name.outputs.clean_ref }}",
                       "emoji": true
                     }
                   },
