@@ -151,8 +151,11 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                 rootProxyWorldUpdater.enhancement().operations().getThrottleAdviser();
         final var opsDurationThrottleEnabled =
                 contractsConfig.throttleThrottleByOpsDuration() && throttleAdviser != null;
+        final var shouldApplyOpsDurationThrottle = opsDurationThrottleEnabled
+                && !context.body().transactionIDOrElse(TransactionID.DEFAULT).scheduled();
+
         final OpsDurationCounter opsDurationCounter;
-        if (opsDurationThrottleEnabled) {
+        if (shouldApplyOpsDurationThrottle) {
             final boolean hasAnyCapacityLeft = throttleAdviser.availableOpsDurationCapacity() > 0;
             if (!hasAnyCapacityLeft) {
                 contractMetrics.opsDurationMetrics().recordTransactionThrottledByOpsDuration();
@@ -215,7 +218,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                     result);
 
             // Update the ops duration throttle
-            if (opsDurationThrottleEnabled) {
+            if (shouldApplyOpsDurationThrottle) {
                 throttleAdviser.consumeOpsDurationThrottleCapacity(opsDurationCounter.opsDurationUnitsConsumed());
             }
 
@@ -235,7 +238,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                     hevmTransaction.isContractCall() && contractsConfig.chargeGasOnEvmHandleException());
 
             // Update the ops duration throttle
-            if (opsDurationThrottleEnabled) {
+            if (shouldApplyOpsDurationThrottle) {
                 throttleAdviser.consumeOpsDurationThrottleCapacity(opsDurationCounter.opsDurationUnitsConsumed());
             }
 
@@ -261,7 +264,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         try {
             final var hevmTransaction = hevmTransactionFactory.fromHapiTransaction(context.body(), context.payer());
             validatePayloadLength(hevmTransaction);
-            return new HevmTransactionCreationResult(hevmTransaction, hevmTransaction.isHookDispatch());
+            return new HevmTransactionCreationResult(hevmTransaction, hevmTransaction.hookOwnerAddress() != null);
         } catch (HandleException e) {
             final var evmTxn = hevmTransactionFactory.fromContractTxException(context.body(), e);
             // Return a HederaEvmTransaction that represents the error in order to charge fees to the sender

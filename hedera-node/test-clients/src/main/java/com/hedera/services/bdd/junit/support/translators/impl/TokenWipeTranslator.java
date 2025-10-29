@@ -7,9 +7,11 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.trace.TraceData;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.services.bdd.junit.support.translators.BaseTranslator;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionPartsTranslator;
+import com.hedera.services.bdd.junit.support.translators.ScopedTraceData;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -31,7 +33,8 @@ public class TokenWipeTranslator implements BlockTransactionPartsTranslator {
             @NonNull final BaseTranslator baseTranslator,
             @NonNull final List<StateChange> remainingStateChanges,
             @Nullable final List<TraceData> tracesSoFar,
-            @NonNull final List<TraceData> followingUnitTraces) {
+            @NonNull final List<ScopedTraceData> followingUnitTraces,
+            @Nullable final HookId executingHookId) {
         requireNonNull(parts);
         requireNonNull(baseTranslator);
         requireNonNull(remainingStateChanges);
@@ -83,6 +86,7 @@ public class TokenWipeTranslator implements BlockTransactionPartsTranslator {
                     }
                 },
                 remainingStateChanges,
-                followingUnitTraces);
+                followingUnitTraces,
+                executingHookId);
     }
 }

@@ -141,6 +141,17 @@ public record ValidationResult(
      * @return the error report
      */
     @NonNull
+    public static ValidationResult newSuccess(@NonNull final AccountID creatorId) {
+        requireNonNull(creatorId);
+        return new ValidationResult(creatorId, null, null, null, CAN_PAY_SERVICE_FEE, NO_DUPLICATE);
+    }
+
+    /**
+     * Creates an error report with no error.
+     * @param creatorId the creator account ID
+     * @return the error report
+     */
+    @NonNull
     public static ValidationResult newGenesisWaiver(@NonNull final AccountID creatorId) {
         requireNonNull(creatorId);
         return new ValidationResult(creatorId, null, null, null, CAN_PAY_SERVICE_FEE, NO_DUPLICATE);
@@ -185,15 +196,6 @@ public record ValidationResult(
     @NonNull
     public ResponseCodeEnum creatorErrorOrThrow() {
         return requireNonNull(creatorError);
-    }
-
-    /**
-     * Checks if there is a payer.
-     * @return payer account if there is a payer. Otherwise, throws an exception.
-     */
-    @NonNull
-    public Account payerOrThrow() {
-        return requireNonNull(payer);
     }
 
     /**

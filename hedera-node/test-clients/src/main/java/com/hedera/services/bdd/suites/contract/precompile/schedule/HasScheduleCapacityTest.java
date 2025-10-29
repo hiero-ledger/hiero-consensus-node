@@ -50,6 +50,7 @@ public class HasScheduleCapacityTest {
             BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TEN);
     private static final String FUNCTION_NAME = "hasScheduleCapacityProxy";
     private static final String CAPACITY_CONFIG_NAME = "contracts.maxGasPerSecBackend";
+    private static final String THROTTLE_BY_GAS_CONFIG_NAME = "contracts.throttle.throttleByGas";
 
     @Contract(contract = "HIP1215Contract", creationGas = 4_000_000L, isImmutable = true)
     static SpecContract contract;
@@ -124,12 +125,15 @@ public class HasScheduleCapacityTest {
         final BigInteger closeToMaxGasLimit = BigInteger.valueOf(14_000_000);
         return hapiTest(
                 UtilVerbs.overriding(CAPACITY_CONFIG_NAME, "15000000"),
+                UtilVerbs.overriding(
+                        THROTTLE_BY_GAS_CONFIG_NAME, "false"), // It should work even if gas throttle is off
                 hasScheduleCapacity(true, FUNCTION_NAME, expirySecond, testGasLimit),
                 contract.call("scheduleCallWithDefaultCallData", expirySecond, closeToMaxGasLimit)
                         .gas(2_000_000)
                         // parent success and child success
                         .andAssert(txn -> txn.hasKnownStatuses(ResponseCodeEnum.SUCCESS, ResponseCodeEnum.SUCCESS)),
                 hasScheduleCapacity(false, FUNCTION_NAME, expirySecond, testGasLimit),
+                UtilVerbs.restoreDefault(THROTTLE_BY_GAS_CONFIG_NAME),
                 UtilVerbs.restoreDefault(CAPACITY_CONFIG_NAME));
     }
 
@@ -143,9 +147,12 @@ public class HasScheduleCapacityTest {
         return hapiTest(
                 // limit is controlled by 'contracts.maxGasPerSecBackend' property
                 UtilVerbs.overriding(CAPACITY_CONFIG_NAME, "15000000"),
+                UtilVerbs.overriding(
+                        THROTTLE_BY_GAS_CONFIG_NAME, "false"), // It should work even if gas throttle is off
                 hasScheduleCapacity(false, FUNCTION_NAME, expirySecond, BigInteger.valueOf(15_000_001)),
                 UtilVerbs.overriding(CAPACITY_CONFIG_NAME, "30000000"),
                 hasScheduleCapacity(true, FUNCTION_NAME, expirySecond, BigInteger.valueOf(15_000_001)),
+                UtilVerbs.restoreDefault(THROTTLE_BY_GAS_CONFIG_NAME),
                 UtilVerbs.restoreDefault(CAPACITY_CONFIG_NAME));
     }
 

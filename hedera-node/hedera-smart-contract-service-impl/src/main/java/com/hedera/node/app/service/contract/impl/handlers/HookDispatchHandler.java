@@ -23,6 +23,8 @@ import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuild
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.contract.impl.state.hooks.HookEvmFrameStateFactory;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
@@ -44,8 +46,9 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
     public HookDispatchHandler(
             @NonNull final Provider<TransactionComponent.Factory> provider,
             @NonNull final GasCalculator gasCalculator,
+            @NonNull final EntityIdFactory entityIdFactory,
             @NonNull final ContractServiceComponent component) {
-        super(provider, gasCalculator, component);
+        super(provider, gasCalculator, entityIdFactory, component);
     }
 
     @Override
@@ -80,14 +83,15 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
         switch (op.action().kind()) {
             case CREATION -> {
                 final var creation = op.creationOrThrow();
-                final var details = creation.details();
+                final var details = creation.detailsOrThrow();
                 final var hook = evmHookStore.getEvmHook(new HookId(creation.entityId(), details.hookId()));
                 validateTrue(hook == null, HOOK_ID_IN_USE);
                 if (details.hasAdminKey()) {
                     context.attributeValidator().validateKey(details.adminKeyOrThrow(), INVALID_HOOK_ADMIN_KEY);
                 }
 
-                evmHookStore.createEvmHook(op.creationOrThrow());
+                final var updatedSlots = evmHookStore.createEvmHook(op.creationOrThrow());
+                recordBuilder.setDeltaStorageSlotsUpdated(updatedSlots);
             }
             case HOOK_ID_TO_DELETE -> {
                 final var deletion = op.hookIdToDeleteOrThrow();
@@ -108,6 +112,7 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
                 final var hook = evmHookStore.getEvmHook(hookKey);
                 validateTrue(hook != null, HOOK_NOT_FOUND);
 
+                final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
                 // Build the strategy that will produce a HookEvmFrameStateFactory for this transaction
                 final EvmFrameStates evmFrameStates = (ops, nativeOps, codeFactory) ->
                         new HookEvmFrameStateFactory(ops, nativeOps, codeFactory, hook);
@@ -120,7 +125,7 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
                 final CallOutcome outcome =
                         component.contextTransactionProcessor().call();
                 final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCallStreamBuilder.class);
-                outcome.addCallDetailsTo(streamBuilder, context);
+                outcome.addCallDetailsTo(streamBuilder, context, entityIdFactory);
 
                 validateTrue(outcome.status() == SUCCESS, outcome.status());
             }

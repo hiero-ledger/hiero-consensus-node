@@ -16,6 +16,7 @@ public record FilesConfig(
         @ConfigProperty(defaultValue = "121") @NetworkProperty long networkProperties,
         @ConfigProperty(defaultValue = "112") @NetworkProperty long exchangeRates,
         @ConfigProperty(defaultValue = "111") @NetworkProperty long feeSchedules,
+        @ConfigProperty(defaultValue = "113") @NetworkProperty long simpleFeesSchedules,
         @ConfigProperty(defaultValue = "122") @NetworkProperty long hapiPermissions,
         @ConfigProperty(defaultValue = "102") @NetworkProperty long nodeDetails,
         @ConfigProperty(defaultValue = "150-159") LongPair softwareUpdateRange,

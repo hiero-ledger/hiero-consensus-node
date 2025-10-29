@@ -35,7 +35,7 @@
   "services": [
     {
       "name": "Crypto",
-      "transactions": [
+      "schedule": [
         {
           "name": "CryptoCreate",
           "baseFee": 22,
@@ -57,15 +57,15 @@
           "extras": [
             {  "name": "SIGNATURES", "includedCount": 1 },
             {  "name": "KEYS",       "includedCount": 1 },
-            {  "name": "Accounts",       "includedCount": 1 },
-            {  "name": "StandardFungibleTokens", "includedCount": 1}
+            {  "name": "ACCOUNTS",       "includedCount": 1 },
+            {  "name": "STANDARD_FUNGIBLE_TOKENS", "includedCount": 1}
           ]
         }
       ]
     },
     {
       "name": "Consensus",
-      "transactions": [
+      "schedule": [
         {
           "name": "ConsensusCreateTopic",
           "baseFee": 19,
@@ -109,7 +109,7 @@
     },
     {
       "name":  "File",
-      "transactions": [
+      "schedule": [
         {
           "name": "FileCreate",
           "baseFee": 50,
@@ -158,7 +158,7 @@
     },
     {
       "name": "Token",
-      "transactions": [
+      "schedule": [
         {
           "name": "TokenCreate",
           "baseFee": 25,
@@ -171,8 +171,8 @@
           "baseFee": 33,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1 },
-            { "name": "StandardFungibleTokens", "includedCount": 1 },
-            { "name": "StandardNonFungibleTokens", "includedCount": 1 }
+            { "name": "STANDARD_FUNGIBLE_TOKENS", "includedCount": 1 },
+            { "name": "STANDARD_NON_FUNGIBLE_TOKENS", "includedCount": 1 }
           ]
         }
       ]

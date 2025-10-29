@@ -146,4 +146,11 @@ public interface FeeCharging {
      * @param fees the fees to be refunded
      */
     void refund(@NonNull Context ctx, @NonNull Fees fees);
+
+    /**
+     * Whether the dispatch context should bypass this strategy when charging handler-assessed fees.
+     */
+    default boolean bypassForExtraHandlerCharges() {
+        return false;
+    }
 }

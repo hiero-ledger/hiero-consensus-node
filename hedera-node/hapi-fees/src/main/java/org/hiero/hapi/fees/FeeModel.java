@@ -20,5 +20,5 @@ public interface FeeModel {
     String getDescription();
 
     /** Compute the fee for a specific transaction. */
-    FeeResult computeFee(Map<Extra, Object> params, FeeSchedule feeSchedule);
+    FeeResult computeFee(Map<Extra, Long> params, FeeSchedule feeSchedule);
 }

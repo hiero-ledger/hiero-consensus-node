@@ -18,7 +18,6 @@ import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
-import com.hedera.node.app.service.contract.ReadableEvmHookStore;
 import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -82,9 +81,9 @@ public interface HederaNativeOperations {
     @NonNull
     ReadableScheduleStore readableScheduleStore();
     /**
-     * Returns the {@link ReadableEvmHookStore} for this {@link HederaNativeOperations}.
+     * Returns the {@link WritableEvmHookStore} for this {@link HederaNativeOperations}.
      *
-     * @return the {@link ReadableEvmHookStore}
+     * @return the {@link WritableEvmHookStore}
      */
     @NonNull
     WritableEvmHookStore writableEvmHookStore();

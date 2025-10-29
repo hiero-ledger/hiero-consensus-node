@@ -6,6 +6,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.time.Duration;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -139,6 +140,14 @@ public interface Node {
      * @param weight the new weight. Must be non-negative.
      */
     void weight(long weight);
+
+    /**
+     * Sets the keys and certificates of the node. These signing certificates will become part of the new roster. This
+     * method can only be called while the node has not been started yet.
+     *
+     * @param keysAndCerts the new keys and certificates
+     */
+    void keysAndCerts(@NonNull KeysAndCerts keysAndCerts);
 
     /**
      * Returns the status of the platform while the node is running or {@code null} if not.

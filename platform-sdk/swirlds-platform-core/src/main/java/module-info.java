@@ -121,7 +121,6 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.event.creator;
-    requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.utility;
     requires transitive com.fasterxml.jackson.annotation;
@@ -131,6 +130,7 @@ module com.swirlds.platform.core {
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires com.swirlds.merkledb;
+    requires com.swirlds.state.impl;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.dataformat.yaml;
     requires com.github.spotbugs.annotations;

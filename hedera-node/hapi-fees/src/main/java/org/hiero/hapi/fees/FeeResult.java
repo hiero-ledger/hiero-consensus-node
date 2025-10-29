@@ -72,7 +72,7 @@ public class FeeResult {
 
     @Override
     public String toString() {
-        return "FeeResult{" + "fee=" + service + ", details=" + details + '}';
+        return "FeeResult{" + "fee=" + this.total() + ", details=" + details + '}';
     }
 
     private static long clampedAdd(final long a, final long b) {

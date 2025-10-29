@@ -21,7 +21,6 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.fees.AdapterUtils;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
-import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
@@ -46,7 +45,6 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
     private boolean advertiseCreation = false;
     private boolean useAvailableSubProcessPorts = false;
     private final String nodeName;
-    private Optional<AccountID> accountId = Optional.empty();
     private Optional<Long> accountNum = Optional.empty();
     private Optional<String> account = Optional.empty();
     private Optional<String> description = Optional.empty();
@@ -70,8 +68,14 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
     @Nullable
     private Key adminKey;
 
-    public HapiNodeCreate(@NonNull final String nodeName) {
+    public HapiNodeCreate(@NonNull final String nodeName, @NonNull final String account) {
         this.nodeName = nodeName;
+        this.account = Optional.of(account);
+    }
+
+    public HapiNodeCreate(@NonNull final String nodeName, @NonNull final Long accountNum) {
+        this.nodeName = nodeName;
+        this.accountNum = Optional.of(accountNum);
     }
 
     @Override
@@ -91,11 +95,6 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
 
     public HapiNodeCreate exposingCreatedIdTo(@NonNull final LongConsumer nodeIdObserver) {
         this.nodeIdObserver = requireNonNull(nodeIdObserver);
-        return this;
-    }
-
-    public HapiNodeCreate accountId(final AccountID accountID) {
-        this.accountId = Optional.of(accountID);
         return this;
     }
 
@@ -201,8 +200,13 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
         final NodeCreateTransactionBody opBody = spec.txns()
                 .<NodeCreateTransactionBody, NodeCreateTransactionBody.Builder>body(
                         NodeCreateTransactionBody.class, builder -> {
+                            // Node account ID should be required.
+                            // Using default value will cause following creates with same default account to fail
+                            if (account.isEmpty() && accountNum.isEmpty()) {
+                                throw new IllegalStateException(
+                                        "HapiNodeCreate with no account or accountNum specified");
+                            }
                             account.ifPresent(name -> builder.setAccountId(asIdForKeyLookUp(name, spec)));
-                            accountId.ifPresent(builder::setAccountId);
                             accountNum.ifPresent(accountNum ->
                                     builder.setAccountId(asAccount(spec.shard(), spec.realm(), accountNum)));
                             description.ifPresent(builder::setDescription);

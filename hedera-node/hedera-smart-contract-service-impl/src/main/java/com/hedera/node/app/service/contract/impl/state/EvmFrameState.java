@@ -368,12 +368,19 @@ public interface EvmFrameState {
 
     /**
      * Returns the rent factors for the contract with the given id.
-     *
      * @param contractID the contract id
      * @return the rent factors
      */
     @NonNull
-    RentFactors getRentFactorsFor(ContractID contractID);
+    RentFactors getRentFactorsFor(@NonNull ContractID contractID);
+
+    /**
+     * Returns the rent factors for the account with the given id.
+     * @param accountId the account id
+     * @return the rent factors
+     */
+    @NonNull
+    RentFactors getRentFactorsFor(@NonNull AccountID accountId);
 
     /**
      * Returns the entity id factory.

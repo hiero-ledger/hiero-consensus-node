@@ -270,15 +270,16 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         }
 
         // Dispatch hook creation to contract service if there are any hooks to be created
+        int updatedSlots = 0;
         if (!op.hookCreationDetails().isEmpty()) {
             final var owner =
                     entityIdFactory.newAccountId(context.entityNumGenerator().peekAtNewEntityNum());
-            dispatchHookCreations(context, op.hookCreationDetails(), 0L, owner);
+            updatedSlots = dispatchHookCreations(context, op.hookCreationDetails(), null, owner);
         }
 
         // Build the new account to be persisted based on the transaction body and save the newly created account
         // number in the record builder
-        final var accountCreated = buildAccount(op, context);
+        final var accountCreated = buildAccount(op, context, updatedSlots);
         // As an extra guardrail, ensure it's impossible to programmatically create a system file account
         validateFalse(isSystemFile(accountCreated.accountIdOrThrow().accountNumOrThrow()), FAIL_INVALID);
         accountStore.putAndIncrementCount(accountCreated);
@@ -427,10 +428,11 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
      *
      * @param op the transaction body
      * @param handleContext the handle context
+     * @param updatedSlots
      * @return the account created
      */
     @NonNull
-    private Account buildAccount(CryptoCreateTransactionBody op, HandleContext handleContext) {
+    private Account buildAccount(CryptoCreateTransactionBody op, HandleContext handleContext, final int updatedSlots) {
         requireNonNull(op);
         requireNonNull(handleContext);
         final var autoRenewPeriod = op.autoRenewPeriodOrThrow().seconds();
@@ -451,6 +453,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         if (!op.hookCreationDetails().isEmpty()) {
             builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
             builder.numberHooksInUse(op.hookCreationDetails().size());
+            builder.numberLambdaStorageSlots(updatedSlots);
         }
 
         // We do this separately because we want to let the protobuf object remain UNSET for the staked ID if neither
