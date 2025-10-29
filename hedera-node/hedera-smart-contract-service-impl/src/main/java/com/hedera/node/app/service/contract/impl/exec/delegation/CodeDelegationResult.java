@@ -5,6 +5,9 @@ import java.util.Set;
 import org.hyperledger.besu.collections.trie.BytesTrieSet;
 import org.hyperledger.besu.datatypes.Address;
 
+/**
+ * Class that contains the results when delegating EIP-7702 transaction.
+ */
 public class CodeDelegationResult {
     private final Set<Address> accessedDelegatorAddresses = new BytesTrieSet<>(Address.SIZE);
     private long alreadyExistingDelegators = 0L;

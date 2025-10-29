@@ -6,7 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV051;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
-import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
@@ -36,17 +36,17 @@ public class IsAuthorizedRawTranslator extends AbstractCallTranslator<HasCallAtt
     private static final int HASH_ARG = 1;
     private static final int SIGNATURE_ARG = 2;
 
-    private final CustomGasCalculator customGasCalculator;
+    private final HederaGasCalculatorImpl hederaGasCalculatorImpl;
 
     @Inject
     public IsAuthorizedRawTranslator(
             @ServicesV051 @NonNull final FeatureFlags featureFlags,
-            @NonNull final CustomGasCalculator customGasCalculator,
+            @NonNull final HederaGasCalculatorImpl hederaGasCalculatorImpl,
             @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
             @NonNull final ContractMetrics contractMetrics) {
         super(SystemContractMethod.SystemContract.HAS, systemContractMethodRegistry, contractMetrics);
         requireNonNull(featureFlags, "featureFlags");
-        this.customGasCalculator = requireNonNull(customGasCalculator);
+        this.hederaGasCalculatorImpl = requireNonNull(hederaGasCalculatorImpl);
 
         registerMethods(IS_AUTHORIZED_RAW);
     }
@@ -76,7 +76,7 @@ public class IsAuthorizedRawTranslator extends AbstractCallTranslator<HasCallAtt
             final var messageHash = (byte[]) call.get(HASH_ARG);
             final var signature = (byte[]) call.get(SIGNATURE_ARG);
 
-            return new IsAuthorizedRawCall(attempt, address, messageHash, signature, customGasCalculator);
+            return new IsAuthorizedRawCall(attempt, address, messageHash, signature, hederaGasCalculatorImpl);
         }
         return null;
     }

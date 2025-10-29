@@ -27,7 +27,7 @@ import com.hedera.node.app.service.contract.impl.annotations.ServicesVersionKey;
 import com.hedera.node.app.service.contract.impl.exec.QueryComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
-import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule;
 import com.hedera.node.app.service.contract.impl.exec.v030.V030Module;
@@ -122,24 +122,24 @@ public interface ContractServiceModule {
     }
 
     /**
-     * Binds the {@link GasCalculator} to the {@link CustomGasCalculator}.
+     * Binds the {@link GasCalculator} to the {@link HederaGasCalculatorImpl}.
      *
      * @param gasCalculator the implementation of the {@link GasCalculator}
      * @return  the bound implementation
      */
     @Binds
     @Singleton
-    GasCalculator bindGasCalculator(@NonNull final CustomGasCalculator gasCalculator);
+    GasCalculator bindGasCalculator(@NonNull final HederaGasCalculatorImpl gasCalculator);
 
     /**
-     * Binds the {@link GasCalculator} to the {@link CustomGasCalculator}.
+     * Binds the {@link GasCalculator} to the {@link HederaGasCalculatorImpl}.
      *
      * @param gasCalculator the implementation of the {@link HederaGasCalculator}
      * @return  the bound implementation
      */
     @Binds
     @Singleton
-    HederaGasCalculator bindHederaGasCalculator(@NonNull final CustomGasCalculator gasCalculator);
+    HederaGasCalculator bindHederaGasCalculator(@NonNull final HederaGasCalculatorImpl gasCalculator);
 
     /**
      * @return the EVM configuration to use

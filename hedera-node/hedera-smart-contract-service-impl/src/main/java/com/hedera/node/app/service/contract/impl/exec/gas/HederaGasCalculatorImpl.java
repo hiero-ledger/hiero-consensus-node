@@ -22,7 +22,7 @@ import org.hyperledger.besu.evm.gascalculator.PragueGasCalculator;
  */
 @SuppressWarnings("java:S110")
 @Singleton
-public class CustomGasCalculator extends PragueGasCalculator implements HederaGasCalculator {
+public class HederaGasCalculatorImpl extends PragueGasCalculator implements HederaGasCalculator {
     private static final long TX_DATA_ZERO_COST = 4L;
     private static final long ISTANBUL_TX_DATA_NON_ZERO_COST = 16L;
     private static final long TX_BASE_COST = 21_000L;
@@ -34,7 +34,7 @@ public class CustomGasCalculator extends PragueGasCalculator implements HederaGa
      * Default constructor for injection.
      */
     @Inject
-    public CustomGasCalculator() {
+    public HederaGasCalculatorImpl() {
         // Dagger2
     }
 

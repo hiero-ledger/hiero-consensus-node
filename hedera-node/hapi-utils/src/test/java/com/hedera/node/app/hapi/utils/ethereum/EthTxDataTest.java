@@ -22,6 +22,8 @@ import com.esaulpaugh.headlong.rlp.RLPList;
 import com.esaulpaugh.headlong.util.Integers;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -778,142 +780,6 @@ class EthTxDataTest {
         assertNotEquals(Hex.toHexString(subject.chainId()), Hex.toHexString(failingChainId));
     }
 
-    // Minimal harness to encode/decode authorizationList without native libs
-    static final class Harness {
-        byte[] authorizationList;
-
-        void populateEip7702EthTxData(final List<CodeDelegation> delegations) {
-            final List<Object> inner = new ArrayList<>();
-            for (var d : delegations) {
-                inner.add(new Object[] {
-                    d.chainId(),
-                    d.address(),
-                    Integers.toBytes(d.nonce()), // nonce as RLP integer
-                    new byte[] {(byte) d.yParity()}, // yParity as single byte
-                    d.r(),
-                    d.s()
-                });
-            }
-            // The method under test decodes with sequenceIterator(...) and expects the first item to be a list.
-            this.authorizationList = RLPEncoder.sequence(new Object[] {inner.toArray(new Object[0])});
-        }
-
-        List<CodeDelegation> extractCodeDelegations() {
-            final List<CodeDelegation> codeDelegations = new ArrayList<>();
-            if (authorizationList != null) {
-                final var decoder = RLPDecoder.RLP_STRICT.sequenceIterator(authorizationList);
-                if (!decoder.hasNext()) {
-                    return codeDelegations;
-                }
-                final var rlpItem = decoder.next();
-                if (!rlpItem.isList()) {
-                    return codeDelegations;
-                }
-
-                for (final var rlpInner : rlpItem.asRLPList().elements()) {
-                    if (!rlpInner.isList()) {
-                        continue;
-                    }
-                    final var rlpInnerList = rlpInner.asRLPList().elements(); // intended behavior
-                    if (rlpInnerList.size() != 6) {
-                        continue;
-                    }
-                    codeDelegations.add(new CodeDelegation(
-                            rlpInnerList.get(0).data(), // chainId
-                            rlpInnerList.get(1).data(), // address
-                            asLong(rlpInnerList.get(2)), // nonce
-                            asByte(rlpInnerList.get(3)), // yParity
-                            rlpInnerList.get(4).data(), // r
-                            rlpInnerList.get(5).data() // s
-                            ));
-                }
-            }
-            return codeDelegations;
-        }
-
-        private static long asLong(final RLPItem item) {
-            final byte[] d = item.data();
-            if (d.length == 0) return 0L;
-            return new BigInteger(1, d).longValue();
-        }
-
-        private static int asByte(final RLPItem item) {
-            final byte[] d = item.data();
-            if (d.length == 0) return 0;
-            return d[d.length - 1] & 0xFF;
-        }
-    }
-
-    @Test
-    void extractReturnsEmptyWhenAuthorizationListNull() {
-        final var h = new Harness();
-        h.authorizationList = null;
-        assertTrue(h.extractCodeDelegations().isEmpty());
-    }
-
-    @Test
-    void extractReturnsEmptyWhenTopLevelNotList() {
-        final var h = new Harness();
-        // sequence with a single byte[] as first item (not a list)
-        h.authorizationList = RLPEncoder.sequence(fillBytes(3, 0x01));
-        assertTrue(h.extractCodeDelegations().isEmpty());
-    }
-
-    @Test
-    void extractSkipsNonListInnerAndWrongArity() {
-        final var h = new Harness();
-
-        final var good = new Object[] {
-            new byte[] {0x01}, // chainId
-            fillBytes(20, 0x10), // address
-            Integers.toBytes(7), // nonce
-            new byte[] {0x1B}, // yParity (27)
-            fillBytes(32, 0x21), // r
-            fillBytes(32, 0x41) // s
-        };
-
-        final var innerTop = new Object[] {
-            fillBytes(4, 0x01), // not a list (will be skipped)
-            new Object[] { // wrong arity (5 instead of 6)
-                new byte[] {0x02}, fillBytes(20, 0x11), Integers.toBytes(8), new byte[] {0x1C}, fillBytes(32, 0x22)
-            },
-            good // valid item
-        };
-
-        h.authorizationList = RLPEncoder.sequence(new Object[] {innerTop});
-
-        final var result = h.extractCodeDelegations();
-        assertEquals(1, result.size());
-
-        final var cd = result.get(0);
-        assertArrayEquals(new byte[] {0x01}, cd.chainId());
-        assertArrayEquals(fillBytes(20, 0x10), cd.address());
-        assertEquals(7L, cd.nonce());
-        assertEquals(0x1B, cd.yParity());
-        assertArrayEquals(fillBytes(32, 0x21), cd.r());
-        assertArrayEquals(fillBytes(32, 0x41), cd.s());
-    }
-
-    @Test
-    void populateThenExtractRoundTripsTwoDelegations() {
-        final var h = new Harness();
-
-        final var d1 = new CodeDelegation(
-                new byte[] {0x01}, fillBytes(20, 0x10), 1L, 27, fillBytes(32, 0x21), fillBytes(32, 0x41));
-        final var d2 = new CodeDelegation(
-                new byte[] {0x02}, fillBytes(20, 0x20), 2L, 28, fillBytes(32, 0x22), fillBytes(32, 0x42));
-
-        final var in = List.of(d1, d2);
-        h.populateEip7702EthTxData(in);
-        final var out = h.extractCodeDelegations();
-
-        assertEquals(in, out);
-        // Sanity: ensure the encoded blob really contains a list as the first item
-        final var it = RLPDecoder.RLP_STRICT.sequenceIterator(h.authorizationList);
-        assertTrue(it.hasNext());
-        assertTrue(it.next().isList());
-    }
-
     @Test
     void testType4TransactionEncoding() {
         final byte[] chainId = new byte[] {0x01, 0x2A};
@@ -988,6 +854,85 @@ class EthTxDataTest {
         assertEquals(recId, tx.recId());
         assertArrayEquals(r, tx.r());
         assertArrayEquals(s, tx.s());
+    }
+
+    @Test
+    void returnsEmptyWhenAuthorizationTopLevelNotList() throws Exception {
+        // authorizationList is a single non-list byte (RLP item 0x01)
+        final byte[] auth = new byte[] { 0x01 };
+
+        final byte[] raw = buildType4Raw(fillBytes(2, 0x01), 1, fillBytes(3, 0x02), fillBytes(3, 0x03),
+                100, fillBytes(20, 0x04), 0L, new byte[] {}, new Object[] {}, auth, 27,
+                fillBytes(32, 0x05), fillBytes(32, 0x06));
+
+        final EthTxData tx = EthTxData.populateEthTxData(raw);
+        assertNotNull(tx);
+
+        final java.util.List<?> delegations = tx.extractCodeDelegations();
+        assertNotNull(delegations);
+        assertTrue(delegations.isEmpty());
+    }
+
+    @Test
+    void extractCodeDelegationsTrowsWhenInnerItemNotList() throws Exception {
+        // authorizationList is an outer list (len=1) containing a single non-list element 0x01
+        final byte[] auth = new byte[] { (byte) 0xC1, 0x01 };
+
+        final byte[] raw = buildType4Raw(fillBytes(2, 0x0A), 2, fillBytes(3, 0x0B), fillBytes(3, 0x0C),
+                200, fillBytes(20, 0x0D), 0L, new byte[] {}, new Object[] {}, auth, 28,
+                fillBytes(32, 0x0E), fillBytes(32, 0x0F));
+
+        final EthTxData tx = EthTxData.populateEthTxData(raw);
+        assertNotNull(tx);
+
+        assertThrows(IllegalArgumentException.class, tx::extractCodeDelegations);
+    }
+
+    @Test
+    void extractCodeDelegationsThrowsWhenTopLevelListSizeNotSix() throws Exception {
+        // authorizationList is an outer list with a single empty inner list: 0xC1 0xC0
+        final byte[] auth = new byte[] { (byte) 0xC1, (byte) 0xC0 };
+
+        final byte[] raw = buildType4Raw(fillBytes(2, 0x1A), 3, fillBytes(3, 0x1B), fillBytes(3, 0x1C),
+                300, fillBytes(20, 0x1D), 0L, new byte[] {}, new Object[] {}, auth, 29,
+                fillBytes(32, 0x1E), fillBytes(32, 0x1F));
+
+        final EthTxData tx = EthTxData.populateEthTxData(raw);
+        assertNotNull(tx);
+
+        assertThrows(IllegalArgumentException.class, tx::extractCodeDelegations);
+    }
+
+    private static byte[] buildType4Raw(
+            byte[] chainId,
+            int nonce,
+            byte[] maxPriorityGas,
+            byte[] maxGas,
+            int gasLimit,
+            byte[] to,
+            long value,
+            byte[] callData,
+            Object[] accessListList,
+            byte[] authorizationList,
+            int recId,
+            byte[] r,
+            byte[] s
+    ) {
+        return RLPEncoder.sequence(Integers.toBytes(4), new Object[] {
+                chainId,
+                Integers.toBytes(nonce),
+                maxPriorityGas,
+                maxGas,
+                Integers.toBytes(gasLimit),
+                to,
+                Integers.toBytesUnsigned(java.math.BigInteger.valueOf(value)),
+                callData,
+                accessListList,
+                authorizationList,
+                new byte[] {(byte) recId},
+                r,
+                s
+        });
     }
 
     private static Object alRrpEntry(Object[] alRlp, int index) {

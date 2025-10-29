@@ -16,6 +16,9 @@ import org.hyperledger.besu.evm.worldstate.WorldUpdater;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Processor for handling code delegations for EIP-7702 transactions.
+ */
 public record CodeDelegationProcessor(long chainId) {
     private static final Logger LOG = LoggerFactory.getLogger(CodeDelegationProcessor.class);
 
