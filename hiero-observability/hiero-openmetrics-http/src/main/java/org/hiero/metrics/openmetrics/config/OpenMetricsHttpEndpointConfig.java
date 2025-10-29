@@ -9,6 +9,6 @@ import com.swirlds.config.api.validation.annotation.Min;
 @ConfigData("metrics.exporter.openmetrics.http")
 public record OpenMetricsHttpEndpointConfig(
         @ConfigProperty(defaultValue = "true") boolean enabled,
-        @ConfigProperty(defaultValue = "8888") @Min(1024) @Max(49151) int port,
+        @ConfigProperty(defaultValue = "8888") @Min(1024) @Max(65535) int port,
         @ConfigProperty(defaultValue = "/metrics") String path,
-        @ConfigProperty(defaultValue = "0") int backlog) {}
+        @ConfigProperty(defaultValue = "0") @Min(0) @Max(10) int backlog) {}

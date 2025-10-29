@@ -42,8 +42,10 @@ public abstract sealed class LabelValues permits LabelNamesAndValues, EmptyLabel
     public final int hashCode() {
         if (hashCode == 0) {
             hashCode = 1;
+            int limitValue = (Integer.MAX_VALUE >> 9);
             for (int i = 0; i < size(); i++) {
-                hashCode = 31 * hashCode + get(i).hashCode();
+                hashCode = hashCode % limitValue; // avoid integer overflow
+                hashCode = 257 * hashCode + get(i).hashCode();
             }
         }
 

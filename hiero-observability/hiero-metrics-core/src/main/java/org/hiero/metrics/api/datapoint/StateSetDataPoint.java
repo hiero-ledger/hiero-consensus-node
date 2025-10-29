@@ -16,6 +16,20 @@ import java.util.Set;
 public interface StateSetDataPoint<E extends Enum<E>> extends DataPoint {
 
     /**
+     * Set the state of the given value.
+     *
+     * @param value the value to set the state for
+     * @param state the state to set
+     */
+    default void set(E value, boolean state) {
+        if (state) {
+            setTrue(value);
+        } else {
+            setFalse(value);
+        }
+    }
+
+    /**
      * Set the state of the given value to {@code false}.
      *
      * @param value the value to set the state for
