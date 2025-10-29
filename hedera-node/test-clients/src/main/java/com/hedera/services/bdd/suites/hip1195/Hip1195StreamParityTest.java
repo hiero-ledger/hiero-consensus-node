@@ -223,7 +223,11 @@ public class Hip1195StreamParityTest {
                                                     .setGasLimit(gasLimit)
                                                     .setData(ByteString.copyFrom(SET_AND_PASS_ARGS.encode(
                                                             Tuple.of(14L, targetAddress))))))));
-                }));
+                }).via("complexTransfer"),
+                getTxnRecord("complexTransfer")
+                        .hasNonStakingChildRecordCount(8)
+                        .andAllChildRecords()
+                        .logged());
     }
 
     @HapiTest
