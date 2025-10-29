@@ -733,16 +733,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                         for (final BlockItem item : items) {
                             final BlockProof blockProof = item.blockProof();
                             if (blockProof != null) {
-                                final long blockNumber = blockProof.block();
                                 blockNodeConnectionManager.recordBlockProofSent(
-                                        blockNodeConfig, blockNumber, Instant.now());
-
-                                // Indicate to the block node that this is the end of the current block
-                                final PublishStreamRequest endOfBlock = PublishStreamRequest.newBuilder()
-                                        .endOfBlock(BlockEnd.newBuilder().blockNumber(blockNumber))
-                                        .build();
-
-                                sendRequest(endOfBlock);
+                                        blockNodeConfig, blockProof.block(), Instant.now());
                             }
                         }
                     }
@@ -1086,6 +1078,16 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             }
 
             if (pendingRequestItems.isEmpty() && block.isClosed() && block.itemCount() == itemIndex) {
+                // Indicate to the block node that this is the end of the current block
+                final PublishStreamRequest endOfBlock = PublishStreamRequest.newBuilder()
+                        .endOfBlock(BlockEnd.newBuilder().blockNumber(block.blockNumber()))
+                        .build();
+                try {
+                    sendRequest(endOfBlock);
+                } catch (RuntimeException e) {
+                    logger.warn(formatLogMessage("Error sending EndOfBlock request", BlockNodeConnection.this), e);
+                }
+
                 // We've gathered all block items and have sent them to the block node. No additional work is needed
                 // for the current block so we can move to the next block.
                 final long nextBlockNumber = block.blockNumber() + 1;
