@@ -14,9 +14,9 @@ import org.hiero.hapi.fees.FeeResult;
 /**
  * Utility class for Simple Fees query handler operations.
  */
-public final class SimpleFeeQueryHelper {
+public final class SimpleFeeUtil {
 
-    private SimpleFeeQueryHelper() {}
+    private SimpleFeeUtil() {}
 
     public static boolean shouldUseSimpleFees(@NonNull final QueryContext queryContext) {
         return queryContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled();
@@ -32,13 +32,9 @@ public final class SimpleFeeQueryHelper {
 
     private static long tinycentsToTinybars(final long amount, final ExchangeRate rate) {
         final var hbarEquiv = rate.hbarEquiv();
-        if (productWouldOverflow(amount, hbarEquiv)) {
+        if (CommonUtils.productWouldOverflow(amount, hbarEquiv)) {
             return FeeBuilder.getTinybarsFromTinyCents(CommonPbjConverters.fromPbj(rate), amount);
         }
         return amount * hbarEquiv / rate.centEquiv();
-    }
-
-    private static boolean productWouldOverflow(final long a, final int b) {
-        return CommonUtils.productWouldOverflow(a, b);
     }
 }
