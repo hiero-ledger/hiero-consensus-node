@@ -136,15 +136,13 @@ jobs:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
       solo-version: "${{ vars.CITR_SOLO_VERSION }}"
-      #"${{ vars.CITR_SOLO_VERSION }}"
-
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
       add-settings: "${{ inputs.add-settings }}"
       crypto-bench-merkle-db-java-args: "${{ inputs.crypto-bench-merkle-db-java-args }}"
       crypto-bench-merkle-db-test-params: "${{ inputs.crypto-bench-merkle-db-test-params }}"
-      delete-namespace: ${{ inputs.delete-namespace }}
+      delete-namespace: 'false'
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       rootly-api-token: ${{ secrets.ROOTLY_API_TOKEN }}
