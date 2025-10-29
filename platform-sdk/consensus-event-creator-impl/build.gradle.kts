@@ -2,9 +2,22 @@
 plugins {
     id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.publish-artifactregistry")
+    id("org.hiero.gradle.feature.benchmark")
 }
 
 mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
+
+jmhModuleInfo {
+    requires("com.swirlds.common")
+    requires("com.swirlds.common.test.fixtures")
+    requires("com.swirlds.platform.core")
+    requires("com.swirlds.platform.core.test.fixtures")
+    requires("org.hiero.consensus.event.creator")
+    requires("org.hiero.consensus.event.creator.impl")
+    requires("org.hiero.consensus.utility")
+    requires("com.hedera.node.hapi")
+    requires("jmh.core")
+}
 
 description = "Default Consensus Event Creator Implementation"
 
