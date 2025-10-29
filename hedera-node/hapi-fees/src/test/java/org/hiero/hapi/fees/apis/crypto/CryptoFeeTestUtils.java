@@ -52,8 +52,8 @@ public class CryptoFeeTestUtils {
         return FeeSchedule.DEFAULT
                 .copyBuilder()
                 .extras(
-                        makeExtraDef(Extra.SIGNATURES, 60000000),
-                        makeExtraDef(Extra.KEYS, 2200000),
+                        makeExtraDef(Extra.SIGNATURES, 60_000_000),
+                        makeExtraDef(Extra.KEYS, 2_200_000),
                         makeExtraDef(Extra.ACCOUNTS, 3),
                         makeExtraDef(Extra.STANDARD_FUNGIBLE_TOKENS, 3),
                         makeExtraDef(Extra.STANDARD_NON_FUNGIBLE_TOKENS, 3),
