@@ -1522,10 +1522,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         assertThat(configs).hasSize(1);
 
-        final Map<BlockNodeConfig, BlockNodeProtocolConfig> protocolConfigs =
+        final Map<BlockNodeConfig, BlockNodeConnectionConfig> protocolConfigs =
                 connectionManager.getBlockNodeProtocolConfigs();
         assertThat(protocolConfigs).containsKey(configs.getFirst());
-        final BlockNodeProtocolConfig protocol = protocolConfigs.get(configs.getFirst());
+        final BlockNodeConnectionConfig protocol = protocolConfigs.get(configs.getFirst());
         assertThat(protocol.http2ClientProtocolConfig()).isNotNull();
         assertThat(protocol.grpcClientProtocolConfig()).isNotNull();
         assertThat(protocol.maxMessageSizeBytes()).isEqualTo(1_500_000);

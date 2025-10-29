@@ -91,7 +91,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     private BlockNodeConnection connection;
-    private BlockNodeConfig nodeConfig;
+    private BlockNodeConnectionConfig nodeConfig;
 
     private BlockNodeConnectionManager connectionManager;
     private BlockBufferService bufferService;
@@ -139,9 +139,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         //        resetMocks();
 
         lenient().doReturn(requestPipeline).when(grpcServiceClient).publishBlockStream(connection);
-        lenient()
-                .when(connectionManager.getBlockNodeProtocolConfigs())
-                .thenReturn(Map.of(nodeConfig, new BlockNodeProtocolConfig(null, null, null)));
     }
 
     @AfterEach
@@ -196,9 +193,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final var grpc = io.helidon.webclient.grpc.GrpcClientProtocolConfig.builder()
                 .abortPollTimeExpired(true)
                 .build();
-        doReturn(Map.of(nodeConfig, new BlockNodeProtocolConfig(http2, grpc, null)))
-                .when(connectionManager)
-                .getBlockNodeProtocolConfigs();
 
         // Act
         connection.createRequestPipeline();
@@ -209,9 +203,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testCreateNewGrpcClient_usesDefaultWhenProtocolConfigMissing() {
-        // No protocol config in the map → defaults are applied
-        doReturn(Map.of()).when(connectionManager).getBlockNodeProtocolConfigs();
-
         connection.createRequestPipeline();
 
         verify(grpcServiceClient).publishBlockStream(connection);
@@ -1401,9 +1392,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     void testWorkerConstructor_respectsMaxMessageSizeFromProtocolConfig() throws Exception {
         // Provide a protocol config with a smaller max message size than the hard cap
         final int configuredMax = 1_000_000;
-        doReturn(Map.of(nodeConfig, new BlockNodeProtocolConfig(null, null, configuredMax)))
-                .when(connectionManager)
-                .getBlockNodeProtocolConfigs();
 
         // Recreate connection to pick up protocol config through manager on worker construction
         final ConfigProvider configProvider = createConfigProvider(createDefaultConfigProvider());
@@ -1473,7 +1461,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         connection.updateConnectionState(ConnectionState.ACTIVE);
         final PublishStreamResponse response = createEndOfStreamResponse(Code.ERROR, 10L);
 
-        when(connectionManager.recordEndOfStreamAndCheckLimit(eq(nodeConfig), any()))
+        when(connectionManager.recordEndOfStreamAndCheckLimit(eq(nodeConfig.blockNodeConfig()), any()))
                 .thenReturn(true);
         when(connectionManager.getEndOfStreamScheduleDelay()).thenReturn(Duration.ofMinutes(5));
 
@@ -1484,7 +1472,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordEndOfStreamLimitExceeded();
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
-        verify(connectionManager).recordEndOfStreamAndCheckLimit(eq(nodeConfig), any());
+        verify(connectionManager).recordEndOfStreamAndCheckLimit(eq(nodeConfig.blockNodeConfig()), any());
         verify(connectionManager).rescheduleConnection(connection, Duration.ofMinutes(5), null, true);
         verify(requestPipeline).onComplete();
         verifyNoMoreInteractions(metrics);

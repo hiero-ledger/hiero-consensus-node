@@ -10,7 +10,6 @@ import static java.util.stream.Collectors.toList;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import com.hedera.node.internal.network.BlockNodeConnectionInfo;
@@ -98,9 +97,7 @@ public class BlockNodeConnectionManager {
      * List of available block nodes this consensus node can connect to, or at least attempt to. This list is read upon
      * startup from the configuration file(s) on disk.
      */
-    private final List<BlockNodeConfig> availableBlockNodes = new ArrayList<>();
-
-    private final Map<BlockNodeConfig, BlockNodeProtocolConfig> blockNodeProtocolConfigs = new ConcurrentHashMap<>();
+    private final List<BlockNodeConnectionConfig> availableBlockNodes = new ArrayList<>();
     /**
      * Flag that indicates if this connection manager is active or not. In this case, being active means it is actively
      * processing blocks and attempting to send them to a block node.
@@ -126,7 +123,7 @@ public class BlockNodeConnectionManager {
      * Map that contains one or more connections to block nodes. The connections in this map will be a subset (or all)
      * of the available block node connections. (see {@link BlockNodeConnectionManager#availableBlockNodes})
      */
-    private final Map<BlockNodeConfig, BlockNodeConnection> connections = new ConcurrentHashMap<>();
+    private final Map<BlockNodeConnectionConfig, BlockNodeConnection> connections = new ConcurrentHashMap<>();
     /**
      * Reference to the currently active connection. If this reference is null, then there is no active connection.
      */
@@ -209,7 +206,7 @@ public class BlockNodeConnectionManager {
     private String blockNodeConnectionFileDir() {
         return configProvider
                 .getConfiguration()
-                .getConfigData(BlockNodeConnectionConfig.class)
+                .getConfigData(com.hedera.node.config.data.BlockNodeConnectionConfig.class)
                 .blockNodeConnectionFileDir();
     }
 
@@ -219,14 +216,14 @@ public class BlockNodeConnectionManager {
     private Duration expBackoffTimeframeReset() {
         return configProvider
                 .getConfiguration()
-                .getConfigData(BlockNodeConnectionConfig.class)
+                .getConfigData(com.hedera.node.config.data.BlockNodeConnectionConfig.class)
                 .protocolExpBackoffTimeframeReset();
     }
 
     private Duration maxBackoffDelay() {
         return configProvider
                 .getConfiguration()
-                .getConfigData(BlockNodeConnectionConfig.class)
+                .getConfigData(com.hedera.node.config.data.BlockNodeConnectionConfig.class)
                 .maxBackoffDelay();
     }
 
@@ -236,7 +233,7 @@ public class BlockNodeConnectionManager {
      * @param blockNodeConfigPath the path to the block node configuration file
      * @return the configurations for all block nodes
      */
-    private List<BlockNodeConfig> extractBlockNodesConfigurations(@NonNull final String blockNodeConfigPath) {
+    private List<BlockNodeConnectionConfig> extractBlockNodesConfigurations(@NonNull final String blockNodeConfigPath) {
         final Path configPath = Paths.get(blockNodeConfigPath, BLOCK_NODES_FILE_NAME);
         try {
             if (!Files.exists(configPath)) {
@@ -246,16 +243,16 @@ public class BlockNodeConnectionManager {
 
             final byte[] jsonConfig = Files.readAllBytes(configPath);
             final BlockNodeConnectionInfo protoConfig = BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(jsonConfig));
+            List<BlockNodeConnectionConfig> nodes = new ArrayList<>();
             for (BlockNodeConfig nodeConfig : protoConfig.nodes()) {
-                blockNodeProtocolConfigs.put(
-                        nodeConfig,
-                        new BlockNodeProtocolConfig(
+                nodes.add(
+                        new BlockNodeConnectionConfig(
+                                nodeConfig,
                                 extractOptionalHttp2ClientProtocolConfig(nodeConfig),
                                 extractOptionalGrpcClientProtocolConfig(nodeConfig),
                                 nodeConfig.maxMessageSizeBytes()));
             }
-
-            return protoConfig.nodes();
+            return nodes;
         } catch (final IOException | ParseException e) {
             logger.info(
                     "Failed to read or parse block node configuration from {}. Continuing without block node connections.",
@@ -426,7 +423,7 @@ public class BlockNodeConnectionManager {
                 delayMs,
                 retryAttempt);
 
-        scheduleConnectionAttempt(connection.getNodeConfig(), Duration.ofMillis(delayMs), blockNumber, false);
+        scheduleConnectionAttempt(connection.getBlockNodeConnectionConfig(), Duration.ofMillis(delayMs), blockNumber, false);
 
         if (!isOnlyOneBlockNodeConfigured() && selectNewBlockNode) {
             // Immediately try to find and connect to the next available node
@@ -463,7 +460,7 @@ public class BlockNodeConnectionManager {
     }
 
     private void scheduleConnectionAttempt(
-            @NonNull final BlockNodeConfig blockNodeConfig,
+            @NonNull final BlockNodeConnectionConfig blockNodeConfig,
             @NonNull final Duration initialDelay,
             @Nullable final Long initialBlockToStream,
             final boolean force) {
@@ -519,16 +516,15 @@ public class BlockNodeConnectionManager {
         activeConnectionRef.set(null);
         nodeStats.clear();
         availableBlockNodes.clear();
-        blockNodeProtocolConfigs.clear();
     }
 
     private void closeAllConnections() {
         logger.debug("Stopping block node connections");
         // Close all connections
-        final Iterator<Map.Entry<BlockNodeConfig, BlockNodeConnection>> it =
+        final Iterator<Map.Entry<BlockNodeConnectionConfig, BlockNodeConnection>> it =
                 connections.entrySet().iterator();
         while (it.hasNext()) {
-            final Map.Entry<BlockNodeConfig, BlockNodeConnection> entry = it.next();
+            final Map.Entry<BlockNodeConnectionConfig, BlockNodeConnection> entry = it.next();
             final BlockNodeConnection connection = entry.getValue();
             try {
                 connection.close(true);
@@ -587,7 +583,7 @@ public class BlockNodeConnectionManager {
 
         logger.debug("Selecting highest priority available block node for connection attempt.");
 
-        final BlockNodeConfig selectedNode = getNextPriorityBlockNode();
+        final BlockNodeConnectionConfig selectedNode = getNextPriorityBlockNode();
 
         if (selectedNode == null) {
             logger.debug("No available block nodes found for streaming.");
@@ -596,7 +592,7 @@ public class BlockNodeConnectionManager {
 
         if (logger.isDebugEnabled()) {
             logger.debug(
-                    "Selected block node {}:{} for connection attempt", selectedNode.address(), selectedNode.port());
+                    "Selected block node {}:{} for connection attempt", selectedNode.blockNodeConfig().address(), selectedNode.blockNodeConfig().port());
         }
 
         // Immediately schedule the FIRST connection attempt.
@@ -611,22 +607,26 @@ public class BlockNodeConnectionManager {
      *
      * @return the next available block node configuration
      */
-    private @Nullable BlockNodeConfig getNextPriorityBlockNode() {
+    private @Nullable BlockNodeConnectionConfig getNextPriorityBlockNode() {
         logger.debug("Searching for new block node connection based on node priorities.");
 
-        final List<BlockNodeConfig> snapshot;
+        final List<BlockNodeConnectionConfig> snapshot;
         synchronized (availableBlockNodes) {
             snapshot = new ArrayList<>(availableBlockNodes);
         }
 
-        final SortedMap<Integer, List<BlockNodeConfig>> priorityGroups = snapshot.stream()
-                .collect(Collectors.groupingBy(BlockNodeConfig::priority, TreeMap::new, Collectors.toList()));
+        final SortedMap<Integer, List<BlockNodeConnectionConfig>> priorityGroups =
+                snapshot.stream()
+                        .collect(Collectors.groupingBy(
+                                config -> config.blockNodeConfig().priority(),
+                                TreeMap::new,
+                                Collectors.toList()));
 
-        BlockNodeConfig selectedNode = null;
+        BlockNodeConnectionConfig selectedNode = null;
 
-        for (final Map.Entry<Integer, List<BlockNodeConfig>> entry : priorityGroups.entrySet()) {
+        for (final Map.Entry<Integer, List<BlockNodeConnectionConfig>> entry : priorityGroups.entrySet()) {
             final int priority = entry.getKey();
-            final List<BlockNodeConfig> nodesInGroup = entry.getValue();
+            final List<BlockNodeConnectionConfig> nodesInGroup = entry.getValue();
             selectedNode = findAvailableNode(nodesInGroup);
 
             if (selectedNode == null) {
@@ -647,7 +647,7 @@ public class BlockNodeConnectionManager {
      * @param nodes list of possible nodes to connect to
      * @return a node that is a candidate to connect to, or null if no candidate was found
      */
-    private @Nullable BlockNodeConfig findAvailableNode(@NonNull final List<BlockNodeConfig> nodes) {
+    private @Nullable BlockNodeConnectionConfig findAvailableNode(@NonNull final List<BlockNodeConnectionConfig> nodes) {
         requireNonNull(nodes, "nodes must not be null");
         // Only allow the selection of nodes which are not currently in the connections map
         return nodes.stream()
@@ -670,7 +670,7 @@ public class BlockNodeConnectionManager {
      */
     @NonNull
     private BlockNodeConnection createConnection(
-            @NonNull final BlockNodeConfig nodeConfig, @Nullable final Long initialBlockToStream) {
+            @NonNull final BlockNodeConnectionConfig nodeConfig, @Nullable final Long initialBlockToStream) {
         requireNonNull(nodeConfig);
 
         final BlockNodeConnection connection = new BlockNodeConnection(
@@ -779,7 +779,7 @@ public class BlockNodeConnectionManager {
 
     private void refreshAvailableBlockNodes() {
         final String configDir = blockNodeConfigDirectory.toString();
-        final List<BlockNodeConfig> newConfigs = extractBlockNodesConfigurations(configDir);
+        final List<BlockNodeConnectionConfig> newConfigs = extractBlockNodesConfigurations(configDir);
 
         // Compare new configs with existing ones to determine if a restart is needed
         synchronized (availableBlockNodes) {
@@ -1005,7 +1005,7 @@ public class BlockNodeConnectionManager {
     public Duration getEndOfStreamScheduleDelay() {
         return configProvider
                 .getConfiguration()
-                .getConfigData(BlockNodeConnectionConfig.class)
+                .getConfigData(com.hedera.node.config.data.BlockNodeConnectionConfig.class)
                 .endOfStreamScheduleDelay();
     }
 
@@ -1017,7 +1017,7 @@ public class BlockNodeConnectionManager {
     public Duration getEndOfStreamTimeframe() {
         return configProvider
                 .getConfiguration()
-                .getConfigData(BlockNodeConnectionConfig.class)
+                .getConfigData(com.hedera.node.config.data.BlockNodeConnectionConfig.class)
                 .endOfStreamTimeFrame();
     }
 
@@ -1029,7 +1029,7 @@ public class BlockNodeConnectionManager {
     public int getMaxEndOfStreamsAllowed() {
         return configProvider
                 .getConfiguration()
-                .getConfigData(BlockNodeConnectionConfig.class)
+                .getConfigData(com.hedera.node.config.data.BlockNodeConnectionConfig.class)
                 .maxEndOfStreamsAllowed();
     }
 
@@ -1051,14 +1051,14 @@ public class BlockNodeConnectionManager {
     private Duration getHighLatencyThreshold() {
         return configProvider
                 .getConfiguration()
-                .getConfigData(BlockNodeConnectionConfig.class)
+                .getConfigData(com.hedera.node.config.data.BlockNodeConnectionConfig.class)
                 .highLatencyThreshold();
     }
 
     private int getHighLatencyEventsBeforeSwitching() {
         return configProvider
                 .getConfiguration()
-                .getConfigData(BlockNodeConnectionConfig.class)
+                .getConfigData(com.hedera.node.config.data.BlockNodeConnectionConfig.class)
                 .highLatencyEventsBeforeSwitching();
     }
 
@@ -1173,13 +1173,5 @@ public class BlockNodeConnectionManager {
         }
 
         return result;
-    }
-
-    /**
-     * Gets the block node protocol configurations.
-     * @return the block node protocol configurations
-     */
-    public Map<BlockNodeConfig, BlockNodeProtocolConfig> getBlockNodeProtocolConfigs() {
-        return blockNodeProtocolConfigs;
     }
 }
