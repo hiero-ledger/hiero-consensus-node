@@ -8,6 +8,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -216,6 +217,13 @@ public class TipsetEventCreator implements EventCreator {
         } else if (quiescenceCommand == QuiescenceCommand.BREAK_QUIESCENCE && !breakQuiescenceEventCreated) {
             event = createQuiescenceBreakEvent();
             breakQuiescenceEventCreated = true;
+        }
+        if(quiescenceCommand == QuiescenceCommand.BREAK_QUIESCENCE && event != null) {
+            logger.info(LogMarker.STARTUP.getMarker(),
+                    "Event({}) from node {} created at {}",
+                    event.getHash().toHex(6),
+                    event.getMetadata().getCreatorId(),
+                    event.getTimeCreated());
         }
         if (event != null) {
             lastSelfEvent = signEvent(event);
