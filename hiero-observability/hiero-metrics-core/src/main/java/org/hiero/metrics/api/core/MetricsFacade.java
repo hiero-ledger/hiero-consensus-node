@@ -20,12 +20,12 @@ import org.hiero.metrics.api.export.MetricsExporter;
 import org.hiero.metrics.api.export.MetricsExporterFactory;
 import org.hiero.metrics.api.export.PullingMetricsExporter;
 import org.hiero.metrics.api.export.PushingMetricsExporter;
-import org.hiero.metrics.internal.export.config.MetricsExportManagerConfig;
 import org.hiero.metrics.api.utils.MetricUtils;
 import org.hiero.metrics.internal.core.MetricRegistryImpl;
 import org.hiero.metrics.internal.export.DefaultMetricsExportManager;
 import org.hiero.metrics.internal.export.NoOpMetricsExportManager;
 import org.hiero.metrics.internal.export.SinglePullingExporterMetricsExportManager;
+import org.hiero.metrics.internal.export.config.MetricsExportManagerConfig;
 
 /**
  * Facade for creating and managing metrics registries and export managers.
@@ -107,8 +107,6 @@ public final class MetricsFacade {
         return registry;
     }
 
-    // TODO support only one pulling exporter to avoid different clocks and inaccurate data ?
-
     /**
      * Creates a new {@link MetricsExportManager} using discovered via the Java {@link java.util.ServiceLoader}
      * mechanism implementations of {@link MetricsExporterFactory} to create either {@link PullingMetricsExporter}
@@ -156,7 +154,7 @@ public final class MetricsFacade {
         for (MetricsExporterFactory exporterFactory : exporterFactories) {
             try {
                 optionalExporter = exporterFactory.createExporter(configuration);
-            } catch (Exception e) {
+            } catch (RuntimeException e) {
                 logger.warn("Failed to create metrics exporter from factory: {}", exporterFactory.getClass(), e);
                 continue;
             }

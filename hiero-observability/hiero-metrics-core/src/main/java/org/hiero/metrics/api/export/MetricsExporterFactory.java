@@ -18,8 +18,7 @@ public interface MetricsExporterFactory {
      *
      * @param configuration the configuration to use for creating the exporter, must not be {@code null}
      * @return a new instance of {@link MetricsExporter}, never {@code null}, wrapped into an {@link Optional}
-     * @throws Exception if there is an error during the creation of the exporter
      */
     @NonNull
-    Optional<MetricsExporter> createExporter(@NonNull Configuration configuration) throws Exception;
+    Optional<MetricsExporter> createExporter(@NonNull Configuration configuration);
 }
