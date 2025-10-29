@@ -268,8 +268,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 blockStreamMetrics.recordConnectionOpened();
             } catch (final TimeoutException e) {
                 future.cancel(true);
-                logger.debug("{} Pipeline creation timed out after {}ms", this,
-                        pipelineOperationTimeout.toMillis());
+                logger.debug("{} Pipeline creation timed out after {}ms", this, pipelineOperationTimeout.toMillis());
                 blockStreamMetrics.recordPipelineOperationTimeout();
                 throw new RuntimeException("Pipeline creation timed out", e);
             } catch (final InterruptedException e) {
@@ -725,8 +724,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 } catch (final TimeoutException e) {
                     future.cancel(true); // Cancel the task if it times out
                     if (getConnectionState() == ConnectionState.ACTIVE) {
-                        logger.debug("{} Pipeline onNext() timed out after {}ms",
-                                this, pipelineOperationTimeout.toMillis());
+                        logger.debug(
+                                "{} Pipeline onNext() timed out after {}ms", this, pipelineOperationTimeout.toMillis());
                         blockStreamMetrics.recordPipelineOperationTimeout();
                         handleStreamFailure();
                     }
@@ -846,8 +845,10 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                         logger.debug("{} Request pipeline successfully closed.", this);
                     } catch (final TimeoutException e) {
                         future.cancel(true); // Cancel the task if it times out
-                        logger.debug("{} Pipeline onComplete() timed out after {}ms",
-                                this, pipelineOperationTimeout.toMillis());
+                        logger.debug(
+                                "{} Pipeline onComplete() timed out after {}ms",
+                                this,
+                                pipelineOperationTimeout.toMillis());
                         blockStreamMetrics.recordPipelineOperationTimeout();
                         // Connection is already closing, just log the timeout
                     } catch (final InterruptedException e) {
