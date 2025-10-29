@@ -134,7 +134,7 @@ public class BlockBufferService {
             @NonNull final ConfigProvider configProvider, @NonNull final BlockStreamMetrics blockStreamMetrics) {
         this.configProvider = configProvider;
         this.blockStreamMetrics = blockStreamMetrics;
-        this.bufferIO = new BlockBufferIO(bufferDirectory());
+        this.bufferIO = new BlockBufferIO(bufferDirectory(), maxReadDepth());
     }
 
     private boolean isGrpcStreamingEnabled() {
@@ -274,6 +274,16 @@ public class BlockBufferService {
                 .getConfiguration()
                 .getConfigData(BlockBufferConfig.class)
                 .bufferDirectory();
+    }
+
+    /**
+     * @return the max allowed depth of nested protobuf messages
+     */
+    private int maxReadDepth() {
+        return configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .maxReadDepth();
     }
 
     /**

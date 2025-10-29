@@ -31,7 +31,7 @@ public abstract class AbstractBaseFeeModel implements FeeModel {
         return this.description;
     }
 
-    protected FeeResult computeNodeAndNetworkFees(Map<Extra, Object> params, FeeSchedule feeSchedule) {
+    protected FeeResult computeNodeAndNetworkFees(Map<Extra, Long> params, FeeSchedule feeSchedule) {
         var result = new FeeResult();
         final var nodeFee = feeSchedule.node();
         result.addNodeFee("Node base fee", 1, nodeFee.baseFee());
