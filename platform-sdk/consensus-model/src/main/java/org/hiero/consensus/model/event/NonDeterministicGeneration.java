@@ -2,6 +2,7 @@
 package org.hiero.consensus.model.event;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 import org.hiero.consensus.model.sequence.map.SequenceMap;
 
 /**
@@ -33,6 +34,19 @@ public class NonDeterministicGeneration {
         long maxParentNGen = GENERATION_UNDEFINED;
         for (final EventDescriptorWrapper parentDesc : event.getAllParents()) {
             final PlatformEvent parent = eventsWithParents.get(parentDesc);
+            if (parent != null) {
+                maxParentNGen = Math.max(maxParentNGen, parent.getNGen());
+            }
+        }
+        final long nGen = maxParentNGen == GENERATION_UNDEFINED ? FIRST_GENERATION : maxParentNGen + 1;
+        event.setNGen(nGen);
+    }
+
+    public static void assignNGen(
+            @NonNull final UnsignedEvent event,
+            @NonNull final Iterable<PlatformEvent> parents) {
+        long maxParentNGen = GENERATION_UNDEFINED;
+        for (final PlatformEvent parent : parents) {
             if (parent != null) {
                 maxParentNGen = Math.max(maxParentNGen, parent.getNGen());
             }

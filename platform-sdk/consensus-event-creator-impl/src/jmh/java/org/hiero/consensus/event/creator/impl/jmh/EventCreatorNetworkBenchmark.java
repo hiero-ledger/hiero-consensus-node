@@ -2,38 +2,30 @@
 package org.hiero.consensus.event.creator.impl.jmh;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.crypto.KeyGeneratingException;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import org.hiero.consensus.event.creator.EventCreationConfig;
+import org.hiero.consensus.event.creator.EventCreationConfig_;
 import org.hiero.consensus.event.creator.impl.DefaultEventCreator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.model.transaction.EventTransactionSupplier;
-import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
-import org.hiero.consensus.model.transaction.TimestampedTransaction;
-import org.hiero.consensus.roster.RosterRetriever;
-import org.hiero.consensus.roster.RosterUtils;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -45,6 +37,7 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
@@ -64,7 +57,7 @@ import org.openjdk.jmh.infra.Blackhole;
  */
 @State(Scope.Benchmark)
 @Fork(value = 1)
-@Warmup(iterations = 1, time = 2)
+@Warmup(iterations = 1, time = 10)
 @Measurement(iterations = 2, time = 10)
 public class EventCreatorNetworkBenchmark {
 
@@ -94,7 +87,7 @@ public class EventCreatorNetworkBenchmark {
     /**
      * Keys and certificates for each node in the network.
      */
-    private Map<NodeId, KeysAndCerts> nodeKeysAndCerts;
+    private Function<NodeId, KeysAndCerts> nodeKeysAndCerts;
 
     /**
      * Random number generator.
@@ -104,7 +97,7 @@ public class EventCreatorNetworkBenchmark {
     /**
      * Total number of events created in the current round.
      */
-    private int eventsCreatedInRound;
+    private int eventsCreatedInIteration;
 
     /**
      * Current event window for the network.
@@ -112,7 +105,7 @@ public class EventCreatorNetworkBenchmark {
     private EventWindow eventWindow;
 
     @Setup(Level.Trial)
-    public void setupTrial() throws Exception {
+    public void setupTrial() {
         random = new Random(seed);
         eventWindow = EventWindow.getGenesisEventWindow();
 
@@ -121,36 +114,27 @@ public class EventCreatorNetworkBenchmark {
                 .withSize(numNodes)
                 .withWeightGenerator(WeightGenerators.BALANCED)
                 .withRealKeysEnabled(true);
-        final Roster tempRoster = rosterBuilder.build();
-
-        // Convert to AddressBook and generate keys
-        AddressBook addressBook = RosterUtils.buildAddressBook(tempRoster);
-        for (int i = 0; i < addressBook.getSize(); i++) {
-            final NodeId nodeId = addressBook.getNodeId(i);
-            addressBook.add(addressBook
-                    .getAddress(nodeId)
-                    .copySetSelfName(RosterUtils.formatNodeName(nodeId.id()))
-                    .copySetHostnameInternal("127.0.0.1"));
-        }
-
-        // Generate keys for all nodes
-        final Map<NodeId, KeysAndCerts> keysAndCertsMap = CryptoStatic.generateKeysAndCerts(addressBook);
-        roster = RosterRetriever.buildRoster(addressBook);
-        nodeKeysAndCerts = keysAndCertsMap;
+        roster = rosterBuilder.build();
+        nodeKeysAndCerts = rosterBuilder::getPrivateKeys;
     }
 
     @Setup(Level.Iteration)
     public void setupIteration() {
         eventCreators = new ArrayList<>(numNodes);
-        final PlatformContext platformContext = TestPlatformContextBuilder.create().build();
-        final Configuration configuration = platformContext.getConfiguration();
+        final Configuration configuration = new TestConfigBuilder()
+                .withConfigDataType(EventCreationConfig.class)
+                .withValue(EventCreationConfig_.MAX_CREATION_RATE, 0)
+                .getOrCreateConfig();
+        final PlatformContext platformContext = TestPlatformContextBuilder.create()
+                .withConfiguration(configuration)
+                .build();
         final Metrics metrics = platformContext.getMetrics();
         final Time time = platformContext.getTime();
 
         // Create an event creator for each node
-        for (int i = 0; i < numNodes; i++) {
-            final NodeId nodeId = NodeId.of(i);
-            final KeysAndCerts keysAndCerts = nodeKeysAndCerts.get(nodeId);
+        for (final RosterEntry entry : roster.rosterEntries()) {
+            final NodeId nodeId = NodeId.of(entry.nodeId());
+            final KeysAndCerts keysAndCerts = nodeKeysAndCerts.apply(nodeId);
             final SecureRandom nodeRandom = new SecureRandom();
             nodeRandom.setSeed(random.nextLong());
 
@@ -173,7 +157,7 @@ public class EventCreatorNetworkBenchmark {
             eventCreators.add(eventCreator);
         }
 
-        eventsCreatedInRound = 0;
+        eventsCreatedInIteration = 0;
     }
 
     /**
@@ -196,40 +180,55 @@ public class EventCreatorNetworkBenchmark {
     @BenchmarkMode(Mode.Throughput)
     @OutputTimeUnit(TimeUnit.SECONDS)
     public int networkEventCreation(final Blackhole bh) {
-        final List<PlatformEvent> newEvents = new ArrayList<>();
-
-        // Each node attempts to create an event
+        PlatformEvent newEvent = null;
         for (final DefaultEventCreator creator : eventCreators) {
             final PlatformEvent event = creator.maybeCreateEvent();
             if (event != null) {
-                newEvents.add(event);
+                newEvent = event;
                 bh.consume(event);
+                break;
             }
+        }
+        if(newEvent == null) {
+            throw new RuntimeException("No event created");
         }
 
         // Share newly created events with all nodes (simulating gossip)
-        for (final PlatformEvent event : newEvents) {
-            for (final DefaultEventCreator creator : eventCreators) {
-                creator.registerEvent(event);
-            }
+        for (final DefaultEventCreator creator : eventCreators) {
+            creator.registerEvent(newEvent);
         }
 
-        eventsCreatedInRound += newEvents.size();
+
+        eventsCreatedInIteration ++;
 
         // Periodically update event window to simulate consensus progress
-        if (eventsCreatedInRound > 100) {
-            eventWindow = new EventWindow(
-                    eventWindow.latestConsensusRound() + 1,
-                    eventWindow.newEventBirthRound() + 1,
-                    eventWindow.ancientThreshold() + 1,
-                    eventWindow.expiredThreshold() + 1);
+//        if (eventsCreatedInIteration > 100) {
+//            eventWindow = new EventWindow(
+//                    eventWindow.latestConsensusRound() + 1,
+//                    eventWindow.newEventBirthRound() + 1,
+//                    eventWindow.ancientThreshold() + 1,
+//                    eventWindow.expiredThreshold() + 1);
+//
+//            for (final DefaultEventCreator creator : eventCreators) {
+//                creator.setEventWindow(eventWindow);
+//            }
+//            eventsCreatedInIteration = 0;
+//        }
 
-            for (final DefaultEventCreator creator : eventCreators) {
-                creator.setEventWindow(eventWindow);
-            }
-            eventsCreatedInRound = 0;
+        return 1;
+    }
+
+    @TearDown(Level.Iteration)
+    public void validateState() {
+        // Validate that event creators are in a consistent state
+        for (final DefaultEventCreator creator : eventCreators) {
+            // Check invariants, log statistics, etc.
         }
 
-        return newEvents.size();
+        System.out.println("\nEvents created in iteration: " + eventsCreatedInIteration);
+        // You could throw an exception if state is invalid
+        if (eventsCreatedInIteration < 1_000) {
+            throw new IllegalStateException("Invalid event count");
+        }
     }
 }
