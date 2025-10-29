@@ -9,7 +9,9 @@ import com.hedera.hapi.block.stream.RedactedItem;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -24,6 +26,7 @@ import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.HashingOutputStream;
 
 /**
  * A BlockStreamValidator implementation that redacts transaction content by replacing transaction data with their
@@ -209,8 +212,9 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
         // Compute SHA-384 hash of the original transaction content
         final Bytes transactionHash = computeTransactionHash(SignedTransaction.PROTOBUF.toBytes(signedTransaction));
         return BlockItem.newBuilder()
-                .redactedItem(
-                        RedactedItem.newBuilder().itemHash(transactionHash).build())
+                .redactedItem(RedactedItem.newBuilder()
+                        .signedTransactionHash(transactionHash)
+                        .build())
                 .build();
     }
 
@@ -222,7 +226,9 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
      */
     private static Bytes computeTransactionHash(@NonNull final Bytes content) {
         final MessageDigest transactionDigest = DigestType.SHA_384.buildDigest();
-        transactionDigest.update(content.toByteArray());
+        final WritableSequentialData transactionStream =
+                new WritableStreamingData(new HashingOutputStream(transactionDigest));
+        transactionStream.writeBytes(content);
         final byte[] hashBytes = transactionDigest.digest();
         return Bytes.wrap(hashBytes);
     }
