@@ -1432,7 +1432,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         // sleep to let the worker detect the state change and start doing work
-        sleep(150);
+        sleep(250);
 
         assertThat(workerThreadRef).doesNotHaveNullValue();
         assertThat(streamingBlockNumber).hasValue(10);
@@ -1464,7 +1464,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         // sleep to let the worker detect the state change and start doing work
-        sleep(150);
+        sleep(250);
 
         // create a skip response to force the connection to jump to block 11
         final PublishStreamResponse skipResponse = createSkipBlock(10L);
@@ -1511,7 +1511,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         // sleep to let the worker detect the state change and start doing work
-        sleep(150);
+        sleep(250);
 
         final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);
         verify(requestPipeline, times(2)).onNext(requestCaptor.capture());

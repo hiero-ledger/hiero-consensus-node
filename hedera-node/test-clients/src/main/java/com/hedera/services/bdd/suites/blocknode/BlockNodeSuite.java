@@ -509,6 +509,8 @@ public class BlockNodeSuite {
                                 // look for the log that shows we are forcing a reconnect to a different block node
                                 "Attempting to forcefully switch block node connections due to increasing block buffer saturation")),
                 doingContextual(spec -> timeRef.set(Instant.now())),
+                // BN 0 may be promoted again since it is a higher priority connection; re-enable acknowledging
+                blockNode(0).updateSendingBlockAcknowledgements(true),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,

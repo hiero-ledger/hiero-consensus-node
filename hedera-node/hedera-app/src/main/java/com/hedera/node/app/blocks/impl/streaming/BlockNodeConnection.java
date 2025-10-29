@@ -231,7 +231,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         if (initialBlockToStream != null) {
             streamingBlockNumber.set(initialBlockToStream);
-            logger.info("Block node connection will initially stream with block {}", initialBlockToStream);
+            logger.info("{} Block node connection will initially stream with block {}", BlockNodeConnection.this, initialBlockToStream);
         }
     }
 
@@ -277,7 +277,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 .build();
         if (logger.isDebugEnabled()) {
             logger.debug(
-                    "Created BlockStreamPublishServiceClient for {}:{}.",
+                    "{} Created BlockStreamPublishServiceClient for {}:{}.",
+                    BlockNodeConnection.this,
                     blockNodeConfig.address(),
                     blockNodeConfig.port());
         }
@@ -668,6 +669,10 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * @return true if the request was sent, else false
      */
     public boolean sendRequest(@NonNull final PublishStreamRequest request) {
+        return sendRequest(-1, -1, request);
+    }
+
+    private boolean sendRequest(final long blockNumber, final int requestNumber, @NonNull final PublishStreamRequest request) {
         requireNonNull(request, "request must not be null");
 
         final Pipeline<? super PublishStreamRequest> pipeline = requestPipelineRef.get();
@@ -680,14 +685,18 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     a performance penality. Therefore, we only want to log the byte size at trace level.
                      */
                     logger.trace(
-                            "{} Sending request to block node (type={}, bytes={})",
+                            "{} Sending request (block={}, requestNumber={}) to block node (type={}, bytes={})",
                             this,
+                            blockNumber,
+                            requestNumber,
                             request.request().kind(),
                             request.protobufSize());
                 } else if (logger.isDebugEnabled()) {
                     logger.debug(
-                            "{} Sending request to block node (type={})",
+                            "{} Sending request (block={}, requestNumber={}) to block node (type={})",
                             this,
+                            blockNumber,
+                            requestNumber,
                             request.request().kind());
                 }
 
@@ -696,7 +705,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 final long durationMs = System.currentTimeMillis() - startMs;
 
                 blockStreamMetrics.recordRequestLatency(durationMs);
-                logger.trace("{} Request took {}ms to send", this, durationMs);
+                logger.trace("{} Request (block={}, requestNumber={}) took {}ms to send", this, blockNumber, requestNumber, durationMs);
 
                 if (request.hasEndStream()) {
                     blockStreamMetrics.recordRequestEndStreamSent(
@@ -870,13 +879,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             blockStreamMetrics.recordConnectionOnError();
 
             if (error instanceof final GrpcException grpcException) {
-                if (logger.isWarnEnabled()) {
-                    logger.warn("{} Error received (grpcStatus={}).", this, grpcException.status(), grpcException);
-                }
+                logger.warn("{} Error received (grpcStatus={}).", this, grpcException.status(), grpcException);
             } else {
-                if (logger.isWarnEnabled()) {
-                    logger.warn("{} Error received.", this, error);
-                }
+                logger.warn("{} Error received.", this, error);
             }
 
             handleStreamFailure();
@@ -997,7 +1002,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             }
 
             // if we exit the worker loop, then this thread is over... remove it from the worker thread reference
-            logger.info("Worker thread exiting");
+            logger.info("{} Worker thread exiting", BlockNodeConnection.this);
             workerThreadRef.compareAndSet(Thread.currentThread(), null);
         }
 
@@ -1183,7 +1188,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             }
 
             try {
-                if (sendRequest(req)) {
+                if (sendRequest(block.blockNumber(), requestCtr.get(), req)) {
                     // record that we've sent the request
                     lastSendTimeMillis = System.currentTimeMillis();
 
