@@ -82,32 +82,6 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
         }
     }
 
-    public static void main(String[] args) throws IOException {
-        final var validator = new RedactingEventHashBlockStreamValidator(Path.of("/Users/kellygreco/Desktop/tmp"));
-        final var blocks =
-                BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(Paths.get("/Users/kellygreco/Desktop/block-11.12.3"));
-        validator.validateBlocks(blocks);
-
-        //        final BlockStreamEventBuilder eventBuilder = new BlockStreamEventBuilder(blocks);
-        //        final List<PlatformEvent> events = eventBuilder.getEvents();
-        //        final PlatformEvent firstEventWithTransactions = events.stream().filter(e ->
-        // !e.getTransactions().isEmpty())
-        //                .findFirst().orElseThrow();
-        //        System.out.println("Event Hash: " + firstEventWithTransactions.getHash().toString());
-        //
-        //        final EventCore core = firstEventWithTransactions.getEventCore();
-        //        final List<EventDescriptor> parents = firstEventWithTransactions.getAllParents().stream().map(
-        //                EventDescriptorWrapper::eventDescriptor).toList();
-        //        final List<TransactionWrapper> transactionHashes =
-        // firstEventWithTransactions.getTransactions().stream().map(
-        //                txBytes -> {
-        //                    final Bytes txHash = computeTransactionHash(txBytes.getApplicationTransaction());
-        //                    return TransactionWrapper.ofTransactionHash(txHash);
-        //                }).toList();
-        //        System.out.println("Redacted Event Hash: " +
-        //                new RedactedEventHasher().hashEvent(core, parents, transactionHashes));
-    }
-
     @Override
     public void validateBlocks(@NonNull final List<Block> blocks) {
         logger.info("Processing {} blocks for transaction redaction", blocks.size());
@@ -116,16 +90,15 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
 
             // Step 1: Redact transactions in all blocks
             final List<Block> redactedBlocks = redactBlocks(blocks);
-            verifyRedactedBlocks(redactedBlocks, blocks.size());
 
             // Step 2: Write redacted blocks to disk
-            //            final List<Path> writtenFiles = writeBlocksToDisk(redactedBlocks);
-            //
-            //            // Step 3: Read blocks back from disk to verify serialization/deserialization
-            //            final List<Block> reloadedBlocks = readBlocksFromDisk(writtenFiles);
-            //
-            //            // Step 4: Verify that the redacted blocks maintain structural integrity
-            //            verifyRedactedBlocks(reloadedBlocks, blocks.size());
+            final List<Path> writtenFiles = writeBlocksToDisk(redactedBlocks);
+
+            // Step 3: Read blocks back from disk to verify serialization/deserialization
+            final List<Block> reloadedBlocks = readBlocksFromDisk(writtenFiles);
+
+            // Step 4: Verify that the redacted blocks maintain structural integrity
+            verifyRedactedBlocks(reloadedBlocks, blocks.size());
 
             logger.info("Successfully processed and verified {} redacted blocks", redactedBlocks.size());
 
