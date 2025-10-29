@@ -66,8 +66,13 @@ public interface QueryHandler {
         return Fees.FREE;
     }
 
+    /**
+     * Computes the fees associated with this given query using Simple Fees
+     * @param queryContext The context for the query being handled
+     * @return The fees associated with the query
+     */
     @NonNull
-    default FeeResult computeFeeResult(@NonNull QueryContext queryContext) {
+    default FeeResult computeFeeResult(@NonNull final QueryContext queryContext) {
         throw new NotImplementedException();
     }
 
