@@ -37,7 +37,9 @@ public class LogContainmentOp extends UtilOp {
             @NonNull final Containment containment,
             @NonNull final String pattern,
             @NonNull final Duration delay) {
-        if (path != ExternalPath.APPLICATION_LOG && path != ExternalPath.SWIRLDS_LOG) {
+        if (path != ExternalPath.APPLICATION_LOG
+                && path != ExternalPath.BLOCK_NODE_COMMS_LOG
+                && path != ExternalPath.SWIRLDS_LOG) {
             throw new IllegalArgumentException(path + " is not a log");
         }
         this.path = requireNonNull(path);

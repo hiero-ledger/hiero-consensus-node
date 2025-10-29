@@ -10,7 +10,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.AddressBook;
 
 /**
  * Generates a hashgraph of events.
@@ -94,13 +93,6 @@ public interface GraphGenerator {
         }
         return events;
     }
-
-    /**
-     * Get an address book that represents the collection of nodes that are generating the events.
-     */
-    @NonNull
-    @Deprecated(forRemoval = true)
-    AddressBook getAddressBook();
 
     /**
      * Get the roster that represents the collection of nodes that are generating the events.

@@ -7,14 +7,20 @@ import static com.hedera.node.app.history.schemas.V059HistorySchema.ACTIVE_PROOF
 import static com.hedera.node.app.history.schemas.V059HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_KEY_SETS_STATE_ID;
 import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_VOTES_STATE_ID;
-import static com.hedera.node.app.roster.ActiveRosters.Phase.BOOTSTRAP;
-import static com.hedera.node.app.roster.ActiveRosters.Phase.HANDOFF;
-import static com.hedera.node.app.roster.ActiveRosters.Phase.TRANSITION;
+import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
+import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
+import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.TRANSITION;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static java.util.Objects.requireNonNull;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 
+import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
@@ -35,11 +41,12 @@ import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.history.schemas.V059HistorySchema;
-import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
-import com.hedera.node.app.roster.ActiveRosters;
+import com.hedera.node.app.service.entityid.impl.EntityIdServiceImpl;
+import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -48,7 +55,6 @@ import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -277,12 +283,12 @@ class WritableHistoryStoreImplTest {
                 HistoryProofConstruction.newBuilder().constructionId(123L).build(),
                 HistoryProofConstruction.newBuilder().constructionId(456L).build());
 
-        final var bookHash = Bytes.wrap("DOODLE");
-        final var proof = new HistoryProof(bookHash, List.of(ProofKey.DEFAULT), History.DEFAULT, Bytes.EMPTY);
+        final var proofKey = new ProofKey(123L, Bytes.wrap("DOODLE"));
+        final var proof = new HistoryProof(List.of(proofKey), History.DEFAULT, ChainOfTrustProof.DEFAULT);
         subject.completeProof(456L, proof);
 
         final var construction = this.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID);
-        assertEquals(bookHash, construction.targetProofOrThrow().sourceAddressBookHash());
+        assertEquals(List.of(proofKey), construction.targetProofOrThrow().targetProofKeys());
     }
 
     @Test
@@ -376,7 +382,7 @@ class WritableHistoryStoreImplTest {
         final var state = new FakeState();
         final var servicesRegistry = new FakeServicesRegistry();
         Set.of(
-                        new EntityIdService(),
+                        new EntityIdServiceImpl(),
                         new HistoryServiceImpl(
                                 NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, library, WITH_ENABLED_HISTORY))
                 .forEach(servicesRegistry::register);

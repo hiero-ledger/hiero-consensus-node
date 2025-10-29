@@ -18,6 +18,7 @@ import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -51,8 +52,9 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
     public ContractCreateHandler(
             @NonNull final Provider<TransactionComponent.Factory> provider,
             @NonNull final GasCalculator gasCalculator,
+            @NonNull final EntityIdFactory entityIdFactory,
             @NonNull final ContractServiceComponent component) {
-        super(provider, gasCalculator, component);
+        super(provider, gasCalculator, entityIdFactory, component);
     }
 
     @Override
@@ -64,7 +66,7 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
 
         // Assemble the appropriate top-level record for the result
         final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCreateStreamBuilder.class);
-        outcome.addCreateDetailsTo(streamBuilder, context);
+        outcome.addCreateDetailsTo(streamBuilder, context, entityIdFactory);
 
         throwIfUnsuccessfulCreate(outcome, component.hederaOperations());
 
@@ -78,7 +80,8 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
             final var txn = context.body();
             final var op = txn.contractCreateInstanceOrThrow();
 
-            final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(Bytes.wrap(new byte[0]), true);
+            // TODO: Revisit baselineGas with Pectra support epic
+            final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(Bytes.wrap(new byte[0]), true, 0L);
             validateTruePreCheck(op.gas() >= intrinsicGas, INSUFFICIENT_GAS);
             validateHookDuplicates(op.hookCreationDetails());
         } catch (@NonNull final Exception e) {
@@ -131,11 +134,12 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
             final var accountStore = context.storeFactory().readableStore(ReadableAccountStore.class);
             final var created = requireNonNull(accountStore.getContractById(owner));
 
-            dispatchHookCreations(context, op.hookCreationDetails(), 0L, created.accountId());
+            final var deltaSlots = dispatchHookCreations(context, op.hookCreationDetails(), null, created.accountId());
 
             final var updated = created.copyBuilder()
                     .firstHookId(op.hookCreationDetails().getFirst().hookId())
                     .numberHooksInUse(op.hookCreationDetails().size())
+                    .numberLambdaStorageSlots(created.numberLambdaStorageSlots() + deltaSlots)
                     .build();
             context.storeFactory().serviceApi(TokenServiceApi.class).updateContract(updated);
         }

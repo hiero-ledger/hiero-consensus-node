@@ -1,8 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.swirlds.state.impl {
-    exports com.swirlds.state.merkle.singleton;
-    exports com.swirlds.state.merkle.queue;
-    exports com.swirlds.state.merkle.memory;
     exports com.swirlds.state.merkle.disk;
     exports com.swirlds.state.merkle;
 
@@ -19,12 +16,7 @@ module com.swirlds.state.impl {
     requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
-    requires com.hedera.node.hapi;
-    requires com.swirlds.fcqueue;
-    requires com.swirlds.logging;
-    requires com.swirlds.merkle;
     requires com.swirlds.merkledb;
     requires org.apache.logging.log4j;
-    requires org.json;
     requires static transitive com.github.spotbugs.annotations;
 }

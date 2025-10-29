@@ -78,6 +78,7 @@ on:
         default: "MUST_BE_SET_BY_CALL"
         type: string
         description: "Algorithmic analysis GHP"
+
 defaults:
   run:
     shell: bash
@@ -138,7 +139,8 @@ jobs:
     if: ${{ needs.verify-tag.result == 'success' || inputs.disable-notifications == true }}
     with:
       test-asset: "${{ inputs.test-asset }}"
-      ref: "${{ inputs.ref }}"
+      ref: "${{ github.ref }}"
+
       solo-version: "${{ vars.ADHOC_SOLO_VERSION }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
@@ -152,6 +154,7 @@ jobs:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       perf_ghp: ${{ inputs.perf_ghp }}
       rootly-api-token: ${{ secrets.ROOTLY_API_TOKEN }}
+
 
 
   tag-sdlt-result:
@@ -490,7 +493,7 @@ jobs:
           details: ${{ steps.rootly-summary.outputs.details }}
           notification_target_type: "Service"
           notification_target: "CI/CD Workflows"
-          set_as_noise: "true"
+          set_as_noise: "false"
           alert_urgency: "Medium"
           environments: "CITR"
           external_id: ${{ github.run_id }}

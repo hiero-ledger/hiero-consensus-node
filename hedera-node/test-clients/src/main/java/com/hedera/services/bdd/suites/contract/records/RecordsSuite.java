@@ -30,6 +30,7 @@ import static com.hedera.services.bdd.suites.contract.Utils.asInstant;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.RECEIVER;
 import static com.hedera.services.bdd.suites.crypto.CryptoCreateSuite.ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -308,6 +309,43 @@ public class RecordsSuite {
                             .substring(64);
                     // Ensure that we have 256 block hashes
                     assertEquals(res.size() / 32, 256);
+                }));
+    }
+
+    @DisplayName("Ensure blockhash cannot return hashes older than 256 blocks")
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> blockHashCannotGetOlderBlocksThan256() {
+        final var contract = "EmitBlockTimestamp";
+        return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                uploadInitCode(contract),
+                contractCreate(contract).gas(4_000_000L),
+                cryptoCreate(ACCOUNT).balance(6 * ONE_MILLION_HBARS),
+                cryptoCreate(RECEIVER),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
+                withOpContext((spec, opLog) -> {
+                    // create 300 blocks
+                    createNBlocks(spec, 300);
+                    // try to get the hash of block 290
+                    final var ethCall = ethereumCall(contract, "getBlockHash", BigInteger.valueOf(290))
+                            .logged()
+                            .gasLimit(4_000_000L)
+                            .via("blockHashes");
+                    final var blockHashRes = getTxnRecord("blockHashes").logged();
+                    allRunFor(spec, ethCall, waitUntilNextBlock().withBackgroundTraffic(true), blockHashRes);
+                    assertTrue(blockHashRes
+                            .getResponseRecord()
+                            .getContractCallResult()
+                            .getErrorMessage()
+                            .isEmpty());
+                    final var res = blockHashRes
+                            .getResponseRecord()
+                            .getContractCallResult()
+                            .getContractCallResult();
+                    // Ensure response size
+                    assertEquals(32, res.size());
+                    // Ensure returned hash is zeroed
+                    assertArrayEquals(new byte[32], res.toByteArray());
                 }));
     }
 

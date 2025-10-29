@@ -26,7 +26,7 @@ env:
   #EXPLORER_CLUSTER_CONTEXT: "kind-solo-cluster"
   SOLO_DEPLOYMENT: %SOLO_NAMESPACE%-test
   CLUSTER_REF: %SOLO_NAMESPACE%-ref
-  SOLO_CLUSTER_RELEASE_NAME: cluster_name
+  SOLO_CLUSTER_RELEASE_NAME: solo-cluster-setup
   CONTEXT: hashgraph.teleport.sh-k8s.pft.chi.lat.ope.eng.hashgraph.io
   SOLO_CLUSTER_SETUP_NAMESPACE: solo-setup
   SOLO_CLUSTER_NAME: solo-cluster-name

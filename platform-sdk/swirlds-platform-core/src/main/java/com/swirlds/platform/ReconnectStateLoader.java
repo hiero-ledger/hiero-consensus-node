@@ -12,7 +12,6 @@ import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.state.service.PlatformStateFacade;
@@ -21,6 +20,7 @@ import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.status.actions.ReconnectCompleteAction;
 import com.swirlds.platform.wiring.PlatformCoordinator;
+import com.swirlds.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
@@ -98,7 +98,6 @@ public class ReconnectStateLoader {
             final Hash reconnectHash = signedState.getState().getHash();
             final MerkleNodeState state = signedState.getState();
             final SemanticVersion creationSoftwareVersion = platformStateFacade.creationSoftwareVersionOf(state);
-            signedState.init(platformContext);
             consensusStateEventHandler.onStateInitialized(
                     state, platform, InitTrigger.RECONNECT, creationSoftwareVersion);
 
@@ -118,12 +117,10 @@ public class ReconnectStateLoader {
                         + Roster.JSON.toJSON(stateRoster) + ")");
             }
 
-            swirldStateManager.loadFromSignedState(signedState);
+            swirldStateManager.setState(signedState.getState(), false);
             // kick off transition to RECONNECT_COMPLETE before beginning to save the reconnect state to disk
             // this guarantees that the platform status will be RECONNECT_COMPLETE before the state is saved
-            platformCoordinator
-                    .getStatusActionSubmitter()
-                    .submitStatusAction(new ReconnectCompleteAction(signedState.getRound()));
+            platformCoordinator.submitStatusAction(new ReconnectCompleteAction(signedState.getRound()));
             latestImmutableStateNexus.setState(signedState.reserve("set latest immutable to reconnect state"));
             savedStateController.reconnectStateReceived(
                     signedState.reserve("savedStateController.reconnectStateReceived"));

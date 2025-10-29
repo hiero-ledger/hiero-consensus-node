@@ -67,6 +67,11 @@ on:
         default: true
         type: boolean
         description: "If true, skip tag and notifications"
+      delete-namespace:
+        required: false
+        default: true
+        type: boolean
+        description: "If true, automatically delete namespace when done"
 
 defaults:
   run:
@@ -129,8 +134,8 @@ jobs:
     with:
       test-asset: "${{ inputs.test-asset }}"
 
-      ref: "${{ inputs.ref }}"
-      solo-version: "v0.43.0"
+      ref: "${{ github.ref }}"
+      solo-version: "${{ vars.ADHOC_SOLO_VERSION }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
@@ -140,7 +145,6 @@ jobs:
 
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
-      rootly-api-token: ${{ secrets.ROOTLY_API_TOKEN }}
 
   tag-sdpt-result:
     name: Tag SDPT Result
@@ -476,7 +480,7 @@ jobs:
           details: ${{ steps.rootly-summary.outputs.details }}
           notification_target_type: "Service"
           notification_target: "CI/CD Workflows"
-          set_as_noise: "true"
+          set_as_noise: "false"
           alert_urgency: "Medium"
           environments: "CITR"
           external_id: ${{ github.run_id }}

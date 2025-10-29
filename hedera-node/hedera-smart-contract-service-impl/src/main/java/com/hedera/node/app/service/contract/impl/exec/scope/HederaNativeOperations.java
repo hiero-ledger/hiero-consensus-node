@@ -19,12 +19,13 @@ import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
+import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.schedule.ReadableScheduleStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -79,6 +80,13 @@ public interface HederaNativeOperations {
      */
     @NonNull
     ReadableScheduleStore readableScheduleStore();
+    /**
+     * Returns the {@link WritableEvmHookStore} for this {@link HederaNativeOperations}.
+     *
+     * @return the {@link WritableEvmHookStore}
+     */
+    @NonNull
+    WritableEvmHookStore writableEvmHookStore();
 
     /**
      * Returns the {@link Account} with the given contract id.

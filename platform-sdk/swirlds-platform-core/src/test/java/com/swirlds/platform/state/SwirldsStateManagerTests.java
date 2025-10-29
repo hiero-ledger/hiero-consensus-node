@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
-import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -18,13 +16,11 @@ import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestHederaVirtualMapState;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
-import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.model.node.NodeId;
+import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -45,15 +41,8 @@ class SwirldsStateManagerTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        swirldStateManager = new SwirldStateManager(
-                platformContext,
-                roster,
-                NodeId.of(0L),
-                mock(StatusActionSubmitter.class),
-                SemanticVersion.newBuilder().major(1).build(),
-                FAKE_CONSENSUS_STATE_EVENT_HANDLER,
-                platformStateFacade);
-        swirldStateManager.setInitialState(initialState);
+        swirldStateManager = new SwirldStateManager(platformContext, roster);
+        swirldStateManager.setState(initialState, true);
     }
 
     @AfterEach
@@ -81,19 +70,11 @@ class SwirldsStateManagerTests {
     }
 
     @Test
-    @DisplayName("Seal consensus round")
-    void sealConsensusRound() {
-        final var round = mock(Round.class);
-        swirldStateManager.sealConsensusRound(round);
-        verify(round).getRoundNum();
-    }
-
-    @Test
     @DisplayName("Load From Signed State - state reference counts")
-    void loadFromSignedStateRefCount() {
+    void setStateRefCount() {
         final SignedState ss1 = newSignedState();
         final Reservable state1 = ss1.getState().getRoot();
-        swirldStateManager.loadFromSignedState(ss1);
+        swirldStateManager.setState(ss1.getState(), false);
 
         assertEquals(
                 2,
@@ -107,7 +88,7 @@ class SwirldsStateManagerTests {
                 "The current consensus state should have a single reference count.");
 
         final SignedState ss2 = newSignedState();
-        swirldStateManager.loadFromSignedState(ss2);
+        swirldStateManager.setState(ss2.getState(), false);
         final MerkleNodeState consensusState2 = swirldStateManager.getConsensusState();
 
         Reservable state2 = ss2.getState().getRoot();
@@ -134,8 +115,8 @@ class SwirldsStateManagerTests {
     private static MerkleNodeState newState(PlatformStateFacade platformStateFacade) {
         final String virtualMapLabel =
                 SwirldsStateManagerTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final MerkleNodeState state = TestHederaVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
-        TestingAppStateInitializer.DEFAULT.initPlatformState(state);
+        final MerkleNodeState state = TestVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
+        TestingAppStateInitializer.initPlatformState(state);
 
         platformStateFacade.setCreationSoftwareVersionTo(
                 state, SemanticVersion.newBuilder().major(nextInt(1, 100)).build());

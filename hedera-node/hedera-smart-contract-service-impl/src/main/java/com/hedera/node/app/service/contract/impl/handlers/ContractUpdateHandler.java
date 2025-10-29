@@ -32,12 +32,12 @@ import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.hapi.utils.keys.KeyUtils;
 import com.hedera.node.app.service.contract.impl.records.ContractUpdateStreamBuilder;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.HookDispatchUtils;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -153,22 +153,22 @@ public class ContractUpdateHandler implements TransactionHandler {
      * @param originalAccount the original account before updates
      */
     public void updateHooks(
-            final HandleContext context,
-            final ContractUpdateTransactionBody op,
-            final Account.Builder builder,
-            final Account originalAccount) {
-
-        long currentHead = originalAccount.firstHookId();
-        long headAfterDeletes = currentHead;
+            @NonNull final HandleContext context,
+            @NonNull final ContractUpdateTransactionBody op,
+            @NonNull final Account.Builder builder,
+            @NonNull final Account originalAccount) {
+        long headAfterDeletes = originalAccount.firstHookId();
         // Dispatch all the hooks to delete
         if (!op.hookIdsToDelete().isEmpty()) {
             HookDispatchUtils.dispatchHookDeletions(
-                    context, op.hookIdsToDelete(), headAfterDeletes, originalAccount.accountId());
+                    context, op.hookIdsToDelete(), headAfterDeletes, originalAccount.accountIdOrThrow());
         }
         if (!op.hookCreationDetails().isEmpty()) {
-            HookDispatchUtils.dispatchHookCreations(
+            final var numSlotsUpdated = HookDispatchUtils.dispatchHookCreations(
                     context, op.hookCreationDetails(), headAfterDeletes, originalAccount.accountId());
             builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
+            final var currentSlots = originalAccount.numberLambdaStorageSlots() + numSlotsUpdated;
+            builder.numberLambdaStorageSlots(currentSlots);
         } else if (!op.hookIdsToDelete().isEmpty()) {
             builder.firstHookId(headAfterDeletes);
         }
