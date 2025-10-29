@@ -318,7 +318,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         }
 
         final WebClient webClient = WebClient.builder()
-                .baseUri("http://" + blockNodeConfig.blockNodeConfig().address() + ":" + blockNodeConfig.blockNodeConfig().port())
+                .baseUri("http://" + blockNodeConfig.blockNodeConfig().address() + ":"
+                        + blockNodeConfig.blockNodeConfig().port())
                 .tls(tls)
                 .protocolConfigs(protocolConfigs)
                 .connectTimeout(timeoutDuration)
@@ -542,7 +543,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         // Check if we've exceeded the EndOfStream rate limit
         // Record the EndOfStream event and check if the rate limit has been exceeded.
         // The connection manager maintains persistent stats for each node across connections.
-        if (blockNodeConnectionManager.recordEndOfStreamAndCheckLimit(blockNodeConfig.blockNodeConfig(), Instant.now())) {
+        if (blockNodeConnectionManager.recordEndOfStreamAndCheckLimit(
+                blockNodeConfig.blockNodeConfig(), Instant.now())) {
             if (logger.isInfoEnabled()) {
                 logger.info(
                         "{} Block node has exceeded the allowed number of EndOfStream responses "
@@ -1030,8 +1032,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
     @Override
     public String toString() {
-        return "[" + connectionId + "/" + blockNodeConfig.blockNodeConfig().address() + ":" + blockNodeConfig.blockNodeConfig().port() + "/"
-                + getConnectionState() + "]";
+        return "[" + connectionId + "/" + blockNodeConfig.blockNodeConfig().address() + ":"
+                + blockNodeConfig.blockNodeConfig().port() + "/" + getConnectionState() + "]";
     }
 
     @Override
@@ -1078,9 +1080,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         public ConnectionWorkerLoopTask() {
             if (blockNodeConfig.maxMessageSizeBytes() != null) {
-                this.maxBytesPerRequest = min(
-                        blockNodeConfig.maxMessageSizeBytes(),
-                        MAX_BYTES_PER_REQUEST);
+                this.maxBytesPerRequest = min(blockNodeConfig.maxMessageSizeBytes(), MAX_BYTES_PER_REQUEST);
             } else {
                 this.maxBytesPerRequest = MAX_BYTES_PER_REQUEST;
             }
