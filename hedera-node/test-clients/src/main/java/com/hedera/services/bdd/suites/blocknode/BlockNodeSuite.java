@@ -440,7 +440,7 @@ public class BlockNodeSuite {
                                 "/localhost:%s/CLOSED] Connection state transitioned from CLOSING to CLOSED.",
                                 portNumbers.get(3)))),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
-                blockNode(3).startImmediately(), // Pri 3
+                waitUntilNextBlocks(5),
                 blockNode(1).shutDownImmediately(), // Pri 1
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),

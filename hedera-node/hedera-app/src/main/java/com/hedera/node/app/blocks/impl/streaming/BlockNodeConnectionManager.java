@@ -794,6 +794,7 @@ public class BlockNodeConnectionManager {
                 logger.debug("{} Failed to establish connection to block node. Will schedule a retry.", connection);
                 blockStreamMetrics.recordConnectionCreateFailure();
                 reschedule();
+                selectNewBlockNodeForStreaming(false);
             }
         }
 
