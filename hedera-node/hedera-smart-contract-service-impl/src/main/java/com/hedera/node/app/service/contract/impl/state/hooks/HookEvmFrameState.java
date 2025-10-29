@@ -8,7 +8,7 @@ import static com.hedera.node.app.service.contract.impl.state.WritableEvmHookSto
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniUInt256;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
-import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_ID;
+import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
@@ -63,7 +63,7 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
         this.hook = requireNonNull(hook);
         this.codeFactory = requireNonNull(codeFactory);
         this.writableEvmHookStore = requireNonNull(writableEvmHookStore);
-        this.hooksContractId = entityIdFactory.newContractId(HTS_HOOKS_CONTRACT_ID.contractNumOrThrow());
+        this.hooksContractId = entityIdFactory.newContractId(HTS_HOOKS_CONTRACT_NUM);
     }
 
     /**
@@ -136,7 +136,7 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
     public @NonNull TxStorageUsage getTxStorageUsage(final boolean includeChangedKeys) {
         final Map<ContractID, List<StorageAccess>> modifications = new TreeMap<>(CONTRACT_ID_COMPARATOR);
         final Set<SlotKey> changedKeys = includeChangedKeys ? new HashSet<>() : null;
-        writableEvmHookStore.getModifiedSlotKeys().forEach(slotKey -> {
+        writableEvmHookStore.getModifiedLambdaSlotKeys().forEach(slotKey -> {
             final var access = StorageAccess.newWrite(
                     slotKey.key().equals(ZERO_KEY) ? UInt256.ZERO : pbjToTuweniUInt256(slotKey.key()),
                     valueOrZero(writableEvmHookStore.getOriginalSlotValue(slotKey)),
