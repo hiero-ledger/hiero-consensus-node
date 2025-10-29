@@ -610,7 +610,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                             + "on this consensus node. Closing connection and will retry later.",
                     this,
                     resendBlockNumber);
-            closeAndReschedule(THIRTY_SECONDS, true);
+
+            // Indicate that the block node should catch up from another trustworthy block node
+            endStreamAndReschedule(TOO_FAR_BEHIND);
         }
     }
 
