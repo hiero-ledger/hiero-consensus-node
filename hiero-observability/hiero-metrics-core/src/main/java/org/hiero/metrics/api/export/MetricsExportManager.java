@@ -8,6 +8,7 @@ import org.hiero.metrics.api.core.MetricRegistry;
  * Manager for exporting metrics data points from all managed registries to external systems using set of
  * {@link PushingMetricsExporter} or {@link PullingMetricsExporter}, or both.
  * <p>
+ * Can be created using {@link org.hiero.metrics.api.core.MetricsFacade}.
  * Requires one or more {@link MetricRegistry} to manage.
  * <p>
  * All operations are thread-safe.

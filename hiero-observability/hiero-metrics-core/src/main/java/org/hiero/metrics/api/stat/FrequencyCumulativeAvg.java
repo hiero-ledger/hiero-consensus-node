@@ -16,7 +16,7 @@ import org.hiero.metrics.api.utils.Unit;
 
 // Similar to com.swirlds.common.metrics.extensions.CountPerSecond
 // has to be reset periodically, otherwise it will overflow!
-public class FrequencyCumulativeAvg implements DoubleSupplier {
+public final class FrequencyCumulativeAvg implements DoubleSupplier {
 
     private final AtomicIntPair container = new AtomicIntPair(INT_NO_OP, INT_SUM);
     private final Time time;

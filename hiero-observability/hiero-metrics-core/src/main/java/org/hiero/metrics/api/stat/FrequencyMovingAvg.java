@@ -9,7 +9,7 @@ import org.hiero.metrics.api.core.ToLongOrDoubleFunction;
 import org.hiero.metrics.api.utils.Unit;
 
 // Similar to com.swirlds.common.metrics.statistics.StatsSpeedometer
-public class FrequencyMovingAvg implements DoubleSupplier {
+public final class FrequencyMovingAvg implements DoubleSupplier {
 
     private static final double LN_2 = Math.log(2);
 
