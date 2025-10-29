@@ -445,6 +445,12 @@ public class BlockStreamBuilder
     private boolean isContractCreate;
 
     /**
+     * The number of storage slots updated during hook creation or update. Slots updated during hook execution are
+     * tracked and updated through RootProxyWorldUpdater.
+     */
+    private int deltaStorageSlotsUpdated;
+
+    /**
      * Constructs a builder for a user transaction with the given characteristics.
      * @param reversingBehavior the reversing behavior
      * @param customizer the customizer
@@ -1344,6 +1350,16 @@ public class BlockStreamBuilder
     @Override
     public Bytes getEvmCallResult() {
         return requireNonNull(evmTransactionResult).resultData();
+    }
+
+    @Override
+    public int getDeltaStorageSlotsUpdated() {
+        return deltaStorageSlotsUpdated;
+    }
+
+    @Override
+    public void setDeltaStorageSlotsUpdated(int deltaStorageSlotsUpdated) {
+        this.deltaStorageSlotsUpdated = deltaStorageSlotsUpdated;
     }
 
     @Override
