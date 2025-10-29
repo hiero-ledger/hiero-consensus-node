@@ -12,7 +12,7 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
-import com.hedera.node.app.spi.throttle.Throttle;
+import com.hedera.node.app.spi.throttle.ScheduleThrottle;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -24,9 +24,9 @@ import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 /**
- * The application's strategy for creating a {@link Throttle} to use at consensus.
+ * The application's strategy for creating a {@link ScheduleThrottle} to use at consensus.
  */
-public class AppThrottleFactory implements Throttle.Factory {
+public class AppThrottleFactory implements ScheduleThrottle.Factory {
     private final Supplier<State> stateSupplier;
     private final Supplier<Configuration> configSupplier;
     private final Supplier<ThrottleDefinitions> definitionsSupplier;
@@ -51,7 +51,8 @@ public class AppThrottleFactory implements Throttle.Factory {
     }
 
     @Override
-    public Throttle newThrottle(final int capacitySplit, @Nullable final ThrottleUsageSnapshots initialUsageSnapshots) {
+    public ScheduleThrottle newScheduleThrottle(
+            final int capacitySplit, @Nullable final ThrottleUsageSnapshots initialUsageSnapshots) {
         final var throttleAccumulator = throttleAccumulatorFactory.newThrottleAccumulator(
                 configSupplier, () -> capacitySplit, ThrottleAccumulator.ThrottleType.BACKEND_THROTTLE);
         throttleAccumulator.applyGasConfig();
@@ -67,7 +68,7 @@ public class AppThrottleFactory implements Throttle.Factory {
             throttleAccumulator.gasLimitThrottle().resetUsageTo(initialUsageSnapshots.gasThrottleOrThrow());
         }
         // Throttle.allow() has the opposite polarity of ThrottleAccumulator.checkAndEnforceThrottle()
-        return new Throttle() {
+        return new ScheduleThrottle() {
             @Override
             public boolean allow(
                     @NonNull final AccountID payerId,
@@ -86,7 +87,8 @@ public class AppThrottleFactory implements Throttle.Factory {
                                 null),
                         now,
                         stateSupplier.get(),
-                        null);
+                        null,
+                        true);
             }
 
             @Override

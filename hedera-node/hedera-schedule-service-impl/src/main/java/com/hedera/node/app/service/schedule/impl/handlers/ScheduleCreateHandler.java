@@ -49,7 +49,7 @@ import com.hedera.node.app.service.schedule.WritableScheduleStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.throttle.Throttle;
+import com.hedera.node.app.spi.throttle.ScheduleThrottle;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -82,13 +82,13 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
     private final ScheduleOpsUsage scheduleOpsUsage = new ScheduleOpsUsage();
     private final EntityIdFactory idFactory;
     private final InstantSource instantSource;
-    private final Throttle.Factory throttleFactory;
+    private final ScheduleThrottle.Factory throttleFactory;
 
     @Inject
     public ScheduleCreateHandler(
             @NonNull final EntityIdFactory idFactory,
             @NonNull final InstantSource instantSource,
-            @NonNull final Throttle.Factory throttleFactory,
+            @NonNull final ScheduleThrottle.Factory throttleFactory,
             @NonNull final ScheduleFeeCharging feeCharging) {
         super(feeCharging);
         this.idFactory = requireNonNull(idFactory);
@@ -300,7 +300,7 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
      * @param then the consensus second at which the transaction is to be scheduled
      * @return an {@link Optional} with the throttle, or empty if the max number of transactions are already scheduled
      */
-    public Optional<Throttle> loadThrottle(
+    public Optional<ScheduleThrottle> loadThrottle(
             @NonNull final WritableScheduleStore scheduleStore,
             @NonNull final SchedulingConfig schedulingConfig,
             final long then) {
@@ -373,14 +373,14 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
      * @param usageSnapshots the usage snapshots to recover from
      * @return the throttle
      */
-    private Throttle upToDateThrottle(
+    private ScheduleThrottle upToDateThrottle(
             final long then,
             final int capacitySplit,
             @Nullable final ThrottleUsageSnapshots usageSnapshots,
             @NonNull final WritableScheduleStore scheduleStore) {
         requireNonNull(scheduleStore);
         try {
-            return throttleFactory.newThrottle(capacitySplit, usageSnapshots);
+            return throttleFactory.newScheduleThrottle(capacitySplit, usageSnapshots);
         } catch (Exception e) {
             final var instantThen = Instant.ofEpochSecond(then);
             log.info(
@@ -388,7 +388,7 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
                     instantThen,
                     usageSnapshots,
                     e.getMessage());
-            final var throttle = throttleFactory.newThrottle(capacitySplit, null);
+            final var throttle = throttleFactory.newScheduleThrottle(capacitySplit, null);
             final var counts = requireNonNull(scheduleStore.scheduledCountsAt(then));
             final int n = counts.numberScheduled();
             for (int i = 0; i < n; i++) {
