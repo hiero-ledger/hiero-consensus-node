@@ -9,7 +9,8 @@ import org.hiero.metrics.internal.export.snapshot.UpdatableMetricRegistrySnapsho
  * An extension of {@link MetricRegistry} that provides a method to take snapshots of all registered
  * metrics that implement {@link SnapshotableMetric}.
  */
-public interface SnapshotableMetricsRegistry extends MetricRegistry {
+public sealed interface SnapshotableMetricsRegistry extends MetricRegistry
+        permits org.hiero.metrics.internal.core.MetricRegistryImpl {
 
     @NonNull
     UpdatableMetricRegistrySnapshot snapshot();

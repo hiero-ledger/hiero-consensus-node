@@ -5,7 +5,7 @@ import com.swirlds.config.api.ConfigurationExtension;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
-public class MetricsExportManagerConfigurationExtension implements ConfigurationExtension {
+public final class MetricsExportManagerConfigurationExtension implements ConfigurationExtension {
 
     @NonNull
     @Override

@@ -11,7 +11,7 @@ import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.ToLongOrDoubleFunction;
 import org.hiero.metrics.api.stat.container.AtomicIntPair;
 
-public class CumulativeAverageIntStat implements DoubleSupplier {
+public final class CumulativeAverageIntStat implements DoubleSupplier {
 
     private final IntSupplier initializer;
     private final AtomicIntPair container = AtomicIntPair.createAccumulatingSum();

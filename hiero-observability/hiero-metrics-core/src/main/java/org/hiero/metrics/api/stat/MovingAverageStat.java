@@ -8,7 +8,7 @@ import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.ToLongOrDoubleFunction;
 
 // similar to com.swirlds.common.metrics.statistics.StatsRunningAverage
-public class MovingAverageStat implements DoubleSupplier {
+public final class MovingAverageStat implements DoubleSupplier {
     /**
      * each recordValue(X) counts as X calls to values.cycle()
      */
