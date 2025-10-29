@@ -307,7 +307,7 @@ public class BlockStreamEventBuilder {
         return crossBlockParentHashes;
     }
 
-    private static class RedactedEventHasher {
+    public static class RedactedEventHasher {
         /** The hashing stream for the event. */
         private final MessageDigest eventDigest = DigestType.SHA_384.buildDigest();
 
@@ -356,7 +356,7 @@ public class BlockStreamEventBuilder {
      * @param transaction the full transaction bytes, or null if only the hash is available
      * @param transactionHash the transaction hash, or null if the full transaction is available
      */
-    private record TransactionWrapper(@Nullable Bytes transaction, @Nullable Bytes transactionHash) {
+    public record TransactionWrapper(@Nullable Bytes transaction, @Nullable Bytes transactionHash) {
         public boolean isTransaction() {
             return transaction != null;
         }

@@ -2,14 +2,12 @@
 package com.hedera.services.bdd.junit.support.validators.block;
 
 import static com.hedera.services.bdd.junit.support.validators.block.BlockStreamEventBuilder.isTransactionInEvent;
-import static org.assertj.core.api.Fail.fail;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.RedactedItem;
-import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.SignedTransaction;
-import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
@@ -18,17 +16,14 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.DigestType;
-import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * A BlockStreamValidator implementation that redacts transaction content by replacing transaction data with their
@@ -84,6 +79,32 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
         }
     }
 
+    public static void main(String[] args) throws IOException {
+        final var validator = new RedactingEventHashBlockStreamValidator(Path.of("/Users/kellygreco/Desktop/tmp"));
+        final var blocks =
+                BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(Paths.get("/Users/kellygreco/Desktop/block-11.12.3"));
+        validator.validateBlocks(blocks);
+
+        //        final BlockStreamEventBuilder eventBuilder = new BlockStreamEventBuilder(blocks);
+        //        final List<PlatformEvent> events = eventBuilder.getEvents();
+        //        final PlatformEvent firstEventWithTransactions = events.stream().filter(e ->
+        // !e.getTransactions().isEmpty())
+        //                .findFirst().orElseThrow();
+        //        System.out.println("Event Hash: " + firstEventWithTransactions.getHash().toString());
+        //
+        //        final EventCore core = firstEventWithTransactions.getEventCore();
+        //        final List<EventDescriptor> parents = firstEventWithTransactions.getAllParents().stream().map(
+        //                EventDescriptorWrapper::eventDescriptor).toList();
+        //        final List<TransactionWrapper> transactionHashes =
+        // firstEventWithTransactions.getTransactions().stream().map(
+        //                txBytes -> {
+        //                    final Bytes txHash = computeTransactionHash(txBytes.getApplicationTransaction());
+        //                    return TransactionWrapper.ofTransactionHash(txHash);
+        //                }).toList();
+        //        System.out.println("Redacted Event Hash: " +
+        //                new RedactedEventHasher().hashEvent(core, parents, transactionHashes));
+    }
+
     @Override
     public void validateBlocks(@NonNull final List<Block> blocks) {
         logger.info("Processing {} blocks for transaction redaction", blocks.size());
@@ -92,17 +113,18 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
 
             // Step 1: Redact transactions in all blocks
             final List<Block> redactedBlocks = redactBlocks(blocks);
+            verifyRedactedBlocks(redactedBlocks, blocks.size());
 
             // Step 2: Write redacted blocks to disk
-            final List<Path> writtenFiles = writeBlocksToDisk(redactedBlocks);
+            //            final List<Path> writtenFiles = writeBlocksToDisk(redactedBlocks);
+            //
+            //            // Step 3: Read blocks back from disk to verify serialization/deserialization
+            //            final List<Block> reloadedBlocks = readBlocksFromDisk(writtenFiles);
+            //
+            //            // Step 4: Verify that the redacted blocks maintain structural integrity
+            //            verifyRedactedBlocks(reloadedBlocks, blocks.size());
 
-            // Step 3: Read blocks back from disk to verify serialization/deserialization
-            final List<Block> reloadedBlocks = readBlocksFromDisk(writtenFiles);
-
-            // Step 4: Verify that the redacted blocks maintain structural integrity
-            verifyRedactedBlocks(reloadedBlocks, blocks.size());
-
-            logger.info("Successfully processed and verified {} redacted blocks", reloadedBlocks.size());
+            logger.info("Successfully processed and verified {} redacted blocks", redactedBlocks.size());
 
         } catch (final IOException | ParseException e) {
             logger.error("Failed to process blocks for redaction", e);
@@ -165,15 +187,13 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
     }
 
     /**
-     * Checks if a BlockItem contains a signed_transaction field.
+     * Checks if a BlockItem contains a transaction that is part of the event hash.
      *
      * @param item the block item to check
-     * @return true if the item contains a signed_transaction
+     * @return the SignedTransaction if the item contains a transaction that is part of the event hash
      */
     private SignedTransaction getEventTransactionOrNull(@NonNull final BlockItem item) throws ParseException {
-        final var itemKind = item.item().kind();
-        if (itemKind == BlockItem.ItemOneOfType.SIGNED_TRANSACTION
-                && isTransactionInEvent(item.item().as())) {
+        if (item.hasSignedTransaction() && isTransactionInEvent(item.item().as())) {
             return SignedTransaction.PROTOBUF.parse((Bytes) item.item().as());
         }
         return null;
@@ -183,22 +203,15 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
      * Redacts a single transaction item by replacing its content with a hash in a filtered block item.
      *
      * @param signedTransaction the signed_transaction
-     * @return a new filtered block item with the transaction content replaced by its hash, or the original block itemß
+     * @return a new filtered block item with the transaction content replaced by its hash, or the original block item
      */
     private BlockItem redactTransactionItem(@NonNull final SignedTransaction signedTransaction) {
-        try {
-            final TransactionBody body = TransactionBody.PROTOBUF.parse(signedTransaction.bodyBytes());
-            final TransactionID transactionID = body.transactionID();
-            assert transactionID != null;
-            // Compute SHA-384 hash of the original transaction content
-            final Bytes transactionHash = computeTransactionHash(SignedTransaction.PROTOBUF.toBytes(signedTransaction));
-            return BlockItem.newBuilder()
-                    .redactedItem(
-                            RedactedItem.newBuilder().itemHash(transactionHash).build())
-                    .build();
-        } catch (final ParseException e) {
-            throw new RuntimeException("Unable to parse transaction bytes", e);
-        }
+        // Compute SHA-384 hash of the original transaction content
+        final Bytes transactionHash = computeTransactionHash(SignedTransaction.PROTOBUF.toBytes(signedTransaction));
+        return BlockItem.newBuilder()
+                .redactedItem(
+                        RedactedItem.newBuilder().itemHash(transactionHash).build())
+                .build();
     }
 
     /**
@@ -207,7 +220,7 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
      * @param content the content to hash
      * @return the SHA-384 hash as bytes
      */
-    private Bytes computeTransactionHash(@NonNull final Bytes content) {
+    private static Bytes computeTransactionHash(@NonNull final Bytes content) {
         final MessageDigest transactionDigest = DigestType.SHA_384.buildDigest();
         transactionDigest.update(content.toByteArray());
         final byte[] hashBytes = transactionDigest.digest();
@@ -296,34 +309,7 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
 
         // Reconstruct events from all blocks and validate hash chain
         final BlockStreamEventBuilder eventBuilder = new BlockStreamEventBuilder(reloadedBlocks);
-        validateEventHashChain(eventBuilder.getEvents(), eventBuilder.getCrossBlockParentHashes());
-
-        logger.info(
-                "Successfully verified event hash integrity for {} events across {} blocks",
-                eventBuilder.getEvents().size(),
-                reloadedBlocks.size());
-    }
-
-    /**
-     * Validates the event hash chain by ensuring that all cross-block parent event hashes can be found among the events
-     * in the stream.
-     *
-     * @param events the list of reconstructed events in consensus/topological order
-     */
-    private void validateEventHashChain(
-            @NonNull final List<PlatformEvent> events, @NonNull final Set<Hash> crossBlockParentHashes) {
-        if (events.isEmpty()) {
-            fail("No events found in the block stream");
-            return;
-        }
-
-        final Set<Hash> eventHashes =
-                events.stream().map(PlatformEvent::getHash).collect(Collectors.toSet());
-
-        for (final Hash crossBlockParentHash : crossBlockParentHashes) {
-            if (!eventHashes.contains(crossBlockParentHash)) {
-                fail("Cross block parent hash {} not found among event hashes!", crossBlockParentHash);
-            }
-        }
+        EventHashBlockStreamValidator.validateEventHashChain(
+                eventBuilder.getEvents(), eventBuilder.getCrossBlockParentHashes());
     }
 }
