@@ -26,9 +26,11 @@ import com.hedera.hapi.block.stream.input.ParentEventReference;
 import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
@@ -39,6 +41,7 @@ import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
+import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.info.CurrentPlatformStatus;
 import com.hedera.node.app.records.BlockRecordManager;
@@ -75,11 +78,9 @@ import com.hedera.node.app.workflows.handle.steps.ParentTxn;
 import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.BlockStreamConfig;
-import com.hedera.node.config.data.ConsensusConfig;
-import com.hedera.node.config.data.SchedulingConfig;
-import com.hedera.node.config.data.TssConfig;
+import com.hedera.node.config.data.*;
 import com.hedera.node.config.types.StreamMode;
+import com.hedera.node.internal.network.Network;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
@@ -92,12 +93,15 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -107,8 +111,13 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 import org.hiero.consensus.roster.WritableRosterStore;
+import org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody;
+import org.hiero.hapi.interledger.state.clpr.ClprEndpoint;
+import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
+import org.hiero.interledger.clpr.ClprService;
 
 /**
  * The handle workflow that is responsible for handling the next {@link Round} of transactions.
@@ -149,6 +158,7 @@ public class HandleWorkflow {
     private final BlockHashSigner blockHashSigner;
     private final BlockBufferService blockBufferService;
     private final Map<Class<?>, ServiceApiProvider<?>> apiProviders;
+    private final ClprService clprService;
 
     @Nullable
     private final AtomicBoolean systemEntitiesCreatedFlag;
@@ -195,7 +205,8 @@ public class HandleWorkflow {
             @NonNull final NodeRewardManager nodeRewardManager,
             @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final BlockBufferService blockBufferService,
-            @NonNull final Map<Class<?>, ServiceApiProvider<?>> apiProviders) {
+            @NonNull final Map<Class<?>, ServiceApiProvider<?>> apiProviders,
+            @NonNull final ClprService clprService) {
         this.networkInfo = requireNonNull(networkInfo);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.dispatchProcessor = requireNonNull(dispatchProcessor);
@@ -230,13 +241,15 @@ public class HandleWorkflow {
         this.platformStateFacade = requireNonNull(platformStateFacade);
         this.blockBufferService = requireNonNull(blockBufferService);
         this.apiProviders = requireNonNull(apiProviders);
+        this.clprService = requireNonNull(clprService);
+        this.clprService.setTransactionDispatcher(this::dispatchClprLedgerConfigurationUpdate);
     }
 
     /**
      * Handles the next {@link Round}
      *
-     * @param state the writable {@link State} that this round will work on
-     * @param round the next {@link Round} that needs to be processed
+     * @param state                     the writable {@link State} that this round will work on
+     * @param round                     the next {@link Round} that needs to be processed
      * @param stateSignatureTxnCallback A callback to be called when encountering a {@link StateSignatureTransaction}
      */
     public void handleRound(
@@ -345,9 +358,9 @@ public class HandleWorkflow {
      * Applies all effects of the events in the given round to the given state, writing stream items
      * that capture these effects in the process.
      *
-     * @param state the state to apply the effects to
-     * @param round the round to apply the effects of
-     * @param receiptEntriesBatchSize The maximum number of receipts to accumulate in a batch before committing
+     * @param state                     the state to apply the effects to
+     * @param round                     the round to apply the effects of
+     * @param receiptEntriesBatchSize   The maximum number of receipts to accumulate in a batch before committing
      * @param stateSignatureTxnCallback A callback to be called when encountering a {@link StateSignatureTransaction}
      */
     private boolean handleEvents(
@@ -476,9 +489,9 @@ public class HandleWorkflow {
      * executing the workflow for the transaction. This produces a stream of records that are then passed to the
      * {@link BlockRecordManager} to be externalized.
      *
-     * @param state the writable {@link State} that this transaction will work on
-     * @param creator the {@link NodeInfo} of the creator of the transaction
-     * @param txn the {@link ConsensusTransaction} to be handled
+     * @param state           the writable {@link State} that this transaction will work on
+     * @param creator         the {@link NodeInfo} of the creator of the transaction
+     * @param txn             the {@link ConsensusTransaction} to be handled
      * @param eventBirthRound the birth round of the event that this transaction belongs to
      * @return {@code true} if the transaction was a user transaction, {@code false} if a system transaction
      */
@@ -596,10 +609,10 @@ public class HandleWorkflow {
      * time to the latest time known to have been processed; and the {@link #lastExecutedSecond} value to the last
      * second of the interval for which all scheduled transactions were executed.
      *
-     * @param state the state to execute scheduled transactions from
+     * @param state          the state to execute scheduled transactions from
      * @param executionStart the start of the interval to execute transactions in
-     * @param consensusNow the consensus time at which the user transaction triggering this execution was processed
-     * @param creatorInfo the node info of the user transaction creator
+     * @param consensusNow   the consensus time at which the user transaction triggering this execution was processed
+     * @param creatorInfo    the node info of the user transaction creator
      */
     private void executeAsManyScheduled(
             @NonNull final State state,
@@ -702,9 +715,9 @@ public class HandleWorkflow {
      * Type inference helper to compute the base builder for a {@link ParentTxn} derived from a
      * {@link ExecutableTxn}.
      *
-     * @param <T> the type of the stream builder
+     * @param <T>           the type of the stream builder
      * @param executableTxn the executable transaction to compute the base builder for
-     * @param parentTxn the user transaction derived from the executable transaction
+     * @param parentTxn     the user transaction derived from the executable transaction
      * @return the base builder for the user transaction
      */
     private <T extends StreamBuilder> T baseBuilderFor(
@@ -722,8 +735,8 @@ public class HandleWorkflow {
      * just the transaction with a {@link ResponseCodeEnum#FAIL_INVALID} transaction result,
      * and no other side effects.
      *
-     * @param parentTxn the user transaction to execute
-     * @param state the state to commit any direct changes against
+     * @param parentTxn       the user transaction to execute
+     * @param state           the state to commit any direct changes against
      * @param eventBirthRound the round in which the event was born
      * @return the stream output from executing the transaction
      */
@@ -777,7 +790,7 @@ public class HandleWorkflow {
      * scheduled transaction with a {@link ResponseCodeEnum#FAIL_INVALID} transaction result, and
      * no other side effects.
      *
-     * @param state the state to execute the transaction against
+     * @param state        the state to execute the transaction against
      * @param consensusNow the time to execute the transaction at
      * @return the stream output from executing the transaction
      */
@@ -814,9 +827,9 @@ public class HandleWorkflow {
      * Commits an action with side effects while capturing its key/value state changes and writing them to the
      * block stream.
      *
-     * @param writableStates the writable states to commit the action to
+     * @param writableStates         the writable states to commit the action to
      * @param entityIdWritableStates if not null, the writable states for the entity ID service
-     * @param action the action to commit
+     * @param action                 the action to commit
      */
     private void doStreamingKVChanges(
             @NonNull final WritableStates writableStates,
@@ -855,8 +868,8 @@ public class HandleWorkflow {
      * record builder is initialized with the {@link SignedTransaction}, its original serialization, its transaction
      * id, and memo; as well as the exchange rate.
      *
-     * @param builder the base builder
-     * @param txnInfo the transaction information
+     * @param builder         the base builder
+     * @param txnInfo         the transaction information
      * @param exchangeRateSet the active exchange rate set
      * @return the initialized base builder
      */
@@ -908,6 +921,12 @@ public class HandleWorkflow {
                         final var ledgerId = proof.targetHistoryOrThrow().addressBookHash();
                         historyStore.setLedgerId(ledgerId);
                         logger.info("Set ledger id to '{}'", ledgerId);
+                        // Dispatch the local CLPR configuration update
+                        final var activeRoster = rosterStore.getActiveRoster();
+                        if (activeRoster != null) {
+                            final var consensusTime = blockStreamManager.lastUsedConsensusTime();
+                            clprService.dispatchLedgerConfigurationUpdate(state, consensusTime);
+                        }
                         return;
                     }
                     if (rosterStore.candidateIsWeightRotation()) {
@@ -938,7 +957,7 @@ public class HandleWorkflow {
      * Notice that when TSS is enabled but the signer is not yet ready, <b>only</b> the round timestamp advances,
      * since we don't create block boundaries until we can sign them.
      *
-     * @param state the state to use when reconciling the TSS system state with the active rosters
+     * @param state          the state to use when reconciling the TSS system state with the active rosters
      * @param roundTimestamp the current round timestamp
      */
     private void reconcileTssState(@NonNull final State state, @NonNull final Instant roundTimestamp) {
@@ -1018,5 +1037,67 @@ public class HandleWorkflow {
                 .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
                 .get();
         return !requireNonNull(blockInfo).migrationRecordsStreamed() ? POST_UPGRADE_TRANSACTION : ORDINARY_TRANSACTION;
+    }
+
+    private void dispatchClprLedgerConfigurationUpdate(
+            @NonNull final State state, @NonNull final Instant consensusTime) {
+        final var storeFactory = new ReadableStoreFactory(state);
+        final var rosterStore = storeFactory.getStore(ReadableRosterStore.class);
+        final var activeRoster = rosterStore.getActiveRoster();
+        final var historyStore = storeFactory.getStore(ReadableHistoryStore.class);
+        final var ledgerId = historyStore.getLedgerId();
+        final var network = storeFactory.getStore(Network.class);
+
+        if (activeRoster == null || ledgerId == null || network == null) {
+            // Not ready to generate the configuration yet.
+            return;
+        }
+
+        final var clprConfig = configProvider.getConfiguration().getConfigData(ClprConfig.class);
+        final var includeServiceEndpoint = clprConfig.publicizeClprEndpoints();
+
+        // Performance optimization: Pre-build O(m) lookup map to avoid O(n×m) nested iteration
+        // For a 100-node network, this reduces 10,000 comparisons to 100 map lookups
+        final Map<Long, com.hedera.node.internal.network.NodeMetadata> metadataByNodeId = includeServiceEndpoint
+                ? network.nodeMetadata().stream()
+                        .collect(Collectors.toMap(m -> m.node().nodeId(), Function.identity()))
+                : Collections.emptyMap();
+
+        final var endpoints = new ArrayList<ClprEndpoint>();
+        for (final var rosterEntry : activeRoster.rosterEntries()) {
+            final var endpointBuilder = ClprEndpoint.newBuilder();
+            endpointBuilder.signingCertificate(rosterEntry.gossipCaCertificate());
+
+            if (includeServiceEndpoint) {
+                final var metadata = metadataByNodeId.get(rosterEntry.nodeId());
+                if (metadata != null) {
+                    final var serviceEndpoint =
+                            metadata.node().serviceEndpoint().getFirst();
+                    endpointBuilder.endpoint(serviceEndpoint);
+                }
+            }
+            endpoints.add(endpointBuilder.build());
+        }
+
+        final var config = ClprLedgerConfiguration.newBuilder()
+                .ledgerId(org.hiero.hapi.interledger.state.clpr.ClprLedgerId.newBuilder()
+                        .ledgerId(ledgerId)
+                        .build())
+                .timestamp(Timestamp.newBuilder()
+                        .seconds(consensusTime.getEpochSecond())
+                        .nanos(consensusTime.getNano())
+                        .build())
+                .endpoints(endpoints)
+                .build();
+        final var txnBody = ClprSetLedgerConfigurationTransactionBody.newBuilder()
+                .ledgerConfiguration(config)
+                .build();
+        final var transactionBody =
+                TransactionBody.newBuilder().clprSetLedgerConfiguration(txnBody).build();
+        final var creator = networkInfo.selfNodeInfo();
+        final var parentTxn = parentTxnFactory.createSystemTxn(
+                state, creator, consensusTime, ORDINARY_TRANSACTION, creator.accountId(), transactionBody);
+        final var dispatch = parentTxnFactory.createDispatch(parentTxn, exchangeRateManager.exchangeRates());
+        dispatchProcessor.processDispatch(dispatch);
     }
 }

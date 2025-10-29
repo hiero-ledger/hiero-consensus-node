@@ -7,6 +7,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.workflows.*;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -17,20 +18,23 @@ import org.hiero.interledger.clpr.WritableClprLedgerConfigurationStore;
 import org.hiero.interledger.clpr.impl.ClprStateProofManager;
 
 /**
- * Handles the {@link  org.hiero.hapi.interledger.clpr.ClprSetRemoteLedgerConfigurationTransactionBody} to set the
+ * Handles the {@link  org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody} to set the
  * configuration of a CLPR ledger.
  * This handler uses the {@link ClprStateProofManager} to validate the state proof and manage ledger configurations.
  */
 public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
 
     private final ClprStateProofManager stateProofManager;
+    private final NetworkInfo networkInfo;
 
     /**
      * Default constructor for injection.
      */
     @Inject
-    public ClprSetLedgerConfigurationHandler(@NonNull final ClprStateProofManager stateProofManager) {
+    public ClprSetLedgerConfigurationHandler(
+            @NonNull final ClprStateProofManager stateProofManager, @NonNull final NetworkInfo networkInfo) {
         this.stateProofManager = requireNonNull(stateProofManager);
+        this.networkInfo = requireNonNull(networkInfo);
     }
 
     @Override
@@ -53,8 +57,14 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
      * @throws PreCheckException If any of the checks fail, indicating an invalid transaction.
      */
     private void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException {
-        validateTruePreCheck(txn.hasClprSetRemoteConfiguration(), ResponseCodeEnum.INVALID_TRANSACTION_BODY);
-        final var configTxn = txn.clprSetRemoteConfigurationOrThrow();
+        pureChecks(txn, false);
+    }
+
+    private void pureChecks(@NonNull final TransactionBody txn, final boolean isLocal) throws PreCheckException {
+        final var clprSetLedgerConfiguration = txn.clprSetLedgerConfiguration();
+        validateTruePreCheck(clprSetLedgerConfiguration != null, ResponseCodeEnum.INVALID_TRANSACTION_BODY);
+
+        final var configTxn = clprSetLedgerConfiguration;
         validateTruePreCheck(configTxn.hasLedgerConfiguration(), ResponseCodeEnum.INVALID_TRANSACTION);
         final var ledgerConfig = configTxn.ledgerConfigurationOrThrow();
         final var ledgerId = ledgerConfig.ledgerIdOrThrow();
@@ -79,9 +89,11 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
                                     && existingConfigTime.nanos() >= newConfigTime.nanos()),
                     ResponseCodeEnum.INVALID_TRANSACTION);
         }
-        // The state proof must be valid and signed before submitting it to the network.
-        validateTruePreCheck(
-                stateProofManager.validateStateProof(configTxn), ResponseCodeEnum.CLPR_INVALID_STATE_PROOF);
+        if (!isLocal) {
+            // The state proof must be valid and signed before submitting it to the network.
+            validateTruePreCheck(
+                    stateProofManager.validateStateProof(configTxn), ResponseCodeEnum.CLPR_INVALID_STATE_PROOF);
+        }
     }
 
     @Override
@@ -97,7 +109,8 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
             // How do we ensure that the configuration in the latest block proven state hasn't changed across all nodes?
             // We could keep a 10 minute recent history of block signed states and use the greatest one prior to
             // the transaction time.
-            pureChecks(txn);
+            pureChecks(
+                    txn, submittingNode.nodeId() == networkInfo.selfNodeInfo().nodeId());
         } catch (PreCheckException e) {
             // TODO: The submitting nodes should be held accountable for the failure.
 
@@ -110,7 +123,7 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
     public void handle(@NonNull final HandleContext context) throws HandleException {
         // We assume that the state proof is valid and the configuration is ready to be set.
         final var txn = context.body();
-        final var configTxn = txn.clprSetRemoteConfigurationOrThrow();
+        final var configTxn = txn.clprSetLedgerConfigurationOrThrow();
         final var newConfig = configTxn.ledgerConfigurationOrThrow();
         final var ledgerId = newConfig.ledgerIdOrThrow();
         final var configStore = context.storeFactory().writableStore(WritableClprLedgerConfigurationStore.class);

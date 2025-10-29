@@ -15,10 +15,10 @@ import org.junit.jupiter.api.DynamicTest;
 public class ClprSuite {
 
     @HapiTest
-    final Stream<DynamicTest> createsClprRemoteLedgerConfig() {
+    final Stream<DynamicTest> createsClprLedgerConfig() {
         final var now = Instant.now();
         return hapiTest(
-                TxnVerbs.clprSetRemoteLedgerConfig("ledgerId")
+                TxnVerbs.clprSetLedgerConfig("ledgerId")
                         .timestamp(Timestamp.newBuilder()
                                 .setSeconds(now.getEpochSecond())
                                 .setNanos(now.getNano())

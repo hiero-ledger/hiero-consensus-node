@@ -114,7 +114,7 @@ public class ServiceScopeLookup {
             case HINTS_KEY_PUBLICATION, HINTS_PARTIAL_SIGNATURE, HINTS_PREPROCESSING_VOTE, CRS_PUBLICATION ->
                 HintsService.NAME;
 
-            case CLPR_SET_REMOTE_CONFIGURATION -> ClprService.NAME;
+            case CLPR_SET_LEDGER_CONFIGURATION -> ClprService.NAME;
 
             default -> NON_EXISTING_SERVICE;
         };

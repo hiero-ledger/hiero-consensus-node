@@ -77,7 +77,7 @@ import java.util.SplittableRandom;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import org.hiero.hapi.interledger.clpr.protoc.ClprSetRemoteLedgerConfigurationTransactionBody;
+import org.hiero.hapi.interledger.clpr.protoc.ClprSetLedgerConfigurationTransactionBody;
 
 /**
  * Used by a {@link HapiSpec} to create transactions for submission to its target network.
@@ -470,8 +470,8 @@ public class TxnFactory {
         return builder -> {};
     }
 
-    public Consumer<ClprSetRemoteLedgerConfigurationTransactionBody.Builder>
-            defaultDefClprSetRemoteLedgerConfigurationTransactionBody() {
+    public Consumer<ClprSetLedgerConfigurationTransactionBody.Builder>
+            defaultDefClprSetLedgerConfigurationTransactionBody() {
         return builder -> {};
     }
 

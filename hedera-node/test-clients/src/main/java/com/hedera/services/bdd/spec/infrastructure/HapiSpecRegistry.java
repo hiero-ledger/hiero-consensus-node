@@ -49,7 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
-import org.hiero.hapi.interledger.clpr.protoc.ClprSetRemoteLedgerConfigurationTransactionBody;
+import org.hiero.hapi.interledger.clpr.protoc.ClprSetLedgerConfigurationTransactionBody;
 import org.hiero.hapi.interledger.state.clpr.protoc.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.protoc.ClprLedgerId;
 
@@ -351,13 +351,13 @@ public class HapiSpecRegistry {
         }
     }
 
-    public ClprSetRemoteLedgerConfigurationTransactionBody getRemoteLedgerConfig(String ledgerId) {
-        return get(ledgerId, ClprSetRemoteLedgerConfigurationTransactionBody.class);
+    public ClprSetLedgerConfigurationTransactionBody getRemoteLedgerConfig(String ledgerId) {
+        return get(ledgerId, ClprSetLedgerConfigurationTransactionBody.class);
     }
 
-    public void saveRemoteLedgerConfig(ClprSetRemoteLedgerConfigurationTransactionBody txBody) {
-        ClprSetRemoteLedgerConfigurationTransactionBody.Builder builder =
-                ClprSetRemoteLedgerConfigurationTransactionBody.newBuilder();
+    public void saveRemoteLedgerConfig(ClprSetLedgerConfigurationTransactionBody txBody) {
+        ClprSetLedgerConfigurationTransactionBody.Builder builder =
+                ClprSetLedgerConfigurationTransactionBody.newBuilder();
         if (txBody.hasLedgerConfiguration()) {
             final var ledgerConfig = txBody.getLedgerConfiguration();
             final var ledgerIdBytes = ledgerConfig.getLedgerId().getLedgerId().toByteArray();

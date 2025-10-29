@@ -11,4 +11,6 @@ import com.swirlds.config.api.ConfigProperty;
  * @param connectionFrequency the frequency at which connections are made to other ledgers, in milliseconds
  */
 @ConfigData("clpr")
-public record ClprConfig(@ConfigProperty(defaultValue = "5000") @NetworkProperty int connectionFrequency) {}
+public record ClprConfig(
+        @ConfigProperty(defaultValue = "5000") @NetworkProperty int connectionFrequency,
+        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean publicizeClprEndpoints) {}
