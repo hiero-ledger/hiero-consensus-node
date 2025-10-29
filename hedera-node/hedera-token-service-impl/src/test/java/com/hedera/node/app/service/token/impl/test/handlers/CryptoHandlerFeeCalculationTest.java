@@ -75,14 +75,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.stream.Stream;
 
-/**
- * Comprehensive tests for crypto handler fee calculations via `calculateFeeResult()`.
- * These tests verify that handlers correctly:
- * - Extract parameters from transaction bodies
- * - Query state from stores
- * - Estimate side effects (account creation, auto-associations)
- * - Compute accurate fees
- */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Crypto Handler Fee Calculation Tests")
 class CryptoHandlerFeeCalculationTest {
