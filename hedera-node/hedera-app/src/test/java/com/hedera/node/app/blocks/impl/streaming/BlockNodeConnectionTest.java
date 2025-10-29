@@ -1252,6 +1252,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         requests4.removeAll(requests2);
         requests4.removeAll(requests3);
         assertRequestContainsItems(requests4, item7, item8, item9, item10);
+        assertThat(requests4.getLast()).isEqualTo(createRequest(10));
 
         assertThat(streamingBlockNumber).hasValue(11);
 
