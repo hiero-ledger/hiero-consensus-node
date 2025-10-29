@@ -142,7 +142,6 @@ jobs:
       add-settings: "${{ inputs.add-settings }}"
       crypto-bench-merkle-db-java-args: "${{ inputs.crypto-bench-merkle-db-java-args }}"
       crypto-bench-merkle-db-test-params: "${{ inputs.crypto-bench-merkle-db-test-params }}"
-      delete-namespace: "false"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       rootly-api-token: ${{ secrets.ROOTLY_API_TOKEN }}
