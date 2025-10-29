@@ -15,8 +15,15 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 /**
  * A fee charging strategy that validates all scenarios and charges no fees.
  */
-public enum NoopFeeCharging implements FeeCharging {
-    NOOP_FEE_CHARGING;
+public class NoopFeeCharging implements FeeCharging {
+    public static final NoopFeeCharging UNIVERSAL_NOOP_FEE_CHARGING = new NoopFeeCharging(false);
+    public static final NoopFeeCharging DISPATCH_ONLY_NOOP_FEE_CHARGING = new NoopFeeCharging(true);
+
+    private final boolean bypassForExtraHandlerCharges;
+
+    public NoopFeeCharging(final boolean bypassForExtraHandlerCharges) {
+        this.bypassForExtraHandlerCharges = bypassForExtraHandlerCharges;
+    }
 
     @Override
     public Validation validate(
@@ -49,6 +56,11 @@ public enum NoopFeeCharging implements FeeCharging {
         requireNonNull(ctx);
         requireNonNull(fees);
         // No-op
+    }
+
+    @Override
+    public boolean bypassForExtraHandlerCharges() {
+        return bypassForExtraHandlerCharges;
     }
 
     private record PassedValidation(boolean creatorDidDueDiligence, @Nullable ResponseCodeEnum maybeErrorStatus)

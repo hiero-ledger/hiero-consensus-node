@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.exec.operations;
 
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractRequired;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZero;
 
@@ -75,6 +76,15 @@ public class CustomCallOperation extends CallOperation {
         } catch (final UnderflowException ignore) {
             return UNDERFLOW_RESPONSE;
         }
+    }
+
+    @Override
+    public Address sender(final MessageFrame frame) {
+        if (frame.getRecipientAddress().equals(HTS_HOOKS_CONTRACT_ADDRESS)) {
+            // If the sender is the HTS hooks contract, we want to use the owner of the hook as the sender
+            return FrameUtils.hookOwnerAddress(frame);
+        }
+        return super.sender(frame);
     }
 
     private boolean mustBePresent(@NonNull final MessageFrame frame, @NonNull final Address toAddress) {

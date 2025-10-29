@@ -25,6 +25,11 @@ public class ContainerConstants {
     public static final String HASHSTREAM_LOG_PATH = "output/swirlds-hashstream/swirlds-hashstream.log";
 
     /**
+     * Path to {@code otter.log} file (control process logs)
+     */
+    public static final String OTTER_LOG_PATH = "output/otter.log";
+
+    /**
      * Path to {@code MainNetStats{nodeId}.csv} file
      */
     public static final String METRICS_PATH = "data/stats/MainNetStats%d.csv";
