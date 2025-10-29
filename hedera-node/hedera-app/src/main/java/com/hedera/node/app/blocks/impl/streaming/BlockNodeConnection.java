@@ -1044,6 +1044,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     sendRequest(endOfBlock);
                 } catch (RuntimeException e) {
                     logger.warn("{} Error sending EndOfBlock request", BlockNodeConnection.this, e);
+                    handleStreamFailureWithoutOnComplete();
                 }
 
                 // We've gathered all block items and have sent them to the block node. No additional work is needed
