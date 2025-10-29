@@ -610,9 +610,14 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordResponseReceived(ResponseOneOfType.RESEND_BLOCK);
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
+        verify(metrics).recordRequestLatency(anyLong());
+        verify(metrics).recordRequestEndStreamSent(EndStream.Code.TOO_FAR_BEHIND);
+        verify(requestPipeline).onNext(createRequest(EndStream.Code.TOO_FAR_BEHIND));
         verify(requestPipeline).onComplete();
         verify(connectionManager).rescheduleConnection(connection, Duration.ofSeconds(30), null, true);
         verify(bufferService).getBlockState(10L);
+        verify(bufferService).getEarliestAvailableBlockNumber();
+        verify(bufferService).getHighestAckedBlockNumber();
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
         verifyNoMoreInteractions(connectionManager);
