@@ -9,7 +9,7 @@ import org.hiero.metrics.internal.core.LabelValues;
 import org.hiero.metrics.internal.datapoint.DataPointHolder;
 import org.hiero.metrics.internal.export.snapshot.StateSetDataPointSnapshotImpl;
 
-public class StateSetImpl<E extends Enum<E>>
+public final class StateSetImpl<E extends Enum<E>>
         extends AbstractStatefulMetric<List<E>, StateSetDataPoint<E>, StateSetDataPointSnapshotImpl<E>>
         implements StateSet<E> {
 

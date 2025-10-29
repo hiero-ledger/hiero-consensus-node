@@ -20,7 +20,7 @@ import org.hiero.metrics.internal.export.SnapshotableMetric;
 import org.hiero.metrics.internal.export.SnapshotableMetricsRegistry;
 import org.hiero.metrics.internal.export.snapshot.UpdatableMetricRegistrySnapshot;
 
-public class MetricRegistryImpl implements SnapshotableMetricsRegistry {
+public final class MetricRegistryImpl implements SnapshotableMetricsRegistry {
 
     private static final Logger logger = LogManager.getLogger(MetricRegistryImpl.class);
 

@@ -9,7 +9,7 @@ import java.util.Objects;
 import java.util.Set;
 import org.hiero.metrics.api.datapoint.StateSetDataPoint;
 
-public class EnumStateSetDataPoint<E extends Enum<E>> implements StateSetDataPoint<E> {
+public final class EnumStateSetDataPoint<E extends Enum<E>> implements StateSetDataPoint<E> {
 
     private static final VarHandle ARR_HANDLER = MethodHandles.arrayElementVarHandle(boolean[].class);
 

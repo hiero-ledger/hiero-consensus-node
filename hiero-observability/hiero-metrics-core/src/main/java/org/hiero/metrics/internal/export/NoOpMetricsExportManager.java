@@ -8,7 +8,7 @@ import org.hiero.metrics.api.export.MetricsExportManager;
 /**
  * A no-op implementation of the {@link MetricsExportManager} interface.
  */
-public class NoOpMetricsExportManager implements MetricsExportManager {
+public final class NoOpMetricsExportManager implements MetricsExportManager {
 
     public static final MetricsExportManager INSTANCE = new NoOpMetricsExportManager();
 

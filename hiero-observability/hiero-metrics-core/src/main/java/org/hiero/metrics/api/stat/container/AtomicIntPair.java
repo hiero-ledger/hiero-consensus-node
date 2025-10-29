@@ -13,7 +13,7 @@ import java.util.function.ToDoubleBiFunction;
 /**
  * Holds two integers that can be updated atomically.
  */
-public class AtomicIntPair {
+public final class AtomicIntPair {
 
     private final AtomicLong container;
     private final LongBinaryOperator operator;

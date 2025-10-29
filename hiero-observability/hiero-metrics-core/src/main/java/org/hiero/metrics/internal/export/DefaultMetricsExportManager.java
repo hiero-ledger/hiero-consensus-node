@@ -33,7 +33,7 @@ import org.hiero.metrics.api.utils.Unit;
  * It also handles exceptions thrown by exporters during initialization and exporting, logging errors without
  * disrupting the overall exporting process.
  */
-public class DefaultMetricsExportManager extends AbstractMetricsExportManager {
+public final class DefaultMetricsExportManager extends AbstractMetricsExportManager {
 
     private static final String PUSHING_EXPORTER_NAME = "name";
 

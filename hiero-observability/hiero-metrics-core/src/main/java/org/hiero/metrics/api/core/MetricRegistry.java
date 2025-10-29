@@ -7,11 +7,11 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * A registry for {@link Metric} instances.
+ * A thread-safe registry for {@link Metric} instances.
  * <p>
- * Implementations must be thread-safe.
+ * Registry must be created via {@link MetricsFacade#createRegistry(Label...)} factory method.
  */
-public interface MetricRegistry {
+public sealed interface MetricRegistry permits org.hiero.metrics.internal.export.SnapshotableMetricsRegistry {
 
     /**
      * Returns an unmodifiable list of global labels that are applied to all metrics in this registry.

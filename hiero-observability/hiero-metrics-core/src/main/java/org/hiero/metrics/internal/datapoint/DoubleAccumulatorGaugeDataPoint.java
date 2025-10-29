@@ -8,7 +8,7 @@ import java.util.function.LongBinaryOperator;
 import org.hiero.metrics.api.stat.StatUtils;
 import org.hiero.metrics.api.stat.container.AtomicDouble;
 
-public class DoubleAccumulatorGaugeDataPoint extends AtomicDoubleGaugeDataPoint {
+public final class DoubleAccumulatorGaugeDataPoint extends AtomicDoubleGaugeDataPoint {
 
     private final LongBinaryOperator operator;
 

@@ -14,7 +14,7 @@ import org.hiero.metrics.api.export.PullingMetricsExporter;
  * manager. The exporter is provided with a snapshot supplier that takes snapshots of all managed
  * registries on demand.
  */
-public class SinglePullingExporterMetricsExportManager extends AbstractMetricsExportManager {
+public final class SinglePullingExporterMetricsExportManager extends AbstractMetricsExportManager {
 
     private final PullingMetricsExporter exporter;
 
