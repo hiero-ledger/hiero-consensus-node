@@ -137,39 +137,6 @@ public class UnsignedEvent implements Hashable {
         metadata.setHash(hash);
     }
 
-    /**
-     * The non-deterministic generation. For more info, see {@link NonDeterministicGeneration}
-     */
-    private long nGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
-
-    /**
-     * The non-deterministic generation of this event.
-     *
-     * @return the non-deterministic generation of this event. A value of {@link EventConstants#GENERATION_UNDEFINED} if
-     * none has been set yet.
-     */
-    public long getNGen() {
-        return nGen;
-    }
-
-    /**
-     * Checks if the non-deterministic generation for this event has been set.
-     *
-     * @return {@code true} if the nGen has been set, {@code false} otherwise
-     */
-    public boolean hasNGen() {
-        return nGen != NonDeterministicGeneration.GENERATION_UNDEFINED;
-    }
-
-    /**
-     * Sets the non-deterministic generation of this event.
-     *
-     * @param nGen the non-deterministic generation value to set
-     */
-    public void setNGen(final long nGen) {
-        this.nGen = nGen;
-    }
-
     @Override
     public boolean equals(final Object o) {
         if (this == o) {

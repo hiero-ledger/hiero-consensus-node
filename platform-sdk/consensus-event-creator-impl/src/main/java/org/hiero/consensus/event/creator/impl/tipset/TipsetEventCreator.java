@@ -29,7 +29,6 @@ import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.event.creator.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
-import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -258,9 +257,7 @@ public class TipsetEventCreator implements EventCreator {
 
     private PlatformEvent signEvent(final UnsignedEvent event) {
         final Signature signature = signer.sign(event.getHash());
-        final PlatformEvent platformEvent = new PlatformEvent(event, signature.getBytes());
-        platformEvent.setNGen(event.getNGen());
-        return platformEvent;
+        return new PlatformEvent(event, signature.getBytes());
     }
 
     /**
@@ -439,9 +436,6 @@ public class TipsetEventCreator implements EventCreator {
                 transactions.stream().map(TimestampedTransaction::transaction).toList(),
                 random.nextLong(0, roster.rosterEntries().size() + 1));
         eventHasher.hashUnsignedEvent(event);
-        NonDeterministicGeneration.assignNGen(event,
-                Stream.of(lastSelfEvent, otherParent).filter(Objects::nonNull).toList()
-        );
 
         return event;
     }

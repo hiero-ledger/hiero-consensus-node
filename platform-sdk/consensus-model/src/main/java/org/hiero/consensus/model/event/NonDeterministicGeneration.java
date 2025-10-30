@@ -41,17 +41,4 @@ public class NonDeterministicGeneration {
         final long nGen = maxParentNGen == GENERATION_UNDEFINED ? FIRST_GENERATION : maxParentNGen + 1;
         event.setNGen(nGen);
     }
-
-    public static void assignNGen(
-            @NonNull final UnsignedEvent event,
-            @NonNull final Iterable<PlatformEvent> parents) {
-        long maxParentNGen = GENERATION_UNDEFINED;
-        for (final PlatformEvent parent : parents) {
-            if (parent != null) {
-                maxParentNGen = Math.max(maxParentNGen, parent.getNGen());
-            }
-        }
-        final long nGen = maxParentNGen == GENERATION_UNDEFINED ? FIRST_GENERATION : maxParentNGen + 1;
-        event.setNGen(nGen);
-    }
 }
