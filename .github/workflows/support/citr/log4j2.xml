@@ -243,9 +243,6 @@
       <AppenderRef ref="Console"/>
       <AppenderRef ref="RollingFile"/>
     </Logger>
-    <Logger name="com.hedera.node.app.blocks.impl.streaming" level="INFO" additivity="false">
-      <AppenderRef ref="BlockNodeCommsFile"/>
-    </Logger>
     <Logger name="com.hedera.services.queries.answering" level="warn" additivity="false">
       <AppenderRef ref="QueriesRollingFile"/>
     </Logger>
