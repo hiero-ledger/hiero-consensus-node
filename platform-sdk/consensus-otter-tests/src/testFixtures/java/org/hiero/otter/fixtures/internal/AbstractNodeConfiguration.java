@@ -10,9 +10,7 @@ import com.swirlds.platform.config.PathsConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Supplier;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
@@ -22,7 +20,7 @@ import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
  */
 public abstract class AbstractNodeConfiguration implements NodeConfiguration {
 
-    protected final Map<String, String> overriddenProperties = new HashMap<>();
+    protected final OverrideProperties overriddenProperties = new OverrideProperties();
 
     private final Supplier<LifeCycle> lifecycleSupplier;
 
@@ -33,9 +31,20 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
      * modifying the configuration is allowed
      */
     protected AbstractNodeConfiguration(@NonNull final Supplier<LifeCycle> lifecycleSupplier) {
-        this.lifecycleSupplier = requireNonNull(lifecycleSupplier, "lifecycleSupplier must not be null");
+        this(lifecycleSupplier, new OverrideProperties());
+    }
 
-        overriddenProperties.put(PathsConfig_.WRITE_PLATFORM_MARKER_FILES, "true");
+    /**
+     * Constructor for the {@link AbstractNodeConfiguration} class.
+     *
+     * @param lifecycleSupplier a supplier that provides the current lifecycle state of the node, used to determine if
+     * modifying the configuration is allowed
+     */
+    protected AbstractNodeConfiguration(@NonNull final Supplier<LifeCycle> lifecycleSupplier,
+            @NonNull final OverrideProperties overrideProperties) {
+        this.lifecycleSupplier = requireNonNull(lifecycleSupplier, "lifecycleSupplier must not be null");
+        this.overriddenProperties.apply(overrideProperties);
+        this.overriddenProperties.set(PathsConfig_.WRITE_PLATFORM_MARKER_FILES, "true");
     }
 
     /**
@@ -45,7 +54,7 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
     @NonNull
     public NodeConfiguration set(@NonNull final String key, final boolean value) {
         throwIfNodeIsRunning();
-        overriddenProperties.put(key, Boolean.toString(value));
+        overriddenProperties.set(key, value);
         return this;
     }
 
@@ -56,7 +65,7 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
     @NonNull
     public NodeConfiguration set(@NonNull final String key, @NonNull final String value) {
         throwIfNodeIsRunning();
-        overriddenProperties.put(key, value);
+        overriddenProperties.set(key, value);
         return this;
     }
 
@@ -67,7 +76,7 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
     @NonNull
     public NodeConfiguration set(@NonNull final String key, final int value) {
         throwIfNodeIsRunning();
-        overriddenProperties.put(key, Integer.toString(value));
+        overriddenProperties.set(key, value);
         return this;
     }
 
@@ -78,7 +87,7 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
     @NonNull
     public NodeConfiguration set(@NonNull final String key, final double value) {
         throwIfNodeIsRunning();
-        overriddenProperties.put(key, Double.toString(value));
+        overriddenProperties.set(key, value);
         return this;
     }
 
@@ -89,7 +98,7 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
     @NonNull
     public NodeConfiguration set(@NonNull final String key, final long value) {
         throwIfNodeIsRunning();
-        overriddenProperties.put(key, Long.toString(value));
+        overriddenProperties.set(key, value);
         return this;
     }
 
@@ -100,7 +109,7 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
     @NonNull
     public NodeConfiguration set(@NonNull final String key, @NonNull final Enum<?> value) {
         throwIfNodeIsRunning();
-        overriddenProperties.put(key, value.toString());
+        overriddenProperties.set(key, value);
         return this;
     }
 
@@ -111,7 +120,7 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
     @NonNull
     public NodeConfiguration set(@NonNull final String key, @NonNull final Duration value) {
         throwIfNodeIsRunning();
-        overriddenProperties.put(key, value.toString());
+        overriddenProperties.set(key, value);
         return this;
     }
 
@@ -122,7 +131,7 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
     @NonNull
     public NodeConfiguration set(@NonNull final String key, @NonNull final List<String> values) {
         throwIfNodeIsRunning();
-        overriddenProperties.put(key, String.join(",", values));
+        overriddenProperties.set(key, values);
         return this;
     }
 
@@ -133,7 +142,7 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
     @NonNull
     public NodeConfiguration set(@NonNull final String key, @NonNull final Path path) {
         throwIfNodeIsRunning();
-        overriddenProperties.put(key, path.toString());
+        overriddenProperties.set(key, path);
         return this;
     }
 
@@ -144,30 +153,7 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
     @NonNull
     public NodeConfiguration set(@NonNull final String key, @NonNull final TaskSchedulerConfiguration configuration) {
         throwIfNodeIsRunning();
-        final StringBuilder builder = new StringBuilder();
-        if (configuration.type() != null) {
-            builder.append(configuration.type()).append(" ");
-        } else {
-            builder.append("SEQUENTIAL ");
-        }
-        if (configuration.unhandledTaskCapacity() != null && configuration.unhandledTaskCapacity() > 0) {
-            builder.append(" CAPACITY(")
-                    .append(configuration.unhandledTaskCapacity())
-                    .append(") ");
-        }
-        if (Boolean.TRUE.equals(configuration.unhandledTaskMetricEnabled())) {
-            builder.append("UNHANDLED_TASK_METRIC ");
-        }
-        if (Boolean.TRUE.equals(configuration.busyFractionMetricEnabled())) {
-            builder.append("BUSY_FRACTION_METRIC ");
-        }
-        if (Boolean.TRUE.equals(configuration.flushingEnabled())) {
-            builder.append("FLUSHABLE ");
-        }
-        if (Boolean.TRUE.equals(configuration.squelchingEnabled())) {
-            builder.append("SQUELCHABLE");
-        }
-        overriddenProperties.put(key, builder.toString());
+        overriddenProperties.set(key, configuration);
         return this;
     }
 
@@ -183,15 +169,7 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
     @NonNull
     @Override
     public Configuration current() {
-        return createConfiguration(overriddenProperties);
+        return createConfiguration(overriddenProperties.properties());
     }
 
-    /**
-     * Applies the overridden properties from another configuration to this one.
-     *
-     * @param configuration the configuration whose properties are to be applied
-     */
-    public void apply(@NonNull final AbstractNodeConfiguration configuration) {
-        overriddenProperties.putAll(configuration.overriddenProperties);
-    }
 }

@@ -17,10 +17,10 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /**
- * Tests for the NodeProperties functionality that enables setting network properties before nodes are added and
+ * Tests for the NetworkConfiguration functionality that enables setting network properties before nodes are added and
  * propagating them to nodes as they are created.
  */
-final class NodePropertiesTest {
+final class NetworkConfigurationTest {
 
     /**
      * Provides a stream of test environments for the parameterized tests.
@@ -33,12 +33,12 @@ final class NodePropertiesTest {
     }
 
     /**
-     * Test that node properties before nodes are added stores the values in NodeProperties and applies them when nodes
+     * Test that node configuration before nodes are added stores the values in NetworkConfiguration and applies them when nodes
      * are subsequently added.
      */
     @ParameterizedTest
     @MethodSource("environments")
-    void testNodePropertiesBeforeNodesAreAdded(@NonNull final TestEnvironment env) {
+    void testNetworkConfigurationBeforeNodesAreAdded(@NonNull final TestEnvironment env) {
         try {
             final Network network = env.network();
 
@@ -284,11 +284,11 @@ final class NodePropertiesTest {
     // ============================================================================
 
     /**
-     * Test that setting NodeProperties fields on the network throws an exception when the network is in the RUNNING
+     * Test that setting NetworkConfiguration fields on the network throws an exception when the network is in the RUNNING
      * lifecycle phase.
      */
     @Test
-    void testNodePropertiesThrowExceptionWhenNetworkIsRunning() {
+    void testNetworkConfigurationThrowExceptionWhenNetworkIsRunning() {
         final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();

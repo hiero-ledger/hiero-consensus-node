@@ -88,23 +88,15 @@ public abstract class AbstractNode implements Node {
      * @param selfId the unique identifier for this node
      * @param keysAndCerts the cryptographic keys and certificates for this node
      */
-    protected AbstractNode(@NonNull final NodeId selfId, @NonNull final KeysAndCerts keysAndCerts) {
+    protected AbstractNode(@NonNull final NodeId selfId, @NonNull final KeysAndCerts keysAndCerts,
+            @NonNull final NetworkConfiguration networkConfiguration) {
         this.selfId = requireNonNull(selfId);
         this.keysAndCerts = requireNonNull(keysAndCerts);
-    }
-
-    /**
-     * Applies the given node properties, set network wide, to this node.
-     *
-     * @param nodeProperties the node properties to apply
-     */
-    public void applyNodeProperties(@NonNull final NodeProperties nodeProperties) {
-        ((AbstractNodeConfiguration) configuration()).apply(nodeProperties.configuration());
-        if (nodeProperties.weight() != UNSET_WEIGHT) {
-            weight(nodeProperties.weight());
+        if (networkConfiguration.weight() != UNSET_WEIGHT) {
+            weight(networkConfiguration.weight());
         }
-        version(nodeProperties.version());
-        final Path savedStateDirectory = nodeProperties.savedStateDirectory();
+        version(networkConfiguration.version());
+        final Path savedStateDirectory = networkConfiguration.savedStateDirectory();
         if (savedStateDirectory != null) {
             startFromSavedState(savedStateDirectory);
         }
@@ -239,6 +231,15 @@ public abstract class AbstractNode implements Node {
         this.savedStateDirectory = OtterSavedStateUtils.findSaveState(requireNonNull(savedStateDirectory));
     }
 
+    /**
+     * Gets the saved state directory for this node.
+     *
+     * <p>The saved state directory is set when the node is configured to start from a previously saved state.
+     * If the node is starting from genesis, this will be {@code null}.
+     *
+     * @return the path to the saved state directory, or {@code null} if starting from genesis
+     */
+    @Nullable
     public Path savedStateDirectory() {
         return savedStateDirectory;
     }

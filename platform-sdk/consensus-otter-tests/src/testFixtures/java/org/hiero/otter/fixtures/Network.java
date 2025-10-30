@@ -464,10 +464,10 @@ public interface Network {
      *
      * @param maybeBehindNode the node to check behind status for
      * @return {@code true} if the node is behind by the specified fraction of peers, {@code false} otherwise
-     * @see com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus
+     * @see FallenBehindStatus
      * @see Network#nodesAreBehindByNodeCount(Node, Node...)
      */
-    default boolean nodeIsBehindByNodeCount(@NonNull Node maybeBehindNode) {
+    default boolean nodeIsBehindByNodeCount(@NonNull final Node maybeBehindNode) {
         return nodesAreBehindByNodeCount(maybeBehindNode);
     }
 
@@ -503,13 +503,15 @@ public interface Network {
     }
 
     /**
-     * Sets the source directory to the state directory for all nodes. The directory is either relative
-     * to {@code platform-sdk/consensus-otter-tests/saved-states} or an absolute path
+     * Sets the source directory to the state directory for all nodes. The directory is either relative to
+     * {@code platform-sdk/consensus-otter-tests/saved-states} or an absolute path
      *
-     * <p>This method sets the directory of all nodes currently added to the network. Please note that the new directory
+     * <p>This method sets the directory of all nodes currently added to the network. Please note that the new
+     * directory
      * will become effective only after a node is (re-)started.
      *
-     * @param savedStateDirectory directory name of the state directory relative to the consensus-otter-tests/saved-states directory
+     * @param savedStateDirectory directory name of the state directory relative to the
+     * consensus-otter-tests/saved-states directory
      */
     void savedStateDirectory(@NonNull final Path savedStateDirectory);
 }
