@@ -2,7 +2,6 @@
 package org.hiero.consensus.model.event;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.List;
 import org.hiero.consensus.model.sequence.map.SequenceMap;
 
 /**

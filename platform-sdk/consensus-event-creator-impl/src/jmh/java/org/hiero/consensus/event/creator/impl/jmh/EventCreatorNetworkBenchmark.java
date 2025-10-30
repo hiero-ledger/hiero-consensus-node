@@ -127,15 +127,7 @@ public class EventCreatorNetworkBenchmark {
 
             final DefaultEventCreator eventCreator = new DefaultEventCreator();
             eventCreator.initialize(
-                    configuration,
-                    metrics,
-                    time,
-                    nodeRandom,
-                    keysAndCerts,
-                    roster,
-                    nodeId,
-                    List::of,
-                    () -> false);
+                    configuration, metrics, time, nodeRandom, keysAndCerts, roster, nodeId, List::of, () -> false);
 
             // Set platform status to ACTIVE so events can be created
             eventCreator.updatePlatformStatus(PlatformStatus.ACTIVE);

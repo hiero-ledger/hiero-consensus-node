@@ -77,7 +77,7 @@ public class TestIntake {
                 new PassThroughWiring(model, "PlatformEvent", "postHashCollector", TaskSchedulerType.DIRECT);
 
         final IntakeEventCounter intakeEventCounter = new NoOpIntakeEventCounter();
-        final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer( platformContext.getMetrics(), intakeEventCounter);
+        final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(platformContext.getMetrics(), intakeEventCounter);
         orphanBufferWiring = new ComponentWiring<>(model, OrphanBuffer.class, directScheduler("orphanBuffer"));
         orphanBufferWiring.bind(orphanBuffer);
 

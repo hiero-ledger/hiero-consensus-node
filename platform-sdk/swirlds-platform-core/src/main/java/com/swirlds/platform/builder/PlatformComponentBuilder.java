@@ -381,9 +381,7 @@ public class PlatformComponentBuilder {
     @NonNull
     public OrphanBuffer buildOrphanBuffer() {
         if (orphanBuffer == null) {
-            orphanBuffer = new DefaultOrphanBuffer(
-                    blocks.platformContext().getMetrics(),
-                    blocks.intakeEventCounter());
+            orphanBuffer = new DefaultOrphanBuffer(blocks.platformContext().getMetrics(), blocks.intakeEventCounter());
         }
         return orphanBuffer;
     }

@@ -69,9 +69,7 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
      * @param metrics the metrics instance to use
      * @param intakeEventCounter keeps track of the number of events in the intake pipeline from each peer
      */
-    public DefaultOrphanBuffer(
-            @NonNull final Metrics metrics,
-            @NonNull final IntakeEventCounter intakeEventCounter) {
+    public DefaultOrphanBuffer(@NonNull final Metrics metrics, @NonNull final IntakeEventCounter intakeEventCounter) {
 
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
         this.currentOrphanCount = 0;

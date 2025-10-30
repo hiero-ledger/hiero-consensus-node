@@ -338,8 +338,7 @@ class OrphanBufferTests {
         final Configuration configuration =
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Metrics metrics = new NoOpMetrics();
-        final DefaultOrphanBuffer orphanBuffer =
-                new DefaultOrphanBuffer(metrics, mock(IntakeEventCounter.class));
+        final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, mock(IntakeEventCounter.class));
 
         final List<PlatformEvent> unorphanedEvents = orphanBuffer.handleEvent(genesisEvent);
         assertThat(unorphanedEvents.size())
@@ -378,8 +377,7 @@ class OrphanBufferTests {
         final Configuration configuration =
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Metrics metrics = new NoOpMetrics();
-        final DefaultOrphanBuffer orphanBuffer =
-                new DefaultOrphanBuffer(metrics, mock(IntakeEventCounter.class));
+        final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, mock(IntakeEventCounter.class));
         orphanBuffer.setEventWindow(eventWindow);
 
         final List<PlatformEvent> unorphanedEvents = new ArrayList<>();
@@ -432,8 +430,7 @@ class OrphanBufferTests {
         final Configuration configuration =
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Metrics metrics = new NoOpMetrics();
-        final DefaultOrphanBuffer orphanBuffer =
-                new DefaultOrphanBuffer(metrics, mock(IntakeEventCounter.class));
+        final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, mock(IntakeEventCounter.class));
         orphanBuffer.setEventWindow(eventWindow);
 
         final List<PlatformEvent> unorphanedEvents = new ArrayList<>();
@@ -514,8 +511,7 @@ class OrphanBufferTests {
         final Configuration configuration =
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Metrics metrics = new NoOpMetrics();
-        final DefaultOrphanBuffer orphanBuffer =
-                new DefaultOrphanBuffer(metrics, mock(IntakeEventCounter.class));
+        final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, mock(IntakeEventCounter.class));
         orphanBuffer.setEventWindow(eventWindow);
 
         final List<PlatformEvent> unorphanedEvents = new ArrayList<>(orphanBuffer.handleEvent(node0AncientEvent));
