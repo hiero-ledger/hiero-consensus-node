@@ -43,7 +43,7 @@ public class HappyPathTest {
         env.transactionGenerator().stop();
 
         // Wait for some time
-        timeManager.waitForRealTime(Duration.ofMinutes(10L));
+        timeManager.waitForRealTime(Duration.ofMinutes(5L));
 
         // Validations
 //        assertThat(network.newPlatformStatusResults())

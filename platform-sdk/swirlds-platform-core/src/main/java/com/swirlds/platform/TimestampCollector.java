@@ -35,7 +35,7 @@ public class TimestampCollector {
 
     public static final int GAP = 100;
     private static final int MAX_ELEMENTS = 1000;
-    private static final Duration WARMUP = Duration.ofMinutes(3L);
+    private static final Duration WARMUP = Duration.ofMinutes(1L);
     private static final long THRESHOLD_NANOS = System.nanoTime() + WARMUP.toNanos();
 
     private static final AtomicLong COUNTER = new AtomicLong();
