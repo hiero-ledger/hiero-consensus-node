@@ -2,12 +2,25 @@
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
+import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.*;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.*;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountRecords;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAllowance;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDeleteAllowance;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.*;
-import static com.hedera.services.bdd.suites.HapiSuite.*;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
@@ -34,18 +47,16 @@ import org.junit.jupiter.api.Tag;
  *   <li>CryptoGetAccountRecords base: 15
  * </ul>
  *
- * <p>Extra Fee Constants:
+ * <p>Extra Fee Constants Used in Tests:
  * <ul>
- *   <li>Per extra signature: 60,000,000 tinycents (service only; node charges start after 10 sigs)
  *   <li>Per extra account: 3 tinycents
- *   <li>Per extra token: 3 tinycents
- *   <li>Per NFT serial: 1 tinycent
  *   <li>Per allowance: 2,000 tinycents
  * </ul>
  */
 @Tag(CRYPTO)
+@Tag(SIMPLE_FEES)
 @DisplayName("Crypto Simple Fees Integration Tests")
-public class CryptoSimpleFeesSuite {
+public class CryptoSimpleFeesIT {
 
     // Base fee constants from HIP-1261 (in tinycents)
     private static final long CRYPTO_CREATE_BASE = 22;
@@ -58,11 +69,17 @@ public class CryptoSimpleFeesSuite {
     private static final long CRYPTO_GET_ACCOUNT_RECORDS_BASE = 15;
 
     // Extra fee constants (in tinycents)
-    private static final long SIGNATURE_EXTRA = 60_000_000;
     private static final long ACCOUNT_EXTRA = 3;
-    private static final long TOKEN_EXTRA = 3;
-    private static final long NFT_SERIAL_EXTRA = 1;
     private static final long ALLOWANCE_EXTRA = 2000;
+
+    // Test account and transaction name constants
+    private static final String ACCOUNT = "account";
+    private static final String SENDER = "sender";
+    private static final String OWNER = "owner";
+    private static final String NFT = "nft";
+    private static final String DELETE_TXN_1 = "deleteTxn1";
+    private static final String DELETE_TXN_2 = "deleteTxn2";
+    private static final String QUERY_TXN = "queryTxn";
 
     /**
      * Tests CryptoCreate handler with simple fees enabled.
@@ -78,9 +95,6 @@ public class CryptoSimpleFeesSuite {
     @DisplayName("CryptoCreate with simple fees")
     final Stream<DynamicTest> cryptoCreateWithSimpleFees() {
         return hapiTest(
-                // Enable simple fees for this test
-                overriding("fees.simpleFeesEnabled", "true"),
-
                 // Test 1: Basic create with no explicit key (1 signature included in base)
                 cryptoCreate("basicAccount").via("createTxn1"),
                 getTxnRecord("createTxn1").hasCostAnswerPrecheck(OK).logged(),
@@ -118,41 +132,39 @@ public class CryptoSimpleFeesSuite {
     @DisplayName("CryptoDelete with simple fees")
     final Stream<DynamicTest> cryptoDeleteWithSimpleFees() {
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
 
                 // Setup: Create accounts
                 cryptoCreate("accountToDelete").balance(ONE_HBAR),
                 cryptoCreate("transferAccount"),
 
                 // Test 1: Basic delete with transfer (1 signature included in base)
-                cryptoDelete("accountToDelete").transfer("transferAccount").via("deleteTxn1"),
-                getTxnRecord("deleteTxn1").logged(),
-                validateChargedUsd("deleteTxn1", CRYPTO_DELETE_BASE),
+                cryptoDelete("accountToDelete").transfer("transferAccount").via(DELETE_TXN_1),
+                getTxnRecord(DELETE_TXN_1).logged(),
+                validateChargedUsd(DELETE_TXN_1, CRYPTO_DELETE_BASE),
 
                 // Test 2: Delete another account to verify consistency
                 cryptoCreate("anotherAccount").balance(ONE_HBAR),
-                cryptoDelete("anotherAccount").transfer("transferAccount").via("deleteTxn2"),
-                validateChargedUsd("deleteTxn2", CRYPTO_DELETE_BASE));
+                cryptoDelete("anotherAccount").transfer("transferAccount").via(DELETE_TXN_2),
+                validateChargedUsd(DELETE_TXN_2, CRYPTO_DELETE_BASE));
     }
 
     @HapiTest
     @DisplayName("CryptoTransfer with simple fees")
     final Stream<DynamicTest> cryptoTransferWithSimpleFees() {
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
-                cryptoCreate("sender").balance(1000 * ONE_HBAR),
+                cryptoCreate(SENDER).balance(1000 * ONE_HBAR),
                 cryptoCreate("receiver1"),
                 cryptoCreate("receiver2"),
 
                 // Test 1: Basic transfer (2 accounts) = 18 + (2-1)*3 = 21
-                cryptoTransfer(tinyBarsFromTo("sender", "receiver1", ONE_HBAR)).via("transferTxn1"),
+                cryptoTransfer(tinyBarsFromTo(SENDER, "receiver1", ONE_HBAR)).via("transferTxn1"),
                 validateChargedUsd("transferTxn1", CRYPTO_TRANSFER_BASE + ACCOUNT_EXTRA),
 
                 // Test 2: Multi-account transfer (3 accounts) = 18 + (3-1)*3 = 24
                 cryptoCreate("receiver3"),
                 cryptoTransfer(
-                                tinyBarsFromTo("sender", "receiver2", ONE_HBAR),
-                                tinyBarsFromTo("sender", "receiver3", ONE_HBAR))
+                                tinyBarsFromTo(SENDER, "receiver2", ONE_HBAR),
+                                tinyBarsFromTo(SENDER, "receiver3", ONE_HBAR))
                         .via("transferTxn2"),
                 validateChargedUsd("transferTxn2", CRYPTO_TRANSFER_BASE + 2 * ACCOUNT_EXTRA),
 
@@ -160,11 +172,11 @@ public class CryptoSimpleFeesSuite {
                 cryptoCreate("receiver4"),
                 cryptoCreate("receiver5"),
                 cryptoTransfer(
-                                tinyBarsFromTo("sender", "receiver1", ONE_HBAR),
-                                tinyBarsFromTo("sender", "receiver2", ONE_HBAR),
-                                tinyBarsFromTo("sender", "receiver3", ONE_HBAR),
-                                tinyBarsFromTo("sender", "receiver4", ONE_HBAR),
-                                tinyBarsFromTo("sender", "receiver5", ONE_HBAR))
+                                tinyBarsFromTo(SENDER, "receiver1", ONE_HBAR),
+                                tinyBarsFromTo(SENDER, "receiver2", ONE_HBAR),
+                                tinyBarsFromTo(SENDER, "receiver3", ONE_HBAR),
+                                tinyBarsFromTo(SENDER, "receiver4", ONE_HBAR),
+                                tinyBarsFromTo(SENDER, "receiver5", ONE_HBAR))
                         .via("transferTxn3"),
                 validateChargedUsd("transferTxn3", CRYPTO_TRANSFER_BASE + 4 * ACCOUNT_EXTRA));
     }
@@ -173,20 +185,19 @@ public class CryptoSimpleFeesSuite {
     @DisplayName("CryptoUpdate with simple fees")
     final Stream<DynamicTest> cryptoUpdateWithSimpleFees() {
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
-                cryptoCreate("account"),
+                cryptoCreate(ACCOUNT),
 
                 // Test 1: Update memo only = 22
-                cryptoUpdate("account").memo("Updated memo").via("updateTxn1"),
+                cryptoUpdate(ACCOUNT).memo("Updated memo").via("updateTxn1"),
                 validateChargedUsd("updateTxn1", CRYPTO_UPDATE_BASE),
 
                 // Test 2: Update with key change (1 key included in base) = 22
                 newKeyNamed("newKey"),
-                cryptoUpdate("account").key("newKey").via("updateTxn2"),
+                cryptoUpdate(ACCOUNT).key("newKey").via("updateTxn2"),
                 validateChargedUsd("updateTxn2", CRYPTO_UPDATE_BASE),
 
                 // Test 3: Update max auto associations = 22
-                cryptoUpdate("account").maxAutomaticAssociations(100).via("updateTxn3"),
+                cryptoUpdate(ACCOUNT).maxAutomaticAssociations(100).via("updateTxn3"),
                 validateChargedUsd("updateTxn3", CRYPTO_UPDATE_BASE));
     }
 
@@ -194,25 +205,24 @@ public class CryptoSimpleFeesSuite {
     @DisplayName("CryptoApproveAllowance with simple fees")
     final Stream<DynamicTest> cryptoApproveAllowanceWithSimpleFees() {
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
-                cryptoCreate("owner").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate("spender1"),
                 cryptoCreate("spender2"),
                 cryptoCreate("spender3"),
 
                 // Test 1: Approve 1 allowance = 20
                 cryptoApproveAllowance()
-                        .payingWith("owner")
-                        .addCryptoAllowance("owner", "spender1", ONE_HBAR)
+                        .payingWith(OWNER)
+                        .addCryptoAllowance(OWNER, "spender1", ONE_HBAR)
                         .via("approveTxn1"),
                 validateChargedUsd("approveTxn1", CRYPTO_APPROVE_ALLOWANCE_BASE),
 
                 // Test 2: Approve 3 allowances = 20 + (3-1)*2000 = 4,020
                 cryptoApproveAllowance()
-                        .payingWith("owner")
-                        .addCryptoAllowance("owner", "spender1", ONE_HBAR)
-                        .addCryptoAllowance("owner", "spender2", ONE_HBAR)
-                        .addCryptoAllowance("owner", "spender3", ONE_HBAR)
+                        .payingWith(OWNER)
+                        .addCryptoAllowance(OWNER, "spender1", ONE_HBAR)
+                        .addCryptoAllowance(OWNER, "spender2", ONE_HBAR)
+                        .addCryptoAllowance(OWNER, "spender3", ONE_HBAR)
                         .via("approveTxn2"),
                 validateChargedUsd("approveTxn2", CRYPTO_APPROVE_ALLOWANCE_BASE + 2 * ALLOWANCE_EXTRA));
     }
@@ -221,32 +231,28 @@ public class CryptoSimpleFeesSuite {
     @DisplayName("CryptoDeleteAllowance with simple fees")
     final Stream<DynamicTest> cryptoDeleteAllowanceWithSimpleFees() {
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
-                cryptoCreate("owner").balance(ONE_HUNDRED_HBARS),
-                tokenCreate("nft")
-                        .tokenType(NON_FUNGIBLE_UNIQUE)
-                        .treasury("owner")
-                        .initialSupply(0L),
-                mintToken("nft", List.of(metadata("nft1"), metadata("nft2"), metadata("nft3"))),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
+                tokenCreate(NFT).tokenType(NON_FUNGIBLE_UNIQUE).treasury(OWNER).initialSupply(0L),
+                mintToken(NFT, List.of(metadata("nft1"), metadata("nft2"), metadata("nft3"))),
 
                 // Test 1: Delete 1 NFT allowance = 15
                 cryptoDeleteAllowance()
-                        .payingWith("owner")
-                        .addNftDeleteAllowance("owner", "nft", List.of(1L))
-                        .via("deleteTxn1"),
-                validateChargedUsd("deleteTxn1", CRYPTO_DELETE_ALLOWANCE_BASE),
+                        .payingWith(OWNER)
+                        .addNftDeleteAllowance(OWNER, NFT, List.of(1L))
+                        .via(DELETE_TXN_1),
+                validateChargedUsd(DELETE_TXN_1, CRYPTO_DELETE_ALLOWANCE_BASE),
 
                 // Test 2: Delete 2 NFT allowances = 15 + (2-1)*2000 = 2,015
                 cryptoDeleteAllowance()
-                        .payingWith("owner")
-                        .addNftDeleteAllowance("owner", "nft", List.of(2L))
-                        .addNftDeleteAllowance("owner", "nft", List.of(3L))
-                        .via("deleteTxn2"),
-                validateChargedUsd("deleteTxn2", CRYPTO_DELETE_ALLOWANCE_BASE + ALLOWANCE_EXTRA));
+                        .payingWith(OWNER)
+                        .addNftDeleteAllowance(OWNER, NFT, List.of(2L))
+                        .addNftDeleteAllowance(OWNER, NFT, List.of(3L))
+                        .via(DELETE_TXN_2),
+                validateChargedUsd(DELETE_TXN_2, CRYPTO_DELETE_ALLOWANCE_BASE + ALLOWANCE_EXTRA));
     }
 
-    private static ByteString metadata(String data) {
-        return com.google.protobuf.ByteString.copyFromUtf8(data);
+    private static ByteString metadata(final String data) {
+        return ByteString.copyFromUtf8(data);
     }
 
     /**
@@ -261,10 +267,9 @@ public class CryptoSimpleFeesSuite {
     @DisplayName("CryptoGetAccountInfo query with simple fees")
     final Stream<DynamicTest> cryptoGetAccountInfoWithSimpleFees() {
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
-                cryptoCreate("account").balance(ONE_HBAR),
-                getAccountInfo("account").via("queryTxn").logged(),
-                validateChargedUsd("queryTxn", CRYPTO_GET_INFO_BASE));
+                cryptoCreate(ACCOUNT).balance(ONE_HBAR),
+                getAccountInfo(ACCOUNT).via(QUERY_TXN).logged(),
+                validateChargedUsd(QUERY_TXN, CRYPTO_GET_INFO_BASE));
     }
 
     /**
@@ -279,10 +284,9 @@ public class CryptoSimpleFeesSuite {
     @DisplayName("CryptoGetAccountRecords query with simple fees")
     final Stream<DynamicTest> cryptoGetAccountRecordsWithSimpleFees() {
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
-                cryptoCreate("account").balance(ONE_HBAR),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, "account", ONE_HBAR)).via("someTxn"),
-                getAccountRecords("account").via("queryTxn").logged(),
-                validateChargedUsd("queryTxn", CRYPTO_GET_ACCOUNT_RECORDS_BASE));
+                cryptoCreate(ACCOUNT).balance(ONE_HBAR),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, ACCOUNT, ONE_HBAR)).via("someTxn"),
+                getAccountRecords(ACCOUNT).via(QUERY_TXN).logged(),
+                validateChargedUsd(QUERY_TXN, CRYPTO_GET_ACCOUNT_RECORDS_BASE));
     }
 }

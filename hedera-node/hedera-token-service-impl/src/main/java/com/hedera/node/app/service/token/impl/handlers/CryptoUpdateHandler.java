@@ -521,13 +521,13 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
     public FeeResult calculateFeeResult(@NonNull final FeeContext feeContext) {
         requireNonNull(feeContext);
         final var model = FeeModelRegistry.lookupModel(HederaFunctionality.CRYPTO_UPDATE);
-        final var op = feeContext.body().cryptoUpdateAccountOrThrow();
+        final var updateOp = feeContext.body().cryptoUpdateAccountOrThrow();
 
-        Map<Extra, Long> params = new HashMap<>();
+        final Map<Extra, Long> params = new HashMap<>();
         params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
 
         // Count keys (0 if not present, 1 if present)
-        params.put(Extra.KEYS, op.hasKey() ? 1L : 0L);
+        params.put(Extra.KEYS, updateOp.hasKey() ? 1L : 0L);
 
         return model.computeFee(
                 params,

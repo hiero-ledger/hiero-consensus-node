@@ -221,7 +221,7 @@ public class CryptoGetAccountInfoHandler extends PaidQueryHandler {
     public FeeResult computeFeeResult(@NonNull final QueryContext queryContext) {
         requireNonNull(queryContext);
         final var model = FeeModelRegistry.lookupModel(HederaFunctionality.CRYPTO_GET_INFO);
-        Map<Extra, Long> params = new HashMap<>();
+        final Map<Extra, Long> params = new HashMap<>();
         params.put(Extra.SIGNATURES, 1L);
         return model.computeFee(params, queryContext.feeCalculator().getSimpleFeesSchedule());
     }

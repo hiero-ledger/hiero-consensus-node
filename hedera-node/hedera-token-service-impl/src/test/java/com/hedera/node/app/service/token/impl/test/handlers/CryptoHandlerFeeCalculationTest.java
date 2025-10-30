@@ -1,14 +1,38 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.*;
-import static org.hiero.hapi.fees.FeeScheduleUtils.*;
-import static org.hiero.hapi.support.fees.Extra.*;
-import static org.hiero.hapi.support.fees.NetworkFee.*;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_APPROVE_ALLOWANCE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_DELETE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_DELETE_ALLOWANCE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_GET_ACCOUNT_RECORDS;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_GET_INFO;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_UPDATE;
+import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
+import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
+import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
+import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
+import static org.hiero.hapi.support.fees.Extra.ACCOUNTS;
+import static org.hiero.hapi.support.fees.Extra.ALLOWANCES;
+import static org.hiero.hapi.support.fees.Extra.BYTES;
+import static org.hiero.hapi.support.fees.Extra.CREATED_ACCOUNTS;
+import static org.hiero.hapi.support.fees.Extra.CREATED_AUTO_ASSOCIATIONS;
+import static org.hiero.hapi.support.fees.Extra.CUSTOM_FEE_FUNGIBLE_TOKENS;
+import static org.hiero.hapi.support.fees.Extra.CUSTOM_FEE_NON_FUNGIBLE_TOKENS;
+import static org.hiero.hapi.support.fees.Extra.KEYS;
+import static org.hiero.hapi.support.fees.Extra.NFT_SERIALS;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
+import static org.hiero.hapi.support.fees.Extra.STANDARD_FUNGIBLE_TOKENS;
+import static org.hiero.hapi.support.fees.Extra.STANDARD_NON_FUNGIBLE_TOKENS;
+import static org.hiero.hapi.support.fees.NetworkFee.DEFAULT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
@@ -70,6 +94,11 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+/**
+ * Tests for crypto handler fee calculations using the simple fees system.
+ * Validates that all crypto transaction and query handlers correctly compute fees
+ * based on the new FeeResult-based fee model with various transaction parameters.
+ */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Crypto Handler Fee Calculation Tests")
 class CryptoHandlerFeeCalculationTest {
@@ -124,9 +153,13 @@ class CryptoHandlerFeeCalculationTest {
     @MethodSource("cryptoCreateTestCases")
     @DisplayName("CryptoCreate handler fee calculations")
     void testCryptoCreateFeeCalculation(
-            String description, CryptoCreateTransactionBody op, int numSignatures, long expectedFee) {
+            final String description,
+            final CryptoCreateTransactionBody createOp,
+            final int numSignatures,
+            final long expectedFee) {
         // Arrange
-        final var txBody = TransactionBody.newBuilder().cryptoCreateAccount(op).build();
+        final var txBody =
+                TransactionBody.newBuilder().cryptoCreateAccount(createOp).build();
         final var feeContext = createMockFeeContext(txBody, numSignatures);
 
         // Act
@@ -141,15 +174,16 @@ class CryptoHandlerFeeCalculationTest {
     @MethodSource("cryptoTransferTestCases")
     @DisplayName("CryptoTransfer handler fee calculations")
     void testCryptoTransferFeeCalculation(
-            String description,
-            CryptoTransferTransactionBody op,
-            int numSignatures,
-            ReadableAccountStore accountStore,
-            ReadableTokenStore tokenStore,
-            ReadableTokenRelationStore tokenRelStore,
-            long expectedFee) {
+            final String description,
+            final CryptoTransferTransactionBody transferOp,
+            final int numSignatures,
+            final ReadableAccountStore accountStore,
+            final ReadableTokenStore tokenStore,
+            final ReadableTokenRelationStore tokenRelStore,
+            final long expectedFee) {
         // Arrange
-        final var txBody = TransactionBody.newBuilder().cryptoTransfer(op).build();
+        final var txBody =
+                TransactionBody.newBuilder().cryptoTransfer(transferOp).build();
         final var feeContext =
                 createMockFeeContextWithStores(txBody, numSignatures, accountStore, tokenStore, tokenRelStore);
 
@@ -165,9 +199,12 @@ class CryptoHandlerFeeCalculationTest {
     @MethodSource("cryptoDeleteTestCases")
     @DisplayName("CryptoDelete handler fee calculations")
     void testCryptoDeleteFeeCalculation(
-            String description, CryptoDeleteTransactionBody op, int numSignatures, long expectedFee) {
+            final String description,
+            final CryptoDeleteTransactionBody deleteOp,
+            final int numSignatures,
+            final long expectedFee) {
         // Arrange
-        final var txBody = TransactionBody.newBuilder().cryptoDelete(op).build();
+        final var txBody = TransactionBody.newBuilder().cryptoDelete(deleteOp).build();
         final var feeContext = createMockFeeContext(txBody, numSignatures);
 
         // Act
@@ -182,10 +219,14 @@ class CryptoHandlerFeeCalculationTest {
     @MethodSource("cryptoApproveAllowanceTestCases")
     @DisplayName("CryptoApproveAllowance handler fee calculations")
     void testCryptoApproveAllowanceFeeCalculation(
-            String description, CryptoApproveAllowanceTransactionBody op, int numSignatures, long expectedFee) {
+            final String description,
+            final CryptoApproveAllowanceTransactionBody approveAllowanceOp,
+            final int numSignatures,
+            final long expectedFee) {
         // Arrange
-        final var txBody =
-                TransactionBody.newBuilder().cryptoApproveAllowance(op).build();
+        final var txBody = TransactionBody.newBuilder()
+                .cryptoApproveAllowance(approveAllowanceOp)
+                .build();
         final var feeContext = createMockFeeContext(txBody, numSignatures);
 
         // Act
@@ -200,10 +241,14 @@ class CryptoHandlerFeeCalculationTest {
     @MethodSource("cryptoDeleteAllowanceTestCases")
     @DisplayName("CryptoDeleteAllowance handler fee calculations")
     void testCryptoDeleteAllowanceFeeCalculation(
-            String description, CryptoDeleteAllowanceTransactionBody op, int numSignatures, long expectedFee) {
+            final String description,
+            final CryptoDeleteAllowanceTransactionBody deleteAllowanceOp,
+            final int numSignatures,
+            final long expectedFee) {
         // Arrange
-        final var txBody =
-                TransactionBody.newBuilder().cryptoDeleteAllowance(op).build();
+        final var txBody = TransactionBody.newBuilder()
+                .cryptoDeleteAllowance(deleteAllowanceOp)
+                .build();
         final var feeContext = createMockFeeContext(txBody, numSignatures);
 
         // Act
@@ -217,9 +262,10 @@ class CryptoHandlerFeeCalculationTest {
     @ParameterizedTest(name = "CryptoGetAccountInfo: {0}")
     @MethodSource("cryptoGetAccountInfoTestCases")
     @DisplayName("CryptoGetAccountInfo handler fee calculations")
-    void testCryptoGetAccountInfoFeeCalculation(String description, CryptoGetInfoQuery op, long expectedFee) {
+    void testCryptoGetAccountInfoFeeCalculation(
+            final String description, final CryptoGetInfoQuery getInfoQuery, final long expectedFee) {
         // Arrange
-        final var query = Query.newBuilder().cryptoGetInfo(op).build();
+        final var query = Query.newBuilder().cryptoGetInfo(getInfoQuery).build();
         final var queryContext = createMockQueryContext(query);
 
         // Act
@@ -234,9 +280,13 @@ class CryptoHandlerFeeCalculationTest {
     @MethodSource("cryptoGetAccountRecordsTestCases")
     @DisplayName("CryptoGetAccountRecords handler fee calculations")
     void testCryptoGetAccountRecordsFeeCalculation(
-            String description, CryptoGetAccountRecordsQuery op, long expectedFee) {
+            final String description,
+            final CryptoGetAccountRecordsQuery getAccountRecordsQuery,
+            final long expectedFee) {
         // Arrange
-        final var query = Query.newBuilder().cryptoGetAccountRecords(op).build();
+        final var query = Query.newBuilder()
+                .cryptoGetAccountRecords(getAccountRecordsQuery)
+                .build();
         final var queryContext = createMockQueryContext(query);
 
         // Act
@@ -253,8 +303,9 @@ class CryptoHandlerFeeCalculationTest {
                         "Create without key",
                         CryptoCreateTransactionBody.newBuilder()
                                 .initialBalance(1000L)
-                                .autoRenewPeriod(
-                                        Duration.newBuilder().seconds(7776000L).build())
+                                .autoRenewPeriod(Duration.newBuilder()
+                                        .seconds(7_776_000L)
+                                        .build())
                                 .build(),
                         1,
                         22L),
@@ -265,8 +316,9 @@ class CryptoHandlerFeeCalculationTest {
                                 .key(Key.newBuilder()
                                         .ed25519(Bytes.wrap(new byte[32]))
                                         .build())
-                                .autoRenewPeriod(
-                                        Duration.newBuilder().seconds(7776000L).build())
+                                .autoRenewPeriod(Duration.newBuilder()
+                                        .seconds(7_776_000L)
+                                        .build())
                                 .build(),
                         1,
                         22L),
@@ -277,8 +329,9 @@ class CryptoHandlerFeeCalculationTest {
                                 .key(Key.newBuilder()
                                         .ed25519(Bytes.wrap(new byte[32]))
                                         .build())
-                                .autoRenewPeriod(
-                                        Duration.newBuilder().seconds(7776000L).build())
+                                .autoRenewPeriod(Duration.newBuilder()
+                                        .seconds(7_776_000L)
+                                        .build())
                                 .build(),
                         3,
                         120_000_022L) // 22 + (3-1)*60_000_000
@@ -517,7 +570,7 @@ class CryptoHandlerFeeCalculationTest {
 
     // ========== Helper Methods ==========
 
-    private FeeContext createMockFeeContext(TransactionBody txBody, int numSignatures) {
+    private FeeContext createMockFeeContext(final TransactionBody txBody, final int numSignatures) {
         final var feeContext = mock(FeeContext.class);
         final var feeCalculatorFactory = mock(FeeCalculatorFactory.class);
         final var feeCalculator = mock(FeeCalculator.class);
@@ -540,11 +593,11 @@ class CryptoHandlerFeeCalculationTest {
     }
 
     private FeeContext createMockFeeContextWithStores(
-            TransactionBody txBody,
-            int numSignatures,
-            ReadableAccountStore accountStore,
-            ReadableTokenStore tokenStore,
-            ReadableTokenRelationStore tokenRelStore) {
+            final TransactionBody txBody,
+            final int numSignatures,
+            final ReadableAccountStore accountStore,
+            final ReadableTokenStore tokenStore,
+            final ReadableTokenRelationStore tokenRelStore) {
         final var feeContext = createMockFeeContext(txBody, numSignatures);
         lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
         lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
@@ -554,7 +607,7 @@ class CryptoHandlerFeeCalculationTest {
         return feeContext;
     }
 
-    private QueryContext createMockQueryContext(Query query) {
+    private QueryContext createMockQueryContext(final Query query) {
         final var queryContext = mock(QueryContext.class);
         final var feeCalculator = mock(FeeCalculator.class);
         final var feeSchedule = createTestFeeSchedule();

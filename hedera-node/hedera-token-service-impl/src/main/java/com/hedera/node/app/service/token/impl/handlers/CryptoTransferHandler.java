@@ -517,7 +517,7 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
     public FeeResult calculateFeeResult(@NonNull final FeeContext feeContext) {
         requireNonNull(feeContext);
         final var model = FeeModelRegistry.lookupModel(HederaFunctionality.CRYPTO_TRANSFER);
-        final var op = feeContext.body().cryptoTransfer();
+        final var transferOp = feeContext.body().cryptoTransfer();
 
         // Initialize cache for efficient lookups
         final var tokenStore = feeContext.readableStore(ReadableTokenStore.class);
@@ -529,10 +529,10 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
         final var estimationCache = new TransferEstimationCache(tokenStore, accountStore, tokenRelStore, hederaConfig);
 
         // Estimated crypto transfer of all transfers
-        final var estimatedCryptoTransfer = estimateCryptoTransfer(op, estimationCache, entitiesConfig);
+        final var estimatedCryptoTransfer = estimateCryptoTransfer(transferOp, estimationCache, entitiesConfig);
 
         // Build fee parameters
-        Map<Extra, Long> params = new HashMap<>();
+        final Map<Extra, Long> params = new HashMap<>();
         params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
         params.put(Extra.ACCOUNTS, estimatedCryptoTransfer.hbarTransfers);
         params.put(Extra.STANDARD_FUNGIBLE_TOKENS, estimatedCryptoTransfer.standardFungibleTokens);
@@ -543,7 +543,7 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
         params.put(Extra.CREATED_AUTO_ASSOCIATIONS, estimatedCryptoTransfer.createdAutoAssociations);
         params.put(Extra.CREATED_ACCOUNTS, estimatedCryptoTransfer.createdAccounts);
 
-        FeeCalculator feeCalculator = feeContext.feeCalculatorFactory().feeCalculator(DEFAULT);
+        final FeeCalculator feeCalculator = feeContext.feeCalculatorFactory().feeCalculator(DEFAULT);
         return model.computeFee(params, feeCalculator.getSimpleFeesSchedule());
     }
 

@@ -21,8 +21,9 @@ import org.hiero.hapi.support.fees.NodeFee;
 
 /**
  * Utility class providing shared test fixtures for crypto fee model tests.
+ * This class cannot be instantiated.
  */
-public class CryptoFeeTestUtils {
+public final class CryptoFeeTestUtils {
 
     /**
      * Creates a test fee schedule with all crypto operations configured.

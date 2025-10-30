@@ -51,13 +51,13 @@ public class CryptoDeleteHandler implements TransactionHandler {
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
         requireNonNull(context);
         final var txn = context.body();
-        final var op = txn.cryptoDeleteOrThrow();
+        final var deleteOp = txn.cryptoDeleteOrThrow();
 
-        if (!op.hasDeleteAccountID() || !op.hasTransferAccountID()) {
+        if (!deleteOp.hasDeleteAccountID() || !deleteOp.hasTransferAccountID()) {
             throw new PreCheckException(ACCOUNT_ID_DOES_NOT_EXIST);
         }
 
-        if (op.deleteAccountIDOrThrow().equals(op.transferAccountIDOrThrow())) {
+        if (deleteOp.deleteAccountIDOrThrow().equals(deleteOp.transferAccountIDOrThrow())) {
             throw new PreCheckException(TRANSFER_ACCOUNT_SAME_AS_DELETE_ACCOUNT);
         }
     }
@@ -65,9 +65,9 @@ public class CryptoDeleteHandler implements TransactionHandler {
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         requireNonNull(context);
-        final var op = context.body().cryptoDeleteOrThrow();
-        final var deleteAccountId = op.deleteAccountIDOrElse(AccountID.DEFAULT);
-        final var transferAccountId = op.transferAccountIDOrElse(AccountID.DEFAULT);
+        final var deleteOp = context.body().cryptoDeleteOrThrow();
+        final var deleteAccountId = deleteOp.deleteAccountIDOrElse(AccountID.DEFAULT);
+        final var transferAccountId = deleteOp.transferAccountIDOrElse(AccountID.DEFAULT);
         context.requireKeyOrThrow(deleteAccountId, INVALID_ACCOUNT_ID)
                 .requireKeyIfReceiverSigRequired(transferAccountId, INVALID_TRANSFER_ACCOUNT_ID);
     }
@@ -75,13 +75,13 @@ public class CryptoDeleteHandler implements TransactionHandler {
     @Override
     public void handle(@NonNull final HandleContext context) {
         requireNonNull(context);
-        final var op = context.body().cryptoDeleteOrThrow();
+        final var deleteOp = context.body().cryptoDeleteOrThrow();
         final var accountNodeRelStore = context.storeFactory().readableStore(ReadableAccountNodeRelStore.class);
         context.storeFactory()
                 .serviceApi(TokenServiceApi.class)
                 .deleteAndTransfer(
-                        op.deleteAccountIDOrThrow(),
-                        op.transferAccountIDOrThrow(),
+                        deleteOp.deleteAccountIDOrThrow(),
+                        deleteOp.transferAccountIDOrThrow(),
                         context.expiryValidator(),
                         context.savepointStack().getBaseBuilder(CryptoDeleteStreamBuilder.class),
                         accountNodeRelStore);
@@ -105,7 +105,7 @@ public class CryptoDeleteHandler implements TransactionHandler {
         requireNonNull(feeContext);
         final var model = FeeModelRegistry.lookupModel(HederaFunctionality.CRYPTO_DELETE);
 
-        Map<Extra, Long> params = new HashMap<>();
+        final Map<Extra, Long> params = new HashMap<>();
         params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
 
         return model.computeFee(

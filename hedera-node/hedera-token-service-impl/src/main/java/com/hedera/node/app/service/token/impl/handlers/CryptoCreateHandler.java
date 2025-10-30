@@ -130,38 +130,39 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
         requireNonNull(context);
         final var txn = context.body();
-        final var op = txn.cryptoCreateAccountOrThrow();
+        final var createOp = txn.cryptoCreateAccountOrThrow();
         // Note: validation lives here for now but should take place in handle in the future
-        validateTruePreCheck(op.hasAutoRenewPeriod(), INVALID_RENEWAL_PERIOD);
-        validateTruePreCheck(op.autoRenewPeriodOrThrow().seconds() >= 0, INVALID_RENEWAL_PERIOD);
-        if (op.hasShardID()) {
-            validateTruePreCheck(op.shardIDOrThrow().shardNum() >= 0, INVALID_ACCOUNT_ID);
+        validateTruePreCheck(createOp.hasAutoRenewPeriod(), INVALID_RENEWAL_PERIOD);
+        validateTruePreCheck(createOp.autoRenewPeriodOrThrow().seconds() >= 0, INVALID_RENEWAL_PERIOD);
+        if (createOp.hasShardID()) {
+            validateTruePreCheck(createOp.shardIDOrThrow().shardNum() >= 0, INVALID_ACCOUNT_ID);
         }
-        if (op.hasRealmID()) {
-            validateTruePreCheck(op.realmIDOrThrow().realmNum() >= 0, INVALID_ACCOUNT_ID);
+        if (createOp.hasRealmID()) {
+            validateTruePreCheck(createOp.realmIDOrThrow().realmNum() >= 0, INVALID_ACCOUNT_ID);
         }
         // HIP 904 now allows for unlimited auto-associations
         validateTruePreCheck(
-                op.maxAutomaticTokenAssociations() >= UNLIMITED_AUTOMATIC_ASSOCIATIONS, INVALID_MAX_AUTO_ASSOCIATIONS);
-        validateTruePreCheck(op.initialBalance() >= 0L, INVALID_INITIAL_BALANCE);
+                createOp.maxAutomaticTokenAssociations() >= UNLIMITED_AUTOMATIC_ASSOCIATIONS,
+                INVALID_MAX_AUTO_ASSOCIATIONS);
+        validateTruePreCheck(createOp.initialBalance() >= 0L, INVALID_INITIAL_BALANCE);
         // FUTURE: should this return SEND_RECORD_THRESHOLD_FIELD_IS_DEPRECATED
-        validateTruePreCheck(op.sendRecordThreshold() >= 0L, INVALID_SEND_RECORD_THRESHOLD);
+        validateTruePreCheck(createOp.sendRecordThreshold() >= 0L, INVALID_SEND_RECORD_THRESHOLD);
         // FUTURE: should this return RECEIVE_RECORD_THRESHOLD_FIELD_IS_DEPRECATED
-        validateTruePreCheck(op.receiveRecordThreshold() >= 0L, INVALID_RECEIVE_RECORD_THRESHOLD);
+        validateTruePreCheck(createOp.receiveRecordThreshold() >= 0L, INVALID_RECEIVE_RECORD_THRESHOLD);
         validateTruePreCheck(
-                op.proxyAccountIDOrElse(AccountID.DEFAULT).equals(AccountID.DEFAULT),
+                createOp.proxyAccountIDOrElse(AccountID.DEFAULT).equals(AccountID.DEFAULT),
                 PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED);
         // sendRecordThreshold, receiveRecordThreshold and proxyAccountID are deprecated. So no need to check them.
-        validateFalsePreCheck(op.hasProxyAccountID(), PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED);
-        final var alias = op.alias();
+        validateFalsePreCheck(createOp.hasProxyAccountID(), PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED);
+        final var alias = createOp.alias();
         // The alias, if set, must be of EVM address size, or it must be a valid key.
         validateTruePreCheck(alias.length() == 0 || isOfEvmAddressSize(alias) || isKeyAlias(alias), INVALID_ALIAS_KEY);
         // There must be a key provided, and it must not be empty, unless in one very particular case, where the
         // transactionID is null. This code is very particular about which error code to throw in various cases.
         // FUTURE: Clean up the error codes to be consistent.
-        final var key = op.key();
+        final var key = createOp.key();
         final var isInternal =
-                !txn.hasTransactionID() || (systemEntitiesCreatedFlag != null && !systemEntitiesCreatedFlag.get());
+                !txn.hasTransactionID() || systemEntitiesCreatedFlag != null && !systemEntitiesCreatedFlag.get();
         final var keyIsEmpty = isEmpty(key);
         if (!isInternal && keyIsEmpty) {
             if (key == null) {
@@ -174,19 +175,19 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         }
         validateTruePreCheck(key != null, KEY_NOT_PROVIDED);
         // since pure evm hooks are being removed, just added validations for lambda evm hooks for now
-        validateHookDuplicates(op.hookCreationDetails());
+        validateHookDuplicates(createOp.hookCreationDetails());
     }
 
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         requireNonNull(context);
-        final var op = context.body().cryptoCreateAccountOrThrow();
+        final var createOp = context.body().cryptoCreateAccountOrThrow();
 
         // SPEC(HIP-583): If the alias is set during CryptoCreate, then ownership of the alias must be proven by the
         // caller by signing the transaction with the key represented by the alias. It is not necessary for the key on
         // the newly created account to match the alias, but it is required for the transaction to be signed by the key
         // represented by the alias.
-        final var alias = op.alias(); // will never be null
+        final var alias = createOp.alias(); // will never be null
         if (alias.length() > 0) {
             // We will only require additional signing if the alias (whether evm-address or key-encoded) is different
             // from the payer key (since checking the payer key is done in every case)
@@ -198,7 +199,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
                 // Convert they payer key to an EVM Address, and only gather the alias if the payer key cannot be
                 // converted into the same EVM address as the alias
                 final var payerEvmAddress = extractEvmAddress(payerKey);
-                final var accountKeyEvmAddress = extractEvmAddress(op.keyOrThrow());
+                final var accountKeyEvmAddress = extractEvmAddress(createOp.keyOrThrow());
                 if (!alias.equals(payerEvmAddress) && !alias.equals(accountKeyEvmAddress)) {
                     // Verify there is a signature that matches the EVM address
                     context.requireSignatureForHollowAccountCreation(alias);
@@ -223,9 +224,9 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         // You cannot set receiverSigRequired without asserting ownership of the key. Since these are cryptographic
         // keys, if the key was a contract key or delegatable contract key, then it would fail to be verified.
         // FUTURE Maybe a more specific error code would be better here rather than just failing at key verification.
-        final var receiverSigReq = op.receiverSigRequired();
+        final var receiverSigReq = createOp.receiverSigRequired();
         if (receiverSigReq) {
-            context.requireKey(op.keyOrThrow());
+            context.requireKey(createOp.keyOrThrow());
         }
     }
 
@@ -431,42 +432,43 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
     /**
      * Builds an account based on the transaction body and the consensus time.
      *
-     * @param op the transaction body
+     * @param createOp the transaction body
      * @param handleContext the handle context
-     * @param updatedSlots
+     * @param updatedSlots the number of updated staking-related state slots
      * @return the account created
      */
     @NonNull
-    private Account buildAccount(CryptoCreateTransactionBody op, HandleContext handleContext, final int updatedSlots) {
-        requireNonNull(op);
+    private Account buildAccount(
+            final CryptoCreateTransactionBody createOp, final HandleContext handleContext, final int updatedSlots) {
+        requireNonNull(createOp);
         requireNonNull(handleContext);
-        final var autoRenewPeriod = op.autoRenewPeriodOrThrow().seconds();
+        final var autoRenewPeriod = createOp.autoRenewPeriodOrThrow().seconds();
         final var consensusTime = handleContext.consensusNow().getEpochSecond();
         final var expiry = consensusTime + autoRenewPeriod;
-        var builder = Account.newBuilder()
-                .memo(op.memo())
+        final var builder = Account.newBuilder()
+                .memo(createOp.memo())
                 .expirationSecond(expiry)
                 .autoRenewSeconds(autoRenewPeriod)
-                .receiverSigRequired(op.receiverSigRequired())
-                .maxAutoAssociations(op.maxAutomaticTokenAssociations())
-                .tinybarBalance(op.initialBalance())
-                .declineReward(op.declineReward())
-                .key(op.keyOrThrow())
+                .receiverSigRequired(createOp.receiverSigRequired())
+                .maxAutoAssociations(createOp.maxAutomaticTokenAssociations())
+                .tinybarBalance(createOp.initialBalance())
+                .declineReward(createOp.declineReward())
+                .key(createOp.keyOrThrow())
                 .stakeAtStartOfLastRewardedPeriod(NOT_REWARDED_SINCE_LAST_STAKING_META_CHANGE)
                 .stakePeriodStart(NO_STAKE_PERIOD_START)
-                .alias(op.alias());
-        if (!op.hookCreationDetails().isEmpty()) {
-            builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
-            builder.numberHooksInUse(op.hookCreationDetails().size());
+                .alias(createOp.alias());
+        if (!createOp.hookCreationDetails().isEmpty()) {
+            builder.firstHookId(createOp.hookCreationDetails().getFirst().hookId());
+            builder.numberHooksInUse(createOp.hookCreationDetails().size());
             builder.numberLambdaStorageSlots(updatedSlots);
         }
 
         // We do this separately because we want to let the protobuf object remain UNSET for the staked ID if neither
         // of the staking information was set in the transaction body.
-        if (op.hasStakedAccountId()) {
-            builder.stakedAccountId(op.stakedAccountId());
-        } else if (op.hasStakedNodeId()) {
-            builder.stakedNodeId(op.stakedNodeIdOrThrow());
+        if (createOp.hasStakedAccountId()) {
+            builder.stakedAccountId(createOp.stakedAccountId());
+        } else if (createOp.hasStakedNodeId()) {
+            builder.stakedNodeId(createOp.stakedNodeIdOrThrow());
         }
 
         // Set the new account number
@@ -523,12 +525,12 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
     public FeeResult calculateFeeResult(@NonNull final FeeContext feeContext) {
         requireNonNull(feeContext);
         final var model = FeeModelRegistry.lookupModel(HederaFunctionality.CRYPTO_CREATE);
-        final var op = feeContext.body().cryptoCreateAccountOrThrow();
+        final var createOp = feeContext.body().cryptoCreateAccountOrThrow();
 
-        Map<Extra, Long> params = new HashMap<>();
+        final Map<Extra, Long> params = new HashMap<>();
         params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
 
-        params.put(Extra.KEYS, op.hasKey() ? 1L : 0L);
+        params.put(Extra.KEYS, createOp.hasKey() ? 1L : 0L);
         return model.computeFee(
                 params,
                 feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT).getSimpleFeesSchedule());

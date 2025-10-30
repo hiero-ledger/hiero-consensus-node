@@ -92,9 +92,9 @@ public class CryptoGetAccountRecordsHandler extends PaidQueryHandler {
         requireNonNull(context);
         requireNonNull(header);
 
-        final var op = context.query().cryptoGetAccountRecordsOrThrow();
-        final var responseType = op.headerOrElse(QueryHeader.DEFAULT).responseType();
-        final var accountId = op.accountIDOrElse(AccountID.DEFAULT);
+        final var getRecordsOp = context.query().cryptoGetAccountRecordsOrThrow();
+        final var responseType = getRecordsOp.headerOrElse(QueryHeader.DEFAULT).responseType();
+        final var accountId = getRecordsOp.accountIDOrElse(AccountID.DEFAULT);
 
         // Initialize the response (with the given header)
         final var response = CryptoGetAccountRecordsResponse.newBuilder().header(header);
@@ -138,7 +138,7 @@ public class CryptoGetAccountRecordsHandler extends PaidQueryHandler {
         requireNonNull(queryContext);
         final var model = FeeModelRegistry.lookupModel(HederaFunctionality.CRYPTO_GET_ACCOUNT_RECORDS);
 
-        Map<Extra, Long> params = new HashMap<>();
+        final Map<Extra, Long> params = new HashMap<>();
         params.put(Extra.SIGNATURES, 1L);
         return model.computeFee(params, queryContext.feeCalculator().getSimpleFeesSchedule());
     }

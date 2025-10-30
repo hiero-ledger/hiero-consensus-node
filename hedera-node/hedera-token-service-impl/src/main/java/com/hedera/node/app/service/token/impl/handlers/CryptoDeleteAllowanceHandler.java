@@ -70,8 +70,8 @@ public class CryptoDeleteAllowanceHandler implements TransactionHandler {
         requireNonNull(context);
         final var txn = context.body();
         requireNonNull(txn);
-        final var op = txn.cryptoDeleteAllowanceOrThrow();
-        final var allowances = op.nftAllowances();
+        final var deleteAllowanceOp = txn.cryptoDeleteAllowanceOrThrow();
+        final var allowances = deleteAllowanceOp.nftAllowances();
         validateTruePreCheck(!allowances.isEmpty(), EMPTY_ALLOWANCES);
         for (final var allowance : allowances) {
             mustExist(allowance.tokenId(), INVALID_TOKEN_ID);
@@ -136,8 +136,8 @@ public class CryptoDeleteAllowanceHandler implements TransactionHandler {
         requireNonNull(payer);
         requireNonNull(accountStore);
 
-        final var op = context.body().cryptoDeleteAllowanceOrThrow();
-        final var nftAllowances = op.nftAllowances();
+        final var deleteAllowanceOp = context.body().cryptoDeleteAllowanceOrThrow();
+        final var nftAllowances = deleteAllowanceOp.nftAllowances();
 
         final var storeFactory = context.storeFactory();
         final var nftStore = storeFactory.writableStore(WritableNftStore.class);
@@ -209,18 +209,18 @@ public class CryptoDeleteAllowanceHandler implements TransactionHandler {
     @Override
     public Fees calculateFees(@NonNull final FeeContext feeContext) {
         final var body = feeContext.body();
-        final var op = body.cryptoDeleteAllowanceOrThrow();
+        final var deleteAllowanceOp = body.cryptoDeleteAllowanceOrThrow();
         return feeContext
                 .feeCalculatorFactory()
                 .feeCalculator(SubType.DEFAULT)
-                .addBytesPerTransaction((long) op.nftAllowances().size() * NFT_DELETE_ALLOWANCE_SIZE
-                        + (long) countNftDeleteSerials(op.nftAllowances()) * LONG_SIZE)
+                .addBytesPerTransaction((long) deleteAllowanceOp.nftAllowances().size() * NFT_DELETE_ALLOWANCE_SIZE
+                        + (long) countNftDeleteSerials(deleteAllowanceOp.nftAllowances()) * LONG_SIZE)
                 .calculate();
     }
 
     private int countNftDeleteSerials(final List<NftRemoveAllowance> nftAllowancesList) {
         int totalSerials = 0;
-        for (var allowance : nftAllowancesList) {
+        for (final var allowance : nftAllowancesList) {
             totalSerials += allowance.serialNumbers().size();
         }
         return totalSerials;
@@ -231,13 +231,13 @@ public class CryptoDeleteAllowanceHandler implements TransactionHandler {
     public FeeResult calculateFeeResult(@NonNull final FeeContext feeContext) {
         requireNonNull(feeContext);
         final var model = FeeModelRegistry.lookupModel(HederaFunctionality.CRYPTO_DELETE_ALLOWANCE);
-        final var op = feeContext.body().cryptoDeleteAllowance();
+        final var deleteAllowanceOp = feeContext.body().cryptoDeleteAllowance();
 
-        Map<Extra, Long> params = new HashMap<>();
+        final Map<Extra, Long> params = new HashMap<>();
         params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
 
         // Count allowances
-        long allowanceCount = op.nftAllowances().size();
+        final long allowanceCount = deleteAllowanceOp.nftAllowances().size();
         params.put(Extra.ALLOWANCES, allowanceCount);
 
         return model.computeFee(

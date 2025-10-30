@@ -95,14 +95,14 @@ public class CryptoApproveAllowanceHandler implements TransactionHandler {
         requireNonNull(context);
         final var txn = context.body();
         requireNonNull(txn);
-        final var op = txn.cryptoApproveAllowanceOrThrow();
+        final var allowanceOp = txn.cryptoApproveAllowanceOrThrow();
 
         // The transaction must have at least one type of allowance. There is also an upper limit to the allowed number
         // of allowances in a single transaction, but that check requires the config, and is thus not a pure check.
         // So we will check that later in handle.
-        final var cryptoAllowances = op.cryptoAllowances();
-        final var tokenAllowances = op.tokenAllowances();
-        final var nftAllowances = op.nftAllowances();
+        final var cryptoAllowances = allowanceOp.cryptoAllowances();
+        final var tokenAllowances = allowanceOp.tokenAllowances();
+        final var nftAllowances = allowanceOp.nftAllowances();
         final var totalAllowancesSize = cryptoAllowances.size() + tokenAllowances.size() + nftAllowances.size();
         validateTruePreCheck(totalAllowancesSize != 0, EMPTY_ALLOWANCES);
 
@@ -547,7 +547,7 @@ public class CryptoApproveAllowanceHandler implements TransactionHandler {
     @Override
     public Fees calculateFees(@NonNull final FeeContext feeContext) {
         final var body = feeContext.body();
-        final var op = body.cryptoApproveAllowanceOrThrow();
+        final var allowanceOp = body.cryptoApproveAllowanceOrThrow();
         final var accountStore = feeContext.readableStore(ReadableAccountStore.class);
 
         final var currentSecond =
@@ -558,12 +558,12 @@ public class CryptoApproveAllowanceHandler implements TransactionHandler {
         final long lifeTime = ESTIMATOR_UTILS.relativeLifetime(currentSecond, currentExpiry);
         // If the value is being adjusted instead of inserting a new entry , the fee charged will be
         // slightly less than the base price
-        final var adjustedBytes = getNewBytes(body.cryptoApproveAllowanceOrThrow(), account);
+        final var adjustedBytes = getNewBytes(allowanceOp, account);
         return feeContext
                 .feeCalculatorFactory()
                 .feeCalculator(SubType.DEFAULT)
-                .addBytesPerTransaction(bytesUsedInTxn(op))
-                .addRamByteSeconds(adjustedBytes > 0 ? (adjustedBytes * lifeTime) : 0)
+                .addBytesPerTransaction(bytesUsedInTxn(allowanceOp))
+                .addRamByteSeconds(adjustedBytes > 0 ? adjustedBytes * lifeTime : 0)
                 .calculate();
     }
 
@@ -685,15 +685,15 @@ public class CryptoApproveAllowanceHandler implements TransactionHandler {
     public FeeResult calculateFeeResult(@NonNull final FeeContext feeContext) {
         requireNonNull(feeContext);
         final var model = FeeModelRegistry.lookupModel(HederaFunctionality.CRYPTO_APPROVE_ALLOWANCE);
-        final var op = feeContext.body().cryptoApproveAllowanceOrThrow();
+        final var allowanceOp = feeContext.body().cryptoApproveAllowanceOrThrow();
 
-        Map<Extra, Long> params = new HashMap<>();
+        final Map<Extra, Long> params = new HashMap<>();
         params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
 
         // Count allowances
-        long allowanceCount = op.cryptoAllowances().size()
-                + op.tokenAllowances().size()
-                + op.nftAllowances().size();
+        final long allowanceCount = allowanceOp.cryptoAllowances().size()
+                + allowanceOp.tokenAllowances().size()
+                + allowanceOp.nftAllowances().size();
         params.put(Extra.ALLOWANCES, allowanceCount);
 
         return model.computeFee(

@@ -14,6 +14,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+/**
+ * Tests for SimpleFeeUtil utility methods.
+ * Validates simple fees feature flag checking and fee conversion from FeeResult (tinycents)
+ * to Fees (tinybars) using exchange rates.
+ */
 @ExtendWith(MockitoExtension.class)
 class SimpleFeeUtilTest {
 
@@ -145,7 +150,7 @@ class SimpleFeeUtilTest {
     /**
      * Helper method to create FeeResult instances with specified values.
      */
-    private static FeeResult createFeeResult(long node, long network, long service) {
+    private static FeeResult createFeeResult(final long node, final long network, final long service) {
         final var result = new FeeResult();
         result.node = node;
         result.network = network;
