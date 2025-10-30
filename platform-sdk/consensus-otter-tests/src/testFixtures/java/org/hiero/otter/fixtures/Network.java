@@ -5,6 +5,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.common.test.fixtures.WeightGenerators;
+import com.swirlds.platform.reconnect.FallenBehindStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
@@ -453,7 +454,7 @@ public interface Network {
      *
      * @param maybeBehindNode the node to check behind status for
      * @return {@code true} if the node is behind by node weight, {@code false} otherwise
-     * @see com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus
+     * @see FallenBehindStatus
      */
     boolean nodeIsBehindByNodeWeight(@NonNull Node maybeBehindNode);
 
@@ -478,7 +479,7 @@ public interface Network {
      * @param maybeBehindNode the node to check behind status for
      * @param otherNodes additional nodes to consider for the behind check (optional)
      * @return {@code true} if the node is behind by the specified fraction of peers, {@code false} otherwise
-     * @see com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus
+     * @see FallenBehindStatus
      */
     boolean nodesAreBehindByNodeCount(@NonNull Node maybeBehindNode, @Nullable Node... otherNodes);
 

@@ -3,6 +3,7 @@ package org.hiero.otter.test;
 
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static org.hiero.otter.fixtures.Capability.DETERMINISTIC_EXECUTION;
 import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 
@@ -52,7 +53,7 @@ class DocExamplesTest {
     }
 
     // This test is used in the turtle-environment.md file.
-    @OtterTest
+    @OtterTest(requires = DETERMINISTIC_EXECUTION)
     @RepeatedTest(10)
     @TurtleSpecs(randomSeed = 42)
     void testDeterministicBehavior(@NonNull final TestEnvironment env) {

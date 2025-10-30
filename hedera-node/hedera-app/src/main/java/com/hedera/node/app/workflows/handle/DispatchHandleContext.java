@@ -209,7 +209,11 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
             return feeAccumulator.chargeFee(accountId, amount, null).networkFee() == amount;
         } else {
             return feeCharging
-                            .charge(this, ValidationResult.newSuccess(creatorInfo.accountId()), new Fees(0, amount, 0))
+                            .charge(
+                                    accountId,
+                                    this,
+                                    ValidationResult.newSuccess(creatorInfo.accountId()),
+                                    new Fees(0, amount, 0))
                             .totalFee()
                     == amount;
         }
@@ -224,7 +228,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
         if (feeCharging.bypassForExtraHandlerCharges()) {
             feeAccumulator.refundFee(accountId, amount);
         } else {
-            feeCharging.refund(this, new Fees(0, amount, 0));
+            feeCharging.refund(accountId, this, new Fees(0, amount, 0));
         }
     }
 

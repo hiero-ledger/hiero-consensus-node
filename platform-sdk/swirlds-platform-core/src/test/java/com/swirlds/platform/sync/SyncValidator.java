@@ -72,7 +72,7 @@ public class SyncValidator {
         for (final SyncNode node : nodes) {
             assertEquals(
                     fellBehind,
-                    node.getSyncManager().hasFallenBehind(),
+                    node.getFallenBehindMonitor().hasFallenBehind(),
                     String.format(
                             "node %s %s have been notified in the sync that it fell behind",
                             node.getNodeId().toString(), fellBehind ? "should" : "should NOT"));

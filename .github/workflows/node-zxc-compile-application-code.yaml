@@ -78,8 +78,13 @@ on:
         type: boolean
         required: false
         default: false
-      enable-otter-tests:
-        description: "Otter Testing Enabled"
+      enable-fast-otter-tests:
+        description: "Fast Otter Testing Enabled"
+        type: boolean
+        required: false
+        default: false
+      enable-full-otter-tests:
+        description: "Full Otter Testing Enabled"
         type: boolean
         required: false
         default: false
@@ -720,17 +725,25 @@ jobs:
             platform-sdk/consensus-otter-tests/build/container/**
           retention-days: 7
 
-      - name: Otter Testing
-        id: gradle-otter-tests
-        if: ${{ inputs.enable-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+      - name: Fast Otter Testing
+        id: gradle-fast-otter-tests
+        if: ${{ inputs.enable-fast-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         run: ${GRADLE_EXEC} :consensus-otter-tests:testOtter
 
+      - name: Full Otter Testing
+        id: gradle-full-otter-tests
+        if: ${{ inputs.enable-full-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        env:
+          LC_ALL: en.UTF-8
+          LANG: en_US.UTF-8
+        run: ${GRADLE_EXEC} :consensus-otter-tests:testContainer
+
       - name: Publish Otter Testing Report
         uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
-        if: ${{ inputs.enable-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        if: ${{ (inputs.enable-fast-otter-tests || inputs.enable-full-otter-tests) && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           check_name: "Node: Otter Tests Results"
           json_thousands_separator: ","
@@ -739,7 +752,7 @@ jobs:
 
       - name: Upload Otter Tests Report Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        if: ${{ (inputs.enable-fast-otter-tests || inputs.enable-full-otter-tests) && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           name: Otter Tests Report
           path: "**/consensus-otter-tests/build/test-results/testOtter/TEST-*.xml"
@@ -747,7 +760,7 @@ jobs:
 
       - name: Upload Otter Tests Turtle Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-otter-tests && inputs.enable-network-log-capture && steps.gradle-otter-tests.conclusion == 'failure' && !cancelled() }}
+        if: ${{ (inputs.enable-fast-otter-tests || inputs.enable-full-otter-tests) && inputs.enable-network-log-capture && steps.gradle-otter-tests.conclusion == 'failure' && !cancelled() }}
         with:
           name: Otter Tests Turtle Logs
           path: |
@@ -756,7 +769,7 @@ jobs:
 
       - name: Upload Otter Tests Container Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-otter-tests && inputs.enable-network-log-capture && steps.gradle-otter-tests.conclusion == 'failure' && !cancelled() }}
+        if: ${{ (inputs.enable-fast-otter-tests || inputs.enable-full-otter-tests) && inputs.enable-network-log-capture && steps.gradle-otter-tests.conclusion == 'failure' && !cancelled() }}
         with:
           name: Otter Tests Container Logs
           path: |

@@ -69,6 +69,9 @@ tasks.test {
 }
 
 tasks.register<Test>("testSubprocess") {
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
+
     useJUnitPlatform { includeTags("REGRESSION") }
 
     systemProperty("hapi.spec.initial.port", 25000)

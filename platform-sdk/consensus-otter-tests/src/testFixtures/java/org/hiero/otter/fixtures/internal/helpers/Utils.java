@@ -15,6 +15,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.Marker;
+import org.hiero.otter.fixtures.app.OtterAppConfig;
 import org.hiero.otter.fixtures.app.services.consistency.ConsistencyServiceConfig;
 
 /**
@@ -65,6 +66,7 @@ public class Utils {
         requireNonNull(overriddenProperties, "Overridden properties must not be null");
         return new TestConfigBuilder()
                 .withSource(new SimpleConfigSource(overriddenProperties))
+                .withConfigDataType(OtterAppConfig.class)
                 .withConfigDataType(ConsistencyServiceConfig.class)
                 .getOrCreateConfig();
     }

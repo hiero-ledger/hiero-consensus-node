@@ -36,7 +36,7 @@ class SigSetTests {
         return nodes;
     }
 
-    private static Map<NodeId, Signature> generateSignatureMap(final Random random) {
+    public static Map<NodeId, Signature> generateSignatureMap(final Random random) {
         final Map<NodeId, Signature> signatures = new HashMap<>();
 
         for (int i = 0; i < 1_000; i++) {

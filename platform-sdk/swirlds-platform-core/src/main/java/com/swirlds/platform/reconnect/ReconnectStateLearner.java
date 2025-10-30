@@ -5,7 +5,6 @@ import static com.swirlds.common.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.platform.StateInitializer.initializeMerkleNodeState;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
@@ -21,8 +20,6 @@ import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateInvalidException;
-import com.swirlds.platform.state.signed.SignedStateValidationData;
-import com.swirlds.platform.state.signed.SignedStateValidator;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -36,20 +33,22 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * This class encapsulates reconnect logic for the out of date node which is
- * requesting a recent state from another node.
+ * This class encapsulates logic for receiving the up-to-date state from a peer when the local node's state is out-of-date.
  */
-public class ReconnectLearner {
+public class ReconnectStateLearner {
 
     /** use this for all logging, as controlled by the optional data/log4j2.xml file */
-    private static final Logger logger = LogManager.getLogger(ReconnectLearner.class);
+    private static final Logger logger = LogManager.getLogger(ReconnectStateLearner.class);
+    /**
+     * A value to send to signify the end of a reconnect. A random long value is chosen to minimize the possibility that
+     * the stream is misaligned
+     */
+    private static final long END_RECONNECT_MSG = 0x7747b5bd49693b61L;
 
     private final Connection connection;
-    private final Roster roster;
     private final MerkleNodeState currentState;
     private final Duration reconnectSocketTimeout;
     private final ReconnectMetrics statistics;
-    private final SignedStateValidationData stateValidationData;
     private final PlatformStateFacade platformStateFacade;
     private final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap;
 
@@ -67,8 +66,6 @@ public class ReconnectLearner {
      * 		responsible for managing thread lifecycles
      * @param connection
      * 		the connection to use for the reconnect
-     * @param roster
-     * 		the current roster
      * @param currentState
      * 		the most recent state from the learner
      * @param reconnectSocketTimeout
@@ -80,11 +77,10 @@ public class ReconnectLearner {
      * @param createStateFromVirtualMap
      *      a function to instantiate the state object from a Virtual Map
      */
-    public ReconnectLearner(
+    public ReconnectStateLearner(
             @NonNull final PlatformContext platformContext,
             @NonNull final ThreadManager threadManager,
             @NonNull final Connection connection,
-            @NonNull final Roster roster,
             @NonNull final MerkleNodeState currentState,
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics statistics,
@@ -99,33 +95,47 @@ public class ReconnectLearner {
         this.platformContext = Objects.requireNonNull(platformContext);
         this.threadManager = Objects.requireNonNull(threadManager);
         this.connection = Objects.requireNonNull(connection);
-        this.roster = Objects.requireNonNull(roster);
         this.currentState = Objects.requireNonNull(currentState);
         this.reconnectSocketTimeout = Objects.requireNonNull(reconnectSocketTimeout);
         this.statistics = Objects.requireNonNull(statistics);
 
         // Save some of the current state data for validation
-        this.stateValidationData = new SignedStateValidationData(currentState, roster, platformStateFacade);
     }
 
     /**
-     * @throws ReconnectException
-     * 		thrown when there is an error in the underlying protocol
+     * Send and receive the end reconnect message
+     *
+     * @param connection the connection to send/receive on
+     * @throws IOException if the connection breaks, times out, or the wrong message is received
      */
-    private void increaseSocketTimeout() throws ReconnectException {
-        try {
-            originalSocketTimeout = connection.getTimeout();
-            connection.setTimeout(reconnectSocketTimeout.toMillis());
-        } catch (final SocketException e) {
-            throw new ReconnectException(e);
+    static void endReconnectHandshake(@NonNull final Connection connection) throws IOException {
+        connection.getDos().writeLong(END_RECONNECT_MSG);
+        connection.getDos().flush();
+        final long endReconnectMsg = connection.getDis().readLong();
+        if (endReconnectMsg != END_RECONNECT_MSG) {
+            throw new IOException("Did not receive expected end reconnect message. Expecting %x, Received %x"
+                    .formatted(END_RECONNECT_MSG, endReconnectMsg));
         }
     }
 
     /**
-     * @throws ReconnectException
+     * @throws ReconnectStateException
      * 		thrown when there is an error in the underlying protocol
      */
-    private void resetSocketTimeout() throws ReconnectException {
+    private void increaseSocketTimeout() throws ReconnectStateException {
+        try {
+            originalSocketTimeout = connection.getTimeout();
+            connection.setTimeout(reconnectSocketTimeout.toMillis());
+        } catch (final SocketException e) {
+            throw new ReconnectStateException(e);
+        }
+    }
+
+    /**
+     * @throws ReconnectStateException
+     * 		thrown when there is an error in the underlying protocol
+     */
+    private void resetSocketTimeout() throws ReconnectStateException {
         if (!connection.connected()) {
             logger.debug(
                     RECONNECT.getMarker(),
@@ -138,38 +148,37 @@ public class ReconnectLearner {
         try {
             connection.setTimeout(originalSocketTimeout);
         } catch (final SocketException e) {
-            throw new ReconnectException(e);
+            throw new ReconnectStateException(e);
         }
     }
 
     /**
      * Perform the reconnect operation.
      *
-     * @throws ReconnectException
+     * @throws ReconnectStateException
      * 		thrown if I/O related errors occur, when there is an error in the underlying protocol, or the received
      * 		state is invalid
      * @return the state received from the other node
      */
     @NonNull
-    public ReservedSignedState execute(@NonNull final SignedStateValidator validator) throws ReconnectException {
+    public ReservedSignedState execute() throws ReconnectStateException {
         increaseSocketTimeout();
         ReservedSignedState reservedSignedState = null;
         try {
             receiveSignatures();
             reservedSignedState = reconnect();
-            validator.validate(reservedSignedState.get(), roster, stateValidationData);
-            ReconnectUtils.endReconnectHandshake(connection);
+            endReconnectHandshake(connection);
             return reservedSignedState;
         } catch (final IOException | SignedStateInvalidException e) {
             if (reservedSignedState != null) {
                 // if the state was received, we need to release it or it will be leaked
                 reservedSignedState.close();
             }
-            throw new ReconnectException(e);
+            throw new ReconnectStateException(e);
         } catch (final InterruptedException e) {
             // an interrupt can only occur in the reconnect() method, so we don't need to close the reservedSignedState
             Thread.currentThread().interrupt();
-            throw new ReconnectException("interrupted while attempting to reconnect", e);
+            throw new ReconnectStateException("interrupted while attempting to reconnect", e);
         } finally {
             resetSocketTimeout();
         }
