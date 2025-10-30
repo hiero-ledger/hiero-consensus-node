@@ -54,6 +54,8 @@ public class HederaGasCalculatorImpl extends PragueGasCalculator implements Hede
         long cost = TX_BASE_COST + TX_DATA_ZERO_COST * zeros + ISTANBUL_TX_DATA_NON_ZERO_COST * nonZeros;
 
         return isContractCreate ? (cost + txCreateExtraGasCost()) : cost;
+        // TODO correct will be like this?
+        //   return isContractCreate ? (cost + contractCreationCost(payload.size())) : cost;
     }
 
     @Override
