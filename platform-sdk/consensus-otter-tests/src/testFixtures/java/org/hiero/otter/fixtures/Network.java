@@ -257,12 +257,26 @@ public interface Network {
     void setLatencyForAllConnections(@NonNull Node node, @NonNull LatencyRange latencyRange);
 
     /**
+     * Restores the default latency for all connections from this node. The default is determined by the topology.
+     *
+     * @param node the node for which to remove custom latencies
+     */
+    void restoreLatencyForAllConnections(@NonNull Node node);
+
+    /**
      * Sets the bandwidth limit for all connections from and to this node.
      *
      * @param node the node for which to set the bandwidth limit
      * @param bandwidthLimit the bandwidth limit to apply to all connections
      */
     void setBandwidthForAllConnections(@NonNull Node node, @NonNull BandwidthLimit bandwidthLimit);
+
+    /**
+     * Restores the default bandwidth limit for all connections from this node. The default is determined by the topology.
+     *
+     * @param node the node for which to remove bandwidth limits
+     */
+    void restoreBandwidthLimitsForAllConnections(@NonNull Node node);
 
     /**
      * Restore the network connectivity to its original/default state. Removes all partitions, cliques, and custom
