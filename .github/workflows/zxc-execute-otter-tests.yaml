@@ -3,11 +3,6 @@ name: "ZXC: [Node] Compile Application Code"
 on:
   workflow_call:
     inputs:
-      enable-integration-tests:
-        description: "Integration Testing Enabled"
-        type: boolean
-        required: false
-        default: false
       enable-fast-otter-tests:
         description: "Fast Otter Testing Enabled"
         type: boolean
