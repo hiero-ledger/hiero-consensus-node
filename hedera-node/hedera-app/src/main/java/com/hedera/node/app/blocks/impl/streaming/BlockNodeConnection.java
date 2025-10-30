@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.block.api.BlockEnd;
 import org.hiero.block.api.BlockItemSet;
 import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 import org.hiero.block.api.PublishStreamRequest;
@@ -719,7 +720,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 if (request.hasEndStream()) {
                     blockStreamMetrics.recordRequestEndStreamSent(
                             request.endStream().endCode());
-                } else {
+                } else if (request.hasBlockItems()) {
                     blockStreamMetrics.recordRequestSent(request.request().kind());
                     final BlockItemSet itemSet = request.blockItems();
                     if (itemSet != null) {
@@ -733,6 +734,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                             }
                         }
                     }
+                } else {
+                    blockStreamMetrics.recordRequestSent(request.request().kind());
                 }
 
                 return true;
@@ -1083,6 +1086,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 if (block.isClosed() && block.itemCount() == itemIndex) {
                     // Send the last pending items of the block
                     sendPendingRequest();
+                    sendBlockEnd();
                 } else {
                     // If the duration since the last time of sending a request exceeds the max delay configuration,
                     // send the pending items
@@ -1101,6 +1105,18 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             }
 
             maybeAdvanceBlock();
+        }
+
+        private void sendBlockEnd() {
+            final PublishStreamRequest endOfBlock = PublishStreamRequest.newBuilder()
+                    .endOfBlock(BlockEnd.newBuilder().blockNumber(block.blockNumber()))
+                    .build();
+            try {
+                sendRequest(endOfBlock);
+            } catch (final RuntimeException e) {
+                logger.warn("{} Error sending EndOfBlock request", BlockNodeConnection.this, e);
+                handleStreamFailureWithoutOnComplete();
+            }
         }
 
         /**
