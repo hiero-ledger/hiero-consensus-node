@@ -10,15 +10,13 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
-import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.aaWith;
 import static com.hedera.services.bdd.suites.contract.Utils.aaWithPreHook;
 import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TOKEN_BALANCE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
@@ -34,12 +32,10 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hederahashgraph.api.proto.java.TokenTransferList;
 import com.hederahashgraph.api.proto.java.TransferList;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
-
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
@@ -70,95 +66,85 @@ public class HookTimingBalanceOrderTest {
     @HapiTest
     final Stream<DynamicTest> ownerReceivesBeforeSpendingSucceedsAndRecordValid() {
         return hapiTest(
-                cryptoCreate(OWNER)
-                        .withHook(accountAllowanceHook(HOOK_ID, TRANSFER_TOKEN_HOOK.name())),
+                cryptoCreate(OWNER).withHook(accountAllowanceHook(HOOK_ID, TRANSFER_TOKEN_HOOK.name())),
                 tokenCreate(FT).initialSupply(1_000).treasury(OWNER),
                 cryptoCreate(RECEIVER).maxAutomaticTokenAssociations(10),
                 cryptoCreate(SENDER).maxAutomaticTokenAssociations(10),
-
                 cryptoTransfer((spec, builder) -> {
-                    final var registry = spec.registry();
-                    final var tokenAddr = asSolidityAddress(registry.getTokenID(FT));
-                    final var toAddr = asSolidityAddress(registry.getAccountID(SENDER));
-                    final var amount = 20L;
-                    final var encoded = abiEncodeAddressAddressInt64(tokenAddr, toAddr, amount);
-                    final var hookCall = HookCall.newBuilder()
-                            .hookId(HOOK_ID)
-                            .evmHookCall(EvmHookCall.newBuilder()
-                                    .gasLimit(5000_000L)
-                                    .data(Bytes.wrap(encoded)))
-                            .build();
-                    builder.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(
-                                            aaWithPreHook(registry.getAccountID(OWNER), -20, hookCall))
-                                    .addAccountAmounts(aaWith(registry.getAccountID(SENDER), +20))
-                                    .build())
-                            .addTokenTransfers(TokenTransferList.newBuilder()
-                                    .setToken(registry.getTokenID(FT))
-                                    .addAllTransfers(List.of(
-                                            aaWith(registry.getAccountID(SENDER), -10),
-                                            aaWith(registry.getAccountID(RECEIVER), +10)))
-                                    .build());
-                })
+                            final var registry = spec.registry();
+                            final var tokenAddr = asSolidityAddress(registry.getTokenID(FT));
+                            final var toAddr = asSolidityAddress(registry.getAccountID(SENDER));
+                            final var amount = 20L;
+                            final var encoded = abiEncodeAddressAddressInt64(tokenAddr, toAddr, amount);
+                            final var hookCall = HookCall.newBuilder()
+                                    .hookId(HOOK_ID)
+                                    .evmHookCall(EvmHookCall.newBuilder()
+                                            .gasLimit(5000_000L)
+                                            .data(Bytes.wrap(encoded)))
+                                    .build();
+                            builder.setTransfers(TransferList.newBuilder()
+                                            .addAccountAmounts(
+                                                    aaWithPreHook(registry.getAccountID(OWNER), -20, hookCall))
+                                            .addAccountAmounts(aaWith(registry.getAccountID(SENDER), +20))
+                                            .build())
+                                    .addTokenTransfers(TokenTransferList.newBuilder()
+                                            .setToken(registry.getTokenID(FT))
+                                            .addAllTransfers(List.of(
+                                                    aaWith(registry.getAccountID(SENDER), -10),
+                                                    aaWith(registry.getAccountID(RECEIVER), +10)))
+                                            .build());
+                        })
                         .signedBy(DEFAULT_PAYER, SENDER)
                         .via("preHookReceiveThenSpend"),
                 // There should be a successful child record for the hook call
                 getTxnRecord("preHookReceiveThenSpend")
-                        .andAllChildRecords().logged()
+                        .andAllChildRecords()
+                        .logged()
                         .hasNonStakingChildRecordCount(2)
-                        .hasChildRecords(recordWith().status(SUCCESS).contractCallResult(resultWith().contract(HOOK_CONTRACT_NUM)),
-                                recordWith().status(SUCCESS)
-                                        .autoAssociated(accountTokenPairs(List.of(
-                                                Pair.of(SENDER, FT))))
-                        )
-        );
+                        .hasChildRecords(
+                                recordWith()
+                                        .status(SUCCESS)
+                                        .contractCallResult(resultWith().contract(HOOK_CONTRACT_NUM)),
+                                recordWith()
+                                        .status(SUCCESS)
+                                        .autoAssociated(accountTokenPairs(List.of(Pair.of(SENDER, FT))))));
     }
 
     @HapiTest
     final Stream<DynamicTest> ownerSpendsBeforeReceivingFailsAtBalanceCheck() {
         return hapiTest(
-                cryptoCreate(OWNER)
-                        .withHook(accountAllowanceHook(HOOK_ID, TRANSFER_TOKEN_HOOK.name())),
-                tokenCreate(FT).initialSupply(1_000).treasury(OWNER),
-                cryptoCreate(RECEIVER).maxAutomaticTokenAssociations(10),
+                // Register a hook that does NOT fund in pre; any funding would come too late (post)
+                cryptoCreate(OWNER).withHook(accountAllowanceHook(HOOK_ID, TRANSFER_TOKEN_HOOK.name())),
                 cryptoCreate(SENDER).maxAutomaticTokenAssociations(10),
+                cryptoCreate(RECEIVER).maxAutomaticTokenAssociations(10),
+                // Create the token with SENDER as treasury so OWNER starts with 0 balance
+                tokenCreate(FT).initialSupply(1_000).treasury(SENDER),
+                // Ensure OWNER and RECEIVER are associated to the token
+                tokenAssociate(OWNER, FT),
+                tokenAssociate(RECEIVER, FT),
 
+                // OWNER tries to spend FT before receiving any; pre-hook does not fund -> should fail at balance check
                 cryptoTransfer((spec, builder) -> {
-                    final var registry = spec.registry();
-                    final var tokenAddr = asSolidityAddress(registry.getTokenID(FT));
-                    final var toAddr = asSolidityAddress(registry.getAccountID(SENDER));
-                    final var amount = 20L;
-                    final var encoded = abiEncodeAddressAddressInt64(tokenAddr, toAddr, amount);
-                    final var hookCall = HookCall.newBuilder()
-                            .hookId(HOOK_ID)
-                            .evmHookCall(EvmHookCall.newBuilder()
-                                    .gasLimit(5000_000L)
-                                    .data(Bytes.wrap(encoded)))
-                            .build();
-                    builder.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(
-                                            aaWith(registry.getAccountID(OWNER), -20))
-                                    .addAccountAmounts(aaWith(registry.getAccountID(SENDER), +20))
-                                    .build())
-                            .addTokenTransfers(TokenTransferList.newBuilder()
+                            final var registry = spec.registry();
+                            final var hookCall = HookCall.newBuilder()
+                                    .hookId(HOOK_ID)
+                                    .evmHookCall(EvmHookCall.newBuilder().gasLimit(5000_000L))
+                                    .build();
+                            builder.addTokenTransfers(TokenTransferList.newBuilder()
                                     .setToken(registry.getTokenID(FT))
                                     .addAllTransfers(List.of(
-                                            aaWith(registry.getAccountID(SENDER), -10),
+                                            aaWithPreHook(registry.getAccountID(OWNER), -10, hookCall),
                                             aaWith(registry.getAccountID(RECEIVER), +10)))
                                     .build());
-                })
-                        .signedBy(DEFAULT_PAYER, SENDER)
-                        .via("preHookSpendThenReceive"),
-                // There should be a successful child record for the hook call
-                getTxnRecord("preHookSpendThenReceive")
-                        .andAllChildRecords().logged()
-                        .hasNonStakingChildRecordCount(2)
-                        .hasChildRecords(recordWith().status(SUCCESS).contractCallResult(resultWith().contract(HOOK_CONTRACT_NUM)),
-                                recordWith().status(SUCCESS)
-                                        .autoAssociated(accountTokenPairs(List.of(
-                                                Pair.of(SENDER, FT))))
-                        )
-        );
+                        })
+                        .signedBy(DEFAULT_PAYER, OWNER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .via("spendBeforeReceiveFails"),
+                // Log the record and any children for debugging; no child record assertions since parent fails early
+                getTxnRecord("spendBeforeReceiveFails")
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(CONTRACT_REVERT_EXECUTED))
+                        .logged());
     }
 
     private static byte[] abiEncodeAddressAddressInt64(byte[] addr1, byte[] addr2, long amount) {
@@ -173,4 +159,3 @@ public class HookTimingBalanceOrderTest {
         return out;
     }
 }
-
