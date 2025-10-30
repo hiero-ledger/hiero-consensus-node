@@ -706,9 +706,9 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             this.keyUpdates = keyUpdates;
         }
 
-        private void createAndScheduleStoreTask(final Bucket bucket) {
+        private void createAndScheduleStoreTask(final Bucket bucket, final boolean bucketChanged) {
             // Create a subsequent "store bucket" task for the bucket
-            final StoreBucketTask storeTask = new StoreBucketTask(getPool(), bucket);
+            final StoreBucketTask storeTask = new StoreBucketTask(getPool(), bucket, bucketChanged);
             // The last created "store bucket" task. storeTask above will be set as an
             // output dependency for that task to make sure tasks are running only one at
             // a time. See StoreBucketTask for details
@@ -733,6 +733,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             BufferedData bucketData = fileCollection.readDataItemUsingIndex(bucketIndexToBucketLocation, bucketIndex);
             // The bucket will be closed by StoreBucketTask
             final Bucket bucket = bucketPool.getBucket();
+            boolean bucketChanged = false;
             if (bucketData == null) {
                 // An empty bucket
                 bucket.setBucketIndex(bucketIndex);
@@ -753,12 +754,21 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                     bucket.clear();
                 }
                 // Clear old bucket entries with wrong hash codes
-                bucket.sanitize(bucketIndex, bucketMaskBits.get());
+                if (bucket.sanitize(bucketIndex, bucketMaskBits.get())) {
+                    bucketChanged = true;
+                }
             }
             // Apply all updates
-            keyUpdates.forEachKeyValue(bucket::putValue);
+//            keyUpdates.forEachKeyValue(bucket::putValue);
+            BucketMutation m = keyUpdates;
+            while (m != null) {
+                if (bucket.putValue(m.getKeyBytes(), m.getKeyHashCode(), m.getOldValue(), m.getValue())) {
+                    bucketChanged = true;
+                }
+                m = m.getNext();
+            }
             // Schedule a "store bucket" task for this bucket
-            createAndScheduleStoreTask(bucket);
+            createAndScheduleStoreTask(bucket, bucketChanged);
             return true;
         }
 
@@ -790,11 +800,14 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
 
         private final Bucket bucket;
 
+        private final boolean bucketChanged;
+
         private AbstractTask next;
 
-        StoreBucketTask(final ForkJoinPool pool, final Bucket bucket) {
+        StoreBucketTask(final ForkJoinPool pool, final Bucket bucket,  boolean bucketChanged) {
             super(pool, 2);
             this.bucket = bucket;
+            this.bucketChanged = bucketChanged;
         }
 
         void setNext(final AbstractTask next) {
@@ -805,15 +818,17 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         @Override
         protected boolean onExecute() throws IOException {
             try (bucket) {
-                final int bucketIndex = bucket.getBucketIndex();
-                if (bucket.isEmpty()) {
-                    // bucket is missing or empty, remove it from the index
-                    bucketIndexToBucketLocation.remove(bucketIndex);
-                } else {
-                    // save bucket
-                    final long bucketLocation = fileCollection.storeDataItem(bucket::writeTo, bucket.sizeInBytes());
-                    // update bucketIndexToBucketLocation
-                    bucketIndexToBucketLocation.put(bucketIndex, bucketLocation);
+                if (bucketChanged) {
+                    final int bucketIndex = bucket.getBucketIndex();
+                    if (bucket.isEmpty()) {
+                        // bucket is missing or empty, remove it from the index
+                        bucketIndexToBucketLocation.remove(bucketIndex);
+                    } else {
+                        // save bucket
+                        final long bucketLocation = fileCollection.storeDataItem(bucket::writeTo, bucket.sizeInBytes());
+                        // update bucketIndexToBucketLocation
+                        bucketIndexToBucketLocation.put(bucketIndex, bucketLocation);
+                    }
                 }
                 return true;
             } finally {

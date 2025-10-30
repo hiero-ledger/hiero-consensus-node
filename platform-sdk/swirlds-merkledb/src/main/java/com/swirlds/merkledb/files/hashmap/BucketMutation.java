@@ -93,6 +93,14 @@ class BucketMutation {
         return size;
     }
 
+    public Bytes getKeyBytes() {
+        return keyBytes;
+    }
+
+    public int getKeyHashCode() {
+        return keyHashCode;
+    }
+
     // For testing purposes
     long getValue() {
         return value;

@@ -217,13 +217,13 @@ public sealed class Bucket implements Closeable permits ParsedBucket {
      * @param value the entry value, this can also be special
      *     HalfDiskHashMap.INVALID_VALUE to mean delete
      */
-    public void putValue(final Bytes key, final int keyHashCode, final long oldValue, final long value) {
+    public boolean putValue(final Bytes key, final int keyHashCode, final long oldValue, final long value) {
         final boolean needCheckOldValue = oldValue != INVALID_VALUE;
         final FindResult result = findEntry(keyHashCode, key);
         if (value == INVALID_VALUE) {
             if (result.found()) {
                 if (needCheckOldValue && (oldValue != result.entryValue)) {
-                    return;
+                    return false;
                 }
                 final long nextEntryOffset = result.entryOffset() + result.entrySize();
                 final long remainderSize = bucketData.length() - nextEntryOffset;
@@ -241,25 +241,28 @@ public sealed class Bucket implements Closeable permits ParsedBucket {
                 bucketData.position(0); // limit() doesn't work if the new limit is less than the current pos
                 bucketData.limit(result.entryOffset() + remainderSize);
                 entryCount--;
+                return true;
             } else {
                 // entry not found, nothing to delete
+                return false;
             }
-            return;
         }
         if (result.found()) {
             // yay! we found it, so update value
             if (needCheckOldValue && (oldValue != result.entryValue)) {
-                return;
+                return false;
             }
             bucketData.position(result.entryValueOffset());
             bucketData.writeLong(value);
+            return value != result.entryValue;
         } else {
             if (needCheckOldValue) {
-                return;
+                return false;
             }
             // add a new entry
             writeNewEntry(keyHashCode, value, key);
             checkLargestBucket(++entryCount);
+            return true;
         }
     }
 
@@ -359,11 +362,12 @@ public sealed class Bucket implements Closeable permits ParsedBucket {
      * @param expectedIndex Bucket index to set to this bucket
      * @param expectedMaskBits Bucket mask bits to validate all bucket entries against
      */
-    public void sanitize(final int expectedIndex, final int expectedMaskBits) {
+    public boolean sanitize(final int expectedIndex, final int expectedMaskBits) {
         final int expectedMask = (1 << expectedMaskBits) - 1;
         bucketData.resetPosition();
         long srcIndex = 0;
         long dstIndex = 0;
+        boolean changed = expectedIndex != getBucketIndex();
         while (bucketData.hasRemaining()) {
             final long fieldOffset = bucketData.position();
             final int tag = bucketData.readVarInt(false);
@@ -384,6 +388,8 @@ public sealed class Bucket implements Closeable permits ParsedBucket {
                 if ((entryHashCode & expectedMask) == expectedIndex) {
                     copyBucketDataBytes(srcIndex, dstIndex, entryLenWithTag);
                     dstIndex += entryLenWithTag;
+                } else {
+                    changed = true;
                 }
                 srcIndex += entryLenWithTag;
                 bucketData.position(nextEntryOffset);
@@ -391,6 +397,7 @@ public sealed class Bucket implements Closeable permits ParsedBucket {
         }
         bucketData.position(0);
         bucketData.limit(dstIndex);
+        return changed;
     }
 
     /**
