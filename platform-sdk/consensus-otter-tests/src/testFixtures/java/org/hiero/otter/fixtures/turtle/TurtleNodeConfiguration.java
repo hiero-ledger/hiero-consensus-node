@@ -28,13 +28,15 @@ public class TurtleNodeConfiguration extends AbstractNodeConfiguration {
      * @param outputDirectory the directory where the node output will be stored, like saved state and so on
      */
     public TurtleNodeConfiguration(
-            @NonNull final Supplier<LifeCycle> lifeCycleSupplier, @NonNull final OverrideProperties overrideProperties,
+            @NonNull final Supplier<LifeCycle> lifeCycleSupplier,
+            @NonNull final OverrideProperties overrideProperties,
             @NonNull final Path outputDirectory) {
         super(lifeCycleSupplier, overrideProperties);
 
         overriddenProperties.withConfigValue(BasicConfig_.JVM_PAUSE_DETECTOR_SLEEP_MS, "0");
         overriddenProperties.withConfigValue(PcesConfig_.LIMIT_REPLAY_FREQUENCY, "false");
-        overriddenProperties.withConfigValue(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM.toString());
+        overriddenProperties.withConfigValue(
+                PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM.toString());
         overriddenProperties.withConfigValue(
                 EventConfig_.EVENTS_LOG_DIR, outputDirectory.resolve("hgcapp").toString());
         overriddenProperties.withConfigValue(

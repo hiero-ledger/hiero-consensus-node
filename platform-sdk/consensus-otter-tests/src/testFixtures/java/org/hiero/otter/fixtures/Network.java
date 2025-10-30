@@ -34,7 +34,7 @@ import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
  * <p>This interface provides methods to add and remove nodes, start the network, and add instrumented nodes.
  */
 @SuppressWarnings("unused")
-public interface Network {
+public interface Network extends Configurable<Network> {
 
     /**
      * Get the list of nodes in the network.
@@ -269,72 +269,6 @@ public interface Network {
      * connection settings. The defaults are defined by the {@link Topology} of the network.
      */
     void restoreConnectivity();
-
-    /**
-     * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
-     * in the network are running.
-     *
-     * @param key the key of the property
-     * @param value the value of the property
-     * @return this {@code Network} instance for method chaining
-     */
-    @NonNull
-    Network withConfigValue(@NonNull String key, @NonNull String value);
-
-    /**
-     * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
-     * in the network are running.
-     *
-     * @param key the key of the property
-     * @param value the value of the property
-     * @return this {@code Network} instance for method chaining
-     */
-    @NonNull
-    Network withConfigValue(@NonNull String key, @NonNull Duration value);
-
-    /**
-     * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
-     * in the network are running.
-     *
-     * @param key the key of the property
-     * @param value the value of the property
-     * @return this {@code Network} instance for method chaining
-     */
-    @NonNull
-    Network withConfigValue(@NonNull String key, int value);
-
-    /**
-     * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
-     * in the network are running.
-     *
-     * @param key the key of the property
-     * @param value the value of the property
-     * @return this {@code Network} instance for method chaining
-     */
-    @NonNull
-    Network withConfigValue(@NonNull String key, long value);
-
-    /**
-     * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
-     * in the network are running.
-     *
-     * @param key the key of the property
-     * @param value the value of the property
-     * @return this {@code Network} instance for method chaining
-     */
-    @NonNull
-    Network withConfigValue(@NonNull String key, boolean value);
-
-    /**
-     * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
-     * in the network are running.
-     *
-     * @param key the key of the property
-     * @param value the value of the property
-     * @return this {@code Network} instance for method chaining
-     */
-    @NonNull
-    Network withConfigValue(@NonNull String key, @NonNull Path value);
 
     /**
      * Freezes the network.

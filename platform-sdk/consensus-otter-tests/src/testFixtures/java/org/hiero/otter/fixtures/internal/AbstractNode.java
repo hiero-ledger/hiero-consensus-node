@@ -88,7 +88,9 @@ public abstract class AbstractNode implements Node {
      * @param selfId the unique identifier for this node
      * @param keysAndCerts the cryptographic keys and certificates for this node
      */
-    protected AbstractNode(@NonNull final NodeId selfId, @NonNull final KeysAndCerts keysAndCerts,
+    protected AbstractNode(
+            @NonNull final NodeId selfId,
+            @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final NetworkConfiguration networkConfiguration) {
         this.selfId = requireNonNull(selfId);
         this.keysAndCerts = requireNonNull(keysAndCerts);

@@ -40,7 +40,8 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
      * @param lifecycleSupplier a supplier that provides the current lifecycle state of the node, used to determine if
      * modifying the configuration is allowed
      */
-    protected AbstractNodeConfiguration(@NonNull final Supplier<LifeCycle> lifecycleSupplier,
+    protected AbstractNodeConfiguration(
+            @NonNull final Supplier<LifeCycle> lifecycleSupplier,
             @NonNull final OverrideProperties overrideProperties) {
         this.lifecycleSupplier = requireNonNull(lifecycleSupplier, "lifecycleSupplier must not be null");
         this.overriddenProperties.apply(overrideProperties);
@@ -151,7 +152,8 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
      */
     @Override
     @NonNull
-    public NodeConfiguration withConfigValue(@NonNull final String key, @NonNull final TaskSchedulerConfiguration configuration) {
+    public NodeConfiguration withConfigValue(
+            @NonNull final String key, @NonNull final TaskSchedulerConfiguration configuration) {
         throwIfNodeIsRunning();
         overriddenProperties.withConfigValue(key, configuration);
         return this;
@@ -171,5 +173,4 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
     public Configuration current() {
         return createConfiguration(overriddenProperties.properties());
     }
-
 }

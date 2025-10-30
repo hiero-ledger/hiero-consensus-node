@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures;
 
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
@@ -6,6 +7,18 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 
+/**
+ * A generic interface for configurable objects that support setting properties of various types.
+ *
+ * <p>This interface provides a fluent API for configuring properties with support for multiple value types
+ * including boolean, string, numeric (int, double, long), enum, duration, lists, paths, and task scheduler
+ * configurations. All configuration modifications can only be performed when the node is not running.
+ *
+ * <p>Implementations should return the same instance for method chaining, allowing for a fluent builder-style
+ * configuration pattern.
+ *
+ * @param <T> the type of the configurable object, allowing for proper method chaining with the implementing type
+ */
 public interface Configurable<T extends Configurable<T>> {
     /**
      * Updates a single property of the configuration. Can only be invoked when the node is not running.

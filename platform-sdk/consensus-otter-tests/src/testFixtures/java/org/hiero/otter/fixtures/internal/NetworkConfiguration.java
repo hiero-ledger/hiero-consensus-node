@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal;
 
+import static org.hiero.otter.fixtures.internal.AbstractNode.UNSET_WEIGHT;
+
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -8,11 +10,18 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import org.hiero.otter.fixtures.Configurable;
 import org.hiero.otter.fixtures.Node;
 
-import static org.hiero.otter.fixtures.internal.AbstractNode.UNSET_WEIGHT;
-
-public class NetworkConfiguration {
+/**
+ * Configuration object for network-level settings in the Otter test framework.
+ *
+ * <p>This class manages network-wide properties that apply to all nodes within a test network,
+ * including the saved state directory, node weights, and the semantic version. It provides a fluent API for configuring
+ * these properties and supports setting arbitrary configuration overrides through the {@link OverrideProperties}
+ * mechanism.
+ */
+public class NetworkConfiguration implements Configurable<NetworkConfiguration> {
 
     /** The directory of the saved state to load as the initial state, null if starting from genesis */
     @Nullable
@@ -98,8 +107,9 @@ public class NetworkConfiguration {
     /**
      * {@inheritDoc}
      */
+    @Override
     @NonNull
-    public NetworkConfiguration set(@NonNull final String key, final boolean value) {
+    public NetworkConfiguration withConfigValue(@NonNull final String key, final boolean value) {
         overrideProperties.withConfigValue(key, value);
         return this;
     }
@@ -107,8 +117,9 @@ public class NetworkConfiguration {
     /**
      * {@inheritDoc}
      */
+    @Override
     @NonNull
-    public NetworkConfiguration set(@NonNull final String key, @NonNull final String value) {
+    public NetworkConfiguration withConfigValue(@NonNull final String key, @NonNull final String value) {
         overrideProperties.withConfigValue(key, value);
         return this;
     }
@@ -116,8 +127,9 @@ public class NetworkConfiguration {
     /**
      * {@inheritDoc}
      */
+    @Override
     @NonNull
-    public NetworkConfiguration set(@NonNull final String key, final int value) {
+    public NetworkConfiguration withConfigValue(@NonNull final String key, final int value) {
         overrideProperties.withConfigValue(key, value);
         return this;
     }
@@ -125,8 +137,9 @@ public class NetworkConfiguration {
     /**
      * {@inheritDoc}
      */
+    @Override
     @NonNull
-    public NetworkConfiguration set(@NonNull final String key, final double value) {
+    public NetworkConfiguration withConfigValue(@NonNull final String key, final double value) {
         overrideProperties.withConfigValue(key, value);
         return this;
     }
@@ -134,8 +147,9 @@ public class NetworkConfiguration {
     /**
      * {@inheritDoc}
      */
+    @Override
     @NonNull
-    public NetworkConfiguration set(@NonNull final String key, final long value) {
+    public NetworkConfiguration withConfigValue(@NonNull final String key, final long value) {
         overrideProperties.withConfigValue(key, value);
         return this;
     }
@@ -143,8 +157,9 @@ public class NetworkConfiguration {
     /**
      * {@inheritDoc}
      */
+    @Override
     @NonNull
-    public NetworkConfiguration set(@NonNull final String key, @NonNull final Enum<?> value) {
+    public NetworkConfiguration withConfigValue(@NonNull final String key, @NonNull final Enum<?> value) {
         overrideProperties.withConfigValue(key, value);
         return this;
     }
@@ -152,8 +167,9 @@ public class NetworkConfiguration {
     /**
      * {@inheritDoc}
      */
+    @Override
     @NonNull
-    public NetworkConfiguration set(@NonNull final String key, final @NonNull Duration value) {
+    public NetworkConfiguration withConfigValue(@NonNull final String key, final @NonNull Duration value) {
         overrideProperties.withConfigValue(key, value);
         return this;
     }
@@ -161,8 +177,9 @@ public class NetworkConfiguration {
     /**
      * {@inheritDoc}
      */
+    @Override
     @NonNull
-    public NetworkConfiguration set(@NonNull final String key, @NonNull final List<String> values) {
+    public NetworkConfiguration withConfigValue(@NonNull final String key, @NonNull final List<String> values) {
         overrideProperties.withConfigValue(key, values);
         return this;
     }
@@ -170,8 +187,9 @@ public class NetworkConfiguration {
     /**
      * {@inheritDoc}
      */
+    @Override
     @NonNull
-    public NetworkConfiguration set(@NonNull final String key, @NonNull final Path path) {
+    public NetworkConfiguration withConfigValue(@NonNull final String key, @NonNull final Path path) {
         overrideProperties.withConfigValue(key, path);
         return this;
     }
@@ -179,8 +197,10 @@ public class NetworkConfiguration {
     /**
      * {@inheritDoc}
      */
+    @Override
     @NonNull
-    public NetworkConfiguration set(@NonNull final String key, @NonNull final TaskSchedulerConfiguration value) {
+    public NetworkConfiguration withConfigValue(
+            @NonNull final String key, @NonNull final TaskSchedulerConfiguration value) {
         overrideProperties.withConfigValue(key, value);
         return this;
     }

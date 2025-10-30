@@ -153,7 +153,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             this.timeManager = requireNonNull(timeManager);
             this.network = requireNonNull(network);
             this.logging = requireNonNull(logging);
-            this.nodeConfiguration = new TurtleNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties(), outputDirectory);
+            this.nodeConfiguration = new TurtleNodeConfiguration(
+                    () -> lifeCycle, networkConfiguration.overrideProperties(), outputDirectory);
             this.resultsCollector = new NodeResultsCollector(selfId);
             this.markerFileObserver = new TurtleMarkerFileObserver(resultsCollector);
         }

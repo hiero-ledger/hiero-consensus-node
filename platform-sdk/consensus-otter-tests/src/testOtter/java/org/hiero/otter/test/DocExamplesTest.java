@@ -87,7 +87,9 @@ class DocExamplesTest {
 
         // Set the rounds non-ancient and expired to smaller values to allow nodes to fall behind quickly
         for (final Node node : nodes) {
-            node.configuration().withConfigValue(ConsensusConfig_.ROUNDS_NON_ANCIENT, 5L).withConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, 10L);
+            node.configuration()
+                    .withConfigValue(ConsensusConfig_.ROUNDS_NON_ANCIENT, 5L)
+                    .withConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, 10L);
         }
 
         network.start();

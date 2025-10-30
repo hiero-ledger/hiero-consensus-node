@@ -46,7 +46,8 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration {
      * @param lifecycleSupplier a supplier that provides the current lifecycle state of the node
      * @param overrideProperties override properties to initialize the configuration with
      */
-    public ContainerNodeConfiguration(@NonNull final Supplier<LifeCycle> lifecycleSupplier,
+    public ContainerNodeConfiguration(
+            @NonNull final Supplier<LifeCycle> lifecycleSupplier,
             @NonNull final OverrideProperties overrideProperties) {
         super(lifecycleSupplier, overrideProperties);
         overriddenProperties.withConfigValue(
@@ -63,8 +64,8 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration {
      * @return this {@code NodeConfiguration} instance for method chaining
      */
     @NonNull
-    public NodeConfiguration setNetworkEndpoints(@NonNull final String key,
-            @NonNull final List<NetworkEndpoint> endpoints) {
+    public NodeConfiguration setNetworkEndpoints(
+            @NonNull final String key, @NonNull final List<NetworkEndpoint> endpoints) {
         throwIfNodeIsRunning();
         final String value = endpoints.stream()
                 .map(ContainerNodeConfiguration::convertEndpoint)

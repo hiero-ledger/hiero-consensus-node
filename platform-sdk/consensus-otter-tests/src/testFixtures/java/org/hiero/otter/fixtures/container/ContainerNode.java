@@ -148,7 +148,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         this.timeManager = requireNonNull(timeManager, "timeManager must not be null");
 
         this.resultsCollector = new NodeResultsCollector(selfId);
-        this.nodeConfiguration = new ContainerNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
+        this.nodeConfiguration =
+                new ContainerNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
         this.random = new SecureRandom();
 
         container = new ContainerImage(dockerImage, network, selfId);

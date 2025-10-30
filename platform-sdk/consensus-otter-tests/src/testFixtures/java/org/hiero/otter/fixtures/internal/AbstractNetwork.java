@@ -17,6 +17,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.utility.Threshold;
+import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.reconnect.FallenBehindStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -229,7 +230,7 @@ public abstract class AbstractNetwork implements Network {
             final List<NodeId> nodeIds =
                     IntStream.range(0, count).mapToObj(i -> getNextNodeId()).toList();
             return CryptoStatic.generateKeysAndCerts(nodeIds, null).entrySet().stream()
-                    .map(e ->  doCreateNode(e.getKey(), e.getValue()))
+                    .map(e -> doCreateNode(e.getKey(), e.getValue()))
                     .toList();
         } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
             throw new RuntimeException("Exception while generating KeysAndCerts", e);
@@ -618,7 +619,7 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     public Network withConfigValue(@NonNull final String key, @NonNull final String value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
-        networkConfiguration.set(key, value);
+        networkConfiguration.withConfigValue(key, value);
         nodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
@@ -629,7 +630,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     public @NotNull Network withConfigValue(@NotNull final String key, @NotNull final Duration value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
-        networkConfiguration.set(key, value);
+        networkConfiguration.withConfigValue(key, value);
         nodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
@@ -641,7 +642,7 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     public Network withConfigValue(@NonNull final String key, final int value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
-        networkConfiguration.set(key, value);
+        networkConfiguration.withConfigValue(key, value);
         nodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
@@ -653,7 +654,7 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     public Network withConfigValue(@NonNull final String key, final long value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
-        networkConfiguration.set(key, value);
+        networkConfiguration.withConfigValue(key, value);
         nodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
@@ -665,7 +666,7 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     public Network withConfigValue(@NonNull final String key, @NonNull final Path value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
-        networkConfiguration.set(key, value);
+        networkConfiguration.withConfigValue(key, value);
         nodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
@@ -677,7 +678,52 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     public Network withConfigValue(@NonNull final String key, final boolean value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
-        networkConfiguration.set(key, value);
+        networkConfiguration.withConfigValue(key, value);
+        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NotNull Network withConfigValue(@NotNull final String key, final double value) {
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
+        networkConfiguration.withConfigValue(key, value);
+        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NotNull Network withConfigValue(@NotNull final String key, @NotNull final Enum<?> value) {
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
+        networkConfiguration.withConfigValue(key, value);
+        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NotNull Network withConfigValue(@NotNull final String key, final List<String> values) {
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
+        networkConfiguration.withConfigValue(key, values);
+        nodes().forEach(node -> node.configuration().withConfigValue(key, values));
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NotNull Network withConfigValue(
+            @NotNull final String key, @NotNull final TaskSchedulerConfiguration value) {
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
+        networkConfiguration.withConfigValue(key, value);
         nodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }

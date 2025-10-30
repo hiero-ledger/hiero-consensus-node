@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal;
 
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
@@ -134,7 +135,8 @@ public class OverrideProperties implements Configurable<OverrideProperties> {
      */
     @Override
     @NonNull
-    public OverrideProperties withConfigValue(@NonNull final String key, @NonNull final TaskSchedulerConfiguration configuration) {
+    public OverrideProperties withConfigValue(
+            @NonNull final String key, @NonNull final TaskSchedulerConfiguration configuration) {
         final StringBuilder builder = new StringBuilder();
         if (configuration.type() != null) {
             builder.append(configuration.type()).append(" ");
