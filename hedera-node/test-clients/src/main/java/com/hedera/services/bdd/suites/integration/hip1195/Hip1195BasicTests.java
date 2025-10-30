@@ -1108,53 +1108,53 @@ public class Hip1195BasicTests {
                                 accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())
                         ),
-//                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, "receiver0"),
-//                        TokenMovement.movingHbar(10).between(OWNER, "receiver1"),
-//                        TokenMovement.movingHbar(10).between(OWNER, "receiver2"),
-//                        TokenMovement.movingHbar(10).between(OWNER, "receiver3"),
-//                        TokenMovement.movingHbar(10).between(OWNER, "receiver4"),
-//                        TokenMovement.movingHbar(10).between(OWNER, "receiver5"),
-//                        TokenMovement.movingHbar(10).between(OWNER, "receiver6"),
-//                        TokenMovement.movingHbar(10).between(OWNER, "receiver7"),
-//                        TokenMovement.movingHbar(10).between(OWNER, "receiver8"),
-//                        TokenMovement.movingHbar(10).between(OWNER, "receiver9"))
-//                        .withPreHookFor(OWNER, 123L, 25_000L, "")
-//                        .withPreHookFor("receiver0", 123L, 25_000L, "")
-//                        .withPreHookFor("receiver1", 123L, 25_000L, "")
-//                        .withPreHookFor("receiver2", 123L, 25_000L, "")
-//                        .withPreHookFor("receiver3", 123L, 25_000L, "")
-//                        .withPreHookFor("receiver4", 123L, 25_000L, "")
-//                        .withPreHookFor("receiver5", 123L, 25_000L, "")
-//                        .withPreHookFor("receiver6", 123L, 25_000L, "")
-//                        .withPreHookFor("receiver7", 123L, 25_000L, "")
-//                        .withPreHookFor("receiver8", 123L, 25_000L, "")
-//                        .withPreHookFor("receiver9", 123L, 25_000L, "")
-//                        .hasKnownStatus(TRANSFER_LIST_SIZE_LIMIT_EXCEEDED),
-//                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, "receiver0"),
-//                        TokenMovement.movingHbar(10).between(OWNER, "receiver1"),
-//                        TokenMovement.movingHbar(10).between(OWNER, "receiver2"),
-//                        TokenMovement.movingHbar(10).between(OWNER, "receiver3"),
-//                        TokenMovement.movingHbar(10).between(OWNER, "receiver4"),
-//                        TokenMovement.movingHbar(10).between(OWNER, "receiver5"),
-//                        TokenMovement.movingHbar(10).between(OWNER, "receiver6"),
-//                        TokenMovement.movingHbar(10).between(OWNER, "receiver7"),
-//                        TokenMovement.movingHbar(10).between(OWNER, "receiver8"))
-//                        .withPreHookFor(OWNER, 123L, 25_000L, "")
-//                        .withPreHookFor("receiver0", 123L, 25_000L, "")
-//                        .withPreHookFor("receiver1", 123L, 25_000L, "")
-//                        .withPreHookFor("receiver2", 123L, 25_000L, "")
-//                        .withPreHookFor("receiver3", 123L, 25_000L, "")
-//                        .withPreHookFor("receiver4", 123L, 25_000L, "")
-//                        .withPreHookFor("receiver5", 123L, 25_000L, "")
-//                        .withPreHookFor("receiver6", 123L, 25_000L, "")
-//                        .withPreHookFor("receiver7", 123L, 25_000L, "")
-//                        .withPreHookFor("receiver8", 123L, 25_000L, "")
-//                        .withPreHookFor("receiver9", 123L, 25_000L, "")
-//                        .via("transferTxn"),
-//                getTxnRecord("transferTxn")
-//                        .andAllChildRecords()
-//                        .hasNonStakingChildRecordCount(10)
-//                        .logged(),
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, "receiver0"),
+                        TokenMovement.movingHbar(10).between(OWNER, "receiver1"),
+                        TokenMovement.movingHbar(10).between(OWNER, "receiver2"),
+                        TokenMovement.movingHbar(10).between(OWNER, "receiver3"),
+                        TokenMovement.movingHbar(10).between(OWNER, "receiver4"),
+                        TokenMovement.movingHbar(10).between(OWNER, "receiver5"),
+                        TokenMovement.movingHbar(10).between(OWNER, "receiver6"),
+                        TokenMovement.movingHbar(10).between(OWNER, "receiver7"),
+                        TokenMovement.movingHbar(10).between(OWNER, "receiver8"),
+                        TokenMovement.movingHbar(10).between(OWNER, "receiver9"))
+                        .withPreHookFor(OWNER, 123L, 25_000L, "")
+                        .withPreHookFor("receiver0", 123L, 25_000L, "")
+                        .withPreHookFor("receiver1", 123L, 25_000L, "")
+                        .withPreHookFor("receiver2", 123L, 25_000L, "")
+                        .withPreHookFor("receiver3", 123L, 25_000L, "")
+                        .withPreHookFor("receiver4", 123L, 25_000L, "")
+                        .withPreHookFor("receiver5", 123L, 25_000L, "")
+                        .withPreHookFor("receiver6", 123L, 25_000L, "")
+                        .withPreHookFor("receiver7", 123L, 25_000L, "")
+                        .withPreHookFor("receiver8", 123L, 25_000L, "")
+                        .withPreHookFor("receiver9", 123L, 25_000L, "")
+                        .hasKnownStatus(TRANSFER_LIST_SIZE_LIMIT_EXCEEDED),
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, "receiver0"),
+                        TokenMovement.movingHbar(10).between(OWNER, "receiver1"),
+                        TokenMovement.movingHbar(10).between(OWNER, "receiver2"),
+                        TokenMovement.movingHbar(10).between(OWNER, "receiver3"),
+                        TokenMovement.movingHbar(10).between(OWNER, "receiver4"),
+                        TokenMovement.movingHbar(10).between(OWNER, "receiver5"),
+                        TokenMovement.movingHbar(10).between(OWNER, "receiver6"),
+                        TokenMovement.movingHbar(10).between(OWNER, "receiver7"),
+                        TokenMovement.movingHbar(10).between(OWNER, "receiver8"))
+                        .withPreHookFor(OWNER, 123L, 25_000L, "")
+                        .withPreHookFor("receiver0", 123L, 25_000L, "")
+                        .withPreHookFor("receiver1", 123L, 25_000L, "")
+                        .withPreHookFor("receiver2", 123L, 25_000L, "")
+                        .withPreHookFor("receiver3", 123L, 25_000L, "")
+                        .withPreHookFor("receiver4", 123L, 25_000L, "")
+                        .withPreHookFor("receiver5", 123L, 25_000L, "")
+                        .withPreHookFor("receiver6", 123L, 25_000L, "")
+                        .withPreHookFor("receiver7", 123L, 25_000L, "")
+                        .withPreHookFor("receiver8", 123L, 25_000L, "")
+                        .withPreHookFor("receiver9", 123L, 25_000L, "")
+                        .via("transferTxn"),
+                getTxnRecord("transferTxn")
+                        .andAllChildRecords()
+                        .hasNonStakingChildRecordCount(10)
+                        .logged(),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, "receiver0"),
                         TokenMovement.movingHbar(10).between(OWNER, "receiver1"),
                         TokenMovement.movingHbar(10).between(OWNER, "receiver2"),
