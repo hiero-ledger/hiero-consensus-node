@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import java.io.IOException;
 import java.util.Optional;
 import org.hiero.metrics.api.export.MetricsExporter;
 import org.junit.jupiter.api.Test;
@@ -13,7 +12,7 @@ import org.junit.jupiter.api.Test;
 public class OpenMetricsHttpEndpointFactoryTest {
 
     @Test
-    public void testEndpointIsDisabled() throws IOException {
+    public void noExporterCreatedWhenDisabled() {
         Configuration config = ConfigurationBuilder.create()
                 .autoDiscoverExtensions()
                 .withValue("metrics.exporter.openmetrics.http.enabled", "false")
