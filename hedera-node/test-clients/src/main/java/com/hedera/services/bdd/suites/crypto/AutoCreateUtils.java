@@ -23,6 +23,7 @@ import static org.hyperledger.besu.datatypes.Address.contractAddress;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
+import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
@@ -30,6 +31,8 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.Key;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
+
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
