@@ -39,8 +39,7 @@ class TopologyConfigurationTest {
     @DisplayName("MeshTopologyConfiguration can be customized with withAverageLatency")
     void testMeshTopologyConfigurationWithLatency() {
         final Duration customLatency = Duration.ofMillis(500);
-        final MeshTopologyConfiguration config =
-                MeshTopologyConfiguration.DEFAULT.withAverageLatency(customLatency);
+        final MeshTopologyConfiguration config = MeshTopologyConfiguration.DEFAULT.withAverageLatency(customLatency);
 
         assertEquals(customLatency, config.averageLatency(), "Latency should be updated to custom value");
         assertEquals(5.0, config.jitter().value, "Jitter should remain unchanged");
@@ -50,8 +49,7 @@ class TopologyConfigurationTest {
     @DisplayName("MeshTopologyConfiguration can be customized with withJitter")
     void testMeshTopologyConfigurationWithJitter() {
         final Percentage customJitter = Percentage.withPercentage(10);
-        final MeshTopologyConfiguration config =
-                MeshTopologyConfiguration.DEFAULT.withJitter(customJitter);
+        final MeshTopologyConfiguration config = MeshTopologyConfiguration.DEFAULT.withJitter(customJitter);
 
         assertEquals(Duration.ofMillis(200), config.averageLatency(), "Latency should remain unchanged");
         assertEquals(10.0, config.jitter().value, "Jitter should be updated to custom value");
@@ -61,8 +59,7 @@ class TopologyConfigurationTest {
     @DisplayName("MeshTopologyConfiguration can be customized with withBandwidth")
     void testMeshTopologyConfigurationWithBandwidth() {
         final BandwidthLimit customBandwidth = BandwidthLimit.ofMegabytesPerSecond(10);
-        final MeshTopologyConfiguration config =
-                MeshTopologyConfiguration.DEFAULT.withBandwidth(customBandwidth);
+        final MeshTopologyConfiguration config = MeshTopologyConfiguration.DEFAULT.withBandwidth(customBandwidth);
 
         assertEquals(Duration.ofMillis(200), config.averageLatency(), "Latency should remain unchanged");
         assertEquals(customBandwidth, config.bandwidth(), "Bandwidth should be updated to custom value");
@@ -78,7 +75,10 @@ class TopologyConfigurationTest {
 
         assertEquals(Duration.ofMillis(300), config.averageLatency(), "Chained latency should be 300ms");
         assertEquals(7.0, config.jitter().value, "Chained jitter should be 7.0%");
-        assertEquals(5_120, config.bandwidth().toKilobytesPerSecond(), "Chained bandwidth should be 5120 KB/s (5 MB/s)"); // 5 MB = 5120 KB
+        assertEquals(
+                5_120,
+                config.bandwidth().toKilobytesPerSecond(),
+                "Chained bandwidth should be 5120 KB/s (5 MB/s)"); // 5 MB = 5120 KB
     }
 
     @Test
@@ -87,22 +87,18 @@ class TopologyConfigurationTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> new MeshTopologyConfiguration(
-                        Duration.ofMillis(-100),
-                        Percentage.withPercentage(5),
-                        BandwidthLimit.UNLIMITED_BANDWIDTH),
+                        Duration.ofMillis(-100), Percentage.withPercentage(5), BandwidthLimit.UNLIMITED_BANDWIDTH),
                 "Should throw IllegalArgumentException for negative latency");
     }
 
     @Test
     @DisplayName("GeographicLatencyConfiguration can be customized")
     void testGeographicLatencyConfigurationCustomization() {
-        final LatencyRange customRange = LatencyRange.of(
-                Duration.ofMillis(10),
-                Duration.ofMillis(40),
-                Percentage.withPercentage(8));
+        final LatencyRange customRange =
+                LatencyRange.of(Duration.ofMillis(10), Duration.ofMillis(40), Percentage.withPercentage(8));
 
-        final GeographicLatencyConfiguration config = GeographicLatencyConfiguration.DEFAULT
-                .withSameRegionLatency(customRange);
+        final GeographicLatencyConfiguration config =
+                GeographicLatencyConfiguration.DEFAULT.withSameRegionLatency(customRange);
 
         assertEquals(customRange, config.sameRegion(), "Same region latency should be updated to custom range");
     }

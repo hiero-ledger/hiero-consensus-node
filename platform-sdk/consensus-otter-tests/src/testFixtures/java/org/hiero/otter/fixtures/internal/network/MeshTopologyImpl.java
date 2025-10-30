@@ -60,10 +60,7 @@ public class MeshTopologyImpl implements MeshTopology {
         this.instrumentedNodeFactory = requireNonNull(instrumentedNodeFactory);
         requireNonNull(configuration);
         this.connectionData = new ConnectionData(
-                true,
-                configuration.averageLatency(),
-                configuration.jitter(),
-                configuration.bandwidth());
+                true, configuration.averageLatency(), configuration.jitter(), configuration.bandwidth());
     }
 
     /**
