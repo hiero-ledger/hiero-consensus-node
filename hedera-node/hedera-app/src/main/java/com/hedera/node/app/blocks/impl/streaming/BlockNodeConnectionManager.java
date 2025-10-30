@@ -431,7 +431,9 @@ public class BlockNodeConnectionManager {
             final Map.Entry<BlockNodeConfig, BlockNodeConnection> entry = it.next();
             final BlockNodeConnection connection = entry.getValue();
             try {
-                connection.closeAtBlockBoundary();
+                // This method is invoked during a shutdown of the connection manager, in which case we don't want
+                // to gracefully close connections at block boundaries, so just call close immediately.
+                connection.close(true);
             } catch (final RuntimeException e) {
                 logger.debug(
                         "{} Error while closing connection during connection manager shutdown. Ignoring.",

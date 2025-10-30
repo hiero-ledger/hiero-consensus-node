@@ -1080,18 +1080,23 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             }
 
             if (!pendingRequestItems.isEmpty()) {
-                // There are pending items to send. Check if enough time has elapsed since the last request was sent.
-                // If so, send the current pending request.
-                final long diffMillis = System.currentTimeMillis() - lastSendTimeMillis;
-                final long maxDelayMillis = maxRequestDelayMillis();
-                if (diffMillis >= maxDelayMillis) {
-                    logger.trace(
-                            "{} Max delay exceeded (target: {}ms, actual: {}ms) - sending {} item(s)",
-                            BlockNodeConnection.this,
-                            maxDelayMillis,
-                            diffMillis,
-                            pendingRequestItems.size());
+                if (block.isClosed() && block.itemCount() == itemIndex) {
+                    // Send the last pending items of the block
                     sendPendingRequest();
+                } else {
+                    // If the duration since the last time of sending a request exceeds the max delay configuration,
+                    // send the pending items
+                    final long diffMillis = System.currentTimeMillis() - lastSendTimeMillis;
+                    final long maxDelayMillis = maxRequestDelayMillis();
+                    if (diffMillis >= maxDelayMillis) {
+                        logger.trace(
+                                "{} Max delay exceeded (target: {}ms, actual: {}ms) - sending {} item(s)",
+                                BlockNodeConnection.this,
+                                maxDelayMillis,
+                                diffMillis,
+                                pendingRequestItems.size());
+                        sendPendingRequest();
+                    }
                 }
             }
 
