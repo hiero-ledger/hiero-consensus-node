@@ -22,7 +22,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
-import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewContract;
@@ -35,7 +34,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.integration.hip1195.Hip1195EnabledTest.OWNER;
 import static com.hedera.services.bdd.suites.integration.hip1195.Hip1195EnabledTest.PAYER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
@@ -48,12 +46,9 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_HOOK_C
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_HOOKS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSFER_LIST_SIZE_LIMIT_EXCEEDED;
-import static com.hederahashgraph.api.proto.java.TokenSupplyType.FINITE;
-import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.esaulpaugh.headlong.abi.Tuple;
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.hooks.EvmHookSpec;
 import com.hedera.hapi.node.hooks.HookCreationDetails;
@@ -69,19 +64,10 @@ import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
-import com.hederahashgraph.api.proto.java.AccountAmount;
-import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.EvmHookCall;
-import com.hederahashgraph.api.proto.java.HookCall;
-import com.hederahashgraph.api.proto.java.NftTransfer;
-import com.hederahashgraph.api.proto.java.TokenTransferList;
-import com.hederahashgraph.api.proto.java.TransferList;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
-
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
@@ -306,7 +292,7 @@ public class Hip1195BasicTests {
                         .withHooks(accountAllowanceHook(226L, FALSE_ALLOWANCE_HOOK.name())),
                 cryptoCreate("receiverAccount").balance(0L),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR)
-                        .between("senderWithFalseHook", "receiverAccount"))
+                                .between("senderWithFalseHook", "receiverAccount"))
                         .withPreHookFor("senderWithFalseHook", 226L, 25_000L, "")
                         .payingWith(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
@@ -320,7 +306,7 @@ public class Hip1195BasicTests {
                         .withHooks(accountAllowanceHook(227L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
                 cryptoCreate("receiverAccount").balance(0L),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR)
-                        .between("senderWithPrePostHook", "receiverAccount"))
+                                .between("senderWithPrePostHook", "receiverAccount"))
                         .withPrePostHookFor("senderWithPrePostHook", 227L, 25_000L, "")
                         .payingWith(DEFAULT_PAYER),
                 getAccountBalance("receiverAccount").hasTinyBars(10 * ONE_HBAR));
@@ -334,7 +320,7 @@ public class Hip1195BasicTests {
                         .withHooks(accountAllowanceHook(228L, FALSE_PRE_POST_ALLOWANCE_HOOK.name())),
                 cryptoCreate("receiverAccount").balance(0L),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR)
-                        .between("senderWithPrePostHook", "receiverAccount"))
+                                .between("senderWithPrePostHook", "receiverAccount"))
                         .withPrePostHookFor("senderWithPrePostHook", 228L, 25_000L, "")
                         .payingWith(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
@@ -348,7 +334,7 @@ public class Hip1195BasicTests {
                         .withHooks(accountAllowanceHook(228L, FALSE_TRUE_ALLOWANCE_HOOK.name())),
                 cryptoCreate("receiverAccount").balance(0L),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR)
-                        .between("senderWithPrePostHook", "receiverAccount"))
+                                .between("senderWithPrePostHook", "receiverAccount"))
                         .withPrePostHookFor("senderWithPrePostHook", 228L, 25_000L, "")
                         .payingWith(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
@@ -497,7 +483,7 @@ public class Hip1195BasicTests {
                         .withHooks(accountAllowanceHook(230L, FALSE_PRE_POST_ALLOWANCE_HOOK.name())),
                 cryptoCreate("receiverAccount").balance(0L),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR)
-                        .between("senderWithFalsePreHook", "receiverAccount"))
+                                .between("senderWithFalsePreHook", "receiverAccount"))
                         .withPrePostHookFor("senderWithFalsePreHook", 230L, 25_000L, "")
                         .payingWith(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
@@ -511,7 +497,7 @@ public class Hip1195BasicTests {
                         .withHooks(accountAllowanceHook(231L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
                 cryptoCreate("receiverAccount").balance(0L),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR)
-                        .between("senderWithTruePrePostHook", "receiverAccount"))
+                                .between("senderWithTruePrePostHook", "receiverAccount"))
                         .withPrePostHookFor("senderWithTruePrePostHook", 231L, 25_000L, "")
                         .payingWith(DEFAULT_PAYER),
                 getAccountBalance("receiverAccount").hasTinyBars(10 * ONE_HBAR));
@@ -726,8 +712,8 @@ public class Hip1195BasicTests {
                 // Now sender appears twice: once as FT sender (authorized by fungible pre-hook) and
                 // once as NFT sender (no NFT sender hook provided) => must still sign
                 cryptoTransfer(
-                        TokenMovement.moving(10, "ft").between("senderWithHook", "rcvFungible"),
-                        TokenMovement.movingUnique("nft", 1L).between("senderWithHook", "rcvNft"))
+                                TokenMovement.moving(10, "ft").between("senderWithHook", "rcvFungible"),
+                                TokenMovement.movingUnique("nft", 1L).between("senderWithHook", "rcvNft"))
                         .withPreHookFor("senderWithHook", 260L, 25_000L, "")
                         .payingWith(DEFAULT_PAYER)
                         .signedBy(DEFAULT_PAYER)
@@ -1032,10 +1018,10 @@ public class Hip1195BasicTests {
                                 accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
                 atomicBatch(cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
-                        .withPreHookFor(PAYER, 123L, 25_000L, "")
-                        .batchKey(BATCH_OPERATOR)
-                        .hasKnownStatus(HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER)
-                        .via("transferTxn"))
+                                .withPreHookFor(PAYER, 123L, 25_000L, "")
+                                .batchKey(BATCH_OPERATOR)
+                                .hasKnownStatus(HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER)
+                                .via("transferTxn"))
                         .payingWith(BATCH_OPERATOR)
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
@@ -1054,9 +1040,9 @@ public class Hip1195BasicTests {
                                 accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
                 scheduleCreate(
-                        "schedule",
-                        cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
-                                .withPreHookFor(PAYER, 123L, 25_000L, ""))
+                                "schedule",
+                                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
+                                        .withPreHookFor(PAYER, 123L, 25_000L, ""))
                         .hasPrecheck(HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER)
                         .payingWith(PAYER));
     }
@@ -1096,28 +1082,29 @@ public class Hip1195BasicTests {
         return hapiTest(
                 withOpContext((spec, log) -> {
                     for (int i = 0; i < 10; i++) {
-                        allRunFor(spec, cryptoCreate(receiverPrefix + i)
-                                .withHook(accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()))
-                                .withHook(accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name()))
-                                .balance(ONE_HBAR)
-                        );
+                        allRunFor(
+                                spec,
+                                cryptoCreate(receiverPrefix + i)
+                                        .withHook(accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()))
+                                        .withHook(accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name()))
+                                        .balance(ONE_HBAR));
                     }
                 }),
                 cryptoCreate(OWNER)
                         .withHooks(
                                 accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()),
-                                accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())
-                        ),
-                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, "receiver0"),
-                        TokenMovement.movingHbar(10).between(OWNER, "receiver1"),
-                        TokenMovement.movingHbar(10).between(OWNER, "receiver2"),
-                        TokenMovement.movingHbar(10).between(OWNER, "receiver3"),
-                        TokenMovement.movingHbar(10).between(OWNER, "receiver4"),
-                        TokenMovement.movingHbar(10).between(OWNER, "receiver5"),
-                        TokenMovement.movingHbar(10).between(OWNER, "receiver6"),
-                        TokenMovement.movingHbar(10).between(OWNER, "receiver7"),
-                        TokenMovement.movingHbar(10).between(OWNER, "receiver8"),
-                        TokenMovement.movingHbar(10).between(OWNER, "receiver9"))
+                                accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
+                cryptoTransfer(
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver0"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver1"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver2"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver3"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver4"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver5"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver6"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver7"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver8"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver9"))
                         .withPreHookFor(OWNER, 123L, 25_000L, "")
                         .withPreHookFor("receiver0", 123L, 25_000L, "")
                         .withPreHookFor("receiver1", 123L, 25_000L, "")
@@ -1130,15 +1117,16 @@ public class Hip1195BasicTests {
                         .withPreHookFor("receiver8", 123L, 25_000L, "")
                         .withPreHookFor("receiver9", 123L, 25_000L, "")
                         .hasKnownStatus(TRANSFER_LIST_SIZE_LIMIT_EXCEEDED),
-                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, "receiver0"),
-                        TokenMovement.movingHbar(10).between(OWNER, "receiver1"),
-                        TokenMovement.movingHbar(10).between(OWNER, "receiver2"),
-                        TokenMovement.movingHbar(10).between(OWNER, "receiver3"),
-                        TokenMovement.movingHbar(10).between(OWNER, "receiver4"),
-                        TokenMovement.movingHbar(10).between(OWNER, "receiver5"),
-                        TokenMovement.movingHbar(10).between(OWNER, "receiver6"),
-                        TokenMovement.movingHbar(10).between(OWNER, "receiver7"),
-                        TokenMovement.movingHbar(10).between(OWNER, "receiver8"))
+                cryptoTransfer(
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver0"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver1"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver2"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver3"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver4"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver5"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver6"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver7"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver8"))
                         .withPreHookFor(OWNER, 123L, 25_000L, "")
                         .withPreHookFor("receiver0", 123L, 25_000L, "")
                         .withPreHookFor("receiver1", 123L, 25_000L, "")
@@ -1155,15 +1143,16 @@ public class Hip1195BasicTests {
                         .andAllChildRecords()
                         .hasNonStakingChildRecordCount(10)
                         .logged(),
-                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, "receiver0"),
-                        TokenMovement.movingHbar(10).between(OWNER, "receiver1"),
-                        TokenMovement.movingHbar(10).between(OWNER, "receiver2"),
-                        TokenMovement.movingHbar(10).between(OWNER, "receiver3"),
-                        TokenMovement.movingHbar(10).between(OWNER, "receiver4"),
-                        TokenMovement.movingHbar(10).between(OWNER, "receiver5"),
-                        TokenMovement.movingHbar(10).between(OWNER, "receiver6"),
-                        TokenMovement.movingHbar(10).between(OWNER, "receiver7"),
-                        TokenMovement.movingHbar(10).between(OWNER, "receiver8"))
+                cryptoTransfer(
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver0"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver1"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver2"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver3"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver4"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver5"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver6"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver7"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver8"))
                         .withPrePostHookFor(OWNER, 124L, 25_000L, "")
                         .withPrePostHookFor("receiver0", 124L, 25_000L, "")
                         .withPrePostHookFor("receiver1", 124L, 25_000L, "")
