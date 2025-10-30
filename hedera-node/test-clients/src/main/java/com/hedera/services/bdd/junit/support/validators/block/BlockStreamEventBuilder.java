@@ -73,6 +73,59 @@ public class BlockStreamEventBuilder {
     }
 
     /**
+     * Returns a list of events constructed at the time of the call.
+     *
+     * @return the reconstructed and hashed events
+     */
+    public List<PlatformEvent> getEvents() {
+        if (events.isEmpty()) {
+            reconstructEventsFromBlocks();
+        }
+        return events;
+    }
+
+    /**
+     * Returns the set of parent hashes that reference events outside the current block.
+     *
+     * @return the set of cross-block parent hashes
+     */
+    public Set<Hash> getCrossBlockParentHashes() {
+        if (events.isEmpty()) {
+            reconstructEventsFromBlocks();
+        }
+        return crossBlockParentHashes;
+    }
+
+    /**
+     * Events included in the event hash have a nonce of zero and is not a scheduled transaction. Other transactions
+     * (e.g. synthetic transactions) have a non-zero nonce and must not be included in the event to calculate
+     * the correct event hash.
+     *
+     * @param transactionBytes the signed transaction bytes to check
+     * @return true if the transaction should be included in the event, false otherwise
+     */
+    public static boolean isTransactionInEvent(@NonNull final Bytes transactionBytes) {
+        final TransactionBody transactionBody = getTransactionBody(transactionBytes);
+        final TransactionID transactionId = transactionBody.transactionIDOrThrow();
+        return transactionId.nonce() == 0 && !transactionId.scheduled();
+    }
+
+    /**
+     * Parses and returns the transaction body from PBJ bytes.
+     *
+     * @param transactionBytes the transaction bytes
+     * @return the parsed transaction body
+     */
+    public static TransactionBody getTransactionBody(@NonNull final Bytes transactionBytes) {
+        try {
+            final SignedTransaction signedTransaction = SignedTransaction.PROTOBUF.parse(transactionBytes);
+            return TransactionBody.PROTOBUF.parse(signedTransaction.bodyBytes());
+        } catch (final ParseException e) {
+            throw new RuntimeException("Unable to parse transaction bytes", e);
+        }
+    }
+
+    /**
      * Reconstructs GossipEvent objects from BlockItems across all blocks. Events are processed to handle parent index
      * references correctly.
      *
@@ -145,35 +198,6 @@ public class BlockStreamEventBuilder {
     private void endOfBlock() {
         if (currentEventHeader != null) {
             completeEvent();
-        }
-    }
-
-    /**
-     * Events included in the event hash have a nonce of zero and is not a scheduled transaction. Other transactions
-     * (e.g. synthetic transactions) have a non-zero nonce and must not be included in the event to calculate
-     * the correct event hash.
-     *
-     * @param transactionBytes the signed transaction bytes to check
-     * @return true if the transaction should be included in the event, false otherwise
-     */
-    public static boolean isTransactionInEvent(@NonNull final Bytes transactionBytes) {
-        final TransactionBody transactionBody = getTransactionBody(transactionBytes);
-        final TransactionID transactionId = transactionBody.transactionIDOrThrow();
-        return transactionId.nonce() == 0 && !transactionId.scheduled();
-    }
-
-    /**
-     * Parses and returns the transaction body from PBJ bytes.
-     *
-     * @param transactionBytes the transaction bytes
-     * @return the parsed transaction body
-     */
-    public static TransactionBody getTransactionBody(@NonNull final Bytes transactionBytes) {
-        try {
-            final SignedTransaction signedTransaction = SignedTransaction.PROTOBUF.parse(transactionBytes);
-            return TransactionBody.PROTOBUF.parse(signedTransaction.bodyBytes());
-        } catch (final ParseException e) {
-            throw new RuntimeException("Unable to parse transaction bytes", e);
         }
     }
 
@@ -281,30 +305,6 @@ public class BlockStreamEventBuilder {
         }
 
         return resolvedParents;
-    }
-
-    /**
-     * Returns a list of events constructed at the time of the call.
-     *
-     * @return the reconstructed and hashed events
-     */
-    public List<PlatformEvent> getEvents() {
-        if (events.isEmpty()) {
-            reconstructEventsFromBlocks();
-        }
-        return events;
-    }
-
-    /**
-     * Returns the set of parent hashes that reference events outside the current block.
-     *
-     * @return the set of cross-block parent hashes
-     */
-    public Set<Hash> getCrossBlockParentHashes() {
-        if (events.isEmpty()) {
-            reconstructEventsFromBlocks();
-        }
-        return crossBlockParentHashes;
     }
 
     private static class RedactedEventHasher {
