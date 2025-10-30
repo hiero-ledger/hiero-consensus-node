@@ -6,6 +6,7 @@ import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.BlockNodeVerbs.blockNode;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogContains;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogContainsTimeframe;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogDoesNotContain;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
@@ -1015,6 +1016,8 @@ public class BlockNodeSuite {
 
                 // High latency assertions
                 assertBlockNodeCommsLogDoesNotContain(
-                        byNodeId(0), "Block node has exceeded high latency threshold", Duration.ofSeconds(0)));
+                        byNodeId(0), "Block node has exceeded high latency threshold", Duration.ofSeconds(0)),
+                assertBlockNodeCommsLogContains(
+                        byNodeId(0), "Sending request to block node (type=END_OF_BLOCK)", Duration.ofSeconds(0)));
     }
 }
