@@ -13,7 +13,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
 import com.esaulpaugh.headlong.abi.Tuple;
-import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.isauthorizedraw.IsAuthorizedRawCall;
@@ -37,7 +37,7 @@ public class IsAuthorizedRawTranslatorTest extends CallAttemptTestBase {
     private HasCallAttempt attempt;
 
     @Mock
-    private CustomGasCalculator customGasCalculator;
+    private HederaGasCalculatorImpl hederaGasCalculatorImpl;
 
     @Mock
     private ContractMetrics contractMetrics;
@@ -48,7 +48,7 @@ public class IsAuthorizedRawTranslatorTest extends CallAttemptTestBase {
     void setUp() {
         final var featureFlags = new Version051FeatureFlags();
         subject = new IsAuthorizedRawTranslator(
-                featureFlags, customGasCalculator, systemContractMethodRegistry, contractMetrics);
+                featureFlags, hederaGasCalculatorImpl, systemContractMethodRegistry, contractMetrics);
     }
 
     @Test

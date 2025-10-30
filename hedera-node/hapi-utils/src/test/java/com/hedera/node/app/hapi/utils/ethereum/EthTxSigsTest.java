@@ -2,6 +2,7 @@
 package com.hedera.node.app.hapi.utils.ethereum;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
+import static com.hedera.node.app.hapi.utils.ethereum.CodeDelegationTest.fillBytes;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType.LEGACY_ETHEREUM;
 import static com.hedera.node.app.hapi.utils.ethereum.TestingConstants.CHAINID_TESTNET;
 import static com.hedera.node.app.hapi.utils.ethereum.TestingConstants.TINYBARS_2_IN_WEIBARS;
@@ -13,13 +14,24 @@ import static com.hedera.node.app.hapi.utils.ethereum.TestingConstants.TRUFFLE1_
 import static com.hedera.node.app.hapi.utils.ethereum.TestingConstants.ZERO_BYTES;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import com.esaulpaugh.headlong.rlp.RLPEncoder;
+import com.esaulpaugh.headlong.util.Integers;
+import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import java.math.BigInteger;
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.SplittableRandom;
 import org.hiero.base.utility.CommonUtils;
+import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 class EthTxSigsTest {
     private final SplittableRandom random = new SplittableRandom();
@@ -95,6 +107,7 @@ class EthTxSigsTest {
                 ZERO_BYTES,
                 ZERO_BYTES,
                 null,
+                null,
                 3,
                 new byte[0],
                 allFs,
@@ -118,6 +131,7 @@ class EthTxSigsTest {
                 BigInteger.ZERO,
                 ZERO_BYTES,
                 ZERO_BYTES,
+                null,
                 null,
                 1,
                 new byte[0],
@@ -158,5 +172,163 @@ class EthTxSigsTest {
                 ));
         final var ethTxSigs = EthTxSigs.extractSignatures(ethTxData);
         assertArrayEquals(expectedFromAddress, ethTxSigs.address());
+    }
+
+    @Test
+    void extractAuthoritySignatureReturnsNullOnFailure() {
+        final var chainId = new byte[] {0x01};
+        final var address = fillBytes(20, 0x10);
+        final var r = new byte[] {0x00}; // invalid (fails lower bound)
+        final var s = new byte[] {0x01};
+
+        final var cd = new CodeDelegation(chainId, address, 1L, 27, r, s);
+
+        final Optional<EthTxSigs> result = EthTxSigs.extractAuthoritySignature(cd);
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void extractAuthoritySignatureWhenCalculateMessageThrows() {
+        final var cd = mock(CodeDelegation.class, RETURNS_DEEP_STUBS);
+        when(cd.calculateSignableMessage()).thenThrow(new RuntimeException("boom"));
+        when(cd.yParity()).thenReturn(27);
+        when(cd.r()).thenReturn(new byte[] {0x01});
+        when(cd.s()).thenReturn(new byte[] {0x02});
+
+        final Optional<EthTxSigs> result = EthTxSigs.extractAuthoritySignature(cd);
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void resolveEIP7702_encodesWithAccessList() {
+        final var ethTx = mock(EthTxData.class);
+
+        final var chainId = new byte[] {0x01, 0x2A};
+        final long nonce = 9;
+        final var gasPrice = fillBytes(8, 0x01);
+        final long gasLimit = 123456;
+        final var to = fillBytes(20, 0x22);
+        final long value = 987654321L;
+        final var callData = fillBytes(3, 0x55);
+
+        final Object[] accessList =
+                new Object[] {new Object[] {fillBytes(20, 0x10), new Object[] {fillBytes(32, 0x01)}}};
+        final byte[] authorizationList = fillBytes(5, 0x70);
+
+        when(ethTx.chainId()).thenReturn(chainId);
+        when(ethTx.nonce()).thenReturn(nonce);
+        when(ethTx.gasPrice()).thenReturn(gasPrice);
+        when(ethTx.gasLimit()).thenReturn(gasLimit);
+        when(ethTx.to()).thenReturn(to);
+        when(ethTx.value()).thenReturn(BigInteger.valueOf(value));
+        when(ethTx.callData()).thenReturn(callData);
+        when(ethTx.accessListAsRlp()).thenReturn(accessList);
+        when(ethTx.authorizationList()).thenReturn(authorizationList);
+
+        final byte[] actual = EthTxSigs.resolveEIP7702(ethTx);
+
+        final byte[] expected = RLPEncoder.sequence(Integers.toBytes(1), new Object[] {
+            chainId,
+            Integers.toBytes(nonce),
+            gasPrice,
+            Integers.toBytes(gasLimit),
+            to,
+            Integers.toBytesUnsigned(BigInteger.valueOf(value)),
+            callData,
+            accessList,
+            authorizationList
+        });
+
+        assertArrayEquals(expected, actual);
+    }
+
+    @Test
+    void resolveEIP7702_encodesEmptyAccessListWhenNull() {
+        final var ethTx = mock(EthTxData.class);
+
+        final var chainId = new byte[] {0x01};
+        final long nonce = 1;
+        final var gasPrice = new byte[] {0x05};
+        final long gasLimit = 21000;
+        final var to = fillBytes(20, 0x01);
+        final long value = 1L;
+        final var callData = new byte[0];
+
+        final byte[] authorizationList = fillBytes(5, 0x70);
+
+        when(ethTx.chainId()).thenReturn(chainId);
+        when(ethTx.nonce()).thenReturn(nonce);
+        when(ethTx.gasPrice()).thenReturn(gasPrice);
+        when(ethTx.gasLimit()).thenReturn(gasLimit);
+        when(ethTx.to()).thenReturn(to);
+        when(ethTx.value()).thenReturn(BigInteger.valueOf(value));
+        when(ethTx.callData()).thenReturn(callData);
+        when(ethTx.accessListAsRlp()).thenReturn(null); // triggers empty list
+        when(ethTx.authorizationList()).thenReturn(authorizationList);
+
+        final byte[] actual = EthTxSigs.resolveEIP7702(ethTx);
+
+        final byte[] expected = RLPEncoder.sequence(Integers.toBytes(1), new Object[] {
+            chainId,
+            Integers.toBytes(nonce),
+            gasPrice,
+            Integers.toBytes(gasLimit),
+            to,
+            Integers.toBytesUnsigned(BigInteger.valueOf(value)),
+            callData,
+            new Object[0], // empty access list
+            authorizationList
+        });
+
+        assertArrayEquals(expected, actual);
+    }
+
+    @Test
+    void extractAuthoritySignatureHappyPath() {
+        final byte yParity = (byte) 1;
+        final byte[] r = new byte[32];
+        final byte[] s = new byte[32];
+        final byte[] message = new byte[] {0x01, 0x02, 0x03};
+
+        final byte[] expectedCompressedKey = new byte[] {0x55, 0x66, 0x77};
+        final byte[] expectedAddress = new byte[] {
+            0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11,
+            0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19,
+            0x1A, 0x1B, 0x1C, 0x1D
+        };
+
+        final CodeDelegation codeDelegation = Mockito.mock(CodeDelegation.class);
+        Mockito.when(codeDelegation.yParity()).thenReturn((int) yParity);
+        Mockito.when(codeDelegation.r()).thenReturn(r);
+        Mockito.when(codeDelegation.s()).thenReturn(s);
+        Mockito.when(codeDelegation.calculateSignableMessage()).thenReturn(message);
+
+        final LibSecp256k1.secp256k1_pubkey fakePubKey = Mockito.mock(LibSecp256k1.secp256k1_pubkey.class);
+
+        try (MockedStatic<EthTxSigs> sigsMock = Mockito.mockStatic(EthTxSigs.class);
+                MockedStatic<EthSigsUtils> addrMock = Mockito.mockStatic(EthSigsUtils.class)) {
+
+            // Stub every helper used by extractAuthoritySignature to avoid native paths.
+            sigsMock.when(() -> EthTxSigs.extractSig(
+                            Mockito.anyByte(),
+                            Mockito.any(byte[].class),
+                            Mockito.any(byte[].class),
+                            Mockito.any(byte[].class)))
+                    .thenReturn(fakePubKey);
+
+            sigsMock.when(() ->
+                            EthTxSigs.serializeIntoCompressedKeyBytes(Mockito.any(LibSecp256k1.secp256k1_pubkey.class)))
+                    .thenReturn(expectedCompressedKey);
+
+            addrMock.when(() -> EthSigsUtils.recoverAddressFromPubKey(Mockito.any(LibSecp256k1.secp256k1_pubkey.class)))
+                    .thenReturn(expectedAddress);
+
+            sigsMock.when(() -> EthTxSigs.extractAuthoritySignature(codeDelegation))
+                    .thenCallRealMethod();
+
+            Optional<EthTxSigs> result = EthTxSigs.extractAuthoritySignature(codeDelegation);
+
+            assertTrue(result.isPresent());
+        }
     }
 }

@@ -116,7 +116,7 @@ class DispatchForResponseCodeHssCallTest extends CallAttemptTestBase {
         given(recordBuilder.status()).willReturn(SUCCESS);
 
         final var pricedResult = call.execute(frame);
-        final var contractResult = pricedResult.fullResult().result().getOutput();
+        final var contractResult = pricedResult.fullResult().result().output();
         return contractResult.toArray();
     }
 
@@ -161,7 +161,7 @@ class DispatchForResponseCodeHssCallTest extends CallAttemptTestBase {
 
         assertEquals(
                 Optional.of(ERROR_DECODING_PRECOMPILE_INPUT),
-                fullResult.result().getHaltReason());
+                fullResult.result().haltReason());
         assertEquals(DEFAULT_CONTRACTS_CONFIG.precompileHtsDefaultGasCost(), fullResult.gasRequirement());
     }
 
@@ -180,7 +180,7 @@ class DispatchForResponseCodeHssCallTest extends CallAttemptTestBase {
         given(recordBuilder.status()).willReturn(INVALID_SCHEDULE_ID);
 
         final var pricedResult = call.execute(frame);
-        return pricedResult.fullResult().result().getOutput().toArray();
+        return pricedResult.fullResult().result().output().toArray();
     }
 
     @Test

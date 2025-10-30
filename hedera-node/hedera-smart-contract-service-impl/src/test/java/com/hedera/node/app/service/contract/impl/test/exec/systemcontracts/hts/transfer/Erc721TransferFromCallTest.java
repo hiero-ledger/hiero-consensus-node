@@ -79,8 +79,8 @@ class Erc721TransferFromCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
-        assertEquals(Bytes.EMPTY, result.getOutput());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
+        assertEquals(Bytes.EMPTY, result.output());
     }
 
     @Test
@@ -98,8 +98,8 @@ class Erc721TransferFromCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(readableRevertReason(SENDER_DOES_NOT_OWN_NFT_SERIAL_NO), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(readableRevertReason(SENDER_DOES_NOT_OWN_NFT_SERIAL_NO), result.output());
     }
 
     private void givenSynthIdHelperForToAccount() {

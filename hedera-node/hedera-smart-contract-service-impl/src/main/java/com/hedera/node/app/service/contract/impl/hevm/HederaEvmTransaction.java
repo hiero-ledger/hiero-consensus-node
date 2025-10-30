@@ -7,10 +7,12 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
+import com.hedera.node.app.hapi.utils.ethereum.CodeDelegation;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.List;
 import java.util.Objects;
 import org.hyperledger.besu.datatypes.Wei;
 
@@ -26,6 +28,7 @@ public record HederaEvmTransaction(
         long offeredGasPrice,
         long maxGasAllowance,
         @Nullable ContractCreateTransactionBody hapiCreation,
+        @Nullable List<CodeDelegation> codeDelegations,
         @Nullable HandleException exception,
         @Nullable HookDispatchTransactionBody hookDispatch) {
     public static final long NOT_APPLICABLE = -1L;
@@ -131,6 +134,7 @@ public record HederaEvmTransaction(
                 this.offeredGasPrice,
                 this.maxGasAllowance,
                 this.hapiCreation,
+                this.codeDelegations,
                 exception,
                 this.hookDispatch);
     }

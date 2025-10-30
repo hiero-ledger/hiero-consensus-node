@@ -204,9 +204,9 @@ class PrngSystemContractTest {
 
     private void assertEqualContractResult(PrecompileContractResult expected, FullResult actual, long gasRequirement) {
         assertEquals(gasRequirement, actual.gasRequirement());
-        assertEquals(expected.getState(), actual.result().getState());
-        assertEquals(expected.getOutput(), actual.result().getOutput());
-        assertEquals(expected.getHaltReason(), actual.result().getHaltReason());
+        assertEquals(expected.state(), actual.result().state());
+        assertEquals(expected.output(), actual.result().output());
+        assertEquals(expected.haltReason(), actual.result().haltReason());
     }
 
     private void commonMocks() {

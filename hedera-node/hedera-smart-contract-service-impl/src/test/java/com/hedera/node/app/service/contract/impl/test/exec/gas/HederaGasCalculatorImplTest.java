@@ -3,12 +3,12 @@ package com.hedera.node.app.service.contract.impl.test.exec.gas;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl;
 import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.Test;
 
-class CustomGasCalculatorTest {
-    private final CustomGasCalculator subject = new CustomGasCalculator();
+class HederaGasCalculatorImplTest {
+    private final HederaGasCalculatorImpl subject = new HederaGasCalculatorImpl();
 
     @Test
     void txnIntrinsicCostContractCreate() {

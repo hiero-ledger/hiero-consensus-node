@@ -24,7 +24,7 @@ import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.base.SignaturePair.SignatureOneOfType;
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.isauthorized.IsAuthorizedCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.isauthorized.IsAuthorizedTranslator;
@@ -74,7 +74,7 @@ public class IsAuthorizedCallTest extends CallTestBase {
     private Key mockKey;
 
     @Mock
-    private CustomGasCalculator mockCustomGasCalculator;
+    private HederaGasCalculatorImpl mockHederaGasCalculatorImpl;
 
     @BeforeEach
     void setup() {
@@ -93,7 +93,7 @@ public class IsAuthorizedCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(State.COMPLETED_SUCCESS, result.state());
 
         final var output = getOutput(result);
         assertEquals(output.rce(), INVALID_ACCOUNT_ID);
@@ -117,7 +117,7 @@ public class IsAuthorizedCallTest extends CallTestBase {
 
             final var result = subject.execute(frame).fullResult().result();
 
-            assertEquals(State.COMPLETED_SUCCESS, result.getState());
+            assertEquals(State.COMPLETED_SUCCESS, result.state());
 
             final var output = getOutput(result);
             assertEquals(output.rce(), INVALID_TRANSACTION_BODY);
@@ -148,7 +148,7 @@ public class IsAuthorizedCallTest extends CallTestBase {
 
             final var result = subject.execute(frame).fullResult().result();
 
-            assertEquals(State.COMPLETED_SUCCESS, result.getState());
+            assertEquals(State.COMPLETED_SUCCESS, result.state());
 
             final var output = getOutput(result);
             assertEquals(output.rce(), INVALID_TRANSACTION_BODY);
@@ -218,15 +218,15 @@ public class IsAuthorizedCallTest extends CallTestBase {
 
         final var sigBlob = encodeSignatureMap(getSignatureMapWith(nECsigs, 0, nEDsigs, 0));
 
-        given(mockCustomGasCalculator.getEcrecPrecompiledContractGasCost()).willReturn(ecGasPrice);
-        given(mockCustomGasCalculator.getEdSignatureVerificationSystemContractGasCost())
+        given(mockHederaGasCalculatorImpl.getEcrecPrecompiledContractGasCost()).willReturn(ecGasPrice);
+        given(mockHederaGasCalculatorImpl.getEdSignatureVerificationSystemContractGasCost())
                 .willReturn(edGasPrice);
 
         final var actualGas = new AtomicLong();
 
         final var sut =
                 new IsAuthorizedCall(
-                        mockAttempt, APPROVED_HEADLONG_ADDRESS, message, sigBlob, mockCustomGasCalculator) {
+                        mockAttempt, APPROVED_HEADLONG_ADDRESS, message, sigBlob, mockHederaGasCalculatorImpl) {
                     @Override
                     protected boolean verifyMessage(
                             @NonNull final Key key,
@@ -270,7 +270,7 @@ public class IsAuthorizedCallTest extends CallTestBase {
 
     @NonNull
     IsAuthorizedCall getSubject(@NonNull final Address address, @NonNull final byte[] signatureBlob) {
-        return new IsAuthorizedCall(mockAttempt, address, message, signatureBlob, mockCustomGasCalculator);
+        return new IsAuthorizedCall(mockAttempt, address, message, signatureBlob, mockHederaGasCalculatorImpl);
     }
 
     /** Creates a signature map with known entries. They aren't cryptographically _correct_ entries -
@@ -330,7 +330,7 @@ public class IsAuthorizedCallTest extends CallTestBase {
     IAOutput getOutput(@NonNull final PrecompileContractResult pcr) {
         final var tuple = IsAuthorizedTranslator.IS_AUTHORIZED
                 .getOutputs()
-                .decode(pcr.getOutput().toArray());
+                .decode(pcr.output().toArray());
         final var rce = ResponseCodeEnum.fromProtobufOrdinal(Math.toIntExact((Long) tuple.get(0)));
         final var result = (Boolean) tuple.get(1);
         return new IAOutput(rce, result);

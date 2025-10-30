@@ -16,6 +16,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Optional;
 import org.apache.commons.codec.binary.Hex;
 import org.bouncycastle.asn1.sec.SECNamedCurves;
 import org.bouncycastle.jcajce.provider.digest.Keccak;
@@ -28,8 +29,20 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
         final var message = calculateSignableMessage(ethTx);
         final var pubKey = extractSig(ethTx.recId(), ethTx.r(), ethTx.s(), message);
         final var address = recoverAddressFromPubKey(pubKey);
-        final var compressedKey = recoverCompressedPubKey(pubKey);
+        final var compressedKey = serializeIntoCompressedKeyBytes(pubKey);
         return new EthTxSigs(compressedKey, address);
+    }
+
+    public static Optional<EthTxSigs> extractAuthoritySignature(CodeDelegation codeDelegation) {
+        try {
+            final var message = codeDelegation.calculateSignableMessage();
+            final var pubKey = extractSig(codeDelegation.yParity(), codeDelegation.r(), codeDelegation.s(), message);
+            final var address = recoverAddressFromPubKey(pubKey);
+            final var compressedKey = serializeIntoCompressedKeyBytes(pubKey);
+            return Optional.of(new EthTxSigs(compressedKey, address));
+        } catch (final Exception e) {
+            return Optional.empty();
+        }
     }
 
     public static byte[] calculateSignableMessage(EthTxData ethTx) {
@@ -37,6 +50,7 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
             case LEGACY_ETHEREUM -> resolveLegacy(ethTx);
             case EIP1559 -> resolveEIP1559(ethTx);
             case EIP2930 -> resolveEIP2930(ethTx);
+            case EIP7702 -> resolveEIP7702(ethTx);
         };
     }
 
@@ -96,7 +110,24 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
         });
     }
 
-    static byte[] recoverCompressedPubKey(LibSecp256k1.secp256k1_pubkey pubKey) {
+    // EIP7702 introduces the authorizationList field, which allows one to specify
+    // a list of EOA addresses (via signatures) that are then associated with the code of a contract
+    // More details: https://eips.ethereum.org/EIPS/eip-7702
+    static byte[] resolveEIP7702(final EthTxData ethTx) {
+        return RLPEncoder.sequence(Integers.toBytes(1), new Object[] {
+            ethTx.chainId(),
+            Integers.toBytes(ethTx.nonce()),
+            ethTx.gasPrice(),
+            Integers.toBytes(ethTx.gasLimit()),
+            ethTx.to(),
+            Integers.toBytesUnsigned(ethTx.value()),
+            ethTx.callData(),
+            ethTx.accessListAsRlp() != null ? ethTx.accessListAsRlp() : new Object[0],
+            ethTx.authorizationList()
+        });
+    }
+
+    static byte[] serializeIntoCompressedKeyBytes(LibSecp256k1.secp256k1_pubkey pubKey) {
         final ByteBuffer recoveredFullKey = ByteBuffer.allocate(33);
         final LongByReference fullKeySize = new LongByReference(recoveredFullKey.limit());
         LibSecp256k1.secp256k1_ec_pubkey_serialize(
@@ -104,7 +135,7 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
         return recoveredFullKey.array();
     }
 
-    private static LibSecp256k1.secp256k1_pubkey extractSig(int recId, byte[] r, byte[] s, byte[] message) {
+    static LibSecp256k1.secp256k1_pubkey extractSig(int recId, byte[] r, byte[] s, byte[] message) {
         // The only meaningful recovery ids are 0 and 1 (even if the high order bytes
         // were used to encode the chain id, the parity is all that matters here)
         recId = Math.floorMod(recId, 2);
@@ -160,6 +191,7 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
     }
 
     @Override
+    @NonNull
     public String toString() {
         return MoreObjects.toStringHelper(this)
                 .add("publicKey", Hex.encodeHexString(publicKey))

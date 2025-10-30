@@ -19,7 +19,7 @@ import static org.hyperledger.besu.evm.frame.MessageFrame.State.EXCEPTIONAL_HALT
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
-import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure;
@@ -40,7 +40,7 @@ import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
  */
 @Singleton
 public class FrameRunner {
-    private final CustomGasCalculator gasCalculator;
+    private final HederaGasCalculatorImpl gasCalculator;
     private final EntityIdFactory entityIdFactory;
 
     /**
@@ -48,7 +48,7 @@ public class FrameRunner {
      */
     @Inject
     public FrameRunner(
-            @NonNull final CustomGasCalculator gasCalculator, @NonNull final EntityIdFactory entityIdFactory) {
+            @NonNull final HederaGasCalculatorImpl gasCalculator, @NonNull final EntityIdFactory entityIdFactory) {
         this.gasCalculator = gasCalculator;
         this.entityIdFactory = entityIdFactory;
     }
