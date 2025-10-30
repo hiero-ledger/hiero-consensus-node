@@ -81,6 +81,15 @@ public abstract class BlockNodeCommunicationTestBase {
     }
 
     @NonNull
+    protected static PublishStreamRequest createRequest(final EndStream.Code endCode, final long earliestBlockNumber) {
+        final EndStream endStream = EndStream.newBuilder()
+                .endCode(endCode)
+                .earliestBlockNumber(earliestBlockNumber)
+                .build();
+        return PublishStreamRequest.newBuilder().endStream(endStream).build();
+    }
+
+    @NonNull
     protected static PublishStreamRequest createRequest(final long blockNumber) {
         final BlockEnd endOfBlock =
                 BlockEnd.newBuilder().blockNumber(blockNumber).build();

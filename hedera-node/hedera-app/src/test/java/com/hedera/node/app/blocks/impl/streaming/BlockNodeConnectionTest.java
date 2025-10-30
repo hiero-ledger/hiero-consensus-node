@@ -595,7 +595,38 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testOnNext_resendBlock_blockDoesNotExist() {
+    void testOnNext_resendBlock_blockDoesNotExist_TooFarBehind() {
+        openConnectionAndResetMocks();
+
+        final AtomicLong streamingBlockNumber = streamingBlockNumber();
+        streamingBlockNumber.set(11); // pretend we are currently streaming block 11
+        final PublishStreamResponse response = createResendBlock(10L);
+        when(bufferService.getBlockState(10L)).thenReturn(null);
+        when(bufferService.getEarliestAvailableBlockNumber()).thenReturn(11L);
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        connection.onNext(response);
+
+        verify(metrics).recordLatestBlockResendBlock(10L);
+        verify(metrics).recordResponseReceived(ResponseOneOfType.RESEND_BLOCK);
+        verify(metrics).recordConnectionClosed();
+        verify(metrics).recordActiveConnectionIp(-1L);
+        verify(metrics).recordRequestLatency(anyLong());
+        verify(metrics).recordRequestEndStreamSent(EndStream.Code.TOO_FAR_BEHIND);
+        verify(requestPipeline).onNext(createRequest(EndStream.Code.TOO_FAR_BEHIND, 11L));
+        verify(requestPipeline).onComplete();
+        verify(connectionManager).rescheduleConnection(connection, Duration.ofSeconds(30), null, true);
+        verify(bufferService).getBlockState(10L);
+        verify(bufferService, times(2)).getEarliestAvailableBlockNumber();
+        verify(bufferService).getHighestAckedBlockNumber();
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestPipeline);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoMoreInteractions(bufferService);
+    }
+
+    @Test
+    void testOnNext_resendBlock_blockDoesNotExist_Error() {
         openConnectionAndResetMocks();
 
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
@@ -611,12 +642,12 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
         verify(metrics).recordRequestLatency(anyLong());
-        verify(metrics).recordRequestEndStreamSent(EndStream.Code.TOO_FAR_BEHIND);
-        verify(requestPipeline).onNext(createRequest(EndStream.Code.TOO_FAR_BEHIND));
+        verify(metrics).recordRequestEndStreamSent(EndStream.Code.ERROR);
+        verify(requestPipeline).onNext(createRequest(EndStream.Code.ERROR));
         verify(requestPipeline).onComplete();
         verify(connectionManager).rescheduleConnection(connection, Duration.ofSeconds(30), null, true);
         verify(bufferService).getBlockState(10L);
-        verify(bufferService).getEarliestAvailableBlockNumber();
+        verify(bufferService, times(2)).getEarliestAvailableBlockNumber();
         verify(bufferService).getHighestAckedBlockNumber();
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
