@@ -15,6 +15,7 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_LABEL;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
+import static java.time.Instant.EPOCH;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -72,7 +73,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -80,10 +80,13 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import org.bouncycastle.util.Arrays;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.transaction.ConsensusTransaction;
+import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -155,9 +158,6 @@ class BlockStreamManagerImplTest {
 
     @Mock
     private HederaVirtualMapState state;
-
-    @Mock
-    private Iterator<ConsensusEvent> mockIterator;
 
     @Mock
     private ConsensusEvent mockEvent;
@@ -247,11 +247,11 @@ class BlockStreamManagerImplTest {
                 TEST_PLATFORM_STATE_FACADE,
                 lifecycle,
                 metrics);
-        assertSame(Instant.EPOCH, subject.lastIntervalProcessTime());
+        assertSame(EPOCH, subject.lastIntervalProcessTime());
         subject.setLastIntervalProcessTime(CONSENSUS_NOW);
         assertEquals(CONSENSUS_NOW, subject.lastIntervalProcessTime());
 
-        assertSame(Instant.EPOCH, subject.lastTopLevelConsensusTime());
+        assertSame(EPOCH, subject.lastTopLevelConsensusTime());
         subject.setLastTopLevelTime(CONSENSUS_NOW);
         assertEquals(CONSENSUS_NOW, subject.lastTopLevelConsensusTime());
     }
@@ -713,21 +713,29 @@ class BlockStreamManagerImplTest {
                 .thenAcceptAsync(any());
 
         // When starting a round at t=0
-        given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(1000));
+        var time = EPOCH;
+        mockRoundWithTxnTimestamp(time);
         subject.init(state, N_MINUS_2_BLOCK_HASH);
         subject.startRound(round, state);
+        subject.endRound(state, ROUND_NO);
 
         // And another round at t=1
-        given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(1001));
+        time = EPOCH.plusSeconds(1);
+        mockRoundWithTxnTimestamp(time);
         subject.startRound(round, state);
+        // Advance tracked block end timestamp to t=1
+        subject.writeItem(transactionResultItemFrom(time));
         subject.endRound(state, ROUND_NO);
 
         // Then block should not be closed
         verify(aWriter, never()).closeCompleteBlock();
 
         // When starting another round at t=3 (after period)
-        given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(1003));
+        time = EPOCH.plusSeconds(3);
+        mockRoundWithTxnTimestamp(time);
         subject.startRound(round, state);
+        // Advance tracked block end timestamp to t=3
+        subject.writeItem(transactionResultItemFrom(time));
         subject.endRound(state, ROUND_NO);
 
         // Then block should be closed
@@ -745,17 +753,20 @@ class BlockStreamManagerImplTest {
                 platformStateWithFreezeTime(null),
                 aWriter);
         givenEndOfRoundSetup();
-        given(round.getRoundNum()).willReturn(ROUND_NO);
         given(blockHashSigner.isReady()).willReturn(true);
 
         // When starting a round at t=0
-        given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(1000));
+        var time = EPOCH;
+        mockRoundWithTxnTimestamp(time);
         subject.initLastBlockHash(N_MINUS_2_BLOCK_HASH);
         subject.startRound(round, state);
 
         // And another round at t=1.5
-        given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(1001, 500_000_000));
+        time = EPOCH.plusSeconds(1).plusNanos(500_000_000);
+        mockRoundWithTxnTimestamp(time);
         subject.startRound(round, state);
+        // Advance tracked block end timestamp to t=1.5
+        subject.writeItem(transactionResultItemFrom(time));
         subject.endRound(state, ROUND_NO);
 
         // Then block should not be closed
@@ -773,7 +784,6 @@ class BlockStreamManagerImplTest {
                 platformStateWithFreezeTime(Instant.ofEpochSecond(1001)),
                 aWriter);
         givenEndOfRoundSetup();
-        given(round.getRoundNum()).willReturn(ROUND_NO);
         given(blockHashSigner.isReady()).willReturn(true);
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.getSingleton(PLATFORM_STATE_STATE_ID)).willReturn(platformStateReadableSingletonState);
@@ -792,13 +802,17 @@ class BlockStreamManagerImplTest {
                 .thenAcceptAsync(any());
 
         // When starting a round at t=0
-        given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(1000));
+        var time = EPOCH;
+        mockRoundWithTxnTimestamp(time);
         subject.init(state, N_MINUS_2_BLOCK_HASH);
         subject.startRound(round, state);
 
         // And another round at t=1 with freeze
-        given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(1001));
+        time = EPOCH.plusSeconds(1);
+        mockRoundWithTxnTimestamp(time);
         subject.startRound(round, state);
+        // Advance tracked block end timestamp to t=1
+        subject.writeItem(transactionResultItemFrom(time));
         subject.endRound(state, ROUND_NO);
 
         // Then block should be closed due to freeze, even though period not elapsed
@@ -977,9 +991,7 @@ class BlockStreamManagerImplTest {
 
     private void givenEndOfRoundSetup(@Nullable final AtomicReference<BlockHeader> headerRef) {
         // Add mock for round iterator
-        lenient().when(round.iterator()).thenReturn(mockIterator);
-        lenient().when(mockIterator.next()).thenReturn(mockEvent);
-        lenient().when(mockEvent.getConsensusTimestamp()).thenReturn(CONSENSUS_NOW);
+        mockRoundWithTxnTimestamp(CONSENSUS_NOW);
         lenient()
                 .doAnswer(invocationOnMock -> {
                     lastAItem.set(invocationOnMock.getArgument(1));
@@ -1038,6 +1050,28 @@ class BlockStreamManagerImplTest {
         return PlatformState.newBuilder()
                 .creationSoftwareVersion(CREATION_VERSION)
                 .freezeTime(freezeTime == null ? null : asTimestamp(freezeTime))
+                .build();
+    }
+
+    private void mockRound(Instant timestamp) {
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        lenient().when(round.iterator()).thenReturn(new Arrays.Iterator<>(new ConsensusEvent[] {mockEvent}));
+        lenient().when(round.getConsensusTimestamp()).thenReturn(timestamp);
+    }
+
+    private void mockRoundWithTxnTimestamp(Instant timestamp) {
+        mockRound(timestamp);
+
+        final var txn = new TransactionWrapper(Bytes.fromHex("abcdefABCDEF"));
+        txn.setConsensusTimestamp(timestamp);
+        lenient()
+                .when(mockEvent.consensusTransactionIterator())
+                .thenReturn(new Arrays.Iterator<>(new ConsensusTransaction[] {txn}));
+    }
+
+    private BlockItem transactionResultItemFrom(Instant consensusTimestamp) {
+        return BlockItem.newBuilder()
+                .transactionResult(TransactionResult.newBuilder().consensusTimestamp(asTimestamp(consensusTimestamp)))
                 .build();
     }
 

@@ -365,7 +365,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final var firstTxnConsensusTimestamp = extractFirstTxnConsensusTimestampFrom(round);
             blockStartTimestamp =
                     (firstTxnConsensusTimestamp != null) ? firstTxnConsensusTimestamp : round.getConsensusTimestamp();
-            blockEndTimestamp = null;
+            blockEndTimestamp = blockStartTimestamp;
             lastUsedTime = asTimestamp(round.getConsensusTimestamp());
 
             pendingWork = classifyPendingWork(blockStreamInfo, version);
@@ -877,6 +877,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             return roundNumber % roundsPerBlock == 0;
         }
 
+        if (blockEndTimestamp == null) {
+            // We just started the block, don't close again immediately
+            return false;
+        }
         // For time-based blocks, check if enough consensus time has elapsed
         final var elapsed = Duration.between(lastBlockClosure, blockEndTimestamp);
         return elapsed.compareTo(blockPeriod) >= 0;
