@@ -155,7 +155,7 @@ class CodeDelegationProcessorTest {
         when(del.nonce()).thenReturn(0L);
         when(del.getS()).thenReturn(HALF_ORDER.subtract(BigInteger.ONE));
         when(del.getR()).thenReturn(HALF_ORDER.subtract(BigInteger.ONE));
-        when(del.getYParity()).thenReturn(2 ^ 8);
+        when(del.getYParity()).thenReturn(2 ^ 8 - 1);
 
         try (MockedStatic<EthTxSigs> mocked = mockStatic(EthTxSigs.class)) {
             mocked.when(() -> EthTxSigs.extractAuthoritySignature(del)).thenReturn(Optional.empty());
