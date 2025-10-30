@@ -2,10 +2,8 @@
 package com.hedera.node.app.hapi.utils.blocks;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hedera.hapi.block.stream.MerklePath;
-import com.hedera.hapi.block.stream.SiblingNode;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.state.blockstream.MerkleLeaf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -50,7 +48,7 @@ class StateProofVerifierTest {
                 StateProofBuilder.newBuilder().addProof(proofs[0]).build();
 
         assertThat(verifier.verify(stateProof)).isTrue();
-        assertThat(verifier.verifyRootHashForTest(stateProof,tree.rootHash())).isTrue();
+        assertThat(verifier.verifyRootHashForTest(stateProof, tree.rootHash())).isTrue();
     }
 
     @Test
@@ -65,7 +63,7 @@ class StateProofVerifierTest {
                 .build();
 
         assertThat(verifier.verify(stateProof)).isTrue();
-        assertThat(verifier.verifyRootHashForTest(stateProof,tree.rootHash())).isTrue();
+        assertThat(verifier.verifyRootHashForTest(stateProof, tree.rootHash())).isTrue();
     }
 
     @Test
@@ -110,13 +108,13 @@ class StateProofVerifierTest {
         // Tamper with the leaf data
         final var tamperedPaths = new java.util.ArrayList<>(stateProof.paths());
         final var originalPath = tamperedPaths.get(0);
-        final var tamperedLeaf = MerkleLeaf.newBuilder()
-                .stateItem(Bytes.wrap("tampered-leaf"))
-                .build();
+        final var tamperedLeaf =
+                MerkleLeaf.newBuilder().stateItem(Bytes.wrap("tampered-leaf")).build();
         final var tamperedPath = originalPath.copyBuilder().leaf(tamperedLeaf).build();
         tamperedPaths.set(0, tamperedPath);
 
-        final var tamperedStateProof = stateProof.copyBuilder().paths(tamperedPaths).build();
+        final var tamperedStateProof =
+                stateProof.copyBuilder().paths(tamperedPaths).build();
 
         assertThat(verifier.verify(tamperedStateProof)).isFalse();
     }
@@ -135,7 +133,8 @@ class StateProofVerifierTest {
         final boolean isValid = verifier.verify(builtStateProof);
 
         assertThat(isValid).isTrue();
-        assertThat(verifier.verifyRootHashForTest(builtStateProof,tree.rootHash())).isTrue();
+        assertThat(verifier.verifyRootHashForTest(builtStateProof, tree.rootHash()))
+                .isTrue();
 
         final var stateItems = builtStateProof.paths().stream()
                 .filter(MerklePath::hasLeaf)

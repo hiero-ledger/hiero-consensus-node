@@ -217,13 +217,9 @@ public final class StateProofBuilder {
             final var prunedExistingPath = merklePathBuilder.pruneFromRoot(matchLength + 1);
 
             final byte[] expectedInnerNodeHash = HashUtils.joinHashes(
-                    HashUtils.newMessageDigest(),
-                    prunedExistingPath.getRootHash(),
-                    prunedNewPath.getRootHash());
+                    HashUtils.newMessageDigest(), prunedExistingPath.getRootHash(), prunedNewPath.getRootHash());
 
-            if (!hashesEqual(
-                    expectedInnerNodeHash,
-                    merklePathBuilder.getInnerNodeHash(treeBranchIndex + 1))) {
+            if (!hashesEqual(expectedInnerNodeHash, merklePathBuilder.getInnerNodeHash(treeBranchIndex + 1))) {
                 throw new IllegalStateException("Incompatible inner node hashes for branching at match point");
             }
 
