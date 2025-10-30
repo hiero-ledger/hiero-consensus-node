@@ -1172,113 +1172,112 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         return config.getConfigData(BlockStreamConfig.class).maxReadBytesSize();
     }
 
+    /**
+     * Resets the subtree hashers for branches 4-8 to empty states. Since these subtrees only contain data specific to
+     * the current block, they need to be reset whenever a new block starts.
+     */
+    private void resetSubtrees() {
+        // Branch 4
+        consensusHeaderHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
+        // Branch 5
+        inputTreeHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
+        // Branch 6
+        outputTreeHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
+        // Branch 7
+        stateChangesHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
+        // Branch 8
+        traceDataHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
+    }
 
-	/**
-	 * Resets the subtree hashers for branches 4-8 to empty states. Since these subtrees only contain data specific to
-	 * the current block, they need to be reset whenever a new block starts.
-	 */
-	private void resetSubtrees() {
-		// Branch 4
-		consensusHeaderHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
-		// Branch 5
-		inputTreeHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
-		// Branch 6
-		outputTreeHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
-		// Branch 7
-		stateChangesHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
-		// Branch 8
-		traceDataHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
-	}
+    /**
+     * Extracts the consensus timestamp of the first transaction in the given {@code Round}.
+     * If there are no transactions, returns null.
+     *
+     * @param round the round to extract the timestamp from
+     * @return the consensus timestamp of the first transaction, or null
+     */
+    private Instant extractFirstTxnConsensusTimestampFrom(@NonNull final Round round) {
+        for (final ConsensusEvent event : round) {
+            final var txnIterator = event.consensusTransactionIterator();
+            if (txnIterator.hasNext()) {
+                return txnIterator.next().getConsensusTimestamp();
+            }
+        }
 
-	/**
-	 * Extracts the consensus timestamp of the first transaction in the given {@code Round}.
-	 * If there are no transactions, returns null.
-	 *
-	 * @param round the round to extract the timestamp from
-	 * @return the consensus timestamp of the first transaction, or null
-	 */
-	private Instant extractFirstTxnConsensusTimestampFrom(@NonNull final Round round) {
-		for (final ConsensusEvent event : round) {
-			final var txnIterator = event.consensusTransactionIterator();
-			if (txnIterator.hasNext()) {
-				return txnIterator.next().getConsensusTimestamp();
-			}
-		}
+        return null;
+    }
 
-		return null;
-	}
+    private record RootAndSiblingHashes(Bytes blockRootHash, MerkleSiblingHash[] siblingHashes) {}
 
-	private record RootAndSiblingHashes(Bytes blockRootHash, MerkleSiblingHash[] siblingHashes) {}
+    /**
+     * Combines the given branch hashes into a block root hash and sibling hashes for a pending proof.
+     * Since it's not known whether the pending proof will be directly signed, the sibling hashes
+     * required for an indirect proof are also computed.
+     * @return the block root hash and all possibly-required sibling hashes, ordered from bottom (the
+     * leaf level) to top (the root)
+     */
+    private static RootAndSiblingHashes combine(
+            @Nullable final Bytes maybePrevBlockHash,
+            @Nullable final Bytes maybePrevBlockRootsHash,
+            @Nullable final Bytes maybeStartingStateHash,
+            @Nullable final Bytes maybeConsensusHeaderHash,
+            @Nullable final Bytes maybeInputsHash,
+            @Nullable final Bytes maybeOutputsHash,
+            @Nullable final Bytes maybeStateChangesHash,
+            @Nullable final Bytes maybeTraceDataHash,
+            @NonNull final Timestamp firstConsensusTimeOfCurrentBlock) {
+        final var prevBlockHash = inputOrNullHash(maybePrevBlockHash);
+        final var prevBlockRootsHash = inputOrNullHash(maybePrevBlockRootsHash);
+        final var startingStateHash = inputOrNullHash(maybeStartingStateHash);
+        final var consensusHeaderHash = inputOrNullHash(maybeConsensusHeaderHash);
+        final var inputsHash = inputOrNullHash(maybeInputsHash);
+        final var outputsHash = inputOrNullHash(maybeOutputsHash);
+        final var stateChangesHash = inputOrNullHash(maybeStateChangesHash);
+        final var traceDataHash = inputOrNullHash(maybeTraceDataHash);
 
-	/**
-	 * Combines the given branch hashes into a block root hash and sibling hashes for a pending proof.
-	 * Since it's not known whether the pending proof will be directly signed, the sibling hashes
-	 * required for an indirect proof are also computed.
-	 * @return the block root hash and all possibly-required sibling hashes, ordered from bottom (the
-	 * leaf level) to top (the root)
-	 */
-	private static RootAndSiblingHashes combine(
-			@Nullable final Bytes maybePrevBlockHash,
-			@Nullable final Bytes maybePrevBlockRootsHash,
-			@Nullable final Bytes maybeStartingStateHash,
-			@Nullable final Bytes maybeConsensusHeaderHash,
-			@Nullable final Bytes maybeInputsHash,
-			@Nullable final Bytes maybeOutputsHash,
-			@Nullable final Bytes maybeStateChangesHash,
-			@Nullable final Bytes maybeTraceDataHash,
-			@NonNull final Timestamp firstConsensusTimeOfCurrentBlock) {
-		final var prevBlockHash = inputOrNullHash(maybePrevBlockHash);
-		final var prevBlockRootsHash = inputOrNullHash(maybePrevBlockRootsHash);
-		final var startingStateHash = inputOrNullHash(maybeStartingStateHash);
-		final var consensusHeaderHash = inputOrNullHash(maybeConsensusHeaderHash);
-		final var inputsHash = inputOrNullHash(maybeInputsHash);
-		final var outputsHash = inputOrNullHash(maybeOutputsHash);
-		final var stateChangesHash = inputOrNullHash(maybeStateChangesHash);
-		final var traceDataHash = inputOrNullHash(maybeTraceDataHash);
+        // Compute depth four hashes
+        final var depth4Node1 = BlockImplUtils.combine(prevBlockHash, prevBlockRootsHash);
+        final var depth4Node2 = BlockImplUtils.combine(startingStateHash, consensusHeaderHash);
+        final var depth4Node3 = BlockImplUtils.combine(inputsHash, outputsHash);
+        final var depth4Node4 = BlockImplUtils.combine(stateChangesHash, traceDataHash);
 
-		// Compute depth four hashes
-		final var depth4Node1 = BlockImplUtils.combine(prevBlockHash, prevBlockRootsHash);
-		final var depth4Node2 = BlockImplUtils.combine(startingStateHash, consensusHeaderHash);
-		final var depth4Node3 = BlockImplUtils.combine(inputsHash, outputsHash);
-		final var depth4Node4 = BlockImplUtils.combine(stateChangesHash, traceDataHash);
+        final var combinedNulls = BlockImplUtils.combine(NULL_HASH, NULL_HASH);
+        // Nodes 5-8 for depth four are all combined null hashes, but enumerated for clarity
+        final var depth4Node5 = combinedNulls;
+        final var depth4Node6 = combinedNulls;
+        final var depth4Node7 = combinedNulls;
+        final var depth4Node8 = combinedNulls;
 
-		final var combinedNulls = BlockImplUtils.combine(NULL_HASH, NULL_HASH);
-		// Nodes 5-8 for depth four are all combined null hashes, but enumerated for clarity
-		final var depth4Node5 = combinedNulls;
-		final var depth4Node6 = combinedNulls;
-		final var depth4Node7 = combinedNulls;
-		final var depth4Node8 = combinedNulls;
+        // Compute depth three hashes
+        final var depth3Node1 = BlockImplUtils.combine(depth4Node1, depth4Node2);
+        final var depth3Node2 = BlockImplUtils.combine(depth4Node3, depth4Node4);
+        final var depth3Node3 = BlockImplUtils.combine(depth4Node5, depth4Node6);
+        final var depth3Node4 = BlockImplUtils.combine(depth4Node7, depth4Node8);
 
-		// Compute depth three hashes
-		final var depth3Node1 = BlockImplUtils.combine(depth4Node1, depth4Node2);
-		final var depth3Node2 = BlockImplUtils.combine(depth4Node3, depth4Node4);
-		final var depth3Node3 = BlockImplUtils.combine(depth4Node5, depth4Node6);
-		final var depth3Node4 = BlockImplUtils.combine(depth4Node7, depth4Node8);
+        // Compute depth two hashes
+        final var depth2Node1 = BlockImplUtils.combine(depth3Node1, depth3Node2);
+        final var depth2Node2 = BlockImplUtils.combine(depth3Node3, depth3Node4);
 
-		// Compute depth two hashes
-		final var depth2Node1 = BlockImplUtils.combine(depth3Node1, depth3Node2);
-		final var depth2Node2 = BlockImplUtils.combine(depth3Node3, depth3Node4);
+        // Compute depth one hashes
+        final var timestamp = Timestamp.PROTOBUF.toBytes(firstConsensusTimeOfCurrentBlock);
+        final var depth1Node0 = noThrowSha384HashOf(timestamp);
+        final var depth1Node1 = BlockImplUtils.combine(depth2Node1, depth2Node2);
 
-		// Compute depth one hashes
-		final var timestamp = Timestamp.PROTOBUF.toBytes(firstConsensusTimeOfCurrentBlock);
-		final var depth1Node0 = noThrowSha384HashOf(timestamp);
-		final var depth1Node1 = BlockImplUtils.combine(depth2Node1, depth2Node2);
+        // Compute the block's root hash
+        final var rootHash = BlockImplUtils.combine(depth1Node0, depth1Node1);
+        return new RootAndSiblingHashes(rootHash, new MerkleSiblingHash[] {
+            // Level 5 first sibling (right child)
+            new MerkleSiblingHash(false, maybePrevBlockHash),
+            // Level 4 first sibling (right child)
+            new MerkleSiblingHash(false, depth4Node2),
+            // Level 3 first sibling (right child)
+            new MerkleSiblingHash(false, depth3Node2),
+            // Level 2 first sibling (right child)
+            new MerkleSiblingHash(false, depth2Node2)
+        });
+    }
 
-		// Compute the block's root hash
-		final var rootHash = BlockImplUtils.combine(depth1Node0, depth1Node1);
-		return new RootAndSiblingHashes(rootHash, new MerkleSiblingHash[] {
-				// Level 5 first sibling (right child)
-				new MerkleSiblingHash(false, maybePrevBlockHash),
-				// Level 4 first sibling (right child)
-				new MerkleSiblingHash(false, depth4Node2),
-				// Level 3 first sibling (right child)
-				new MerkleSiblingHash(false, depth3Node2),
-				// Level 2 first sibling (right child)
-				new MerkleSiblingHash(false, depth2Node2)
-		});
-	}
-
-	private static final BlockItem FAKE_BLOCK_ITEM = BlockItem.newBuilder()
-			.roundHeader(RoundHeader.newBuilder().roundNumber(-1).build())
-			.build();
+    private static final BlockItem FAKE_BLOCK_ITEM = BlockItem.newBuilder()
+            .roundHeader(RoundHeader.newBuilder().roundNumber(-1).build())
+            .build();
 }
