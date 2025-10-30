@@ -1,21 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform;
 
-import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 public class TimestampCollector {
-
-    private static final Logger log = LogManager.getLogger();
 
     public enum Position {
         GOSSIP_ENTERED,
@@ -42,37 +38,48 @@ public class TimestampCollector {
     private static final Duration WARMUP = Duration.ofMinutes(3L);
     private static final long THRESHOLD_NANOS = System.nanoTime() + WARMUP.toNanos();
 
-    public static final AtomicLong COUNTER = new AtomicLong();
+    private static final AtomicLong COUNTER = new AtomicLong();
     private static final long[][] timestamps = new long[MAX_ELEMENTS][Position.values().length];
+
+    public static int register() {
+        final long now = System.nanoTime();
+        if (now < THRESHOLD_NANOS) {
+            return 0;
+        }
+        final long count = TimestampCollector.COUNTER.incrementAndGet();
+        if (count % TimestampCollector.GAP == 0) {
+            final int index = (int) (count / TimestampCollector.GAP);
+            TimestampCollector.timestamp(Position.GOSSIP_ENTERED, index);
+            return index;
+        }
+        return 0;
+    }
 
     public static void timestamp(@NonNull final Position position, final int index) {
         if (index >= MAX_ELEMENTS) {
             return;
         }
         final long now = System.nanoTime();
-        if (now > THRESHOLD_NANOS) {
-            timestamps[index][position.ordinal()] = now;
-        }
+        timestamps[index][position.ordinal()] = now;
     }
 
     public static void store() {
-        log.info(LogMarker.DEMO_INFO.getMarker(), "TimestampCollector storing");
         try (final BufferedWriter writer = new BufferedWriter(new FileWriter("timestamps.csv"))) {
-            final String heading = Stream.of(Position.values()).map(Position::toString).collect(Collectors.joining(","));
+            final String heading = Stream.of(Position.values()).skip(1L).map(Position::toString).collect(Collectors.joining(","));
             writer.write(heading);
             writer.newLine();
-            for (int i = 0, n = timestamps.length; i < n; i++) {
 
-                final long[] row = timestamps[i];
+            // If all rows have 0 in the last column, none reached consensus, and we want to dump all rows
+            final boolean dumpAll = Stream.of(timestamps).allMatch(row -> row[row.length - 1] == 0);
 
-                log.info(LogMarker.DEMO_INFO.getMarker(), "TimestampCollector store: {} at index {}", i, row);
+            for (final long[] row : timestamps) {
 
                 // Skip rows where the first timestamp is 0 (uninitialized)
                 if (row[0] == 0) {
                     continue;
                 }
 
-                if (row[row.length - 1] == 0) {
+                if (!dumpAll && row[row.length - 1] == 0) {
                     continue; // event did not reach consensus
                 }
 
@@ -92,7 +99,7 @@ public class TimestampCollector {
                 writer.newLine();
             }
         } catch (final IOException e) {
-            throw new RuntimeException("Failed to write timestamps to file", e);
+            throw new UncheckedIOException("Failed to write timestamps to file", e);
         }
     }
 }

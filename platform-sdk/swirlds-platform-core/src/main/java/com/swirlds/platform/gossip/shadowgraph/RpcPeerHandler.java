@@ -11,7 +11,6 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.utility.throttle.RateLimiter;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.platform.TimestampCollector;
-import com.swirlds.platform.TimestampCollector.Position;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.permits.SyncGuard;
 import com.swirlds.platform.gossip.rpc.GossipRpcReceiver;
@@ -424,12 +423,8 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         platformEvent.setSenderId(peerId);
 
 
-        final long count = TimestampCollector.COUNTER.incrementAndGet();
-        if (count % TimestampCollector.GAP == 0) {
-            final int index = (int) (count / TimestampCollector.GAP);
-            platformEvent.setIndex(index);
-            TimestampCollector.timestamp(Position.GOSSIP_ENTERED, index);
-        }
+        platformEvent.setIndex(TimestampCollector.register());
+
 
 
         this.intakeEventCounter.eventEnteredIntakePipeline(peerId);

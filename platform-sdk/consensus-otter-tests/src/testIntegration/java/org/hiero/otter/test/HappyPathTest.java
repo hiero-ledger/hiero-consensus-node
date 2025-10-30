@@ -25,7 +25,7 @@ public class HappyPathTest {
         final TimeManager timeManager = env.timeManager();
 
         // Setup simulation
-        network.addNodes(7);
+        network.addNodes(4);
 
         // Setup continuous assertions
 //        assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
@@ -53,5 +53,8 @@ public class HappyPathTest {
 
 
         network.nodes().getFirst().sendQuiescenceCommand(QuiescenceCommand.DONT_QUIESCE);
+
+        // wait a bit before shutting down to allow writing timestamps file
+        timeManager.waitForRealTime(Duration.ofSeconds(10L));
     }
 }
