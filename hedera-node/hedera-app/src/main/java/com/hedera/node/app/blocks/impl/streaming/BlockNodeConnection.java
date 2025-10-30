@@ -39,6 +39,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.block.api.BlockEnd;
 import org.hiero.block.api.BlockItemSet;
+import org.hiero.block.api.BlockNodeServiceInterface;
 import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
@@ -148,6 +149,11 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     private final BlockNodeClientFactory clientFactory;
 
     /**
+     * Block node service client for ancillary services like server status.
+     */
+    private BlockNodeServiceInterface.BlockNodeServiceClient blockNodeServiceClient;
+
+    /**
      * Represents the possible states of a Block Node connection.
      */
     public enum ConnectionState {
@@ -232,7 +238,10 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     public synchronized void createRequestPipeline() {
         if (requestPipelineRef.get() == null) {
-            blockStreamPublishServiceClient = createNewGrpcClient();
+            final BlockNodeClientFactory.BlockNodeClients clients = createNewGrpcClients();
+            blockStreamPublishServiceClient = clients.publishServiceClient();
+            blockNodeServiceClient = clients.blockNodeServiceClient();
+
             final Pipeline<? super PublishStreamRequest> pipeline =
                     blockStreamPublishServiceClient.publishBlockStream(this);
             requestPipelineRef.set(pipeline);
@@ -245,10 +254,10 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     }
 
     /**
-     * Creates a new gRPC client based on the specified configuration.
-     * @return a gRPC client
+     * Creates new gRPC clients based on the specified configuration.
+     * @return a container with both service clients
      */
-    private @NonNull BlockStreamPublishServiceClient createNewGrpcClient() {
+    private @NonNull BlockNodeClientFactory.BlockNodeClients createNewGrpcClients() {
         final Duration timeoutDuration = configProvider
                 .getConfiguration()
                 .getConfigData(BlockNodeConnectionConfig.class)
@@ -273,7 +282,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     blockNodeConfig.address(),
                     blockNodeConfig.port());
         }
-        return clientFactory.createClient(webClient, grpcConfig, OPTIONS);
+        return clientFactory.createClients(webClient, grpcConfig, OPTIONS);
     }
 
     /**
@@ -752,7 +761,14 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     blockStreamPublishServiceClient.close();
                 }
             } catch (final Exception e) {
-                logger.error("{} Error occurred while closing gRPC client.", this, e);
+                logger.error("{} Error occurred while closing gRPC publish service client.", this, e);
+            }
+            try {
+                if (blockNodeServiceClient != null) {
+                    blockNodeServiceClient.close();
+                }
+            } catch (final Exception e) {
+                logger.error("{} Error occurred while closing gRPC block node service client.", this, e);
             }
             blockStreamMetrics.recordConnectionClosed();
             blockStreamMetrics.recordActiveConnectionIp(-1L);
@@ -790,6 +806,17 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     public BlockNodeConfig getNodeConfig() {
         return blockNodeConfig;
+    }
+
+    /**
+     * Returns the block node service client for this connection.
+     * This client can be used to call ancillary services like server status.
+     *
+     * @return the block node service client, or null if not yet initialized
+     */
+    @Nullable
+    public BlockNodeServiceInterface.BlockNodeServiceClient getBlockNodeServiceClient() {
+        return blockNodeServiceClient;
     }
 
     @Override
