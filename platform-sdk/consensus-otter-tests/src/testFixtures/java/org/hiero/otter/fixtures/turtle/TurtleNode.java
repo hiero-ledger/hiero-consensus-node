@@ -105,8 +105,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     private final TurtleMarkerFileObserver markerFileObserver;
     private final Path outputDirectory;
 
-    private PlatformContext platformContext;
-
+    @NonNull
     private QuiescenceCommand quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
 
     @Nullable
@@ -207,7 +206,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     fileSystemManager,
                     selfId);
 
-            platformContext = TestPlatformContextBuilder.create()
+            final PlatformContext platformContext = TestPlatformContextBuilder.create()
                     .withTime(timeManager.time())
                     .withConfiguration(currentConfiguration)
                     .withFileSystemManager(fileSystemManager)
@@ -220,7 +219,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
                     .build();
 
-            otterApp = new OtterApp(version);
+            otterApp = new OtterApp(currentConfiguration, version);
 
             final HashedReservedSignedState reservedState = loadInitialState(
                     recycleBin,
@@ -336,7 +335,10 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             platformStatus = null;
             platform = null;
             platformComponent = null;
+            executionLayer = null;
+            otterApp = null;
             model = null;
+            quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
             lifeCycle = SHUTDOWN;
 
             // Wait a bit to allow a simulated gossip cycle to pass.
@@ -435,7 +437,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     @NonNull
     public SingleNodePcesResult newPcesResult() {
-        return new SingleNodePcesResultImpl(selfId(), platformContext.getConfiguration());
+        final Configuration currentConfiguration = configuration().current();
+        return new SingleNodePcesResultImpl(selfId(), currentConfiguration);
     }
 
     /**

@@ -45,6 +45,7 @@ class AppFeeChargingTest {
 
     @Test
     void refusesToChargeWithoutValidationResult() {
+        given(ctx.payerId()).willReturn(PAYER_ID);
         final var wrongValidation = mock(FeeCharging.Validation.class);
 
         assertThrows(IllegalArgumentException.class, () -> subject.charge(ctx, wrongValidation, FEES));

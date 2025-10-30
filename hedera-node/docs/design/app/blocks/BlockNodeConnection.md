@@ -87,6 +87,10 @@ the connection will be closed after sending an `EndStream` request to the block 
 a scenario is considered a fatal, unrecoverable error condition. Manual intervention would be needed to recover from this
 (for example: increasing the maximum size allowed, if possible.)
 
+When the final items of a block are sent (including all of the `BlockProof`s), the worker ensures to send a `EndOfBlock` `PublishStreamRequest`.
+This `EndOfBlock` request signals the completion of the current block's transmission to the block node. After sending the
+`EndOfBlock` request, the worker will proceed to process the next block if available.
+
 Under normal situations, the worker will continue advancing to the next block after it has successfully sent all items
 associated with the current block. This process will repeat until the connection is terminated for any reason. (A
 conditional check is performed each time the worker wakes up ensuring the connection is not in a terminal state.)
