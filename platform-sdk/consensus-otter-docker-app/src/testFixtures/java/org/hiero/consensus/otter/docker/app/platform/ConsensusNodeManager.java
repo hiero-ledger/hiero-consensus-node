@@ -125,7 +125,7 @@ public class ConsensusNodeManager {
         final PlatformContext platformContext = PlatformContext.create(
                 platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
 
-        otterApp = new OtterApp(version);
+        otterApp = new OtterApp(platformConfig, version);
 
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,

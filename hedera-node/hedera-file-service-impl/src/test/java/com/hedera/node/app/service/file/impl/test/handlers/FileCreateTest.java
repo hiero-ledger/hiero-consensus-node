@@ -313,7 +313,7 @@ class FileCreateTest extends FileTestBase {
 
         assertEquals(2, fileStore.sizeOfState());
 
-        config = new FilesConfig(1L, 1L, 1L, 1L, 1L, 1L, new LongPair(150L, 159L), 1L, 1L, 1);
+        config = new FilesConfig(1L, 1L, 1L, 1L, 1L, 1L, 1L, new LongPair(150L, 159L), 1L, 1L, 1);
         given(configuration.getConfigData(any())).willReturn(config);
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
