@@ -11,5 +11,9 @@ mainModuleInfo { annotationProcessor("com.google.auto.service.processor") }
 testModuleInfo {
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
+    requires("org.junit.jupiter.params")
+    requires("org.mockito")
+    requires("org.mockito.junit.jupiter")
+    requires("java.net.http")
     runtimeOnly("com.swirlds.config.impl")
 }

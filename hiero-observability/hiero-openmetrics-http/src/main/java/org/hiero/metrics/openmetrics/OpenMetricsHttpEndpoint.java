@@ -10,6 +10,7 @@ import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.Executors;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.zip.GZIPOutputStream;
 import org.apache.logging.log4j.LogManager;
@@ -27,10 +28,13 @@ import org.hiero.metrics.openmetrics.config.OpenMetricsHttpEndpointConfig;
  * in response to HTTP GET requests. It supports gzip compression if the client
  * indicates support for it via the "Accept-Encoding" header.
  * <p>
+ * Exposed endpoint allows only one request at a time;
+ * concurrent requests will be rejected with 429 (Too Many Requests) using virtual threads per reqeust.
+ * <p>
  * This class extends {@link PullingMetricsExporterAdapter} to periodically pull
  * metrics snapshots for export.
  */
-public class OpenMetricsHttpEndpoint extends PullingMetricsExporterAdapter {
+public final class OpenMetricsHttpEndpoint extends PullingMetricsExporterAdapter {
 
     private static final Logger logger = LogManager.getLogger(OpenMetricsHttpEndpoint.class);
 
@@ -49,7 +53,8 @@ public class OpenMetricsHttpEndpoint extends PullingMetricsExporterAdapter {
         final HttpServerProvider provider = HttpServerProvider.provider();
         server = provider.createHttpServer(new InetSocketAddress(config.port()), config.backlog());
         server.createContext(config.path(), this::handleSnapshots);
-        server.setExecutor(null);
+        // create new virtual thread per reqeust, but respond with 449 (Too Many Requests) for concurrent requests
+        server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         server.start();
 
         logger.info("OpenMetrics HTTP endpoint started. port={}, path={}", config.port(), config.path());
@@ -58,7 +63,7 @@ public class OpenMetricsHttpEndpoint extends PullingMetricsExporterAdapter {
     private void handleSnapshots(HttpExchange exchange) throws IOException {
         if (!lock.tryLock()) {
             logger.warn("Another request is being processed, rejecting this one");
-            exchange.sendResponseHeaders(503, 0); // Service Unavailable
+            exchange.sendResponseHeaders(429, 0); // Too Many Requests
             exchange.close();
             return;
         }
@@ -92,7 +97,6 @@ public class OpenMetricsHttpEndpoint extends PullingMetricsExporterAdapter {
                 responseBuffer.writeTo(exchange.getResponseBody());
             }
         } catch (RuntimeException e) {
-            //  TODO additional error handling ?
             logger.error("Error exporting metrics snapshot", e);
             exchange.sendResponseHeaders(500, 0);
         } finally {
