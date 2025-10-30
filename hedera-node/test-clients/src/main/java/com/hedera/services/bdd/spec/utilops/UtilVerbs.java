@@ -475,7 +475,6 @@ public class UtilVerbs {
     /**
      * Returns an operation that delays for the given time and then validates that the selected nodes'
      * application logs contain the given text.
-     *
      * @param selector the selector for the node whose log to validate
      * @param text the text that must be present
      * @param delay the delay before validation
@@ -503,7 +502,6 @@ public class UtilVerbs {
     /**
      * Returns an operation that delays for the given time and then validates that the selected nodes'
      * application logs do not contain the given text.
-     *
      * @param selector the selector for the node whose log to validate
      * @param text the text that must be present
      * @param delay the delay before validation
@@ -512,6 +510,19 @@ public class UtilVerbs {
     public static LogContainmentOp assertHgcaaLogDoesNotContainText(
             @NonNull final NodeSelector selector, @NonNull final String text, @NonNull final Duration delay) {
         return new LogContainmentOp(selector, APPLICATION_LOG, DOES_NOT_CONTAIN, text, null, delay);
+    }
+
+    /**
+     * Returns an operation that delays for the given time and then validates that the selected nodes'
+     * block node comms logs contain the given text.
+     * @param selector the selector for the node whose log to validate
+     * @param text the text that must be present
+     * @param delay the delay before validation
+     * @return the operation that validates the logs of the target network
+     */
+    public static LogContainmentOp assertBlockNodeCommsLogContainsText(
+            @NonNull final NodeSelector selector, @NonNull final String text, @NonNull final Duration delay) {
+        return new LogContainmentOp(selector, BLOCK_NODE_COMMS_LOG, CONTAINS, text, null, delay);
     }
 
     /**
