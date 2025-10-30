@@ -6,6 +6,14 @@ import com.swirlds.config.api.ConfigProperty;
 import com.swirlds.config.api.validation.annotation.Max;
 import com.swirlds.config.api.validation.annotation.Min;
 
+/**
+ * Configuration for the OpenMetrics HTTP endpoint.
+ *
+ * @param enabled whether the endpoint is enabled (default: true)
+ * @param port the port to listen on (default: 8888)
+ * @param path the HTTP path to serve metrics on (default: /metrics)
+ * @param backlog the socket backlog (default: 0)
+ */
 @ConfigData("metrics.exporter.openmetrics.http")
 public record OpenMetricsHttpEndpointConfig(
         @ConfigProperty(defaultValue = "true") boolean enabled,
