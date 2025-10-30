@@ -665,23 +665,35 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         if (getConnectionState() == ConnectionState.ACTIVE && pipeline != null) {
             try {
-                logger.debug(
-                        "{} [block={}, request={}] Sending request to block node (type={})",
-                        this,
-                        blockNumber,
-                        requestNumber,
-                        request.request().kind());
+                if (blockNumber == -1 && requestNumber == -1) {
+                    logger.debug(
+                            "{} Sending ad hoc request to block node (type={})",
+                            this,
+                            request.request().kind());
+                } else {
+                    logger.debug(
+                            "{} [block={}, request={}] Sending request to block node (type={})",
+                            this,
+                            blockNumber,
+                            requestNumber,
+                            request.request().kind());
+                }
 
                 final long startMs = System.currentTimeMillis();
                 pipeline.onNext(request);
                 final long durationMs = System.currentTimeMillis() - startMs;
                 blockStreamMetrics.recordRequestLatency(durationMs);
-                logger.trace(
-                        "{} [block={}, request={}] Request took {}ms to send",
-                        this,
-                        blockNumber,
-                        requestNumber,
-                        durationMs);
+
+                if (blockNumber == -1 && requestNumber == -1) {
+                    logger.trace("{} Ad hoc request took {}ms to send", this, durationMs);
+                } else {
+                    logger.trace(
+                            "{} [block={}, request={}] Request took {}ms to send",
+                            this,
+                            blockNumber,
+                            requestNumber,
+                            durationMs);
+                }
 
                 if (request.hasEndStream()) {
                     blockStreamMetrics.recordRequestEndStreamSent(
