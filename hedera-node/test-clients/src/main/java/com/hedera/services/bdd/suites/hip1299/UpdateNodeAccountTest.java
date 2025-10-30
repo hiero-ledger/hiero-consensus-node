@@ -45,6 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
+import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -64,7 +65,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
-@Tag(MATS)
 public class UpdateNodeAccountTest {
 
     private static List<X509Certificate> gossipCertificates;
@@ -78,6 +78,7 @@ public class UpdateNodeAccountTest {
     @Nested
     class UpdateNodeAccountIdPositiveTests {
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+        @Tag(MATS)
         final Stream<DynamicTest> updateAccountIdSuccessfullyHappyPath() throws CertificateEncodingException {
             final String initialNodeAccount = "initialNodeAccount";
             final String newNodeAccount = "newNodeAccount";
@@ -103,6 +104,7 @@ public class UpdateNodeAccountTest {
         }
 
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+        @Tag(MATS)
         final Stream<DynamicTest> updateAccountIdRequiredSignatures() {
             final AccountID sentinelValue = AccountID.newBuilder()
                     .setShardNum(0)
@@ -503,6 +505,7 @@ public class UpdateNodeAccountTest {
         }
 
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+        @Tag(MATS)
         final Stream<DynamicTest> restrictNodeAccountDeletion() throws CertificateEncodingException {
             final var adminKey = "adminKey";
             final var account = "account";
@@ -539,7 +542,7 @@ public class UpdateNodeAccountTest {
     @Nested
     class UpdateNodeAccountIdNegativeTests {
         @Tag(ONLY_SUBPROCESS)
-        @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+        @HapiTest
         final Stream<DynamicTest> updateAccountIdAndSubmitWithOldAccountIdFails() {
             final var nodeIdToUpdate = 1;
             final var oldNodeAccountId = nodeIdToUpdate + CLASSIC_FIRST_NODE_ACCOUNT_NUM;
@@ -560,6 +563,7 @@ public class UpdateNodeAccountTest {
         }
 
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+        @Tag(MATS)
         final Stream<DynamicTest> nodeUpdateWithAccountLinkedToAnotherAccountFails()
                 throws CertificateEncodingException {
             final var adminKey = "adminKey";
@@ -585,6 +589,7 @@ public class UpdateNodeAccountTest {
         }
 
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+        @Tag(MATS)
         final Stream<DynamicTest> nodeUpdateWithZeroBalanceAccountFails() throws CertificateEncodingException {
             final var adminKey = "adminKey";
             final var account = "account";
