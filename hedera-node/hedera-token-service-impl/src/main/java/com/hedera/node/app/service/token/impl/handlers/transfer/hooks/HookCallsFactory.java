@@ -88,8 +88,6 @@ public class HookCallsFactory {
                 prePost);
         // Encode custom fee transfers
         final var customFeeTransfers = encodeCustomFees(accountStore, itemizedAssessedFees);
-        System.out.println("directTransfers: " + directTransfers);
-        System.out.println("customFeeTransfers: " + customFeeTransfers);
         return new HookCalls(
                 new HookContext(Tuple.of(directTransfers, customFeeTransfers), memo, txnFee), preOnly, prePost);
     }
