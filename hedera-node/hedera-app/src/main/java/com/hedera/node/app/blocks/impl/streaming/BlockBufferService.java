@@ -561,34 +561,24 @@ public class BlockBufferService {
             }
             ++numChecked;
 
+            final boolean shouldPrune;
             if (!isBackpressureEnabled()) {
-                // If backpressure is disabled, remove blocks based solely on the max buffer size
-                if (size > maxBufferSize) {
-                    blockBuffer.remove(blockNumber);
-                    ++numPruned;
-                    --size;
-                } else {
-                    // Track unacknowledged blocks
-                    if (blockNumber > highestBlockAcked) {
-                        ++numPendingAck;
-                    }
-                    // Keep track of the earliest remaining block
-                    newEarliestBlock = Math.min(newEarliestBlock, blockNumber);
-                    newLatestBlock = Math.max(newLatestBlock, blockNumber);
-                }
-            } else if (blockNumber <= highestBlockAcked) {
-                if (size > maxBufferSize) {
-                    blockBuffer.remove(blockNumber);
-                    ++numPruned;
-                    --size;
-                } else {
-                    // keep track of earliest remaining block
-                    newEarliestBlock = Math.min(newEarliestBlock, blockNumber);
-                    newLatestBlock = Math.max(newLatestBlock, blockNumber);
-                }
+                // If backpressure is disabled, remove blocks based solely on the maximum buffer size
+                shouldPrune = (size > maxBufferSize);
             } else {
-                ++numPendingAck;
-                // keep track of the earliest remaining block
+                // If backpressure is enabled, only prune acknowledged blocks when over capacity
+                shouldPrune = (size > maxBufferSize && blockNumber <= highestBlockAcked);
+            }
+
+            if (shouldPrune) {
+                blockBuffer.remove(blockNumber);
+                ++numPruned;
+                --size;
+            } else {
+                // Track unacknowledged blocks and remaining earliest/latest
+                if (blockNumber > highestBlockAcked) {
+                    ++numPendingAck;
+                }
                 newEarliestBlock = Math.min(newEarliestBlock, blockNumber);
                 newLatestBlock = Math.max(newLatestBlock, blockNumber);
             }
