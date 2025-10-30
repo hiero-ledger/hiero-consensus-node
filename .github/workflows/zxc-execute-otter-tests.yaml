@@ -59,7 +59,7 @@ on:
         required: true
     outputs:
       description: "Indicates the failure mode of the job, if any."
-      value: ${{ jobs.compile.outputs.failure-mode }}
+      value: ${{ jobs.otter.outputs.failure-mode }}
 
 defaults:
   run:
