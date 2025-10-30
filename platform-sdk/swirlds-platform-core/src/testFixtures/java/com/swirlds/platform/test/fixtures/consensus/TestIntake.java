@@ -5,15 +5,14 @@ import static com.swirlds.component.framework.wires.SolderType.INJECT;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.base.time.Time;
+import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.component.framework.component.ComponentWiring;
-import com.swirlds.component.framework.model.WiringModel;
+import com.swirlds.component.framework.model.DeterministicWiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
-import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.platform.components.DefaultEventWindowManager;
 import com.swirlds.platform.components.EventWindowManager;
@@ -31,11 +30,11 @@ import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import com.swirlds.platform.wiring.components.PassThroughWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.ArrayDeque;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -53,9 +52,10 @@ public class TestIntake {
     private final ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring;
     private final ComponentWiring<ConsensusEngine, ConsensusEngineOutput> consensusEngineWiring;
     private final Queue<Throwable> componentExceptions = new LinkedList<>();
-    private final WiringModel model;
+    private final DeterministicWiringModel model;
     private final int roundsNonAncient;
     private final FreezeCheckHolder freezeCheckHolder;
+    private final FakeTime time = new FakeTime(Duration.of(1, ChronoUnit.SECONDS));
 
     /**
      * @param platformContext the platform context used to configure this intake.
@@ -70,11 +70,11 @@ public class TestIntake {
 
         output = new ConsensusOutput();
 
-        model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
+        model = WiringModelBuilder.create(new NoOpMetrics(), time)
                 .deterministic()
                 .build();
 
-        hasherWiring = new ComponentWiring<>(model, EventHasher.class, directScheduler("eventHasher"));
+        hasherWiring = new ComponentWiring<>(model, EventHasher.class, scheduler("eventHasher"));
         final EventHasher eventHasher = new DefaultEventHasher();
         hasherWiring.bind(eventHasher);
 
@@ -84,7 +84,7 @@ public class TestIntake {
         final IntakeEventCounter intakeEventCounter = new NoOpIntakeEventCounter();
         final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(
                 platformContext.getConfiguration(), platformContext.getMetrics(), intakeEventCounter);
-        orphanBufferWiring = new ComponentWiring<>(model, OrphanBuffer.class, directScheduler("orphanBuffer"));
+        orphanBufferWiring = new ComponentWiring<>(model, OrphanBuffer.class, scheduler("orphanBuffer"));
         orphanBufferWiring.bind(orphanBuffer);
 
         freezeCheckHolder = new FreezeCheckHolder();
@@ -92,17 +92,17 @@ public class TestIntake {
         final ConsensusEngine consensusEngine =
                 new DefaultConsensusEngine(platformContext, roster, selfId, freezeCheckHolder);
 
-        consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, directScheduler("consensusEngine"));
+        consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, scheduler("consensusEngine"));
         consensusEngineWiring.bind(consensusEngine);
 
         final ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring =
-                new ComponentWiring<>(model, EventWindowManager.class, directScheduler("eventWindowManager"));
+                new ComponentWiring<>(model, EventWindowManager.class, scheduler("eventWindowManager"));
         eventWindowManagerWiring.bind(new DefaultEventWindowManager());
 
         hasherWiring.getOutputWire().solderTo(postHashCollectorWiring.getInputWire());
         postHashCollectorWiring.getOutputWire().solderTo(orphanBufferWiring.getInputWire(OrphanBuffer::handleEvent));
-
-        wireOrphanBufferAndConsensusEngine(orphanBufferWiring, consensusEngineWiring);
+        final OutputWire<PlatformEvent> splitOutput = orphanBufferWiring.getSplitOutput();
+        splitOutput.solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::addEvent));
 
         final OutputWire<ConsensusRound> consensusRoundOutputWire = consensusEngineWiring
                 .getOutputWire()
@@ -128,46 +128,6 @@ public class TestIntake {
     }
 
     /**
-     * This method wires the orphanBuffer output to consensusEngine's input.
-     * It is done using binding a custom lambda that is solving an edge case that is particularly important when using direct task schedulers:
-     * In a direct scheduler pipeline, when the orphan buffer releases an event to the consensus component, the consensus component may output an `EventWindow` that feeds back to the same orphan buffer, which might then release a second batch of events. Because it's a DIRECT scheduler (synchronous, single-threaded),  the new list starts processing immediately, interrupting the previous list iteration.
-     * This means a child event from the new list can be processed before its parent from the original list, breaking topological order.
-     *
-     *  This method solves this issue using a queue of events and a flag indicating that there is a current integration in progress.
-     *  Only one iteration at the time will feed elements to consensus, allowing us to maintain the topological order.
-     * @param orphanBufferWiring the orphan buffer wiring
-     * @param consensusEngineWiring the consensus engine wiring
-     */
-    private static void wireOrphanBufferAndConsensusEngine(
-            final ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring,
-            final ComponentWiring<ConsensusEngine, ConsensusEngineOutput> consensusEngineWiring) {
-        final Queue<List<PlatformEvent>> pendingEventsLists = new ArrayDeque<>();
-        final AtomicBoolean isProcessing = new AtomicBoolean(false);
-        final InputWire<PlatformEvent> consensusInputWire =
-                consensusEngineWiring.getInputWire(ConsensusEngine::addEvent);
-
-        orphanBufferWiring.getOutputWire().solderTo("splitOrphanBufferOutput", "list of events", list -> {
-            pendingEventsLists.add(list);
-
-            if (isProcessing.compareAndExchange(false, true)) {
-                // If already processing, some other iteration in the stack will handle the newly added list
-                return;
-            }
-
-            try {
-                while (!pendingEventsLists.isEmpty()) {
-                    final List<PlatformEvent> currentList = pendingEventsLists.poll();
-                    for (final PlatformEvent t : currentList) {
-                        consensusInputWire.inject(t);
-                    }
-                }
-            } finally {
-                isProcessing.set(false);
-            }
-        });
-    }
-
-    /**
      * Link an event to its parents and add it to consensus and shadowgraph
      *
      * @param event the event to add
@@ -175,6 +135,7 @@ public class TestIntake {
     public void addEvent(@NonNull final PlatformEvent event) {
         hasherWiring.getInputWire(EventHasher::hashEvent).put(event);
         output.eventAdded(event);
+        model.doAllWork();
         throwComponentExceptionsIfAny();
     }
 
@@ -207,6 +168,7 @@ public class TestIntake {
     }
 
     public void reset() {
+        time.reset();
         loadSnapshot(SyntheticSnapshot.getGenesisSnapshot());
         output.clear();
     }
@@ -217,9 +179,9 @@ public class TestIntake {
         });
     }
 
-    public <X> TaskScheduler<X> directScheduler(final String name) {
+    public <X> TaskScheduler<X> scheduler(final String name) {
         return model.<X>schedulerBuilder(name)
-                .withType(TaskSchedulerType.DIRECT)
+                .withType(TaskSchedulerType.SEQUENTIAL)
                 // This is needed because of the catch in StandardOutputWire.forward()
                 // if we throw the exception, it will be caught by it and will not fail the test
                 .withUncaughtExceptionHandler((t, e) -> componentExceptions.add(e))
