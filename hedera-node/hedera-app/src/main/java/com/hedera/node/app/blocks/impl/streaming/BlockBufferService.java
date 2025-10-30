@@ -436,74 +436,31 @@ public class BlockBufferService {
     }
 
     /**
-     * Ensures that there is enough capacity in the block buffer to permit a new block being created. If the
-     * buffer is saturated, this method will first try to free exactly one slot by pruning the oldest acknowledged
-     * block. If capacity is still not available, it will enable backpressure and block until capacity
-     * becomes available. It also mirrors the buffer state transition handling performed by the periodic worker.
+     * Ensures that there is enough capacity in the block buffer to permit a new block being created. If there is not
+     * enough capacity - i.e. the buffer is saturated - then this method will block until there is enough capacity.
      */
     public void ensureNewBlocksPermitted() {
         if (!isGrpcStreamingEnabled() || !isStarted.get()) {
             return;
         }
 
-        final int capacity = maxBufferedBlocks();
-        int prunedBlocks = 0;
-        int sizeSnapshot;
+        final CompletableFuture<Boolean> cf = backpressureCompletableFutureRef.get();
+        if (cf != null && !cf.isDone()) {
+            try {
+                logger.error("!!! Block buffer is saturated; blocking thread until buffer is no longer saturated");
+                final long startMs = System.currentTimeMillis();
+                final boolean bufferAvailable = cf.get(); // this will block until the future is completed
+                final long durationMs = System.currentTimeMillis() - startMs;
+                logger.warn("Thread was blocked for {}ms waiting for block buffer to free space", durationMs);
 
-        // Attempt to free exactly one slot deterministically (the oldest acknowledged block)
-        synchronized (blockBuffer) {
-            sizeSnapshot = blockBuffer.size();
-            if (sizeSnapshot >= capacity) {
-                long earliest = earliestBlockNumber.get();
-                if (earliest != Long.MIN_VALUE && highestAckedBlockNumber.get() >= earliest) {
-                    // Remove the earliest block to make space if it has been acknowledged
-                    blockBuffer.remove(earliest);
-                    prunedBlocks++;
-                    // Advance the earliest pointer to the next present block number if possible
-                    earliest++;
-                    if (earliest <= lastProducedBlockNumber.get() && blockBuffer.containsKey(earliest)) {
-                        earliestBlockNumber.set(earliest);
-                    } else {
-                        earliestBlockNumber.set(Long.MIN_VALUE);
-                    }
-                    // Recalculate saturation after removal
-                    sizeSnapshot = blockBuffer.size();
+                if (!bufferAvailable) {
+                    logger.warn("Block buffer still not available to accept new blocks; reentering wait...");
+                    ensureNewBlocksPermitted();
                 }
-            }
-        }
-
-        final PruneResult pruningResult = new PruneResult(
-                capacity,
-                sizeSnapshot,
-                sizeSnapshot,
-                prunedBlocks,
-                earliestBlockNumber.get(),
-                lastProducedBlockNumber.get());
-        final PruneResult previousPruneResult = lastPruningResult;
-        lastPruningResult = pruningResult;
-
-        handleBufferStateTransitions(previousPruneResult, pruningResult);
-
-        // If still saturated after attempting a single prune, block on backpressure
-        if (pruningResult.isSaturated) {
-            final CompletableFuture<Boolean> cf = backpressureCompletableFutureRef.get();
-            if (cf != null && !cf.isDone()) {
-                try {
-                    logger.error("!!! Block buffer is saturated; blocking thread until buffer is no longer saturated");
-                    final long startMs = System.currentTimeMillis();
-                    final boolean bufferAvailable = cf.get(); // this will block until the future is completed
-                    final long durationMs = System.currentTimeMillis() - startMs;
-                    logger.warn("Thread was blocked for {}ms waiting for block buffer to free space", durationMs);
-
-                    if (!bufferAvailable) {
-                        logger.warn("Block buffer still not available to accept new blocks; reentering wait...");
-                        ensureNewBlocksPermitted();
-                    }
-                } catch (final InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                } catch (final Exception e) {
-                    logger.warn("Failed to wait for block buffer to be available", e);
-                }
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (final Exception e) {
+                logger.warn("Failed to wait for block buffer to be available", e);
             }
         }
     }
@@ -606,7 +563,7 @@ public class BlockBufferService {
 
             if (!isBackpressureEnabled()) {
                 // If backpressure is disabled, remove blocks based solely on the max buffer size
-                if (blockBuffer.size() > maxBufferSize) {
+                if (size > maxBufferSize) {
                     blockBuffer.remove(blockNumber);
                     ++numPruned;
                     --size;
@@ -729,14 +686,9 @@ public class BlockBufferService {
                     getContiguousRangesAsString(new ArrayList<>(blockBuffer.keySet())),
                     pruningResult.saturationPercent);
         }
-        handleBufferStateTransitions(previousPruneResult, pruningResult);
-    }
 
-    /*
-     * Handles buffer state transitions and emits metrics
-     */
-    private void handleBufferStateTransitions(final PruneResult previousPruneResult, final PruneResult pruningResult) {
         blockStreamMetrics.recordBufferSaturation(pruningResult.saturationPercent);
+
         final double actionStageThreshold = actionStageThreshold();
 
         if (previousPruneResult.saturationPercent < actionStageThreshold) {
