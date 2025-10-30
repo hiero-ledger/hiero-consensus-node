@@ -1296,6 +1296,42 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testConnectionWorker_blockNodeTooFarBehind() throws Exception {
+        openConnectionAndResetMocks();
+        final AtomicReference<Thread> workerThreadRef = workerThreadRef();
+        workerThreadRef.set(null); // clear the fake worker thread
+        final AtomicLong streamingBlockNumber = streamingBlockNumber();
+
+        streamingBlockNumber.set(10);
+        when(bufferService.getEarliestAvailableBlockNumber()).thenReturn(15L);
+        when(bufferService.getBlockState(anyLong())).thenReturn(null);
+
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+        // sleep to let the worker detect the state change and start doing work
+        sleep(150);
+
+        assertThat(workerThreadRef).hasNullValue();
+        assertThat(streamingBlockNumber).hasValue(10);
+
+        verify(metrics).recordRequestLatency(anyLong());
+        verify(metrics).recordRequestEndStreamSent(EndStream.Code.TOO_FAR_BEHIND);
+        verify(metrics).recordConnectionClosed();
+        verify(metrics).recordActiveConnectionIp(-1L);
+        verify(bufferService, times(2)).getEarliestAvailableBlockNumber();
+        verify(bufferService).getHighestAckedBlockNumber();
+        verify(connectionManager).rescheduleConnection(connection, Duration.ofSeconds(30), null, true);
+
+        final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);
+        verify(requestPipeline).onNext(requestCaptor.capture());
+        verify(requestPipeline).onComplete();
+
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(bufferService);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoMoreInteractions(requestPipeline);
+    }
+
+    @Test
     void testConnectionWorker_blockJump() throws Exception {
         openConnectionAndResetMocks();
         final AtomicReference<Thread> workerThreadRef = workerThreadRef();
@@ -1338,6 +1374,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordResponseReceived(ResponseOneOfType.SKIP_BLOCK);
         verify(bufferService, atLeastOnce()).getBlockState(10);
         verify(bufferService, atLeastOnce()).getBlockState(11);
+
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(metrics);
