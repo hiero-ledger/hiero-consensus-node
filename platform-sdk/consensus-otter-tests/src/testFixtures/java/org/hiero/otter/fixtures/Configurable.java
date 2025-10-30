@@ -20,6 +20,7 @@ import java.util.List;
  * @param <T> the type of the configurable object, allowing for proper method chaining with the implementing type
  */
 public interface Configurable<T extends Configurable<T>> {
+
     /**
      * Updates a single property of the configuration. Can only be invoked when the node is not running.
      *

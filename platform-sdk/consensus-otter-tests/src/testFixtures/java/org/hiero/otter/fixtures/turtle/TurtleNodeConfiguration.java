@@ -33,25 +33,17 @@ public class TurtleNodeConfiguration extends AbstractNodeConfiguration {
             @NonNull final Path outputDirectory) {
         super(lifeCycleSupplier, overrideProperties);
 
-        overriddenProperties.withConfigValue(BasicConfig_.JVM_PAUSE_DETECTOR_SLEEP_MS, "0");
-        overriddenProperties.withConfigValue(PcesConfig_.LIMIT_REPLAY_FREQUENCY, "false");
+        overriddenProperties.withConfigValue(BasicConfig_.JVM_PAUSE_DETECTOR_SLEEP_MS, 0);
+        overriddenProperties.withConfigValue(PcesConfig_.LIMIT_REPLAY_FREQUENCY, false);
+        overriddenProperties.withConfigValue(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM);
+        overriddenProperties.withConfigValue(EventConfig_.EVENTS_LOG_DIR, outputDirectory.resolve("hgcapp"));
         overriddenProperties.withConfigValue(
-                PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM.toString());
+                StateCommonConfig_.SAVED_STATE_DIRECTORY, outputDirectory.resolve("data/saved"));
+        overriddenProperties.withConfigValue(FileSystemManagerConfig_.ROOT_PATH, outputDirectory.resolve("data"));
+        overriddenProperties.withConfigValue(PathsConfig_.SETTINGS_USED_DIR, outputDirectory);
+        overriddenProperties.withConfigValue(PathsConfig_.KEYS_DIR_PATH, outputDirectory.resolve("data/keys"));
+        overriddenProperties.withConfigValue(PathsConfig_.APPS_DIR_PATH, outputDirectory.resolve("data/apps"));
         overriddenProperties.withConfigValue(
-                EventConfig_.EVENTS_LOG_DIR, outputDirectory.resolve("hgcapp").toString());
-        overriddenProperties.withConfigValue(
-                StateCommonConfig_.SAVED_STATE_DIRECTORY,
-                outputDirectory.resolve("data/saved").toString());
-        overriddenProperties.withConfigValue(
-                FileSystemManagerConfig_.ROOT_PATH,
-                outputDirectory.resolve("data").toString());
-        overriddenProperties.withConfigValue(PathsConfig_.SETTINGS_USED_DIR, outputDirectory.toString());
-        overriddenProperties.withConfigValue(
-                PathsConfig_.KEYS_DIR_PATH, outputDirectory.resolve("data/keys").toString());
-        overriddenProperties.withConfigValue(
-                PathsConfig_.APPS_DIR_PATH, outputDirectory.resolve("data/apps").toString());
-        overriddenProperties.withConfigValue(
-                PathsConfig_.MARKER_FILES_DIR,
-                outputDirectory.resolve("data/saved/marker_files").toString());
+                PathsConfig_.MARKER_FILES_DIR, outputDirectory.resolve("data/saved/marker_files"));
     }
 }
