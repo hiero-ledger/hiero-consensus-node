@@ -164,9 +164,9 @@ final class NetworkConfigurationTest {
             final SemanticVersion nodeVersion =
                     SemanticVersion.newBuilder().major(2).minor(0).patch(0).build();
             node1.version(nodeVersion);
-            node2.configuration().set("testKey1", "differentTestValue1");
-            node2.configuration().set("testKey2", 27);
-            node2.configuration().set("testKey3", false);
+            node2.configuration().withConfigValue("testKey1", "differentTestValue1");
+            node2.configuration().withConfigValue("testKey2", 27);
+            node2.configuration().withConfigValue("testKey3", false);
 
             // Verify overrides
             assertThat(node0.weight()).isEqualTo(1000L);

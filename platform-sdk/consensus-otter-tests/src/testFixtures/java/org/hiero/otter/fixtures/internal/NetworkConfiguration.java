@@ -100,7 +100,7 @@ public class NetworkConfiguration {
      */
     @NonNull
     public NetworkConfiguration set(@NonNull final String key, final boolean value) {
-        overrideProperties.set(key, value);
+        overrideProperties.withConfigValue(key, value);
         return this;
     }
 
@@ -109,7 +109,7 @@ public class NetworkConfiguration {
      */
     @NonNull
     public NetworkConfiguration set(@NonNull final String key, @NonNull final String value) {
-        overrideProperties.set(key, value);
+        overrideProperties.withConfigValue(key, value);
         return this;
     }
 
@@ -118,7 +118,7 @@ public class NetworkConfiguration {
      */
     @NonNull
     public NetworkConfiguration set(@NonNull final String key, final int value) {
-        overrideProperties.set(key, value);
+        overrideProperties.withConfigValue(key, value);
         return this;
     }
 
@@ -127,7 +127,7 @@ public class NetworkConfiguration {
      */
     @NonNull
     public NetworkConfiguration set(@NonNull final String key, final double value) {
-        overrideProperties.set(key, value);
+        overrideProperties.withConfigValue(key, value);
         return this;
     }
 
@@ -136,7 +136,7 @@ public class NetworkConfiguration {
      */
     @NonNull
     public NetworkConfiguration set(@NonNull final String key, final long value) {
-        overrideProperties.set(key, value);
+        overrideProperties.withConfigValue(key, value);
         return this;
     }
 
@@ -145,7 +145,7 @@ public class NetworkConfiguration {
      */
     @NonNull
     public NetworkConfiguration set(@NonNull final String key, @NonNull final Enum<?> value) {
-        overrideProperties.set(key, value);
+        overrideProperties.withConfigValue(key, value);
         return this;
     }
 
@@ -154,7 +154,7 @@ public class NetworkConfiguration {
      */
     @NonNull
     public NetworkConfiguration set(@NonNull final String key, final @NonNull Duration value) {
-        overrideProperties.set(key, value);
+        overrideProperties.withConfigValue(key, value);
         return this;
     }
 
@@ -163,7 +163,7 @@ public class NetworkConfiguration {
      */
     @NonNull
     public NetworkConfiguration set(@NonNull final String key, @NonNull final List<String> values) {
-        overrideProperties.set(key, values);
+        overrideProperties.withConfigValue(key, values);
         return this;
     }
 
@@ -172,7 +172,7 @@ public class NetworkConfiguration {
      */
     @NonNull
     public NetworkConfiguration set(@NonNull final String key, @NonNull final Path path) {
-        overrideProperties.set(key, path);
+        overrideProperties.withConfigValue(key, path);
         return this;
     }
 
@@ -181,7 +181,7 @@ public class NetworkConfiguration {
      */
     @NonNull
     public NetworkConfiguration set(@NonNull final String key, @NonNull final TaskSchedulerConfiguration value) {
-        overrideProperties.set(key, value);
+        overrideProperties.withConfigValue(key, value);
         return this;
     }
 }

@@ -619,7 +619,7 @@ public abstract class AbstractNetwork implements Network {
     public Network withConfigValue(@NonNull final String key, @NonNull final String value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
         networkConfiguration.set(key, value);
-        nodes().forEach(node -> node.configuration().set(key, value));
+        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
 
@@ -630,7 +630,7 @@ public abstract class AbstractNetwork implements Network {
     public @NotNull Network withConfigValue(@NotNull final String key, @NotNull final Duration value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
         networkConfiguration.set(key, value);
-        nodes().forEach(node -> node.configuration().set(key, value));
+        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
 
@@ -642,7 +642,7 @@ public abstract class AbstractNetwork implements Network {
     public Network withConfigValue(@NonNull final String key, final int value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
         networkConfiguration.set(key, value);
-        nodes().forEach(node -> node.configuration().set(key, value));
+        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
 
@@ -654,7 +654,7 @@ public abstract class AbstractNetwork implements Network {
     public Network withConfigValue(@NonNull final String key, final long value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
         networkConfiguration.set(key, value);
-        nodes().forEach(node -> node.configuration().set(key, value));
+        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
 
@@ -666,7 +666,7 @@ public abstract class AbstractNetwork implements Network {
     public Network withConfigValue(@NonNull final String key, @NonNull final Path value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
         networkConfiguration.set(key, value);
-        nodes().forEach(node -> node.configuration().set(key, value));
+        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
 
@@ -678,7 +678,7 @@ public abstract class AbstractNetwork implements Network {
     public Network withConfigValue(@NonNull final String key, final boolean value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
         networkConfiguration.set(key, value);
-        nodes().forEach(node -> node.configuration().set(key, value));
+        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
 

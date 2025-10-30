@@ -44,7 +44,7 @@ public class OverrideProperties implements Configurable<OverrideProperties> {
      */
     @Override
     @NonNull
-    public OverrideProperties set(@NonNull final String key, final boolean value) {
+    public OverrideProperties withConfigValue(@NonNull final String key, final boolean value) {
         overriddenProperties.put(key, Boolean.toString(value));
         return this;
     }
@@ -54,7 +54,7 @@ public class OverrideProperties implements Configurable<OverrideProperties> {
      */
     @Override
     @NonNull
-    public OverrideProperties set(@NonNull final String key, @NonNull final String value) {
+    public OverrideProperties withConfigValue(@NonNull final String key, @NonNull final String value) {
         overriddenProperties.put(key, value);
         return this;
     }
@@ -64,7 +64,7 @@ public class OverrideProperties implements Configurable<OverrideProperties> {
      */
     @Override
     @NonNull
-    public OverrideProperties set(@NonNull final String key, final int value) {
+    public OverrideProperties withConfigValue(@NonNull final String key, final int value) {
         overriddenProperties.put(key, Integer.toString(value));
         return this;
     }
@@ -74,7 +74,7 @@ public class OverrideProperties implements Configurable<OverrideProperties> {
      */
     @Override
     @NonNull
-    public OverrideProperties set(@NonNull final String key, final double value) {
+    public OverrideProperties withConfigValue(@NonNull final String key, final double value) {
         overriddenProperties.put(key, Double.toString(value));
         return this;
     }
@@ -84,7 +84,7 @@ public class OverrideProperties implements Configurable<OverrideProperties> {
      */
     @Override
     @NonNull
-    public OverrideProperties set(@NonNull final String key, final long value) {
+    public OverrideProperties withConfigValue(@NonNull final String key, final long value) {
         overriddenProperties.put(key, Long.toString(value));
         return this;
     }
@@ -94,7 +94,7 @@ public class OverrideProperties implements Configurable<OverrideProperties> {
      */
     @Override
     @NonNull
-    public OverrideProperties set(@NonNull final String key, @NonNull final Enum<?> value) {
+    public OverrideProperties withConfigValue(@NonNull final String key, @NonNull final Enum<?> value) {
         overriddenProperties.put(key, value.toString());
         return this;
     }
@@ -104,7 +104,7 @@ public class OverrideProperties implements Configurable<OverrideProperties> {
      */
     @Override
     @NonNull
-    public OverrideProperties set(@NonNull final String key, @NonNull final Duration value) {
+    public OverrideProperties withConfigValue(@NonNull final String key, @NonNull final Duration value) {
         overriddenProperties.put(key, value.toString());
         return this;
     }
@@ -114,7 +114,7 @@ public class OverrideProperties implements Configurable<OverrideProperties> {
      */
     @Override
     @NonNull
-    public OverrideProperties set(@NonNull final String key, @NonNull final List<String> values) {
+    public OverrideProperties withConfigValue(@NonNull final String key, @NonNull final List<String> values) {
         overriddenProperties.put(key, String.join(",", values));
         return this;
     }
@@ -124,7 +124,7 @@ public class OverrideProperties implements Configurable<OverrideProperties> {
      */
     @Override
     @NonNull
-    public OverrideProperties set(@NonNull final String key, @NonNull final Path path) {
+    public OverrideProperties withConfigValue(@NonNull final String key, @NonNull final Path path) {
         overriddenProperties.put(key, path.toString());
         return this;
     }
@@ -134,7 +134,7 @@ public class OverrideProperties implements Configurable<OverrideProperties> {
      */
     @Override
     @NonNull
-    public OverrideProperties set(@NonNull final String key, @NonNull final TaskSchedulerConfiguration configuration) {
+    public OverrideProperties withConfigValue(@NonNull final String key, @NonNull final TaskSchedulerConfiguration configuration) {
         final StringBuilder builder = new StringBuilder();
         if (configuration.type() != null) {
             builder.append(configuration.type()).append(" ");

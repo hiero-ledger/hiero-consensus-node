@@ -8,7 +8,6 @@ import com.swirlds.platform.config.PathsConfig_;
 import com.swirlds.platform.event.preconsensus.PcesConfig_;
 import com.swirlds.platform.event.preconsensus.PcesFileWriterType;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.util.function.Supplier;
 import org.hiero.consensus.config.EventConfig_;
@@ -33,23 +32,23 @@ public class TurtleNodeConfiguration extends AbstractNodeConfiguration {
             @NonNull final Path outputDirectory) {
         super(lifeCycleSupplier, overrideProperties);
 
-        overriddenProperties.set(BasicConfig_.JVM_PAUSE_DETECTOR_SLEEP_MS, "0");
-        overriddenProperties.set(PcesConfig_.LIMIT_REPLAY_FREQUENCY, "false");
-        overriddenProperties.set(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM.toString());
-        overriddenProperties.set(
+        overriddenProperties.withConfigValue(BasicConfig_.JVM_PAUSE_DETECTOR_SLEEP_MS, "0");
+        overriddenProperties.withConfigValue(PcesConfig_.LIMIT_REPLAY_FREQUENCY, "false");
+        overriddenProperties.withConfigValue(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM.toString());
+        overriddenProperties.withConfigValue(
                 EventConfig_.EVENTS_LOG_DIR, outputDirectory.resolve("hgcapp").toString());
-        overriddenProperties.set(
+        overriddenProperties.withConfigValue(
                 StateCommonConfig_.SAVED_STATE_DIRECTORY,
                 outputDirectory.resolve("data/saved").toString());
-        overriddenProperties.set(
+        overriddenProperties.withConfigValue(
                 FileSystemManagerConfig_.ROOT_PATH,
                 outputDirectory.resolve("data").toString());
-        overriddenProperties.set(PathsConfig_.SETTINGS_USED_DIR, outputDirectory.toString());
-        overriddenProperties.set(
+        overriddenProperties.withConfigValue(PathsConfig_.SETTINGS_USED_DIR, outputDirectory.toString());
+        overriddenProperties.withConfigValue(
                 PathsConfig_.KEYS_DIR_PATH, outputDirectory.resolve("data/keys").toString());
-        overriddenProperties.set(
+        overriddenProperties.withConfigValue(
                 PathsConfig_.APPS_DIR_PATH, outputDirectory.resolve("data/apps").toString());
-        overriddenProperties.set(
+        overriddenProperties.withConfigValue(
                 PathsConfig_.MARKER_FILES_DIR,
                 outputDirectory.resolve("data/saved/marker_files").toString());
     }

@@ -44,7 +44,7 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
             @NonNull final OverrideProperties overrideProperties) {
         this.lifecycleSupplier = requireNonNull(lifecycleSupplier, "lifecycleSupplier must not be null");
         this.overriddenProperties.apply(overrideProperties);
-        this.overriddenProperties.set(PathsConfig_.WRITE_PLATFORM_MARKER_FILES, "true");
+        this.overriddenProperties.withConfigValue(PathsConfig_.WRITE_PLATFORM_MARKER_FILES, "true");
     }
 
     /**
@@ -52,9 +52,9 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
      */
     @Override
     @NonNull
-    public NodeConfiguration set(@NonNull final String key, final boolean value) {
+    public NodeConfiguration withConfigValue(@NonNull final String key, final boolean value) {
         throwIfNodeIsRunning();
-        overriddenProperties.set(key, value);
+        overriddenProperties.withConfigValue(key, value);
         return this;
     }
 
@@ -63,9 +63,9 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
      */
     @Override
     @NonNull
-    public NodeConfiguration set(@NonNull final String key, @NonNull final String value) {
+    public NodeConfiguration withConfigValue(@NonNull final String key, @NonNull final String value) {
         throwIfNodeIsRunning();
-        overriddenProperties.set(key, value);
+        overriddenProperties.withConfigValue(key, value);
         return this;
     }
 
@@ -74,9 +74,9 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
      */
     @Override
     @NonNull
-    public NodeConfiguration set(@NonNull final String key, final int value) {
+    public NodeConfiguration withConfigValue(@NonNull final String key, final int value) {
         throwIfNodeIsRunning();
-        overriddenProperties.set(key, value);
+        overriddenProperties.withConfigValue(key, value);
         return this;
     }
 
@@ -85,9 +85,9 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
      */
     @Override
     @NonNull
-    public NodeConfiguration set(@NonNull final String key, final double value) {
+    public NodeConfiguration withConfigValue(@NonNull final String key, final double value) {
         throwIfNodeIsRunning();
-        overriddenProperties.set(key, value);
+        overriddenProperties.withConfigValue(key, value);
         return this;
     }
 
@@ -96,9 +96,9 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
      */
     @Override
     @NonNull
-    public NodeConfiguration set(@NonNull final String key, final long value) {
+    public NodeConfiguration withConfigValue(@NonNull final String key, final long value) {
         throwIfNodeIsRunning();
-        overriddenProperties.set(key, value);
+        overriddenProperties.withConfigValue(key, value);
         return this;
     }
 
@@ -107,9 +107,9 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
      */
     @Override
     @NonNull
-    public NodeConfiguration set(@NonNull final String key, @NonNull final Enum<?> value) {
+    public NodeConfiguration withConfigValue(@NonNull final String key, @NonNull final Enum<?> value) {
         throwIfNodeIsRunning();
-        overriddenProperties.set(key, value);
+        overriddenProperties.withConfigValue(key, value);
         return this;
     }
 
@@ -118,9 +118,9 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
      */
     @Override
     @NonNull
-    public NodeConfiguration set(@NonNull final String key, @NonNull final Duration value) {
+    public NodeConfiguration withConfigValue(@NonNull final String key, @NonNull final Duration value) {
         throwIfNodeIsRunning();
-        overriddenProperties.set(key, value);
+        overriddenProperties.withConfigValue(key, value);
         return this;
     }
 
@@ -129,9 +129,9 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
      */
     @Override
     @NonNull
-    public NodeConfiguration set(@NonNull final String key, @NonNull final List<String> values) {
+    public NodeConfiguration withConfigValue(@NonNull final String key, @NonNull final List<String> values) {
         throwIfNodeIsRunning();
-        overriddenProperties.set(key, values);
+        overriddenProperties.withConfigValue(key, values);
         return this;
     }
 
@@ -140,9 +140,9 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
      */
     @Override
     @NonNull
-    public NodeConfiguration set(@NonNull final String key, @NonNull final Path path) {
+    public NodeConfiguration withConfigValue(@NonNull final String key, @NonNull final Path path) {
         throwIfNodeIsRunning();
-        overriddenProperties.set(key, path);
+        overriddenProperties.withConfigValue(key, path);
         return this;
     }
 
@@ -151,9 +151,9 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
      */
     @Override
     @NonNull
-    public NodeConfiguration set(@NonNull final String key, @NonNull final TaskSchedulerConfiguration configuration) {
+    public NodeConfiguration withConfigValue(@NonNull final String key, @NonNull final TaskSchedulerConfiguration configuration) {
         throwIfNodeIsRunning();
-        overriddenProperties.set(key, configuration);
+        overriddenProperties.withConfigValue(key, configuration);
         return this;
     }
 

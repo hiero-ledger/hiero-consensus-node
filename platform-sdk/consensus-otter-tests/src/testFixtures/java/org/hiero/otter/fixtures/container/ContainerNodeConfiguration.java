@@ -49,7 +49,7 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration {
     public ContainerNodeConfiguration(@NonNull final Supplier<LifeCycle> lifecycleSupplier,
             @NonNull final OverrideProperties overrideProperties) {
         super(lifecycleSupplier, overrideProperties);
-        overriddenProperties.set(
+        overriddenProperties.withConfigValue(
                 EventConfig_.EVENTS_LOG_DIR,
                 Path.of(CONTAINER_APP_WORKING_DIR, EVENT_STREAM_DIRECTORY).toString());
     }
@@ -69,7 +69,7 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration {
         final String value = endpoints.stream()
                 .map(ContainerNodeConfiguration::convertEndpoint)
                 .collect(Collectors.joining(","));
-        overriddenProperties.set(key, value);
+        overriddenProperties.withConfigValue(key, value);
         return this;
     }
 

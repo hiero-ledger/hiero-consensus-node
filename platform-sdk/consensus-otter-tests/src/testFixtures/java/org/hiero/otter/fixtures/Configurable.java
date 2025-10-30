@@ -15,7 +15,7 @@ public interface Configurable<T extends Configurable<T>> {
      * @return this {@code NodeConfiguration} instance for method chaining
      */
     @NonNull
-    T set(@NonNull String key, boolean value);
+    T withConfigValue(@NonNull String key, boolean value);
 
     /**
      * Updates a single property of the configuration. Can only be invoked when the node is not running.
@@ -25,7 +25,7 @@ public interface Configurable<T extends Configurable<T>> {
      * @return this {@code NodeConfiguration} instance for method chaining
      */
     @NonNull
-    T set(@NonNull String key, @NonNull String value);
+    T withConfigValue(@NonNull String key, @NonNull String value);
 
     /**
      * Updates a single property of the configuration to an integer value. Can only be invoked when
@@ -36,7 +36,7 @@ public interface Configurable<T extends Configurable<T>> {
      * @return this {@code NodeConfiguration} instance for method chaining
      */
     @NonNull
-    T set(@NonNull String key, int value);
+    T withConfigValue(@NonNull String key, int value);
 
     /**
      * Updates a single property of the configuration to a double value. Can only be invoked when
@@ -47,7 +47,7 @@ public interface Configurable<T extends Configurable<T>> {
      * @return this {@code NodeConfiguration} instance for method chaining
      */
     @NonNull
-    T set(@NonNull String key, double value);
+    T withConfigValue(@NonNull String key, double value);
 
     /**
      * Updates a single property of the configuration to a long value. Can only be invoked when the
@@ -58,7 +58,7 @@ public interface Configurable<T extends Configurable<T>> {
      * @return this {@code NodeConfiguration} instance for method chaining
      */
     @NonNull
-    T set(@NonNull String key, long value);
+    T withConfigValue(@NonNull String key, long value);
 
     /**
      * Updates a single property of the configuration to an enum value. Can only be invoked when the
@@ -69,7 +69,7 @@ public interface Configurable<T extends Configurable<T>> {
      * @return this {@code NodeConfiguration} instance for method chaining
      */
     @NonNull
-    T set(@NonNull String key, @NonNull Enum<?> value);
+    T withConfigValue(@NonNull String key, @NonNull Enum<?> value);
 
     /**
      * Updates a single property of the configuration to a {@link Duration} value. Can only be
@@ -80,7 +80,7 @@ public interface Configurable<T extends Configurable<T>> {
      * @return this {@code NodeConfiguration} instance for method chaining
      */
     @NonNull
-    T set(@NonNull String key, @NonNull Duration value);
+    T withConfigValue(@NonNull String key, @NonNull Duration value);
 
     /**
      * Updates a single property of the configuration to a {@code List<String>} value. Can only be
@@ -91,7 +91,7 @@ public interface Configurable<T extends Configurable<T>> {
      * @return this {@code NodeConfiguration} instance for method chaining
      */
     @NonNull
-    T set(@NonNull String key, List<String> values);
+    T withConfigValue(@NonNull String key, List<String> values);
 
     /**
      * Updates a single property of the configuration to a file path. Can only be invoked when the
@@ -102,7 +102,7 @@ public interface Configurable<T extends Configurable<T>> {
      * @return this {@code NodeConfiguration} instance for method chaining
      */
     @NonNull
-    T set(@NonNull String key, @NonNull Path path);
+    T withConfigValue(@NonNull String key, @NonNull Path path);
 
     /**
      * Updates a single property of the configuration to a {@link TaskSchedulerConfiguration}. Can
@@ -113,5 +113,5 @@ public interface Configurable<T extends Configurable<T>> {
      * @return this {@code NodeConfiguration} instance for method chaining
      */
     @NonNull
-    T set(@NonNull String key, @NonNull TaskSchedulerConfiguration value);
+    T withConfigValue(@NonNull String key, @NonNull TaskSchedulerConfiguration value);
 }
