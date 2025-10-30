@@ -58,8 +58,9 @@ on:
         description: "The password used to authenticate with the Gradle Build Cache Node."
         required: true
     outputs:
-      description: "Indicates the failure mode of the job, if any."
-      value: ${{ jobs.otter.outputs.failure-mode }}
+      failure-mode:
+        description: "Indicates the failure mode of the job, if any."
+        value: ${{ jobs.otter.outputs.failure-mode }}
 
 defaults:
   run:
