@@ -151,7 +151,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private Instant blockStartTimestamp;
     // A block's ending timestamp is defined as the consensus timestamp of the last transaction in the block
     private Instant blockEndTimestamp;
-    private Instant consensusTimeLastRound;
+    private Instant lastBlockClosure = Instant.EPOCH;
     private Timestamp lastUsedTime;
     private BlockItemWriter writer;
 
@@ -363,17 +363,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
             writer = writerSupplier.get();
             final var firstTxnConsensusTimestamp = extractFirstTxnConsensusTimestampFrom(round);
-            if (firstTxnConsensusTimestamp != null) {
-                blockStartTimestamp = extractFirstTxnConsensusTimestampFrom(round);
-                // This won't be the final value for the block's end timestamp. It will be incrementally updated as
-                // transactions are processed
-                blockEndTimestamp = blockStartTimestamp;
-            } else {
-                // If there are no transactions in this round, set both start and end timestamps to the round's
-                // consensus timestamp
-                blockStartTimestamp = round.getConsensusTimestamp();
-                blockEndTimestamp = blockStartTimestamp;
-            }
+            blockStartTimestamp =
+                    (firstTxnConsensusTimestamp != null) ? firstTxnConsensusTimestamp : round.getConsensusTimestamp();
+            blockEndTimestamp = null;
             lastUsedTime = asTimestamp(round.getConsensusTimestamp());
 
             pendingWork = classifyPendingWork(blockStreamInfo, version);
@@ -406,7 +398,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .hapiProtoVersion(hapiVersion);
             worker.addItem(BlockItem.newBuilder().blockHeader(header).build());
         }
-        consensusTimeLastRound = round.getConsensusTimestamp();
     }
 
     /**
@@ -691,6 +682,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Clear the eventIndexInBlock map for the next block
             eventIndexInBlock.clear();
             eventIndex = 0;
+
+            lastBlockClosure = blockEndTimestamp;
         }
         if (fatalShutdownFuture != null) {
             pendingBlocks.forEach(block -> log.fatal("Skipping incomplete block proof for block {}", block.number()));
@@ -706,19 +699,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public void writeItem(@NonNull final BlockItem item) {
-        // Update the current block's end timestamp if a transaction result is given
-        if (item.hasTransactionResult()) {
-            final var txnTimestamp = asInstant(item.transactionResultOrThrow().consensusTimestampOrThrow());
-            if (txnTimestamp.isAfter(blockEndTimestamp)) {
-                blockEndTimestamp = txnTimestamp;
-            }
-        }
-
         lastUsedTime = switch (item.item().kind()) {
             case STATE_CHANGES -> item.stateChangesOrThrow().consensusTimestampOrThrow();
             case TRANSACTION_RESULT -> item.transactionResultOrThrow().consensusTimestampOrThrow();
             default -> lastUsedTime;
         };
+        // Update the current block's end timestamp
+        if (blockEndTimestamp == null || asInstant(lastUsedTime).isAfter(blockEndTimestamp)) {
+            blockEndTimestamp = asInstant(lastUsedTime);
+        }
 
         worker.addItem(item);
     }
@@ -889,7 +878,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         }
 
         // For time-based blocks, check if enough consensus time has elapsed
-        final var elapsed = Duration.between(blockEndTimestamp, consensusTimeLastRound);
+        final var elapsed = Duration.between(lastBlockClosure, blockEndTimestamp);
         return elapsed.compareTo(blockPeriod) >= 0;
     }
 
