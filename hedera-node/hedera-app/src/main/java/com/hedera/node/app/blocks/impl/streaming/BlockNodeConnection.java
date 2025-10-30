@@ -231,7 +231,10 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         if (initialBlockToStream != null) {
             streamingBlockNumber.set(initialBlockToStream);
-            logger.info("{} Block node connection will initially stream with block {}", BlockNodeConnection.this, initialBlockToStream);
+            logger.info(
+                    "{} Block node connection will initially stream with block {}",
+                    BlockNodeConnection.this,
+                    initialBlockToStream);
         }
     }
 
@@ -672,7 +675,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         return sendRequest(-1, -1, request);
     }
 
-    private boolean sendRequest(final long blockNumber, final int requestNumber, @NonNull final PublishStreamRequest request) {
+    private boolean sendRequest(
+            final long blockNumber, final int requestNumber, @NonNull final PublishStreamRequest request) {
         requireNonNull(request, "request must not be null");
 
         final Pipeline<? super PublishStreamRequest> pipeline = requestPipelineRef.get();
@@ -705,7 +709,12 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 final long durationMs = System.currentTimeMillis() - startMs;
 
                 blockStreamMetrics.recordRequestLatency(durationMs);
-                logger.trace("{} Request (block={}, requestNumber={}) took {}ms to send", this, blockNumber, requestNumber, durationMs);
+                logger.trace(
+                        "{} Request (block={}, requestNumber={}) took {}ms to send",
+                        this,
+                        blockNumber,
+                        requestNumber,
+                        durationMs);
 
                 if (request.hasEndStream()) {
                     blockStreamMetrics.recordRequestEndStreamSent(
