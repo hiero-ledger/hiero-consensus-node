@@ -24,6 +24,8 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.BlockProof;
+import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
@@ -49,6 +51,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.block.api.BlockEnd;
 import org.hiero.block.api.BlockItemSet;
 import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 import org.hiero.block.api.PublishStreamRequest;
@@ -840,33 +843,61 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);
 
-        verify(requestPipeline, atLeastOnce()).onNext(requestCaptor.capture());
-        // Do NOT try to verify the number of requests sent beyond more than 1
-        // Due to timing and multiple threads, there could be different number of requests sent. Instead, only validate
-        // the number of items and end stream items sent, since that should always be the same
+        /*
+        There should be at least 3 requests.
+        All items, in order are:
+        1) Block header         <-+
+        2) Signed transaction     |
+        3) Signed transaction     +- 1 or more requests
+        4) Signed transaction     |
+        5) Block proof          <-+
+        6) Block end            <--- single request
+        7) EndStream with RESET <--- single request
+         */
 
+        verify(requestPipeline, atLeast(3)).onNext(requestCaptor.capture());
+        final List<PublishStreamRequest> requests = requestCaptor.getAllValues();
+
+        final PublishStreamRequest lastRequest = requests.getLast();
+        final EndStream endStream = lastRequest.endStream();
+        assertThat(endStream).isNotNull();
+        assertThat(endStream.endCode()).isEqualTo(EndStream.Code.RESET);
+
+        final PublishStreamRequest secondToLastRequest = requests.get(requests.size() - 2);
+        final BlockEnd blockEnd = secondToLastRequest.endOfBlock();
+        assertThat(blockEnd).isNotNull();
+        assertThat(blockEnd.blockNumber()).isEqualTo(blockNumber);
+
+        // collect the block items
         final List<BlockItem> items = new ArrayList<>();
-        final List<EndStream> endStreams = new ArrayList<>();
-
-        for (final PublishStreamRequest request : requestCaptor.getAllValues()) {
-            final BlockItemSet itemSet = request.blockItems();
-            if (itemSet != null) {
-                items.addAll(itemSet.blockItems());
-            }
-
-            final EndStream endStream = request.endStream();
-            if (endStream != null) {
-                endStreams.add(endStream);
+        for (int i = 0; i < requests.size() - 2; ++i) {
+            final PublishStreamRequest request = requests.get(i);
+            final BlockItemSet bis = request.blockItems();
+            if (bis != null) {
+                items.addAll(bis.blockItems());
             }
         }
 
-        // all of our items should be sent, 1 header + 3 TX items + 1 proof
+        // there should be 5 items
         assertThat(items).hasSize(5);
-        assertThat(endStreams).hasSize(1);
+        for (int i = 0; i < 5; ++i) {
+            final BlockItem blockItem = items.get(i);
 
-        // an EndStream request should also be sent with the RESET code
-        final EndStream endStream = endStreams.getFirst();
-        assertThat(endStream.endCode()).isEqualTo(EndStream.Code.RESET);
+            if (i == 0) {
+                // the first item should be the block header
+                final BlockHeader header = blockItem.blockHeader();
+                assertThat(header).isNotNull();
+                assertThat(header.number()).isEqualTo(blockNumber);
+            } else if (i == 4) {
+                // the last item should be the block proof
+                final BlockProof proof = blockItem.blockProof();
+                assertThat(proof).isNotNull();
+                assertThat(proof.block()).isEqualTo(blockNumber);
+            } else {
+                // the other items should all be signed transactions
+                assertThat(blockItem.signedTransaction()).isNotNull();
+            }
+        }
 
         verify(requestPipeline).onComplete();
         verify(bufferService).getBlockState(blockNumber);
@@ -876,6 +907,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics, atLeastOnce()).recordRequestLatency(anyLong());
         verify(metrics, atLeastOnce()).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
         verify(metrics, atLeastOnce()).recordBlockItemsSent(anyInt());
+        verify(metrics).recordRequestSent(RequestOneOfType.END_OF_BLOCK);
         verify(metrics).recordRequestEndStreamSent(EndStream.Code.RESET);
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
