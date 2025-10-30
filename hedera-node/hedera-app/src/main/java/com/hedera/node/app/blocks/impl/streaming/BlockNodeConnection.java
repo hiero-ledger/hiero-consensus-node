@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Flow;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -137,6 +138,10 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     private final AtomicLong streamingBlockNumber = new AtomicLong(-1);
     /**
+     * Tracks the time (ms) when a BlockHeader for a given block number was sent.
+     */
+    private final ConcurrentHashMap<Long, Long> headerSentAtMsByBlock = new ConcurrentHashMap<>();
+    /**
      * Reference to the worker thread, once it is initialized.
      */
     private final AtomicReference<Thread> workerThreadRef = new AtomicReference<>();
@@ -223,6 +228,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         if (initialBlockToStream != null) {
             streamingBlockNumber.set(initialBlockToStream);
+            blockStreamMetrics.recordStreamingBlockNumber(initialBlockToStream);
             logger.info("Block node connection will initially stream with block {}", initialBlockToStream);
         }
     }
@@ -421,6 +427,17 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         logger.debug("{} BlockAcknowledgement received for block {}.", this, acknowledgedBlockNumber);
         acknowledgeBlocks(acknowledgedBlockNumber, true);
 
+        // Record header->ack latency for all headers sent at or before the acknowledged block
+        final long nowMs = System.currentTimeMillis();
+        headerSentAtMsByBlock.forEach((blockNum, sentAtMs) -> {
+            if (blockNum <= acknowledgedBlockNumber) {
+                if (headerSentAtMsByBlock.remove(blockNum, sentAtMs)) {
+                    final long latencyMs = nowMs - sentAtMs;
+                    blockStreamMetrics.recordHeaderAckLatency(latencyMs);
+                }
+            }
+        });
+
         // Evaluate latency and high-latency QoS via the connection manager
         final var result = blockNodeConnectionManager.recordBlockAckAndCheckLatency(
                 blockNodeConfig, acknowledgedBlockNumber, Instant.now());
@@ -464,7 +481,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     acknowledgedBlockNumber,
                     currentBlockStreaming,
                     currentBlockProducing);
-            streamingBlockNumber.updateAndGet(current -> Math.max(current, blockToJumpTo));
+            final long updated = streamingBlockNumber.updateAndGet(current -> Math.max(current, blockToJumpTo));
+            blockStreamMetrics.recordStreamingBlockNumber(updated);
         }
     }
 
@@ -577,6 +595,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             final long nextBlock = skipBlockNumber + 1;
             if (streamingBlockNumber.compareAndSet(activeBlockNumber, nextBlock)) {
                 logger.debug("{} Received SkipBlock response; skipping to block {}", this, nextBlock);
+                blockStreamMetrics.recordStreamingBlockNumber(nextBlock);
                 return;
             }
         }
@@ -603,6 +622,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         if (blockBufferService.getBlockState(resendBlockNumber) != null) {
             streamingBlockNumber.set(resendBlockNumber);
+            blockStreamMetrics.recordStreamingBlockNumber(resendBlockNumber);
         } else {
             // If we don't have the block state, we schedule retry for this connection and establish new one
             // with different block node
@@ -696,6 +716,14 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                             if (blockProof != null) {
                                 blockNodeConnectionManager.recordBlockProofSent(
                                         blockNodeConfig, blockProof.block(), Instant.now());
+                            }
+                            final var header = item.blockHeader();
+                            if (header != null) {
+                                long headerBlockNumber = header.number();
+                                if (headerBlockNumber == 0L) {
+                                    headerBlockNumber = streamingBlockNumber.get();
+                                }
+                                headerSentAtMsByBlock.put(headerBlockNumber, startMs);
                             }
                         }
                     }
@@ -1041,7 +1069,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                         .endOfBlock(BlockEnd.newBuilder().blockNumber(block.blockNumber()))
                         .build();
                 try {
-                    sendRequest(endOfBlock);
+                    if (sendRequest(endOfBlock)) {
+                        blockStreamMetrics.recordLatestBlockEndOfBlockSent(block.blockNumber());
+                    }
                 } catch (RuntimeException e) {
                     logger.warn("{} Error sending EndOfBlock request", BlockNodeConnection.this, e);
                     handleStreamFailureWithoutOnComplete();
@@ -1052,6 +1082,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 final long nextBlockNumber = block.blockNumber() + 1;
                 if (streamingBlockNumber.compareAndSet(block.blockNumber(), nextBlockNumber)) {
                     logger.trace("{} Advancing to block {}", BlockNodeConnection.this, nextBlockNumber);
+                    blockStreamMetrics.recordStreamingBlockNumber(nextBlockNumber);
                 } else {
                     logger.trace(
                             "{} Tried to advance to block {} but the block to stream was updated externally",
@@ -1104,11 +1135,15 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 final long highestAckedBlock = blockBufferService.getHighestAckedBlockNumber();
                 if (highestAckedBlock != -1) {
                     // Set to the next block that isn't acked
-                    streamingBlockNumber.compareAndSet(activeBlockNum, highestAckedBlock + 1);
+                    if (streamingBlockNumber.compareAndSet(activeBlockNum, highestAckedBlock + 1)) {
+                        blockStreamMetrics.recordStreamingBlockNumber(highestAckedBlock + 1);
+                    }
                 } else {
                     // If no blocks are acked, start with the earliest block in the buffer
                     final long earliestBlock = blockBufferService.getEarliestAvailableBlockNumber();
-                    streamingBlockNumber.compareAndSet(activeBlockNum, earliestBlock);
+                    if (streamingBlockNumber.compareAndSet(activeBlockNum, earliestBlock)) {
+                        blockStreamMetrics.recordStreamingBlockNumber(earliestBlock);
+                    }
                 }
             }
 

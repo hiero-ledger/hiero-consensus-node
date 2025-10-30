@@ -35,6 +35,8 @@ public class BlockStreamMetrics {
     private Counter connSend_failureCounter;
     private Counter connSend_blockItemsCounter;
     private RunningAverageMetric connSend_publishStreamRequestLatency;
+    private LongGauge connSend_latestBlockEndOfBlockGauge;
+    private LongGauge connSend_streamingBlockNumberGauge;
     private final Map<PublishStreamRequest.RequestOneOfType, Counter> connSend_counters =
             new EnumMap<>(PublishStreamRequest.RequestOneOfType.class);
     private final Map<PublishStreamRequest.EndStream.Code, Counter> connSend_endStreamCounters =
@@ -61,6 +63,7 @@ public class BlockStreamMetrics {
     private Counter conn_endOfStreamLimitCounter;
     private DoubleGauge conn_ackLatencyGauge;
     private Counter conn_highLatencyCounter;
+    private RunningAverageMetric conn_headerToAckLatency;
 
     // buffer metrics
     private static final long BACK_PRESSURE_ACTIVE = 3;
@@ -282,6 +285,13 @@ public class BlockStreamMetrics {
         final Counter.Config highLatencyCfg = newCounter(GROUP_CONN, "highLatencyEvents")
                 .withDescription("Count of high latency events from the active block node connection");
         conn_highLatencyCounter = metrics.getOrCreate(highLatencyCfg);
+
+        final RunningAverageMetric.Config headerAckLatencyCfg = new RunningAverageMetric.Config(
+                        CATEGORY, GROUP_CONN + "_headerAckLatency")
+                .withDescription(
+                        "The average latency (ms) between sending a BlockHeader and receiving its BlockAcknowledgement")
+                .withFormat("%,.2f");
+        conn_headerToAckLatency = metrics.getOrCreate(headerAckLatencyCfg);
     }
 
     /**
@@ -355,6 +365,14 @@ public class BlockStreamMetrics {
      */
     public void recordHighLatencyEvent() {
         conn_highLatencyCounter.increment();
+    }
+
+    /**
+     * Record the latency between sending a block header and receiving the corresponding acknowledgement.
+     * @param latencyMs the latency in milliseconds
+     */
+    public void recordHeaderAckLatency(final long latencyMs) {
+        conn_headerToAckLatency.update(latencyMs);
     }
 
     // Connection RECV metrics -----------------------------------------------------------------------------------------
@@ -498,6 +516,14 @@ public class BlockStreamMetrics {
                 .withDescription("The average latency (ms) for a PublishStreamRequest to be sent to a block node")
                 .withFormat("%,.2f");
         this.connSend_publishStreamRequestLatency = metrics.getOrCreate(publishStreamRequestLatencyCfg);
+
+        final LongGauge.Config latestBlockEndOfBlockCfg = newLongGauge(GROUP_CONN_SEND, "latestBlockEndOfBlock")
+                .withDescription("The latest block number for which an EndOfBlock request was sent");
+        this.connSend_latestBlockEndOfBlockGauge = metrics.getOrCreate(latestBlockEndOfBlockCfg);
+
+        final LongGauge.Config streamingBlockCfg = newLongGauge(GROUP_CONN_SEND, "streamingBlockNumber")
+                .withDescription("The current block number this connection is streaming");
+        connSend_streamingBlockNumberGauge = metrics.getOrCreate(streamingBlockCfg);
     }
 
     /**
@@ -545,6 +571,22 @@ public class BlockStreamMetrics {
      */
     public void recordRequestSendFailure() {
         connSend_failureCounter.increment();
+    }
+
+    /**
+     * Record the latest block number for which an EndOfBlock request was sent.
+     * @param blockNumber the block number
+     */
+    public void recordLatestBlockEndOfBlockSent(final long blockNumber) {
+        connSend_latestBlockEndOfBlockGauge.set(blockNumber);
+    }
+
+    /**
+     * Record the current block number being streamed on the active connection.
+     * @param blockNumber the block number now being streamed
+     */
+    public void recordStreamingBlockNumber(final long blockNumber) {
+        connSend_streamingBlockNumberGauge.set(blockNumber);
     }
 
     // Utilities -------------------------------------------------------------------------------------------------------
