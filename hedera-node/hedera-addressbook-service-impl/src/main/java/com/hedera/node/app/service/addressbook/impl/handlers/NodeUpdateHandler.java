@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GRPC_CERTIFICAT
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.NODE_ACCOUNT_HAS_ZERO_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UPDATE_NODE_ACCOUNT_NOT_ALLOWED;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.checkDABEnabled;
 import static com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator.validateX509Certificate;
@@ -125,6 +126,10 @@ public class NodeUpdateHandler implements TransactionHandler {
             final var accountId = op.accountIdOrThrow();
             validateTrue(accountStore.contains(accountId), INVALID_NODE_ACCOUNT_ID);
             if (!accountId.equals(existingNode.accountId())) {
+                final var account = addressBookValidator.validateAccount(
+                        accountId, accountStore, accountNodeRelStore, handleContext.expiryValidator());
+
+                validateTrue(account.tinybarBalance() > 0, NODE_ACCOUNT_HAS_ZERO_BALANCE);
                 // update account node relation
                 accountNodeRelStore.remove(existingNode.accountId());
                 accountNodeRelStore.put(accountId, existingNode.nodeId());

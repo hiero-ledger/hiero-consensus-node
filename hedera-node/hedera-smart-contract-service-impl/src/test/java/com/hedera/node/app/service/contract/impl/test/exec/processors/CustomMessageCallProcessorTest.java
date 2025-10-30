@@ -5,7 +5,7 @@ import static com.hedera.hapi.streams.ContractActionType.PRECOMPILE;
 import static com.hedera.hapi.streams.ContractActionType.SYSTEM;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.PrngSystemContract.PRNG_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.IS_HOOK_VARIABLE;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.HOOK_OWNER_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.OPS_DURATION_COUNTER;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HTS_HOOKS_CONTRACT_ADDRESS;
@@ -180,7 +180,7 @@ class CustomMessageCallProcessorTest {
         when(frame.getValue()).thenReturn(Wei.ZERO);
         given(frame.getMessageFrameStack()).willReturn(stack);
         given(stack.isEmpty()).willReturn(true);
-        given(frame.getContextVariable(IS_HOOK_VARIABLE)).willReturn(true);
+        given(frame.getContextVariable(HOOK_OWNER_ADDRESS)).willReturn(true);
 
         subject.start(frame, operationTracer);
         verify(frame, never()).setOutputData(NOOP_OUTPUT_DATA);

@@ -153,20 +153,22 @@ public class ContractUpdateHandler implements TransactionHandler {
      * @param originalAccount the original account before updates
      */
     public void updateHooks(
-            final HandleContext context,
-            final ContractUpdateTransactionBody op,
-            final Account.Builder builder,
-            final Account originalAccount) {
+            @NonNull final HandleContext context,
+            @NonNull final ContractUpdateTransactionBody op,
+            @NonNull final Account.Builder builder,
+            @NonNull final Account originalAccount) {
         long headAfterDeletes = originalAccount.firstHookId();
         // Dispatch all the hooks to delete
         if (!op.hookIdsToDelete().isEmpty()) {
             HookDispatchUtils.dispatchHookDeletions(
-                    context, op.hookIdsToDelete(), headAfterDeletes, originalAccount.accountId());
+                    context, op.hookIdsToDelete(), headAfterDeletes, originalAccount.accountIdOrThrow());
         }
         if (!op.hookCreationDetails().isEmpty()) {
-            HookDispatchUtils.dispatchHookCreations(
+            final var numSlotsUpdated = HookDispatchUtils.dispatchHookCreations(
                     context, op.hookCreationDetails(), headAfterDeletes, originalAccount.accountId());
             builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
+            final var currentSlots = originalAccount.numberLambdaStorageSlots() + numSlotsUpdated;
+            builder.numberLambdaStorageSlots(currentSlots);
         } else if (!op.hookIdsToDelete().isEmpty()) {
             builder.firstHookId(headAfterDeletes);
         }

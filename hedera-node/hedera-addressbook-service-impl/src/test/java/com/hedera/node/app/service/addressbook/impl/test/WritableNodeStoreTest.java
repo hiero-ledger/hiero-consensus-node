@@ -33,6 +33,8 @@ class WritableNodeStoreTest extends AddressBookTestBase {
 
     @Test
     void commitsNodeChanges() {
+        // clear the state
+        rebuildState(0);
         node = createNode();
         assertFalse(writableNodeState.contains(nodeId));
 

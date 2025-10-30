@@ -65,7 +65,6 @@ import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.HederaRecordCache.DueDiligenceFailure;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
-import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.store.StoreFactoryImpl;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
@@ -80,6 +79,7 @@ import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.*;
 import com.hedera.node.config.types.StreamMode;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.node.internal.network.Network;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
@@ -99,6 +99,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -171,8 +172,6 @@ public class HandleWorkflow {
     private final PlatformStateFacade platformStateFacade;
     // Flag to indicate whether we have checked for transplant updates after JVM started
     private boolean checkedForTransplant;
-    // Flag whether the 0.65 system account cleanup has been done; can be removed after that release
-    private boolean systemAccountCleanupDone;
 
     @Inject
     public HandleWorkflow(
@@ -248,8 +247,8 @@ public class HandleWorkflow {
     /**
      * Handles the next {@link Round}
      *
-     * @param state                     the writable {@link State} that this round will work on
-     * @param round                     the next {@link Round} that needs to be processed
+     * @param state the writable {@link State} that this round will work on
+     * @param round the next {@link Round} that needs to be processed
      * @param stateSignatureTxnCallback A callback to be called when encountering a {@link StateSignatureTransaction}
      */
     public void handleRound(
@@ -358,9 +357,9 @@ public class HandleWorkflow {
      * Applies all effects of the events in the given round to the given state, writing stream items
      * that capture these effects in the process.
      *
-     * @param state                     the state to apply the effects to
-     * @param round                     the round to apply the effects of
-     * @param receiptEntriesBatchSize   The maximum number of receipts to accumulate in a batch before committing
+     * @param state the state to apply the effects to
+     * @param round the round to apply the effects of
+     * @param receiptEntriesBatchSize The maximum number of receipts to accumulate in a batch before committing
      * @param stateSignatureTxnCallback A callback to be called when encountering a {@link StateSignatureTransaction}
      */
     private boolean handleEvents(
@@ -369,34 +368,23 @@ public class HandleWorkflow {
             final int receiptEntriesBatchSize,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         boolean transactionsDispatched = false;
-        final var storeFactory = new ReadableStoreFactory(state);
-        final var platformStateStore = storeFactory.getStore(ReadablePlatformStateStore.class);
         for (final var event : round) {
             if (streamMode != RECORDS) {
                 writeEventHeader(event);
             }
-            final var creator = networkInfo.nodeInfo(event.getCreatorId().id());
-            if (creator == null) {
-                if (event.getEventCore().birthRound() > platformStateStore.getLatestFreezeRound()) {
-                    // We were given an event for a node that does not exist in the address book and was not from
-                    // a strictly earlier birth round number prior to the last freeze round number. This will be logged
-                    // as a warning, as this should never happen, and we will skip the event. The platform should
-                    // guarantee that we never receive an event that isn't associated with the address book, and every
-                    // node in the address book must have an account ID, since you cannot delete an account belonging
-                    // to a node, and you cannot change the address book non-deterministically.
-                    logger.warn(
-                            "Received event with birth round {}, last freeze round is {}, from node {} "
-                                    + "which is not in the address book",
-                            event.getEventCore().birthRound(),
-                            platformStateStore.getLatestFreezeRound(),
-                            event.getCreatorId());
-                }
-                continue;
-            }
 
-            final Consumer<StateSignatureTransaction> simplifiedStateSignatureTxnCallback = txn -> {
-                final var scopedTxn = new ScopedSystemTransaction<>(event.getCreatorId(), event.getBirthRound(), txn);
-                stateSignatureTxnCallback.accept(scopedTxn);
+            final var creator = networkInfo.nodeInfo(event.getCreatorId().id());
+
+            final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback = (txn, bytes) -> {
+                if (txn != null) {
+                    final var scopedTxn =
+                            new ScopedSystemTransaction<>(event.getCreatorId(), event.getBirthRound(), txn);
+                    stateSignatureTxnCallback.accept(scopedTxn);
+                }
+
+                final var txnItem =
+                        BlockItem.newBuilder().signedTransaction(bytes).build();
+                blockStreamManager.writeItem(txnItem);
             };
 
             // log start of event to transaction state log
@@ -406,11 +394,7 @@ public class HandleWorkflow {
                 final var platformTxn = it.next();
                 try {
                     transactionsDispatched |= handlePlatformTransaction(
-                            state,
-                            creator,
-                            platformTxn,
-                            event.getEventCore().birthRound(),
-                            simplifiedStateSignatureTxnCallback);
+                            state, creator, platformTxn, event.getEventCore().birthRound(), shortCircuitTxnCallback);
                 } catch (final Exception e) {
                     logger.fatal(
                             "Possibly CATASTROPHIC failure while running the handle workflow. "
@@ -489,18 +473,20 @@ public class HandleWorkflow {
      * executing the workflow for the transaction. This produces a stream of records that are then passed to the
      * {@link BlockRecordManager} to be externalized.
      *
-     * @param state           the writable {@link State} that this transaction will work on
-     * @param creator         the {@link NodeInfo} of the creator of the transaction
-     * @param txn             the {@link ConsensusTransaction} to be handled
+     * @param state the writable {@link State} that this transaction will work on
+     * @param creator the {@link NodeInfo} of the creator of the transaction
+     * @param txn the {@link ConsensusTransaction} to be handled
      * @param eventBirthRound the birth round of the event that this transaction belongs to
+     * @param shortCircuitTxnCallback A callback to be called when encountering any short-circuiting
+     *                                transaction type
      * @return {@code true} if the transaction was a user transaction, {@code false} if a system transaction
      */
     private boolean handlePlatformTransaction(
             @NonNull final State state,
-            @NonNull final NodeInfo creator,
+            @Nullable final NodeInfo creator,
             @NonNull final ConsensusTransaction txn,
             final long eventBirthRound,
-            @NonNull final Consumer<StateSignatureTransaction> stateSignatureTxnCallback) {
+            @NonNull final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback) {
         final var handleStart = System.nanoTime();
 
         // Always use platform-assigned time for user transaction, c.f. https://hips.hedera.com/hip/hip-993
@@ -544,21 +530,17 @@ public class HandleWorkflow {
                 // Only update this if we are relying on RecordManager state for post-upgrade processing
                 blockRecordManager.markMigrationRecordsStreamed();
             }
-        } else {
-            if (!systemAccountCleanupDone) {
-                // Ensure the system account cleanup is finished post-upgrade
-                systemAccountCleanupDone = systemTransactions.do066SystemAccountCleanup(consensusNow, state);
-            }
         }
-        final var userTxn =
-                parentTxnFactory.createUserTxn(state, creator, txn, consensusNow, stateSignatureTxnCallback);
-        if (userTxn == null) {
+
+        final var topLevelTxn =
+                parentTxnFactory.createTopLevelTxn(state, creator, txn, consensusNow, shortCircuitTxnCallback);
+        if (topLevelTxn == null) {
             return false;
         } else if (streamMode != BLOCKS && startsNewRecordFile) {
             blockRecordManager.startUserTransaction(consensusNow, state);
         }
 
-        final var handleOutput = executeSubmittedParent(userTxn, eventBirthRound, state);
+        final var handleOutput = executeSubmittedParent(topLevelTxn, eventBirthRound, state);
         if (streamMode != BLOCKS) {
             final var records = ((LegacyListRecordSource) handleOutput.recordSourceOrThrow()).precomputedRecords();
             blockRecordManager.endUserTransaction(records.stream(), state);
@@ -569,33 +551,33 @@ public class HandleWorkflow {
             blockRecordManager.setLastUsedConsensusTime(handleOutput.lastAssignedConsensusTime(), state);
         }
 
-        opWorkflowMetrics.updateDuration(userTxn.functionality(), (int) (System.nanoTime() - handleStart));
-        congestionMetrics.updateMultiplier(userTxn.txnInfo(), userTxn.readableStoreFactory());
+        opWorkflowMetrics.updateDuration(topLevelTxn.functionality(), (int) (System.nanoTime() - handleStart));
+        congestionMetrics.updateMultiplier(topLevelTxn.txnInfo(), topLevelTxn.readableStoreFactory());
 
         var executionStart = streamMode == RECORDS
                 ? blockRecordManager.lastIntervalProcessTime()
                 : blockStreamManager.lastIntervalProcessTime();
         if (executionStart.equals(EPOCH)) {
-            executionStart = userTxn.consensusNow();
+            executionStart = topLevelTxn.consensusNow();
         }
         try {
             // We execute as many schedules expiring in [lastIntervalProcessTime, consensusNow]
             // as there are available consensus times and execution slots (ordinarily there will
             // be more than enough of both, but we must be prepared for the edge cases)
-            executeAsManyScheduled(state, executionStart, userTxn.consensusNow(), userTxn.creatorInfo());
+            executeAsManyScheduled(state, executionStart, topLevelTxn.consensusNow(), topLevelTxn.creatorInfo());
         } catch (Exception e) {
             logger.error(
                     "{} - unhandled exception while executing schedules between [{}, {}]",
                     ALERT_MESSAGE,
                     executionStart,
-                    userTxn.consensusNow(),
+                    topLevelTxn.consensusNow(),
                     e);
             // This should never happen, but if it does, we skip over everything in the interval to
             // avoid being stuck in a crash loop here
             if (streamMode != RECORDS) {
-                blockStreamManager.setLastIntervalProcessTime(userTxn.consensusNow());
+                blockStreamManager.setLastIntervalProcessTime(topLevelTxn.consensusNow());
             } else {
-                blockRecordManager.setLastIntervalProcessTime(userTxn.consensusNow(), state);
+                blockRecordManager.setLastIntervalProcessTime(topLevelTxn.consensusNow(), state);
             }
         }
         return true;
@@ -609,10 +591,10 @@ public class HandleWorkflow {
      * time to the latest time known to have been processed; and the {@link #lastExecutedSecond} value to the last
      * second of the interval for which all scheduled transactions were executed.
      *
-     * @param state          the state to execute scheduled transactions from
+     * @param state the state to execute scheduled transactions from
      * @param executionStart the start of the interval to execute transactions in
-     * @param consensusNow   the consensus time at which the user transaction triggering this execution was processed
-     * @param creatorInfo    the node info of the user transaction creator
+     * @param consensusNow the consensus time at which the user transaction triggering this execution was processed
+     * @param creatorInfo the node info of the user transaction creator
      */
     private void executeAsManyScheduled(
             @NonNull final State state,

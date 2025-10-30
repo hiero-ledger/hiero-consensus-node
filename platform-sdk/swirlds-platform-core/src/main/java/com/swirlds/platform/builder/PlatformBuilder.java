@@ -433,14 +433,8 @@ public final class PlatformBuilder {
                 new ApplicationCallbacks(preconsensusEventConsumer, snapshotOverrideConsumer, staleEventConsumer);
 
         final AtomicReference<StatusActionSubmitter> statusActionSubmitterAtomicReference = new AtomicReference<>();
-        final SwirldStateManager swirldStateManager = new SwirldStateManager(
-                platformContext,
-                currentRoster,
-                selfId,
-                x -> statusActionSubmitterAtomicReference.get().submitStatusAction(x),
-                softwareVersion,
-                consensusStateEventHandler,
-                platformStateFacade);
+        final SwirldStateManager swirldStateManager =
+                new SwirldStateManager(platformContext, currentRoster, softwareVersion, platformStateFacade);
 
         if (model == null) {
             final WiringConfig wiringConfig = platformContext.getConfiguration().getConfigData(WiringConfig.class);

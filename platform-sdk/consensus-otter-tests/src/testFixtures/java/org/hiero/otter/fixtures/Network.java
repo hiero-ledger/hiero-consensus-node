@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -128,6 +129,16 @@ public interface Network {
     default long totalWeight() {
         return nodes().stream().mapToLong(Node::weight).sum();
     }
+
+    /**
+     * Gets the roster of the network. This method can only be called after the network has been started, because the
+     * roster is created during startup.
+     *
+     * @return the roster of the network
+     * @throws IllegalStateException if the network has not been started yet
+     */
+    @NonNull
+    Roster roster();
 
     /**
      * Start the network with the currently configured setup.

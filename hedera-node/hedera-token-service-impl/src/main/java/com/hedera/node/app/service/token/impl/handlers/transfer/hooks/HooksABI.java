@@ -31,7 +31,7 @@ public class HooksABI {
      * @param function the ABI function to use for encoding
      * @return the encoded byte array
      */
-    public static byte[] encode(HookCallFactory.HookInvocation invocation, HookContext ctx, Function function) {
+    public static byte[] encode(HookInvocation invocation, HookContext ctx, Function function) {
         final var context = Tuple.of(
                 invocation.ownerAddress(),
                 BigInteger.valueOf(ctx.txnFee()),

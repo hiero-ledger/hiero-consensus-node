@@ -209,15 +209,14 @@ public class SwirldsPlatform implements Platform {
         initializeState(this, platformContext, initialState, consensusStateEventHandler, platformStateFacade);
 
         // This object makes a copy of the state. After this point, initialState becomes immutable.
-        /**
-         * Handles all interaction with {@link ConsensusStateEventHandler}
-         */
-        SwirldStateManager swirldStateManager = blocks.swirldStateManager();
-        swirldStateManager.setInitialState(initialState.getState());
+        final SwirldStateManager swirldStateManager = blocks.swirldStateManager();
+        swirldStateManager.setState(initialState.getState(), true);
 
         final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
 
-        blocks.freezeCheckHolder().setFreezeCheckRef(swirldStateManager::isInFreezePeriod);
+        blocks.freezeCheckHolder()
+                .setFreezeCheckRef(instant ->
+                        platformStateFacade.isInFreezePeriod(instant, swirldStateManager.getConsensusState()));
 
         final AppNotifier appNotifier = new DefaultAppNotifier(blocks.notificationEngine());
 

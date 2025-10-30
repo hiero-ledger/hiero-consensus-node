@@ -4,10 +4,10 @@ package com.swirlds.platform.state;
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_MICROSECONDS;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.swirlds.platform.metrics.StateMetrics;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.merkle.StateMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 

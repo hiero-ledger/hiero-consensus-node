@@ -304,6 +304,16 @@ public class HandleHederaOperations implements HederaOperations {
      * {@inheritDoc}
      */
     @Override
+    public void updateLambdaStorageSlots(@NonNull final AccountID accountId, int netChangeInSlotsUsed) {
+        requireNonNull(accountId);
+        final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
+        tokenServiceApi.updateLambdaStorageSlots(accountId, netChangeInSlotsUsed);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void createContract(final long number, final long parentNumber, @Nullable final Bytes evmAddress) {
         final var accountStore = context.storeFactory().readableStore(ReadableAccountStore.class);
         final var parent = accountStore.getAccountById(entityIdFactory.newAccountId(parentNumber));

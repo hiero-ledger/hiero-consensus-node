@@ -54,7 +54,7 @@ class CallOutcomeTest {
                 null,
                 null,
                 null);
-        abortedCall.addCallDetailsTo(contractCallRecordBuilder, context);
+        abortedCall.addCallDetailsTo(contractCallRecordBuilder, context, entityIdFactory);
         verify(contractCallRecordBuilder).contractCallResult(any());
     }
 
