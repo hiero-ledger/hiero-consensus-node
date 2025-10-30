@@ -73,6 +73,21 @@ on:
         default: "MUST_BE_SET_BY_CALL"
         type: string
         description: "Algorithmic analysis GHP"
+      SLACK_CITR_DETAILED_REPORTS_WEBHOOK:
+        required: true
+        default: ""
+        type: string
+        description: "DETAILED_REPORTS_WEBHOOK"
+      SLACK_CITR_OPERATIONS_WEBHOOK:
+        required: true
+        default: ""
+        type: string
+        description: "SLACK_CITR_OPERATIONS_WEBHOOK"
+      SLACK_RELEASE_TEAM_WEBHOOK:
+        required: true
+        default: ""
+        type: string
+        description: "SLACK_RELEASE_TEAM_WEBHOOK"
 defaults:
   run:
     shell: bash
@@ -148,7 +163,7 @@ jobs:
       add-settings: "${{ inputs.add-settings }}"
       delete-namespace: ${{ inputs.delete-namespace }}
     secrets:
-      slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+      slack-report-webhook: ${{ inputs.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       rootly-api-token: ${{ secrets.ROOTLY_API_TOKEN }}
       perf_ghp: ${{ inputs.perf_ghp }}
 
@@ -283,7 +298,7 @@ jobs:
       - name: Report Success (slack)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
-          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook: ${{ inputs.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload: |
@@ -616,7 +631,7 @@ jobs:
       - name: Report failure (slack citr-operations)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
-          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook: ${{ inputs.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json
@@ -624,7 +639,7 @@ jobs:
       - name: Report failure (slack release-team)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
-          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
+          webhook: ${{ inputs.SLACK_RELEASE_TEAM_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json

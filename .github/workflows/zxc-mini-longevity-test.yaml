@@ -842,11 +842,6 @@ jobs:
           echo "### Merge Queue Longevity Test Result" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "result=${RESULT}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
-      - name: Delete namespace
-        if: ${{ inputs.delete-namespace == true }}
-        run: |
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace "${{ needs.performance-tests-start.outputs.namespace }}"
-
   merge-queue-report-to-rootly:
     name: Report Failures to Rootly
     runs-on: hiero-citr-linux-medium
@@ -926,8 +921,8 @@ jobs:
             HCSLoadTest ${{ needs.longevity-tests-start.outputs.HCSscore }} ${{ env.MinHCSLoadTest }}\n\
             CryptoTransferLoadTest ${{ needs.longevity-tests-start.outputs.Cryptoscore }} ${{ env.MinCryptoTransferLoadTest }}\n\
             SmartContractLoadTest ${{ needs.longevity-tests-start.outputs.Smartscore }} ${{ env.MinSmartContractLoadTest }}"\n\
-            ReconnectTest ${{ needs.longevity-tests-start.outputs.ReconnectStatus }} "${{ env.ReconnectExitCode }}""\n\
-            ValidatorTest ${{ needs.longevity-tests-start.outputs.ValidatorStatus }} "${{ env.ValidatorExitCode }}""
+            ReconnectTest ${{ needs.longevity-tests-start.outputs.ReconnectStatus }} "${{ env.ReconnectExitCode }}"\n\
+            ValidatorTest ${{ needs.longevity-tests-start.outputs.ValidatorStatus }} "${{ env.ValidatorExitCode }}"
 
           #last line is 6, it does not need comma block separator
           # use back-ticks for proper substitution in the json report
