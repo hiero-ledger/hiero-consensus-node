@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.fees;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
-import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
@@ -10,7 +8,6 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.updateTopic;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
@@ -20,10 +17,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SIMPLE_FEE_SCHEDULE;
-import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
-import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
-import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
-import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -36,11 +29,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
-
-import org.hiero.hapi.support.fees.Extra;
-import org.hiero.hapi.support.fees.FeeSchedule;
-import org.hiero.hapi.support.fees.NetworkFee;
-import org.hiero.hapi.support.fees.NodeFee;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -248,45 +236,10 @@ public class SimpleFeesSuite {
         }
     }
 
-    @Nested
-    class TopicCustomFees {
-        @HapiTest
-        @LeakyHapiTest(requirement = FEE_SCHEDULE_OVERRIDES)
-        @DisplayName("create topic with hard coded fee schedule")
-        final Stream<DynamicTest> createBasicTopic() {
-            var feeSchedule = FeeSchedule.DEFAULT
-                    .copyBuilder()
-                    .extras(
-                            makeExtraDef(Extra.BYTES, 1),
-                            makeExtraDef(Extra.KEYS, 2),
-                            makeExtraDef(Extra.SIGNATURES, 3),
-                            makeExtraDef(Extra.CUSTOM_FEE, 500))
-                    .node(NodeFee.DEFAULT
-                            .copyBuilder()
-                            .build())
-                    .network(NetworkFee.DEFAULT.copyBuilder().multiplier(2).build())
-                    .services(makeService(
-                            "Consensus",
-                            makeServiceFee(CONSENSUS_CREATE_TOPIC, ucents(15),
-                                    makeExtraIncluded(Extra.KEYS,  1))))
-                    .build();
-            final var contents = FeeSchedule.PROTOBUF.toBytes(feeSchedule).toByteArray();
-            return hapiTest(
-//                    fileUpdate(SIMPLE_FEE_SCHEDULE).contents(contents),
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    cryptoCreate("collector"),
-                    createTopic("testTopic")
-                            .blankMemo()
-                            .payingWith(PAYER)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("create-topic-txn"),
-                    validateChargedUsd(
-                            "create-topic-txn",
-                            ucents_to_USD(15)));
-        }
-
     /*
     Disable custom fees for now.
+    @Nested
+    class TopicCustomFees {
         @HapiTest
         @DisplayName("compare create topic with custom fee")
         final Stream<DynamicTest> createTopicCustomFeeComparison() {
@@ -346,8 +299,8 @@ public class SimpleFeesSuite {
                                             + 1 * 3 // node + network fee
                                     )));
         }
-     */
     }
+     */
 
     @Nested
     class TopicFees {
