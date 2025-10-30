@@ -1046,6 +1046,144 @@ class QueryWorkflowImplTest extends AppTestBase {
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
 
+    // ============ Simple Fees Tests ============
+
+    @Test
+    void testPaidQueryUsesSimpleFeesWhenEnabled() throws PreCheckException, ParseException {
+        // given - simple fees enabled
+        final var simpleFeesConfig = HederaTestConfigBuilder.create()
+                .withValue("fees.simpleFeesEnabled", true)
+                .getOrCreateConfig();
+
+        final var workflowWithSimpleFees = new QueryWorkflowImpl(
+                stateAccessor,
+                submissionManager,
+                queryChecker,
+                ingestChecker,
+                dispatcher,
+                queryParser,
+                configProvider,
+                recordCache,
+                authorizer,
+                exchangeRateManager,
+                feeManager,
+                synchronizedThrottleAccumulator,
+                InstantSource.system(),
+                opWorkflowMetrics,
+                true); // shouldCharge = true
+
+        final var feeResult = new org.hiero.hapi.fees.FeeResult();
+        feeResult.node = 100L;
+        feeResult.network = 200L;
+        feeResult.service = 300L;
+        given(handler.computeFeeResult(any())).willReturn(feeResult);
+        given(handler.computeFees(any(QueryContext.class))).willReturn(new Fees(100L, 0L, 100L));
+        given(handler.requiresNodePayment(any())).willReturn(true);
+        given(configProvider.getConfiguration())
+                .willReturn(new VersionedConfigImpl(simpleFeesConfig, DEFAULT_CONFIG_VERSION));
+
+        when(handler.findResponse(any(), any()))
+                .thenReturn(Response.newBuilder()
+                        .fileGetInfo(FileGetInfoResponse.newBuilder()
+                                .header(ResponseHeader.newBuilder().build())
+                                .build())
+                        .build());
+
+        final var responseBuffer = newEmptyBuffer();
+        given(authorizer.isSuperUser(ALICE.accountID())).willReturn(true);
+
+        doAnswer(invocationOnMock -> {
+                    final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
+                    result.setThrottleUsages(List.of());
+                    result.setTxnInfo(transactionInfo);
+                    return null;
+                })
+                .when(ingestChecker)
+                .runAllChecks(any(), any(), any(), any());
+
+        // when
+        workflowWithSimpleFees.handleQuery(requestBuffer, responseBuffer);
+
+        // then
+        final var response = parseResponse(responseBuffer);
+        final var header = response.fileGetInfoOrThrow().headerOrThrow();
+        assertThat(header.nodeTransactionPrecheckCode()).isEqualTo(OK);
+        assertThat(header.responseType()).isEqualTo(ANSWER_ONLY);
+        assertThat(header.cost()).isZero();
+
+        // Verify that computeFeeResult was called (simple fees path)
+        verify(handler).computeFeeResult(any());
+
+        verify(submissionManager, never()).submit(any(), any());
+        verify(opWorkflowMetrics).updateDuration(eq(FILE_GET_INFO), anyInt());
+        verify(opWorkflowMetrics, never()).incrementThrottled(any());
+    }
+
+    @Test
+    void testPaidQueryUsesTraditionalFeesWhenSimpleFeesDisabled() throws PreCheckException, ParseException {
+        // given - simple fees disabled
+        final var traditionalFeesConfig = HederaTestConfigBuilder.create()
+                .withValue("fees.simpleFeesEnabled", false)
+                .getOrCreateConfig();
+
+        final var workflowWithTraditionalFees = new QueryWorkflowImpl(
+                stateAccessor,
+                submissionManager,
+                queryChecker,
+                ingestChecker,
+                dispatcher,
+                queryParser,
+                configProvider,
+                recordCache,
+                authorizer,
+                exchangeRateManager,
+                feeManager,
+                synchronizedThrottleAccumulator,
+                InstantSource.system(),
+                opWorkflowMetrics,
+                true); // shouldCharge = true
+
+        given(handler.computeFees(any(QueryContext.class))).willReturn(new Fees(100L, 0L, 100L));
+        given(handler.requiresNodePayment(any())).willReturn(true);
+        given(configProvider.getConfiguration())
+                .willReturn(new VersionedConfigImpl(traditionalFeesConfig, DEFAULT_CONFIG_VERSION));
+
+        when(handler.findResponse(any(), any()))
+                .thenReturn(Response.newBuilder()
+                        .fileGetInfo(FileGetInfoResponse.newBuilder()
+                                .header(ResponseHeader.newBuilder().build())
+                                .build())
+                        .build());
+
+        final var responseBuffer = newEmptyBuffer();
+        given(authorizer.isSuperUser(ALICE.accountID())).willReturn(true);
+
+        doAnswer(invocationOnMock -> {
+                    final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
+                    result.setThrottleUsages(List.of());
+                    result.setTxnInfo(transactionInfo);
+                    return null;
+                })
+                .when(ingestChecker)
+                .runAllChecks(any(), any(), any(), any());
+
+        // when
+        workflowWithTraditionalFees.handleQuery(requestBuffer, responseBuffer);
+
+        // then
+        final var response = parseResponse(responseBuffer);
+        final var header = response.fileGetInfoOrThrow().headerOrThrow();
+        assertThat(header.nodeTransactionPrecheckCode()).isEqualTo(OK);
+
+        // Verify that computeFees was called (traditional fees path)
+        verify(handler).computeFees(any(QueryContext.class));
+        // Verify that computeFeeResult was NOT called
+        verify(handler, never()).computeFeeResult(any());
+
+        verify(submissionManager, never()).submit(any(), any());
+        verify(opWorkflowMetrics).updateDuration(eq(FILE_GET_INFO), anyInt());
+    }
+
     private void verifyMetricsSent() {
         verify(opWorkflowMetrics).updateDuration(eq(FILE_GET_INFO), anyInt());
     }

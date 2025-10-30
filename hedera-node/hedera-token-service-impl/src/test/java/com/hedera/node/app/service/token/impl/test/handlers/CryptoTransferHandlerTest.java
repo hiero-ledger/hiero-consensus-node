@@ -20,6 +20,7 @@ import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.res
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hiero.hapi.support.fees.FeeSchedule.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -72,6 +73,8 @@ import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.handle.DispatchHandleContext;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
+import com.hedera.node.config.data.EntitiesConfig;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -796,5 +799,223 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
                 .withValue("ledger.transfers.maxLen", 10)
                 .withValue("ledger.tokenTransfers.maxLen", 10)
                 .withValue("ledger.nftTransfers.maxLen", 10);
+    }
+
+    @Test
+    void calculateFeeResultForHbarOnlyTransfer() {
+        // given
+        final var cryptoTransfer = CryptoTransferTransactionBody.newBuilder()
+                .transfers(TransferList.newBuilder()
+                        .accountAmounts(aaWith(ACCOUNT_ID_3333, -100), aaWith(ACCOUNT_ID_4444, 100))
+                        .build())
+                .build();
+        final var txBody = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(ACCOUNT_ID_3333))
+                .cryptoTransfer(cryptoTransfer)
+                .build();
+
+        final var feeContext = mock(FeeContext.class);
+        final var feeCalculatorFactory = mock(FeeCalculatorFactory.class);
+        final var feeCalculator = mock(FeeCalculator.class);
+        final var entitiesConfig = mock(EntitiesConfig.class);
+        final var hederaConfig = mock(HederaConfig.class);
+
+        given(feeContext.body()).willReturn(txBody);
+        given(feeContext.numTxnSignatures()).willReturn(2);
+        given(feeContext.readableStore(ReadableTokenStore.class)).willReturn(readableTokenStore);
+        given(feeContext.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
+        given(feeContext.readableStore(ReadableTokenRelationStore.class)).willReturn(readableTokenRelStore);
+        given(feeContext.configuration()).willReturn(config);
+        given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
+        given(feeCalculatorFactory.feeCalculator(any())).willReturn(feeCalculator);
+        given(config.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
+        given(config.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
+        given(hederaConfig.shard()).willReturn(0L);
+        given(hederaConfig.realm()).willReturn(0L);
+        given(feeCalculator.getSimpleFeesSchedule()).willReturn(DEFAULT);
+
+        // when
+        final var result = subject.calculateFeeResult(feeContext);
+
+        // then
+        assertThat(result).isNotNull();
+    }
+
+    @Test
+    void calculateFeeResultForFungibleTokenTransfer() {
+        // given
+        final var tokenTransferList = TokenTransferList.newBuilder()
+                .token(fungibleTokenId)
+                .transfers(aaWith(ACCOUNT_ID_3333, -50), aaWith(ACCOUNT_ID_4444, 50))
+                .build();
+        final var cryptoTransfer = CryptoTransferTransactionBody.newBuilder()
+                .tokenTransfers(tokenTransferList)
+                .build();
+        final var txBody = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(ACCOUNT_ID_3333))
+                .cryptoTransfer(cryptoTransfer)
+                .build();
+
+        final var feeContext = mock(FeeContext.class);
+        final var feeCalculatorFactory = mock(FeeCalculatorFactory.class);
+        final var feeCalculator = mock(FeeCalculator.class);
+        final var entitiesConfig = mock(EntitiesConfig.class);
+        final var hederaConfig = mock(HederaConfig.class);
+
+        given(feeContext.body()).willReturn(txBody);
+        given(feeContext.numTxnSignatures()).willReturn(1);
+        given(feeContext.readableStore(ReadableTokenStore.class)).willReturn(readableTokenStore);
+        given(feeContext.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
+        given(feeContext.readableStore(ReadableTokenRelationStore.class)).willReturn(readableTokenRelStore);
+        given(feeContext.configuration()).willReturn(config);
+        given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
+        given(feeCalculatorFactory.feeCalculator(any())).willReturn(feeCalculator);
+        given(config.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
+        given(config.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
+        given(hederaConfig.shard()).willReturn(0L);
+        given(hederaConfig.realm()).willReturn(0L);
+        given(feeCalculator.getSimpleFeesSchedule()).willReturn(DEFAULT);
+        given(readableTokenStore.get(fungibleTokenId)).willReturn(fungibleToken);
+        given(readableAccountStore.getAliasedAccountById(ACCOUNT_ID_3333)).willReturn(account);
+        given(readableAccountStore.getAliasedAccountById(ACCOUNT_ID_4444)).willReturn(account);
+
+        // when
+        final var result = subject.calculateFeeResult(feeContext);
+
+        // then
+        assertThat(result).isNotNull();
+    }
+
+    @Test
+    void calculateFeeResultForNftTransfer() {
+        // given
+        final var nftTransferList = TokenTransferList.newBuilder()
+                .token(nonFungibleTokenId)
+                .nftTransfers(nftTransferWith(ACCOUNT_ID_3333, ACCOUNT_ID_4444, 1L))
+                .build();
+        final var cryptoTransfer = CryptoTransferTransactionBody.newBuilder()
+                .tokenTransfers(nftTransferList)
+                .build();
+        final var txBody = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(ACCOUNT_ID_3333))
+                .cryptoTransfer(cryptoTransfer)
+                .build();
+
+        final var feeContext = mock(FeeContext.class);
+        final var feeCalculatorFactory = mock(FeeCalculatorFactory.class);
+        final var feeCalculator = mock(FeeCalculator.class);
+        final var entitiesConfig = mock(EntitiesConfig.class);
+        final var hederaConfig = mock(HederaConfig.class);
+
+        given(feeContext.body()).willReturn(txBody);
+        given(feeContext.numTxnSignatures()).willReturn(1);
+        given(feeContext.readableStore(ReadableTokenStore.class)).willReturn(readableTokenStore);
+        given(feeContext.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
+        given(feeContext.readableStore(ReadableTokenRelationStore.class)).willReturn(readableTokenRelStore);
+        given(feeContext.configuration()).willReturn(config);
+        given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
+        given(feeCalculatorFactory.feeCalculator(any())).willReturn(feeCalculator);
+        given(config.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
+        given(config.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
+        given(hederaConfig.shard()).willReturn(0L);
+        given(hederaConfig.realm()).willReturn(0L);
+        given(feeCalculator.getSimpleFeesSchedule()).willReturn(DEFAULT);
+        given(readableTokenStore.get(nonFungibleTokenId)).willReturn(nonFungibleToken);
+        given(readableAccountStore.getAliasedAccountById(ACCOUNT_ID_3333)).willReturn(account);
+        given(readableAccountStore.getAliasedAccountById(ACCOUNT_ID_4444)).willReturn(account);
+
+        // when
+        final var result = subject.calculateFeeResult(feeContext);
+
+        // then
+        assertThat(result).isNotNull();
+    }
+
+    @Test
+    void calculateFeeResultForMixedTransfers() {
+        // given - mixed HBAR, fungible, and NFT transfers
+        final var tokenTransferList1 = TokenTransferList.newBuilder()
+                .token(fungibleTokenId)
+                .transfers(aaWith(ACCOUNT_ID_3333, -50), aaWith(ACCOUNT_ID_4444, 50))
+                .build();
+        final var tokenTransferList2 = TokenTransferList.newBuilder()
+                .token(nonFungibleTokenId)
+                .nftTransfers(nftTransferWith(ACCOUNT_ID_3333, ACCOUNT_ID_4444, 1L))
+                .build();
+        final var cryptoTransfer = CryptoTransferTransactionBody.newBuilder()
+                .transfers(TransferList.newBuilder()
+                        .accountAmounts(aaWith(ACCOUNT_ID_3333, -100), aaWith(ACCOUNT_ID_4444, 100))
+                        .build())
+                .tokenTransfers(tokenTransferList1, tokenTransferList2)
+                .build();
+        final var txBody = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(ACCOUNT_ID_3333))
+                .cryptoTransfer(cryptoTransfer)
+                .build();
+
+        final var feeContext = mock(FeeContext.class);
+        final var feeCalculatorFactory = mock(FeeCalculatorFactory.class);
+        final var feeCalculator = mock(FeeCalculator.class);
+        final var entitiesConfig = mock(EntitiesConfig.class);
+        final var hederaConfig = mock(HederaConfig.class);
+
+        given(feeContext.body()).willReturn(txBody);
+        given(feeContext.numTxnSignatures()).willReturn(2);
+        given(feeContext.readableStore(ReadableTokenStore.class)).willReturn(readableTokenStore);
+        given(feeContext.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
+        given(feeContext.readableStore(ReadableTokenRelationStore.class)).willReturn(readableTokenRelStore);
+        given(feeContext.configuration()).willReturn(config);
+        given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
+        given(feeCalculatorFactory.feeCalculator(any())).willReturn(feeCalculator);
+        given(config.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
+        given(config.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
+        given(hederaConfig.shard()).willReturn(0L);
+        given(hederaConfig.realm()).willReturn(0L);
+        given(feeCalculator.getSimpleFeesSchedule()).willReturn(DEFAULT);
+        given(readableTokenStore.get(fungibleTokenId)).willReturn(fungibleToken);
+        given(readableTokenStore.get(nonFungibleTokenId)).willReturn(nonFungibleToken);
+        given(readableAccountStore.getAliasedAccountById(any())).willReturn(account);
+
+        // when
+        final var result = subject.calculateFeeResult(feeContext);
+
+        // then
+        assertThat(result).isNotNull();
+    }
+
+    @Test
+    void calculateFeeResultWithEmptyTransferLists() {
+        // given - empty transfer lists should handle gracefully
+        final var cryptoTransfer = CryptoTransferTransactionBody.newBuilder().build();
+        final var txBody = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(ACCOUNT_ID_3333))
+                .cryptoTransfer(cryptoTransfer)
+                .build();
+
+        final var feeContext = mock(FeeContext.class);
+        final var feeCalculatorFactory = mock(FeeCalculatorFactory.class);
+        final var feeCalculator = mock(FeeCalculator.class);
+        final var entitiesConfig = mock(EntitiesConfig.class);
+        final var hederaConfig = mock(HederaConfig.class);
+
+        given(feeContext.body()).willReturn(txBody);
+        given(feeContext.numTxnSignatures()).willReturn(1);
+        given(feeContext.readableStore(ReadableTokenStore.class)).willReturn(readableTokenStore);
+        given(feeContext.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
+        given(feeContext.readableStore(ReadableTokenRelationStore.class)).willReturn(readableTokenRelStore);
+        given(feeContext.configuration()).willReturn(config);
+        given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
+        given(feeCalculatorFactory.feeCalculator(any())).willReturn(feeCalculator);
+        given(config.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
+        given(config.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
+        given(hederaConfig.shard()).willReturn(0L);
+        given(hederaConfig.realm()).willReturn(0L);
+        given(feeCalculator.getSimpleFeesSchedule()).willReturn(DEFAULT);
+
+        // when
+        final var result = subject.calculateFeeResult(feeContext);
+
+        // then
+        assertThat(result).isNotNull();
     }
 }
