@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
 import org.assertj.core.data.Percentage;
@@ -26,10 +29,10 @@ class TopologyConfigurationTest {
     void testMeshTopologyConfigurationDefault() {
         final MeshTopologyConfiguration config = MeshTopologyConfiguration.DEFAULT;
 
-        assertNotNull(config);
-        assertEquals(Duration.ofMillis(200), config.averageLatency());
-        assertEquals(5.0, config.jitter().value);
-        assertTrue(config.bandwidth().isUnlimited());
+        assertNotNull(config, "DEFAULT configuration should not be null");
+        assertEquals(Duration.ofMillis(200), config.averageLatency(), "Default latency should be 200ms");
+        assertEquals(5.0, config.jitter().value, "Default jitter should be 5.0%");
+        assertTrue(config.bandwidth().isUnlimited(), "Default bandwidth should be unlimited");
     }
 
     @Test
@@ -39,8 +42,8 @@ class TopologyConfigurationTest {
         final MeshTopologyConfiguration config =
                 MeshTopologyConfiguration.DEFAULT.withAverageLatency(customLatency);
 
-        assertEquals(customLatency, config.averageLatency());
-        assertEquals(5.0, config.jitter().value);
+        assertEquals(customLatency, config.averageLatency(), "Latency should be updated to custom value");
+        assertEquals(5.0, config.jitter().value, "Jitter should remain unchanged");
     }
 
     @Test
@@ -50,8 +53,8 @@ class TopologyConfigurationTest {
         final MeshTopologyConfiguration config =
                 MeshTopologyConfiguration.DEFAULT.withJitter(customJitter);
 
-        assertEquals(Duration.ofMillis(200), config.averageLatency());
-        assertEquals(10.0, config.jitter().value);
+        assertEquals(Duration.ofMillis(200), config.averageLatency(), "Latency should remain unchanged");
+        assertEquals(10.0, config.jitter().value, "Jitter should be updated to custom value");
     }
 
     @Test
@@ -61,8 +64,8 @@ class TopologyConfigurationTest {
         final MeshTopologyConfiguration config =
                 MeshTopologyConfiguration.DEFAULT.withBandwidth(customBandwidth);
 
-        assertEquals(Duration.ofMillis(200), config.averageLatency());
-        assertEquals(customBandwidth, config.bandwidth());
+        assertEquals(Duration.ofMillis(200), config.averageLatency(), "Latency should remain unchanged");
+        assertEquals(customBandwidth, config.bandwidth(), "Bandwidth should be updated to custom value");
     }
 
     @Test
@@ -73,9 +76,9 @@ class TopologyConfigurationTest {
                 .withJitter(Percentage.withPercentage(7))
                 .withBandwidth(BandwidthLimit.ofMegabytesPerSecond(5));
 
-        assertEquals(Duration.ofMillis(300), config.averageLatency());
-        assertEquals(7.0, config.jitter().value);
-        assertEquals(5_120, config.bandwidth().toKilobytesPerSecond()); // 5 MB = 5120 KB
+        assertEquals(Duration.ofMillis(300), config.averageLatency(), "Chained latency should be 300ms");
+        assertEquals(7.0, config.jitter().value, "Chained jitter should be 7.0%");
+        assertEquals(5_120, config.bandwidth().toKilobytesPerSecond(), "Chained bandwidth should be 5120 KB/s (5 MB/s)"); // 5 MB = 5120 KB
     }
 
     @Test
@@ -86,7 +89,8 @@ class TopologyConfigurationTest {
                 () -> new MeshTopologyConfiguration(
                         Duration.ofMillis(-100),
                         Percentage.withPercentage(5),
-                        BandwidthLimit.UNLIMITED_BANDWIDTH));
+                        BandwidthLimit.UNLIMITED_BANDWIDTH),
+                "Should throw IllegalArgumentException for negative latency");
     }
 
     @Test
@@ -100,7 +104,7 @@ class TopologyConfigurationTest {
         final GeographicLatencyConfiguration config = GeographicLatencyConfiguration.DEFAULT
                 .withSameRegionLatency(customRange);
 
-        assertEquals(customRange, config.sameRegion());
+        assertEquals(customRange, config.sameRegion(), "Same region latency should be updated to custom range");
     }
 
     @Test
@@ -108,14 +112,17 @@ class TopologyConfigurationTest {
     void testMeshTopologyConfigurationNullChecking() {
         assertThrows(
                 NullPointerException.class,
-                () -> MeshTopologyConfiguration.DEFAULT.withAverageLatency(null));
+                () -> MeshTopologyConfiguration.DEFAULT.withAverageLatency(null),
+                "Should throw NullPointerException when latency is null");
 
         assertThrows(
                 NullPointerException.class,
-                () -> MeshTopologyConfiguration.DEFAULT.withJitter(null));
+                () -> MeshTopologyConfiguration.DEFAULT.withJitter(null),
+                "Should throw NullPointerException when jitter is null");
 
         assertThrows(
                 NullPointerException.class,
-                () -> MeshTopologyConfiguration.DEFAULT.withBandwidth(null));
+                () -> MeshTopologyConfiguration.DEFAULT.withBandwidth(null),
+                "Should throw NullPointerException when bandwidth is null");
     }
 }

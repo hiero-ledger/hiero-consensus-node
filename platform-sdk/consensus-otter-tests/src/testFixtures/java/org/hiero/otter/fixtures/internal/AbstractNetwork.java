@@ -130,8 +130,6 @@ public abstract class AbstractNetwork implements Network {
     private final boolean useRandomNodeIds;
 
     private Topology topology;
-    private MeshTopologyConfiguration meshTopologyConfig;
-    private GeographicLatencyConfiguration geoMeshTopologyConfig;
 
     protected Lifecycle lifecycle = Lifecycle.INIT;
 
@@ -173,7 +171,6 @@ public abstract class AbstractNetwork implements Network {
             throw new IllegalStateException("Cannot configure topology after nodes have been added to the network.");
         }
 
-        this.meshTopologyConfig = configuration;
         // Create new MeshTopologyImpl with the configuration
         this.topology = new MeshTopologyImpl(configuration, this::createNodes, this::createInstrumentedNode);
         return this;
@@ -192,7 +189,6 @@ public abstract class AbstractNetwork implements Network {
             throw new IllegalStateException("Cannot configure topology after nodes have been added to the network.");
         }
 
-        this.geoMeshTopologyConfig = configuration;
         // Create new GeoMeshTopologyImpl with the configuration
         final GeoMeshTopologyImpl geoTopology =
                 new GeoMeshTopologyImpl(random, this::createNodes, this::createInstrumentedNode);
