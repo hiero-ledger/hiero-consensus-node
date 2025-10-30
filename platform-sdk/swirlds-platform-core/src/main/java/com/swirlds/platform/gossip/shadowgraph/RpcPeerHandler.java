@@ -240,6 +240,16 @@ public class RpcPeerHandler implements GossipRpcReceiver {
     @Override
     public void receiveTips(@NonNull final List<Boolean> remoteTipKnowledge) {
 
+        if (state.mySyncData == null) {
+            throw new IllegalStateException("Received tips confirmation before sending sync data from " + peerId);
+        }
+
+        if (state.myTips == null) {
+            throw new IllegalStateException(
+                    "Internal inconsistency - sent sync data but no info about my tips, when receiving tips from "
+                            + peerId);
+        }
+
         if (state.remoteSyncData == null) {
             throw new IllegalStateException("Need sync data before receiving tips from " + peerId);
         }

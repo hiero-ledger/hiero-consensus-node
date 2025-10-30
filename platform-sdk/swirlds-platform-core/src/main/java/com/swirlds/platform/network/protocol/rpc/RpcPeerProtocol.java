@@ -297,6 +297,10 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                     () -> writeMessages(connection));
         } catch (final ParallelExecutionException e) {
             NetworkUtils.handleNetworkException(e, connection, exceptionRateLimiter);
+            // Dispatch input queue should be cleared on error condition, as we have disconnected and will start again
+            // we don't do that in error handler, as it is called on first error, so other thread could still add
+            // something to inputQueue
+            inputQueue.clear();
         } finally {
             permitProvider.release();
             previousPhase = syncMetrics.reportSyncPhase(remotePeerId, SyncPhase.OUTSIDE_OF_RPC);
