@@ -9,8 +9,8 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getVersionInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContains;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContain;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsText;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContainText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeOnly;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
@@ -66,10 +66,10 @@ class IssHandlingTest implements LifecycleTest {
                             log.info("Setting artificial transfer limit @ {}", loc);
                             updateBootstrapProperties(loc, Map.of("ledger.transfers.maxLen", "5"));
                         }))),
-                assertHgcaaLogContains(
+                assertHgcaaLogContainsText(
                         NodeSelector.byNodeId(ISS_NODE_ID), "ledger.transfers.maxLen = 5", Duration.ofSeconds(10)),
                 // First assert there was no ISS caused by simply reconnecting
-                assertHgcaaLogDoesNotContain(
+                assertHgcaaLogDoesNotContainText(
                         NodeSelector.byNodeId(ISS_NODE_ID), "ISS detected", Duration.ofSeconds(30)),
 
                 // But now submit a transaction within the normal allowed transfers.maxLen limit, while
@@ -77,9 +77,9 @@ class IssHandlingTest implements LifecycleTest {
                 cryptoTransfer(movingHbar(6L).distributing(GENESIS, "3", "4", "5", "6", "7", "8"))
                         .signedBy(GENESIS),
                 // Verify we actually got an ISS in node1
-                assertHgcaaLogContains(NodeSelector.byNodeId(ISS_NODE_ID), "ISS detected", Duration.ofSeconds(60)),
+                assertHgcaaLogContainsText(NodeSelector.byNodeId(ISS_NODE_ID), "ISS detected", Duration.ofSeconds(60)),
                 // Verify the block stream manager completed its fatal shutdown process
-                assertHgcaaLogContains(
+                assertHgcaaLogContainsText(
                         NodeSelector.byNodeId(ISS_NODE_ID),
                         "Block stream fatal shutdown complete",
                         Duration.ofSeconds(30)),

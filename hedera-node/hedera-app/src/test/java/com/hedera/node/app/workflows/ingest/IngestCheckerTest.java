@@ -52,7 +52,7 @@ import com.hedera.hapi.node.token.CryptoAddLiveHashTransactionBody;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.UncheckedSubmitBody;
-import com.hedera.node.app.blocks.BlockStreamManager;
+import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.info.CurrentPlatformStatus;
@@ -134,7 +134,7 @@ class IngestCheckerTest extends AppTestBase {
     private Authorizer authorizer;
 
     @Mock(strictness = LENIENT)
-    private BlockStreamManager blockStreamManager;
+    private BlockHashSigner blockHashSigner;
 
     @Mock
     private OpWorkflowMetrics opWorkflowMetrics;
@@ -187,7 +187,7 @@ class IngestCheckerTest extends AppTestBase {
         subject = new IngestChecker(
                 app.networkInfo(),
                 currentPlatformStatus,
-                blockStreamManager,
+                blockHashSigner,
                 transactionChecker,
                 solvencyPreCheck,
                 signatureExpander,
@@ -214,7 +214,7 @@ class IngestCheckerTest extends AppTestBase {
         @Test
         @DisplayName("When the node is ok, no exception should be thrown")
         void testNodeStateSucceeds() {
-            given(blockStreamManager.hasLedgerId()).willReturn(true);
+            given(blockHashSigner.isReady()).willReturn(true);
             assertThatCode(() -> subject.verifyPlatformActive()).doesNotThrowAnyException();
         }
 
@@ -227,7 +227,7 @@ class IngestCheckerTest extends AppTestBase {
             if (status != PlatformStatus.ACTIVE) {
                 // Given a platform that is not ACTIVE
                 when(currentPlatformStatus.get()).thenReturn(status);
-                given(blockStreamManager.hasLedgerId()).willReturn(true);
+                given(blockHashSigner.isReady()).willReturn(true);
                 // When we try to parse and check a transaction, it should fail because the platform is not active
                 assertThatThrownBy(() -> subject.verifyPlatformActive())
                         .isInstanceOf(PreCheckException.class)
@@ -257,7 +257,7 @@ class IngestCheckerTest extends AppTestBase {
         subject = new IngestChecker(
                 tempApp.networkInfo(),
                 currentPlatformStatus,
-                blockStreamManager,
+                blockHashSigner,
                 transactionChecker,
                 solvencyPreCheck,
                 signatureExpander,

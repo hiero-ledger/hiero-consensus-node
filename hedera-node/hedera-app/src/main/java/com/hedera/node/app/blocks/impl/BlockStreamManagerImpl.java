@@ -14,10 +14,12 @@ import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.clea
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.loadContiguousPendingBlocks;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
+import static com.hedera.node.app.quiescence.TctProbe.blockStreamInfoFrom;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.block.stream.BlockItem;
@@ -39,13 +41,17 @@ import com.hedera.node.app.blocks.StreamingTreeHasher;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.info.DiskStartupNetworks.InfoType;
+import com.hedera.node.app.quiescence.QuiescedHeartbeat;
+import com.hedera.node.app.quiescence.QuiescenceController;
+import com.hedera.node.app.quiescence.TctProbe;
 import com.hedera.node.app.records.impl.BlockRecordInfoUtils;
-import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
+import com.hedera.node.config.data.QuiescenceConfig;
+import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.types.DiskNetworkExport;
@@ -58,6 +64,7 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
+import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.State;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -83,6 +90,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.inject.Inject;
@@ -92,11 +100,12 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.AbstractTask;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 
 @Singleton
 public class BlockStreamManagerImpl implements BlockStreamManager {
-
     private static final Logger log = LogManager.getLogger(BlockStreamManagerImpl.class);
+
     public static final Bytes NULL_HASH = Bytes.wrap(new byte[HASH_SIZE]);
 
     private final int roundsPerBlock;
@@ -108,7 +117,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final ForkJoinPool executor;
     private final String diskNetworkExportFile;
     private final DiskNetworkExport diskNetworkExport;
-    private final NetworkInfo networkInfo;
     private final ConfigProvider configProvider;
     private final Supplier<BlockItemWriter> writerSupplier;
     private final BoundaryStateChangeListener boundaryStateChangeListener;
@@ -117,7 +125,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final Lifecycle lifecycle;
     private final BlockHashManager blockHashManager;
     private final RunningHashManager runningHashManager;
-    private final boolean streamToBlockNodes;
+    private final Platform platform;
+    private final QuiescenceController quiescenceController;
+    private final QuiescedHeartbeat quiescedHeartbeat;
 
     // The status of pending work
     private PendingWork pendingWork = NONE;
@@ -131,6 +141,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private long blockNumber;
     private int eventIndex = 0;
     private final Map<Hash, Integer> eventIndexInBlock = new ConcurrentHashMap<>();
+    private final AtomicReference<QuiescenceCommand> lastQuiescenceCommand = new AtomicReference<>();
     // The last non-empty (i.e., not skipped) round number that will eventually get a start-of-state hash
     private long lastRoundOfPrevBlock;
     private Bytes lastBlockHash;
@@ -147,6 +158,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     private BlockStreamManagerTask worker;
     private final boolean hintsEnabled;
+    private final boolean quiescenceEnabled;
 
     /**
      * Represents a block pending completion by the block hash signature needed for its block proof.
@@ -214,15 +226,18 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final Supplier<BlockItemWriter> writerSupplier,
             @NonNull final ExecutorService executor,
             @NonNull final ConfigProvider configProvider,
-            @NonNull final NetworkInfo networkInfo,
             @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
+            @NonNull final Platform platform,
+            @NonNull final QuiescenceController quiescenceController,
             @NonNull final InitialStateHash initialStateHash,
             @NonNull final SemanticVersion version,
             @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final Lifecycle lifecycle,
+            @NonNull final QuiescedHeartbeat quiescedHeartbeat,
             @NonNull final Metrics metrics) {
         this.blockHashSigner = requireNonNull(blockHashSigner);
-        this.networkInfo = requireNonNull(networkInfo);
+        this.platform = requireNonNull(platform);
+        this.quiescenceController = requireNonNull(quiescenceController);
         this.version = requireNonNull(version);
         this.writerSupplier = requireNonNull(writerSupplier);
         this.executor = (ForkJoinPool) requireNonNull(executor);
@@ -230,14 +245,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.platformStateFacade = requireNonNull(platformStateFacade);
         this.lifecycle = requireNonNull(lifecycle);
         this.configProvider = requireNonNull(configProvider);
+        this.quiescedHeartbeat = requireNonNull(quiescedHeartbeat);
         final var config = configProvider.getConfiguration();
         this.hintsEnabled = config.getConfigData(TssConfig.class).hintsEnabled();
+        this.quiescenceEnabled = config.getConfigData(QuiescenceConfig.class).enabled();
         this.hapiVersion = hapiVersionFrom(config);
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
         this.roundsPerBlock = blockStreamConfig.roundsPerBlock();
         this.blockPeriod = blockStreamConfig.blockPeriod();
         this.hashCombineBatchSize = blockStreamConfig.hashCombineBatchSize();
-        this.streamToBlockNodes = blockStreamConfig.streamToBlockNodes();
         final var networkAdminConfig = config.getConfigData(NetworkAdminConfig.class);
         this.diskNetworkExport = networkAdminConfig.diskNetworkExport();
         this.diskNetworkExportFile = networkAdminConfig.diskNetworkExportFile();
@@ -249,6 +265,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         indirectProofCounter = requireNonNull(metrics)
                 .getOrCreate(new Counter.Config("block", "numIndirectProofs")
                         .withDescription("Number of blocks closed with indirect proofs"));
+        if (!quiescenceEnabled) {
+            log.info("Quiescence is disabled");
+            quiescedHeartbeat.shutdown();
+        }
         log.info(
                 "Initialized BlockStreamManager from round {} with end-of-round hash {}",
                 lastRoundOfPrevBlock,
@@ -310,7 +330,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 }
                 hasCheckedForPendingBlocks = true;
             }
-
+            // No-op if quiescence is disabled
+            quiescenceController.startingBlock(blockNumber);
             worker = new BlockStreamManagerTask();
             final var header = BlockHeader.newBuilder()
                     .number(blockNumber)
@@ -421,6 +442,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final boolean closesBlock = shouldCloseBlock(roundNum, freezeRoundNumber);
         if (closesBlock) {
             lifecycle.onCloseBlock(state);
+            // No-op if quiescence is disabled
+            quiescenceController.finishHandlingInProgressBlock();
             // FUTURE WORK: the state should always be an instance of VirtualMapState
             // https://github.com/hiero-ledger/hiero-consensus-node/issues/21284
             if (state instanceof VirtualMapState hederaNewStateRoot) {
@@ -513,9 +536,29 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 pendingBlocks.forEach(block -> block.flushPending(hasPrecedingUnproven.getAndSet(true)));
             } else {
                 final var attempt = blockHashSigner.sign(blockHash);
-                attempt.signatureFuture()
-                        .thenAcceptAsync(signature -> finishProofWithSignature(
-                                blockHash, signature, attempt.verificationKey(), attempt.chainOfTrustProof()));
+                attempt.signatureFuture().thenAcceptAsync(signature -> {
+                    finishProofWithSignature(
+                            blockHash, signature, attempt.verificationKey(), attempt.chainOfTrustProof());
+                    if (quiescenceEnabled) {
+                        final var lastCommand = lastQuiescenceCommand.get();
+                        final var commandNow = quiescenceController.getQuiescenceStatus();
+                        if (commandNow != lastCommand && lastQuiescenceCommand.compareAndSet(lastCommand, commandNow)) {
+                            log.info("Updating quiescence command from {} to {}", lastCommand, commandNow);
+                            platform.quiescenceCommand(commandNow);
+                            if (commandNow == QUIESCE) {
+                                final var config = configProvider.getConfiguration();
+                                final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
+                                quiescedHeartbeat.start(
+                                        blockStreamConfig.quiescedHeartbeatInterval(),
+                                        new TctProbe(
+                                                blockStreamConfig.maxConsecutiveScheduleSecondsToProbe(),
+                                                config.getConfigData(StakingConfig.class)
+                                                        .periodMins(),
+                                                state));
+                            }
+                        }
+                    }
+                });
             }
 
             final var exportNetworkToDisk =
@@ -644,6 +687,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
             block.writer().writePbjItemAndBytes(proofItem, BlockItem.PROTOBUF.toBytes(proofItem));
             block.writer().closeCompleteBlock();
+            // Only report signatures to the quiescence controller if they were created in-memory first
+            if (quiescenceEnabled && block.contentsPath() == null) {
+                quiescenceController.blockFullySigned(block.number());
+            }
             if (block.number() != blockNumber) {
                 siblingHashes.removeFirst();
             }
@@ -678,12 +725,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private static boolean impliesPostUpgradeWorkPending(
             @NonNull final BlockStreamInfo blockStreamInfo, @NonNull final SemanticVersion version) {
         return !version.equals(blockStreamInfo.creationSoftwareVersion()) || !blockStreamInfo.postUpgradeWorkDone();
-    }
-
-    private @NonNull BlockStreamInfo blockStreamInfoFrom(@NonNull final State state) {
-        final var blockStreamInfoState = state.getReadableStates(BlockStreamService.NAME)
-                .<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID);
-        return requireNonNull(blockStreamInfoState.get());
     }
 
     private boolean shouldCloseBlock(final long roundNumber, final long freezeRoundNumber) {

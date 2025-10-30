@@ -133,11 +133,14 @@ val prCheckPropOverrides =
         put("hapiTestSmartContract", "tss.historyEnabled=false")
         put(
             "hapiTestRestart",
-            "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s",
+            "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s,quiescence.enabled=true",
         )
-        put("hapiTestMisc", "nodes.nodeRewardsEnabled=false")
-        put("hapiTestTimeConsuming", "nodes.nodeRewardsEnabled=false")
-        put("hapiTestMiscRecords", "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false")
+        put("hapiTestMisc", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
+        put("hapiTestTimeConsuming", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
+        put(
+            "hapiTestMiscRecords",
+            "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
+        )
 
         // Copy vals to the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
