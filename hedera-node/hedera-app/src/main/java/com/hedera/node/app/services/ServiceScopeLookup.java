@@ -16,6 +16,7 @@ import com.hedera.node.app.service.util.UtilService;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.interledger.clpr.ClprService;
 
 /**
  * Provides a mapping from a transaction to the service it belongs to.
@@ -112,6 +113,8 @@ public class ServiceScopeLookup {
             case HISTORY_PROOF_KEY_PUBLICATION, HISTORY_PROOF_SIGNATURE, HISTORY_PROOF_VOTE -> HistoryService.NAME;
             case HINTS_KEY_PUBLICATION, HINTS_PARTIAL_SIGNATURE, HINTS_PREPROCESSING_VOTE, CRS_PUBLICATION ->
                 HintsService.NAME;
+
+            case CLPR_SET_LEDGER_CONFIGURATION -> ClprService.NAME;
 
             default -> NON_EXISTING_SERVICE;
         };

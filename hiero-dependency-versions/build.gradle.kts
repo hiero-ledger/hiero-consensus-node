@@ -71,6 +71,9 @@ dependencies.constraints {
     }
     api("com.hedera.pbj:pbj-grpc-helidon:${pbj}") { because("com.hedera.pbj.grpc.helidon") }
     api("com.hedera.pbj:pbj-runtime:$pbj") { because("com.hedera.pbj.runtime") }
+    api("com.hedera.pbj:pbj-grpc-client-helidon:$pbj") {
+        because("com.hedera.pbj.grpc.client.helidon")
+    }
     api("com.squareup:javapoet:1.13.0") { because("com.squareup.javapoet") }
     api("net.java.dev.jna:jna:5.17.0") { because("com.sun.jna") }
     api("com.google.dagger:dagger:$dagger") { because("dagger") }

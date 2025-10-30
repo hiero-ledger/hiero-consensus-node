@@ -67,6 +67,9 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.ReadableRosterStoreImpl;
+import org.hiero.interledger.clpr.ClprService;
+import org.hiero.interledger.clpr.ReadableClprLedgerConfigurationStore;
+import org.hiero.interledger.clpr.impl.ReadableClprLedgerConfigurationStoreImpl;
 
 /**
  * Factory for all readable stores. It creates new readable stores based on the {@link State}.
@@ -149,6 +152,12 @@ public class ReadableStoreFactory {
         newMap.put(
                 ReadableHistoryStore.class,
                 new StoreEntry(HistoryService.NAME, (states, entityCounters) -> new ReadableHistoryStoreImpl(states)));
+        // Clpr service
+        newMap.put(
+                ReadableClprLedgerConfigurationStore.class,
+                new StoreEntry(
+                        ClprService.NAME,
+                        (states, entityCounters) -> new ReadableClprLedgerConfigurationStoreImpl(states)));
         return Collections.unmodifiableMap(newMap);
     }
 
