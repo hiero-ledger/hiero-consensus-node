@@ -18,9 +18,11 @@ option java_package = "com.hedera.hapi.block.stream.protoc";
 option java_multiple_files = true;
 
 /**
- * TODO
+ * A complete snapshot of an incremental streaming merkle subtree.
+ * This message contains the hashes necessary to reconstruct all
+ * of the subtree's 'uncollapsed' nodes.
  */
-message StreamingTreeSnapshot {
+message IncrementalStreamingSnapshot {
 
   /**
    * Which of the block merkle sub trees this snapshot represents
@@ -28,7 +30,8 @@ message StreamingTreeSnapshot {
   SubMerkleTree type = 1;
 
   /**
-   * All the uncollapsed nodes of the sub tree
+   * All the uncollapsed nodes of the sub tree. These nodes SHALL
+   * be ordered from left to right and bottom to top.
    */
   repeated bytes nodes = 2;
 }

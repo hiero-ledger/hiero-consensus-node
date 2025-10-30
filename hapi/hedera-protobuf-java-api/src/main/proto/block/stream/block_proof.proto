@@ -39,7 +39,7 @@ import "block/stream/state_proof.proto";
  * creating a "virtual" merkle tree to obtain the root merkle hash of
  * that virtual tree.<br/>
  * The merkle tree SHALL have the following structure:
- * - The merkle tree SHALL be structured as a strictly binary tree.
+ * - The merkle tree SHALL be structured as a binary tree.
  * - The merkle tree root SHALL have a "left-most" node containing the
  *   block's beginning timestamp.
  * - The merkle tree root SHALL have a "right-most" subtree comprised of 16
@@ -47,50 +47,45 @@ import "block/stream/state_proof.proto";
  * - The first four "levels" of the "right-most" subtree SHALL be internal
  *   nodes, comprising 15 in total.
  * - The fifth level of the "right-most" subtree SHALL be comprised of 16
- *   components (detailed below).
+ *   components (detailed below).<br/>
  * The "right-most" subtree's 16 components SHALL be, in order (from left
  * to right):
- * 1. A leaf containing the previous block's root hash
+ * 1. A leaf containing the previous block's root hash.
  * 2. A sub-tree of "incrementally-collapsed" block hashes, ranging from
  *    the genesis block to the block immediately preceding the current
- *    block number, strictly ordered by block number
+ *    block number, strictly ordered by block number.
  * 3. A leaf containing the hash of the state merkle tree at the start of
- *    the block
- * 4. The root of a, strictly binary, merkle tree composed of all
- *    consensus header items in the block. Leaf nodes in this subtree SHALL
- *    be ordered in the same order that the block items are encountered in
- *    the stream.
- * 5. The root of a, strictly binary, merkle tree composed of all input
- *    items in the block. Input items SHALL be transactions, system
- *    transactions, and  events. Leaf nodes in this subtree SHALL be
- *    ordered in the same  order that the block items are encountered in
- *    the stream.
- * 6. The root of a, strictly binary, merkle tree composed of all output
- *    items in the block. Output items SHALL be transaction result or
- *    transaction output items. Leaf nodes in this subtree SHALL be ordered
- *    in the same order that the block items are encountered in the stream.
- * 7. The root of a, strictly binary, merkle tree composed of all state
- *    changes in the block. State change items SHALL be transaction result or
- *    transaction output items. Leaf nodes in this subtree SHALL be ordered
- *    in the same order that the block items are encountered in the stream.
- * 8. The root of a, strictly binary, merkle tree composed of all trace
- *    data items in the block. Trace data items SHALL be transaction result
- *    or transaction output items. Leaf nodes in this subtree SHALL be
- *    ordered in the same order that the block items are encountered in
- *    the stream.
- * 9-16: Empty leaf nodes reserved for future use (SHALL be set to the
- * "null"). Each of branches 4-8 SHALL (individually) be "complete" binary
- * merkle trees, with nodes that would otherwise be missing replaced by a
- * "null" hash leaf.
+ *    the block.
+ * 4. The root of a merkle tree composed of all consensus header items
+ *    in the block. Leaf nodes in this subtree SHALL be ordered in the
+ *    same order that the block items are encountered in the stream.
+ * 5. The root of a merkle tree composed of all input items in the block.
+ *    Input items SHALL be transactions, system transactions, and events.
+ *    Leaf nodes in this subtree SHALL be ordered in the same order that
+ *    the block items are encountered in the stream.
+ * 6. The root of a merkle tree composed of all output items in the
+ *    block. Output items SHALL be transaction result or transaction
+ *    output items. Leaf nodes in this subtree SHALL be ordered in the
+ *    same order that the block items are encountered in the stream.
+ * 7. The root of a merkle tree composed of all state changes in the
+ *    block. State change items SHALL be transaction result or
+ *    transaction output items. Leaf nodes in this subtree SHALL be
+ *    ordered in the same order that the block items are encountered
+ *    in the stream.
+ * 8. The root of a merkle tree composed of all trace data items in the
+ *    block. Trace data items SHALL be transaction result or transaction
+ *    output items. Leaf nodes in this subtree SHALL be ordered in the
+ *    same order that the block items are encountered in the stream.
+ * 9-16: Empty leaf nodes reserved for future use.<br/>
  * For the "right-most" subtree's internal nodes:
  * - Level four's internal nodes SHALL be the parents of the (ordered)
- *   16 leaves described above
+ *   16 leaves described above.
  * - Level three's internal nodes SHALL be the parents of level four's
- *   (ordered) internal nodes
+ *   (ordered) internal nodes.
  * - Level two's internal nodes SHALL be the parents of level three's
- *   (ordered) internal nodes
+ *   (ordered) internal nodes.
  * - Level one's internal node SHALL be the (single) parent of level two's
- *   (ordered) internal nodes
+ *   (ordered) internal nodes.
  * The block hash SHALL be the hash calculated for the root of this merkle
  *   tree.
  * - The hash algorithm used SHALL be the algorithm specified in the
@@ -131,8 +126,8 @@ message BlockProof {
      * of that tree, then combining that hash with the values in this list,
      * paying attention to the first/second sibling ordering, until the root
      * merkle hash is produced from the last pair of sibling hashes. That
-     * "secondary" root hash MUST then be verified using
-     * the value of `block_signature`.
+     * "secondary" root hash MUST then be verified using the value of
+     * `block_signature`.
      */
     repeated MerkleSiblingHash sibling_hashes = 2;
 

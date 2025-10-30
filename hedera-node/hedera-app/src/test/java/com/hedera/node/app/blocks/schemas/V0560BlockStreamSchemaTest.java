@@ -19,6 +19,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -122,7 +123,8 @@ public class V0560BlockStreamSchemaTest {
                 blockInfo.consTimeOfLastHandledTxn(),
                 Bytes.EMPTY,
                 Bytes.EMPTY,
-                Bytes.EMPTY);
+                Bytes.EMPTY,
+                Collections.emptyList());
         verify(state).put(expectedInfo);
     }
 

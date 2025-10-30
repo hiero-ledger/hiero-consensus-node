@@ -288,7 +288,7 @@ class BlockStreamManagerImplTest {
         given(round.getRoundNum()).willReturn(ROUND_NO);
 
         // Initialize the last (N-1) block hash
-        subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
         assertFalse(subject.hasLedgerId());
 
         given(blockHashSigner.isReady()).willReturn(true);
@@ -349,9 +349,12 @@ class BlockStreamManagerImplTest {
                 Bytes.fromHex(
                         "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
                 Bytes.fromHex(
-                        "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
+                        "bf99e1dfd15ffe551ae4bc0953f396639755f0419522f323875806a55a57dca6a4df61ea6dee28bec0c37ed54881d392"),
                 Bytes.fromHex(
-                        "bf99e1dfd15ffe551ae4bc0953f396639755f0419522f323875806a55a57dca6a4df61ea6dee28bec0c37ed54881d392"));
+                        "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
+                List.of(
+                        Bytes.fromHex(
+                                "adbabc2f7e3216d4d64de1d2a6896ad1330ba8b099cf7d55a027c937893896072a290d0b63b7fb3ab8a0147bbd1258af")));
 
         final var actualBlockInfo = infoRef.get();
         assertEquals(expectedBlockInfo, actualBlockInfo);
@@ -363,7 +366,7 @@ class BlockStreamManagerImplTest {
         assertTrue(item.hasBlockProof());
         final var proof = item.blockProofOrThrow();
         assertEquals(N_BLOCK_NO, proof.block());
-        assertEquals(FIRST_FAKE_SIGNATURE, proof.blockSignature());
+        assertEquals(FIRST_FAKE_SIGNATURE, proof.signedBlockProof().blockSignature());
     }
 
     @Test
@@ -420,7 +423,7 @@ class BlockStreamManagerImplTest {
         given(round.getRoundNum()).willReturn(ROUND_NO);
 
         // Initialize the last (N-1) block hash
-        subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
         assertFalse(subject.hasLedgerId());
 
         given(blockHashSigner.isReady()).willReturn(true);
@@ -520,7 +523,7 @@ class BlockStreamManagerImplTest {
         given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
 
         // Initialize the last (N-1) block hash
-        subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
 
         given(blockHashSigner.isReady()).willReturn(true);
         // Start the round that will be block N
@@ -577,9 +580,12 @@ class BlockStreamManagerImplTest {
                 Bytes.fromHex(
                         "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
                 Bytes.fromHex(
-                        "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
+                        "8ee0718d5f75f867f85cb4e400ebf7bfbb4cd91479d7f3f8bfd28ce062c318c312b8f4de185a994b78337e6391e3f000"),
                 Bytes.fromHex(
-                        "8ee0718d5f75f867f85cb4e400ebf7bfbb4cd91479d7f3f8bfd28ce062c318c312b8f4de185a994b78337e6391e3f000"));
+                        "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
+                List.of(
+                        Bytes.fromHex(
+                                "adbabc2f7e3216d4d64de1d2a6896ad1330ba8b099cf7d55a027c937893896072a290d0b63b7fb3ab8a0147bbd1258af")));
         final var actualBlockInfo = infoRef.get();
         assertEquals(expectedBlockInfo, actualBlockInfo);
 
@@ -590,7 +596,7 @@ class BlockStreamManagerImplTest {
         assertTrue(item.hasBlockProof());
         final var proof = item.blockProofOrThrow();
         assertEquals(N_BLOCK_NO, proof.block());
-        assertEquals(FIRST_FAKE_SIGNATURE, proof.blockSignature());
+        assertEquals(FIRST_FAKE_SIGNATURE, proof.signedBlockProof().blockSignature());
     }
 
     @Test
@@ -615,7 +621,7 @@ class BlockStreamManagerImplTest {
         given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
 
         // Initialize the last (N-1) block hash
-        subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
 
         // Start the round that will be block N
         subject.startRound(round, state);
@@ -662,8 +668,13 @@ class BlockStreamManagerImplTest {
         assertTrue(aItem.hasBlockProof());
         final var aProof = aItem.blockProofOrThrow();
         assertEquals(N_BLOCK_NO, aProof.block());
-        assertEquals(FIRST_FAKE_SIGNATURE, aProof.blockSignature());
-        assertEquals(3, aProof.siblingHashes().size());
+        assertEquals(
+                FIRST_FAKE_SIGNATURE,
+                aProof.blockStateProof().signedBlockProof().blockSignature());
+        // Since the state proof's first merkle path should be the leaf containing the block merkle tree's previous
+        // block hash (4 levels descended from the signed block root hash), there are four required siblings to keep for
+        // indirect proofs
+        assertEquals(4, aProof.siblingHashes().size());
         // And the proof for N+1 using a direct proof
         final var bProofItem = lastBItem.get();
         assertNotNull(bProofItem);
@@ -671,7 +682,7 @@ class BlockStreamManagerImplTest {
         assertTrue(bItem.hasBlockProof());
         final var bProof = bItem.blockProofOrThrow();
         assertEquals(N_BLOCK_NO + 1, bProof.block());
-        assertEquals(FIRST_FAKE_SIGNATURE, bProof.blockSignature());
+        assertEquals(FIRST_FAKE_SIGNATURE, bProof.signedBlockProof().blockSignature());
         assertTrue(bProof.siblingHashes().isEmpty());
 
         verify(indirectProofsCounter).increment();
@@ -703,7 +714,7 @@ class BlockStreamManagerImplTest {
 
         // When starting a round at t=0
         given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(1000));
-        subject.initLastBlockHash(N_MINUS_2_BLOCK_HASH);
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
         subject.startRound(round, state);
 
         // And another round at t=1
@@ -782,7 +793,7 @@ class BlockStreamManagerImplTest {
 
         // When starting a round at t=0
         given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(1000));
-        subject.initLastBlockHash(N_MINUS_2_BLOCK_HASH);
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
         subject.startRound(round, state);
 
         // And another round at t=1 with freeze
@@ -819,7 +830,7 @@ class BlockStreamManagerImplTest {
 
         // When processing rounds
         given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(1000));
-        subject.initLastBlockHash(N_MINUS_2_BLOCK_HASH);
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
 
         // First round (not mod 2)
         given(round.getRoundNum()).willReturn(3L);
@@ -892,7 +903,7 @@ class BlockStreamManagerImplTest {
                 .thenAcceptAsync(any());
 
         // Initialize hash and start a round
-        subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
         subject.startRound(round, state);
 
         // Track event hashes in the first block
@@ -1014,6 +1025,12 @@ class BlockStreamManagerImplTest {
                 .lastIntervalProcessTime(CONSENSUS_THEN)
                 .lastHandleTime(CONSENSUS_THEN)
                 .blockTime(asTimestamp(CONSENSUS_NOW.minusSeconds(5))) // Add block time to track last block creation
+                .startOfBlockStateHash(
+                        Bytes.fromHex(
+                                "60875644fb1d810f012284f35845b2d6990a0d4d1543625a98095087648ee671effeb2742c91e4fbd390bc3e52faf89f"))
+                .intermediatePreviousBlockRootHashes(
+                        Bytes.fromHex(
+                                "adbabc2f7e3216d4d64de1d2a6896ad1330ba8b099cf7d55a027c937893896072a290d0b63b7fb3ab8a0147bbd1258af"))
                 .build();
     }
 
