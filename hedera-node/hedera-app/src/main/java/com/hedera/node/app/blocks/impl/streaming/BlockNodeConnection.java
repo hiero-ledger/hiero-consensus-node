@@ -37,6 +37,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.block.api.BlockEnd;
 import org.hiero.block.api.BlockItemSet;
 import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 import org.hiero.block.api.PublishStreamRequest;
@@ -684,7 +685,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 if (request.hasEndStream()) {
                     blockStreamMetrics.recordRequestEndStreamSent(
                             request.endStream().endCode());
-                } else {
+                } else if (request.hasBlockItems()) {
                     blockStreamMetrics.recordRequestSent(request.request().kind());
                     final BlockItemSet itemSet = request.blockItems();
                     if (itemSet != null) {
@@ -698,6 +699,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                             }
                         }
                     }
+                } else {
+                    blockStreamMetrics.recordRequestSent(request.request().kind());
                 }
 
                 return true;
@@ -1033,6 +1036,17 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             }
 
             if (pendingRequestItems.isEmpty() && block.isClosed() && block.itemCount() == itemIndex) {
+                // Indicate to the block node that this is the end of the current block
+                final PublishStreamRequest endOfBlock = PublishStreamRequest.newBuilder()
+                        .endOfBlock(BlockEnd.newBuilder().blockNumber(block.blockNumber()))
+                        .build();
+                try {
+                    sendRequest(endOfBlock);
+                } catch (RuntimeException e) {
+                    logger.warn("{} Error sending EndOfBlock request", BlockNodeConnection.this, e);
+                    handleStreamFailureWithoutOnComplete();
+                }
+
                 // We've gathered all block items and have sent them to the block node. No additional work is needed
                 // for the current block so we can move to the next block.
                 final long nextBlockNumber = block.blockNumber() + 1;
