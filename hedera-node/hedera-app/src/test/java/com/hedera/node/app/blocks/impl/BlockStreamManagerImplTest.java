@@ -341,7 +341,7 @@ class BlockStreamManagerImplTest {
                         Bytes.EMPTY,
                         Bytes.fromHex(
                                 "839ddb854c8f4cf9c3705268b17bc7d53e91454ff14dbbfffd6c77b6118a0e79fb1e478b4924bfb0fd93ef60101d3237")),
-                FAKE_TRANSACTION_RESULT.transactionResultOrThrow().consensusTimestampOrThrow(),
+                asTimestamp(CONSENSUS_NOW),
                 true,
                 SemanticVersion.DEFAULT,
                 CONSENSUS_THEN,
@@ -572,7 +572,7 @@ class BlockStreamManagerImplTest {
                         Bytes.EMPTY,
                         Bytes.fromHex(
                                 "839ddb854c8f4cf9c3705268b17bc7d53e91454ff14dbbfffd6c77b6118a0e79fb1e478b4924bfb0fd93ef60101d3237")),
-                FAKE_TRANSACTION_RESULT.transactionResultOrThrow().consensusTimestampOrThrow(),
+                asTimestamp(CONSENSUS_NOW),
                 false,
                 SemanticVersion.DEFAULT,
                 CONSENSUS_THEN,

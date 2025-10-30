@@ -889,7 +889,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         }
 
         // For time-based blocks, check if enough consensus time has elapsed
-        final var elapsed = Duration.between(consensusTimeLastRound, blockEndTimestamp);
+        final var elapsed = Duration.between(blockEndTimestamp, consensusTimeLastRound);
         return elapsed.compareTo(blockPeriod) >= 0;
     }
 
