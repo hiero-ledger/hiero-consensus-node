@@ -11,6 +11,9 @@ import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
+import com.swirlds.platform.event.orphan.OrphanBuffer;
+import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.security.SecureRandom;
 import java.util.ArrayList;
@@ -37,13 +40,12 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
-import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 /**
- * Benchmark for measuring network-wide event creation throughput when multiple
- * {@link DefaultEventCreator} instances create and share events.
+ * Benchmark for measuring network-wide event creation throughput when multiple {@link DefaultEventCreator} instances
+ * create and share events.
  * <p>
  * This benchmark simulates a network of nodes where each node:
  * <ul>
@@ -61,54 +63,37 @@ import org.openjdk.jmh.infra.Blackhole;
 @Measurement(iterations = 2, time = 10)
 public class EventCreatorNetworkBenchmark {
 
-    /**
-     * The number of nodes in the simulated network.
-     */
-    //@Param({"4", "10", "39"})
-    @Param({"4"})
+    /** The number of nodes in the simulated network. */
+    @Param({"4", "8"})
     public int numNodes;
 
-    /**
-     * Random seed for reproducibility.
-     */
+    /** Random seed for reproducibility. */
     @Param({"0"})
     public long seed;
 
-    /**
-     * The event creators for each node in the network.
-     */
+    /** The event creators for each node in the network. */
     private List<DefaultEventCreator> eventCreators;
 
-    /**
-     * The roster defining the network.
-     */
+    /** The roster defining the network. */
     private Roster roster;
 
-    /**
-     * Keys and certificates for each node in the network.
-     */
+    /** Keys and certificates for each node in the network. */
     private Function<NodeId, KeysAndCerts> nodeKeysAndCerts;
 
-    /**
-     * Random number generator.
-     */
-    private Random random;
-
-    /**
-     * Total number of events created in the current round.
-     */
+    /** Total number of events created in the current iteration. */
     private int eventsCreatedInIteration;
 
-    /**
-     * Current event window for the network.
-     */
+    /** Current event window for the network. */
     private EventWindow eventWindow;
+
+    /** The number of events after which the event window should be updated */
+    private long eventWindowUpdateInterval;
+
+    /** Orphan buffer, required to set the nGen value needed by the event creator */
+    private OrphanBuffer orphanBuffer;
 
     @Setup(Level.Trial)
     public void setupTrial() {
-        random = new Random(seed);
-        eventWindow = EventWindow.getGenesisEventWindow();
-
         // Build a roster with real keys
         final RandomRosterBuilder rosterBuilder = RandomRosterBuilder.create(Randotron.create(seed))
                 .withSize(numNodes)
@@ -116,11 +101,13 @@ public class EventCreatorNetworkBenchmark {
                 .withRealKeysEnabled(true);
         roster = rosterBuilder.build();
         nodeKeysAndCerts = rosterBuilder::getPrivateKeys;
+        eventWindowUpdateInterval = Math.round(numNodes * Math.log(numNodes));
     }
 
     @Setup(Level.Iteration)
     public void setupIteration() {
         eventCreators = new ArrayList<>(numNodes);
+        eventWindow = EventWindow.getGenesisEventWindow();
         final Configuration configuration = new TestConfigBuilder()
                 .withConfigDataType(EventCreationConfig.class)
                 .withValue(EventCreationConfig_.MAX_CREATION_RATE, 0)
@@ -136,7 +123,7 @@ public class EventCreatorNetworkBenchmark {
             final NodeId nodeId = NodeId.of(entry.nodeId());
             final KeysAndCerts keysAndCerts = nodeKeysAndCerts.apply(nodeId);
             final SecureRandom nodeRandom = new SecureRandom();
-            nodeRandom.setSeed(random.nextLong());
+            nodeRandom.setSeed(new Random(seed).nextLong());
 
             final DefaultEventCreator eventCreator = new DefaultEventCreator();
             eventCreator.initialize(
@@ -148,7 +135,7 @@ public class EventCreatorNetworkBenchmark {
                     roster,
                     nodeId,
                     List::of,
-                    ()->false);
+                    () -> false);
 
             // Set platform status to ACTIVE so events can be created
             eventCreator.updatePlatformStatus(PlatformStatus.ACTIVE);
@@ -156,6 +143,7 @@ public class EventCreatorNetworkBenchmark {
 
             eventCreators.add(eventCreator);
         }
+        orphanBuffer = new DefaultOrphanBuffer(metrics, new NoOpIntakeEventCounter());
 
         eventsCreatedInIteration = 0;
     }
@@ -165,21 +153,17 @@ public class EventCreatorNetworkBenchmark {
      * <p>
      * In each iteration:
      * <ol>
-     *   <li>Each node attempts to create an event</li>
+     *   <li>Each node attempts to create an event, until one is created</li>
      *   <li>Successfully created events are shared with all other nodes</li>
-     *   <li>The total number of events created is returned as the metric</li>
      * </ol>
      * <p>
-     * This simulates a realistic gossip scenario where events are propagated
-     * through the network and used as parents for new events.
      *
      * @param bh JMH blackhole to prevent dead code elimination
-     * @return the number of events created in this round
      */
     @Benchmark
     @BenchmarkMode(Mode.Throughput)
     @OutputTimeUnit(TimeUnit.SECONDS)
-    public int networkEventCreation(final Blackhole bh) {
+    public void networkEventCreation(final Blackhole bh) {
         PlatformEvent newEvent = null;
         for (final DefaultEventCreator creator : eventCreators) {
             final PlatformEvent event = creator.maybeCreateEvent();
@@ -189,8 +173,12 @@ public class EventCreatorNetworkBenchmark {
                 break;
             }
         }
-        if(newEvent == null) {
-            throw new RuntimeException("No event created");
+        if (newEvent == null) {
+            throw new RuntimeException("At least one creator should always be able to create an event");
+        }
+        final List<PlatformEvent> unorphanedEvents = orphanBuffer.handleEvent(newEvent);
+        if (unorphanedEvents.size() != 1) {
+            throw new RuntimeException("There should be no orphaned events in this benchmark");
         }
 
         // Share newly created events with all nodes (simulating gossip)
@@ -198,37 +186,20 @@ public class EventCreatorNetworkBenchmark {
             creator.registerEvent(newEvent);
         }
 
-
-        eventsCreatedInIteration ++;
+        eventsCreatedInIteration++;
 
         // Periodically update event window to simulate consensus progress
-//        if (eventsCreatedInIteration > 100) {
-//            eventWindow = new EventWindow(
-//                    eventWindow.latestConsensusRound() + 1,
-//                    eventWindow.newEventBirthRound() + 1,
-//                    eventWindow.ancientThreshold() + 1,
-//                    eventWindow.expiredThreshold() + 1);
-//
-//            for (final DefaultEventCreator creator : eventCreators) {
-//                creator.setEventWindow(eventWindow);
-//            }
-//            eventsCreatedInIteration = 0;
-//        }
+        if (eventsCreatedInIteration % eventWindowUpdateInterval == 0) {
+            eventWindow = new EventWindow(
+                    eventWindow.latestConsensusRound() + 1,
+                    eventWindow.newEventBirthRound() + 1,
+                    Math.max(1, eventWindow.latestConsensusRound() - 25),
+                    Math.max(1, eventWindow.latestConsensusRound() - 25));
 
-        return 1;
-    }
-
-    @TearDown(Level.Iteration)
-    public void validateState() {
-        // Validate that event creators are in a consistent state
-        for (final DefaultEventCreator creator : eventCreators) {
-            // Check invariants, log statistics, etc.
-        }
-
-        System.out.println("\nEvents created in iteration: " + eventsCreatedInIteration);
-        // You could throw an exception if state is invalid
-        if (eventsCreatedInIteration < 1_000) {
-            throw new IllegalStateException("Invalid event count");
+            for (final DefaultEventCreator creator : eventCreators) {
+                creator.setEventWindow(eventWindow);
+            }
+            eventsCreatedInIteration = 0;
         }
     }
 }

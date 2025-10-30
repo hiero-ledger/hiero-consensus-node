@@ -200,7 +200,7 @@ class OrphanBufferTests {
         final Configuration configuration =
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Metrics metrics = new NoOpMetrics();
-        final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(configuration, metrics, intakeEventCounter);
+        final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, intakeEventCounter);
 
         long latestConsensusRound = ConsensusConstants.ROUND_FIRST;
 
@@ -253,7 +253,7 @@ class OrphanBufferTests {
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Metrics metrics = new NoOpMetrics();
         final IntakeEventCounter intakeEventCounter = mock(IntakeEventCounter.class);
-        final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(configuration, metrics, intakeEventCounter);
+        final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, intakeEventCounter);
 
         final List<PlatformEvent> emittedEvents = new ArrayList<>();
         for (final PlatformEvent intakeEvent : intakeEvents) {
@@ -339,7 +339,7 @@ class OrphanBufferTests {
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Metrics metrics = new NoOpMetrics();
         final DefaultOrphanBuffer orphanBuffer =
-                new DefaultOrphanBuffer(configuration, metrics, mock(IntakeEventCounter.class));
+                new DefaultOrphanBuffer(metrics, mock(IntakeEventCounter.class));
 
         final List<PlatformEvent> unorphanedEvents = orphanBuffer.handleEvent(genesisEvent);
         assertThat(unorphanedEvents.size())
@@ -379,7 +379,7 @@ class OrphanBufferTests {
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Metrics metrics = new NoOpMetrics();
         final DefaultOrphanBuffer orphanBuffer =
-                new DefaultOrphanBuffer(configuration, metrics, mock(IntakeEventCounter.class));
+                new DefaultOrphanBuffer(metrics, mock(IntakeEventCounter.class));
         orphanBuffer.setEventWindow(eventWindow);
 
         final List<PlatformEvent> unorphanedEvents = new ArrayList<>();
@@ -433,7 +433,7 @@ class OrphanBufferTests {
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Metrics metrics = new NoOpMetrics();
         final DefaultOrphanBuffer orphanBuffer =
-                new DefaultOrphanBuffer(configuration, metrics, mock(IntakeEventCounter.class));
+                new DefaultOrphanBuffer(metrics, mock(IntakeEventCounter.class));
         orphanBuffer.setEventWindow(eventWindow);
 
         final List<PlatformEvent> unorphanedEvents = new ArrayList<>();
@@ -515,7 +515,7 @@ class OrphanBufferTests {
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Metrics metrics = new NoOpMetrics();
         final DefaultOrphanBuffer orphanBuffer =
-                new DefaultOrphanBuffer(configuration, metrics, mock(IntakeEventCounter.class));
+                new DefaultOrphanBuffer(metrics, mock(IntakeEventCounter.class));
         orphanBuffer.setEventWindow(eventWindow);
 
         final List<PlatformEvent> unorphanedEvents = new ArrayList<>(orphanBuffer.handleEvent(node0AncientEvent));
