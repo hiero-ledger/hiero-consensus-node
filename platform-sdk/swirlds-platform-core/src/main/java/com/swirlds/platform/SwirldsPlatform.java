@@ -33,6 +33,7 @@ import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.event.preconsensus.PcesReplayer;
+import com.swirlds.platform.metrics.IOMetrics;
 import com.swirlds.platform.metrics.RuntimeMetrics;
 import com.swirlds.platform.publisher.DefaultPlatformPublisher;
 import com.swirlds.platform.publisher.PlatformPublisher;
@@ -178,6 +179,7 @@ public class SwirldsPlatform implements Platform {
         registerRosterMetrics(platformContext.getMetrics(), currentRoster, selfId);
 
         RuntimeMetrics.setup(platformContext.getMetrics());
+        IOMetrics.setup(platformContext.getMetrics());
 
         keysAndCerts = blocks.keysAndCerts();
 
