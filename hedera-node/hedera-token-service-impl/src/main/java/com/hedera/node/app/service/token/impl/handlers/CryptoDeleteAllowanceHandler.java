@@ -38,9 +38,14 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.hapi.fees.FeeModelRegistry;
+import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
 
 /**
  * This class contains all workflow-related functionality regarding {@link
@@ -215,9 +220,28 @@ public class CryptoDeleteAllowanceHandler implements TransactionHandler {
 
     private int countNftDeleteSerials(final List<NftRemoveAllowance> nftAllowancesList) {
         int totalSerials = 0;
-        for (var allowance : nftAllowancesList) {
+        for (final var allowance : nftAllowancesList) {
             totalSerials += allowance.serialNumbers().size();
         }
         return totalSerials;
+    }
+
+    @NonNull
+    @Override
+    public FeeResult calculateFeeResult(@NonNull final FeeContext feeContext) {
+        requireNonNull(feeContext);
+        final var model = FeeModelRegistry.lookupModel(HederaFunctionality.CRYPTO_DELETE_ALLOWANCE);
+        final var op = feeContext.body().cryptoDeleteAllowance();
+
+        final Map<Extra, Long> params = new HashMap<>();
+        params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
+
+        // Count allowances
+        final long allowanceCount = op.nftAllowances().size();
+        params.put(Extra.ALLOWANCES, allowanceCount);
+
+        return model.computeFee(
+                params,
+                feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT).getSimpleFeesSchedule());
     }
 }

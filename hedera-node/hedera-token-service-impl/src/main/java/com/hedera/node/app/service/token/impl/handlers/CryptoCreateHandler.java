@@ -81,9 +81,14 @@ import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.hapi.fees.FeeModelRegistry;
+import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
 
 /**
  * This class contains all workflow-related functionality regarding {@link HederaFunctionality#CRYPTO_CREATE}. A
@@ -137,7 +142,8 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         }
         // HIP 904 now allows for unlimited auto-associations
         validateTruePreCheck(
-                op.maxAutomaticTokenAssociations() >= UNLIMITED_AUTOMATIC_ASSOCIATIONS, INVALID_MAX_AUTO_ASSOCIATIONS);
+                op.maxAutomaticTokenAssociations() >= UNLIMITED_AUTOMATIC_ASSOCIATIONS,
+                INVALID_MAX_AUTO_ASSOCIATIONS);
         validateTruePreCheck(op.initialBalance() >= 0L, INVALID_INITIAL_BALANCE);
         // FUTURE: should this return SEND_RECORD_THRESHOLD_FIELD_IS_DEPRECATED
         validateTruePreCheck(op.sendRecordThreshold() >= 0L, INVALID_SEND_RECORD_THRESHOLD);
@@ -156,7 +162,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         // FUTURE: Clean up the error codes to be consistent.
         final var key = op.key();
         final var isInternal =
-                !txn.hasTransactionID() || (systemEntitiesCreatedFlag != null && !systemEntitiesCreatedFlag.get());
+                !txn.hasTransactionID() || systemEntitiesCreatedFlag != null && !systemEntitiesCreatedFlag.get();
         final var keyIsEmpty = isEmpty(key);
         if (!isInternal && keyIsEmpty) {
             if (key == null) {
@@ -428,17 +434,18 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
      *
      * @param op the transaction body
      * @param handleContext the handle context
-     * @param updatedSlots
+     * @param updatedSlots the number of updated staking-related state slots
      * @return the account created
      */
     @NonNull
-    private Account buildAccount(CryptoCreateTransactionBody op, HandleContext handleContext, final int updatedSlots) {
+    private Account buildAccount(
+            final CryptoCreateTransactionBody op, final HandleContext handleContext, final int updatedSlots) {
         requireNonNull(op);
         requireNonNull(handleContext);
         final var autoRenewPeriod = op.autoRenewPeriodOrThrow().seconds();
         final var consensusTime = handleContext.consensusNow().getEpochSecond();
         final var expiry = consensusTime + autoRenewPeriod;
-        var builder = Account.newBuilder()
+        final var builder = Account.newBuilder()
                 .memo(op.memo())
                 .expirationSecond(expiry)
                 .autoRenewSeconds(autoRenewPeriod)
@@ -511,5 +518,21 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
 
     private boolean isSystemFile(final long entityNum) {
         return FIRST_SYSTEM_FILE_ENTITY <= entityNum && entityNum < FIRST_POST_SYSTEM_FILE_ENTITY;
+    }
+
+    @NonNull
+    @Override
+    public FeeResult calculateFeeResult(@NonNull final FeeContext feeContext) {
+        requireNonNull(feeContext);
+        final var model = FeeModelRegistry.lookupModel(HederaFunctionality.CRYPTO_CREATE);
+        final var op = feeContext.body().cryptoCreateAccountOrThrow();
+
+        final Map<Extra, Long> params = new HashMap<>();
+        params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
+
+        params.put(Extra.KEYS, op.hasKey() ? 1L : 0L);
+        return model.computeFee(
+                params,
+                feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT).getSimpleFeesSchedule());
     }
 }

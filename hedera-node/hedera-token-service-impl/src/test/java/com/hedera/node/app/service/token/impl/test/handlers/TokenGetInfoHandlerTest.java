@@ -44,6 +44,7 @@ import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.converter.BytesConverter;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
+import org.hiero.base.exceptions.NotImplementedException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -224,6 +225,16 @@ class TokenGetInfoHandlerTest extends CryptoTokenHandlerTestBase {
         final var store = new ReadableTokenStoreImpl(readableStates, readableEntityCounters);
 
         checkResponse(responseHeader, expectedInfo, store);
+    }
+
+    @Test
+    void computeFeeResultThrowsNotImplementedByDefault() {
+        // given - QueryHandler default method should throw NotImplementedException
+        final var query = createTokenGetInfoQuery(fungibleTokenId);
+        given(context.query()).willReturn(query);
+        given(context.createStore(ReadableTokenStore.class)).willReturn(readableTokenStore);
+
+        assertThatThrownBy(() -> subject.computeFeeResult(context)).isInstanceOf(NotImplementedException.class);
     }
 
     private void checkResponse(

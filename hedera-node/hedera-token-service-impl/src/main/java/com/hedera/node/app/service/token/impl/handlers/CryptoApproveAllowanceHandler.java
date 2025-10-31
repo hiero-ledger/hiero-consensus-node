@@ -57,11 +57,16 @@ import com.swirlds.base.utility.Pair;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.hapi.fees.FeeModelRegistry;
+import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
 
 /**
  * This class contains all workflow-related functionality regarding
@@ -553,12 +558,12 @@ public class CryptoApproveAllowanceHandler implements TransactionHandler {
         final long lifeTime = ESTIMATOR_UTILS.relativeLifetime(currentSecond, currentExpiry);
         // If the value is being adjusted instead of inserting a new entry , the fee charged will be
         // slightly less than the base price
-        final var adjustedBytes = getNewBytes(body.cryptoApproveAllowanceOrThrow(), account);
+        final var adjustedBytes = getNewBytes(op, account);
         return feeContext
                 .feeCalculatorFactory()
                 .feeCalculator(SubType.DEFAULT)
                 .addBytesPerTransaction(bytesUsedInTxn(op))
-                .addRamByteSeconds(adjustedBytes > 0 ? (adjustedBytes * lifeTime) : 0)
+                .addRamByteSeconds(adjustedBytes > 0 ? adjustedBytes * lifeTime : 0)
                 .calculate();
     }
 
@@ -673,5 +678,48 @@ public class CryptoApproveAllowanceHandler implements TransactionHandler {
             totalSerials += allowance.serialNumbers().size();
         }
         return totalSerials;
+    }
+
+    /**
+     * Counts the number of NEW allowances that will be added to state from the transaction.
+     * Compares transaction allowances against existing allowances in the account to determine
+     * which ones are new vs. updates to existing allowances.
+     *
+     * @param op the crypto approve allowance transaction body
+     * @param account the account existing in state (may be null if account doesn't exist)
+     * @return the count of new allowances that will be added to state
+     */
+    private long countNewAllowances(final CryptoApproveAllowanceTransactionBody op, final Account account) {
+        final long newCryptoKeys =
+                getChangedCryptoKeys(op.cryptoAllowances(), account == null ? emptyList() : account.cryptoAllowances());
+        final long newTokenKeys =
+                getChangedTokenKeys(op.tokenAllowances(), account == null ? emptyList() : account.tokenAllowances());
+        final long newApproveForAllNfts = getChangedNftKeys(
+                op.nftAllowances(), account == null ? emptyList() : account.approveForAllNftAllowances());
+
+        return newCryptoKeys + newTokenKeys + newApproveForAllNfts;
+    }
+
+    @NonNull
+    @Override
+    public FeeResult calculateFeeResult(@NonNull final FeeContext feeContext) {
+        requireNonNull(feeContext);
+        final var model = FeeModelRegistry.lookupModel(HederaFunctionality.CRYPTO_APPROVE_ALLOWANCE);
+        final var op = feeContext.body().cryptoApproveAllowanceOrThrow();
+
+        // Look up payer account to check existing allowances
+        final var accountStore = feeContext.readableStore(ReadableAccountStore.class);
+        final var account = accountStore.getAccountById(feeContext.payer());
+
+        final Map<Extra, Long> params = new HashMap<>();
+        params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
+
+        // Count only NEW allowances that will be added to state
+        final long newAllowanceCount = countNewAllowances(op, account);
+        params.put(Extra.ALLOWANCES, newAllowanceCount);
+
+        return model.computeFee(
+                params,
+                feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT).getSimpleFeesSchedule());
     }
 }

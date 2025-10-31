@@ -44,6 +44,7 @@ import com.hedera.node.app.service.token.impl.handlers.transfer.TransferExecutor
 import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookCallsFactory;
 import com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
+import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -55,16 +56,25 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.spi.workflows.WarmupContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.FeesConfig;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.LedgerConfig;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.hapi.fees.FeeModelRegistry;
+import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
 
 /**
  * This class contains all workflow-related functionality regarding {@link
@@ -438,5 +448,264 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
      */
     public record HookInfo(boolean usesHooks, long totalGasLimitOfHooks) {
         public static final HookInfo NO_HOOKS = new HookInfo(false, 0L);
+    }
+
+    private record TransferEstimate(
+            long hbarTransfers,
+            long standardFungibleTokens,
+            long customFeeFungibleTokens,
+            long standardNftTokens,
+            long customFeeNftTokens,
+            long nftSerialCount,
+            long createdAccounts,
+            long createdAutoAssociations) {}
+
+    private static class TransferEstimationCache {
+        private final Map<TokenID, Token> tokenCache = new HashMap<>();
+        private final Map<AccountID, Account> accountCache = new HashMap<>();
+        private final Map<Bytes, AccountID> aliasCache = new HashMap<>();
+        private final Set<String> tokenRelationCache = new HashSet<>();
+        private final ReadableTokenStore tokenStore;
+        private final ReadableAccountStore accountStore;
+        private final ReadableTokenRelationStore tokenRelStore;
+        private final HederaConfig hederaConfig;
+
+        TransferEstimationCache(
+                @NonNull final ReadableTokenStore tokenStore,
+                @NonNull final ReadableAccountStore accountStore,
+                @NonNull final ReadableTokenRelationStore tokenRelStore,
+                @NonNull final HederaConfig hederaConfig) {
+            this.tokenStore = requireNonNull(tokenStore);
+            this.accountStore = requireNonNull(accountStore);
+            this.tokenRelStore = requireNonNull(tokenRelStore);
+            this.hederaConfig = requireNonNull(hederaConfig);
+        }
+
+        Token getToken(@NonNull final TokenID tokenId) {
+            return tokenCache.computeIfAbsent(tokenId, tokenStore::get);
+        }
+
+        Account getAccount(@NonNull final AccountID accountId) {
+            return accountCache.computeIfAbsent(accountId, accountStore::getAliasedAccountById);
+        }
+
+        AccountID getAccountByAlias(@NonNull final Bytes alias) {
+            return aliasCache.computeIfAbsent(
+                    alias, a -> accountStore.getAccountIDByAlias(hederaConfig.shard(), hederaConfig.realm(), a));
+        }
+
+        boolean hasTokenRelation(@NonNull final AccountID accountId, @NonNull final TokenID tokenId) {
+            final String key = accountId.accountNumOrElse(0L) + ":" + tokenId.tokenNum();
+            if (tokenRelationCache.contains(key)) {
+                return true;
+            }
+            final var account = getAccount(accountId);
+            if (account == null) {
+                return false;
+            }
+            final var tokenRel = tokenRelStore.get(account.accountIdOrThrow(), tokenId);
+            if (tokenRel != null) {
+                tokenRelationCache.add(key);
+                return true;
+            }
+            return false;
+        }
+    }
+
+    @NonNull
+    @Override
+    public FeeResult calculateFeeResult(@NonNull final FeeContext feeContext) {
+        requireNonNull(feeContext);
+        final var model = FeeModelRegistry.lookupModel(HederaFunctionality.CRYPTO_TRANSFER);
+        final var op = feeContext.body().cryptoTransfer();
+
+        // Initialize cache for efficient lookups
+        final var tokenStore = feeContext.readableStore(ReadableTokenStore.class);
+        final var accountStore = feeContext.readableStore(ReadableAccountStore.class);
+        final var tokenRelStore = feeContext.readableStore(ReadableTokenRelationStore.class);
+        final var hederaConfig = feeContext.configuration().getConfigData(HederaConfig.class);
+        final var entitiesConfig = feeContext.configuration().getConfigData(EntitiesConfig.class);
+
+        final var estimationCache = new TransferEstimationCache(tokenStore, accountStore, tokenRelStore, hederaConfig);
+
+        // Estimated crypto transfer of all transfers
+        final var estimatedCryptoTransfer = estimateCryptoTransfer(op, estimationCache, entitiesConfig);
+
+        // Build fee parameters
+        final Map<Extra, Long> params = new HashMap<>();
+        params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
+        params.put(Extra.ACCOUNTS, estimatedCryptoTransfer.hbarTransfers);
+        params.put(Extra.STANDARD_FUNGIBLE_TOKENS, estimatedCryptoTransfer.standardFungibleTokens);
+        params.put(Extra.CUSTOM_FEE_FUNGIBLE_TOKENS, estimatedCryptoTransfer.customFeeFungibleTokens);
+        params.put(Extra.STANDARD_NON_FUNGIBLE_TOKENS, estimatedCryptoTransfer.standardNftTokens);
+        params.put(Extra.CUSTOM_FEE_NON_FUNGIBLE_TOKENS, estimatedCryptoTransfer.customFeeNftTokens);
+        params.put(Extra.NFT_SERIALS, estimatedCryptoTransfer.nftSerialCount);
+        params.put(Extra.CREATED_AUTO_ASSOCIATIONS, estimatedCryptoTransfer.createdAutoAssociations);
+        params.put(Extra.CREATED_ACCOUNTS, estimatedCryptoTransfer.createdAccounts);
+
+        final FeeCalculator feeCalculator = feeContext.feeCalculatorFactory().feeCalculator(DEFAULT);
+        return model.computeFee(params, feeCalculator.getSimpleFeesSchedule());
+    }
+
+    private static TransferEstimate estimateCryptoTransfer(
+            @NonNull final CryptoTransferTransactionBody op,
+            @NonNull final TransferEstimationCache cache,
+            @NonNull final EntitiesConfig entitiesConfig) {
+
+        long hbarTransfers = 0;
+        long standardFungibleTokens = 0;
+        long customFeeFungibleTokens = 0;
+        long standardNftTokens = 0;
+        long customFeeNftTokens = 0;
+        long nftSerialCount = 0;
+        long createdAccounts = 0;
+        long createdAutoAssociations = 0;
+
+        final var processedAliases = new HashSet<Bytes>();
+
+        // estimate HBAR transfers (early exit if empty)
+        final var hbarTransferList = op.transfersOrElse(TransferList.DEFAULT).accountAmounts();
+        if (!hbarTransferList.isEmpty()) {
+            for (final var aa : hbarTransferList) {
+                hbarTransfers++;
+                // Check for account creation via alias (only for receivers)
+                if (aa.amount() > 0 && aa.accountID() != null) {
+                    createdAccounts += checkAliasCreationCached(aa.accountID(), cache, processedAliases);
+                }
+            }
+        }
+
+        // estimate token transfers (early exit if empty)
+        final var tokenTransfers = op.tokenTransfers();
+        if (tokenTransfers.isEmpty()) {
+            return new TransferEstimate(hbarTransfers, 0, 0, 0, 0, 0, createdAccounts, 0);
+        }
+
+        for (final var tokenTransfer : tokenTransfers) {
+            final var tokenId = tokenTransfer.token();
+            if (tokenId == null) continue;
+
+            // Early exit if no transfers for this token
+            final var fungibleTransfers = tokenTransfer.transfers();
+            final var nftTransfers = tokenTransfer.nftTransfers();
+            if (fungibleTransfers.isEmpty() && nftTransfers.isEmpty()) {
+                continue;
+            }
+
+            final var token = cache.getToken(tokenId);
+            final boolean hasCustomFees = token != null && !token.customFees().isEmpty();
+
+            final var accountsInThisTransfer = new HashSet<AccountID>();
+
+            // Process fungible token transfers
+            if (!fungibleTransfers.isEmpty()) {
+                if (hasCustomFees) {
+                    customFeeFungibleTokens++;
+                } else {
+                    standardFungibleTokens++;
+                }
+
+                for (final var aa : fungibleTransfers) {
+                    final var accountId = aa.accountID();
+                    if (accountId == null) continue;
+
+                    if (aa.amount() > 0) {
+                        createdAccounts += checkAliasCreationCached(accountId, cache, processedAliases);
+                    }
+
+                    if (!accountsInThisTransfer.contains(accountId)) {
+                        if (willCreateAutoAssociationCached(accountId, tokenId, cache, entitiesConfig)) {
+                            createdAutoAssociations++;
+                        }
+                        accountsInThisTransfer.add(accountId);
+                    }
+                }
+            }
+
+            // Process NFT transfers
+            if (!nftTransfers.isEmpty()) {
+                if (hasCustomFees) {
+                    customFeeNftTokens++;
+                } else {
+                    standardNftTokens++;
+                }
+                nftSerialCount += nftTransfers.size();
+
+                for (final var nft : nftTransfers) {
+                    final var receiverId = nft.receiverAccountID();
+                    if (receiverId == null) continue;
+
+                    // Check for account creation
+                    createdAccounts += checkAliasCreationCached(receiverId, cache, processedAliases);
+
+                    // Check for auto-association creation (deduplicated per token)
+                    if (!accountsInThisTransfer.contains(receiverId)) {
+                        if (willCreateAutoAssociationCached(receiverId, tokenId, cache, entitiesConfig)) {
+                            createdAutoAssociations++;
+                        }
+                        accountsInThisTransfer.add(receiverId);
+                    }
+                }
+            }
+        }
+
+        return new TransferEstimate(
+                hbarTransfers,
+                standardFungibleTokens,
+                customFeeFungibleTokens,
+                standardNftTokens,
+                customFeeNftTokens,
+                nftSerialCount,
+                createdAccounts,
+                createdAutoAssociations);
+    }
+
+    private static int checkAliasCreationCached(
+            @NonNull final AccountID accountId,
+            @NonNull final TransferEstimationCache cache,
+            @NonNull final HashSet<Bytes> processedAliases) {
+
+        // Check if this is an alias (not a regular account number)
+        if (!accountId.hasAlias() || accountId.accountNumOrElse(0L) != 0L) {
+            return 0;
+        }
+        final var alias = accountId.alias();
+        if (processedAliases.contains(alias)) {
+            return 0;
+        }
+        processedAliases.add(alias);
+        final var existingAccount = cache.getAccountByAlias(alias);
+        return (existingAccount == null) ? 1 : 0;
+    }
+
+    private static boolean willCreateAutoAssociationCached(
+            @NonNull final AccountID accountId,
+            @NonNull final TokenID tokenId,
+            @NonNull final TransferEstimationCache cache,
+            @NonNull final EntitiesConfig entitiesConfig) {
+
+        // Get the account (using cache)
+        final var account = cache.getAccount(accountId);
+        if (account == null) {
+            return false;
+        }
+
+        // Check if association already exists (using cache)
+        if (cache.hasTokenRelation(accountId, tokenId)) {
+            return false;
+        }
+
+        // Check if account has auto-association slots available
+        final var maxAutoAssociations = account.maxAutoAssociations();
+        if (maxAutoAssociations == 0) {
+            return false;
+        }
+
+        final var unlimitedEnabled = entitiesConfig.unlimitedAutoAssociationsEnabled();
+        if (unlimitedEnabled && maxAutoAssociations == -1) {
+            return true;
+        }
+
+        return account.usedAutoAssociations() < maxAutoAssociations;
     }
 }

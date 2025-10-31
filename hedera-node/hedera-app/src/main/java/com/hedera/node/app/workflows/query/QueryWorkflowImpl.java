@@ -26,6 +26,7 @@ import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.service.token.impl.handlers.SimpleFeeUtil;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.records.RecordCache;
@@ -231,7 +232,18 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             }
 
                             // 3.iv Calculate costs
-                            final var queryFees = handler.computeFees(context).totalFee();
+                            // Check if simple fees are enabled
+                            long queryFees;
+                            if (SimpleFeeUtil.shouldUseSimpleFees(context)) {
+                                final var feeResult = handler.computeFeeResult(context);
+                                final var rate = context.exchangeRateInfo()
+                                        .exchangeRates()
+                                        .currentRate();
+                                queryFees = SimpleFeeUtil.convertFeeResultToFees(feeResult, rate)
+                                        .totalFee();
+                            } else {
+                                queryFees = handler.computeFees(context).totalFee();
+                            }
                             final var txFees = queryChecker.estimateTxFees(
                                     storeFactory,
                                     consensusTime,

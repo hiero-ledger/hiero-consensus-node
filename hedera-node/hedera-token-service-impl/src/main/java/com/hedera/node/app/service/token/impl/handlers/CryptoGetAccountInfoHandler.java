@@ -44,9 +44,14 @@ import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.InstantSource;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.hapi.fees.FeeModelRegistry;
+import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
 
 /**
  * This class contains all workflow-related functionality regarding {@link
@@ -209,5 +214,15 @@ public class CryptoGetAccountInfoHandler extends PaidQueryHandler {
                 .setCurrentlyHasProxy(false)
                 .build();
         return cryptoOpsUsage.cryptoInfoUsage(CommonPbjConverters.fromPbj(query), ctx);
+    }
+
+    @Override
+    @NonNull
+    public FeeResult computeFeeResult(@NonNull final QueryContext queryContext) {
+        requireNonNull(queryContext);
+        final var model = FeeModelRegistry.lookupModel(HederaFunctionality.CRYPTO_GET_INFO);
+        final Map<Extra, Long> params = new HashMap<>();
+        params.put(Extra.SIGNATURES, 1L);
+        return model.computeFee(params, queryContext.feeCalculator().getSimpleFeesSchedule());
     }
 }

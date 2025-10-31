@@ -9,6 +9,8 @@ import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
 import com.hedera.node.app.spi.fees.Fees;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.base.exceptions.NotImplementedException;
+import org.hiero.hapi.fees.FeeResult;
 
 /** A {@code QueryHandler} contains all methods for the different stages of a single query. */
 public interface QueryHandler {
@@ -62,6 +64,16 @@ public interface QueryHandler {
     @NonNull
     default Fees computeFees(@NonNull QueryContext queryContext) {
         return Fees.FREE;
+    }
+
+    /**
+     * Computes the fees associated with this given query using Simple Fees
+     * @param queryContext The context for the query being handled
+     * @return The fees associated with the query
+     */
+    @NonNull
+    default FeeResult computeFeeResult(@NonNull final QueryContext queryContext) {
+        throw new NotImplementedException();
     }
 
     /**

@@ -20,9 +20,12 @@ import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatNoException;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
+import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
+import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -212,7 +215,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    void proxySetFailsInPureChecks() throws PreCheckException {
+    void proxySetFailsInPureChecks() {
         final var txn =
                 new CryptoUpdateBuilder().withProxyAccountNum(id.accountNum()).build();
         givenTxnWith(txn);
@@ -351,19 +354,19 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         final var falseReward =
                 new CryptoUpdateBuilder().withDeclineReward(false).build();
         givenTxnWith(falseReward);
-        assertEquals(true, writableStore.get(updateAccountId).declineReward());
+        assertTrue(writableStore.get(updateAccountId).declineReward());
         subject.handle(handleContext);
-        assertEquals(false, writableStore.get(updateAccountId).declineReward());
+        assertFalse(writableStore.get(updateAccountId).declineReward());
         // decline reward set to true
         final var trueReward = new CryptoUpdateBuilder().withDeclineReward(true).build();
         givenTxnWith(trueReward);
         subject.handle(handleContext);
-        assertEquals(true, writableStore.get(updateAccountId).declineReward());
+        assertTrue(writableStore.get(updateAccountId).declineReward());
         // decline reward not set will not change values to false
         final var noReward = new CryptoUpdateBuilder().build();
         givenTxnWith(noReward);
         subject.handle(handleContext);
-        assertEquals(true, writableStore.get(updateAccountId).declineReward());
+        assertTrue(writableStore.get(updateAccountId).declineReward());
     }
 
     @Test
@@ -373,23 +376,23 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         final var falseFlag =
                 new CryptoUpdateBuilder().withReceiverSigReqWrapper(false).build();
         givenTxnWith(falseFlag);
-        assertEquals(true, writableStore.get(updateAccountId).receiverSigRequired());
+        assertTrue(writableStore.get(updateAccountId).receiverSigRequired());
 
         subject.handle(handleContext);
-        assertEquals(false, writableStore.get(updateAccountId).receiverSigRequired());
+        assertFalse(writableStore.get(updateAccountId).receiverSigRequired());
 
         // receiverSigReq set to true
         final var trueFlag =
                 new CryptoUpdateBuilder().withReceiverSigReqWrapper(true).build();
         givenTxnWith(trueFlag);
         subject.handle(handleContext);
-        assertEquals(true, writableStore.get(updateAccountId).receiverSigRequired());
+        assertTrue(writableStore.get(updateAccountId).receiverSigRequired());
 
         // receiverSigReq not set will not change values to false
         final var noFlag = new CryptoUpdateBuilder().build();
         givenTxnWith(noFlag);
         subject.handle(handleContext);
-        assertEquals(true, writableStore.get(updateAccountId).receiverSigRequired());
+        assertTrue(writableStore.get(updateAccountId).receiverSigRequired());
     }
 
     @Test
@@ -891,6 +894,164 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         // slots increases, so we have a new fee
         inOrder.verify(feeCalculator, times(1)).addRamByteSeconds(3732480000000L);
         inOrder.verify(feeCalculator, times(1)).calculate();
+    }
+
+    // ============ Simple Fees (calculateFeeResult) Tests ============
+
+    @Test
+    void calculateFeeResultWithKeyUpdate() {
+        // given
+        final var newKey = Key.newBuilder()
+                .ed25519(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(new byte[32]))
+                .build();
+        final var cryptoUpdate = CryptoUpdateTransactionBody.newBuilder()
+                .accountIDToUpdate(updateAccountId)
+                .key(newKey)
+                .build();
+        final var txBody = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(id))
+                .cryptoUpdateAccount(cryptoUpdate)
+                .build();
+
+        final var feeContext = mock(FeeContext.class);
+        final var feeCalculatorFactory = mock(FeeCalculatorFactory.class);
+        final var feeCalculator = mock(FeeCalculator.class);
+
+        given(feeContext.body()).willReturn(txBody);
+        given(feeContext.numTxnSignatures()).willReturn(2);
+        given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
+        given(feeCalculatorFactory.feeCalculator(any())).willReturn(feeCalculator);
+        given(feeCalculator.getSimpleFeesSchedule()).willReturn(createTestFeeSchedule());
+
+        // when
+        final var result = subject.calculateFeeResult(feeContext);
+
+        // then
+        assertNotNull(result);
+        assertEquals(0L, result.node);
+        assertEquals(0L, result.network);
+        assertEquals(22L, result.service);
+        assertEquals(22L, result.total());
+    }
+
+    @Test
+    void calculateFeeResultWithoutKeyUpdate() {
+        // given - update without key
+        final var cryptoUpdate = CryptoUpdateTransactionBody.newBuilder()
+                .accountIDToUpdate(updateAccountId)
+                .memo("Updated memo")
+                .build();
+        final var txBody = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(id))
+                .cryptoUpdateAccount(cryptoUpdate)
+                .build();
+
+        final var feeContext = mock(FeeContext.class);
+        final var feeCalculatorFactory = mock(FeeCalculatorFactory.class);
+        final var feeCalculator = mock(FeeCalculator.class);
+
+        given(feeContext.body()).willReturn(txBody);
+        given(feeContext.numTxnSignatures()).willReturn(1);
+        given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
+        given(feeCalculatorFactory.feeCalculator(any())).willReturn(feeCalculator);
+        given(feeCalculator.getSimpleFeesSchedule()).willReturn(createTestFeeSchedule());
+
+        // when
+        final var result = subject.calculateFeeResult(feeContext);
+
+        // then
+        assertNotNull(result);
+        assertEquals(0L, result.node);
+        assertEquals(0L, result.network);
+        assertEquals(22L, result.service);
+        assertEquals(22L, result.total());
+    }
+
+    @Test
+    void calculateFeeResultWithMultipleSignatures() {
+        // given
+        final var newKey = Key.newBuilder()
+                .ed25519(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(new byte[32]))
+                .build();
+        final var cryptoUpdate = CryptoUpdateTransactionBody.newBuilder()
+                .accountIDToUpdate(updateAccountId)
+                .key(newKey)
+                .build();
+        final var txBody = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(id))
+                .cryptoUpdateAccount(cryptoUpdate)
+                .build();
+
+        final var feeContext = mock(FeeContext.class);
+        final var feeCalculatorFactory = mock(FeeCalculatorFactory.class);
+        final var feeCalculator = mock(FeeCalculator.class);
+
+        given(feeContext.body()).willReturn(txBody);
+        given(feeContext.numTxnSignatures()).willReturn(5); // Multiple signatures
+        given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
+        given(feeCalculatorFactory.feeCalculator(any())).willReturn(feeCalculator);
+        given(feeCalculator.getSimpleFeesSchedule()).willReturn(createTestFeeSchedule());
+
+        // when
+        final var result = subject.calculateFeeResult(feeContext);
+
+        // then
+        assertNotNull(result);
+        assertEquals(0L, result.node);
+        assertEquals(0L, result.network);
+        assertEquals(22L, result.service);
+        assertEquals(22L, result.total());
+    }
+
+    @Test
+    void calculateFeeResultWithMinimalUpdate() {
+        // given - minimal update with just account ID
+        final var cryptoUpdate = CryptoUpdateTransactionBody.newBuilder()
+                .accountIDToUpdate(updateAccountId)
+                .build();
+        final var txBody = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(id))
+                .cryptoUpdateAccount(cryptoUpdate)
+                .build();
+
+        final var feeContext = mock(FeeContext.class);
+        final var feeCalculatorFactory = mock(FeeCalculatorFactory.class);
+        final var feeCalculator = mock(FeeCalculator.class);
+
+        given(feeContext.body()).willReturn(txBody);
+        given(feeContext.numTxnSignatures()).willReturn(1);
+        given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
+        given(feeCalculatorFactory.feeCalculator(any())).willReturn(feeCalculator);
+        given(feeCalculator.getSimpleFeesSchedule()).willReturn(createTestFeeSchedule());
+
+        // when
+        final var result = subject.calculateFeeResult(feeContext);
+
+        // then
+        assertNotNull(result);
+        assertEquals(0L, result.node);
+        assertEquals(0L, result.network);
+        assertEquals(22L, result.service);
+        assertEquals(22L, result.total());
+    }
+
+    /**
+     * Creates a minimal FeeSchedule with proper NodeFee, NetworkFee, and service fees for testing.
+     */
+    private static org.hiero.hapi.support.fees.FeeSchedule createTestFeeSchedule() {
+        return org.hiero.hapi.support.fees.FeeSchedule.DEFAULT
+                .copyBuilder()
+                .node(org.hiero.hapi.support.fees.NodeFee.DEFAULT
+                        .copyBuilder()
+                        .baseFee(0)
+                        .build())
+                .network(org.hiero.hapi.support.fees.NetworkFee.DEFAULT
+                        .copyBuilder()
+                        .multiplier(1)
+                        .build())
+                .services(makeService(
+                        "Crypto", makeServiceFee(com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_UPDATE, 22)))
+                .build();
     }
 
     /**
