@@ -928,6 +928,10 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
 
         // then
         assertNotNull(result);
+        assertEquals(0L, result.node);
+        assertEquals(0L, result.network);
+        assertEquals(22L, result.service);
+        assertEquals(22L, result.total());
     }
 
     @Test
@@ -957,6 +961,10 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
 
         // then
         assertNotNull(result);
+        assertEquals(0L, result.node);
+        assertEquals(0L, result.network);
+        assertEquals(22L, result.service);
+        assertEquals(22L, result.total());
     }
 
     @Test
@@ -989,6 +997,10 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
 
         // then
         assertNotNull(result);
+        assertEquals(0L, result.node);
+        assertEquals(0L, result.network);
+        assertEquals(22L, result.service);
+        assertEquals(22L, result.total());
     }
 
     @Test
@@ -1017,6 +1029,10 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
 
         // then
         assertNotNull(result);
+        assertEquals(0L, result.node);
+        assertEquals(0L, result.network);
+        assertEquals(22L, result.service);
+        assertEquals(22L, result.total());
     }
 
     /**

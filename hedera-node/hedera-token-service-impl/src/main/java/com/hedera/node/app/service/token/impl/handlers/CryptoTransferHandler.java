@@ -517,7 +517,7 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
     public FeeResult calculateFeeResult(@NonNull final FeeContext feeContext) {
         requireNonNull(feeContext);
         final var model = FeeModelRegistry.lookupModel(HederaFunctionality.CRYPTO_TRANSFER);
-        final var transferOp = feeContext.body().cryptoTransfer();
+        final var op = feeContext.body().cryptoTransfer();
 
         // Initialize cache for efficient lookups
         final var tokenStore = feeContext.readableStore(ReadableTokenStore.class);
@@ -529,7 +529,7 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
         final var estimationCache = new TransferEstimationCache(tokenStore, accountStore, tokenRelStore, hederaConfig);
 
         // Estimated crypto transfer of all transfers
-        final var estimatedCryptoTransfer = estimateCryptoTransfer(transferOp, estimationCache, entitiesConfig);
+        final var estimatedCryptoTransfer = estimateCryptoTransfer(op, estimationCache, entitiesConfig);
 
         // Build fee parameters
         final Map<Extra, Long> params = new HashMap<>();

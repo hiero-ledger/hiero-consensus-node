@@ -92,9 +92,9 @@ public class CryptoGetAccountRecordsHandler extends PaidQueryHandler {
         requireNonNull(context);
         requireNonNull(header);
 
-        final var getRecordsOp = context.query().cryptoGetAccountRecordsOrThrow();
-        final var responseType = getRecordsOp.headerOrElse(QueryHeader.DEFAULT).responseType();
-        final var accountId = getRecordsOp.accountIDOrElse(AccountID.DEFAULT);
+        final var op = context.query().cryptoGetAccountRecordsOrThrow();
+        final var responseType = op.headerOrElse(QueryHeader.DEFAULT).responseType();
+        final var accountId = op.accountIDOrElse(AccountID.DEFAULT);
 
         // Initialize the response (with the given header)
         final var response = CryptoGetAccountRecordsResponse.newBuilder().header(header);
