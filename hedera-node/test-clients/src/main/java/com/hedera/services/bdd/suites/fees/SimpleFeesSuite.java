@@ -62,6 +62,7 @@ import org.junit.jupiter.api.Tag;
 public class SimpleFeesSuite {
     private static final String PAYER = "payer";
     private static final String ADMIN = "admin";
+    private static final String NEW_ADMIN = "newAdmin";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -688,6 +689,129 @@ public class SimpleFeesSuite {
                             assertEquals(initialBalance.get(), afterBalance.get());
                         }));
             }
+
+            @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+            @DisplayName("update topic not signed by payer fails on ingest and payer not charged")
+            final Stream<DynamicTest> updateTopicNotSignedByPayerFailsOnIngest() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+                return runBeforeAfter(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(ADMIN).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(NEW_ADMIN).balance(ONE_HUNDRED_HBARS),
+
+                        // Save payer balance before
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+
+                        // Create topic with admin key
+                        createTopic("testTopic")
+                                .blankMemo()
+                                .payingWith(ADMIN)
+                                .adminKeyName(ADMIN)
+                                .signedBy(ADMIN)
+                                .fee(ONE_HBAR)
+                                .via("create-topic-txn"),
+
+                        // Update topic admin key not signed by payer
+                        updateTopic("testTopic")
+                                .blankMemo()
+                                .payingWith(PAYER)
+                                .adminKey(NEW_ADMIN)
+                                .signedBy(ADMIN, NEW_ADMIN)
+                                .fee(ONE_HBAR)
+                                .via("update-topic-txn")
+                                .hasPrecheck(INVALID_SIGNATURE),
+
+                        // assert no txn record is created
+                        getTxnRecord("update-topic-txn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
+
+                        // Save payer balance after and assert changes
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertEquals(initialBalance.get(), afterBalance.get());
+                        }));
+            }
+
+            @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+            @DisplayName("delete topic not signed by payer fails on ingest and payer not charged")
+            final Stream<DynamicTest> deleteTopicNotSignedByPayerFailsOnIngest() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+                return runBeforeAfter(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(ADMIN).balance(ONE_HUNDRED_HBARS),
+
+                        // Save payer balance before
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+
+                        // Create topic with admin key
+                        createTopic("testTopic")
+                                .blankMemo()
+                                .payingWith(ADMIN)
+                                .adminKeyName(ADMIN)
+                                .signedBy(ADMIN)
+                                .fee(ONE_HBAR)
+                                .via("create-topic-txn"),
+
+                        // Delete topic not signed by payer
+                        deleteTopic("testTopic")
+                                .blankMemo()
+                                .payingWith(PAYER)
+                                .signedBy(ADMIN)
+                                .fee(ONE_HBAR)
+                                .via("delete-topic-txn")
+                                .hasPrecheck(INVALID_SIGNATURE),
+
+                        // assert no txn record is created
+                        getTxnRecord("delete-topic-txn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
+
+                        // Save payer balance after and assert changes
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertEquals(initialBalance.get(), afterBalance.get());
+                        }));
+            }
+
+            @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+            @DisplayName("submit message to topic not signed by payer fails on ingest and payer not charged")
+            final Stream<DynamicTest> submitMessageToTopicNotSignedByPayerFailsOnIngest() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+                return runBeforeAfter(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(ADMIN).balance(ONE_HUNDRED_HBARS),
+
+                        // Save payer balance before
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+
+                        // Create topic with admin key
+                        createTopic("testTopic")
+                                .blankMemo()
+                                .payingWith(ADMIN)
+                                .adminKeyName(ADMIN)
+                                .signedBy(ADMIN)
+                                .fee(ONE_HBAR)
+                                .via("create-topic-txn"),
+
+                        // Submit message to topic not signed by payer
+                        submitMessageTo("testTopic")
+                                .blankMemo()
+                                .payingWith(PAYER)
+                                .signedBy(ADMIN)
+                                .fee(ONE_HBAR)
+                                .message("Topic Message")
+                                .via("submit-topic-message-txn")
+                                .hasPrecheck(INVALID_SIGNATURE),
+
+                        // assert no txn record is created
+                        getTxnRecord("submit-topic-message-txn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
+
+                        // Save payer balance after and assert changes
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertEquals(initialBalance.get(), afterBalance.get());
+                        }));
+            }
         }
 
         @Nested
@@ -1203,6 +1327,203 @@ public class SimpleFeesSuite {
                         getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
                         withOpContext((spec, log) -> {
                             assertTrue(initialBalance.get() > afterBalance.get());
+                        }));
+            }
+
+            @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+            @DisplayName("update topic not signed by payer fails on pre-handle and payer not charged")
+            final Stream<DynamicTest> updateTopicNotSignedByPayerFailsOnPreHandle() {
+                final String INNER_ID = "create-topic-txn-inner-id";
+                final String ENVELOPE_ID = "create-topic-txn-envelope-id";
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+                return runBeforeAfter(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(ADMIN).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(NEW_ADMIN).balance(ONE_HUNDRED_HBARS),
+
+                        // Save payer balance before
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+
+                        // Register a TxnId for the inner txn
+                        usableTxnIdNamed(INNER_ID).payerId(PAYER),
+
+                        // Create topic with admin key
+                        createTopic("testTopic")
+                                .blankMemo()
+                                .payingWith(ADMIN)
+                                .adminKeyName(ADMIN)
+                                .signedBy(ADMIN)
+                                .fee(ONE_HBAR)
+                                .via("create-topic-txn"),
+                        withOpContext((spec, log) -> {
+                            // build the inner txn
+                            final var innerTxn = updateTopic("testTopic")
+                                    .blankMemo()
+                                    .adminKey(NEW_ADMIN)
+                                    .payingWith(PAYER)
+                                    .signedBy(ADMIN, NEW_ADMIN)
+                                    .fee(ONE_HBAR)
+                                    .txnId(INNER_ID)
+                                    .via(INNER_ID);
+
+                            // create signed bytes
+                            final var signed = innerTxn.signedTxnFor(spec);
+
+                            // extract the txn body from the signed txn
+                            final var txnBody = extractTransactionBody(signed);
+
+                            // save the txn id and bytes in the registry
+                            spec.registry().saveTxnId(INNER_ID, txnBody.getTransactionID());
+                            spec.registry().saveBytes(INNER_ID, signed.toByteString());
+
+                            // submit the unchecked wrapping txn
+                            final var envelope = uncheckedSubmit(innerTxn).via(ENVELOPE_ID);
+                            allRunFor(spec, envelope);
+
+                            final var operation = getTxnRecord(INNER_ID).assertingNothingAboutHashes();
+                            allRunFor(spec, operation);
+
+                            final var status =
+                                    operation.getResponseRecord().getReceipt().getStatus();
+                            assertEquals(INVALID_PAYER_SIGNATURE, status, "Expected txn to fail but it succeeded");
+                        }),
+
+                        // Save payer balance after and assert payer was not charged
+                        validateChargedUsd(INNER_ID, ucents_to_USD(0)),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertEquals(initialBalance.get(), afterBalance.get());
+                        }));
+            }
+
+            @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+            @DisplayName("delete topic not signed by payer fails on pre-handle and payer not charged")
+            final Stream<DynamicTest> deleteTopicNotSignedByPayerFailsOnPreHandle() {
+                final String INNER_ID = "create-topic-txn-inner-id";
+                final String ENVELOPE_ID = "create-topic-txn-envelope-id";
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+                return runBeforeAfter(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(ADMIN).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(NEW_ADMIN).balance(ONE_HUNDRED_HBARS),
+
+                        // Save payer balance before
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+
+                        // Register a TxnId for the inner txn
+                        usableTxnIdNamed(INNER_ID).payerId(PAYER),
+
+                        // Create topic with admin key
+                        createTopic("testTopic")
+                                .blankMemo()
+                                .payingWith(ADMIN)
+                                .adminKeyName(ADMIN)
+                                .signedBy(ADMIN)
+                                .fee(ONE_HBAR)
+                                .via("create-topic-txn"),
+                        withOpContext((spec, log) -> {
+                            // build the inner txn
+                            final var innerTxn = deleteTopic("testTopic")
+                                    .payingWith(PAYER)
+                                    .signedBy(ADMIN)
+                                    .fee(ONE_HBAR)
+                                    .txnId(INNER_ID)
+                                    .via(INNER_ID);
+
+                            // create signed bytes
+                            final var signed = innerTxn.signedTxnFor(spec);
+
+                            // extract the txn body from the signed txn
+                            final var txnBody = extractTransactionBody(signed);
+
+                            // save the txn id and bytes in the registry
+                            spec.registry().saveTxnId(INNER_ID, txnBody.getTransactionID());
+                            spec.registry().saveBytes(INNER_ID, signed.toByteString());
+
+                            // submit the unchecked wrapping txn
+                            final var envelope = uncheckedSubmit(innerTxn).via(ENVELOPE_ID);
+                            allRunFor(spec, envelope);
+
+                            final var operation = getTxnRecord(INNER_ID).assertingNothingAboutHashes();
+                            allRunFor(spec, operation);
+
+                            final var status =
+                                    operation.getResponseRecord().getReceipt().getStatus();
+                            assertEquals(INVALID_PAYER_SIGNATURE, status, "Expected txn to fail but it succeeded");
+                        }),
+
+                        // Save payer balance after and assert payer was not charged
+                        validateChargedUsd(INNER_ID, ucents_to_USD(0)),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertEquals(initialBalance.get(), afterBalance.get());
+                        }));
+            }
+
+            @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+            @DisplayName("submit message to topic not signed by payer fails on pre-handle and payer not charged")
+            final Stream<DynamicTest> submitMessageToTopicNotSignedByPayerFailsOnPreHandle() {
+                final String INNER_ID = "create-topic-txn-inner-id";
+                final String ENVELOPE_ID = "create-topic-txn-envelope-id";
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+                return runBeforeAfter(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(ADMIN).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(NEW_ADMIN).balance(ONE_HUNDRED_HBARS),
+
+                        // Save payer balance before
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+
+                        // Register a TxnId for the inner txn
+                        usableTxnIdNamed(INNER_ID).payerId(PAYER),
+
+                        // Create topic with admin key
+                        createTopic("testTopic")
+                                .blankMemo()
+                                .payingWith(ADMIN)
+                                .adminKeyName(ADMIN)
+                                .signedBy(ADMIN)
+                                .fee(ONE_HBAR)
+                                .via("create-topic-txn"),
+                        withOpContext((spec, log) -> {
+                            // build the inner txn
+                            final var innerTxn = submitMessageTo("testTopic")
+                                    .payingWith(PAYER)
+                                    .signedBy(ADMIN)
+                                    .fee(ONE_HBAR)
+                                    .txnId(INNER_ID)
+                                    .via(INNER_ID);
+
+                            // create signed bytes
+                            final var signed = innerTxn.signedTxnFor(spec);
+
+                            // extract the txn body from the signed txn
+                            final var txnBody = extractTransactionBody(signed);
+
+                            // save the txn id and bytes in the registry
+                            spec.registry().saveTxnId(INNER_ID, txnBody.getTransactionID());
+                            spec.registry().saveBytes(INNER_ID, signed.toByteString());
+
+                            // submit the unchecked wrapping txn
+                            final var envelope = uncheckedSubmit(innerTxn).via(ENVELOPE_ID);
+                            allRunFor(spec, envelope);
+
+                            final var operation = getTxnRecord(INNER_ID).assertingNothingAboutHashes();
+                            allRunFor(spec, operation);
+
+                            final var status =
+                                    operation.getResponseRecord().getReceipt().getStatus();
+                            assertEquals(INVALID_PAYER_SIGNATURE, status, "Expected txn to fail but it succeeded");
+                        }),
+
+                        // Save payer balance after and assert payer was not charged
+                        validateChargedUsd(INNER_ID, ucents_to_USD(0)),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertEquals(initialBalance.get(), afterBalance.get());
                         }));
             }
         }
