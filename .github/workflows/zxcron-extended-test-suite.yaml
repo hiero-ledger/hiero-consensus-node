@@ -536,7 +536,7 @@ jobs:
       needs.sdk-tck-regression-panel.result == 'success' &&
       needs.xts-hammer-tests.result == 'success' &&
       needs.xts-hapi-block-node-comms-tests.result == 'success' &&
-      needs.xts-hapi-time-consuming-tests.result == 'succes' &&
+      needs.xts-hapi-time-consuming-tests.result == 'success' &&
       needs.xts-time-consuming-tests.result == 'success' &&
       needs.xts-timing-sensitive-tests.result == 'success' &&
       needs.tag-for-promotion.result == 'success') &&
