@@ -83,18 +83,18 @@ public class WiringModelBuilder {
      * @return this
      */
     @NonNull
-    public WiringModelBuilder disabledHealthMonitor() {
+    public WiringModelBuilder disableHealthMonitor() {
         this.healthMonitorEnabled = false;
         return this;
     }
 
     /**
-     * Sets hard backpressure to enabled. Default is false.
+     * Sets hard backpressure to enable. Default is false.
      *
      * @return this
      */
     @NonNull
-    public WiringModelBuilder enabledHardBackpressure() {
+    public WiringModelBuilder enableHardBackpressure() {
         this.hardBackpressureEnabled = true;
         return this;
     }
@@ -107,7 +107,7 @@ public class WiringModelBuilder {
      * @return this
      */
     @NonNull
-    public WiringModelBuilder jvmAnchorEnabled() {
+    public WiringModelBuilder enableJvmAnchor() {
         this.jvmAnchorEnabled = true;
         return this;
     }
@@ -194,10 +194,10 @@ public class WiringModelBuilder {
      * @return this
      */
     @NonNull
-    public WiringModelBuilder withComponentConfig(@NonNull final WiringConfig wiringConfig) {
+    public WiringModelBuilder withWiringConfig(@NonNull final WiringConfig wiringConfig) {
         Objects.requireNonNull(wiringConfig);
-        if (!wiringConfig.healthMonitorEnabled()) this.disabledHealthMonitor();
-        if (wiringConfig.hardBackpressureEnabled()) this.enabledHardBackpressure();
+        if (!wiringConfig.healthMonitorEnabled()) this.disableHealthMonitor();
+        if (wiringConfig.hardBackpressureEnabled()) this.enableHardBackpressure();
         return this.withHealthMonitorCapacity(wiringConfig.healthMonitorSchedulerCapacity())
                 .withHealthMonitorPeriod(wiringConfig.healthMonitorHeartbeatPeriod())
                 .withHealthLogThreshold(wiringConfig.healthLogThreshold())
