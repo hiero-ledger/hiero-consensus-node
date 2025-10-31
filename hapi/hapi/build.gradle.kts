@@ -29,13 +29,13 @@ sourceSets {
         pbj {
             srcDir(protoApiSrc)
             srcDir(tasks.extractProto) // see comment on the 'dependencies' block
-            exclude("mirror", "sdk", "internal")
+            exclude("mirror", "sdk", "internal", "block-node/api/proof_service.proto")
         }
         // The below should be replaced with a 'requires com.hedera.protobuf.java.api'
         // in testFixtures scope - #14026
         proto {
             srcDir(protoApiSrc)
-            exclude("mirror", "sdk", "internal")
+            exclude("mirror", "sdk", "internal", "block-node/api/proof_service.proto")
         }
     }
 }
