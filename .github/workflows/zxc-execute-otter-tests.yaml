@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXC: [Node] Compile Application Code"
+name: "ZXC: Execute Otter Tests"
 on:
   workflow_call:
     inputs:
