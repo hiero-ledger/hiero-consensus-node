@@ -603,22 +603,13 @@ public abstract class AbstractNetwork implements Network {
         });
     }
 
-    /**
-     * Submits the transaction to the first active node found in the network.
-     *
-     * @param transaction the transaction to submit
-     */
-    public void submitTransaction(@NonNull final OtterTransaction transaction) {
+    public void submitTransactions(@NonNull final List<OtterTransaction> transactions) {
         nodes().stream()
                 .filter(Node::isActive)
                 .findFirst()
                 .map(node -> (AbstractNode) node)
                 .orElseThrow(() -> new AssertionError("No active node found to send transaction to."))
-                .submitTransaction(transaction);
-    }
-
-    public void submitTransactions(@NonNull final List<OtterTransaction> transactions) {
-
+                .submitTransactions(transactions);
     }
 
     /**

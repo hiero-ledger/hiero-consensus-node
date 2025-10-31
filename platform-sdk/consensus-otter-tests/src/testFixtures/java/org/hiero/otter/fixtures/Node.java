@@ -104,14 +104,24 @@ public interface Node {
      */
     void sendQuiescenceCommand(@NonNull QuiescenceCommand command);
 
+    /**
+     * Submits a transaction to the node.
+     *
+     * @param transaction the transaction to submit
+     */
     default void submitTransaction(@NonNull OtterTransaction transaction) {
         submitTransactions(List.of(transaction));
     }
 
+    /**
+     * Submits transactions to the node.
+     *
+     * @param transactions the list of transactions to submit
+     */
     void submitTransactions(@NonNull List<OtterTransaction> transactions);
 
     /**
-     * Allows to override the default timeout for node operations.
+     * Overrides the default timeout for node operations.
      *
      * @param timeout the duration to wait before considering the operation as failed
      * @return an instance of {@link AsyncNodeActions} that can be used to perform node actions

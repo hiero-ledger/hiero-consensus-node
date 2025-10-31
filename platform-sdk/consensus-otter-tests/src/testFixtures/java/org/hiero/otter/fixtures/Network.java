@@ -349,9 +349,21 @@ public interface Network {
      */
     void freeze();
 
-    void submitTransaction(final OtterTransaction transaction);
+    /**
+     * Submits a single transaction to the first active node found in the network.
+     *
+     * @param transaction the transaction to submit
+     */
+    default void submitTransaction(@NonNull OtterTransaction transaction) {
+        submitTransactions(List.of(transaction));
+    }
 
-    void submitTransactions(final List<OtterTransaction> transactions);
+    /**
+     * Submits the transactions to the first active node found in the network.
+     *
+     * @param transactions the transactions to submit
+     */
+    void submitTransactions(@NonNull List<OtterTransaction> transactions);
 
     /**
      * Triggers a catastrophic ISS. All nodes in the network will calculate different hashes for an upcoming round.
