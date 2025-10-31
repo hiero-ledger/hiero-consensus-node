@@ -1015,6 +1015,8 @@ public class BlockNodeSuite {
                 assertBlockNodeCommsLogDoesNotContain(
                         byNodeId(0), "Block node has exceeded high latency threshold", Duration.ofSeconds(0)),
                 assertBlockNodeCommsLogContains(
-                        byNodeId(0), "Sending request to block node (type=END_OF_BLOCK)", Duration.ofSeconds(0)));
+                        byNodeId(0),
+                        "Sending ad hoc request to block node (type=END_OF_BLOCK)",
+                        Duration.ofSeconds(0)));
     }
 }
