@@ -17,7 +17,7 @@ import org.hiero.base.crypto.Hashable;
  * structures provided by the hashgraph platform. But most of our code doesn't need to know that
  * detail, and are happy with just the API provided by this interface.
  */
-public interface State extends FastCopyable, Hashable {
+public interface State extends Hashable {
     /**
      * Returns a {@link ReadableStates} for the given named service. If such a service doesn't
      * exist, an empty {@link ReadableStates} is returned.
@@ -56,15 +56,6 @@ public interface State extends FastCopyable, Hashable {
      * @throws UnsupportedOperationException if the state does not support listeners.
      */
     default void unregisterCommitListener(@NonNull final StateChangeListener listener) {
-        throw new UnsupportedOperationException();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @NonNull
-    @Override
-    default State copy() {
         throw new UnsupportedOperationException();
     }
 

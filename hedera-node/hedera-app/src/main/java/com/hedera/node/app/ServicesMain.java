@@ -65,12 +65,16 @@ import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
+import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -100,7 +104,7 @@ import org.hiero.consensus.transaction.TransactionLimits;
  *
  * <p>This class simply delegates to {@link Hedera}.
  */
-public class ServicesMain implements SwirldMain<MerkleNodeState> {
+public class ServicesMain implements SwirldMain<VirtualMapState<?>> {
     private static final Logger logger = LogManager.getLogger(ServicesMain.class);
 
     /**
@@ -151,7 +155,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
      * {@inheritDoc}
      */
     @Override
-    public @NonNull MerkleNodeState newStateRoot() {
+    public @NonNull HederaVirtualMapState newStateRoot() {
         return hederaOrThrow().newStateRoot();
     }
 
@@ -160,7 +164,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
      * Specifically, {@link HederaVirtualMapState}.
      */
     @Override
-    public Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap(
+    public Function<VirtualMap, VirtualMapState<?>> stateRootFromVirtualMap(
             @NonNull final Metrics metrics, @NonNull final Time time) {
         return hederaOrThrow().stateRootFromVirtualMap(metrics, time);
     }
@@ -169,7 +173,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
      * {@inheritDoc}
      */
     @Override
-    public ConsensusStateEventHandler<MerkleNodeState> newConsensusStateEvenHandler() {
+    public ConsensusStateEventHandler<VirtualMapState<?>> newConsensusStateEvenHandler() {
         return new ConsensusStateEventHandlerImpl(hederaOrThrow());
     }
 
@@ -316,10 +320,11 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
 
         // --- Build required infrastructure to load the initial state, then initialize the States API ---
         BootstrapUtils.setupConstructableRegistryWithConfiguration(platformConfig);
-        final var fileSystemManager = FileSystemManager.create(platformConfig);
-        final var recycleBin =
+        final FileSystemManager fileSystemManager = FileSystemManager.create(platformConfig);
+        final RecycleBin recycleBin =
                 RecycleBin.create(metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
-        ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler = hedera.newConsensusStateEvenHandler();
+        final StateLifecycleManager<VirtualMapState<?>> stateLifecycleManager = new StateLifecycleManagerImpl(metrics, time, hedera.stateRootFromVirtualMap(metrics, time));
+        final ConsensusStateEventHandler<VirtualMapState<?>> consensusStateEventHandler = hedera.newConsensusStateEvenHandler();
         final PlatformContext platformContext = PlatformContext.create(
                 platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
         final Optional<AddressBook> maybeDiskAddressBook = loadLegacyAddressBook();
@@ -346,7 +351,9 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 selfId,
                 platformStateFacade,
                 platformContext,
-                hedera.stateRootFromVirtualMap(metrics, time));
+                stateLifecycleManager
+
+        );
         final ReservedSignedState initialState = reservedState.state();
         final MerkleNodeState state = initialState.get().getState();
         if (genesisNetwork.get() == null) {
@@ -381,7 +388,8 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                                 .orElseGet(() -> canonicalEventStreamLoc(selfId.id(), state)),
                         rosterHistory,
                         platformStateFacade,
-                        hedera.stateRootFromVirtualMap(metrics, time))
+                        hedera.stateRootFromVirtualMap(metrics, time)
+                )
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle;
 
+import com.swirlds.common.FastCopyable;
+import com.swirlds.common.Reservable;
 import com.swirlds.common.io.ExternalSelfSerializable;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -11,7 +13,7 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
 /**
  * A Merkle Leaf has only data and does not have children.
  */
-public interface MerkleLeaf extends MerkleNode, SerializableHashable, ExternalSelfSerializable {
+public interface MerkleLeaf extends MerkleNode, SerializableHashable, ExternalSelfSerializable, FastCopyable, Reservable {
 
     /**
      * {@inheritDoc}

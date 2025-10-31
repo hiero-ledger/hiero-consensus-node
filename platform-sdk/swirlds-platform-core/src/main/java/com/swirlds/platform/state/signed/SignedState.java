@@ -23,6 +23,7 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.cert.X509Certificate;
@@ -272,7 +273,7 @@ public class SignedState {
      *
      * @return the state contained in the signed state
      */
-    public @NonNull MerkleNodeState getState() {
+    public @NonNull VirtualMapState<?> getState() {
         return state;
     }
 

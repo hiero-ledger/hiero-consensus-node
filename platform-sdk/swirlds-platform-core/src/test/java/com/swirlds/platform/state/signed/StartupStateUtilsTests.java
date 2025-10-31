@@ -85,6 +85,8 @@ public class StartupStateUtilsTests {
                 .getConfigData(StateCommonConfig.class));
         currentSoftwareVersion = SemanticVersion.newBuilder().major(1).build();
         platformStateFacade = new PlatformStateFacade();
+        stateLifecycleManager =
+                new StateLifecycleManagerImpl<>(new NoOpMetrics(), new FakeTime(), TestVirtualMapState::new);
     }
 
     @AfterEach
@@ -173,7 +175,6 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestVirtualMapState::new,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -203,7 +204,6 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestVirtualMapState::new,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -238,7 +238,6 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestVirtualMapState::new,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -284,7 +283,6 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestVirtualMapState::new,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)

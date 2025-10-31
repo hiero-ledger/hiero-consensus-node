@@ -43,6 +43,7 @@ import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -81,7 +82,7 @@ public final class PlatformBuilder {
 
     private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
     private final PlatformStateFacade platformStateFacade;
-    private final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap;
+    private final Function<VirtualMap, VirtualMapState<?>> createStateFromVirtualMap;
 
     private final NodeId selfId;
     private final String swirldName;
@@ -166,7 +167,7 @@ public final class PlatformBuilder {
             @NonNull final String consensusEventStreamName,
             @NonNull final RosterHistory rosterHistory,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
+            @NonNull final Function<VirtualMap, VirtualMapState<?>> createStateFromVirtualMap) {
         return new PlatformBuilder(
                 appName,
                 swirldName,
@@ -204,7 +205,7 @@ public final class PlatformBuilder {
             @NonNull final String consensusEventStreamName,
             @NonNull final RosterHistory rosterHistory,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
+            @NonNull final Function<VirtualMap, VirtualMapState<?>> createStateFromVirtualMap) {
 
         this.appName = Objects.requireNonNull(appName);
         this.swirldName = Objects.requireNonNull(swirldName);

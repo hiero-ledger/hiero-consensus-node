@@ -10,7 +10,6 @@ import com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader;
 import com.swirlds.common.merkle.utility.MerkleTreeSnapshotWriter;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.MerkleNodeState;
-import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -24,7 +23,7 @@ import java.util.function.Function;
  * This class is responsible for maintaining references to the mutable state and the latest immutable state.
  * It also updates these references upon request. This implementation is thread-safe.
  */
-public class StateLifecycleManagerImpl implements StateLifecycleManager {
+public class StateLifecycleManagerImpl implements StateLifecycleManager<VirtualMapState<?>> {
 
     /**
      * Metrics for the state object
@@ -47,19 +46,19 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
     private final Metrics metrics;
 
     /**
-     * A factory object to create an instance of a class implementing {@link MerkleNodeState} from a {@link VirtualMap}
+     * A factory object to create an instance of a class extending {@link VirtualMapState} from a {@link VirtualMap}
      */
-    private final Function<VirtualMap, MerkleNodeState> stateSupplier;
+    private final Function<VirtualMap, VirtualMapState<? extends MerkleNodeState>> stateSupplier;
 
     /**
      * reference to the state that reflects all known consensus transactions
      */
-    private final AtomicReference<MerkleNodeState> stateRef = new AtomicReference<>();
+    private final AtomicReference<VirtualMapState<? extends MerkleNodeState>> stateRef = new AtomicReference<>();
 
     /**
      * The most recent immutable state. No value until the first fast copy is created.
      */
-    private final AtomicReference<MerkleNodeState> latestImmutableStateRef = new AtomicReference<>();
+    private final AtomicReference<VirtualMapState<? extends MerkleNodeState>> latestImmutableStateRef = new AtomicReference<>();
 
     /**
      * Constructor.
@@ -71,7 +70,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
     public StateLifecycleManagerImpl(
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final Function<VirtualMap, MerkleNodeState> stateSupplier) {
+            @NonNull final Function<VirtualMap, VirtualMapState<?>> stateSupplier) {
         requireNonNull(metrics);
         requireNonNull(time);
         this.stateSupplier = stateSupplier;
@@ -84,7 +83,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
     /**
      * {@inheritDoc}
      */
-    public synchronized void initState(@NonNull final MerkleNodeState state, final boolean onStartup) {
+    public synchronized void initState(@NonNull final VirtualMapState<?> state, final boolean onStartup) {
         requireNonNull(state);
 
         state.throwIfDestroyed("state must not be destroyed");
@@ -102,7 +101,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
      */
     @NonNull
     @Override
-    public MerkleNodeState getMutableState() {
+    public VirtualMapState<?> getMutableState() {
         final MerkleNodeState mutableState = stateRef.get();
         if (mutableState == null) {
             throw new IllegalStateException("StateLifecycleManager has not been initialized.");
@@ -115,7 +114,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
      */
     @Override
     @NonNull
-    public MerkleNodeState getLatestImmutableState() {
+    public VirtualMapState<?> getLatestImmutableState() {
         final MerkleNodeState latestImmutableState = latestImmutableStateRef.get();
         if (latestImmutableState == null) {
             throw new IllegalStateException("StateLifecycleManager has not been initialized.");
@@ -128,8 +127,8 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
      */
     @Override
     @NonNull
-    public synchronized MerkleNodeState copyMutableState() {
-        final MerkleNodeState state = stateRef.get();
+    public synchronized VirtualMapState<?>  copyMutableState() {
+        final VirtualMapState<?> state = stateRef.get();
         copyAndUpdateStateRefs(state);
         return stateRef.get();
     }
@@ -138,22 +137,22 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
      * Copies the provided to and updates both the latest immutable to and the mutable to reference.
      * @param stateToCopy the state to copy and update references for
      */
-    private void copyAndUpdateStateRefs(final @NonNull MerkleNodeState stateToCopy) {
+    private void copyAndUpdateStateRefs(final @NonNull VirtualMapState<?> stateToCopy) {
         final long copyStart = System.nanoTime();
-        final MerkleNodeState newMutableState = stateToCopy.copy();
+        final VirtualMapState<?> newMutableState = stateToCopy.copy();
         // Increment the reference count because this reference becomes the new value
-        newMutableState.getRoot().reserve();
+        newMutableState.virtualMap.reserve();
         final long copyEnd = System.nanoTime();
         stateMetrics.stateCopyMicros((copyEnd - copyStart) * NANOSECONDS_TO_MICROSECONDS);
         // releasing previous immutable previousMutableState
-        final State previousImmutableState = latestImmutableStateRef.get();
+        final VirtualMapState<?> previousImmutableState = latestImmutableStateRef.get();
         if (previousImmutableState != null) {
             previousImmutableState.throwIfDestroyed();
             previousImmutableState.release();
         }
-        stateToCopy.getRoot().reserve();
+        stateToCopy.virtualMap.reserve();
         latestImmutableStateRef.set(stateToCopy);
-        final MerkleNodeState previousMutableState = stateRef.get();
+        final VirtualMapState<? extends MerkleNodeState> previousMutableState = stateRef.get();
         if (previousMutableState != null) {
             previousMutableState.throwIfDestroyed();
             previousMutableState.release();
@@ -168,7 +167,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
      * {@inheritDoc}
      */
     @Override
-    public void createSnapshot(final @NonNull MerkleNodeState state, final @NonNull Path targetPath) {
+    public void createSnapshot(final @NonNull VirtualMapState<?> state, final @NonNull Path targetPath) {
         state.throwIfMutable();
         state.throwIfDestroyed();
         final long startTime = time.currentTimeMillis();
@@ -181,7 +180,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
      */
     @NonNull
     @Override
-    public MerkleNodeState loadSnapshot(@NonNull final Path targetPath) {
+    public VirtualMapState<? extends MerkleNodeState> loadSnapshot(@NonNull final Path targetPath) {
         final MerkleNode root;
         try {
             root = MerkleTreeSnapshotReader.readStateFileData(targetPath).stateRoot();

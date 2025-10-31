@@ -50,6 +50,7 @@ import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -149,19 +150,18 @@ public final class EventRecoveryWorkflow {
 
         logger.info(STARTUP.getMarker(), "Loading state from {}", signedStateFile);
         // FUTURE-WORK: Follow Browser approach
-        final SwirldMain<? extends MerkleNodeState> hederaApp =
+        final SwirldMain<VirtualMapState<?>> hederaApp =
                 HederaUtils.createHederaAppMain(platformContext, platformStateFacade);
 
+
+        final StateLifecycleManager<VirtualMapState<?>> stateLifecycleManager = new StateLifecycleManagerImpl(
+                platformContext.getMetrics(), platformContext.getTime(), hederaApp.stateRootFromVirtualMap(platformContext.getMetrics(), platformContext.getTime()));
         final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readStateFile(
                 signedStateFile,
-                v -> hederaApp
-                        .stateRootFromVirtualMap(platformContext.getMetrics(), platformContext.getTime())
-                        .apply(v),
                 platformStateFacade,
-                platformContext);
-        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
-                platformContext.getMetrics(), platformContext.getTime(), (Function<VirtualMap, MerkleNodeState>)
-                        hederaApp.stateRootFromVirtualMap(platformContext.getMetrics(), platformContext.getTime()));
+                platformContext,
+                stateLifecycleManager);
+        stateLifecycleManager.initState(deserializedSignedState.reservedSignedState().get().getState(), true);
         try (final ReservedSignedState initialState = deserializedSignedState.reservedSignedState()) {
             HederaUtils.updateStateHash(hederaApp, deserializedSignedState);
 
@@ -195,6 +195,8 @@ public final class EventRecoveryWorkflow {
                     resultingStateDirectory);
 
             // Make one more copy to force the state in recoveredState to be immutable.
+
+
             final State mutableStateCopy =
                     recoveredState.state().get().getState().copy();
 

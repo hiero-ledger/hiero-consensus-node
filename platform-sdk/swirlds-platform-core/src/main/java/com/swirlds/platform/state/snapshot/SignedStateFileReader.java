@@ -21,9 +21,11 @@ import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedInputStream;
@@ -46,16 +48,15 @@ public final class SignedStateFileReader {
      * Reads a SignedState from disk. If the reader throws an exception, it is propagated by this method to the caller.
      *
      * @param stateFile                     the file to read from
-     * @param createStateFromVirtualMap     a function to instantiate the state object from a Virtual Map
      * @param stateFacade                   the facade to access the platform state
      * @return a signed state with it's associated hash (as computed when the state was serialized)
      * @throws IOException if there is any problems with reading from a file
      */
     public static @NonNull DeserializedSignedState readStateFile(
             @NonNull final Path stateFile,
-            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
             @NonNull final PlatformStateFacade stateFacade,
-            @NonNull final PlatformContext platformContext)
+            @NonNull final PlatformContext platformContext,
+            @NonNull final StateLifecycleManager<? extends VirtualMapState> stateLifecycleManager)
             throws IOException {
 
         requireNonNull(stateFile);
@@ -65,7 +66,7 @@ public final class SignedStateFileReader {
         checkSignedStatePath(stateFile);
 
         final DeserializedSignedState returnState;
-        final MerkleTreeSnapshotReader.StateFileData data = MerkleTreeSnapshotReader.readStateFileData(stateFile);
+        final MerkleNodeState merkleNodeState = stateLifecycleManager.loadSnapshot(stateFile);
         final File sigSetFile =
                 stateFile.getParent().resolve(SIGNATURE_SET_FILE_NAME).toFile();
         final SigSet sigSet = deserializeAndDebugOnFailure(
@@ -73,10 +74,6 @@ public final class SignedStateFileReader {
                     readAndCheckSigSetFileVersion(in);
                     return in.readSerializable();
                 });
-
-        final MerkleNodeState merkleNodeState =
-                initializeMerkleNodeState(createStateFromVirtualMap, data.stateRoot(), platformContext.getMetrics());
-
         final SignedState newSignedState = new SignedState(
                 conf,
                 CryptoStatic::verifySignature,
@@ -92,7 +89,7 @@ public final class SignedStateFileReader {
         newSignedState.setSigSet(sigSet);
 
         returnState = new DeserializedSignedState(
-                newSignedState.reserve("SignedStateFileReader.readStateFile()"), data.hash());
+                newSignedState.reserve("SignedStateFileReader.readStateFile()"), merkleNodeState.getHash());
 
         return returnState;
     }

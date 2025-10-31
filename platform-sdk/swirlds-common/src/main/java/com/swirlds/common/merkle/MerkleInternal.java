@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle;
 
+import com.swirlds.common.FastCopyable;
+import com.swirlds.common.Reservable;
 import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
 import com.swirlds.common.merkle.impl.PartialNaryMerkleInternal;
 import com.swirlds.common.merkle.interfaces.MerkleParent;
@@ -29,7 +31,7 @@ import com.swirlds.common.merkle.interfaces.Rebuildable;
  * {@link PartialBinaryMerkleInternal} (if the node has 2 or fewer children) or {@link PartialNaryMerkleInternal}
  * (if the node has greater than 2 children).
  */
-public interface MerkleInternal extends MerkleNode, MerkleParent, Rebuildable {
+public interface MerkleInternal extends MerkleNode, MerkleParent, Rebuildable, FastCopyable, Reservable {
 
     /**
      * {@inheritDoc}

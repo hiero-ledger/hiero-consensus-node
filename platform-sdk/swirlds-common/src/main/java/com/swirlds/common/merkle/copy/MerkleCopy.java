@@ -9,6 +9,8 @@ import com.swirlds.common.merkle.exceptions.MerkleCopyException;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import java.util.LinkedList;
 import java.util.Queue;
+
+import org.hiero.base.Copyable;
 import org.hiero.base.constructable.ConstructableRegistry;
 
 /**
@@ -29,7 +31,7 @@ public final class MerkleCopy {
         if (node == null) {
             return null;
         } else if (node.isLeaf()) {
-            return node.copy();
+            return ((Copyable)node).copy();
         } else {
             final MerkleNode copy = ConstructableRegistry.getInstance().createObject(node.getClassId());
             if (copy == null) {

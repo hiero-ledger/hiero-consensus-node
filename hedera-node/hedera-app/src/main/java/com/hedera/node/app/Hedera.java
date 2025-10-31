@@ -126,6 +126,7 @@ import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
+import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
@@ -134,6 +135,7 @@ import com.swirlds.platform.system.state.notifications.StateHashedListener;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
+import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonStateBase;
@@ -203,7 +205,7 @@ import org.hiero.consensus.transaction.TransactionPoolNexus;
  * including its state. It constructs the Dagger dependency tree, and manages the gRPC server, and in all other ways,
  * controls execution of the node. If you want to understand our system, this is a great place to start!
  */
-public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gossip {
+public final class Hedera implements SwirldMain<VirtualMapState<?>>, AppContext.Gossip {
 
     private static final Logger logger = LogManager.getLogger(Hedera.class);
 
@@ -310,7 +312,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
      */
     private final StartupNetworksFactory startupNetworksFactory;
 
-    private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
+    private final ConsensusStateEventHandler<VirtualMapState<?>> consensusStateEventHandler;
 
     /** Transaction size limits */
     private final TransactionLimits transactionLimits;
@@ -586,7 +588,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
      */
     @Override
     @NonNull
-    public MerkleNodeState newStateRoot() {
+    public HederaVirtualMapState newStateRoot() {
         return stateRootSupplier.get();
     }
 
@@ -594,7 +596,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
      * {@inheritDoc}
      */
     @Override
-    public Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap(
+    public Function<VirtualMap, VirtualMapState<?>> stateRootFromVirtualMap(
             @NonNull final Metrics metrics, @NonNull final Time time) {
         return virtualMap -> new HederaVirtualMapState(virtualMap, metrics, time);
     }
@@ -603,7 +605,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
      * {@inheritDoc}
      */
     @Override
-    public ConsensusStateEventHandler<MerkleNodeState> newConsensusStateEvenHandler() {
+    public ConsensusStateEventHandler<VirtualMapState<?>> newConsensusStateEvenHandler() {
         return consensusStateEventHandler;
     }
 

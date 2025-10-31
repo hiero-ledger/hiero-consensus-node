@@ -46,7 +46,7 @@ final class ServicesMainTest {
     private Hedera hedera;
 
     @Mock
-    private MerkleNodeState state;
+    private HederaVirtualMapState state;
 
     private final ServicesMain subject = new ServicesMain();
 
@@ -100,10 +100,9 @@ final class ServicesMainTest {
     void createsStateRootFromVirtualMap() {
         ServicesMain.initGlobal(hedera, metrics);
         final VirtualMap virtualMapMock = mock(VirtualMap.class);
-        final Configuration configuration = mock(Configuration.class);
         final Metrics metrics = mock(Metrics.class);
         final Time time = mock(Time.class);
-        final Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMapMock = mock(Function.class);
+        final Function<VirtualMap, HederaVirtualMapState> stateRootFromVirtualMapMock = mock(Function.class);
 
         when(hedera.stateRootFromVirtualMap(metrics, time)).thenReturn(stateRootFromVirtualMapMock);
         when(stateRootFromVirtualMapMock.apply(virtualMapMock)).thenReturn(state);

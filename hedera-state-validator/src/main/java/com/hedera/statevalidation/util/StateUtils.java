@@ -60,12 +60,16 @@ import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
+import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.constructable.ConstructableUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -78,6 +82,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
@@ -107,16 +112,18 @@ public final class StateUtils {
             final PlatformContext platformContext = getPlatformContext();
             final ServicesRegistryImpl serviceRegistry = initServiceRegistry();
             final PlatformStateFacade platformStateFacade = PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
+            final Function<VirtualMap, HederaVirtualMapState> createStateFromVirtualMap = virtualMap -> new HederaVirtualMapState(
+                    virtualMap, platformContext.getMetrics(), platformContext.getTime());
+            final StateLifecycleManager<HederaVirtualMapState, SignedState> stateLifecycleManager = new StateLifecycleManagerImpl<>(platformContext.getMetrics(), platformContext.getTime(), createStateFromVirtualMap);
 
             serviceRegistry.register(
                     new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getState, platformStateFacade));
 
             deserializedSignedState = readStateFile(
                     Path.of(ConfigUtils.STATE_DIR, STATE_FILE_NAME).toAbsolutePath(),
-                    virtualMap -> new HederaVirtualMapState(
-                            virtualMap, platformContext.getMetrics(), platformContext.getTime()),
                     platformStateFacade,
-                    platformContext);
+                    platformContext,
+                    stateLifecycleManager);
 
             initServiceMigrator(getState(), platformContext, serviceRegistry);
 

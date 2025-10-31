@@ -15,15 +15,16 @@ import java.nio.file.Path;
  *
  * An implementation of this class must be thread-safe.
  *
+ * @param <T> The type of the state
  */
-public interface StateLifecycleManager {
+public interface StateLifecycleManager<T extends MerkleNodeState> {
 
     /**
      * Set the initial State. This method should only be on a startup or after a reconnect.
      *
      * @param state the initial state
      */
-    void initState(@NonNull final MerkleNodeState state, boolean onStartup);
+    void initState(@NonNull final T state, boolean onStartup);
 
     /**
      * Get the mutable state. Consecutive calls to this method may return different instances,
@@ -33,7 +34,7 @@ public interface StateLifecycleManager {
      *
      * @return the mutable state.
      */
-    MerkleNodeState getMutableState();
+    T getMutableState();
 
     /**
      * Get the latest immutable state. Consecutive calls to this method may return different instances,
@@ -41,7 +42,7 @@ public interface StateLifecycleManager {
      * If a parallel thread calls {@link #copyMutableState}, the returned object will become destroyed.
      * @return the latest immutable state.
      */
-    MerkleNodeState getLatestImmutableState();
+    T getLatestImmutableState();
 
     /**
      * Creates a snapshot for the state provided as a parameter. The state has to be hashed before calling this method.
@@ -49,7 +50,7 @@ public interface StateLifecycleManager {
      * @param merkleNodeState The state to save.
      * @param targetPath The path to save the snapshot.
      */
-    void createSnapshot(@NonNull MerkleNodeState merkleNodeState, @NonNull Path targetPath);
+    void createSnapshot(@NonNull T merkleNodeState, @NonNull Path targetPath);
 
     /**
      * Loads a snapshot of a state.
@@ -57,7 +58,7 @@ public interface StateLifecycleManager {
      * @param targetPath The path to load the snapshot from.
      * @return mutable copy of the loaded state
      */
-    MerkleNodeState loadSnapshot(@NonNull Path targetPath);
+    T loadSnapshot(@NonNull Path targetPath);
 
     /**
      * Creates a mutable copy of the mutable state. The previous mutable state becomes immutable,
@@ -65,5 +66,5 @@ public interface StateLifecycleManager {
      *
      * @return a mutable copy of the previous mutable state
      */
-    MerkleNodeState copyMutableState();
+    T copyMutableState();
 }

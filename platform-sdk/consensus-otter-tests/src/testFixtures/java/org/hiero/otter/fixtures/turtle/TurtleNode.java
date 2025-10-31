@@ -236,8 +236,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     OtterApp.SWIRLD_NAME,
                     selfId,
                     platformStateFacade,
-                    platformContext,
-                    virtualMap -> new OtterAppState(virtualMap, metrics, timeManager.time()));
+                    platformContext
+            );
 
             final ReservedSignedState initialState = reservedState.state();
             final MerkleNodeState state = initialState.get().getState();

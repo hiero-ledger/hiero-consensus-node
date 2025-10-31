@@ -66,9 +66,9 @@ public final class MerkleInitialize {
                 deserializationVersions.get(root.getClassId()), "class not discovered during deserialization");
 
         final MerkleNode migratedRoot = root.migrate(deserializationVersion);
-        if (migratedRoot != root) {
-            root.release();
-        }
+//        if (migratedRoot != root) {
+//            root.release();
+//        }
 
         return migratedRoot;
     }

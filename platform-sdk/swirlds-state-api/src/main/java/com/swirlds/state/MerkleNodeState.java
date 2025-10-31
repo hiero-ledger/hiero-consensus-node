@@ -24,13 +24,6 @@ public interface MerkleNodeState extends State {
     }
 
     /**
-     * {@inheritDoc}
-     */
-    @NonNull
-    @Override
-    MerkleNodeState copy();
-
-    /**
      * Initializes the defined service state.
      *
      * @param md The metadata associated with the state.

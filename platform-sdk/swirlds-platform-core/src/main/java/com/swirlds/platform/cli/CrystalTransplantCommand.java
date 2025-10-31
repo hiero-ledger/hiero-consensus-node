@@ -30,11 +30,15 @@ import com.swirlds.platform.cli.utils.HederaUtils;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.state.SavedStateUtils;
 import com.swirlds.platform.state.service.PlatformStateFacade;
+import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.SavedStateInfo;
 import com.swirlds.platform.state.snapshot.SavedStateMetadata;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.Console;
 import java.io.IOException;
@@ -231,7 +235,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
 
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
 
-        final SwirldMain<? extends MerkleNodeState> appMain =
+        final SwirldMain<? extends VirtualMapState> appMain =
                 HederaUtils.createHederaAppMain(platformContext, platformStateFacade);
         final List<SavedStateInfo> savedStateFiles = SignedStateFilePath.getSavedStateFiles(sourceStatePath);
 
@@ -240,10 +244,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
             System.exit(RETURN_CODE_ERROR);
         }
 
-        try (final var state = loadLatestState(
-                new SimpleRecycleBin(),
-                appMain.getSemanticVersion(),
-                savedStateFiles,
+        final StateLifecycleManager<? extends VirtualMapState, SignedState> stateLifecycleManager = new StateLifecycleManagerImpl<>(platformContext.getMetrics(), platformContext.getTime(),
                 v -> {
                     try {
                         return appMain.stateRootFromVirtualMap(platformContext.getMetrics(), platformContext.getTime())
@@ -252,9 +253,14 @@ public class CrystalTransplantCommand extends AbstractCommand {
                         // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
                         return appMain.newStateRoot();
                     }
-                },
+                });
+        try (final var state = loadLatestState(
+                new SimpleRecycleBin(),
+                appMain.getSemanticVersion(),
+                savedStateFiles,
                 platformStateFacade,
-                platformContext)) {
+                platformContext,
+                stateLifecycleManager)) {
             final Hash newHash = rehashTree(
                     platformContext.getMerkleCryptography(),
                     state.get().getState().getRoot());

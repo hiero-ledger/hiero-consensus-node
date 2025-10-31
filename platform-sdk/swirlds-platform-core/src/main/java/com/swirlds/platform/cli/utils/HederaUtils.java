@@ -9,6 +9,7 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -36,13 +37,14 @@ public class HederaUtils {
      * @throws RuntimeException when there is an issue loading the class
      * @return an instance of hedera app
      */
-    public static SwirldMain<? extends MerkleNodeState> createHederaAppMain(
+    @SuppressWarnings("unchecked")
+    public static SwirldMain<VirtualMapState<?>> createHederaAppMain(
             @NonNull final PlatformContext platformContext, @NonNull final PlatformStateFacade platformStateFacade) {
         try {
             final Class<?> mainClass = Class.forName(HEDERA_MAIN_CLASS);
             Method newHederaMethod = mainClass.getDeclaredMethod(
                     "newHedera", Metrics.class, PlatformStateFacade.class, Configuration.class);
-            return (SwirldMain<? extends MerkleNodeState>) newHederaMethod.invoke(
+            return (SwirldMain<VirtualMapState<?>>) newHederaMethod.invoke(
                     null, new NoOpMetrics(), platformStateFacade, platformContext.getConfiguration());
         } catch (final ClassNotFoundException
                 | NoSuchMethodException

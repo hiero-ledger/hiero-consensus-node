@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle;
 
+import com.swirlds.base.state.Mutable;
 import com.swirlds.common.FastCopyable;
 import com.swirlds.common.Reservable;
 import com.swirlds.common.merkle.interfaces.MerkleMigratable;
@@ -9,6 +10,7 @@ import com.swirlds.common.merkle.iterators.MerkleIterator;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import com.swirlds.common.merkle.route.MerkleRouteIterator;
 import com.swirlds.common.merkle.synchronization.views.MaybeCustomReconnectRoot;
+import org.hiero.base.Releasable;
 import org.hiero.base.crypto.Hashable;
 import org.hiero.base.io.SerializableDet;
 
@@ -22,20 +24,14 @@ import org.hiero.base.io.SerializableDet;
  * </ul>
  */
 public interface MerkleNode
-        extends FastCopyable,
-                Hashable,
+        extends Hashable,
                 MerkleMigratable,
                 MerkleTraversable,
                 MaybeCustomReconnectRoot,
                 Reservable,
+                Mutable,
+                Releasable,
                 SerializableDet {
-
-    /**
-     * {@inheritDoc}
-     */
-    @SuppressWarnings("unchecked")
-    @Override
-    MerkleNode copy();
 
     /**
      * {@inheritDoc}

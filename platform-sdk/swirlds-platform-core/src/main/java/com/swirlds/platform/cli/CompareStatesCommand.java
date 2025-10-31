@@ -13,15 +13,23 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.state.signed.ReservedSignedState;
+import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateComparison;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.platform.util.BootstrapUtils;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import picocli.CommandLine;
@@ -119,15 +127,16 @@ public final class CompareStatesCommand extends AbstractCommand {
         Objects.requireNonNull(statePath);
 
         logger.info(LogMarker.CLI.getMarker(), "Loading state from {}", statePath);
-
+        final Function<VirtualMap, VirtualMapState> createStateFromVirtualMap = (virtualMap) -> {
+            // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
+            throw new UnsupportedOperationException();
+        };
+        final StateLifecycleManager<VirtualMapState, SignedState> stateLifecycleManager = new StateLifecycleManagerImpl<>(platformContext.getMetrics(), platformContext.getTime(), createStateFromVirtualMap);
         final ReservedSignedState signedState = SignedStateFileReader.readStateFile(
                         statePath,
-                        (virtualMap) -> {
-                            // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
-                            throw new UnsupportedOperationException();
-                        },
                         DEFAULT_PLATFORM_STATE_FACADE,
-                        platformContext)
+                        platformContext,
+                        stateLifecycleManager)
                 .reservedSignedState();
         logger.info(LogMarker.CLI.getMarker(), "Hashing state");
         try {

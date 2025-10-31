@@ -72,12 +72,9 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
         final PlatformStateFacade stateFacade = DEFAULT_PLATFORM_STATE_FACADE;
         final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readStateFile(
                 statePath,
-                (virtualMap) -> {
-                    // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
-                    throw new UnsupportedOperationException();
-                },
                 stateFacade,
-                platformContext);
+                platformContext,
+                stateLifecycleManager);
         try (final ReservedSignedState reservedSignedState = deserializedSignedState.reservedSignedState()) {
             stateFacade.bulkUpdateOf(reservedSignedState.get().getState(), v -> {
                 System.out.printf("Replacing platform data %n");

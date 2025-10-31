@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.Hedera;
+import com.hedera.node.app.HederaVirtualMapState;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
@@ -43,7 +44,7 @@ class ConsensusStateEventHandlerImplTest extends MerkleTestBase {
     private PlatformContext platformContext;
 
     @Mock
-    private MerkleNodeState merkleStateRoot;
+    private HederaVirtualMapState merkleStateRoot;
 
     private ConsensusStateEventHandlerImpl subject;
 

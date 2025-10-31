@@ -58,6 +58,7 @@ import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.SystemExitCode;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
+import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.awt.GraphicsEnvironment;
 import java.util.ArrayList;
@@ -210,7 +211,7 @@ public class Browser {
         final Map<NodeId, SwirldsPlatform> platforms = new HashMap<>();
         for (int index = 0; index < nodesToRun.size(); index++) {
             final NodeId nodeId = nodesToRun.get(index);
-            final SwirldMain appMain = appMains.get(nodeId);
+            final SwirldMain<VirtualMapState<?>> appMain = appMains.get(nodeId);
 
             final ConfigurationBuilder configBuilder = ConfigurationBuilder.create();
             final List<Class<? extends Record>> configTypes = appMain.getConfigDataTypes();
@@ -264,13 +265,13 @@ public class Browser {
                     recycleBin,
                     appMain.getSemanticVersion(),
                     appMain::newStateRoot,
-                    appMain.stateRootFromVirtualMap(guiMetrics, Time.getCurrent()),
                     appMain.getClass().getName(),
                     appDefinition.getSwirldName(),
                     nodeId,
                     appDefinition.getConfigAddressBook(),
                     platformStateFacade,
-                    platformContext);
+                    platformContext,
+                    );
             final ReservedSignedState initialState = reservedState.state();
 
             // Initialize the address book

@@ -16,6 +16,7 @@ import static org.hiero.base.crypto.Cryptography.NULL_HASH;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.FastCopyable;
 import com.swirlds.common.Reservable;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.config.api.Configuration;
@@ -65,12 +66,13 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.Releasable;
 import org.hiero.base.crypto.Hash;
 
 /**
  * An implementation of {@link State} backed by a single Virtual Map.
  */
-public abstract class VirtualMapState<T extends VirtualMapState<T>> implements MerkleNodeState {
+public abstract class VirtualMapState<T extends VirtualMapState<T>> implements MerkleNodeState, FastCopyable, Releasable {
 
     public static final String VM_LABEL = "state";
 
@@ -102,7 +104,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
     /**
      * The state storage
      */
-    protected VirtualMap virtualMap;
+    protected final VirtualMap virtualMap;
 
     /**
      * Used to track the status of the Platform.

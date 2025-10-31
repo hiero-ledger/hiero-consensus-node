@@ -136,8 +136,8 @@ public class ConsensusNodeManager {
                 OtterApp.SWIRLD_NAME,
                 legacySelfId,
                 platformStateFacade,
-                platformContext,
-                virtualMap -> new OtterAppState(virtualMap, metrics, time));
+                platformContext
+        );
         final ReservedSignedState initialState = reservedState.state();
         final MerkleNodeState state = initialState.get().getState();
 
