@@ -668,8 +668,6 @@ public class RepeatableHip1064Tests {
                 doingContextual(spec -> spec.repeatableEmbeddedHederaOrThrow().handleRoundWithNoUserTransactions()),
                 sleepForBlockPeriod(),
                 doingContextual(spec -> spec.repeatableEmbeddedHederaOrThrow().handleRoundWithNoUserTransactions()),
-                sleepForBlockPeriod(),
-                doingContextual(spec -> spec.repeatableEmbeddedHederaOrThrow().handleRoundWithNoUserTransactions()),
                 doingContextual(spec -> allRunFor(
                         spec,
                         exposeLatestNBlockTxnResults(
