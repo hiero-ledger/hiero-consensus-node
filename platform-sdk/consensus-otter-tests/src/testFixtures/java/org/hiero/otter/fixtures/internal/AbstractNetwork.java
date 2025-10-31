@@ -603,6 +603,9 @@ public abstract class AbstractNetwork implements Network {
         });
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public void submitTransactions(@NonNull final List<OtterTransaction> transactions) {
         nodes().stream()
                 .filter(Node::isActive)
