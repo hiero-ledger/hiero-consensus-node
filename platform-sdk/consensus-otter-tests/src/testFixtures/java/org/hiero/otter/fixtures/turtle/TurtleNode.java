@@ -215,7 +215,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .build();
 
             model = WiringModelBuilder.create(platformContext.getMetrics(), timeManager.time())
-                    .withDeterministicModeEnabled(true)
+                    .deterministic()
                     .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
                     .build();
 
