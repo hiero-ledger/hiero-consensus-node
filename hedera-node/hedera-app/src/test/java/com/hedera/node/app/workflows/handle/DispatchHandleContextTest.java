@@ -322,8 +322,8 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     @Test
     void delegatesFeeChargingForPayer() {
         given(creatorInfo.accountId()).willReturn(AccountID.DEFAULT);
-        given(feeCharging.charge(eq(subject), any(), eq(new Fees(0, 123L, 0)))).willReturn(new Fees(0, 123L, 0));
-
+        given(feeCharging.charge(eq(subject.payer()), eq(subject), any(), eq(new Fees(0, 123L, 0))))
+                .willReturn(new Fees(0, 123L, 0));
         assertTrue(subject.tryToChargePayer(123L));
     }
 
@@ -335,16 +335,18 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
 
     @Test
     void delegatesFeeChargingForOtherAccount() {
+        final var overridePayerId = AccountID.newBuilder().accountNum(12345).build();
         given(creatorInfo.accountId()).willReturn(AccountID.DEFAULT);
-        given(feeCharging.charge(eq(subject), any(), eq(new Fees(0, 123L, 0)))).willReturn(new Fees(0, 122L, 0));
-        assertFalse(subject.tryToCharge(AccountID.DEFAULT, 123L));
+        given(feeCharging.charge(eq(overridePayerId), eq(subject), any(), eq(new Fees(0, 123L, 0))))
+                .willReturn(new Fees(0, 122L, 0));
+        assertFalse(subject.tryToCharge(overridePayerId, 123L));
     }
 
     @Test
     void delegatesRefunding() {
         subject.refundBestEffort(payerId, 123L);
 
-        verify(feeCharging).refund(subject, new Fees(0, 123L, 0));
+        verify(feeCharging).refund(payerId, subject, new Fees(0, 123L, 0));
     }
 
     @Test
