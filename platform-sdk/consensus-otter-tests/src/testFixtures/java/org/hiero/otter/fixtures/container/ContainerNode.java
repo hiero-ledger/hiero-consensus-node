@@ -208,7 +208,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 .setRoster(ProtobufConverter.fromPbj(roster()))
                 .setKeysAndCerts(KeysAndCertsConverter.toProto(keysAndCerts))
                 .setVersion(ProtobufConverter.fromPbj(version))
-                .putAllOverriddenProperties(nodeConfiguration.overriddenProperties())
+                .putAllOverriddenProperties(nodeConfiguration.overrideProperties())
                 .build();
 
         // Blocking stub for communicating with the consensus node

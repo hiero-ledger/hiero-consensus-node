@@ -105,7 +105,7 @@ public interface Configurable<T extends Configurable<T>> {
      * @return this {@code NodeConfiguration} instance for method chaining
      */
     @NonNull
-    T withConfigValue(@NonNull String key, List<String> values);
+    T withConfigValue(@NonNull String key, @NonNull List<String> values);
 
     /**
      * Updates a single property of the configuration to a file path. Can only be invoked when the

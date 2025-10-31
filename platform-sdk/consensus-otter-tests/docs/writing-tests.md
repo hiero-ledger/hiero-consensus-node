@@ -214,8 +214,8 @@ void testNodeConfiguration(@NonNull final TestEnvironment env) throws Interrupte
     // Set the rounds non-ancient and expired to smaller values to allow nodes to fall behind quickly
     for (final Node node : nodes) {
         node.configuration()
-                .set(ConsensusConfig_.ROUNDS_NON_ANCIENT, 5L)
-                .set(ConsensusConfig_.ROUNDS_EXPIRED, 10L);
+                .withConfigValue(ConsensusConfig_.ROUNDS_NON_ANCIENT, 5L)
+                .withConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, 10L);
     }
 
     network.start();
@@ -230,8 +230,8 @@ void testNodeConfiguration(@NonNull final TestEnvironment env) throws Interrupte
 
 ```java
 node.configuration()
-        .set(ConsensusConfig_.ROUNDS_NON_ANCIENT, 5L)
-        .set(ConsensusConfig_.ROUNDS_EXPIRED, 10L);
+        .withConfigValue(ConsensusConfig_.ROUNDS_NON_ANCIENT, 5L)
+        .withConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, 10L);
 ```
 
 The `configuration()` method returns a `NodeConfiguration` interface that allows you to override platform properties.

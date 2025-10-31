@@ -226,7 +226,7 @@ public class AbstractNodeConfigurationTest {
         @Override
         public Configuration current() {
             return new TestConfigBuilder()
-                    .withSource(new SimpleConfigSource(overriddenProperties.properties()))
+                    .withSource(new SimpleConfigSource(overrideProperties.properties()))
                     .withConfigDataType(TestConfigData.class)
                     .getOrCreateConfig();
         }
