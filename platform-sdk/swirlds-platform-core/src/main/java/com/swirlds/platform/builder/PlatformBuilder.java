@@ -471,6 +471,7 @@ public final class PlatformBuilder {
         var platformComponentWiring = PlatformComponents.create(platformContext, model, callbacks);
 
         PlatformWiring.wire(platformContext, execution, platformComponentWiring);
+        PlatformWiring.wireMetrics(platformContext, platformComponentWiring);
 
         final PlatformBuildingBlocks buildingBlocks = new PlatformBuildingBlocks(
                 platformComponentWiring,
