@@ -29,12 +29,16 @@ sourceSets {
         pbj {
             srcDir(protoApiSrc)
             srcDir(tasks.extractProto) // see comment on the 'dependencies' block
+            // (FUTURE) Remove provision for proof_service.proto when it no longer conflicts with
+            // the block node protos (v0.22)
             exclude("mirror", "sdk", "internal", "block-node/api/proof_service.proto")
         }
         // The below should be replaced with a 'requires com.hedera.protobuf.java.api'
         // in testFixtures scope - #14026
         proto {
             srcDir(protoApiSrc)
+            // (FUTURE) Remove provision for proof_service.proto when it no longer conflicts with
+            // the block node protos (v0.22)
             exclude("mirror", "sdk", "internal", "block-node/api/proof_service.proto")
         }
     }

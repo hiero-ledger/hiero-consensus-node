@@ -30,7 +30,7 @@ message PendingProof {
      */
     uint64 block = 1;
     /**
-     * The hash requiring a proof.
+     * The hash requiring a signature.
      */
     bytes block_hash = 2;
     /**

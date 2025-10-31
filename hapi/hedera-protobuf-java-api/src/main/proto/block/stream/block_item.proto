@@ -135,7 +135,8 @@ import "services/state/blockstream/streaming_tree_snapshot.proto";
  * - Any subtree (depending on what was filtered).
  *   This item contains it's path in the tree and must be fully parsed.
  *    - `filtered_item_hash`
- * - No subtree
+ * - No subtree (and not part of the "proof" merkle tree)
+ *    - `block_footer`
  *    - `block_proof`
  *    - `record_file`
  */
@@ -263,8 +264,11 @@ message BlockItem {
         com.hedera.hapi.block.stream.trace.TraceData trace_data = 11;
 
         /**
-         * A footer item that SHALL signal the end of information to include
-         * in a block's hashed content.
+         * Hashes at the end of each block.
+         * <p>
+         * This footer SHALL signal the end of information to include
+         * in a block's hashed content.<br/>
+         * One or more Block Proof items SHALL follow this item.
          */
         com.hedera.hapi.block.stream.output.BlockFooter block_footer = 12;
 

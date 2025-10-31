@@ -90,6 +90,13 @@ import "block/stream/state_proof.proto";
  *   tree.
  * - The hash algorithm used SHALL be the algorithm specified in the
  *   corresponding block header.
+ *
+ * The term "incrementally collapsed" above is significant, and changes how
+ * the tree hash is computed. Internal nodes are produced only when necessary
+ * to add additional leaf nodes, and leaves may be at slightly different locations
+ * in the tree if there are not enough nodes "to the right" to complete the full
+ * tree. The specifics of this algorithm are published in detailed system
+ * documentation.
  */
 message BlockProof {
     /**
