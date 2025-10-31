@@ -72,6 +72,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
@@ -288,7 +289,7 @@ class BlockStreamManagerImplTest {
         given(round.getRoundNum()).willReturn(ROUND_NO);
 
         // Initialize the last (N-1) block hash
-        subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
         assertFalse(subject.hasLedgerId());
 
         given(blockHashSigner.isReady()).willReturn(true);
@@ -352,10 +353,15 @@ class BlockStreamManagerImplTest {
                         "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
                 Bytes.fromHex(
                         "bf99e1dfd15ffe551ae4bc0953f396639755f0419522f323875806a55a57dca6a4df61ea6dee28bec0c37ed54881d392"),
-                null,
-                null,
-                null,
-                null);
+                Bytes.fromHex(
+                        "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
+                Bytes.fromHex(
+                        "bf99e1dfd15ffe551ae4bc0953f396639755f0419522f323875806a55a57dca6a4df61ea6dee28bec0c37ed54881d392"),
+                Bytes.fromHex(
+                        "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
+                List.of(
+                        Bytes.fromHex(
+                                "a63602dae8cc657abca1999f948de14320ab2c48d58994f14abce574607d859e35acf7cb2305be511a3099243ccd876d")));
 
         final var actualBlockInfo = infoRef.get();
         assertEquals(expectedBlockInfo, actualBlockInfo);
@@ -424,7 +430,7 @@ class BlockStreamManagerImplTest {
         given(round.getRoundNum()).willReturn(ROUND_NO);
 
         // Initialize the last (N-1) block hash
-        subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
         assertFalse(subject.hasLedgerId());
 
         given(blockHashSigner.isReady()).willReturn(true);
@@ -524,7 +530,7 @@ class BlockStreamManagerImplTest {
         given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
 
         // Initialize the last (N-1) block hash
-        subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
 
         given(blockHashSigner.isReady()).willReturn(true);
         // Start the round that will be block N
@@ -584,10 +590,15 @@ class BlockStreamManagerImplTest {
                         "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
                 Bytes.fromHex(
                         "8ee0718d5f75f867f85cb4e400ebf7bfbb4cd91479d7f3f8bfd28ce062c318c312b8f4de185a994b78337e6391e3f000"),
-                null,
-                null,
-                null,
-                null);
+                Bytes.fromHex(
+                        "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
+                Bytes.fromHex(
+                        "8ee0718d5f75f867f85cb4e400ebf7bfbb4cd91479d7f3f8bfd28ce062c318c312b8f4de185a994b78337e6391e3f000"),
+                Bytes.fromHex(
+                        "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
+                List.of(
+                        Bytes.fromHex(
+                                "a63602dae8cc657abca1999f948de14320ab2c48d58994f14abce574607d859e35acf7cb2305be511a3099243ccd876d")));
         final var actualBlockInfo = infoRef.get();
         assertEquals(expectedBlockInfo, actualBlockInfo);
 
@@ -623,7 +634,7 @@ class BlockStreamManagerImplTest {
         given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
 
         // Initialize the last (N-1) block hash
-        subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
 
         // Start the round that will be block N
         subject.startRound(round, state);
@@ -711,7 +722,7 @@ class BlockStreamManagerImplTest {
 
         // When starting a round at t=0
         given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(1000));
-        subject.initLastBlockHash(N_MINUS_2_BLOCK_HASH);
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
         subject.startRound(round, state);
 
         // And another round at t=1
@@ -747,7 +758,7 @@ class BlockStreamManagerImplTest {
 
         // When starting a round at t=0
         given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(1000));
-        subject.initLastBlockHash(N_MINUS_2_BLOCK_HASH);
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
         subject.startRound(round, state);
 
         // And another round at t=1.5
@@ -790,7 +801,7 @@ class BlockStreamManagerImplTest {
 
         // When starting a round at t=0
         given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(1000));
-        subject.initLastBlockHash(N_MINUS_2_BLOCK_HASH);
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
         subject.startRound(round, state);
 
         // And another round at t=1 with freeze
@@ -827,7 +838,7 @@ class BlockStreamManagerImplTest {
 
         // When processing rounds
         given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(1000));
-        subject.initLastBlockHash(N_MINUS_2_BLOCK_HASH);
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
 
         // First round (not mod 2)
         given(round.getRoundNum()).willReturn(3L);
@@ -900,7 +911,7 @@ class BlockStreamManagerImplTest {
                 .thenAcceptAsync(any());
 
         // Initialize hash and start a round
-        subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
         subject.startRound(round, state);
 
         // Track event hashes in the first block
@@ -1022,6 +1033,7 @@ class BlockStreamManagerImplTest {
                 .lastIntervalProcessTime(CONSENSUS_THEN)
                 .lastHandleTime(CONSENSUS_THEN)
                 .blockTime(asTimestamp(CONSENSUS_NOW.minusSeconds(5))) // Add block time to track last block creation
+                .intermediatePreviousBlockRootHashes(Collections.emptyList())
                 .build();
     }
 
