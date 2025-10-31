@@ -298,7 +298,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 .toList();
         previousBlockHashes =
                 new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), prevBlocksIntermediateHashes);
-        final var allPrevBlocksHash = Bytes.wrap(previousBlockHashes.computeRootHash());
+        final var allPrevBlocksHash = inputOrNullHash(Bytes.wrap(previousBlockHashes.computeRootHash()));
 
         // Branch 3: Retrieve the previous block's starting state hash (not done right here, just part of the calculated
         // last block hash below)
@@ -318,6 +318,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         .build())
                 .build();
         final var lastStateChanges = BlockItem.newBuilder()
+                // The final state changes block item for the last block uses blockEndTime, which has to be the last
+                // state change time
                 .stateChanges(new StateChanges(blockStreamInfo.blockEndTime(), List.of(lastBlockFinalStateChange)))
                 .build();
         // Hash the reconstructed (final) state changes block item
@@ -341,6 +343,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         .blockRootHash());
         requireNonNull(calculatedLastBlockHash);
         initLastBlockHash(calculatedLastBlockHash);
+
+        // Finally, add the newly-calculated hash to the previous block hashes subtree so it's up to date
+        previousBlockHashes.addLeaf(calculatedLastBlockHash.toByteArray());
     }
 
     @Override
@@ -516,7 +521,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 hederaNewStateRoot.commitSingletons();
             }
             // Flush all boundary state changes besides the BlockStreamInfo
-
             worker.addItem(flushChangesFromListener(boundaryStateChangeListener));
             worker.sync();
 
@@ -592,19 +596,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             worker.addItem(flushChangesFromListener(boundaryStateChangeListener));
             worker.sync();
 
-            final var stateChangesHash = stateChangesHasher.rootHash().join();
-
-            // Reconstruct the final state change in order to calculate the final state change subtree hash
-            final var blockStreamInfoChange = StateChange.newBuilder()
-                    .stateId(STATE_ID_BLOCK_STREAM_INFO.protoOrdinal())
-                    .singletonUpdate(SingletonUpdateChange.newBuilder()
-                            .blockStreamInfoValue(newBlockStreamInfo)
-                            .build())
-                    .build();
-            final var hashedChangeBytes = noThrowSha384HashOf(StateChange.PROTOBUF.toBytes(blockStreamInfoChange));
-
             // Combine the penultimate state change leaf with the final state change leaf
-            final var finalStateChangesHash = BlockImplUtils.combine(stateChangesHash, hashedChangeBytes);
+            final var finalStateChangesHash = stateChangesHasher.rootHash().join();
 
             final var rootAndSiblingHashes = combine(
                     lastBlockHash,
@@ -1150,7 +1143,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     private BlockItem flushChangesFromListener(@NonNull final BoundaryStateChangeListener boundaryStateChangeListener) {
-        final var stateChanges = new StateChanges(lastUsedTime, boundaryStateChangeListener.allStateChanges());
+        final var stateChanges =
+                new StateChanges(asTimestamp(blockEndTimestamp), boundaryStateChangeListener.allStateChanges());
         boundaryStateChangeListener.reset();
         return BlockItem.newBuilder().stateChanges(stateChanges).build();
     }
