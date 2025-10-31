@@ -33,6 +33,7 @@ public interface IOStatsReader {
      * @param diskBytesWritten bytes actually written to storage device
      * @param readSyscalls number of read system calls or block reads
      * @param writeSyscalls number of write system calls or block writes
+     * @param cancelledWriteBytes bytes scheduled for write but cancelled (Linux-specific)
      */
     record IOStats(
             long bytesRead,
@@ -40,12 +41,13 @@ public interface IOStatsReader {
             long diskBytesRead,
             long diskBytesWritten,
             long readSyscalls,
-            long writeSyscalls) {
+            long writeSyscalls,
+            long cancelledWriteBytes) {
 
         /**
          * Empty I/O stats (all zeros) used when stats are unavailable.
          */
-        public static final IOStats EMPTY = new IOStats(0L, 0L, 0L, 0L, 0L, 0L);
+        public static final IOStats EMPTY = new IOStats(0L, 0L, 0L, 0L, 0L, 0L, 0L);
 
         /**
          * Checks if these stats are empty (all zeros).
@@ -58,7 +60,8 @@ public interface IOStatsReader {
                     && diskBytesRead == 0
                     && diskBytesWritten == 0
                     && readSyscalls == 0
-                    && writeSyscalls == 0;
+                    && writeSyscalls == 0
+                    && cancelledWriteBytes == 0;
         }
     }
 }

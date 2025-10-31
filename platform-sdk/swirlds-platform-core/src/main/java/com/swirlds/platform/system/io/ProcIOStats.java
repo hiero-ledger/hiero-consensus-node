@@ -22,6 +22,7 @@ import org.apache.logging.log4j.Logger;
  *     <li>write_bytes - actual bytes written to storage</li>
  *     <li>syscr - number of read syscalls</li>
  *     <li>syscw - number of write syscalls</li>
+ *     <li>cancelled_write_bytes - bytes scheduled for write but cancelled</li>
  * </ul>
  * <p>
  * This implementation is Linux-specific and will return empty stats on other operating systems.
@@ -91,7 +92,8 @@ public final class ProcIOStats implements IOStatsReader {
                     stats.getOrDefault("read_bytes", 0L),
                     stats.getOrDefault("write_bytes", 0L),
                     stats.getOrDefault("syscr", 0L),
-                    stats.getOrDefault("syscw", 0L));
+                    stats.getOrDefault("syscw", 0L),
+                    stats.getOrDefault("cancelled_write_bytes", 0L));
         } catch (final NoSuchFileException e) {
             logger.warn("Process I/O stats file disappeared (pid={}): {}", pid, e.getMessage());
             return IOStats.EMPTY;
