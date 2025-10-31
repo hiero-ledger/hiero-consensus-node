@@ -1,10 +1,10 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -35,8 +35,7 @@ public class QuiescenceTest {
         // Start the network and wait a bit
         network.start();
         timeManager.waitForCondition(
-                () -> network.newConsensusResults().allNodesAdvancedToRound(20),
-                Duration.ofSeconds(120L));
+                () -> network.newConsensusResults().allNodesAdvancedToRound(20), Duration.ofSeconds(120L));
 
         // Send quiescence command to all nodes
         network.nodes().forEach(node -> node.sendQuiescenceCommand(QuiescenceCommand.QUIESCE));
@@ -44,10 +43,13 @@ public class QuiescenceTest {
         timeManager.waitFor(Duration.ofSeconds(5));
 
         assertThat(network.newConsensusResults().results().stream()
-                .mapToLong(SingleNodeConsensusResult::lastRoundNum).distinct().count())
+                        .mapToLong(SingleNodeConsensusResult::lastRoundNum)
+                        .distinct()
+                        .count())
                 .withFailMessage("All nodes should have the same last round when quiesced")
                 .isEqualTo(1);
-        final long lastRoundWhenQuiesced = network.newConsensusResults().results().getFirst().lastRoundNum();
+        final long lastRoundWhenQuiesced =
+                network.newConsensusResults().results().getFirst().lastRoundNum();
 
         timeManager.waitFor(Duration.ofSeconds(10));
         // Assert that consensus has not advanced
@@ -61,12 +63,15 @@ public class QuiescenceTest {
         // This should create a single event, which we will verify with a log statement
         network.nodes().getFirst().sendQuiescenceCommand(QuiescenceCommand.BREAK_QUIESCENCE);
 
-        final AtomicBoolean foundQBlog = network.nodes().getFirst().newLogResult()
+        final AtomicBoolean foundQBlog = network.nodes()
+                .getFirst()
+                .newLogResult()
                 .onNextMatch(logEntry -> logEntry.message().contains("Created quiescence breaking event"));
 
-        timeManager
-                .waitForCondition(foundQBlog::get, Duration.ofSeconds(10),
-                        "Could not find the log message indicating a quiescence breaking event was created");
+        timeManager.waitForCondition(
+                foundQBlog::get,
+                Duration.ofSeconds(10),
+                "Could not find the log message indicating a quiescence breaking event was created");
 
         // Stop quiescing all nodes
         network.nodes().forEach(node -> node.sendQuiescenceCommand(QuiescenceCommand.DONT_QUIESCE));
@@ -75,6 +80,5 @@ public class QuiescenceTest {
                 () -> network.newConsensusResults().allNodesAdvancedToRound(lastRoundWhenQuiesced + 20),
                 Duration.ofSeconds(120L));
         network.shutdown();
-
     }
 }
