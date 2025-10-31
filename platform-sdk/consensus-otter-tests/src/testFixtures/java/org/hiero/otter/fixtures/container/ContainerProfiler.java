@@ -74,17 +74,36 @@ public class ContainerProfiler {
 
         try {
             // Get the Java process PID
-            final String getPidCommand = "jps | grep -E \"DockerApp|ConsensusNodeMain\" | head -1 | awk '{print $1}'";
+            final String getPidCommand = "jps | grep \"ConsensusNodeMain\" | head -1 | awk '{print $1}'";
             final ExecResult pidResult = container.execInContainer("sh", "-c", getPidCommand);
             if (pidResult.getExitCode() != 0 || pidResult.getStdout().trim().isEmpty()) {
-                fail("Failed to find Java process on node " + selfId.id());
+                fail("Failed to find ConsensusNodeMain process on node " + selfId.id());
             }
             pid = pidResult.getStdout().trim();
+            log.info("Found ConsensusNodeMain process with PID {} on node {}", pid, selfId.id());
 
-            // Start JFR with default configuration (more aggressive than 'profile' preset)
-            // The default configuration has lower sampling intervals and thresholds, better for short profiling sessions
+            // Create a minimal custom JFC configuration for CPU profiling
+            // The built-in presets in containers may not enable ExecutionSample correctly
+            final long periodMs = (samplingInterval != null) ? samplingInterval.toMillis() : 10;  // Default: 10ms = 100Hz
+            final String jfcContent = generateMinimalJfcConfiguration(periodMs);
+
+            // Ensure the profiling directory exists
+            final ExecResult mkdirResult = container.execInContainer("sh", "-c", "mkdir -p /tmp/profiling && chmod 777 /tmp/profiling");
+            if (mkdirResult.getExitCode() != 0) {
+                throw new IOException("Failed to create profiling directory on node " + selfId.id());
+            }
+
+            // Write the custom JFC file to the container
+            final String writeJfcCommand = String.format(
+                    "cat > /tmp/profiling/otter.jfc << 'EOF'\n%s\nEOF", jfcContent);
+            final ExecResult writeResult = container.execInContainer("sh", "-c", writeJfcCommand);
+            if (writeResult.getExitCode() != 0) {
+                throw new IOException("Failed to write JFC configuration on node " + selfId.id());
+            }
+
+            // Start JFR with our custom configuration
             final String startJfrCommand = String.format(
-                    "jcmd %s JFR.start name=otter-profile", pid);
+                    "jcmd %s JFR.start name=otter-profile settings=/tmp/profiling/otter.jfc", pid);
 
             final ExecResult result = container.execInContainer("sh", "-c", startJfrCommand);
             if (result.getExitCode() != 0) {
@@ -98,9 +117,10 @@ public class ContainerProfiler {
             log.info("JFR.check output: {}", checkResult.getStdout());
 
             log.info(
-                    "Started JFR profiling on node {} with {} sampling and events {} -> {}",
+                    "Started JFR profiling on node {} with {} CPU sampling ({}Hz) and events {} -> {}",
                     selfId.id(),
-                    samplingInterval == null? "default" : samplingInterval.toMillis() + "ms",
+                    samplingInterval == null ? "10ms" : samplingInterval.toMillis() + "ms",
+                    samplingInterval == null ? 100 : 1000 / samplingInterval.toMillis(),
                     Stream.of(eventsToEnable).map(Enum::name).collect(Collectors.joining(", ")),
                     outputFilename);
         } catch (final IOException e) {
@@ -109,6 +129,51 @@ public class ContainerProfiler {
             Thread.currentThread().interrupt();
             fail("Interrupted while starting profiling on node " + selfId.id(), e);
         }
+    }
+
+    /**
+     * Generates a minimal but complete JFC configuration with specified CPU sampling period.
+     * This ensures ExecutionSample is enabled and configured correctly.
+     *
+     * @param periodMs the sampling period in milliseconds (e.g., 10ms = 100Hz)
+     * @return the JFC XML configuration as a string
+     */
+    private String generateMinimalJfcConfiguration(final long periodMs) {
+        return String.format("""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <configuration version="2.0" label="Otter Profile" description="Optimized for CPU and allocation profiling" provider="Otter">
+              <!-- CPU Sampling: Java methods -->
+              <event name="jdk.ExecutionSample">
+                <setting name="enabled">true</setting>
+                <setting name="period">%d ms</setting>
+              </event>
+
+              <!-- CPU Sampling: Native methods -->
+              <event name="jdk.NativeMethodSample">
+                <setting name="enabled">true</setting>
+                <setting name="period">%d ms</setting>
+              </event>
+
+              <!-- Allocation profiling -->
+              <event name="jdk.ObjectAllocationSample">
+                <setting name="enabled">true</setting>
+                <setting name="throttle">150/s</setting>
+              </event>
+
+              <!-- Essential JVM events for valid recordings -->
+              <event name="jdk.ActiveRecording"><setting name="enabled">true</setting></event>
+              <event name="jdk.ActiveSetting"><setting name="enabled">true</setting></event>
+              <event name="jdk.JVMInformation"><setting name="enabled">true</setting></event>
+              <event name="jdk.OSInformation"><setting name="enabled">true</setting></event>
+              <event name="jdk.CPUInformation"><setting name="enabled">true</setting></event>
+              <event name="jdk.CPULoad"><setting name="enabled">true</setting><setting name="period">1 s</setting></event>
+              <event name="jdk.ThreadCPULoad"><setting name="enabled">true</setting><setting name="period">1 s</setting></event>
+              <event name="jdk.GarbageCollection"><setting name="enabled">true</setting></event>
+              <event name="jdk.GCHeapSummary"><setting name="enabled">true</setting></event>
+              <event name="jdk.ThreadStart"><setting name="enabled">true</setting></event>
+              <event name="jdk.ThreadEnd"><setting name="enabled">true</setting></event>
+            </configuration>
+            """, periodMs, periodMs);
     }
 
     /**

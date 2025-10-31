@@ -16,7 +16,7 @@ class ProfilerTest {
      * Test that starting an already started node throws an exception.
      */
     @Test
-    void testCoreProfilingFunctionality() throws IOException {
+    void testCoreProfilingFunctionality() {
         final TestEnvironment env = new ContainerTestEnvironment();
         try {
             final Network network = env.network();
