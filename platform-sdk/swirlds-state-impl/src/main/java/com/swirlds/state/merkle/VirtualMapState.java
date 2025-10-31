@@ -19,8 +19,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.Reservable;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader;
-import com.swirlds.common.merkle.utility.MerkleTreeSnapshotWriter;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
@@ -58,7 +56,6 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -79,11 +76,6 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
     public static final String VM_LABEL = "state";
 
     private static final Logger logger = LogManager.getLogger(VirtualMapState.class);
-
-    /**
-     * Metrics for the snapshot creation process
-     */
-    private final MerkleRootSnapshotMetrics snapshotMetrics;
 
     /**
      * Maintains information about all services known by this instance. Map keys are
@@ -108,8 +100,6 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
 
     private final Metrics metrics;
 
-    private final Time time;
-
     protected VirtualMap virtualMap;
 
     /**
@@ -129,7 +119,6 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
             @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
         requireNonNull(configuration);
         this.metrics = requireNonNull(metrics);
-        this.time = requireNonNull(time);
         final MerkleDbDataSourceBuilder dsBuilder;
         final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
         dsBuilder = new MerkleDbDataSourceBuilder(
@@ -137,7 +126,6 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
 
         this.virtualMap = new VirtualMap(VM_LABEL, dsBuilder, configuration);
         this.virtualMap.registerMetrics(metrics);
-        this.snapshotMetrics = new MerkleRootSnapshotMetrics(metrics);
     }
 
     /**
@@ -151,8 +139,6 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
             @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
         this.virtualMap = requireNonNull(virtualMap);
         this.metrics = requireNonNull(metrics);
-        this.time = requireNonNull(time);
-        this.snapshotMetrics = new MerkleRootSnapshotMetrics(metrics);
     }
 
     /**
@@ -163,9 +149,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
     protected VirtualMapState(@NonNull final VirtualMapState<T> from) {
         this.virtualMap = from.virtualMap.copy();
         this.metrics = from.metrics;
-        this.time = from.time;
         this.startupMode = from.startupMode;
-        this.snapshotMetrics = new MerkleRootSnapshotMetrics(from.metrics);
         this.listeners.addAll(from.listeners);
 
         // Copy over the metadata
@@ -180,16 +164,6 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
      * @return a copy of the instance
      */
     protected abstract T copyingConstructor();
-
-    /**
-     * Creates a new instance.
-     *
-     * @param virtualMap should have already registered metrics
-     * @param metrics    the platform metric instance to use when creating the new instance of state
-     * @param time       the time instance to use when creating the new instance of state
-     */
-    protected abstract T newInstance(
-            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time);
 
     // State interface implementation
 
@@ -249,40 +223,6 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
 
         // this call will result in synchronous hash computation
         virtualMap.getHash();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void createSnapshot(@NonNull final Path targetPath) {
-        requireNonNull(time);
-        requireNonNull(snapshotMetrics);
-        virtualMap.throwIfMutable();
-        virtualMap.throwIfDestroyed();
-        final long startTime = time.currentTimeMillis();
-        MerkleTreeSnapshotWriter.createSnapshot(virtualMap, targetPath, getRound());
-        snapshotMetrics.updateWriteStateToDiskTimeMetric(time.currentTimeMillis() - startTime);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public T loadSnapshot(@NonNull Path targetPath) throws IOException {
-        final MerkleNode root =
-                MerkleTreeSnapshotReader.readStateFileData(targetPath).stateRoot();
-        if (!(root instanceof VirtualMap readVirtualMap)) {
-            throw new IllegalStateException(
-                    "Root should be a VirtualMap, but it is " + root.getClass().getSimpleName() + " instead");
-        }
-
-        final var mutableCopy = readVirtualMap.copy();
-        mutableCopy.registerMetrics(metrics);
-        readVirtualMap.release();
-        readVirtualMap = mutableCopy;
-
-        return newInstance(readVirtualMap, metrics, time);
     }
 
     /**

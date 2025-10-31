@@ -38,7 +38,6 @@ import com.swirlds.platform.publisher.DefaultPlatformPublisher;
 import com.swirlds.platform.publisher.PlatformPublisher;
 import com.swirlds.platform.reconnect.DefaultSignedStateValidator;
 import com.swirlds.platform.reconnect.ReconnectController;
-import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.nexus.DefaultLatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.LockFreeStateNexus;
@@ -59,6 +58,7 @@ import com.swirlds.platform.system.status.actions.StartedReplayingEventsAction;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.State;
+import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
@@ -139,6 +139,11 @@ public class SwirldsPlatform implements Platform {
     private final SavedStateController savedStateController;
 
     /**
+     * Manages the lifecycle of the state.
+     */
+    private final StateLifecycleManager<SignedState> stateLifecycleManager;
+
+    /**
      * Encapsulated wiring for the platform.
      */
     private final PlatformComponents platformComponents;
@@ -185,7 +190,8 @@ public class SwirldsPlatform implements Platform {
 
         final LatestCompleteStateNexus latestCompleteStateNexus = new DefaultLatestCompleteStateNexus(platformContext);
 
-        savedStateController = new DefaultSavedStateController(platformContext);
+        savedStateController = new DefaultSavedStateController(platformContext, blocks.stateLifecycleManager());
+        stateLifecycleManager = blocks.stateLifecycleManager();
 
         final SignedStateMetrics signedStateMetrics = new SignedStateMetrics(platformContext.getMetrics());
         final StateSignatureCollector stateSignatureCollector =
@@ -211,15 +217,15 @@ public class SwirldsPlatform implements Platform {
         initializeState(this, platformContext, initialState, blocks.consensusStateEventHandler(), platformStateFacade);
 
         // This object makes a copy of the state. After this point, initialState becomes immutable.
-        final SwirldStateManager swirldStateManager = blocks.swirldStateManager();
-        swirldStateManager.setState(initialState.getState(), true);
-        platformStateFacade.setCreationSoftwareVersionTo(swirldStateManager.getConsensusState(), blocks.appVersion());
+        final StateLifecycleManager stateLifecycleManager = blocks.stateLifecycleManager();
+        stateLifecycleManager.initState(initialState.getState(), true);
+        platformStateFacade.setCreationSoftwareVersionTo(stateLifecycleManager.getMutableState(), blocks.appVersion());
 
         final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
 
         blocks.freezeCheckHolder()
                 .setFreezeCheckRef(instant ->
-                        platformStateFacade.isInFreezePeriod(instant, swirldStateManager.getConsensusState()));
+                        platformStateFacade.isInFreezePeriod(instant, stateLifecycleManager.getMutableState()));
 
         final AppNotifier appNotifier = new DefaultAppNotifier(blocks.notificationEngine());
 
@@ -231,7 +237,7 @@ public class SwirldsPlatform implements Platform {
                 this,
                 platformContext,
                 platformCoordinator,
-                swirldStateManager,
+                stateLifecycleManager,
                 savedStateController,
                 blocks.consensusStateEventHandler(),
                 blocks.reservedSignedStateResultPromise(),
@@ -382,6 +388,7 @@ public class SwirldsPlatform implements Platform {
             } else {
                 final SignedState signedState = reservedState.get();
                 signedState.markAsStateToSave(StateToDiskReason.PCES_RECOVERY_COMPLETE);
+                stateLifecycleManager.setSnapshotSource(signedState);
 
                 final StateDumpRequest request =
                         StateDumpRequest.create(signedState.reserve("dumping PCES recovery state"));

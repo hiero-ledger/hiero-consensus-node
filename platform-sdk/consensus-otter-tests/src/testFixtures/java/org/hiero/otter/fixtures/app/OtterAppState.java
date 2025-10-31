@@ -82,12 +82,6 @@ public class OtterAppState extends VirtualMapState<OtterAppState> implements Mer
         return new OtterAppState(this);
     }
 
-    @Override
-    protected OtterAppState newInstance(
-            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
-        return new OtterAppState(virtualMap, metrics, time);
-    }
-
     /**
      * {@inheritDoc}
      */

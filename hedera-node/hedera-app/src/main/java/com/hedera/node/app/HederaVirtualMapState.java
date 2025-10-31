@@ -71,20 +71,6 @@ public class HederaVirtualMapState extends VirtualMapState<HederaVirtualMapState
     }
 
     /**
-     * Creates a new instance of {@link HederaVirtualMapState} with the specified {@link VirtualMap}.
-     *
-     * @param virtualMap the virtual map whose metrics must already be registered
-     * @param metrics    the platform metric instance to use when creating the new instance of state
-     * @param time       the time instance to use when creating the new instance of state
-     * @return a new instance of {@link HederaVirtualMapState}
-     */
-    @Override
-    protected HederaVirtualMapState newInstance(
-            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
-        return new HederaVirtualMapState(virtualMap, metrics, time);
-    }
-
-    /**
      * {@inheritDoc}
      */
     @Override

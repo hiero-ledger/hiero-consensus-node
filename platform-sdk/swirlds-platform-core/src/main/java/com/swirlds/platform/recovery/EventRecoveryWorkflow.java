@@ -48,6 +48,8 @@ import com.swirlds.platform.system.state.notifications.NewRecoveredStateListener
 import com.swirlds.platform.system.state.notifications.NewRecoveredStateNotification;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -155,7 +157,12 @@ public final class EventRecoveryWorkflow {
                         .apply(v),
                 platformStateFacade,
                 platformContext);
+        final StateLifecycleManager<SignedState> stateLifecycleManager = new StateLifecycleManagerImpl<>(
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                hederaApp.stateRootFromVirtualMap(platformContext.getMetrics(), platformContext.getTime()));
         try (final ReservedSignedState initialState = deserializedSignedState.reservedSignedState()) {
+            stateLifecycleManager.setSnapshotSource(initialState.get());
             HederaUtils.updateStateHash(hederaApp, deserializedSignedState);
 
             logger.info(
@@ -192,11 +199,7 @@ public final class EventRecoveryWorkflow {
                     recoveredState.state().get().getState().copy();
 
             SignedStateFileWriter.writeSignedStateFilesToDirectory(
-                    platformContext,
-                    selfId,
-                    resultingStateDirectory,
-                    recoveredState.state().get(),
-                    platformStateFacade);
+                    platformContext, selfId, resultingStateDirectory, platformStateFacade, stateLifecycleManager);
             final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
             updateEmergencyRecoveryFile(
                     stateConfig, resultingStateDirectory, initialState.get().getConsensusTimestamp());

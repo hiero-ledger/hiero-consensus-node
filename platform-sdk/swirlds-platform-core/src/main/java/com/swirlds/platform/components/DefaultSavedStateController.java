@@ -13,6 +13,7 @@ import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
+import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -31,14 +32,19 @@ public class DefaultSavedStateController implements SavedStateController {
     private Instant previousSavedStateTimestamp;
 
     private final StateConfig stateConfig;
+    private final StateLifecycleManager<SignedState> stateLifecycleManager;
 
     /**
      * Constructor
      *
-     * @param platformContext the platform context
+     * @param platformContext       the platform context
+     * @param stateLifecycleManager
      */
-    public DefaultSavedStateController(@NonNull final PlatformContext platformContext) {
+    public DefaultSavedStateController(
+            @NonNull final PlatformContext platformContext,
+            @NonNull final StateLifecycleManager<SignedState> stateLifecycleManager) {
         this.stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
+        this.stateLifecycleManager = stateLifecycleManager;
     }
 
     /**

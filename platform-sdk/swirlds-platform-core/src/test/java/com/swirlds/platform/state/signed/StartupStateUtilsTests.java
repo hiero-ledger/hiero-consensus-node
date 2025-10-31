@@ -14,6 +14,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.config.StateCommonConfig_;
@@ -34,6 +35,8 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedWriter;
@@ -71,6 +74,7 @@ public class StartupStateUtilsTests {
     private final String swirldName = "swirldName";
     private SemanticVersion currentSoftwareVersion;
     private PlatformStateFacade platformStateFacade;
+    private StateLifecycleManager<SignedState> stateLifecycleManager;
 
     @BeforeEach
     void beforeEach() throws IOException {
@@ -126,22 +130,24 @@ public class StartupStateUtilsTests {
         final SignedState signedState =
                 new RandomSignedStateGenerator(random).setRound(round).build();
 
-        // make the state immutable
-        signedState.getState().copy().release();
+        stateLifecycleManager =
+                new StateLifecycleManagerImpl<>(new NoOpMetrics(), new FakeTime(), TestVirtualMapState::new);
+        stateLifecycleManager.initState(signedState.getState(), true);
+        stateLifecycleManager.getMutableState().release();
         // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19905
         TestMerkleCryptoFactory.getInstance()
                 .digestTreeSync(signedState.getState().getRoot());
 
         final Path savedStateDirectory =
                 signedStateFilePath.getSignedStateDirectory(mainClassName, selfId, swirldName, round);
-
+        stateLifecycleManager.setSnapshotSource(signedState);
         writeSignedStateToDisk(
                 platformContext,
                 selfId,
                 savedStateDirectory,
-                signedState,
                 StateToDiskReason.PERIODIC_SNAPSHOT,
-                platformStateFacade);
+                platformStateFacade,
+                stateLifecycleManager);
 
         if (corrupted) {
             final Path stateFilePath = savedStateDirectory.resolve("SignedState.swh");
