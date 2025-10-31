@@ -217,13 +217,9 @@ public class TipsetEventCreator implements EventCreator {
         } else if (quiescenceCommand == QuiescenceCommand.BREAK_QUIESCENCE && !breakQuiescenceEventCreated) {
             event = createQuiescenceBreakEvent();
             breakQuiescenceEventCreated = true;
-        }
-        if(quiescenceCommand == QuiescenceCommand.BREAK_QUIESCENCE && event != null) {
             logger.info(LogMarker.STARTUP.getMarker(),
-                    "Event({}) from node {} created at {}",
-                    event.getHash().toHex(6),
-                    event.getMetadata().getCreatorId(),
-                    event.getTimeCreated());
+                    "Created quiescence breaking event ({})",
+                    event.getDescriptor()::shortString);
         }
         if (event != null) {
             lastSelfEvent = signEvent(event);
