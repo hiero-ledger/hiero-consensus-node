@@ -209,12 +209,19 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
         }
 
         wrapWithErrorHandling(responseObserver, () -> {
-            boolean result = true;
+            int numFailed = 0;
+            int numSucceeded = 0;
             for (final ByteString payload : request.getPayloadList()) {
-                result &= consensusNodeManager.submitTransaction(payload.toByteArray());
+                if (consensusNodeManager.submitTransaction(payload.toByteArray())) {
+                    numSucceeded++;
+                } else {
+                    numFailed++;
+                }
             }
-            responseObserver.onNext(
-                    TransactionRequestAnswer.newBuilder().setResult(result).build());
+            responseObserver.onNext(TransactionRequestAnswer.newBuilder()
+                    .setNumFailed(numFailed)
+                    .setNumSucceeded(numSucceeded)
+                    .build());
             responseObserver.onCompleted();
         });
     }

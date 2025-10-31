@@ -335,11 +335,16 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             final TransactionRequest.Builder builder = TransactionRequest.newBuilder();
             transactions.forEach(t -> builder.addPayload(t.toByteString()));
             final TransactionRequestAnswer answer = nodeCommBlockingStub.submitTransaction(builder.build());
-            if (!answer.getResult()) {
-                fail("Failed to submit transaction for node %d.".formatted(selfId.id()));
+            if (answer.getNumFailed() > 0) {
+                fail("%d out of %d transaction(s) failed to submit for node %d."
+                        .formatted(answer.getNumFailed(), transactions.size(), selfId.id()));
+            }
+            if (answer.getNumFailed() + answer.getNumSucceeded() != transactions.size()) {
+                fail("Node %d returned an invalid number of results when submitting transactions."
+                        .formatted(selfId.id()));
             }
         } catch (final Exception e) {
-            fail("Failed to submit transaction to node %d".formatted(selfId.id()), e);
+            fail("Failed to submit transaction(s) to node %d".formatted(selfId.id()), e);
         }
     }
 
@@ -367,8 +372,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     }
 
     /**
-     * Gets the container instance for this node. This allows direct access to the underlying
-     * Testcontainers container for operations like retrieving console logs.
+     * Gets the container instance for this node. This allows direct access to the underlying Testcontainers container
+     * for operations like retrieving console logs.
      *
      * @return the container instance
      */

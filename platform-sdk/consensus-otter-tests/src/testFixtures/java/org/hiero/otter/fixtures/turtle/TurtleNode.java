@@ -83,7 +83,6 @@ import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 import org.hiero.otter.fixtures.util.SecureRandomBuilder;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * A node in the turtle network.
@@ -381,7 +380,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * {@inheritDoc}
      */
     @Override
-    public void submitTransactions(@NotNull final List<OtterTransaction> transactions) {
+    public void submitTransactions(@NonNull final List<OtterTransaction> transactions) {
         try (final LoggingContextScope ignored = installNodeContext()) {
             throwIsNotInLifecycle(RUNNING, "Cannot submit transaction when the network is not running.");
             assert platform != null; // platform must be initialized if lifeCycle is STARTED
