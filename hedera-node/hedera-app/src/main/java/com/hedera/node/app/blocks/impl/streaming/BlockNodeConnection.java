@@ -1112,7 +1112,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     .endOfBlock(BlockEnd.newBuilder().blockNumber(block.blockNumber()))
                     .build();
             try {
-                sendRequest(endOfBlock);
+                sendRequest(block.blockNumber(), requestCtr.get(), endOfBlock);
             } catch (final RuntimeException e) {
                 logger.warn("{} Error sending EndOfBlock request", BlockNodeConnection.this, e);
                 handleStreamFailureWithoutOnComplete();
