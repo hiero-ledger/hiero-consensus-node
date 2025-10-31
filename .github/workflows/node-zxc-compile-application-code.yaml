@@ -78,16 +78,6 @@ on:
         type: boolean
         required: false
         default: false
-      enable-fast-otter-tests:
-        description: "Fast Otter Testing Enabled"
-        type: boolean
-        required: false
-        default: false
-      enable-full-otter-tests:
-        description: "Full Otter Testing Enabled"
-        type: boolean
-        required: false
-        default: false
       enable-spotless-check:
         description: "Spotless Check Enabled"
         type: boolean
@@ -346,6 +336,24 @@ jobs:
         with:
           name: Integration Test Report
           path: "**/build/test-results/testIntegration/TEST-*.xml"
+          retention-days: 7
+
+      - name: Upload Otter Integration Tests Turtle Logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-integration-tests && inputs.enable-network-log-capture && steps.gradle-integration-tests.conclusion == 'failure' && !cancelled() }}
+        with:
+          name: Otter Integration Tests Turtle Logs
+          path: |
+            platform-sdk/consensus-otter-tests/build/turtle/**
+          retention-days: 7
+
+      - name: Upload Otter Integration Tests Container Logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-integration-tests && inputs.enable-network-log-capture && steps.gradle-integration-tests.conclusion == 'failure' && !cancelled() }}
+        with:
+          name: Otter Integration Tests Container Logs
+          path: |
+            platform-sdk/consensus-otter-tests/build/container/**
           retention-days: 7
 
       - name: HAPI Testing (Misc)
@@ -707,75 +715,6 @@ jobs:
             hedera-node/test-clients/build/*-test/**/output/**
           retention-days: 7
 
-      - name: Upload Otter Integration Tests Turtle Logs
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-integration-tests && inputs.enable-network-log-capture && steps.gradle-integration-tests.conclusion == 'failure' && !cancelled() }}
-        with:
-          name: Otter Integration Tests Turtle Logs
-          path: |
-            platform-sdk/consensus-otter-tests/build/turtle/**
-          retention-days: 7
-
-      - name: Upload Otter Integration Tests Container Logs
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-integration-tests && inputs.enable-network-log-capture && steps.gradle-integration-tests.conclusion == 'failure' && !cancelled() }}
-        with:
-          name: Otter Integration Tests Container Logs
-          path: |
-            platform-sdk/consensus-otter-tests/build/container/**
-          retention-days: 7
-
-      - name: Fast Otter Testing
-        id: gradle-fast-otter-tests
-        if: ${{ inputs.enable-fast-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
-        env:
-          LC_ALL: en.UTF-8
-          LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} :consensus-otter-tests:testOtter
-
-      - name: Full Otter Testing
-        id: gradle-full-otter-tests
-        if: ${{ inputs.enable-full-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
-        env:
-          LC_ALL: en.UTF-8
-          LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} :consensus-otter-tests:testContainer
-
-      - name: Publish Otter Testing Report
-        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
-        if: ${{ (inputs.enable-fast-otter-tests || inputs.enable-full-otter-tests) && steps.gradle-build.conclusion == 'success' && !cancelled() }}
-        with:
-          check_name: "Node: Otter Tests Results"
-          json_thousands_separator: ","
-          junit_files: "**/consensus-otter-tests/build/test-results/testOtter/TEST-*.xml"
-          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
-
-      - name: Upload Otter Tests Report Artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ (inputs.enable-fast-otter-tests || inputs.enable-full-otter-tests) && steps.gradle-build.conclusion == 'success' && !cancelled() }}
-        with:
-          name: Otter Tests Report
-          path: "**/consensus-otter-tests/build/test-results/testOtter/TEST-*.xml"
-          retention-days: 7
-
-      - name: Upload Otter Tests Turtle Logs
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ (inputs.enable-fast-otter-tests || inputs.enable-full-otter-tests) && inputs.enable-network-log-capture && steps.gradle-otter-tests.conclusion == 'failure' && !cancelled() }}
-        with:
-          name: Otter Tests Turtle Logs
-          path: |
-            platform-sdk/consensus-otter-tests/build/turtle/**
-          retention-days: 7
-
-      - name: Upload Otter Tests Container Logs
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ (inputs.enable-fast-otter-tests || inputs.enable-full-otter-tests) && inputs.enable-network-log-capture && steps.gradle-otter-tests.conclusion == 'failure' && !cancelled() }}
-        with:
-          name: Otter Tests Container Logs
-          path: |
-            platform-sdk/consensus-otter-tests/build/container/**
-          retention-days: 7
-
       - name: Publish To Codecov
         if: ${{ inputs.enable-unit-tests && !cancelled() }}
         uses: codecov/codecov-action@5c47607acb93fed5485fdbf7232e8a31425f672a # v5.0.2
@@ -933,7 +872,6 @@ jobs:
             "${{ steps.gradle-hapi-iss.outcome || 'skipped' }}"
             "${{ steps.gradle-hapi-bn-communication.outcome || 'skipped' }}"
             "${{ steps.gradle-hapi-nd-reconnect.outcome || 'skipped' }}"
-            "${{ steps.gradle-otter-tests.outcome || 'skipped' }}"
           )
 
           failure_mode="none"
