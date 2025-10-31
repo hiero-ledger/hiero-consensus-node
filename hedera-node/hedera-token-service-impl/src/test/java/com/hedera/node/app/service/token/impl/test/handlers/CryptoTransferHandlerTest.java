@@ -20,7 +20,8 @@ import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.res
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.hiero.hapi.support.fees.FeeSchedule.DEFAULT;
+import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
+import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -36,6 +37,7 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.HookCall;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
@@ -81,6 +83,9 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.util.ArrayList;
 import java.util.List;
 import org.assertj.core.api.Assertions;
+import org.hiero.hapi.support.fees.FeeSchedule;
+import org.hiero.hapi.support.fees.NetworkFee;
+import org.hiero.hapi.support.fees.NodeFee;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -96,9 +101,11 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
     @Mock
     private StreamBuilder streamBuilder;
 
+    @Mock
+    private Configuration config;
+
     private static final TokenID TOKEN_1357 = asToken(1357);
     private static final TokenID TOKEN_9191 = asToken(9191);
-    private Configuration config;
 
     @Override
     @BeforeEach
@@ -819,6 +826,9 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
         final var feeCalculator = mock(FeeCalculator.class);
         final var entitiesConfig = mock(EntitiesConfig.class);
         final var hederaConfig = mock(HederaConfig.class);
+        final var readableTokenStore = mock(ReadableTokenStore.class);
+        final var readableAccountStore = mock(ReadableAccountStore.class);
+        final var readableTokenRelStore = mock(ReadableTokenRelationStore.class);
 
         given(feeContext.body()).willReturn(txBody);
         given(feeContext.numTxnSignatures()).willReturn(2);
@@ -828,11 +838,11 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
         given(feeContext.configuration()).willReturn(config);
         given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
         given(feeCalculatorFactory.feeCalculator(any())).willReturn(feeCalculator);
-        given(config.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
-        given(config.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
-        given(hederaConfig.shard()).willReturn(0L);
-        given(hederaConfig.realm()).willReturn(0L);
-        given(feeCalculator.getSimpleFeesSchedule()).willReturn(DEFAULT);
+        lenient().when(config.getConfigData(HederaConfig.class)).thenReturn(hederaConfig);
+        lenient().when(config.getConfigData(EntitiesConfig.class)).thenReturn(entitiesConfig);
+        lenient().when(hederaConfig.shard()).thenReturn(0L);
+        lenient().when(hederaConfig.realm()).thenReturn(0L);
+        given(feeCalculator.getSimpleFeesSchedule()).willReturn(createTestFeeSchedule());
 
         // when
         final var result = subject.calculateFeeResult(feeContext);
@@ -861,6 +871,9 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
         final var feeCalculator = mock(FeeCalculator.class);
         final var entitiesConfig = mock(EntitiesConfig.class);
         final var hederaConfig = mock(HederaConfig.class);
+        final var readableTokenStore = mock(ReadableTokenStore.class);
+        final var readableAccountStore = mock(ReadableAccountStore.class);
+        final var readableTokenRelStore = mock(ReadableTokenRelationStore.class);
 
         given(feeContext.body()).willReturn(txBody);
         given(feeContext.numTxnSignatures()).willReturn(1);
@@ -870,11 +883,11 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
         given(feeContext.configuration()).willReturn(config);
         given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
         given(feeCalculatorFactory.feeCalculator(any())).willReturn(feeCalculator);
-        given(config.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
-        given(config.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
-        given(hederaConfig.shard()).willReturn(0L);
-        given(hederaConfig.realm()).willReturn(0L);
-        given(feeCalculator.getSimpleFeesSchedule()).willReturn(DEFAULT);
+        lenient().when(config.getConfigData(HederaConfig.class)).thenReturn(hederaConfig);
+        lenient().when(config.getConfigData(EntitiesConfig.class)).thenReturn(entitiesConfig);
+        lenient().when(hederaConfig.shard()).thenReturn(0L);
+        lenient().when(hederaConfig.realm()).thenReturn(0L);
+        given(feeCalculator.getSimpleFeesSchedule()).willReturn(createTestFeeSchedule());
         given(readableTokenStore.get(fungibleTokenId)).willReturn(fungibleToken);
         given(readableAccountStore.getAliasedAccountById(ACCOUNT_ID_3333)).willReturn(account);
         given(readableAccountStore.getAliasedAccountById(ACCOUNT_ID_4444)).willReturn(account);
@@ -906,6 +919,9 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
         final var feeCalculator = mock(FeeCalculator.class);
         final var entitiesConfig = mock(EntitiesConfig.class);
         final var hederaConfig = mock(HederaConfig.class);
+        final var readableTokenStore = mock(ReadableTokenStore.class);
+        final var readableAccountStore = mock(ReadableAccountStore.class);
+        final var readableTokenRelStore = mock(ReadableTokenRelationStore.class);
 
         given(feeContext.body()).willReturn(txBody);
         given(feeContext.numTxnSignatures()).willReturn(1);
@@ -915,14 +931,18 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
         given(feeContext.configuration()).willReturn(config);
         given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
         given(feeCalculatorFactory.feeCalculator(any())).willReturn(feeCalculator);
-        given(config.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
-        given(config.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
-        given(hederaConfig.shard()).willReturn(0L);
-        given(hederaConfig.realm()).willReturn(0L);
-        given(feeCalculator.getSimpleFeesSchedule()).willReturn(DEFAULT);
+        lenient().when(config.getConfigData(HederaConfig.class)).thenReturn(hederaConfig);
+        lenient().when(config.getConfigData(EntitiesConfig.class)).thenReturn(entitiesConfig);
+        lenient().when(hederaConfig.shard()).thenReturn(0L);
+        lenient().when(hederaConfig.realm()).thenReturn(0L);
+        given(feeCalculator.getSimpleFeesSchedule()).willReturn(createTestFeeSchedule());
         given(readableTokenStore.get(nonFungibleTokenId)).willReturn(nonFungibleToken);
-        given(readableAccountStore.getAliasedAccountById(ACCOUNT_ID_3333)).willReturn(account);
-        given(readableAccountStore.getAliasedAccountById(ACCOUNT_ID_4444)).willReturn(account);
+        lenient()
+                .when(readableAccountStore.getAliasedAccountById(ACCOUNT_ID_3333))
+                .thenReturn(account);
+        lenient()
+                .when(readableAccountStore.getAliasedAccountById(ACCOUNT_ID_4444))
+                .thenReturn(account);
 
         // when
         final var result = subject.calculateFeeResult(feeContext);
@@ -958,6 +978,9 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
         final var feeCalculator = mock(FeeCalculator.class);
         final var entitiesConfig = mock(EntitiesConfig.class);
         final var hederaConfig = mock(HederaConfig.class);
+        final var readableTokenStore = mock(ReadableTokenStore.class);
+        final var readableAccountStore = mock(ReadableAccountStore.class);
+        final var readableTokenRelStore = mock(ReadableTokenRelationStore.class);
 
         given(feeContext.body()).willReturn(txBody);
         given(feeContext.numTxnSignatures()).willReturn(2);
@@ -967,11 +990,11 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
         given(feeContext.configuration()).willReturn(config);
         given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
         given(feeCalculatorFactory.feeCalculator(any())).willReturn(feeCalculator);
-        given(config.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
-        given(config.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
-        given(hederaConfig.shard()).willReturn(0L);
-        given(hederaConfig.realm()).willReturn(0L);
-        given(feeCalculator.getSimpleFeesSchedule()).willReturn(DEFAULT);
+        lenient().when(config.getConfigData(HederaConfig.class)).thenReturn(hederaConfig);
+        lenient().when(config.getConfigData(EntitiesConfig.class)).thenReturn(entitiesConfig);
+        lenient().when(hederaConfig.shard()).thenReturn(0L);
+        lenient().when(hederaConfig.realm()).thenReturn(0L);
+        given(feeCalculator.getSimpleFeesSchedule()).willReturn(createTestFeeSchedule());
         given(readableTokenStore.get(fungibleTokenId)).willReturn(fungibleToken);
         given(readableTokenStore.get(nonFungibleTokenId)).willReturn(nonFungibleToken);
         given(readableAccountStore.getAliasedAccountById(any())).willReturn(account);
@@ -997,6 +1020,9 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
         final var feeCalculator = mock(FeeCalculator.class);
         final var entitiesConfig = mock(EntitiesConfig.class);
         final var hederaConfig = mock(HederaConfig.class);
+        final var readableTokenStore = mock(ReadableTokenStore.class);
+        final var readableAccountStore = mock(ReadableAccountStore.class);
+        final var readableTokenRelStore = mock(ReadableTokenRelationStore.class);
 
         given(feeContext.body()).willReturn(txBody);
         given(feeContext.numTxnSignatures()).willReturn(1);
@@ -1006,16 +1032,25 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
         given(feeContext.configuration()).willReturn(config);
         given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
         given(feeCalculatorFactory.feeCalculator(any())).willReturn(feeCalculator);
-        given(config.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
-        given(config.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
-        given(hederaConfig.shard()).willReturn(0L);
-        given(hederaConfig.realm()).willReturn(0L);
-        given(feeCalculator.getSimpleFeesSchedule()).willReturn(DEFAULT);
+        lenient().when(config.getConfigData(HederaConfig.class)).thenReturn(hederaConfig);
+        lenient().when(config.getConfigData(EntitiesConfig.class)).thenReturn(entitiesConfig);
+        lenient().when(hederaConfig.shard()).thenReturn(0L);
+        lenient().when(hederaConfig.realm()).thenReturn(0L);
+        given(feeCalculator.getSimpleFeesSchedule()).willReturn(createTestFeeSchedule());
 
         // when
         final var result = subject.calculateFeeResult(feeContext);
 
         // then
         assertThat(result).isNotNull();
+    }
+
+    private static FeeSchedule createTestFeeSchedule() {
+        return FeeSchedule.DEFAULT
+                .copyBuilder()
+                .node(NodeFee.DEFAULT.copyBuilder().baseFee(0).build())
+                .network(NetworkFee.DEFAULT.copyBuilder().multiplier(1).build())
+                .services(makeService("Crypto", makeServiceFee(HederaFunctionality.CRYPTO_TRANSFER, 18)))
+                .build();
     }
 }

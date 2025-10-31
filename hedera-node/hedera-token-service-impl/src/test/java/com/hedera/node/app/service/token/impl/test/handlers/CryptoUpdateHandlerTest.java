@@ -20,6 +20,8 @@ import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatNoException;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
+import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
+import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
@@ -919,7 +921,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         given(feeContext.numTxnSignatures()).willReturn(2);
         given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
         given(feeCalculatorFactory.feeCalculator(any())).willReturn(feeCalculator);
-        given(feeCalculator.getSimpleFeesSchedule()).willReturn(org.hiero.hapi.support.fees.FeeSchedule.DEFAULT);
+        given(feeCalculator.getSimpleFeesSchedule()).willReturn(createTestFeeSchedule());
 
         // when
         final var result = subject.calculateFeeResult(feeContext);
@@ -948,7 +950,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         given(feeContext.numTxnSignatures()).willReturn(1);
         given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
         given(feeCalculatorFactory.feeCalculator(any())).willReturn(feeCalculator);
-        given(feeCalculator.getSimpleFeesSchedule()).willReturn(org.hiero.hapi.support.fees.FeeSchedule.DEFAULT);
+        given(feeCalculator.getSimpleFeesSchedule()).willReturn(createTestFeeSchedule());
 
         // when
         final var result = subject.calculateFeeResult(feeContext);
@@ -980,7 +982,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         given(feeContext.numTxnSignatures()).willReturn(5); // Multiple signatures
         given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
         given(feeCalculatorFactory.feeCalculator(any())).willReturn(feeCalculator);
-        given(feeCalculator.getSimpleFeesSchedule()).willReturn(org.hiero.hapi.support.fees.FeeSchedule.DEFAULT);
+        given(feeCalculator.getSimpleFeesSchedule()).willReturn(createTestFeeSchedule());
 
         // when
         final var result = subject.calculateFeeResult(feeContext);
@@ -1008,13 +1010,32 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         given(feeContext.numTxnSignatures()).willReturn(1);
         given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
         given(feeCalculatorFactory.feeCalculator(any())).willReturn(feeCalculator);
-        given(feeCalculator.getSimpleFeesSchedule()).willReturn(org.hiero.hapi.support.fees.FeeSchedule.DEFAULT);
+        given(feeCalculator.getSimpleFeesSchedule()).willReturn(createTestFeeSchedule());
 
         // when
         final var result = subject.calculateFeeResult(feeContext);
 
         // then
         assertNotNull(result);
+    }
+
+    /**
+     * Creates a minimal FeeSchedule with proper NodeFee, NetworkFee, and service fees for testing.
+     */
+    private static org.hiero.hapi.support.fees.FeeSchedule createTestFeeSchedule() {
+        return org.hiero.hapi.support.fees.FeeSchedule.DEFAULT
+                .copyBuilder()
+                .node(org.hiero.hapi.support.fees.NodeFee.DEFAULT
+                        .copyBuilder()
+                        .baseFee(0)
+                        .build())
+                .network(org.hiero.hapi.support.fees.NetworkFee.DEFAULT
+                        .copyBuilder()
+                        .multiplier(1)
+                        .build())
+                .services(makeService(
+                        "Crypto", makeServiceFee(com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_UPDATE, 22)))
+                .build();
     }
 
     /**
