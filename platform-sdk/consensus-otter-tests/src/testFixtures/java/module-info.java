@@ -38,6 +38,7 @@ module org.hiero.otter.fixtures {
     requires io.grpc.protobuf;
     requires java.net.http;
     requires org.antlr.antlr4.runtime;
+    requires org.apache.commons.lang3;
     requires org.junit.jupiter.params;
     requires org.junit.platform.commons;
     requires static com.github.spotbugs.annotations;

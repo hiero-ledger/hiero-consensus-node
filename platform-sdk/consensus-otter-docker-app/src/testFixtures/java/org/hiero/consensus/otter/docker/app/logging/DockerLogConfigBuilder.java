@@ -11,7 +11,6 @@ import static org.hiero.otter.fixtures.logging.internal.LogConfigHelper.createTh
 
 import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -50,7 +49,7 @@ public final class DockerLogConfigBuilder {
      * @param nodeId      the node ID for which this configuration is created, or {@code null} if not applicable
      * @throws NullPointerException if {@code baseDir} is {@code null}
      */
-    public static void configure(@NonNull final Path baseDir, @Nullable final NodeId nodeId) {
+    public static void configure(@NonNull final Path baseDir, @NonNull final NodeId nodeId) {
         requireNonNull(baseDir, "baseDir must not be null");
         final Path defaultLogDir = baseDir.resolve("output");
 
@@ -89,8 +88,7 @@ public final class DockerLogConfigBuilder {
         builder.add(consoleAppender);
 
         // In-memory appender for tests
-        builder.add(builder.newAppender("InMemory", "DockerInMemoryAppender")
-                .addAttribute("nodeId", nodeId == null ? -1L : nodeId.id()));
+        builder.add(builder.newAppender("InMemory", "DockerInMemoryAppender").addAttribute("nodeId", nodeId.id()));
 
         final RootLoggerComponentBuilder root = builder.newRootLogger(Level.ALL)
                 .add(builder.newAppenderRef("InMemory"))

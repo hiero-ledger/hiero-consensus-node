@@ -9,6 +9,17 @@ import java.time.Instant;
  * <p>
  * Triggered periodically when other actions aren't being processed.
  *
- * @param instant the instant when this action was triggered
+ * @param instant          the instant when this action was triggered
+ * @param quiescingStatus  the current quiescing status
  */
-public record TimeElapsedAction(@NonNull Instant instant) implements PlatformStatusAction {}
+public record TimeElapsedAction(@NonNull Instant instant, @NonNull QuiescingStatus quiescingStatus)
+        implements PlatformStatusAction {
+
+    /**
+     * Encapsulates the quiescing state information.
+     *
+     * @param isQuiescing whether the platform is currently quiescing
+     * @param since       the instant when the current quiescing state began
+     */
+    public record QuiescingStatus(boolean isQuiescing, @NonNull Instant since) {}
+}

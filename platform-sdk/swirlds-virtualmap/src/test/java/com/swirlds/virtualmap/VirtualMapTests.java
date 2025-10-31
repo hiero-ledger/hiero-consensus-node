@@ -1393,7 +1393,6 @@ class VirtualMapTests extends VirtualTestBase {
         final RecordAccessor snapshot = original.getPipeline().pausePipelineAndRun("snapshot", () -> {
             return original.detach();
         });
-        assertTrue(original.isDetached(), "root should be detached");
 
         original.release();
         copy.release();
@@ -1457,7 +1456,6 @@ class VirtualMapTests extends VirtualTestBase {
         original.getHash(); // forces copy to become hashed
 
         final RecordAccessor detachedCopy = original.getPipeline().pausePipelineAndRun("copy", original::detach);
-        assertTrue(original.isDetached(), "root should be detached");
         assertNotNull(detachedCopy);
 
         VirtualMapMetadata originalMetadata = original.getMetadata();

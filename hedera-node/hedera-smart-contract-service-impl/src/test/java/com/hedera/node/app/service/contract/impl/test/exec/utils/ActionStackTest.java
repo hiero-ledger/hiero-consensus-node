@@ -8,6 +8,7 @@ import static com.hedera.hapi.streams.ContractActionType.CREATE;
 import static com.hedera.hapi.streams.ContractActionType.PRECOMPILE;
 import static com.hedera.hapi.streams.ContractActionType.SYSTEM;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.INVALID_ADDRESS_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_EOA_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALL_ACTION;
@@ -52,6 +53,7 @@ import com.hedera.hapi.streams.ContractActionType;
 import com.hedera.node.app.service.contract.impl.exec.utils.ActionStack;
 import com.hedera.node.app.service.contract.impl.exec.utils.ActionWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.ActionsHelper;
+import com.hedera.node.app.service.contract.impl.exec.utils.InvalidAddressContext;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
@@ -65,6 +67,7 @@ import java.util.Optional;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogBuilder;
 import org.apache.logging.log4j.Logger;
+import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.account.Account;
 import org.hyperledger.besu.evm.code.CodeV0;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -311,7 +314,12 @@ class ActionStackTest {
         actionsStack.push(wrappedAction);
         given(parentFrame.getType()).willReturn(MessageFrame.Type.MESSAGE_CALL);
         given(parentFrame.getExceptionalHaltReason()).willReturn(Optional.of(INVALID_SOLIDITY_ADDRESS));
-        given(helper.createSynthActionForMissingAddressIn(parentFrame)).willReturn(MISSING_ADDRESS_CALL_ACTION);
+        final var invalidAddressContext = new InvalidAddressContext();
+        invalidAddressContext.set(Address.ZERO, InvalidAddressContext.InvalidAddressType.InvalidCallTarget);
+        given(parentFrame.getMessageFrameStack()).willReturn(new ArrayDeque<>());
+        given(parentFrame.getContextVariable(INVALID_ADDRESS_CONTEXT_VARIABLE)).willReturn(invalidAddressContext);
+        given(helper.createSynthActionForMissingAddressIn(parentFrame, Address.ZERO))
+                .willReturn(MISSING_ADDRESS_CALL_ACTION);
 
         subject.finalizeLastAction(parentFrame, ActionStack.Validation.OFF);
 

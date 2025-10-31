@@ -26,12 +26,12 @@ import com.hedera.hapi.node.transaction.FixedCustomFee;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
-import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessedFeeWithPayerDebits;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessmentResult;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.CustomFeeAssessor;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.CustomFixedFeeAssessor;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.CustomFractionalFeeAssessor;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.CustomRoyaltyFeeAssessor;
+import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.ItemizedAssessedFee;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.TokensConfig;
@@ -97,7 +97,7 @@ public class CustomFeeAssessmentStep {
         final var config = feeContext.configuration();
         final var result = assessFees(tokenStore, tokenRelStore, config, readableStore, AccountID::hasAlias);
         return result.assessedCustomFees().stream()
-                .map(AssessedFeeWithPayerDebits::assessedCustomFee)
+                .map(ItemizedAssessedFee::assessedCustomFee)
                 .toList();
     }
 
@@ -142,7 +142,7 @@ public class CustomFeeAssessmentStep {
             // when dispatching crypto transfer for charging custom fees,
             // we still need to set the transfer as assessed
             customFeeAssessor.setTransactionFeesAsAssessed(payer, transactionFixedFee, assessmentResult);
-            result.assessedCustomFees.addAll(assessmentResult.getAssessedFeesWithPayerDebits());
+            result.assessedCustomFees.addAll(assessmentResult.getItemizedAssessedFees());
         }
 
         result.assessedCustomFees().forEach(transferContext::addToAssessedCustomFee);
@@ -175,7 +175,7 @@ public class CustomFeeAssessmentStep {
         final var maxCustomFeeDepth = tokensConfig.maxCustomFeeDepth();
 
         // list of total assessed custom fees to be added to the record
-        final List<AssessedFeeWithPayerDebits> customFeesAssessed = new ArrayList<>();
+        final List<ItemizedAssessedFee> customFeesAssessed = new ArrayList<>();
         // the transaction to be assessed
         var txnToAssess = op;
         // list of assessed transactions, to be fed into further steps
@@ -191,10 +191,10 @@ public class CustomFeeAssessmentStep {
             final var result = assessCustomFeesFrom(
                     hbarTransfers, tokenTransfers, tokenStore, tokenRelStore, accountStore, autoCreationTest);
             // when there are adjustments made to given transaction, need to re-build the transaction
-            if (!result.getAssessedFeesWithPayerDebits().isEmpty()) {
+            if (!result.getItemizedAssessedFees().isEmpty()) {
                 final var modifiedInputBody = changedInputTxn(txnToAssess, result);
                 assessedTxns.add(modifiedInputBody);
-                customFeesAssessed.addAll(result.getAssessedFeesWithPayerDebits());
+                customFeesAssessed.addAll(result.getItemizedAssessedFees());
                 // build body from assessed custom fees to be fed to next level of assessment
                 txnToAssess = buildBodyFromAdjustments(result);
             } else {
@@ -254,7 +254,7 @@ public class CustomFeeAssessmentStep {
      */
     public record CustomFeeAssessmentResult(
             @NonNull List<CryptoTransferTransactionBody> assessedTxns,
-            @NonNull List<AssessedFeeWithPayerDebits> assessedCustomFees) {}
+            @NonNull List<ItemizedAssessedFee> assessedCustomFees) {}
 
     private CryptoTransferTransactionBody changedInputTxn(
             final CryptoTransferTransactionBody op, final AssessmentResult result) {

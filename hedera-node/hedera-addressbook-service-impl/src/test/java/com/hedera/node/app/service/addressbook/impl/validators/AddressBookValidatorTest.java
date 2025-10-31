@@ -115,6 +115,7 @@ class AddressBookValidatorTest {
 
     private NodesConfig newNodesConfig(final int maxFqdnSize) {
         return new TestConfigBuilder()
+                .withConfigDataType(NodesConfig.class)
                 .withValue("nodes.maxFqdnSize", maxFqdnSize)
                 .getOrCreateConfig()
                 .getConfigData(NodesConfig.class);

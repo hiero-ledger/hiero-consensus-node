@@ -15,7 +15,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure;
 import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.config.api.Configuration;
@@ -37,7 +37,8 @@ public class FrameUtils {
     public static final String SYSTEM_CONTRACT_GAS_CALCULATOR_CONTEXT_VARIABLE = "systemContractGasCalculator";
     public static final String PENDING_CREATION_BUILDER_CONTEXT_VARIABLE = "pendingCreationBuilder";
     public static final String OPS_DURATION_COUNTER = "opsDurationCounter";
-    public static final String IS_HOOK_VARIABLE = "hook";
+    public static final String INVALID_ADDRESS_CONTEXT_VARIABLE = "invalidAddressContext";
+    public static final String HOOK_OWNER_ADDRESS = "hookOwnerAddress";
 
     public enum EntityType {
         TOKEN,
@@ -259,14 +260,13 @@ public class FrameUtils {
         if (!isDelegateCall(frame)) {
             return CallType.DIRECT_OR_PROXY_REDIRECT;
         }
-        final var recipient = frame.getRecipientAddress();
         // Evaluate whether the recipient is either a token or on the permitted callers list.
         // This determines if we should treat this as a delegate call.
         // We accept delegates if the entity redirect contract calls us.
         final CallType viableType;
-        if (isExpectedEntityType(frame, recipient, expectedEntityType)) {
+        if (isExpectedEntityType(frame, expectedEntityType)) {
             viableType = CallType.DIRECT_OR_PROXY_REDIRECT;
-        } else if (isQualifiedDelegate(recipient, frame)) {
+        } else if (isQualifiedDelegate(frame.getRecipientAddress(), frame)) {
             viableType = CallType.QUALIFIED_DELEGATE;
         } else {
             return CallType.UNQUALIFIED_DELEGATE;
@@ -323,17 +323,14 @@ public class FrameUtils {
     /**
      * Returns true if the given recipient address to the frame is of the expected entity type.
      * @param frame current message frame
-     * @param address address to check
      * @param expectedEntity expected entity type
      * @return true if the address is of the expected entity type
      */
-    private static boolean isExpectedEntityType(
-            final MessageFrame frame, final Address address, final EntityType expectedEntity) {
+    private static boolean isExpectedEntityType(final MessageFrame frame, final EntityType expectedEntity) {
         requireNonNull(frame);
-        requireNonNull(address);
-
+        final var recipientAddress = frame.getRecipientAddress();
         final var updater = (ProxyWorldUpdater) frame.getWorldUpdater();
-        final var recipient = updater.getHederaAccount(address);
+        final var recipient = updater.getHederaAccount(recipientAddress);
         if (recipient != null) {
             return switch (expectedEntity) {
                 case TOKEN -> recipient.isTokenFacade();
@@ -377,7 +374,27 @@ public class FrameUtils {
      * @return true if the frame is part of a hook execution
      */
     public static boolean isHookExecution(@NonNull final MessageFrame frame) {
-        return Boolean.TRUE.equals(initialFrameOf(frame).getContextVariable(IS_HOOK_VARIABLE));
+        return initialFrameOf(frame).getContextVariable(HOOK_OWNER_ADDRESS) != null;
+    }
+
+    /**
+     * Returns the owner address of the hook being executed in the given frame,
+     * or null if the frame is not part of a hook execution.
+     *
+     * @param frame the current frame
+     * @return the owner address
+     */
+    public static Address hookOwnerAddress(@NonNull final MessageFrame frame) {
+        return initialFrameOf(frame).getContextVariable(HOOK_OWNER_ADDRESS);
+    }
+
+    /**
+     * Returns the {@link InvalidAddressContext} associated with the initial parent frame of the given frame.
+     * @param frame the frame of interest
+     * @return InvalidAddressContext
+     */
+    public static InvalidAddressContext invalidAddressContext(@NonNull final MessageFrame frame) {
+        return initialFrameOf(frame).getContextVariable(INVALID_ADDRESS_CONTEXT_VARIABLE);
     }
 
     /**

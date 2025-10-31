@@ -220,6 +220,7 @@ public class TestHelpers {
     public static final Address PRNG_SYSTEM_CONTRACT_ADDRESS = Address.fromHexString("0x169");
     public static final Address NON_SYSTEM_LONG_ZERO_ADDRESS = Address.fromHexString("0x1234576890");
     public static final Address NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS = Address.fromHexString("0x1234");
+    public static final Address HTS_HOOKS_CONTRACT_ADDRESS = Address.fromHexString("0x16D");
     public static final FileID INITCODE_FILE_ID =
             FileID.newBuilder().fileNum(6789L).build();
     public static final FileID ETH_CALLDATA_FILE_ID =

@@ -5,12 +5,15 @@ import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExcep
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.CONTRACT_STILL_OWNS_NFTS;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.operations.CustomizedOpcodes.SELFDESTRUCT;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.isDelegateCall;
 import static java.util.Objects.requireNonNull;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_GAS;
 
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
+import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
+import com.hedera.node.app.service.contract.impl.exec.utils.InvalidAddressContext;
 import com.hedera.node.app.service.contract.impl.state.AbstractProxyEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.ScheduleEvmAccount;
@@ -102,6 +105,10 @@ public class CustomSelfDestructOperation extends AbstractOperation {
             // * Otherwise, if the beneficiary account is _not_ the contract itself then we fail the
             //   SELFDESTRUCT if the contract owns any tokens.
 
+            if (frame.getRecipientAddress().equals(HTS_HOOKS_CONTRACT_ADDRESS)) {
+                // Self destruct operations originating from a hook execution are not allowed
+                return new OperationResult(0, ExceptionalHaltReason.INVALID_OPERATION);
+            }
             final boolean contractCreatedInThisTransaction = frame.wasCreatedInTransaction(tbdAddress);
             final boolean contractIsItsOwnBeneficiary = tbdAddress.equals(beneficiaryAddress);
             final boolean contractIsToBeDeleted =
@@ -188,7 +195,11 @@ public class CustomSelfDestructOperation extends AbstractOperation {
                         beneficiaryAccount instanceof ScheduleEvmAccount)
                 .filter(Boolean.TRUE::equals)
                 .findFirst()
-                .flatMap(op -> Optional.of(INVALID_SOLIDITY_ADDRESS));
+                .flatMap(op -> {
+                    FrameUtils.invalidAddressContext(frame)
+                            .set(beneficiary, InvalidAddressContext.InvalidAddressType.NonCallTarget);
+                    return Optional.of(INVALID_SOLIDITY_ADDRESS);
+                });
     }
 
     protected @NonNull Optional<ExceptionalHaltReason> validateHederaRestrictionsOnContract(

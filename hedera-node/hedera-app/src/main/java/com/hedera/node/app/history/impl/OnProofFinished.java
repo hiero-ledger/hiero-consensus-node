@@ -16,5 +16,5 @@ public interface OnProofFinished {
      * @param historyStore the history store
      * @param construction the history proof construction
      */
-    void accept(@NonNull WritableHistoryStore historyStore, @NonNull HistoryProofConstruction construction);
+    void onFinished(@NonNull WritableHistoryStore historyStore, @NonNull HistoryProofConstruction construction);
 }

@@ -48,6 +48,7 @@ public class HapiNodeUpdate extends HapiTxnOp<HapiNodeUpdate> {
 
     private final String nodeName;
     private Optional<String> newAccountId = Optional.empty();
+    private Optional<AccountID> fullNewAccountId = Optional.empty();
 
     private Optional<AccountID> newAccountAlias = Optional.empty();
     private Optional<String> newDescription = Optional.empty();
@@ -72,6 +73,11 @@ public class HapiNodeUpdate extends HapiTxnOp<HapiNodeUpdate> {
 
     public HapiNodeUpdate accountId(@NonNull final String accountId) {
         this.newAccountId = Optional.of(accountId);
+        return this;
+    }
+
+    public HapiNodeUpdate fullAccountId(@NonNull final AccountID accountId) {
+        this.fullNewAccountId = Optional.of(accountId);
         return this;
     }
 
@@ -179,11 +185,15 @@ public class HapiNodeUpdate extends HapiTxnOp<HapiNodeUpdate> {
                 .<NodeUpdateTransactionBody, NodeUpdateTransactionBody.Builder>body(
                         NodeUpdateTransactionBody.class, builder -> {
                             builder.setNodeId(asPosNodeId(nodeName, spec));
-                            newAccountId.ifPresent(id -> setNewAccountId(id, spec, builder));
+                            if (fullNewAccountId.isPresent()) {
+                                builder.setAccountId(fullNewAccountId.get());
+                            } else {
+                                newAccountId.ifPresent(id -> setNewAccountId(id, spec, builder));
+                            }
                             newAccountAlias.ifPresent(builder::setAccountId);
                             newDescription.ifPresent(s -> builder.setDescription(StringValue.of(s)));
                             newAdminKey.ifPresent(builder::setAdminKey);
-                            builder.setDeclineReward(BoolValue.of(declineReward.orElse(false)));
+                            declineReward.ifPresent(dr -> builder.setDeclineReward(BoolValue.of(dr)));
                             builder.addAllGossipEndpoint(newGossipEndpoints.stream()
                                     .map(CommonPbjConverters::fromPbj)
                                     .toList());

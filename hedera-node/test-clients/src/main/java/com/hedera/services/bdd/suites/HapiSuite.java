@@ -138,6 +138,8 @@ public abstract class HapiSuite {
     public static final String EXCHANGE_RATES =
             HapiSpecSetup.getDefaultInstance().exchangeRatesName();
     public static final String FEE_SCHEDULE = HapiSpecSetup.getDefaultInstance().feeScheduleName();
+    public static final String SIMPLE_FEE_SCHEDULE =
+            HapiSpecSetup.getDefaultInstance().simpleFeesScheduleName();
     public static final String APP_PROPERTIES =
             HapiSpecSetup.getDefaultInstance().appPropertiesFile();
     public static final String API_PERMISSIONS =

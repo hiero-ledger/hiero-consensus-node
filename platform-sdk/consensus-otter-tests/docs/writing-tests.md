@@ -170,6 +170,36 @@ When running the Gradle `test` task, the framework automatically selects the fas
 required capabilities. This will be evaluated for each test method individually, allowing you to run tests in different
 environments based on their requirements.
 
+### Parameterized Tests
+
+The `@OtterTest` annotation supports parameterized tests using JUnit 5's `@ParameterizedTest` feature. You can use
+`@ValueSource`, `@EnumSource`, or any other JUnit 5 source to run the same test logic with different parameters.
+
+> **Please note:** The `TestEnvironment` parameter must always be the last parameter in the method signature. This is a JUnit 5 limitation.
+
+```java
+@OtterTest
+@ParameterizedTest
+@MethodSource("provideWeightDistributions")
+void testWithDifferentWeightDistributions(@NonNull final List<Long> weightDistribution, @NonNull final TestEnvironment env) {
+    final Network network = env.network();
+    weightDistribution.forEach(weight -> network.addNode().weight(weight));
+    network.start();
+
+    env.timeManager().waitFor(Duration.ofSeconds(5));
+
+    assertThat(network.newLogResults()).haveNoErrorLevelMessages();
+}
+
+private static Stream<Arguments> provideWeightDistributions() {
+    return Stream.of(
+            Arguments.of(List.of(1L, 1L, 1L, 1L)), // 4 nodes, equal weights
+            Arguments.of(List.of(5L, 5L, 5L, 15L)), // 4 nodes, one dominant weight
+            Arguments.of(List.of(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L)) // 9 nodes, increasing weights
+    );
+}
+```
+
 ## Node Configuration
 
 Individual nodes can be configured while the network is not running to customize their behavior for specific test

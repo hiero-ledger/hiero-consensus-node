@@ -446,6 +446,11 @@ public class FakePreHandleContext implements PreHandleContext {
     }
 
     @Override
+    public Key getAccountKey(@NonNull final AccountID accountID) {
+        return requireNonNull(accountStore.getAccountById(accountID)).keyOrThrow();
+    }
+
+    @Override
     public NodeInfo creatorInfo() {
         return FakeNetworkInfo.FAKE_NODE_INFOS.getFirst();
     }

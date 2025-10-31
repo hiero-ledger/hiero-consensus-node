@@ -6,8 +6,10 @@ import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Set;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
+import org.hiero.otter.fixtures.internal.helpers.Utils;
 import org.hiero.otter.fixtures.result.MarkerFileSubscriber;
 import org.hiero.otter.fixtures.result.MarkerFilesStatus;
 import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
@@ -73,29 +75,29 @@ public class SingleNodeMarkerFileResultContinuousAssert
     }
 
     /**
-     * Verifies that the node does not write a no-super-majority marker file.
+     * Verifies that the node does not write a missing-super-majority marker file.
      *
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeMarkerFileResultContinuousAssert hasNoNoSuperMajorityMarkerFile() {
+    public SingleNodeMarkerFileResultContinuousAssert hasNoMissingSuperMajorityMarkerFile() {
         return checkContinuously(markerFilesStatus -> {
-            if (markerFilesStatus.hasNoSuperMajorityMarkerFile()) {
-                failWithMessage("Expected no no-super-majority marker file, but one was written");
+            if (markerFilesStatus.hasMissingSuperMajorityMarkerFile()) {
+                failWithMessage("Expected no missing-super-majority marker file, but one was written");
             }
         });
     }
 
     /**
-     * Verifies that the node does not write a no-judges marker file.
+     * Verifies that the node does not write a missing-judges marker file.
      *
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeMarkerFileResultContinuousAssert hasNoNoJudgesMarkerFile() {
+    public SingleNodeMarkerFileResultContinuousAssert hasNoMissingJudgesMarkerFile() {
         return checkContinuously(markerFilesStatus -> {
-            if (markerFilesStatus.hasNoJudgesMarkerFile()) {
-                failWithMessage("Expected no no-judges marker file, but one was written");
+            if (markerFilesStatus.hasMissingJudgesMarkerFile()) {
+                failWithMessage("Expected no missing-judges marker file, but one was written");
             }
         });
     }
@@ -120,9 +122,9 @@ public class SingleNodeMarkerFileResultContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeMarkerFileResultContinuousAssert hasNoISSMarkerFile() {
+    public SingleNodeMarkerFileResultContinuousAssert hasNoIssMarkerFile() {
         return checkContinuously(markerFilesStatus -> {
-            if (markerFilesStatus.hasAnyISSMarkerFile()) {
+            if (markerFilesStatus.hasAnyIssMarkerFile()) {
                 failWithMessage("Expected no ISS marker file, but found: %s", markerFilesStatus);
             }
         });
@@ -135,10 +137,47 @@ public class SingleNodeMarkerFileResultContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeMarkerFileResultContinuousAssert hasNoISSMarkerFileOfType(@NonNull final IssType issType) {
+    public SingleNodeMarkerFileResultContinuousAssert hasNoIssMarkerFileOfType(@NonNull final IssType issType) {
         return checkContinuously(markerFilesStatus -> {
-            if (markerFilesStatus.hasISSMarkerFileOfType(issType)) {
+            if (markerFilesStatus.hasIssMarkerFileOfType(issType)) {
                 failWithMessage("Expected no ISS marker file of type %s, but one was written", issType);
+            }
+        });
+    }
+
+    /**
+     * Verifies that the node does not write any marker files except for the specified ISS type.
+     *
+     * @param first  the first mandatory type of ISS marker file that is allowed
+     * @param rest the other optional types of ISS marker files that are allowed
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public SingleNodeMarkerFileResultContinuousAssert hasNoMarkerFilesExcept(
+            @NonNull final IssType first, @Nullable final IssType... rest) {
+        final Set<IssType> issTypes = Utils.collect(first, rest);
+        return checkContinuously(markerFilesStatus -> {
+            if (markerFilesStatus.hasCoinRoundMarkerFile()) {
+                failWithMessage("Expected no coin round marker file, but one was written");
+            }
+            if (markerFilesStatus.hasMissingSuperMajorityMarkerFile()) {
+                failWithMessage("Expected no missing-super-majority marker file, but one was written");
+            }
+            if (markerFilesStatus.hasMissingJudgesMarkerFile()) {
+                failWithMessage("Expected no missing-judges marker file, but one was written");
+            }
+            if (markerFilesStatus.hasConsensusExceptionMarkerFile()) {
+                failWithMessage("Expected no consensus exception marker file, but one was written");
+            }
+            if (!issTypes.contains(IssType.OTHER_ISS) && markerFilesStatus.hasIssMarkerFileOfType(IssType.OTHER_ISS)) {
+                failWithMessage("Expected no ISS marker file of type OTHER_ISS, but one was written");
+            }
+            if (!issTypes.contains(IssType.SELF_ISS) && markerFilesStatus.hasIssMarkerFileOfType(IssType.SELF_ISS)) {
+                failWithMessage("Expected no ISS marker file of type SELF_ISS, but one was written");
+            }
+            if (!issTypes.contains(IssType.CATASTROPHIC_ISS)
+                    && markerFilesStatus.hasIssMarkerFileOfType(IssType.CATASTROPHIC_ISS)) {
+                failWithMessage("Expected no ISS marker file of type CATASTROPHIC_ISS, but one was written");
             }
         });
     }

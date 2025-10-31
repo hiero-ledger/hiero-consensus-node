@@ -50,17 +50,7 @@ public class LapsingBlockHashSigner implements BlockHashSigner {
     }
 
     @Override
-    public long schemeId() {
-        return delegate.schemeId();
-    }
-
-    @Override
-    public Bytes verificationKey() {
-        return delegate.verificationKey();
-    }
-
-    @Override
-    public CompletableFuture<Bytes> signFuture(@NonNull final Bytes blockHash) {
-        return ignoreRequests ? new CompletableFuture<>() : delegate.signFuture(blockHash);
+    public Attempt sign(@NonNull final Bytes blockHash) {
+        return ignoreRequests ? new Attempt(null, null, new CompletableFuture<>()) : delegate.sign(blockHash);
     }
 }

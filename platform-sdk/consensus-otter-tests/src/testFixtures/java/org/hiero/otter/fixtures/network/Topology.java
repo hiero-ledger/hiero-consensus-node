@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.network;
 
+import static org.hiero.otter.fixtures.network.utils.BandwidthLimit.UNLIMITED_BANDWIDTH;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
@@ -20,7 +22,7 @@ public interface Topology {
 
     /** Default connection data for a disconnected state. */
     ConnectionData DISCONNECTED =
-            new ConnectionData(false, Duration.ZERO, Percentage.withPercentage(0), BandwidthLimit.UNLIMITED);
+            new ConnectionData(false, Duration.ZERO, Percentage.withPercentage(0), UNLIMITED_BANDWIDTH);
 
     /**
      * Adds a single node to the topology.

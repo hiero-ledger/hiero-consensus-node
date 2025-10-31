@@ -1,0 +1,15 @@
+ROUND:                               32
+HASH:                                e5fafb3bfec5c127d51dd6f7d37c3a73cf56e7aa13d23ddfd36dfa217f25c70c2facdab71e5ed5bfd54062435cc79ec6
+HASH_MNEMONIC:                       dolphin-obvious-cherry-swamp
+NUMBER_OF_CONSENSUS_EVENTS:          1739
+CONSENSUS_TIMESTAMP:                 2007-08-04T06:49:25.077050Z
+LEGACY_RUNNING_EVENT_HASH:           ef37ac36246ce0801a83fd0091945dca5eb05ec5b678554b34b2b1318b04861e206b0fd12b41ce43668a862852cf9186
+LEGACY_RUNNING_EVENT_HASH_MNEMONIC:  bomb-junk-mirror-useless
+MINIMUM_BIRTH_ROUND_NON_ANCIENT:     5
+SOFTWARE_VERSION:                    SemanticVersion[major=0, minor=68, patch=0, pre=, build=]
+WALL_CLOCK_TIME:                     2025-10-20T14:47:09.477833Z
+NODE_ID:                             0
+SIGNING_NODES:                       
+SIGNING_WEIGHT_SUM:                  0
+TOTAL_WEIGHT:                        49999923035
+FREEZE_STATE:                        true

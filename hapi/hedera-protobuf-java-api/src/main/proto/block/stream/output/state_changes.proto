@@ -474,6 +474,11 @@ enum StateIdentifier {
     STATE_ID_LAMBDA_STORAGE = 52;
 
     /**
+     * A state identifier fro account to node relation.
+     */
+    STATE_ID_ACCOUNT_NODE_REL = 53;
+
+    /**
      * A state identifier for the round receipts queue. Queue state.
      */
     STATE_ID_TRANSACTION_RECEIPTS = 126;
@@ -1074,6 +1079,11 @@ message MapChangeValue {
          * An EVM hook's state.
          */
         com.hedera.hapi.node.state.hooks.EvmHookState evm_hook_state_value = 29;
+
+        /**
+         * A node identifier.
+         */
+        com.hedera.hapi.platform.state.NodeId node_id_value = 30;
     }
 }
 

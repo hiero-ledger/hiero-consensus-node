@@ -43,7 +43,6 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalInt;
-import java.util.OptionalLong;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -489,7 +488,7 @@ class HintsControllerImplTest {
                 CompletableFuture.completedFuture(new HintsControllerImpl.CRSValidation(INITIAL_CRS, 1)));
         subject.advanceCrsWork(CONSENSUS_NOW, store, true);
 
-        verify(store).moveToNextNode(OptionalLong.of(2L), CONSENSUS_NOW.plus(Duration.ofSeconds(10)));
+        verify(store).moveToNextNode(2L, CONSENSUS_NOW.plus(Duration.ofSeconds(10)));
     }
 
     @Test

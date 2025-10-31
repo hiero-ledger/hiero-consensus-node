@@ -73,10 +73,6 @@ issTestingTool.plannedLogErrors,          30:0
 
 Check `swirlds.log` and ensure there are no unexpected exceptions or errors.
 
-Validate that the ISSTestingTool has been started by checking the following message:
-
-        -INFO  STARTUP <main> ISSTestingToolMain: ISSTestingToolState is registered with ConstructableRegistry
-
 Check that the planned ISSs has been provoked by checking for a log message like this:
 
         -INFO  STARTUP <<scheduler TransactionHandler>> ISSTestingToolState: ISS intentionally provoked. This ISS was planned to occur at time after genesis PT20S, and actually occurred at time after genesis PT20.259604S in round 63. This node (2) is in partition 1 and will agree with the hashes of all other nodes in partition 1. Nodes in other partitions are expected to have divergent hashes.
@@ -108,10 +104,6 @@ issTestingTool.plannedLogErrors,          30:0
 #### Validation
 
 Check `swirlds.log` and ensure there are no unexpected exceptions or errors.
-
-Validate that the ISSTestingTool has been started by checking the following message:
-
-        -INFO  STARTUP <main> ISSTestingToolMain: ISSTestingToolState is registered with ConstructableRegistry
 
 Check that the planned ISSs has been provoked by checking for a log message like this:
 

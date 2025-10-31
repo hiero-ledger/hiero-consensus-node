@@ -2,6 +2,8 @@
 package com.swirlds.platform.system;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.swirlds.base.time.Time;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.state.MerkleNodeState;
@@ -72,9 +74,11 @@ public interface SwirldMain<T extends MerkleNodeState> extends Runnable, Executi
     /**
      * A function to instantiate the state root object from a Virtual Map.
      *
+     * @param metrics the platform metric instance to use when creating the new state root
+     * @param time    the time instance to use when creating the new state root
      * @return a function that accepts a {@code VirtualMap} and returns the state root object.
      */
-    Function<VirtualMap, T> stateRootFromVirtualMap();
+    Function<VirtualMap, T> stateRootFromVirtualMap(@NonNull final Metrics metrics, @NonNull final Time time);
 
     /**
      * Instantiate and return a new instance of the consensus state event handler for this SwirldMain object.

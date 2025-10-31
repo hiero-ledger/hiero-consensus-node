@@ -9,7 +9,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
-import com.hedera.services.bdd.junit.support.BlockStreamAccess;
+import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
 import edu.umd.cs.findbugs.annotations.NonNull;

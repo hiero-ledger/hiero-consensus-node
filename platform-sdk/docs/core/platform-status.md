@@ -43,10 +43,15 @@ The platform doesn't accept app transaction in this phase, since there should be
 accepted app transactions will successfully be able to reach consensus. The best way to gain this confidence is simply
 to wait until self events start reaching consensus.
 
+The platform will immediately transition to `ACTIVE` from `CHECKING` in case of being instructed to quiesce.
+
 ### ACTIVE
 
-While in the `ACTIVE` status, the platform is creating events and accepting app transactions. The platform keeps track
-of the last time a self event reached consensus, and will transition back to `CHECKING` if too much time has passed.
+While in the `ACTIVE` status, the platform is creating events and accepting app transactions (unless some conditions
+prevents the creation of events like peers reporting being behind, an unhealthy state or quiesce).
+The platform will remain in `ACTIVE` status while being instructed to quiesce.
+Once instructed to stop quiescing, it will transition back to `CHECKING` if a grace period since the stop quiescing
+instruction elapsed and enough time has passed since a self event last reaching consensus.
 
 ### BEHIND
 
@@ -62,7 +67,7 @@ After completing a reconnect, the platform will resume gossiping, but won't crea
 determines that it is still behind the rest of the network, it will transition back to `BEHIND`. Otherwise, it will
 remain in `RECONNECT_COMPLETE` until the state received during the reconnect has been saved to disk.
 
-The reconnect state must be saved to disk for the node to be able to replay events from the preconsensus event stream 
+The reconnect state must be saved to disk for the node to be able to replay events from the preconsensus event stream
 with a valid starting point. Refraining from creating events prior to saving the reconnect state ensures that any node
 creating events has a valid state to replay from, and that the network can't get itself into a situation where no node
 has this ability.

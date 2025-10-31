@@ -292,7 +292,6 @@ class BlockStreamManagerImplTest {
         assertFalse(subject.hasLedgerId());
 
         given(blockHashSigner.isReady()).willReturn(true);
-        given(blockHashSigner.schemeId()).willReturn(1L);
         // Start the round that will be block N
         subject.startRound(round, state);
         assertTrue(subject.hasLedgerId());
@@ -315,7 +314,7 @@ class BlockStreamManagerImplTest {
         subject.writeItem(FAKE_RECORD_FILE_ITEM);
 
         // Immediately resolve to the expected ledger signature
-        given(blockHashSigner.signFuture(any())).willReturn(mockSigningFuture);
+        given(blockHashSigner.sign(any())).willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
@@ -403,7 +402,7 @@ class BlockStreamManagerImplTest {
         subject.endRound(state, ROUND_NO);
 
         // Verify signer was checked but never asked to sign
-        verify(blockHashSigner, never()).signFuture(any());
+        verify(blockHashSigner, never()).sign(any());
     }
 
     @Test
@@ -425,7 +424,6 @@ class BlockStreamManagerImplTest {
         assertFalse(subject.hasLedgerId());
 
         given(blockHashSigner.isReady()).willReturn(true);
-        given(blockHashSigner.schemeId()).willReturn(1L);
         // Start the round that will be block N
         subject.startRound(round, state);
         assertTrue(subject.hasLedgerId());
@@ -448,7 +446,8 @@ class BlockStreamManagerImplTest {
         subject.writeItem(FAKE_RECORD_FILE_ITEM);
 
         // Immediately resolve to the expected ledger signature
-        given(blockHashSigner.signFuture(any())).willReturn(completedFuture(FIRST_FAKE_SIGNATURE));
+        given(blockHashSigner.sign(any()))
+                .willReturn(new BlockHashSigner.Attempt(null, null, completedFuture(FIRST_FAKE_SIGNATURE)));
         // End the round
         subject.endRound(state, ROUND_NO);
 
@@ -524,7 +523,6 @@ class BlockStreamManagerImplTest {
         subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
 
         given(blockHashSigner.isReady()).willReturn(true);
-        given(blockHashSigner.schemeId()).willReturn(1L);
         // Start the round that will be block N
         subject.startRound(round, state);
 
@@ -544,7 +542,7 @@ class BlockStreamManagerImplTest {
         }
 
         // Immediately resolve to the expected ledger signature
-        given(blockHashSigner.signFuture(any())).willReturn(mockSigningFuture);
+        given(blockHashSigner.sign(any())).willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
@@ -599,7 +597,6 @@ class BlockStreamManagerImplTest {
     @SuppressWarnings("unchecked")
     void supportsMultiplePendingBlocksWithIndirectProofAsExpected() throws ParseException {
         given(blockHashSigner.isReady()).willReturn(true);
-        given(blockHashSigner.schemeId()).willReturn(1L);
         givenSubjectWith(
                 1,
                 0,
@@ -629,7 +626,9 @@ class BlockStreamManagerImplTest {
         subject.writeItem(FAKE_RECORD_FILE_ITEM);
         final CompletableFuture<Bytes> firstSignature = (CompletableFuture<Bytes>) mock(CompletableFuture.class);
         final CompletableFuture<Bytes> secondSignature = (CompletableFuture<Bytes>) mock(CompletableFuture.class);
-        given(blockHashSigner.signFuture(any())).willReturn(firstSignature).willReturn(secondSignature);
+        given(blockHashSigner.sign(any()))
+                .willReturn(new BlockHashSigner.Attempt(null, null, firstSignature))
+                .willReturn(new BlockHashSigner.Attempt(null, null, secondSignature));
         // End the round in block N
         subject.endRound(state, ROUND_NO);
 
@@ -691,10 +690,9 @@ class BlockStreamManagerImplTest {
         givenEndOfRoundSetup();
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(blockHashSigner.isReady()).willReturn(true);
-        given(blockHashSigner.schemeId()).willReturn(1L);
 
         // Set up the signature future to complete immediately and run the callback synchronously
-        given(blockHashSigner.signFuture(any())).willReturn(mockSigningFuture);
+        given(blockHashSigner.sign(any())).willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
@@ -766,7 +764,6 @@ class BlockStreamManagerImplTest {
         givenEndOfRoundSetup();
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(blockHashSigner.isReady()).willReturn(true);
-        given(blockHashSigner.schemeId()).willReturn(1L);
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.getSingleton(PLATFORM_STATE_STATE_ID)).willReturn(platformStateReadableSingletonState);
         given(platformStateReadableSingletonState.get())
@@ -774,7 +771,7 @@ class BlockStreamManagerImplTest {
                         PlatformState.newBuilder().latestFreezeRound(ROUND_NO).build());
 
         // Set up the signature future to complete immediately and run the callback synchronously
-        given(blockHashSigner.signFuture(any())).willReturn(mockSigningFuture);
+        given(blockHashSigner.sign(any())).willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
@@ -811,7 +808,7 @@ class BlockStreamManagerImplTest {
         given(blockHashSigner.isReady()).willReturn(true);
 
         // Set up the signature future to complete immediately and run the callback synchronously
-        given(blockHashSigner.signFuture(any())).willReturn(mockSigningFuture);
+        given(blockHashSigner.sign(any())).willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
@@ -885,7 +882,7 @@ class BlockStreamManagerImplTest {
         given(blockHashSigner.isReady()).willReturn(true);
 
         // Set up the signature future to complete immediately
-        given(blockHashSigner.signFuture(any())).willReturn(mockSigningFuture);
+        given(blockHashSigner.sign(any())).willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);

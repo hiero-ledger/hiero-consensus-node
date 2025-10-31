@@ -10,31 +10,20 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 @SuppressWarnings("unused")
 public class BandwidthLimit {
 
-    private static final long UNLIMITED_BYTES_PER_SECOND = Long.MAX_VALUE;
+    private static final int UNLIMITED_KILOBYTES_PER_SECOND = Integer.MAX_VALUE;
 
     /**
      * Represents an unlimited bandwidth limit.
      */
-    public static final BandwidthLimit UNLIMITED = new BandwidthLimit(UNLIMITED_BYTES_PER_SECOND);
+    public static final BandwidthLimit UNLIMITED_BANDWIDTH = new BandwidthLimit(UNLIMITED_KILOBYTES_PER_SECOND);
 
-    private final long bytesPerSecond;
+    private final int kilobytesPerSecond;
 
-    private BandwidthLimit(final long bytesPerSecond) {
-        if (bytesPerSecond < 0) {
+    private BandwidthLimit(final int kilobytesPerSecond) {
+        if (kilobytesPerSecond < 0) {
             throw new IllegalArgumentException("Bandwidth cannot be negative");
         }
-        this.bytesPerSecond = bytesPerSecond;
-    }
-
-    /**
-     * Creates a bandwidth specification in bytes per second.
-     *
-     * @param bytesPerSecond the bandwidth in bytes per second
-     * @return a new BandwidthLimit object
-     */
-    @NonNull
-    public static BandwidthLimit ofBytesPerSecond(final long bytesPerSecond) {
-        return new BandwidthLimit(bytesPerSecond);
+        this.kilobytesPerSecond = kilobytesPerSecond;
     }
 
     /**
@@ -44,8 +33,8 @@ public class BandwidthLimit {
      * @return a new BandwidthLimit object
      */
     @NonNull
-    public static BandwidthLimit ofKilobytesPerSecond(final long kilobytesPerSecond) {
-        return new BandwidthLimit(kilobytesPerSecond * 1024L);
+    public static BandwidthLimit ofKilobytesPerSecond(final int kilobytesPerSecond) {
+        return new BandwidthLimit(kilobytesPerSecond);
     }
 
     /**
@@ -55,8 +44,11 @@ public class BandwidthLimit {
      * @return a new BandwidthLimit object
      */
     @NonNull
-    public static BandwidthLimit ofMegabytesPerSecond(final long megabytesPerSecond) {
-        return new BandwidthLimit(megabytesPerSecond * 1024L * 1024L);
+    public static BandwidthLimit ofMegabytesPerSecond(final int megabytesPerSecond) {
+        if (megabytesPerSecond > Integer.MAX_VALUE / 1024) {
+            throw new IllegalArgumentException("Bandwidth in megabytes per second is too large");
+        }
+        return new BandwidthLimit(megabytesPerSecond * 1024);
     }
 
     /**
@@ -65,7 +57,25 @@ public class BandwidthLimit {
      * @return the bandwidth in bytes per second
      */
     public long toBytesPerSecond() {
-        return bytesPerSecond;
+        return kilobytesPerSecond * 1024L;
+    }
+
+    /**
+     * Converts this bandwidth to kilobytes per second.
+     *
+     * @return the bandwidth in kilobytes per second
+     */
+    public int toKilobytesPerSecond() {
+        return kilobytesPerSecond;
+    }
+
+    /**
+     * Converts this bandwidth to megabytes per second (rounded down).
+     *
+     * @return the bandwidth in megabytes per second
+     */
+    public int toMegabytesPerSecond() {
+        return kilobytesPerSecond / 1024;
     }
 
     /**
@@ -74,6 +84,6 @@ public class BandwidthLimit {
      * @return {@code true} if the bandwidth is unlimited, {@code false} otherwise
      */
     public boolean isUnlimited() {
-        return bytesPerSecond == UNLIMITED_BYTES_PER_SECOND;
+        return kilobytesPerSecond == UNLIMITED_KILOBYTES_PER_SECOND;
     }
 }

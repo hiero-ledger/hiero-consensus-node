@@ -19,7 +19,10 @@ import com.swirlds.platform.system.status.actions.SelfEventReachedConsensusActio
 import com.swirlds.platform.system.status.actions.StartedReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.StateWrittenToDiskAction;
 import com.swirlds.platform.system.status.actions.TimeElapsedAction;
+import com.swirlds.platform.system.status.actions.TimeElapsedAction.QuiescingStatus;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -31,11 +34,12 @@ import org.junit.jupiter.api.Test;
 class ActiveStatusLogicTests {
     private FakeTime time;
     private ActiveStatusLogic logic;
+    private Configuration configuration;
 
     @BeforeEach
     void setup() {
         time = new FakeTime();
-        final Configuration configuration = new TestConfigBuilder()
+        configuration = new TestConfigBuilder()
                 .withValue(PlatformStatusConfig_.ACTIVE_STATUS_DELAY, "5s")
                 .getOrCreateConfig();
         logic = new ActiveStatusLogic(time.now(), configuration.getConfigData(PlatformStatusConfig.class));
@@ -51,12 +55,18 @@ class ActiveStatusLogicTests {
     @Test
     @DisplayName("Go to CHECKING")
     void toChecking() {
+        final QuiescingStatus neutralQuiescingStatus =
+                new QuiescingStatus(false, time.now().minus(Duration.of(1, ChronoUnit.HOURS)));
         triggerActionAndAssertNoTransition(
-                logic::processTimeElapsedAction, new TimeElapsedAction(time.now()), logic.getStatus());
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(time.now(), neutralQuiescingStatus),
+                logic.getStatus());
 
         time.tick(Duration.ofSeconds(2));
         triggerActionAndAssertNoTransition(
-                logic::processTimeElapsedAction, new TimeElapsedAction(time.now()), logic.getStatus());
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(time.now(), neutralQuiescingStatus),
+                logic.getStatus());
 
         // restart the timer that will trigger the status change to checking
         triggerActionAndAssertNoTransition(
@@ -67,11 +77,15 @@ class ActiveStatusLogicTests {
         // if the self event reaching consensus successfully restarted the timer, then the status should still be active
         time.tick(Duration.ofSeconds(4));
         triggerActionAndAssertNoTransition(
-                logic::processTimeElapsedAction, new TimeElapsedAction(time.now()), logic.getStatus());
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(time.now(), neutralQuiescingStatus),
+                logic.getStatus());
 
         time.tick(Duration.ofSeconds(2));
         triggerActionAndAssertTransition(
-                logic::processTimeElapsedAction, new TimeElapsedAction(time.now()), PlatformStatus.CHECKING);
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(time.now(), neutralQuiescingStatus),
+                PlatformStatus.CHECKING);
     }
 
     @Test
@@ -115,5 +129,55 @@ class ActiveStatusLogicTests {
                 logic::processDoneReplayingEventsAction, new DoneReplayingEventsAction(time.now()), logic.getStatus());
         triggerActionAndAssertException(
                 logic::processStartedReplayingEventsAction, new StartedReplayingEventsAction(), logic.getStatus());
+    }
+
+    @Test
+    @DisplayName("Remain ACTIVE when quiescing")
+    void remainActiveWhenQuiescing() {
+        // Even with time elapsed, should remain ACTIVE when quiescing
+        triggerActionAndAssertNoTransition(
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(time.now(), new QuiescingStatus(true, time.now())),
+                logic.getStatus());
+    }
+
+    @Test
+    @DisplayName("Remain ACTIVE when insufficient time since quiescence command")
+    void remainActiveWhenInsufficientTimeSinceQuiescenceCommand() {
+        final Instant quiescenceActiveTime = time.now();
+        time.tick(Duration.ofSeconds(2));
+        // Should remain ACTIVE when not enough time has passed since quiescence command (2s < 5s delay)
+        triggerActionAndAssertNoTransition(
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(time.now(), new QuiescingStatus(false, quiescenceActiveTime)),
+                logic.getStatus());
+    }
+
+    @Test
+    @DisplayName("Go to CHECKING when sufficient time since quiescence command")
+    void toCheckingWhenSufficientTimeSinceQuiescenceCommand() {
+        final QuiescingStatus oldQuiescenceStatus = new QuiescingStatus(false, time.now());
+        time.tick(Duration.ofSeconds(6));
+        // Should transition to CHECKING when enough time has passed since both quiescence command and consensus
+        triggerActionAndAssertTransition(
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(time.now(), oldQuiescenceStatus),
+                PlatformStatus.CHECKING);
+    }
+
+    @Test
+    @DisplayName("Go to CHECKING when sufficient time since quiescence command and consensus")
+    void toCheckingWhenSufficientTimeSinceBothQuiescenceCommandAndConsensus() {
+        final QuiescingStatus oldQuiescenceStatus = new QuiescingStatus(false, time.now());
+        triggerActionAndAssertNoTransition(
+                logic::processSelfEventReachedConsensusAction,
+                new SelfEventReachedConsensusAction(time.now()),
+                PlatformStatus.ACTIVE);
+        time.tick(Duration.ofSeconds(6));
+        // Should transition to CHECKING when enough time has passed since both quiescence command and consensus
+        triggerActionAndAssertTransition(
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(time.now(), oldQuiescenceStatus),
+                PlatformStatus.CHECKING);
     }
 }

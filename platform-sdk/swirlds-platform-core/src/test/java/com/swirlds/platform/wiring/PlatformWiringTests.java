@@ -129,6 +129,8 @@ class PlatformWiringTests {
                         startInput,
                         stopInput,
                         clearInput,
+                        resumeInput,
+                        pauseInput,
                         systemHealthInput,
                         platformStatusInput,
                         syncLagOutput) -> {
@@ -137,6 +139,8 @@ class PlatformWiringTests {
                     startInput.bindConsumer(noInput -> {});
                     stopInput.bindConsumer(noInput -> {});
                     clearInput.bindConsumer(noInput -> {});
+                    resumeInput.bindConsumer(noInput -> {});
+                    pauseInput.bindConsumer(noInput -> {});
                     systemHealthInput.bindConsumer(duration -> {});
                     platformStatusInput.bindConsumer(platformStatus -> {});
                 });

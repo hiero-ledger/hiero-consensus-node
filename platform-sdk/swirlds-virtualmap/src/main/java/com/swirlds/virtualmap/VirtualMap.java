@@ -25,6 +25,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.io.ExternalSelfSerializable;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
+import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.exceptions.IllegalChildIndexException;
@@ -298,8 +299,6 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      */
     private final AtomicBoolean merged = new AtomicBoolean(false);
 
-    private final AtomicBoolean detached = new AtomicBoolean(false);
-
     /**
      * Created at the beginning of reconnect as a <strong>learner</strong>, this iterator allows
      * for other threads to feed its leaf records to be used during hashing.
@@ -540,18 +539,15 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         return 2;
     }
 
-    //  FUTURE WORK: Uncomment this once migration from the existing VirtualMap is done
-    //  See https://github.com/hiero-ledger/hiero-consensus-node/issues/19690
-    //    /**
-    //     * This is never called for a {@link VirtualMap}.
-    //     *
-    //     * {@inheritDoc}
-    //     */
-    //    @Override
-    //    protected void setChildInternal(final int index, final MerkleNode child) {
-    //        throw new UnsupportedOperationException("You cannot set the child of a VirtualMap directly with this
-    // API");
-    //    }
+    /**
+     * This is never called for a {@link VirtualMap}.
+     *
+     * {@inheritDoc}
+     */
+    @Override
+    protected void setChildInternal(final int index, final MerkleNode child) {
+        throw new UnsupportedOperationException("You cannot set the child of a VirtualMap directly with this API");
+    }
 
     /**
      * {@inheritDoc}
@@ -581,7 +577,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      */
     public boolean containsKey(final Bytes key) {
         requireNonNull(key, NO_NULL_KEYS_ALLOWED_MESSAGE);
-        final long path = records.findKey(key);
+        final long path = records.findPath(key);
         statistics.countReadEntities();
         return path != INVALID_PATH;
     }
@@ -641,7 +637,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         assert currentModifyingThreadRef.compareAndSet(null, Thread.currentThread());
         try {
             requireNonNull(key, NO_NULL_KEYS_ALLOWED_MESSAGE);
-            final long path = records.findKey(key);
+            final long path = records.findPath(key);
             if (path == INVALID_PATH) {
                 // The key is not stored. So add a new entry and return.
                 add(key, value, valueCodec, valueBytes);
@@ -797,8 +793,8 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
     @Override
     public void merge() {
         final long start = System.currentTimeMillis();
-        if (!(isDestroyed() || isDetached())) {
-            throw new IllegalStateException("merge is legal only after this node is destroyed or detached");
+        if (!isDestroyed()) {
+            throw new IllegalStateException("merge is legal only after this node is destroyed");
         }
         if (!isImmutable()) {
             throw new IllegalStateException("merge is only allowed on immutable copies");
@@ -1154,17 +1150,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             throw new IllegalStateException("Can't make data source copy: virtual map copy isn't hashed");
         }
 
-        detached.set(true);
-
         return dataSourceBuilder.snapshot(null, dataSource);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean isDetached() {
-        return detached.get();
     }
 
     /*
@@ -1567,12 +1553,17 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             // backpressure mechanism
             VirtualDataSource dataSourceCopy = null;
             try {
+                // Restore a data source into memory from the snapshot. It will use its own directory
+                // to store data files
                 dataSourceCopy = dataSourceBuilder.build(getLabel(), snapshotPath, false, true);
                 // Then flush the cache snapshot to the data source copy
                 flush(cacheSnapshot.getValue(), metadata, dataSourceCopy);
                 // And finally snapshot the copy to the target dir
                 dataSourceBuilder.snapshot(outputDirectory, dataSourceCopy);
             } finally {
+                // Delete the snapshot directory
+                FileUtils.deleteDirectory(snapshotPath);
+                // And delete the data source copy directory
                 if (dataSourceCopy != null) {
                     dataSourceCopy.close();
                 }

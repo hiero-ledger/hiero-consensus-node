@@ -230,7 +230,9 @@ public class ConsistencyServiceRoundHistory implements Closeable {
      */
     public void close() {
         try {
-            writer.close();
+            if (writer != null) {
+                writer.close();
+            }
         } catch (final IOException e) {
             throw new UncheckedIOException("Failed to close writer for transaction handling history", e);
         }

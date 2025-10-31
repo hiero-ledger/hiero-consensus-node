@@ -19,11 +19,18 @@ message KillImmediatelyRequest {
   google.protobuf.Empty ignore = 1;
 }
 
+message PingResponse {
+  bool alive = 1;
+}
+
 // Service definition for controlling the lifecycle of the consensus node.
 service ContainerControlService {
   // RPC to initialize the container with the node ID.
   rpc Init(InitRequest) returns (google.protobuf.Empty);
 
-  // RCP to kill the consensus node app, but not shutdown the container. The dispatcher will still operate for remote calls
+  // RPC to kill the consensus node app, but not shutdown the container. The dispatcher will still operate for remote calls
   rpc KillImmediately(KillImmediatelyRequest) returns (google.protobuf.Empty);
+
+  // RPC to check if the consensus node process is alive
+  rpc NodePing(google.protobuf.Empty) returns (PingResponse);
 }

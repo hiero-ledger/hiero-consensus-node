@@ -3,7 +3,7 @@ package org.hiero.otter.fixtures.internal.network;
 
 import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.internal.network.GeoDistributor.calculateNextLocation;
-import static org.hiero.otter.fixtures.network.utils.BandwidthLimit.UNLIMITED;
+import static org.hiero.otter.fixtures.network.utils.BandwidthLimit.UNLIMITED_BANDWIDTH;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -163,7 +163,7 @@ public class GeoMeshTopologyImpl implements GeoMeshTopology {
         final long nanos =
                 random.nextLong(latencyRange.min().toNanos(), latencyRange.max().toNanos());
         final Duration latency = Duration.ofNanos(nanos);
-        return new ConnectionData(true, latency, latencyRange.jitterPercent(), UNLIMITED);
+        return new ConnectionData(true, latency, latencyRange.jitterPercent(), UNLIMITED_BANDWIDTH);
     }
 
     /**

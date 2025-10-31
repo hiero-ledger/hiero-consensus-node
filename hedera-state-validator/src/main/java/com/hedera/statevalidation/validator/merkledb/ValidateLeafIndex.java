@@ -1,0 +1,107 @@
+// SPDX-License-Identifier: Apache-2.0
+package com.hedera.statevalidation.validator.merkledb;
+
+import static com.hedera.statevalidation.util.LogUtils.printFileDataLocationError;
+import static com.hedera.statevalidation.util.ParallelProcessingUtils.processRange;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.statevalidation.report.SlackReportGenerator;
+import com.hedera.statevalidation.util.junit.StateResolver;
+import com.hedera.statevalidation.util.reflect.MemoryIndexDiskKeyValueStoreAccessor;
+import com.swirlds.merkledb.MerkleDbDataSource;
+import com.swirlds.platform.state.snapshot.DeserializedSignedState;
+import com.swirlds.state.MerkleNodeState;
+import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import java.io.IOException;
+import java.util.concurrent.ForkJoinTask;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.LongConsumer;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+
+@SuppressWarnings("NewClassNamingConvention")
+@ExtendWith({StateResolver.class, SlackReportGenerator.class})
+@Tag("leaf")
+public class ValidateLeafIndex {
+
+    private static final Logger log = LogManager.getLogger(ValidateLeafIndex.class);
+
+    @SuppressWarnings("unchecked")
+    @Test
+    public void validateIndex(DeserializedSignedState deserializedState) {
+        final MerkleNodeState merkleNodeState =
+                deserializedState.reservedSignedState().get().getState();
+        final VirtualMap virtualMap = (VirtualMap) merkleNodeState.getRoot();
+        assertNotNull(virtualMap);
+        MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();
+
+        if (vds.getFirstLeafPath() == -1) {
+            log.info("Skipping the validation for {} as the map is empty", virtualMap.getLabel());
+            return;
+        }
+
+        log.debug(vds.getHashStoreDisk().getFilesSizeStatistics());
+
+        long firstLeafPath = vds.getFirstLeafPath();
+        long lastLeafPath = vds.getLastLeafPath();
+
+        var leafNodeIndex = vds.getPathToDiskLocationLeafNodes();
+        var objectKeyToPath = vds.getKeyToPath();
+        var leafStore = new MemoryIndexDiskKeyValueStoreAccessor(vds.getPathToKeyValue());
+        var leafDfc = leafStore.getFileCollection();
+
+        assertEquals(lastLeafPath, leafNodeIndex.size() - 1);
+
+        // iterate over internalNodeIndex and validate it
+        ForkJoinTask<?> emptyIndexTask =
+                processRange(0, firstLeafPath, path -> assertEquals(0, leafNodeIndex.get(path)));
+
+        var nullErrorCount = new AtomicInteger(0);
+        var exceptionCount = new AtomicInteger(0);
+        var successCount = new AtomicInteger(0);
+
+        LongConsumer indexProcessor = path -> {
+            long dataLocation = leafNodeIndex.get(path, -1);
+            assertNotEquals(-1, dataLocation);
+            // read from dataLocation using datasource
+            try {
+                var data = leafDfc.readDataItem(dataLocation);
+                if (data != null) {
+                    final VirtualLeafBytes<?> leafRecord = VirtualLeafBytes.parseFrom(data);
+                    assertEquals(leafRecord.path(), path);
+                    Bytes keyBytes = leafRecord.keyBytes();
+                    long actual = objectKeyToPath.get(leafRecord.keyBytes(), -1);
+                    assertEquals(path, actual);
+
+                    assertEquals(leafRecord.valueBytes(), virtualMap.getBytes(keyBytes));
+                    successCount.incrementAndGet();
+                } else {
+                    nullErrorCount.incrementAndGet();
+                    printFileDataLocationError(log, "Missing entry on disk!", leafDfc, dataLocation);
+                }
+            } catch (IOException e) {
+                exceptionCount.incrementAndGet();
+                printFileDataLocationError(log, e.getMessage(), leafDfc, dataLocation);
+            }
+        };
+
+        ForkJoinTask<?> nonEmptyIndexTask = processRange(firstLeafPath, lastLeafPath, indexProcessor);
+        emptyIndexTask.join();
+        nonEmptyIndexTask.join();
+
+        log.debug("size of index: {}", leafNodeIndex.size());
+        assertEquals(
+                0,
+                nullErrorCount.get(),
+                "Some entries on disk are missing even though pointers are present in the index");
+        assertEquals(0, exceptionCount.get(), "Some read operations failed");
+        log.info("Successfully checked {} entries", successCount.get());
+    }
+}

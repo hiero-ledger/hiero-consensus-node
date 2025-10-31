@@ -19,6 +19,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.FEE_SCHEDULE;
 import static com.hedera.services.bdd.suites.HapiSuite.FEE_SCHEDULE_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_DETAILS;
+import static com.hedera.services.bdd.suites.HapiSuite.SIMPLE_FEE_SCHEDULE;
 import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_ADMIN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTHORIZATION_FAILED;
 
@@ -144,6 +145,11 @@ public class ProtectedFilesUpdateSuite {
     }
 
     @HapiTest
+    final Stream<DynamicTest> account2CanUpdateSimpleFeeSchedule() {
+        return specialAccountCanUpdateSpecialFile(GENESIS, SIMPLE_FEE_SCHEDULE, IGNORE, IGNORE);
+    }
+
+    @HapiTest
     final Stream<DynamicTest> account50CanUpdateFeeSchedule() {
         return specialAccountCanUpdateSpecialFile(SYSTEM_ADMIN, FEE_SCHEDULE, IGNORE, IGNORE);
     }
@@ -154,8 +160,18 @@ public class ProtectedFilesUpdateSuite {
     }
 
     @HapiTest
+    final Stream<DynamicTest> account56CanUpdateSimpleFeesSchedule() {
+        return specialAccountCanUpdateSpecialFile(FEE_SCHEDULE_CONTROL, SIMPLE_FEE_SCHEDULE, IGNORE, IGNORE);
+    }
+
+    @HapiTest
     final Stream<DynamicTest> unauthorizedAccountCannotUpdateFeeSchedule() {
         return unauthorizedAccountCannotUpdateSpecialFile(FEE_SCHEDULE, NEW_CONTENTS);
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> unauthorizedAccountCannotUpdateSimpleFeesSchedule() {
+        return unauthorizedAccountCannotUpdateSpecialFile(SIMPLE_FEE_SCHEDULE, NEW_CONTENTS);
     }
 
     @HapiTest

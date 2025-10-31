@@ -68,8 +68,8 @@ public class ISSTestingToolConsensusStateEventHandler implements ConsensusStateE
         state.initState(trigger, platform);
 
         this.selfId = platform.getSelfId();
-        this.scratchPad =
-                Scratchpad.create(platform.getContext(), selfId, IssTestingToolScratchpad.class, "ISSTestingTool");
+        this.scratchPad = Scratchpad.create(
+                platform.getContext().getConfiguration(), selfId, IssTestingToolScratchpad.class, "ISSTestingTool");
     }
 
     /**
@@ -132,9 +132,9 @@ public class ISSTestingToolConsensusStateEventHandler implements ConsensusStateE
      * the list should be triggered, return null
      *
      * @param elapsedSinceGenesis the amount of time that has elapsed since genesis
-     * @param currentTimestamp    the current consensus timestamp
+     * @param currentTimestamp the current consensus timestamp
      * @param plannedIncidentList the list of planned incidents to iterate over
-     * @param <T>                 the type of incident in the list
+     * @param <T> the type of incident in the list
      * @return the first incident that should be triggered, or null if no incident should be triggered
      */
     @Nullable
@@ -199,10 +199,10 @@ public class ISSTestingToolConsensusStateEventHandler implements ConsensusStateE
     /**
      * Trigger an ISS
      *
-     * @param round               the current round
-     * @param plannedIss          the planned ISS to trigger
+     * @param round the current round
+     * @param plannedIss the planned ISS to trigger
      * @param elapsedSinceGenesis the amount of time that has elapsed since genesis
-     * @param currentTimestamp    the current consensus timestamp
+     * @param currentTimestamp the current consensus timestamp
      */
     private void triggerISS(
             @NonNull final Round round,
@@ -271,7 +271,7 @@ public class ISSTestingToolConsensusStateEventHandler implements ConsensusStateE
     /**
      * Trigger a log error
      *
-     * @param plannedLogError     the planned log error to trigger
+     * @param plannedLogError the planned log error to trigger
      * @param elapsedSinceGenesis the amount of time that has elapsed since genesis
      */
     private void triggerLogError(

@@ -166,13 +166,15 @@ public class ActiveRosters {
      * Assuming the {@link RosterServiceImpl} is in a transition phase, returns the transition weights
      * from the source roster to the target roster.
      *
+     * @param sourceWeights the source weights, if they are not to be derived from the source roster
      * @throws IllegalStateException if the {@link RosterServiceImpl} is in a handoff phase
      */
-    public RosterTransitionWeights transitionWeights() {
+    public RosterTransitionWeights transitionWeights(@Nullable final SortedMap<Long, Long> sourceWeights) {
         return switch (phase) {
             case BOOTSTRAP, TRANSITION ->
                 new RosterTransitionWeights(
-                        weightsFrom(lookup.apply(sourceRosterHash)), weightsFrom(lookup.apply(targetRosterHash)));
+                        sourceWeights != null ? sourceWeights : weightsFrom(lookup.apply(sourceRosterHash)),
+                        weightsFrom(lookup.apply(targetRosterHash)));
             case HANDOFF -> throw new IllegalStateException("No target roster in handoff phase");
         };
     }
@@ -206,12 +208,17 @@ public class ActiveRosters {
                 + toHex(targetRosterHash) + '}';
     }
 
-    private static String toHex(@NonNull final Bytes bytes) {
-        return bytes.toHex().substring(0, HEX_PREFIX_LENGTH) + "...";
-    }
-
-    private static @NonNull SortedMap<Long, Long> weightsFrom(@NonNull final Roster roster) {
+    /**
+     * Returns the weights of the nodes in the given roster in a map.
+     * @param roster the roster
+     * @return the weights of the nodes in the roster
+     */
+    public static @NonNull SortedMap<Long, Long> weightsFrom(@NonNull final Roster roster) {
         return requireNonNull(roster).rosterEntries().stream()
                 .collect(toMap(RosterEntry::nodeId, RosterEntry::weight, (a, b) -> a, TreeMap::new));
+    }
+
+    private static String toHex(@NonNull final Bytes bytes) {
+        return bytes.toHex().substring(0, HEX_PREFIX_LENGTH) + "...";
     }
 }

@@ -17,6 +17,12 @@ import java.util.Objects;
 public record ConsistencyServiceRound(
         long roundNumber, long currentStateChecksum, @NonNull List<Long> transactionNonceList) {
 
+    private static final String ROUND_NUMBER_STRING = "Round Number: ";
+    private static final String CURRENT_STATE_STRING = "Current State Checksum: ";
+    private static final String TRANSACTION_NONCES_STRING = "Transaction Nonces: ";
+    private static final String FIELD_SEPARATOR = "; ";
+    private static final String LIST_ELEMENT_SEPARATOR = ", ";
+
     /**
      * Constructor for the {@link ConsistencyServiceRound} record
      *
@@ -30,12 +36,6 @@ public record ConsistencyServiceRound(
         this.currentStateChecksum = currentStateChecksum;
         this.transactionNonceList = new ArrayList<>(transactionNonceList);
     }
-
-    private static final String ROUND_NUMBER_STRING = "Round Number: ";
-    private static final String CURRENT_STATE_STRING = "Current State Checksum: ";
-    private static final String TRANSACTION_NONCES_STRING = "Transaction Nonces: ";
-    private static final String FIELD_SEPARATOR = "; ";
-    private static final String LIST_ELEMENT_SEPARATOR = ", ";
 
     /**
      * Construct a {@link ConsistencyServiceRound} from a string representation

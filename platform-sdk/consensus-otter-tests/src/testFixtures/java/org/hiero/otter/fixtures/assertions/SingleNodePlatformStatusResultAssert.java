@@ -67,7 +67,7 @@ public class SingleNodePlatformStatusResultAssert
                 actualStatusesIterator.hasNext(); ) {
             final PlatformStatus actualStatus = actualStatusesIterator.next();
             final StatusProgressionStep currentStep = expectedSteps.get(currentStepIndex);
-            if (actualStatus == currentStep.target()) {
+            if (currentStep.targets().contains(actualStatus)) {
                 if (!observedStatuses.containsAll(currentStep.requiredInterim())) {
                     failWithMessage(
                             "Expected required interim statuses %s, but only got %s",

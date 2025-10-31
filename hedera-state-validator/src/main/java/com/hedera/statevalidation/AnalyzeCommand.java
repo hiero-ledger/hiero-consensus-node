@@ -6,35 +6,37 @@ import static com.hedera.statevalidation.analyzer.StateAnalyzer.analyzePathToHas
 import static com.hedera.statevalidation.analyzer.StateAnalyzer.analyzePathToKeyValueStorage;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.statevalidation.parameterresolver.StateResolver;
-import com.hedera.statevalidation.reporting.Report;
+import com.hedera.statevalidation.report.Report;
+import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.virtualmap.VirtualMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import picocli.CommandLine;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.ParentCommand;
 
-@CommandLine.Command(name = "analyze", description = "Analyzes the state and generates detailed report.")
+@Command(name = "analyze", description = "Analyzes the state and generates detailed report.")
 public class AnalyzeCommand implements Runnable {
 
     private static final Logger log = LogManager.getLogger(AnalyzeCommand.class);
 
-    @CommandLine.ParentCommand
+    @ParentCommand
     private StateOperatorCommand parent;
 
-    @CommandLine.Option(
+    @Option(
             names = {"-p2kv", "--path-to-kv"},
             description = "Analyze path to key-value storage.")
     private boolean analyzePathToKeyValueStorage;
 
-    @CommandLine.Option(
+    @Option(
             names = {"-k2p", "--key-to-path"},
             description = "Analyze key to path storage.")
     private boolean analyzeKeyToPathStorage;
 
-    @CommandLine.Option(
+    @Option(
             names = {"-p2h", "--path-to-hash"},
             description = "Analyze path to hash storage.")
     private boolean analyzePathToHashStorage;
@@ -43,20 +45,20 @@ public class AnalyzeCommand implements Runnable {
 
     @Override
     public void run() {
-        System.setProperty("state.dir", parent.getStateDir().getAbsolutePath());
+        parent.initializeStateDir();
 
-        final VirtualMap virtualMap;
+        final MerkleDbDataSource vds;
         try {
-            final DeserializedSignedState deserializedSignedState = StateResolver.initState();
+            final DeserializedSignedState deserializedSignedState = StateUtils.getDeserializedSignedState();
             final MerkleNodeState state =
                     deserializedSignedState.reservedSignedState().get().getState();
-            virtualMap = (VirtualMap) state.getRoot();
+            final VirtualMap virtualMap = (VirtualMap) state.getRoot();
             requireNonNull(virtualMap);
+            vds = (MerkleDbDataSource) virtualMap.getDataSource();
+            requireNonNull(vds);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-        final MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();
-        requireNonNull(vds);
         final Report report = new Report();
 
         // Check flags to pick the branch to run

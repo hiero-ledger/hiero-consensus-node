@@ -203,6 +203,7 @@ public class FileServiceUtils {
                 && fileNum != filesConfig.addressBook()
                 && fileNum != filesConfig.nodeDetails()
                 && fileNum != filesConfig.feeSchedules()
+                && fileNum != filesConfig.simpleFeesSchedules()
                 && fileNum != filesConfig.exchangeRates()
                 && fileNum != filesConfig.networkProperties()
                 && fileNum != filesConfig.hapiPermissions()

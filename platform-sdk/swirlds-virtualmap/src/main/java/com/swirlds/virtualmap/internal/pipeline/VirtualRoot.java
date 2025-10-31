@@ -90,13 +90,6 @@ public interface VirtualRoot extends MerkleNode {
     RecordAccessor detach();
 
     /**
-     * Gets whether this copy is detached.
-     *
-     * @return Whether this copy is detached.
-     */
-    boolean isDetached();
-
-    /**
      * Check if this virtual root is registered to a given pipeline. Used for sanity checks.
      *
      * @param pipeline

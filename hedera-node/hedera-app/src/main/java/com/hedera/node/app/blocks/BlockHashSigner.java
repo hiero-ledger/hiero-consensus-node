@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
+import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -10,26 +12,25 @@ import java.util.concurrent.CompletableFuture;
  */
 public interface BlockHashSigner {
     /**
+     * The result of attempting to sign a block hash.
+     * @param verificationKey if not null, the verification key being used for the attempt
+     * @param chainOfTrustProof if not null, the chain of trust proof for the verification key being used
+     * @param signatureFuture a future that resolves to the signature
+     */
+    record Attempt(
+            @Nullable Bytes verificationKey,
+            @Nullable ChainOfTrustProof chainOfTrustProof,
+            CompletableFuture<Bytes> signatureFuture) {}
+
+    /**
      * Whether the signer is ready.
      */
     boolean isReady();
 
     /**
-     * Returns a future that resolves to the signature of the given block hash.
-     *
+     * Returns an attempt to sign the given block hash.
      * @param blockHash the block hash
-     * @return the future
+     * @return the signing attempt
      */
-    CompletableFuture<Bytes> signFuture(@NonNull Bytes blockHash);
-
-    /**
-     * Returns the scheme id this signer is currently using at a point in the block stream
-     * where a proof is needed.
-     */
-    long schemeId();
-
-    /**
-     * Returns the verification key for the active signing scheme.
-     */
-    Bytes verificationKey();
+    Attempt sign(@NonNull Bytes blockHash);
 }

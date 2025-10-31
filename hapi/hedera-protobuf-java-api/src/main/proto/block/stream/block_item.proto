@@ -48,8 +48,8 @@ import "block/stream/trace/trace_data.proto";
  * - A `block_header` SHALL be followed by an `event_header`.
  * - An `event_header` SHALL be followed by one or more
  *   `event_transaction` items.
- * - An `event_transaction` SHALL be followed by a `transaction_result`.
- * - A `transaction_result` MAY be followed by a `transaction_output`.
+ * - An `event_transaction` SHOULD be followed by a `transaction_result`.
+ * - A `transaction_result` MAY be followed by one or more `transaction_output`s.
  * - A `transaction_result` (or a `transaction_output`, if present) MAY be
  *     followed by one or more `state_changes`.
  *

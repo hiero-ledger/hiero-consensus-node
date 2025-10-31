@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.schemas;
 
-import static com.hedera.hapi.node.state.hints.CRSStage.COMPLETED;
 import static com.hedera.hapi.node.state.hints.CRSStage.GATHERING_CONTRIBUTIONS;
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
@@ -102,8 +101,6 @@ public class V060HintsSchema extends Schema<SemanticVersion> {
                         .nextContributingNodeId(0L)
                         .crs(initialCrs)
                         .build());
-            } else if (crsState.stage() == COMPLETED) {
-                signingContext.setCrs(crsState.crs());
             }
             final var activeConstruction = states.<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID)
                     .get();

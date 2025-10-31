@@ -2,7 +2,6 @@
 package com.hedera.services.yahcli.suites;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.keyFromFile;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
@@ -83,12 +82,9 @@ public class CreateNodeSuite extends HapiSuite {
     final Stream<DynamicTest> createNode() {
         final var adminKey = "adminKey";
         final var feeAccountKey = "feeAccountKey";
-        final var fqAcctId = asAccount(
-                configManager.shard().getShardNum(), configManager.realm().getRealmNum(), accountId);
 
-        HapiNodeCreate nodeCreate = nodeCreate("node")
+        HapiNodeCreate nodeCreate = nodeCreate("node", accountId)
                 .signedBy(availableSigners())
-                .accountId(fqAcctId)
                 .description(description)
                 .gossipEndpoint(fromPbj(gossipEndpoints))
                 .serviceEndpoint(fromPbj(serviceEndpoints))

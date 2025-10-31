@@ -1,0 +1,205 @@
+[
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "owner",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "txnFee",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "gasCost",
+            "type": "uint256"
+          },
+          {
+            "internalType": "string",
+            "name": "memo",
+            "type": "string"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct IHieroHook.HookContext",
+        "name": "context",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "components": [
+                  {
+                    "internalType": "address",
+                    "name": "account",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "int64",
+                    "name": "amount",
+                    "type": "int64"
+                  }
+                ],
+                "internalType": "struct IHieroAccountAllowanceHook.AccountAmount[]",
+                "name": "hbarAdjustments",
+                "type": "tuple[]"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "address",
+                    "name": "token",
+                    "type": "address"
+                  },
+                  {
+                    "components": [
+                      {
+                        "internalType": "address",
+                        "name": "account",
+                        "type": "address"
+                      },
+                      {
+                        "internalType": "int64",
+                        "name": "amount",
+                        "type": "int64"
+                      }
+                    ],
+                    "internalType": "struct IHieroAccountAllowanceHook.AccountAmount[]",
+                    "name": "adjustments",
+                    "type": "tuple[]"
+                  },
+                  {
+                    "components": [
+                      {
+                        "internalType": "address",
+                        "name": "sender",
+                        "type": "address"
+                      },
+                      {
+                        "internalType": "address",
+                        "name": "receiver",
+                        "type": "address"
+                      },
+                      {
+                        "internalType": "int64",
+                        "name": "serialNo",
+                        "type": "int64"
+                      }
+                    ],
+                    "internalType": "struct IHieroAccountAllowanceHook.NftTransfer[]",
+                    "name": "nftTransfers",
+                    "type": "tuple[]"
+                  }
+                ],
+                "internalType": "struct IHieroAccountAllowanceHook.TokenTransferList[]",
+                "name": "tokens",
+                "type": "tuple[]"
+              }
+            ],
+            "internalType": "struct IHieroAccountAllowanceHook.Transfers",
+            "name": "direct",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "components": [
+                  {
+                    "internalType": "address",
+                    "name": "account",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "int64",
+                    "name": "amount",
+                    "type": "int64"
+                  }
+                ],
+                "internalType": "struct IHieroAccountAllowanceHook.AccountAmount[]",
+                "name": "hbarAdjustments",
+                "type": "tuple[]"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "address",
+                    "name": "token",
+                    "type": "address"
+                  },
+                  {
+                    "components": [
+                      {
+                        "internalType": "address",
+                        "name": "account",
+                        "type": "address"
+                      },
+                      {
+                        "internalType": "int64",
+                        "name": "amount",
+                        "type": "int64"
+                      }
+                    ],
+                    "internalType": "struct IHieroAccountAllowanceHook.AccountAmount[]",
+                    "name": "adjustments",
+                    "type": "tuple[]"
+                  },
+                  {
+                    "components": [
+                      {
+                        "internalType": "address",
+                        "name": "sender",
+                        "type": "address"
+                      },
+                      {
+                        "internalType": "address",
+                        "name": "receiver",
+                        "type": "address"
+                      },
+                      {
+                        "internalType": "int64",
+                        "name": "serialNo",
+                        "type": "int64"
+                      }
+                    ],
+                    "internalType": "struct IHieroAccountAllowanceHook.NftTransfer[]",
+                    "name": "nftTransfers",
+                    "type": "tuple[]"
+                  }
+                ],
+                "internalType": "struct IHieroAccountAllowanceHook.TokenTransferList[]",
+                "name": "tokens",
+                "type": "tuple[]"
+              }
+            ],
+            "internalType": "struct IHieroAccountAllowanceHook.Transfers",
+            "name": "customFee",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct IHieroAccountAllowanceHook.ProposedTransfers",
+        "name": "proposedTransfers",
+        "type": "tuple"
+      }
+    ],
+    "name": "allow",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "payable",
+    "type": "function"
+  }
+]

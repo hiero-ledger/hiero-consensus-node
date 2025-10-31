@@ -3,11 +3,13 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.generateBlockItems;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.block.stream.BlockItem;
@@ -28,8 +30,9 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentMap;
@@ -59,7 +62,6 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
     private static final File TEST_DIR_FILE = new File(TEST_DIR);
     private static final Duration BLOCK_TTL = Duration.ofMinutes(5);
     private static final Duration BLOCK_PERIOD = Duration.ofSeconds(2);
-    private static final int BATCH_SIZE = 10;
 
     // Reflection handles for accessing private fields
     private static final VarHandle blockBufferHandle;
@@ -146,6 +148,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
         blockBufferService = initBufferService(configProvider);
+        final Map<Long, BlockState> createdBlocks = new HashMap<>();
 
         // Step 1: Create several blocks in buffer
         final int numBlocks = 10;
@@ -156,15 +159,11 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
 
             // Add some items to each block to make it realistic
             final List<BlockItem> items = generateBlockItems(5, blockNum, Set.of());
-            long finalBlockNum = blockNum;
+            final long finalBlockNum = blockNum;
             items.forEach(item -> blockBufferService.addItem(finalBlockNum, item));
 
             blockBufferService.closeBlock(blockNum);
-
-            // Process items to create requests (simulate streaming preparation)
-            final BlockState blockState = blockBufferService.getBlockState(blockNum);
-            assertThat(blockState).isNotNull();
-            blockState.processPendingItems(BATCH_SIZE);
+            createdBlocks.put(blockNum, blockBufferService.getBlockState(blockNum));
         }
 
         // Verify blocks are in buffer
@@ -192,7 +191,10 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
             final BlockState restoredBlock = blockBufferService.getBlockState(blockNum);
             assertThat(restoredBlock).isNotNull();
             assertThat(restoredBlock.blockNumber()).isEqualTo(blockNum);
-            assertThat(restoredBlock.numRequestsCreated()).isGreaterThan(0);
+            final BlockState expectedBlock = createdBlocks.get(blockNum);
+            assertThat(expectedBlock).isNotNull();
+            assertThat(restoredBlock.itemCount()).isEqualTo(expectedBlock.itemCount());
+            assertThat(restoredBlock.closedTimestamp()).isEqualTo(expectedBlock.closedTimestamp());
         }
 
         // Step 4: Simulate Block Node responding with STREAM_ITEMS_BEHIND
@@ -216,8 +218,12 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         // The buffer should still contain unacknowledged blocks for streaming
         assertThat(blockBufferService.getEarliestAvailableBlockNumber()).isLessThanOrEqualTo(lastVerifiedBlock + 1);
 
-        // Verify connection manager was notified about block openings during restoration
-        verify(connectionManager, times(numBlocks)).openBlock(anyLong());
+        verify(blockStreamMetrics, times(numBlocks)).recordBlockOpened();
+        verify(blockStreamMetrics, times(numBlocks)).recordLatestBlockOpened(anyLong());
+        verify(blockStreamMetrics, times(numBlocks)).recordBlockClosed();
+        verify(blockStreamMetrics).recordLatestBlockAcked(lastVerifiedBlock);
+        verifyNoMoreInteractions(blockStreamMetrics);
+        verifyNoInteractions(connectionManager);
     }
 
     /**
@@ -248,19 +254,18 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
             blockBufferService.openBlock(blockNum);
 
             final List<BlockItem> items = generateBlockItems(3, blockNum, Set.of());
-            long finalBlockNum = blockNum;
+            final long finalBlockNum = blockNum;
             items.forEach(item -> blockBufferService.addItem(finalBlockNum, item));
 
             blockBufferService.closeBlock(blockNum);
 
             final BlockState blockState = blockBufferService.getBlockState(blockNum);
             assertThat(blockState).isNotNull();
-            blockState.processPendingItems(BATCH_SIZE);
 
             // Make first half of blocks "old" by manipulating their timestamps
             if (blockNum < startBlockNumber + maxBufferSize / 2) {
                 // Use reflection to set older timestamp (simulating blocks that are 5+ minutes old)
-                setBlockTimestamp(blockState, sixMinutesAgo);
+                blockState.closeBlock(sixMinutesAgo);
             }
         }
 
@@ -277,20 +282,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         blockBufferService.setBlockNodeConnectionManager(connectionManager);
 
         // Mock the connection manager to simulate that streaming must happen before platform startup
-        final AtomicBoolean platformStartupBlocked = new AtomicBoolean(true);
         final CountDownLatch acknowledgmentLatch = new CountDownLatch(1);
-
-        // Setup mock to simulate block node providing acknowledgments
-        doAnswer(invocation -> {
-                    // Simulate that when we try to open a block, we need acknowledgments first
-                    if (platformStartupBlocked.get()) {
-                        // Block until we get some acknowledgments
-                        acknowledgmentLatch.await(5, TimeUnit.SECONDS);
-                    }
-                    return null;
-                })
-                .when(connectionManager)
-                .openBlock(anyLong());
 
         // Step 4: Start the service (this should load the full buffer from disk)
         blockBufferService.start();
@@ -312,21 +304,24 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
                 // Trigger buffer check to process acknowledgments and potentially enable backpressure relief
                 try {
                     checkBufferHandle.invoke(blockBufferService);
-                } catch (Throwable t) {
+                } catch (final Throwable t) {
                     throw new RuntimeException("Failed to check buffer", t);
                 }
 
                 // Signal that acknowledgments have been received
-                platformStartupBlocked.set(false);
                 acknowledgmentLatch.countDown();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         });
 
-        // Step 6: Simulate attempting to open a new block (this should be blocked initially)
-        final long newBlockNumber = startBlockNumber + maxBufferSize;
-        blockBufferService.openBlock(newBlockNumber);
+        // Step 6: Wait for acknowledgment simulation to complete
+        try {
+            acknowledgmentLatch.await(5, TimeUnit.SECONDS);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Interrupted while waiting for acknowledgments", e);
+        }
 
         // Verify that acknowledgments were processed
         final long expectedAckedUpTo = startBlockNumber + maxBufferSize / 2;
@@ -335,17 +330,22 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         }
 
         // Verify that buffer contains the expected blocks after acknowledgments
-        // After acknowledging half the blocks and adding one new block, we should have:
-        // - Original maxBufferSize blocks + 1 new block = maxBufferSize + 1
-        // - But acknowledged blocks should eventually be pruned during buffer management
+        // After acknowledging half the blocks, we should have the remaining unacknowledged blocks
         final int currentBufferSize = restoredBuffer.size();
-        assertThat(currentBufferSize).isGreaterThan(maxBufferSize / 2); // Should have more than just unacked blocks
-        // maxBufferSize + 1 due to a race condition between when a new block is added to the buffer and when
-        // acknowledged blocks are pruned
-        assertThat(currentBufferSize).isLessThanOrEqualTo(maxBufferSize + 1); // Should not grow indefinitely
+        assertThat(currentBufferSize).isGreaterThanOrEqualTo(maxBufferSize / 2);
+        assertThat(currentBufferSize).isLessThanOrEqualTo(maxBufferSize);
 
-        // Verify connection manager was involved in the acknowledgment process
-        verify(connectionManager).openBlock(eq(newBlockNumber));
+        verify(blockStreamMetrics).recordBackPressureDisabled();
+        verify(blockStreamMetrics).recordBufferSaturation(anyDouble());
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(anyInt());
+        verify(blockStreamMetrics).recordBufferOldestBlock(anyLong());
+        verify(blockStreamMetrics).recordBufferNewestBlock(anyLong());
+        verify(blockStreamMetrics, times(maxBufferSize)).recordBlockOpened();
+        verify(blockStreamMetrics, times(maxBufferSize)).recordLatestBlockOpened(anyLong());
+        verify(blockStreamMetrics, times(maxBufferSize)).recordBlockClosed();
+        verify(blockStreamMetrics).recordLatestBlockAcked(expectedAckedUpTo);
+        verifyNoMoreInteractions(blockStreamMetrics);
+        verifyNoInteractions(connectionManager);
     }
 
     /**
@@ -369,11 +369,10 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
             blockBufferService.openBlock(blockNum);
 
             final List<BlockItem> items = generateBlockItems(4, blockNum, Set.of());
-            long finalBlockNum = blockNum;
+            final long finalBlockNum = blockNum;
             items.forEach(item -> blockBufferService.addItem(finalBlockNum, item));
 
             blockBufferService.closeBlock(blockNum);
-            Objects.requireNonNull(blockBufferService.getBlockState(blockNum)).processPendingItems(BATCH_SIZE);
         }
 
         // Step 2: Simulate partial acknowledgment (Block Node has some but not all blocks)
@@ -399,7 +398,6 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         for (long blockNum = nextBlockToStream; blockNum < startBlockNumber + numBlocks; blockNum++) {
             final BlockState blockState = blockBufferService.getBlockState(blockNum);
             assertThat(blockState).isNotNull();
-            assertThat(blockState.numRequestsCreated()).isGreaterThan(0);
 
             // These blocks should not be acknowledged yet
             assertThat(blockBufferService.isAcked(blockNum)).isFalse();
@@ -412,9 +410,6 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         for (long blockNum = startBlockNumber; blockNum < startBlockNumber + numBlocks; blockNum++) {
             assertThat(blockBufferService.isAcked(blockNum)).isTrue();
         }
-
-        // Verify connection manager was called for the unacknowledged blocks during restart
-        verify(connectionManager, times(numBlocks)).openBlock(anyLong());
     }
 
     // Helper methods
@@ -426,7 +421,6 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
                 .withValue("blockStream.writerMode", "GRPC")
                 .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("blockStream.blockPeriod", BLOCK_PERIOD)
-                .withValue("blockStream.blockItemBatchSize", BATCH_SIZE)
                 .withValue("blockStream.buffer.blockTtl", BLOCK_TTL)
                 .withValue("blockStream.buffer.isBufferPersistenceEnabled", true)
                 .withValue("blockStream.buffer.bufferDirectory", TEST_DIR)
@@ -436,10 +430,12 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
                 .getOrCreateConfig();
     }
 
+    @SuppressWarnings("unchecked")
     private ConcurrentMap<Long, BlockState> blockBuffer() {
         return (ConcurrentMap<Long, BlockState>) blockBufferHandle.get(blockBufferService);
     }
 
+    @SuppressWarnings("unchecked")
     private AtomicReference<CompletableFuture<Boolean>> backpressureCompletableFutureRef() {
         return (AtomicReference<CompletableFuture<Boolean>>) backPressureFutureRefHandle.get(blockBufferService);
     }
@@ -451,23 +447,6 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
                 execSvc.shutdownNow();
                 execSvc.awaitTermination(3, TimeUnit.SECONDS);
             }
-        }
-    }
-
-    private void setBlockTimestamp(final BlockState blockState, final Instant timestamp) {
-        try {
-            // Use reflection to access the private closedTimestamp field
-            final var closedTimestampField = BlockState.class.getDeclaredField("closedTimestamp");
-            closedTimestampField.setAccessible(true);
-
-            @SuppressWarnings("unchecked")
-            final AtomicReference<Instant> closedTimestampRef =
-                    (AtomicReference<Instant>) closedTimestampField.get(blockState);
-
-            // Set the timestamp to simulate an "old" block
-            closedTimestampRef.set(timestamp);
-        } catch (final Exception e) {
-            throw new RuntimeException("Failed to set block timestamp for testing", e);
         }
     }
 

@@ -352,7 +352,7 @@ jobs:
           details: ${{ steps.rootly-summary.outputs.summary }}
           notification_target_type: "Service"
           notification_target: ${{ steps.set-service.outputs.service }}
-          set_as_noise: "true"
+          set_as_noise: "false"
           alert_urgency: "High"
           environments: "CITR"
           external_id: ${{ github.run_id }}

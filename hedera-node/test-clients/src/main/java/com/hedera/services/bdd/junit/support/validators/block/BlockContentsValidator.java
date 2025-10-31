@@ -5,7 +5,7 @@ import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.working
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.services.bdd.junit.support.BlockStreamAccess;
+import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Paths;

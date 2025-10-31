@@ -86,7 +86,8 @@ public class MultipleNodeConsensusResultsImpl implements MultipleNodeConsensusRe
      * {@inheritDoc}
      */
     @Override
-    public @NonNull MultipleNodeConsensusResults suppressingNodes(@NonNull final Collection<Node> nodes) {
+    @NonNull
+    public MultipleNodeConsensusResults suppressingNodes(@NonNull final Collection<Node> nodes) {
         final Set<NodeId> nodeIdsToSuppress = nodes.stream().map(Node::selfId).collect(Collectors.toSet());
         final List<SingleNodeConsensusResult> filtered = results.stream()
                 .filter(result -> !nodeIdsToSuppress.contains(result.nodeId()))

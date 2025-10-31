@@ -3,6 +3,7 @@ module com.hedera.node.app.service.file.impl {
     requires transitive com.hedera.node.app.hapi.fees;
     requires transitive com.hedera.node.app.hapi.utils;
     requires transitive com.hedera.node.app.service.addressbook;
+    requires transitive com.hedera.node.app.service.entityid;
     requires transitive com.hedera.node.app.service.file;
     requires transitive com.hedera.node.app.spi;
     requires transitive com.hedera.node.config;

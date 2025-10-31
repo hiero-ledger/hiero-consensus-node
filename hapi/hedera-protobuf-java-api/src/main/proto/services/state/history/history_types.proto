@@ -4,6 +4,7 @@ package com.hedera.hapi.node.state.history;
 
 // SPDX-License-Identifier: Apache-2.0
 import "services/timestamp.proto";
+import "block/stream/block_proof.proto";
 
 option java_package = "com.hederahashgraph.api.proto.java";
 // <<<pbj.java_package = "com.hedera.hapi.node.state.history">>> This comment is special code for setting PBJ Compiler java package
@@ -67,28 +68,25 @@ message History {
 }
 
 /**
- * A proof that some address book history belongs to the ledger id's
- * chain of trust.
+ * A proof that some address book history belongs to the ledger id's chain of trust.
  */
 message HistoryProof {
-  /**
-   * The hash of the source address book.
-   */
-  bytes source_address_book_hash = 1;
   /**
    * The proof keys for the target address book, needed to keep
    * constructing proofs after adopting the target address book's
    * roster at a handoff.
    */
-  repeated ProofKey target_proof_keys = 2;
+  repeated ProofKey target_proof_keys = 1;
   /**
    * The target history of the proof.
    */
-  History target_history = 3;
+  History target_history = 2;
   /**
-   * The proof of chain of trust from the ledger id.
+   * The proof of chain of trust from the ledger id to the target
+   * history's metadata. Maybe replaced from a NodeSignatures list
+   * with a recursive proof when one becomes available.
    */
-  bytes proof = 4;
+  com.hedera.hapi.block.stream.ChainOfTrustProof chain_of_trust_proof = 3;
 }
 
 /**

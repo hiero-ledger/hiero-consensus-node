@@ -87,8 +87,9 @@ public class MultipleNodeLogResultsImpl implements MultipleNodeLogResults {
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
-    public @NonNull MultipleNodeLogResults suppressingNodes(@NonNull final Collection<Node> nodes) {
+    public MultipleNodeLogResults suppressingNodes(@NonNull final Collection<Node> nodes) {
         final Set<NodeId> nodeIdsToSuppress = nodes.stream().map(Node::selfId).collect(Collectors.toSet());
         final List<SingleNodeLogResult> filtered = results.stream()
                 .filter(result -> !nodeIdsToSuppress.contains(result.nodeId()))
@@ -105,6 +106,33 @@ public class MultipleNodeLogResultsImpl implements MultipleNodeLogResults {
         requireNonNull(marker, "marker cannot be null");
         final List<SingleNodeLogResult> filteredResults =
                 results.stream().map(res -> res.suppressingLogMarker(marker)).toList();
+
+        return new MultipleNodeLogResultsImpl(filteredResults);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
+    @Override
+    public MultipleNodeLogResults suppressingLoggerName(@NonNull final Class<?> clazz) {
+        requireNonNull(clazz, "clazz cannot be null");
+        final List<SingleNodeLogResult> filteredResults =
+                results.stream().map(res -> res.suppressingLoggerName(clazz)).toList();
+
+        return new MultipleNodeLogResultsImpl(filteredResults);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
+    @Override
+    public MultipleNodeLogResults suppressingLoggerName(@NonNull final String loggerName) {
+        requireNonNull(loggerName, "loggerName cannot be null");
+        final List<SingleNodeLogResult> filteredResults = results.stream()
+                .map(res -> res.suppressingLoggerName(loggerName))
+                .toList();
 
         return new MultipleNodeLogResultsImpl(filteredResults);
     }

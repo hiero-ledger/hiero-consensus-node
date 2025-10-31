@@ -272,8 +272,7 @@ public class HintsControllerImpl implements HintsController {
                         .contributionEndTime((Timestamp) null)
                         .build();
                 hintsStore.setCrsState(updatedState);
-                log.info("CRS construction complete");
-                context.setCrs(crs);
+                log.info("Finished constructing CRS");
             }
         }
     }
@@ -342,7 +341,7 @@ public class HintsControllerImpl implements HintsController {
                         .findFirst()
                         .orElse("No remaining nodes to consider"));
         hintsStore.moveToNextNode(
-                optionalNextNodeId,
+                optionalNextNodeId.isEmpty() ? null : optionalNextNodeId.getAsLong(),
                 now.plusSeconds(tssConfig.crsUpdateContributionTime().toSeconds()));
     }
 
@@ -600,7 +599,7 @@ public class HintsControllerImpl implements HintsController {
      *     <Li>{@code (7, 12)}</Li>
      *     <Li>{@code (0, 2, 3)}</Li>
      * </ul>
-     * And no matter which node publishes their key next, they still the same id as expected.
+     * And no matter which node publishes their key next, they still get the same id as before.
      *
      * @throws IndexOutOfBoundsException if the node id has already been assigned a party id
      */

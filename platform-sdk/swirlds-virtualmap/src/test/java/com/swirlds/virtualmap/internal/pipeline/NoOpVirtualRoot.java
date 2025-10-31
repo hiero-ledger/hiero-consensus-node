@@ -81,11 +81,6 @@ public final class NoOpVirtualRoot extends PartialMerkleLeaf implements VirtualR
     }
 
     @Override
-    public boolean isDetached() {
-        return false;
-    }
-
-    @Override
     public boolean isRegisteredToPipeline(final VirtualPipeline pipeline) {
         return true;
     }

@@ -207,7 +207,6 @@ public class StateEditor {
                     false,
                     false,
                     DEFAULT_PLATFORM_STATE_FACADE);
-            newSignedState.init(platformContext);
 
             signedState.set(newSignedState, "StateEditor.getSignedStateCopy() 2");
 

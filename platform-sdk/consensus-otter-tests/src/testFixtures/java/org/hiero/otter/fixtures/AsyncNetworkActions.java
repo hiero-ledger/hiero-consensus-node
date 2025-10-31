@@ -5,8 +5,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 
 /**
- * Interface for performing asynchronous network actions such as starting, freezing, and shutting down the network
- * with a specified timeout.
+ * Interface for performing asynchronous network actions such as starting, freezing, and shutting down the network with
+ * a specified timeout.
  */
 @SuppressWarnings("unused")
 public interface AsyncNetworkActions {
@@ -31,6 +31,11 @@ public interface AsyncNetworkActions {
      * @see Network#shutdown()
      */
     void shutdown();
+
+    /**
+     * Triggers a catastrophic ISS. All nodes in the network will calculate different hashes for an upcoming round.
+     */
+    void triggerCatastrophicIss();
 
     /**
      * Sets the quiescence command of the network.

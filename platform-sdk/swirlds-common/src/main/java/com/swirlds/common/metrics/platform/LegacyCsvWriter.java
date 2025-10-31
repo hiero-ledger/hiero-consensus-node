@@ -2,6 +2,7 @@
 package com.swirlds.common.metrics.platform;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.METRICS;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.lang.Double.isInfinite;
 import static java.lang.Double.isNaN;
@@ -269,7 +270,9 @@ public class LegacyCsvWriter {
     }
 
     private void reportInconsistentState(final Collection<Snapshot> snapshots) {
-        logger.warn("Some metrics were not exported due to changes after LegacyCsvWriter initialization.");
+        logger.warn(
+                METRICS.getMarker(),
+                "Some metrics were not exported due to changes after LegacyCsvWriter initialization.");
         if (logger.isTraceEnabled()) {
             // Collect metrics that will not be exported
             final String willNotBeExported = snapshots.stream()

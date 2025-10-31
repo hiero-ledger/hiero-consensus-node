@@ -9,6 +9,7 @@ testModuleInfo {
     requires("com.swirlds.common.test.fixtures")
     requires("org.hiero.consensus.model.test.fixtures")
     requires("org.assertj.core")
+    requires("com.swirlds.merkledb")
     requires("org.junit.jupiter.api")
     requires("org.mockito")
 }

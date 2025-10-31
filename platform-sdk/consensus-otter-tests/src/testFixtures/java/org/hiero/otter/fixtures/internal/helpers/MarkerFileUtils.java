@@ -80,4 +80,29 @@ public class MarkerFileUtils {
         }
         return result;
     }
+
+    /**
+     * Scans a directory for marker files. This is used as a fallback mechanism when WatchService
+     * events are not received, which is particularly important on macOS where the WatchService
+     * implementation has known reliability issues.
+     *
+     * @param markerFilesDir the directory to scan for marker files
+     * @return the list of marker file names found in the directory
+     */
+    @NonNull
+    public static List<String> scanDirectoryForMarkerFiles(@NonNull final Path markerFilesDir) {
+        try {
+            if (!Files.exists(markerFilesDir)) {
+                return List.of();
+            }
+            try (final var stream = Files.list(markerFilesDir)) {
+                return stream.filter(Files::isRegularFile)
+                        .map(Path::getFileName)
+                        .map(Path::toString)
+                        .toList();
+            }
+        } catch (final IOException e) {
+            throw new UncheckedIOException("Failed to scan directory for marker files", e);
+        }
+    }
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.impl;
 
+import static com.hedera.node.app.hints.HintsService.maybeWeightsFrom;
 import static com.hedera.node.app.hints.HintsService.partySizeForRosterNodeCount;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
@@ -75,14 +76,16 @@ public class HintsControllers {
      * Creates a new controller for the given hinTS construction, sourcing its rosters from the given store.
      *
      * @param activeRosters the active rosters
-     * @param construction  the hinTS construction
-     * @param hintsStore    the hinTS store
+     * @param construction the hinTS construction
+     * @param hintsStore the hinTS store
+     * @param activeHintsConstruction the active hinTS construction
      * @return the result of the operation
      */
     public @NonNull HintsController getOrCreateFor(
             @NonNull final ActiveRosters activeRosters,
             @NonNull final HintsConstruction construction,
-            @NonNull final WritableHintsStore hintsStore) {
+            @NonNull final WritableHintsStore hintsStore,
+            @Nullable final HintsConstruction activeHintsConstruction) {
         requireNonNull(activeRosters);
         requireNonNull(construction);
         requireNonNull(hintsStore);
@@ -90,7 +93,7 @@ public class HintsControllers {
             if (controller != null) {
                 controller.cancelPendingWork();
             }
-            controller = newControllerFor(activeRosters, construction, hintsStore);
+            controller = newControllerFor(activeRosters, construction, hintsStore, activeHintsConstruction);
         }
         return requireNonNull(controller);
     }
@@ -142,17 +145,19 @@ public class HintsControllers {
      * @param activeRosters the active rosters
      * @param construction  the hinTS construction
      * @param hintsStore    the hints store
+     * @param activeHintsConstruction the active hinTS construction, if any
      * @return the controller
      */
     private HintsController newControllerFor(
             @NonNull final ActiveRosters activeRosters,
             @NonNull final HintsConstruction construction,
-            @NonNull final WritableHintsStore hintsStore) {
-        final var weights = activeRosters.transitionWeights();
+            @NonNull final WritableHintsStore hintsStore,
+            @Nullable final HintsConstruction activeHintsConstruction) {
+        final var weights = activeRosters.transitionWeights(maybeWeightsFrom(activeHintsConstruction));
         if (!weights.sourceNodesHaveTargetThreshold()) {
             return new InertHintsController(construction.constructionId());
         } else {
-            final var numParties = partySizeForRosterNodeCount(weights.targetRosterSize());
+            final int numParties = partySizeForRosterNodeCount(weights.targetRosterSize());
             log.info(
                     "Creating controller for construction #{} from nodes {} to {} with {} hinTS parties",
                     construction.constructionId(),

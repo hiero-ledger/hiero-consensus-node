@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.hedera.node.app.service.addressbook.impl {
     requires transitive com.hedera.node.app.service.addressbook;
+    requires transitive com.hedera.node.app.service.entityid;
+    requires transitive com.hedera.node.app.service.token;
     requires transitive com.hedera.node.app.spi;
     requires transitive com.hedera.node.config;
     requires transitive com.hedera.node.hapi;
@@ -9,7 +11,6 @@ module com.hedera.node.app.service.addressbook.impl {
     requires transitive dagger;
     requires transitive javax.inject;
     requires com.hedera.node.app.hapi.utils;
-    requires com.hedera.node.app.service.token;
     requires com.swirlds.config.api;
     requires org.hiero.base.utility;
     requires com.fasterxml.jackson.core;
