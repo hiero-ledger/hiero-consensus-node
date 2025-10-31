@@ -464,9 +464,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     version,
                     asTimestamp(lastIntervalProcessTime),
                     asTimestamp(lastTopLevelTime),
-                    consensusHeaderHash,
-                    traceDataHash,
-                    outputHash));
+                    consensusHeaderHash, // deprecated
+                    traceDataHash, // deprecated
+                    outputHash, // deprecated
+                    null,
+                    null,
+                    null,
+                    null));
             ((CommittableWritableStates) writableState).commit();
 
             worker.addItem(flushChangesFromListener(boundaryStateChangeListener));
