@@ -21,6 +21,7 @@ import com.swirlds.platform.components.consensus.ConsensusEngineOutput;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.deduplication.EventDeduplicator;
+import com.swirlds.platform.event.metrics.EventPipelineTracker;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
@@ -423,10 +424,23 @@ public class PlatformWiring {
         buildUnsolderedWires(components);
     }
 
+    public static void wireMetrics(@NonNull final PlatformContext platformContext, @NonNull final PlatformComponents components){
+        final EventPipelineTracker pipelineTracker = new EventPipelineTracker(platformContext.getMetrics(),
+                platformContext.getTime());
+
+        components.eventHasherWiring().getOutputWire().solderToMetrics(pipelineTracker::afterHashing);
+        components.internalEventValidatorWiring().getOutputWire().solderToMetrics(pipelineTracker::afterValidation);
+        components.eventDeduplicatorWiring().getOutputWire().solderToMetrics(pipelineTracker::afterDeduplication);
+        components.eventSignatureValidatorWiring().getOutputWire().solderToMetrics(pipelineTracker::afterSigVerification);
+        components.orphanBufferWiring().getOutputWire().solderToMetrics(pipelineTracker::afterOrphanBuffer);
+        components.pcesInlineWriterWiring().getOutputWire().solderToMetrics(pipelineTracker::afterPces);
+        components.consensusEngineWiring().getOutputWire().solderToMetrics(pipelineTracker::afterConsensus);
+    }
+
     /**
      * Solder the EventWindow output to all components that need it.
      */
-    private static void solderEventWindow(final PlatformComponents components) {
+    public static void solderEventWindow(final PlatformComponents components) {
         final OutputWire<EventWindow> eventWindowOutputWire =
                 components.eventWindowManagerWiring().getOutputWire();
 
