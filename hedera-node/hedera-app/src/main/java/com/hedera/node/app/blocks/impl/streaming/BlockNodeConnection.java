@@ -1164,7 +1164,13 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                         oldBlock,
                         latestActiveBlockNumber);
             }
+
             block = blockBufferService.getBlockState(latestActiveBlockNumber);
+            if (block == null && latestActiveBlockNumber < blockBufferService.getEarliestAvailableBlockNumber()) {
+                // Indicate that the block node should catch up from another trustworthy block node
+                endStreamAndReschedule(TOO_FAR_BEHIND);
+            }
+
             pendingRequestBytes = BYTES_PADDING;
             itemIndex = 0;
             pendingRequestItems.clear();
