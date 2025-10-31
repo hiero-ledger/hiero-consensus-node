@@ -56,7 +56,7 @@ public class SynchronizedThrottleAccumulator {
         requireNonNull(state);
         requireNonNull(throttleUsages);
         setDecisionTime(instantSource.instant());
-        return frontendThrottle.checkAndEnforceThrottle(txnInfo, lastDecisionTime, state, throttleUsages);
+        return frontendThrottle.checkAndEnforceThrottle(txnInfo, lastDecisionTime, state, throttleUsages, false);
     }
 
     /**
