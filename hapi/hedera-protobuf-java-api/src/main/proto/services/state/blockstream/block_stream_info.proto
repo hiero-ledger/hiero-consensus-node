@@ -112,10 +112,11 @@ message BlockStreamInfo {
     repeated bytes rightmost_preceding_state_changes_tree_hashes = 8;
 
     /**
-     * A block-end consensus time stamp.
+     * A block-end time stamp.
      * <p>
-     * This field SHALL hold the last-used consensus time for
-     * the current block.
+     * This field SHALL hold the last-used timestamp for the last
+     * block item in the current block.<b>This is not a consensus
+     * timestamp</b>
      */
     proto.Timestamp block_end_time = 9;
 
