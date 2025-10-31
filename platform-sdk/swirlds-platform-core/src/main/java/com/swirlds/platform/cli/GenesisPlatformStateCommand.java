@@ -16,10 +16,13 @@ import com.swirlds.platform.consensus.SyntheticSnapshot;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
+import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableStates;
 import java.io.IOException;
@@ -60,6 +63,11 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
         BootstrapUtils.setupConstructableRegistry();
 
         final PlatformContext platformContext = PlatformContext.create(configuration);
+        final StateLifecycleManager<SignedState> stateLifecycleManager = new StateLifecycleManagerImpl<>(
+                platformContext.getMetrics(), platformContext.getTime(), (virtualMap) -> {
+                    // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
+                    throw new UnsupportedOperationException();
+                });
 
         System.out.printf("Reading from %s %n", statePath.toAbsolutePath());
         final PlatformStateFacade stateFacade = DEFAULT_PLATFORM_STATE_FACADE;
@@ -91,8 +99,9 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
                     .digestTreeAsync(reservedSignedState.get().getState().getRoot())
                     .get();
             System.out.printf("Writing modified state to %s %n", outputDir.toAbsolutePath());
+            stateLifecycleManager.setSnapshotSource(reservedSignedState.get());
             writeSignedStateFilesToDirectory(
-                    platformContext, NO_NODE_ID, outputDir, reservedSignedState.get(), stateFacade);
+                    platformContext, NO_NODE_ID, outputDir, stateFacade, stateLifecycleManager);
         }
 
         return 0;

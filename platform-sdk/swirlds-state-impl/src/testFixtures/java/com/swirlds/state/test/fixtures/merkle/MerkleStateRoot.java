@@ -12,8 +12,6 @@ import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.impl.PartialNaryMerkleInternal;
-import com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader;
-import com.swirlds.common.merkle.utility.MerkleTreeSnapshotWriter;
 import com.swirlds.common.utility.Labeled;
 import com.swirlds.common.utility.RuntimeObjectRecord;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
@@ -48,7 +46,6 @@ import com.swirlds.state.test.fixtures.merkle.singleton.SingletonNode;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -847,28 +844,5 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
             logger.error(EXCEPTION.getMarker(), "Interrupted while hashing state. Expect buggy behavior.");
             Thread.currentThread().interrupt();
         }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void createSnapshot(@NonNull final Path targetPath) {
-        requireNonNull(time);
-        requireNonNull(snapshotMetrics);
-        throwIfMutable();
-        throwIfDestroyed();
-        final long startTime = time.currentTimeMillis();
-        MerkleTreeSnapshotWriter.createSnapshot(this, targetPath, getRound());
-        snapshotMetrics.updateWriteStateToDiskTimeMetric(time.currentTimeMillis() - startTime);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @SuppressWarnings("unchecked")
-    @Override
-    public T loadSnapshot(@NonNull Path targetPath) throws IOException {
-        return (T) MerkleTreeSnapshotReader.readStateFileData(targetPath).stateRoot();
     }
 }

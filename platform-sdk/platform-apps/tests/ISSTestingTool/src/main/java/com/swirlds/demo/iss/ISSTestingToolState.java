@@ -98,12 +98,6 @@ public class ISSTestingToolState extends VirtualMapState<ISSTestingToolState> im
         return new ISSTestingToolState(this);
     }
 
-    @Override
-    protected ISSTestingToolState newInstance(
-            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
-        return new ISSTestingToolState(virtualMap, metrics, time);
-    }
-
     public void initState(InitTrigger trigger, Platform platform) {
         throwIfImmutable();
 

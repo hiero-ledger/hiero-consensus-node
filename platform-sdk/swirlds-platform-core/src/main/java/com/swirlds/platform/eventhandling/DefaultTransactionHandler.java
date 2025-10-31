@@ -25,7 +25,6 @@ import com.swirlds.platform.metrics.RoundHandlingMetrics;
 import com.swirlds.platform.metrics.TransactionMetrics;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.PlatformStateModifier;
-import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
@@ -34,6 +33,7 @@ import com.swirlds.platform.system.status.actions.FreezePeriodEnteredAction;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -62,7 +62,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
     /**
      * The class responsible for all interactions with the swirld state
      */
-    private final SwirldStateManager swirldStateManager;
+    private final StateLifecycleManager stateLifecycleManager;
 
     private final RoundHandlingMetrics handlerMetrics;
 
@@ -130,14 +130,14 @@ public class DefaultTransactionHandler implements TransactionHandler {
      * Constructor
      *
      * @param platformContext       contains various platform utilities
-     * @param swirldStateManager    the swirld state manager to send events to
+     * @param stateLifecycleManager    the swirld state manager to send events to
      * @param statusActionSubmitter enables submitting of platform status actions
      * @param softwareVersion       the current version of the software
      * @param platformStateFacade   enables access to the platform state
      */
     public DefaultTransactionHandler(
             @NonNull final PlatformContext platformContext,
-            @NonNull final SwirldStateManager swirldStateManager,
+            @NonNull final StateLifecycleManager stateLifecycleManager,
             @NonNull final StatusActionSubmitter statusActionSubmitter,
             @NonNull final SemanticVersion softwareVersion,
             @NonNull final PlatformStateFacade platformStateFacade,
@@ -145,7 +145,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
             @NonNull final NodeId selfId) {
 
         this.platformContext = requireNonNull(platformContext);
-        this.swirldStateManager = requireNonNull(swirldStateManager);
+        this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
         this.statusActionSubmitter = requireNonNull(statusActionSubmitter);
         this.softwareVersion = requireNonNull(softwareVersion);
         this.consensusStateEventHandler = requireNonNull(consensusStateEventHandler);
@@ -205,7 +205,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
         }
 
         if (platformStateFacade.isInFreezePeriod(
-                consensusRound.getConsensusTimestamp(), swirldStateManager.getConsensusState())) {
+                consensusRound.getConsensusTimestamp(), stateLifecycleManager.getMutableState())) {
             statusActionSubmitter.submitStatusAction(new FreezePeriodEnteredAction(consensusRound.getRoundNum()));
             freezeRoundReceived = true;
             logger.info(
@@ -259,7 +259,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
      */
     private Queue<ScopedSystemTransaction<StateSignatureTransaction>> doHandleConsensusRound(
             final ConsensusRound round) {
-        final MerkleNodeState state = swirldStateManager.getConsensusState();
+        final MerkleNodeState state = stateLifecycleManager.getMutableState();
         final Queue<ScopedSystemTransaction<StateSignatureTransaction>> scopedSystemTransactions =
                 new ConcurrentLinkedQueue<>();
         try {
@@ -296,7 +296,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
      * @param round the consensus round
      */
     private void updatePlatformState(@NonNull final ConsensusRound round) {
-        platformStateFacade.bulkUpdateOf(swirldStateManager.getConsensusState(), v -> {
+        platformStateFacade.bulkUpdateOf(stateLifecycleManager.getMutableState(), v -> {
             v.setRound(round.getRoundNum());
             v.setConsensusTimestamp(round.getConsensusTimestamp());
             v.setCreationSoftwareVersion(softwareVersion);
@@ -312,7 +312,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
      * @throws InterruptedException if this thread is interrupted
      */
     private void updateRunningEventHash(@NonNull final ConsensusRound round) throws InterruptedException {
-        final State consensusState = swirldStateManager.getConsensusState();
+        final State consensusState = stateLifecycleManager.getMutableState();
 
         if (writeLegacyRunningEventHash) {
             final CesEvent last = round.getStreamedEvents().getLast();
@@ -350,9 +350,9 @@ public class DefaultTransactionHandler implements TransactionHandler {
             @NonNull final Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions)
             throws InterruptedException {
         if (freezeRoundReceived) {
-            platformStateFacade.updateLastFrozenTime(swirldStateManager.getConsensusState());
+            platformStateFacade.updateLastFrozenTime(stateLifecycleManager.getMutableState());
         }
-        final MerkleNodeState state = swirldStateManager.getConsensusState();
+        final MerkleNodeState state = stateLifecycleManager.getMutableState();
         final boolean isBoundary = consensusStateEventHandler.onSealConsensusRound(consensusRound, state);
         final ReservedSignedState reservedSignedState;
         if (isBoundary || freezeRoundReceived) {
@@ -366,13 +366,14 @@ public class DefaultTransactionHandler implements TransactionHandler {
                         consensusRound.getRoundNum());
             }
             handlerMetrics.setPhase(GETTING_STATE_TO_SIGN);
-            final MerkleNodeState immutableStateCons = swirldStateManager.getStateForSigning();
+            stateLifecycleManager.copyMutableState();
+            final MerkleNodeState immutableState = stateLifecycleManager.getLatestImmutableState();
 
             handlerMetrics.setPhase(CREATING_SIGNED_STATE);
             final SignedState signedState = new SignedState(
                     platformContext.getConfiguration(),
                     CryptoStatic::verifySignature,
-                    immutableStateCons,
+                    immutableState,
                     "TransactionHandler.createSignedState()",
                     freezeRoundReceived,
                     true,
