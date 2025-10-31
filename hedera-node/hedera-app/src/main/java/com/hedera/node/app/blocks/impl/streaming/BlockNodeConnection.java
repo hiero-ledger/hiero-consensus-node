@@ -684,21 +684,14 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         if (getConnectionState() == ConnectionState.ACTIVE && pipeline != null) {
             try {
-                if (logger.isTraceEnabled()) {
-                    /*
-                    PublishStreamRequest#protobufSize does the size calculation lazily and thus calling this can incur
-                    a performance penality. Therefore, we only want to log the byte size at trace level.
-                     */
-                    logger.trace(
-                            "{} Sending request (block={}, requestNumber={}) to block node (type={}, bytes={})",
-                            this,
-                            blockNumber,
-                            requestNumber,
-                            request.request().kind(),
-                            request.protobufSize());
-                } else if (logger.isDebugEnabled()) {
+                if (blockNumber == -1 && requestNumber == -1) {
                     logger.debug(
-                            "{} Sending request (block={}, requestNumber={}) to block node (type={})",
+                            "{} Sending ad hoc request to block node (type={})",
+                            this,
+                            request.request().kind());
+                } else {
+                    logger.debug(
+                            "{} [block={}, request={}] Sending request to block node (type={})",
                             this,
                             blockNumber,
                             requestNumber,
@@ -710,12 +703,17 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 final long durationMs = System.currentTimeMillis() - startMs;
 
                 blockStreamMetrics.recordRequestLatency(durationMs);
-                logger.trace(
-                        "{} Request (block={}, requestNumber={}) took {}ms to send",
-                        this,
-                        blockNumber,
-                        requestNumber,
-                        durationMs);
+
+                if (blockNumber == -1 && requestNumber == -1) {
+                    logger.trace("{} Ad hoc request took {}ms to send", this, durationMs);
+                } else {
+                    logger.trace(
+                            "{} [block={}, request={}] Request took {}ms to send",
+                            this,
+                            blockNumber,
+                            requestNumber,
+                            durationMs);
+                }
 
                 if (request.hasEndStream()) {
                     blockStreamMetrics.recordRequestEndStreamSent(
@@ -1048,7 +1046,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     }
                 }
 
-                final int itemSize = item.protobufSize();
+                final int itemSize = item.protobufSize() + 2; // each item has 2 bytes of overhead
                 final long newRequestBytes = pendingRequestBytes + itemSize;
 
                 if (newRequestBytes > MAX_BYTES_PER_REQUEST) {
@@ -1216,6 +1214,15 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                         itemEndIndex,
                         proofIndex);
             }
+
+            logger.trace(
+                    "{} Attempting to send request (block={}, request={}, itemCount={}, estimatedBytes={} actualBytes={})",
+                    BlockNodeConnection.this,
+                    block.blockNumber(),
+                    requestCtr.get(),
+                    pendingRequestItems.size(),
+                    pendingRequestBytes,
+                    req.protobufSize());
 
             try {
                 if (sendRequest(block.blockNumber(), requestCtr.get(), req)) {
