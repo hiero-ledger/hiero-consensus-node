@@ -110,6 +110,10 @@ public class BlockNodeConnectionManager {
      */
     private final AtomicReference<Thread> configWatcherThreadRef = new AtomicReference<>();
     /**
+     * Reference to the block nodes health monitor thread.
+     */
+    private final AtomicReference<Thread> blockNodesHealthMonitorThreadRef = new AtomicReference<>();
+    /**
      * The directory containing the block node connection configuration file.
      */
     private Path blockNodeConfigDirectory;
@@ -404,6 +408,7 @@ public class BlockNodeConnectionManager {
         logger.debug("Shutting down block node connection manager.");
 
         stopConfigWatcher();
+        stopBlockNodesHealthMonitor();
         blockBufferService.shutdown();
         shutdownScheduledExecutorService();
         closeAllConnections();
@@ -462,6 +467,9 @@ public class BlockNodeConnectionManager {
 
         // Start a watcher to monitor changes to the block-nodes.json file for dynamic updates
         startConfigWatcher();
+
+        // Start the block nodes health monitor thread
+        startBlockNodesHealthMonitor();
 
         refreshAvailableBlockNodes();
     }
@@ -673,6 +681,71 @@ public class BlockNodeConnectionManager {
                 ws.close();
             } catch (final IOException ignored) {
                 // ignore
+            }
+        }
+    }
+
+    /**
+     * Starts a dedicated monitor thread to periodically poll all block nodes for health information.
+     * This monitor runs independently and will be used to assess node health and trigger
+     * connection switching when appropriate.
+     */
+    private void startBlockNodesHealthMonitor() {
+        if (blockNodesHealthMonitorThreadRef.get() != null) {
+            logger.debug("Block nodes health monitor already running.");
+            return;
+        }
+
+        final Thread blockNodesHealthMonitorThread = Thread.ofPlatform()
+                .name("BlockNodesHealthMonitor")
+                .start(() -> {
+                    logger.info("Started block nodes health monitor thread.");
+
+                    while (!Thread.currentThread().isInterrupted()) {
+                        try {
+                            // TODO: Implement health monitoring logic
+                            // - Poll all available block nodes for health status
+                            // - Compare health metrics of current active node vs alternatives
+                            // - Determine if connection switch is needed based on health scores
+                            // - Trigger connection switching if healthier node is available
+                            // - Update node health statistics and metrics
+
+                            // Sleep for the configured health monitoring interval
+                            // TODO: Replace with actual configuration value
+                            final long blockNodesHealthMonitorIntervalMs = 30_000; // placeholder: 30 seconds
+                            Thread.sleep(blockNodesHealthMonitorIntervalMs);
+
+                        } catch (final InterruptedException e) {
+                            // Thread was interrupted, exit gracefully
+                            logger.debug("Block nodes health monitor thread interrupted, exiting.");
+                            break;
+                        } catch (final Exception e) {
+                            // Log the exception but continue running
+                            logger.info("Exception in block nodes health monitor loop.", e);
+                            if (Thread.currentThread().isInterrupted()) {
+                                logger.debug("Block nodes health monitor thread interrupted after exception, exiting.");
+                                break;
+                            }
+                        }
+                    }
+
+                    logger.info("Block nodes health monitor thread stopped.");
+                });
+
+        blockNodesHealthMonitorThreadRef.set(blockNodesHealthMonitorThread);
+    }
+
+    /**
+     * Stops the block nodes health monitor thread gracefully.
+     */
+    private void stopBlockNodesHealthMonitor() {
+        final Thread blockNodesHealthMonitorThread = blockNodesHealthMonitorThreadRef.getAndSet(null);
+        if (blockNodesHealthMonitorThread != null) {
+            blockNodesHealthMonitorThread.interrupt();
+            try {
+                blockNodesHealthMonitorThread.join();
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
             }
         }
     }

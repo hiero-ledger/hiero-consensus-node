@@ -24,10 +24,12 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodeClientFactory.BlockNodeClients;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.internal.network.BlockNodeConfig;
+import com.hedera.pbj.grpc.client.helidon.PbjGrpcClient;
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClientConfig;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.grpc.GrpcException;
@@ -50,6 +52,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.block.api.BlockItemSet;
+import org.hiero.block.api.BlockNodeServiceInterface.BlockNodeServiceClient;
 import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
@@ -115,10 +118,17 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         latencyResult = mock(BlockNodeStats.HighLatencyResult.class);
 
         clientFactory = mock(BlockNodeClientFactory.class);
+
+        // Mock the new createClients() method
+        final PbjGrpcClient mockGrpcClient = mock(PbjGrpcClient.class);
+        final BlockNodeServiceClient mockBlockNodeServiceClient = mock(BlockNodeServiceClient.class);
+        final BlockNodeClients mockClients =
+                new BlockNodeClients(mockGrpcClient, grpcServiceClient, mockBlockNodeServiceClient);
+
         lenient()
-                .doReturn(grpcServiceClient)
+                .doReturn(mockClients)
                 .when(clientFactory)
-                .createClient(any(WebClient.class), any(PbjGrpcClientConfig.class), any(RequestOptions.class));
+                .createClients(any(WebClient.class), any(PbjGrpcClientConfig.class), any(RequestOptions.class));
 
         connection = new BlockNodeConnection(
                 configProvider,
@@ -170,7 +180,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.PENDING);
         verify(grpcServiceClient).publishBlockStream(connection);
         verify(clientFactory)
-                .createClient(any(WebClient.class), any(PbjGrpcClientConfig.class), any(RequestOptions.class));
+                .createClients(any(WebClient.class), any(PbjGrpcClientConfig.class), any(RequestOptions.class));
     }
 
     @Test
@@ -944,6 +954,40 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         // No interactions should have occurred since close aborted early
         verifyNoInteractions(requestPipeline);
+    }
+
+    // Tests exception handling during close operation when multiple components throw exceptions
+    @Test
+    void testClose_multipleExceptionsDuringClose() {
+        openConnectionAndResetMocks();
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        doThrow(new RuntimeException("Pipeline close error"))
+                .when(requestPipeline)
+                .onComplete();
+        doThrow(new RuntimeException("Publish service close error"))
+                .when(grpcServiceClient)
+                .close();
+
+        final BlockNodeServiceClient blockNodeServiceClient = connection.getBlockNodeServiceClient();
+        assertThat(blockNodeServiceClient).isNotNull();
+        doThrow(new RuntimeException("Block node service close error"))
+                .when(blockNodeServiceClient)
+                .close();
+
+        connection.close(true);
+
+        // Verify all close operations were attempted despite exceptions
+        verify(requestPipeline).onComplete();
+        verify(grpcServiceClient).close();
+        verify(blockNodeServiceClient).close();
+
+        // Connection state should still be CLOSED even after all the exceptions
+        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CLOSED);
+
+        // Verify metrics were still recorded
+        verify(metrics).recordConnectionClosed();
+        verify(metrics).recordActiveConnectionIp(-1L);
     }
 
     @Test

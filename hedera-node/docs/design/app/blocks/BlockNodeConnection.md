@@ -28,10 +28,21 @@ It manages connection state, handles communication, and reports errors to the `B
 ## Component Responsibilities
 
 - Establish and maintain the connection transport.
-- Handle incoming and outgoing message flow.
+- Handle incoming and outgoing message flow (block streaming via `BlockStreamPublishServiceClient`).
+- Provide access to ancillary block node services (e.g., server status) via `BlockNodeServiceClient`.
 - Report connection errors promptly.
 - Coordinate with `BlockNodeConnectionManager` on lifecycle events.
 - Notify the block buffer when a block has been acknowledged and therefore eligible to be pruned.
+
+### Service Clients
+
+`BlockNodeConnection` manages two gRPC service clients that share a single underlying connection:
+
+- **BlockStreamPublishServiceClient**: Handles the bidirectional streaming of block items to the block node via the `publishBlockStream` RPC.
+- **BlockNodeServiceClient**: Provides access to ancillary block node services, such as:
+  - `serverStatus()`: Queries the block node's operational status.
+
+Both clients share the same `PbjGrpcClient` instance to optimize resource usage and maintain a single TCP connection to the block node. When the connection is closed, both service clients are properly cleaned up, with the underlying gRPC client being closed automatically.
 
 ## Component Interaction
 
