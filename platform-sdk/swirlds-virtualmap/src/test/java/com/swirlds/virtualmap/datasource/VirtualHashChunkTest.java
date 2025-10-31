@@ -20,20 +20,20 @@ public class VirtualHashChunkTest {
 
     @Test
     void createTest() {
-        assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(0, 0, new byte[HASH_LENGTH]));
-        assertDoesNotThrow(() -> new VirtualHashChunk(0, 1, new byte[HASH_LENGTH * 2]));
-        assertDoesNotThrow(() -> new VirtualHashChunk(1, 1, new byte[HASH_LENGTH * 2]));
-        assertDoesNotThrow(() -> new VirtualHashChunk(5, 1, new byte[HASH_LENGTH * 2]));
+        assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(0, 0, 1, new byte[HASH_LENGTH]));
+        assertDoesNotThrow(() -> new VirtualHashChunk(0, 1, 1, new byte[HASH_LENGTH * 2]));
+        assertDoesNotThrow(() -> new VirtualHashChunk(1, 1, 1, new byte[HASH_LENGTH * 2]));
+        assertDoesNotThrow(() -> new VirtualHashChunk(5, 1, 1, new byte[HASH_LENGTH * 2]));
         for (int h = 2; h < 6; h++) {
             final int height = h;
             final int chunkSize = VirtualHashChunk.getChunkSize(height);
             final byte[] hashData = new byte[HASH_LENGTH * chunkSize];
-            assertDoesNotThrow(() -> new VirtualHashChunk(0, height, hashData));
-            assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(1, height, hashData));
-            assertDoesNotThrow(() -> new VirtualHashChunk(Path.getLeftGrandChildPath(0, height), height, hashData));
+            assertDoesNotThrow(() -> new VirtualHashChunk(0, height, height, hashData));
+            assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(1, height, height, hashData));
+            assertDoesNotThrow(() -> new VirtualHashChunk(Path.getLeftGrandChildPath(0, height), height, height, hashData));
             assertThrows(
                     IllegalArgumentException.class,
-                    () -> new VirtualHashChunk(Path.getLeftGrandChildPath(0, height + 1), height, hashData));
+                    () -> new VirtualHashChunk(Path.getLeftGrandChildPath(0, height + 1), height, height, hashData));
         }
     }
 
@@ -96,17 +96,17 @@ public class VirtualHashChunkTest {
     @Test
     void createDataLengthTest() {
         final int hashLen = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
-        assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(0, 1, null));
+        assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(0, 1, 1, null));
         for (int h = 2; h < 6; h++) {
             final int height = h;
-            assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(0, height, null));
+            assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(0, height, height, null));
             final int chunkSize = VirtualHashChunk.getChunkSize(height);
             final byte[] hashData = new byte[hashLen * chunkSize];
             final byte[] hashDataMinusOne = new byte[hashLen * chunkSize - 1];
             final byte[] hashDataPlusOne = new byte[hashLen * chunkSize + 1];
-            assertDoesNotThrow(() -> new VirtualHashChunk(0, height, hashData));
-            assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(0, height, hashDataMinusOne));
-            assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(0, height, hashDataPlusOne));
+            assertDoesNotThrow(() -> new VirtualHashChunk(0, height, height, hashData));
+            assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(0, height, height, hashDataMinusOne));
+            assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(0, height, height, hashDataPlusOne));
         }
     }
 
@@ -253,6 +253,45 @@ public class VirtualHashChunkTest {
         assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.getPathInChunk(2, 15, 3));
     }
 
+    @Test
+    void minChunkIdForPathsTest2() {
+        // Chunk height 2
+        assertEquals(0, VirtualHashChunk.minChunkIdForPaths(1, 2));
+        assertEquals(0, VirtualHashChunk.minChunkIdForPaths(3, 2));
+        assertEquals(0, VirtualHashChunk.minChunkIdForPaths(4, 2));
+        assertEquals(0, VirtualHashChunk.minChunkIdForPaths(6, 2));
+        assertEquals(1, VirtualHashChunk.minChunkIdForPaths(7, 2));
+        assertEquals(2, VirtualHashChunk.minChunkIdForPaths(9, 2));
+        assertEquals(4, VirtualHashChunk.minChunkIdForPaths(14, 2));
+        assertEquals(4, VirtualHashChunk.minChunkIdForPaths(15, 2));
+        assertEquals(4, VirtualHashChunk.minChunkIdForPaths(18, 2));
+        assertEquals(4, VirtualHashChunk.minChunkIdForPaths(22, 2));
+        assertEquals(4, VirtualHashChunk.minChunkIdForPaths(29, 2));
+        assertEquals(4, VirtualHashChunk.minChunkIdForPaths(30, 2));
+        assertEquals(5, VirtualHashChunk.minChunkIdForPaths(31, 2));
+        assertEquals(20, VirtualHashChunk.minChunkIdForPaths(63, 2));
+    }
+
+    @Test
+    void minChunkIdForPathsTest3() {
+        // Chunk height 3
+        assertEquals(0, VirtualHashChunk.minChunkIdForPaths(1, 3));
+        assertEquals(0, VirtualHashChunk.minChunkIdForPaths(4, 3));
+        assertEquals(0, VirtualHashChunk.minChunkIdForPaths(11, 3));
+        assertEquals(1, VirtualHashChunk.minChunkIdForPaths(15, 3));
+        assertEquals(2, VirtualHashChunk.minChunkIdForPaths(17, 3));
+        assertEquals(8, VirtualHashChunk.minChunkIdForPaths(29, 3));
+        assertEquals(8, VirtualHashChunk.minChunkIdForPaths(32, 3));
+        assertEquals(8, VirtualHashChunk.minChunkIdForPaths(66, 3));
+        assertEquals(8, VirtualHashChunk.minChunkIdForPaths(100, 3));
+        assertEquals(9, VirtualHashChunk.minChunkIdForPaths(127, 3));
+        assertEquals(10, VirtualHashChunk.minChunkIdForPaths(129, 3));
+        assertEquals(72, VirtualHashChunk.minChunkIdForPaths(255, 3));
+        assertEquals(72, VirtualHashChunk.minChunkIdForPaths(256, 3));
+        assertEquals(72, VirtualHashChunk.minChunkIdForPaths(512, 3));
+        assertEquals(73, VirtualHashChunk.minChunkIdForPaths(1023, 3));
+    }
+
     private static Hash genRandomHash() {
         final Random random = new Random();
         final byte[] hashData = new byte[HASH_LENGTH];
@@ -266,7 +305,7 @@ public class VirtualHashChunkTest {
         final Random random = new Random();
         final int chunkSize = VirtualHashChunk.getChunkSize(height);
         final long chunkPath = Path.getLeftGrandChildPath(0, random.nextInt(8) * height);
-        final VirtualHashChunk chunk = new VirtualHashChunk(chunkPath, height, new byte[chunkSize * HASH_LENGTH]);
+        final VirtualHashChunk chunk = new VirtualHashChunk(chunkPath, height, height, new byte[chunkSize * HASH_LENGTH]);
         for (int i = 0; i < chunkSize; i++) {
             final Hash hash = genRandomHash();
             assertNotEquals(hash, chunk.getHashAtIndex(i));
@@ -285,7 +324,7 @@ public class VirtualHashChunkTest {
         final Random random = new Random();
         final int chunkSize = VirtualHashChunk.getChunkSize(height);
         final long chunkPath = Path.getLeftGrandChildPath(0, random.nextInt(8) * height);
-        final VirtualHashChunk chunk = new VirtualHashChunk(chunkPath, height, new byte[chunkSize * HASH_LENGTH]);
+        final VirtualHashChunk chunk = new VirtualHashChunk(chunkPath, height, height, new byte[chunkSize * HASH_LENGTH]);
         for (int i = 0; i < chunkSize; i++) {
             final Hash hash = genRandomHash();
             assertNotEquals(hash, chunk.getHashAtIndex(i));

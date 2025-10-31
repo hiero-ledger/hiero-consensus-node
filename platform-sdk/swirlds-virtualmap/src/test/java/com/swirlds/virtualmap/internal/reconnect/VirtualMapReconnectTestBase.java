@@ -20,7 +20,7 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
-import com.swirlds.virtualmap.datasource.VirtualHashRecord;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
@@ -39,7 +39,6 @@ import java.util.stream.Stream;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
-import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.junit.jupiter.api.AfterEach;
@@ -238,7 +237,7 @@ public abstract class VirtualMapReconnectTestBase {
         public void saveRecords(
                 long firstLeafPath,
                 long lastLeafPath,
-                @NonNull Stream<VirtualHashRecord> pathHashRecordsToUpdate,
+                @NonNull Stream<VirtualHashChunk> hashChunksToUpdate,
                 @NonNull Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
                 @NonNull Stream<VirtualLeafBytes> leafRecordsToDelete,
                 boolean isReconnectContext)
@@ -259,7 +258,7 @@ public abstract class VirtualMapReconnectTestBase {
             delegate.saveRecords(
                     firstLeafPath,
                     lastLeafPath,
-                    pathHashRecordsToUpdate,
+                    hashChunksToUpdate,
                     leaves.stream(),
                     leafRecordsToDelete,
                     isReconnectContext);
@@ -286,8 +285,8 @@ public abstract class VirtualMapReconnectTestBase {
         }
 
         @Override
-        public Hash loadHash(final long path) throws IOException {
-            return delegate.loadHash(path);
+        public VirtualHashChunk loadHashChunk(final long chunkId) throws IOException {
+            return delegate.loadHashChunk(chunkId);
         }
 
         @Override

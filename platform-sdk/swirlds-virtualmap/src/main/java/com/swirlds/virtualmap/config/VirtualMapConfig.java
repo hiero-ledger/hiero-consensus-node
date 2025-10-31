@@ -55,13 +55,13 @@ import com.swirlds.config.api.validation.annotation.Min;
 public record VirtualMapConfig(
         @Min(0) @Max(100) @ConfigProperty(defaultValue = "50.0") double percentHashThreads,
         @Min(-1) @ConfigProperty(defaultValue = "-1") int numHashThreads,
-        @Min(1) @Max(64) @ConfigProperty(defaultValue = "3") int virtualHasherChunkHeight,
+        @Min(1) @Max(64) @ConfigProperty(defaultValue = "5") int virtualHasherChunkHeight,
         @ConfigProperty(defaultValue = PUSH) String reconnectMode,
         @Min(0) @ConfigProperty(defaultValue = "500000") int reconnectFlushInterval,
         @Min(0) @Max(100) @ConfigProperty(defaultValue = "25.0") double percentCleanerThreads,
         @Min(-1) @ConfigProperty(defaultValue = "-1") int numCleanerThreads,
         @Min(1) @ConfigProperty(defaultValue = "20") int flushInterval,
-        @Min(-1) @ConfigProperty(defaultValue = "1000000000") long copyFlushCandidateThreshold,
+        @Min(-1) @ConfigProperty(defaultValue = "1200000000") long copyFlushCandidateThreshold,
         @Min(-1) @Max(100) @ConfigProperty(defaultValue = "10.0") double familyThrottlePercent,
         @Min(-1) @ConfigProperty(defaultValue = "-1") long familyThrottleThreshold) {
 

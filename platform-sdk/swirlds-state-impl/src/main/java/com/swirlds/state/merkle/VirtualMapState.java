@@ -861,7 +861,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
      */
     @Override
     public Hash getHashForPath(long path) {
-        return virtualMap.getRecords().findHash(path);
+        return path == 0 ? virtualMap.getRecords().findRootHash() : virtualMap.getRecords().findHash(path);
     }
 
     @Override
