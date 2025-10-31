@@ -1180,7 +1180,7 @@ public final class VirtualNodeCache implements FastCopyable {
     }
 
     public VirtualHashChunk preloadHashChunk(final long path) {
-        /*
+
         final long hashChunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
         return idToDirtyHashChunkIndex.compute(hashChunkId, (id, mutation) -> {
                     Mutation<Long, VirtualHashChunk> nextMutation = mutation;
@@ -1220,7 +1220,8 @@ public final class VirtualNodeCache implements FastCopyable {
                     return mutation;
                 })
                 .value;
-        */
+
+        /*
         final long hashChunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
         Mutation<Long, VirtualHashChunk> mutation = idToDirtyHashChunkIndex.get(hashChunkId);
         if (mutation != null) {
@@ -1241,7 +1242,7 @@ public final class VirtualNodeCache implements FastCopyable {
             assert chunk.getChunkId() == hashChunkId;
             return chunk;
         }
-
+        */
     }
 
     private void updateHashChunk(final VirtualHashChunk chunk) {
@@ -1255,7 +1256,7 @@ public final class VirtualNodeCache implements FastCopyable {
                 }
                 long sizeDelta = 0;
                 if ((nextMutation == null) || (nextMutation.version != fastCopyVersion.get())) {
-                    nextMutation = new Mutation<>(null, hashChunkId, chunk, fastCopyVersion.get());
+                    nextMutation = new Mutation<>(nextMutation, hashChunkId, chunk, fastCopyVersion.get());
                     dirtyHashChunks.add(nextMutation);
                     sizeDelta +=
                             (long) VirtualHashChunk.getChunkSize(nextMutation.value.height()) * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
@@ -1263,7 +1264,7 @@ public final class VirtualNodeCache implements FastCopyable {
                     assert nextMutation.notFiltered();
                     assert mutation.value.height() == chunk.height();
                     nextMutation.value = chunk;
-                    // No need to update estimated size, all chunks are of the same size
+                    // No need to update estimated size, the chunks are of the same size
                 }
                 if (previousMutation != null) {
                     assert previousMutation.notFiltered();
