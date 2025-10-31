@@ -291,4 +291,28 @@ public interface Node {
      * @return true if the node is running, false otherwise
      */
     boolean isAlive();
+
+    /**
+     * Starts async-profiler on this node, saving results to the specified output file.
+     * The profiler runs in the background until {@link #stopProfiling} is called.
+     * <p>
+     * <b>Note:</b> This feature is not supported in all environments.
+     * Calling this on unsupported environments will throw {@link UnsupportedOperationException}.
+     *
+     * @param outputFile filename for the profile output (e.g., "profile.html", "profile.jfr")
+     * @throws UnsupportedOperationException if profiling is not supported in this environment
+     */
+    void startProfiling(@NonNull String outputFile);
+
+    /**
+     * Stops async-profiler and automatically downloads the profiling results to the host machine.
+     * The file is saved to {@code build/container/node-<selfId>/<filename>} where filename was
+     * specified in {@link #startProfiling}.
+     * <p>
+     * <b>Note:</b> This feature is not supported in all environments.
+     * Calling this on unsupported environments will throw {@link UnsupportedOperationException}.
+     *
+     * @throws UnsupportedOperationException if profiling is not supported in this environment
+     */
+    void stopProfiling();
 }

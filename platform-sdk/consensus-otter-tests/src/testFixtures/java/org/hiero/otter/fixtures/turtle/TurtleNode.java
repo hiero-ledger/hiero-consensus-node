@@ -565,4 +565,28 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     public boolean startFromSavedState() {
         return savedStateDirectory != null;
     }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Profiling is not supported in the Turtle environment.
+     *
+     * @throws UnsupportedOperationException always, as profiling is only supported in container environments
+     */
+    @Override
+    public void startProfiling(@NonNull final String outputFilename) {
+        throw new UnsupportedOperationException("Profiling is not supported in the Turtle environment");
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Profiling is not supported in the Turtle environment.
+     *
+     * @throws UnsupportedOperationException always, as profiling is only supported in container environments
+     */
+    @Override
+    public void stopProfiling() {
+        throw new UnsupportedOperationException("Profiling is not supported in the Turtle environments");
+    }
 }

@@ -124,6 +124,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     /** A source of randomness for the node */
     private final Random random;
 
+    /** The output filename for profiling results, set when profiling is started */
+    private String profilingOutputFilename;
+
     /**
      * Constructor for the {@link ContainerNode} class.
      *
@@ -467,6 +470,131 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     @NonNull
     public SingleNodeMarkerFileResult newMarkerFileResult() {
         return new SingleNodeMarkerFileResultImpl(resultsCollector);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void startProfiling(@NonNull final String outputFilename) {
+        requireNonNull(outputFilename, "outputFilename must not be null");
+
+        try {
+            // Store filename for later download
+            this.profilingOutputFilename = outputFilename;
+
+            // Build the profiler path inside container (using /tmp for profiling output)
+            final String containerOutputPath = "/tmp/profiling/" + outputFilename;
+
+            // Ensure profiling directory exists
+            container.execInContainer("mkdir", "-p", "/tmp/profiling");
+
+            // Create a custom JFC configuration with 1ms sampling for fine-grained profiling
+            // Default JFR sampling is 20ms which is too coarse for detailed profiling
+            final String jfcContent =
+                    """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <configuration version="2.0" label="Fine-Grained Profile" description="High-frequency sampling for detailed profiling" provider="Otter">
+                  <event name="jdk.ExecutionSample">
+                    <setting name="enabled">true</setting>
+                    <setting name="period">1 ms</setting>
+                  </event>
+                  <event name="jdk.NativeMethodSample">
+                    <setting name="enabled">true</setting>
+                    <setting name="period">1 ms</setting>
+                  </event>
+                  <event name="jdk.ObjectAllocationInNewTLAB">
+                    <setting name="enabled">true</setting>
+                    <setting name="stackTrace">true</setting>
+                  </event>
+                  <event name="jdk.ObjectAllocationOutsideTLAB">
+                    <setting name="enabled">true</setting>
+                    <setting name="stackTrace">true</setting>
+                  </event>
+                </configuration>
+                """;
+
+            // Write custom JFC file to container
+            final String writeJfcCommand =
+                    String.format("sh -c 'cat > /tmp/profiling/custom.jfc << \"EOF\"\n%s\nEOF'", jfcContent);
+            container.execInContainer("sh", "-c", writeJfcCommand);
+
+            // Get the Java process PID
+            final String getPidCommand = "jps | grep -E \"DockerApp|ConsensusNodeMain\" | head -1 | awk '{print $1}'";
+            final ExecResult pidResult = container.execInContainer("sh", "-c", getPidCommand);
+            if (pidResult.getExitCode() != 0 || pidResult.getStdout().trim().isEmpty()) {
+                fail("Failed to find Java process on node " + selfId.id());
+            }
+            final String pid = pidResult.getStdout().trim();
+
+            // Start JFR with custom configuration
+            final String startJfrCommand = String.format(
+                    "jcmd %s JFR.start name=otter-profile settings=/tmp/profiling/custom.jfc filename=%s dumponexit=true",
+                    pid, containerOutputPath);
+
+            final ExecResult result = container.execInContainer("sh", "-c", startJfrCommand);
+            if (result.getExitCode() != 0) {
+                fail("Failed to start JFR profiling on node " + selfId.id() + ": " + result.getStderr());
+            }
+
+            log.info("Started JFR profiling on node {} with 1ms sampling -> {}", selfId.id(), outputFilename);
+        } catch (final IOException e) {
+            fail("Failed to start profiling on node " + selfId.id(), e);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            fail("Interrupted while starting profiling on node " + selfId.id(), e);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void stopProfiling() {
+        if (profilingOutputFilename == null) {
+            throw new IllegalStateException("Profiling was not started. Call startProfiling() first.");
+        }
+
+        try {
+            // Get the Java process PID
+            final String getPidCommand = "jps | grep -E \"DockerApp|ConsensusNodeMain\" | head -1 | awk '{print $1}'";
+            final ExecResult pidResult = container.execInContainer("sh", "-c", getPidCommand);
+            if (pidResult.getExitCode() != 0 || pidResult.getStdout().trim().isEmpty()) {
+                throw new IOException("Failed to find Java process on node " + selfId.id());
+            }
+            final String pid = pidResult.getStdout().trim();
+
+            // Stop JFR recording and dump to file
+            final String stopJfrCommand = String.format("jcmd %s JFR.stop name=otter-profile", pid);
+            final ExecResult result = container.execInContainer("sh", "-c", stopJfrCommand);
+            if (result.getExitCode() != 0) {
+                throw new IOException(
+                        "Failed to stop JFR profiling on node " + selfId.id() + ": " + result.getStderr());
+            }
+
+            log.info("Stopped JFR profiling on node {}", selfId.id());
+
+            // Download the profiling result to build/container/node-{selfId}/{filename}
+            final String containerPath = "/tmp/profiling/" + profilingOutputFilename;
+            final Path hostPath = Path.of(
+                    "build", "container", NODE_IDENTIFIER_FORMAT.formatted(selfId.id()), profilingOutputFilename);
+
+            // Ensure parent directory exists
+            Files.createDirectories(hostPath.getParent());
+
+            // Copy the file from container to host
+            container.copyFileFromContainer(containerPath, hostPath.toString());
+
+            log.info("Downloaded JFR profiling result from node {} to {}", selfId.id(), hostPath.toAbsolutePath());
+
+            // Clear the filename
+            profilingOutputFilename = null;
+        } catch (final IOException e) {
+            fail("Failed to stop profiling and download results from node " + selfId.id(), e);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            fail("Interrupted while stopping profiling and downloading results from node " + selfId.id(), e);
+        }
     }
 
     /**
