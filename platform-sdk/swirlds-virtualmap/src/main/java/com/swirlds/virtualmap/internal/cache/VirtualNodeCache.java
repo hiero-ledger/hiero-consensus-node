@@ -23,20 +23,26 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Comparator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.futures.StandardFuture;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.exceptions.PlatformException;
 import org.hiero.base.exceptions.ReferenceCountException;
@@ -524,6 +530,14 @@ public final class VirtualNodeCache implements FastCopyable {
             p.estimatedLeavesSizeInBytes.addAndGet(estimatedLeavesSizeInBytes.get());
             p.estimatedLeafPathsSizeInBytes.addAndGet(estimatedLeafPathsSizeInBytes.get());
             p.estimatedHashesSizeInBytes.addAndGet(estimatedHashesSizeInBytes.get());
+//            logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Merge into {} size old {}", p.getFastCopyVersion(), p.getEstimatedSize());
+//            if (next.get() == null) {
+//                p.estimatedLeafPathsSizeInBytes.addAndGet(-p.purgeOnMerge(dirtyLeafPaths, Bytes::length));
+//                final long oneHashChunkSize =
+//                        (long) VirtualHashChunk.getChunkSize(hashChunkHeight) * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
+//                p.estimatedHashesSizeInBytes.addAndGet(-p.purgeOnMerge(dirtyHashChunks, t -> oneHashChunkSize));
+//                logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Merge into {} size new {}", p.getFastCopyVersion(), p.getEstimatedSize());
+//            }
             p.mergedCopy.set(true);
 
             // Remove this cache from the chain and wire the prev and next caches together.
@@ -841,7 +855,10 @@ public final class VirtualNodeCache implements FastCopyable {
         }
 
         final Map<Bytes, VirtualLeafBytes> leaves = new ConcurrentHashMap<>();
-        final StandardFuture<Void> result = dirtyLeaves.parallelTraverse(getCleaningPool(virtualMapConfig), element -> {
+        final StandardFuture<Void> result = dirtyLeaves.parallelTraverse(getCleaningPool(virtualMapConfig), (i, element) -> {
+            if (element == null) {
+                return;
+            }
             if (element.isDeleted()) {
                 final Bytes key = element.key;
                 final Mutation<Bytes, VirtualLeafBytes> mutation = lookup(keyToDirtyLeafIndex.get(key));
@@ -902,13 +919,11 @@ public final class VirtualNodeCache implements FastCopyable {
         updateHashAtPath(hash, path);
     }
 
-    /*
     public void putHashChunk(@NonNull final VirtualHashChunk chunk) {
         throwIfInternalsImmutable();
         assert chunk != null;
         updateHashChunk(chunk);
     }
-    */
 
     public VirtualHashChunk lookupHashChunkById(final long chunkId) {
         // The only way to be released is to be in a condition where the data source has
@@ -982,6 +997,7 @@ public final class VirtualNodeCache implements FastCopyable {
         // Mark obsolete mutations to filter later
         filterMutations(dirtyHashChunks, virtualMapConfig);
         return dirtyHashChunks.stream()
+                .filter(Objects::nonNull)
                 .filter(mutation -> {
                     final long hashChunkPath = mutation.value.path();
                     return Path.getLeftChildPath(hashChunkPath) <= lastLeafPath;
@@ -1164,6 +1180,7 @@ public final class VirtualNodeCache implements FastCopyable {
     }
 
     public VirtualHashChunk preloadHashChunk(final long path) {
+        /*
         final long hashChunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
         return idToDirtyHashChunkIndex.compute(hashChunkId, (id, mutation) -> {
                     Mutation<Long, VirtualHashChunk> nextMutation = mutation;
@@ -1183,13 +1200,13 @@ public final class VirtualNodeCache implements FastCopyable {
                         nextMutation = new Mutation<>(null, hashChunkId, hashChunk, fastCopyVersion.get());
                         dirtyHashChunks.add(nextMutation);
                         sizeDelta +=
-                                nextMutation.value.getSizeInBytes(); // looks like a good hash chunk size estimation
+                                (long) VirtualHashChunk.getChunkSize(hashChunkHeight) * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
                     } else if (nextMutation.version != fastCopyVersion.get()) {
                         final VirtualHashChunk hashChunk = nextMutation.value.copy();
                         nextMutation = new Mutation<>(nextMutation, hashChunkId, hashChunk, fastCopyVersion.get());
                         dirtyHashChunks.add(nextMutation);
                         sizeDelta +=
-                                nextMutation.value.getSizeInBytes(); // looks like a good hash chunk size estimation
+                                (long) VirtualHashChunk.getChunkSize(hashChunkHeight) * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
                     } else {
                         assert nextMutation.notFiltered();
                     }
@@ -1203,7 +1220,7 @@ public final class VirtualNodeCache implements FastCopyable {
                     return mutation;
                 })
                 .value;
-        /*
+        */
         final long hashChunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
         Mutation<Long, VirtualHashChunk> mutation = idToDirtyHashChunkIndex.get(hashChunkId);
         if (mutation != null) {
@@ -1221,13 +1238,13 @@ public final class VirtualNodeCache implements FastCopyable {
                 final long hashChunkPath = VirtualHashChunk.chunkIdToChunkPath(hashChunkId, hashChunkHeight);
                 chunk = new VirtualHashChunk(hashChunkPath, hashChunkHeight);
             }
+            assert chunk.getChunkId() == hashChunkId;
             return chunk;
         }
-        */
+
     }
 
-    /*
-    public void updateHashChunk(final VirtualHashChunk chunk) {
+    private void updateHashChunk(final VirtualHashChunk chunk) {
         final long hashChunkId = chunk.getChunkId();
         idToDirtyHashChunkIndex.compute(hashChunkId, (id, mutation) -> {
                 Mutation<Long, VirtualHashChunk> nextMutation = mutation;
@@ -1241,9 +1258,10 @@ public final class VirtualNodeCache implements FastCopyable {
                     nextMutation = new Mutation<>(null, hashChunkId, chunk, fastCopyVersion.get());
                     dirtyHashChunks.add(nextMutation);
                     sizeDelta +=
-                            nextMutation.value.getSizeInBytes(); // looks like a good hash chunk size estimation
+                            (long) VirtualHashChunk.getChunkSize(nextMutation.value.height()) * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
                 } else {
                     assert nextMutation.notFiltered();
+                    assert mutation.value.height() == chunk.height();
                     nextMutation.value = chunk;
                     // No need to update estimated size, all chunks are of the same size
                 }
@@ -1257,7 +1275,6 @@ public final class VirtualNodeCache implements FastCopyable {
                 return mutation;
             });
     }
-    */
 
     /**
      * Given a mutation list, look up the most recent mutation to this version, but no newer than this
@@ -1346,7 +1363,10 @@ public final class VirtualNodeCache implements FastCopyable {
             final ConcurrentArray<Mutation<K, V>> array,
             final Map<K, Mutation<K, V>> index,
             @NonNull final VirtualMapConfig virtualMapConfig) {
-        array.parallelTraverse(getCleaningPool(virtualMapConfig), element -> {
+        array.parallelTraverse(getCleaningPool(virtualMapConfig), (i, element) -> {
+            if (element == null) {
+                return;
+            }
             // If a cache copy is released after flush, some mutations may be already marked as
             // filtered in dirtyLeavesForFlush() and dirtyHashesForFlush(). When a mutation is
             // filtered, it means there is a newer mutation for the same key in the same cache
@@ -1370,6 +1390,40 @@ public final class VirtualNodeCache implements FastCopyable {
         });
     }
 
+    /*
+    private <V> long purgeOnMerge(
+            final ConcurrentArray<Mutation<Long, V>> array,
+            final Function<V, Long> sizeFunction) {
+        final AtomicInteger purged = new AtomicInteger(0);
+        final LongAdder sizeDelta = new LongAdder();
+        final BiConsumer<Integer, Mutation<Long, V>> action = (i, mutation) -> {
+            if (mutation == null) {
+                return;
+            }
+            // local variable is required because mutation.next can be changed by another thread to null
+            // see https://github.com/hashgraph/hedera-services/issues/7046 for the context
+            final Mutation<Long, V> nextMutation = mutation.next;
+            if (nextMutation != null) {
+                assert nextMutation.next == null;
+                mutation.next = null;
+                nextMutation.setFiltered();
+            } else if (!mutation.notFiltered()) {
+                sizeDelta.add(sizeFunction.apply(mutation.value));
+                array.set(i, null);
+                purged.incrementAndGet();
+            }
+        };
+        try {
+            array.parallelTraverse(getCleaningPool(virtualMapConfig), action).getAndRethrow();
+            logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Purged {}", purged.get());
+            return sizeDelta.sum();
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
+    }
+    */
+
     /**
      * Node cache contains lists of hash and leaf mutations for every cache version. When caches
      * are merged, the lists are merged, too. To make merges very fast, duplicates aren't removed
@@ -1390,7 +1444,10 @@ public final class VirtualNodeCache implements FastCopyable {
      */
     private static <K, V> void filterMutations(
             final ConcurrentArray<Mutation<K, V>> array, @NonNull final VirtualMapConfig virtualMapConfig) {
-        final Consumer<Mutation<K, V>> action = mutation -> {
+        final BiConsumer<Integer, Mutation<K, V>> action = (i, mutation) -> {
+            if (mutation == null) {
+                return;
+            }
             // local variable is required because mutation.next can be changed by another thread to null
             // see https://github.com/hashgraph/hedera-services/issues/7046 for the context
             final Mutation<K, V> nextMutation = mutation.next;

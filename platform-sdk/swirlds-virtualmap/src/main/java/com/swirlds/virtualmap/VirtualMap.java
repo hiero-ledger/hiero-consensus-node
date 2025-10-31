@@ -85,6 +85,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -1094,6 +1095,10 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
                 }
             }
             */
+            @Override
+            public void onHashChunkHashed(@NonNull VirtualHashChunk chunk) {
+                cache.putHashChunk(chunk);
+            }
         };
         Hash virtualHash = hasher.hash(
                 records::findHash,

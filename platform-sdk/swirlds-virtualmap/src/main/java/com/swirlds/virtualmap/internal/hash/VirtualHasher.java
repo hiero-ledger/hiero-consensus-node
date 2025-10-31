@@ -14,14 +14,17 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.ForkJoinWorkerThread;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.LongFunction;
 import org.apache.logging.log4j.LogManager;
@@ -98,6 +101,8 @@ public final class VirtualHasher {
     private long firstLeafPath;
     private long lastLeafPath;
 
+    private int defaultChunkHeight;
+
     /**
      * A listener to notify about hashing events. This listener is stored in a class field to
      * avoid passing it as an arg to every hashing task.
@@ -150,7 +155,7 @@ public final class VirtualHasher {
             this.out = out;
             if (out != null) {
                 out.initInputs();
-                out.preloadHashChunkNeeded();
+//                out.preloadHashChunkNeeded();
             }
             send();
         }
@@ -186,6 +191,8 @@ public final class VirtualHasher {
         // Hash inputs, at least two
         private Hash[] ins;
 
+        private final AtomicInteger insProvided = new AtomicInteger(0);
+
         // No need to have it atomic, this flag is set/checked on a single thread in hashImpl()
         private boolean chunkPreloaded = false;
 
@@ -193,7 +200,8 @@ public final class VirtualHasher {
 
         ChunkHashTask(final ForkJoinPool pool, final long path, final int height) {
             // out (1) + preload (1) + ins (2^height)
-            super(pool, 1 + (1 << height) + 1);
+//            super(pool, 1 + (1 << height) + 1);
+            super(pool, 1 + (1 << height));
             this.path = path;
             this.height = height;
         }
@@ -237,6 +245,9 @@ public final class VirtualHasher {
             final int index = Math.toIntExact(path - firstPathInPathRank);
             assert (index >= 0) && (index < ins.length);
             ins[index] = hash;
+            if (hash != null) {
+                insProvided.incrementAndGet();
+            }
             send();
         }
 
@@ -256,6 +267,14 @@ public final class VirtualHasher {
         @Override
         protected boolean onExecute() {
             int len = 1 << height;
+            if ((insProvided.get() == len) && (Path.getRank(path) % defaultChunkHeight == 0)) {
+                if ((height == defaultChunkHeight) || (Path.getRightGrandChildPath(path, height + 1) <= lastLeafPath)) {
+                    hashChunk = new VirtualHashChunk(path, height, defaultChunkHeight);
+                }
+            }
+            if ((hashChunk == null) && (hashChunkPreloader != null)) {
+                hashChunk = hashChunkPreloader.apply(Path.getLeftChildPath(path));
+            }
             long rankPath = Path.getLeftGrandChildPath(path, height);
             while (len > 1) {
                 for (int i = 0; i < len / 2; i++) {
@@ -576,14 +595,14 @@ public final class VirtualHasher {
         // may not be null.
 
         // Default chunk height, from config
-        final int chunkHeight = virtualMapConfig.virtualHasherChunkHeight();
+        defaultChunkHeight = virtualMapConfig.virtualHasherChunkHeight();
         int firstLeafRank = Path.getRank(firstLeafPath);
         int lastLeafRank = Path.getRank(lastLeafPath);
 
         // This map contains all tasks created, but not scheduled for execution yet
         final HashMap<Long, HashProducingTask> allTasks = new HashMap<>();
 
-        final int rootTaskHeight = Math.min(firstLeafRank, chunkHeight);
+        final int rootTaskHeight = Math.min(firstLeafRank, defaultChunkHeight);
         final ChunkHashTask rootTask = new ChunkHashTask(pool, ROOT_PATH, rootTaskHeight);
         // The root task doesn't have an output. Still need to call setOut() to set the dependency
         rootTask.setOut(null);
@@ -621,7 +640,7 @@ public final class VirtualHasher {
             while (true) {
                 final int curRank = Path.getRank(curPath);
                 final int parentChunkHeight =
-                        getChunkHeightForInputRank(curPath, curRank, firstLeafRank, lastLeafRank, chunkHeight);
+                        getChunkHeightForInputRank(curPath, curRank, firstLeafRank, lastLeafRank, defaultChunkHeight);
                 final int chunkWidth = 1 << parentChunkHeight;
                 // If some tasks have been created at this rank, they can now be marked as
                 // clean. No dirty leaves in the remaining stream may affect these tasks
@@ -698,7 +717,7 @@ public final class VirtualHasher {
                         } else {
                             // Chunk sibling
                             final int taskChunkHeight = getChunkHeightForOutputRank(
-                                    siblingPath, curRank, firstLeafRank, lastLeafRank, chunkHeight);
+                                    siblingPath, curRank, firstLeafRank, lastLeafRank, defaultChunkHeight);
                             siblingTask = allTasks.computeIfAbsent(
                                     siblingPath, path -> new ChunkHashTask(pool, path, taskChunkHeight));
                         }
