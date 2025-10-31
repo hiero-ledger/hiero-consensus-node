@@ -433,6 +433,12 @@ public class BlockNodeSuite {
                         String.format(
                                 "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
                                 portNumbers.get(1)),
+                        String.format(
+                                "/localhost:%s/ACTIVE] Connection will be closed at the next block boundary",
+                                portNumbers.get(3)),
+                        String.format(
+                                "/localhost:%s/ACTIVE] Block boundary reached; closing connection (finished sending block)",
+                                portNumbers.get(3)),
                         String.format("/localhost:%s/CLOSING] Closing connection.", portNumbers.get(3)),
                         String.format(
                                 "/localhost:%s/CLOSING] Connection state transitioned from ACTIVE to CLOSING.",
@@ -510,6 +516,8 @@ public class BlockNodeSuite {
                                 // look for the log that shows we are forcing a reconnect to a different block node
                                 "Attempting to forcefully switch block node connections due to increasing block buffer saturation")),
                 doingContextual(spec -> timeRef.set(Instant.now())),
+                // BN 0 may be promoted again since it is a higher priority connection; re-enable acknowledging
+                blockNode(0).updateSendingBlockAcknowledgements(true),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
@@ -1016,8 +1024,6 @@ public class BlockNodeSuite {
                 assertBlockNodeCommsLogDoesNotContain(
                         byNodeId(0), "Block node has exceeded high latency threshold", Duration.ofSeconds(0)),
                 assertBlockNodeCommsLogContains(
-                        byNodeId(0),
-                        "Sending ad hoc request to block node (type=END_OF_BLOCK)",
-                        Duration.ofSeconds(0)));
+                        byNodeId(0), "Sending request to block node (type=END_OF_BLOCK)", Duration.ofSeconds(0)));
     }
 }

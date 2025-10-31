@@ -260,7 +260,7 @@ public class BlockNodeConnectionManager {
      * @return whether there is only one block node configured
      */
     public boolean isOnlyOneBlockNodeConfigured() {
-        int size;
+        final int size;
         synchronized (availableBlockNodes) {
             size = availableBlockNodes.size();
         }
@@ -389,7 +389,7 @@ public class BlockNodeConnectionManager {
         } catch (final Exception e) {
             logger.error("{} Failed to schedule connection task for block node.", newConnection, e);
             connections.remove(newConnection.getNodeConfig());
-            newConnection.close(true);
+            newConnection.closeAtBlockBoundary();
         }
     }
 
@@ -431,6 +431,8 @@ public class BlockNodeConnectionManager {
             final Map.Entry<BlockNodeConfig, BlockNodeConnection> entry = it.next();
             final BlockNodeConnection connection = entry.getValue();
             try {
+                // This method is invoked during a shutdown of the connection manager, in which case we don't want
+                // to gracefully close connections at block boundaries, so just call close immediately.
                 connection.close(true);
             } catch (final RuntimeException e) {
                 logger.debug(
@@ -772,7 +774,7 @@ public class BlockNodeConnectionManager {
                                 "{} Active connection has equal/higher priority. Ignoring candidate. Active: {}.",
                                 connection,
                                 activeConnection);
-                        connection.close(true);
+                        connection.closeAtBlockBoundary();
                         return;
                     }
                 }
@@ -798,7 +800,7 @@ public class BlockNodeConnectionManager {
                     // close the old active connection
                     try {
                         logger.debug("{} Closing current active connection {}.", connection, activeConnection);
-                        activeConnection.close(true);
+                        activeConnection.closeAtBlockBoundary();
                     } catch (final RuntimeException e) {
                         logger.info(
                                 "Failed to shutdown current active connection {} (shutdown reason: another connection was elevated to active).",
@@ -860,7 +862,7 @@ public class BlockNodeConnectionManager {
                 // If rescheduling fails, close the connection and remove it from the connection map. A periodic task
                 // will handle checking if there are no longer any connections
                 connections.remove(connection.getNodeConfig());
-                connection.close(true);
+                connection.closeAtBlockBoundary();
             }
         }
     }
