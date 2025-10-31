@@ -30,6 +30,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *     <li>{@code cancelled_write_bytes} - cancelled write operations</li>
  * </ul>
  * <p>
+ * <b>High-Frequency Sampling:</b> To provide accurate rate calculations, this implementation
+ * samples I/O stats at high frequency (every 100ms) and reports the average rate to the
+ * metrics framework. This ensures that bursty I/O activity is captured accurately, even when
+ * metrics are only reported once per second.
+ * <p>
  * On non-Linux platforms, metrics will be registered but remain at zero until
  * platform-specific implementations are added.
  * <p>
@@ -38,8 +43,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *     <li>ioDiskBytesRead - cumulative disk reads in bytes</li>
  *     <li>ioDiskBytesWritten - cumulative disk writes in bytes</li>
  *     <li>ioCancelledWriteBytes - cumulative cancelled writes in bytes</li>
- *     <li>ioDiskReadRate - current disk read rate in bytes/second</li>
- *     <li>ioDiskWriteRate - current disk write rate in bytes/second</li>
+ *     <li>ioDiskReadRate - average disk read rate in bytes/second (from 100ms samples)</li>
+ *     <li>ioDiskWriteRate - average disk write rate in bytes/second (from 100ms samples)</li>
  * </ul>
  */
 public final class IOMetrics {
@@ -86,10 +91,18 @@ public final class IOMetrics {
 
     private final IOStatsReader ioStatsReader;
 
+    // High-frequency sampling for accurate rate calculation
+    private static final long SAMPLE_INTERVAL_MS = 100; // Sample every 100ms
+
     // For calculating disk I/O rates (matching iotop behavior)
     private long lastDiskBytesRead = 0;
     private long lastDiskBytesWritten = 0;
-    private long lastMeasurementTime = 0;
+    private long lastSampleTime = 0;
+
+    // Accumulated values since last metrics update
+    private long accumulatedReadRate = 0;
+    private long accumulatedWriteRate = 0;
+    private int sampleCount = 0;
 
     private static final AtomicBoolean SETUP_STARTED = new AtomicBoolean();
 
@@ -144,44 +157,74 @@ public final class IOMetrics {
     }
 
     /**
-     * Update all disk I/O metrics with current values from the operating system.
-     * This method is called periodically by the metrics system and matches iotop's behavior
-     * by focusing exclusively on actual disk I/O (read_bytes/write_bytes from /proc).
+     * Sample disk I/O at high frequency and accumulate for accurate rate calculation.
+     * This is called internally at SAMPLE_INTERVAL_MS intervals.
      */
-    private void update() {
-        if (!ioStatsReader.isSupported()) {
-            return;
-        }
-
+    private void sampleIOStats() {
         final IOStatsReader.IOStats stats = ioStatsReader.readIOStats();
         final long currentTime = System.currentTimeMillis();
 
-        // Update cumulative disk I/O metrics
-        diskBytesRead.update(stats.diskBytesRead());
-        diskBytesWritten.update(stats.diskBytesWritten());
-        cancelledWriteBytes.update(stats.cancelledWriteBytes());
-
-        // Calculate and update disk I/O rate metrics (bytes per second)
-        // This matches iotop's calculation: delta_bytes / time_seconds
-        if (lastMeasurementTime > 0) {
-            final long deltaTime = currentTime - lastMeasurementTime;
+        // Calculate rate since last sample
+        if (lastSampleTime > 0) {
+            final long deltaTime = currentTime - lastSampleTime;
             if (deltaTime > 0) {
                 // Calculate delta in disk bytes with wraparound protection
                 final long deltaRead = calculateDelta(stats.diskBytesRead(), lastDiskBytesRead);
                 final long deltaWrite = calculateDelta(stats.diskBytesWritten(), lastDiskBytesWritten);
 
                 // Convert to bytes per second: (bytes * 1000ms/s) / milliseconds
-                final long currentDiskReadRate = (deltaRead * 1000) / deltaTime;
-                final long currentDiskWriteRate = (deltaWrite * 1000) / deltaTime;
+                final long currentReadRate = (deltaRead * 1000) / deltaTime;
+                final long currentWriteRate = (deltaWrite * 1000) / deltaTime;
 
-                diskReadRate.update(currentDiskReadRate);
-                diskWriteRate.update(currentDiskWriteRate);
+                // Accumulate rates for averaging
+                accumulatedReadRate += currentReadRate;
+                accumulatedWriteRate += currentWriteRate;
+                sampleCount++;
             }
         }
 
-        // Update tracking values for next iteration
+        // Update tracking values for next sample
         lastDiskBytesRead = stats.diskBytesRead();
         lastDiskBytesWritten = stats.diskBytesWritten();
-        lastMeasurementTime = currentTime;
+        lastSampleTime = currentTime;
+    }
+
+    /**
+     * Update all disk I/O metrics with current values from the operating system.
+     * This method is called periodically by the metrics system (typically once per second).
+     * It reports the average rate calculated from multiple high-frequency samples.
+     */
+    private void update() {
+        if (!ioStatsReader.isSupported()) {
+            return;
+        }
+
+        // Sample at high frequency (100ms) until it's time to report
+        final long currentTime = System.currentTimeMillis();
+        if (lastSampleTime == 0 || (currentTime - lastSampleTime) >= SAMPLE_INTERVAL_MS) {
+            sampleIOStats();
+        }
+
+        // Read current stats for cumulative metrics
+        final IOStatsReader.IOStats stats = ioStatsReader.readIOStats();
+
+        // Update cumulative disk I/O metrics (always)
+        diskBytesRead.update(stats.diskBytesRead());
+        diskBytesWritten.update(stats.diskBytesWritten());
+        cancelledWriteBytes.update(stats.cancelledWriteBytes());
+
+        // Report average rate from accumulated samples
+        if (sampleCount > 0) {
+            final long avgReadRate = accumulatedReadRate / sampleCount;
+            final long avgWriteRate = accumulatedWriteRate / sampleCount;
+
+            diskReadRate.update(avgReadRate);
+            diskWriteRate.update(avgWriteRate);
+
+            // Reset accumulators for next reporting period
+            accumulatedReadRate = 0;
+            accumulatedWriteRate = 0;
+            sampleCount = 0;
+        }
     }
 }
