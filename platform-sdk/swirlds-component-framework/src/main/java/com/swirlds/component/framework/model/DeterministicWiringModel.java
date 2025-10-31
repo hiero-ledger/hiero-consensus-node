@@ -174,4 +174,22 @@ public class DeterministicWiringModel extends TraceableWiringModel {
     public boolean isRunning() {
         return isRunning;
     }
+
+    /**
+     * Check if there is any pending work in the current or next cycle.
+     *
+     * @return true if there is pending work, false otherwise
+     */
+    public boolean hasPendingWork() {
+        return !currentCycleWork.isEmpty() || !nextCycleWork.isEmpty();
+    }
+
+    /**
+     * Does all pending work in the queues
+     */
+    public void doAllWork() {
+        while (this.hasPendingWork()) {
+            this.tick();
+        }
+    }
 }
