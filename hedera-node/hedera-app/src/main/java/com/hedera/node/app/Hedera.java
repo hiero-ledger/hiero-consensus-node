@@ -1250,16 +1250,14 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         notifications.register(AsyncFatalIssListener.class, daggerApp.fatalIssListener());
         if (blockStreamEnabled) {
             notifications.register(StateHashedListener.class, daggerApp.blockStreamManager());
-            daggerApp
-                    .blockStreamManager()
-                    .initLastBlockHash(
-                            switch (trigger) {
-                                case GENESIS -> ZERO_BLOCK_HASH;
-                                default ->
-                                    blockStreamService
-                                            .migratedLastBlockHash()
-                                            .orElseGet(() -> startBlockHashFrom(state));
-                            });
+
+            final var lastBlockHash =
+                    switch (trigger) {
+                        case GENESIS -> ZERO_BLOCK_HASH;
+                        default ->
+                            blockStreamService.migratedLastBlockHash().orElseGet(() -> startBlockHashFrom(state));
+                    };
+            daggerApp.blockStreamManager().init(state, lastBlockHash);
             migrationStateChanges = null;
         }
     }

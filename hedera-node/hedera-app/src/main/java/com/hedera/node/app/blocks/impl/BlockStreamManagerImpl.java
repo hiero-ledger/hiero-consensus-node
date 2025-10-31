@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
-import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_BLOCK_STREAM_INFO;
 import static com.hedera.hapi.node.base.BlockHashAlgorithm.SHA2_384;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
@@ -9,7 +8,6 @@ import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
-import static com.hedera.node.app.blocks.impl.ConcurrentStreamingTreeHasher.rootHashFrom;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.blockDirFor;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.cleanUpPendingBlock;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.loadContiguousPendingBlocks;
@@ -32,8 +30,6 @@ import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.BlockHeader;
-import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
-import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
@@ -286,69 +282,17 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 .get();
         requireNonNull(blockStreamInfo);
 
-        // Most of the ingredients in the block hash are directly in the BlockStreamInfo
-        // Branch 1: lastBlockHash
-        final var prevBlockHash = blockStreamInfo.blockNumber() == 0L
-                ? ZERO_BLOCK_HASH
-                : BlockRecordInfoUtils.blockHashByBlockNumber(
-                        blockStreamInfo.trailingBlockHashes(),
-                        blockStreamInfo.blockNumber() - 1,
-                        blockStreamInfo.blockNumber() - 1);
-
         // Branch 2
         final var prevBlocksIntermediateHashes = blockStreamInfo.intermediatePreviousBlockRootHashes().stream()
                 .map(Bytes::toByteArray)
                 .toList();
         previousBlockHashes =
                 new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), prevBlocksIntermediateHashes);
-        final var allPrevBlocksHash = inputOrNullHash(Bytes.wrap(previousBlockHashes.computeRootHash()));
 
-        // Branch 3: Retrieve the previous block's starting state hash (not done right here, just part of the calculated
-        // last block hash below)
-
-        // We have to calculate the final hash of the previous block's state changes subtree because only the
-        // penultimate state hash is in the block stream info object (constructed from numPrecedingStateChangesItems and
-        // rightmostPrecedingStateChangesTreeHashes)
-        final var penultimateStateChangesTreeStatus = new StreamingTreeHasher.Status(
-                blockStreamInfo.numPrecedingStateChangesItems(),
-                blockStreamInfo.rightmostPrecedingStateChangesTreeHashes());
-
-        // Reconstruct the final state change block item that would have been emitted by the previous block
-        final var lastBlockFinalStateChange = StateChange.newBuilder()
-                .stateId(STATE_ID_BLOCK_STREAM_INFO.protoOrdinal())
-                .singletonUpdate(SingletonUpdateChange.newBuilder()
-                        .blockStreamInfoValue(blockStreamInfo)
-                        .build())
-                .build();
-        final var lastStateChanges = BlockItem.newBuilder()
-                // The final state changes block item for the last block uses blockEndTime, which has to be the last
-                // state change time
-                .stateChanges(new StateChanges(blockStreamInfo.blockEndTime(), List.of(lastBlockFinalStateChange)))
-                .build();
-        // Hash the reconstructed (final) state changes block item
-        final var lastLeafHash = noThrowSha384HashOf(BlockItem.PROTOBUF.toBytes(lastStateChanges));
-
-        // Combine the penultimate tree status and the hash of the reconstructed state change item to produce the
-        // previous block's final state changes hash
-        final var lastBlockFinalStateChangesHash = rootHashFrom(penultimateStateChangesTreeStatus, lastLeafHash);
-
-        final var calculatedLastBlockHash = Optional.ofNullable(lastBlockHash)
-                .orElseGet(() -> BlockStreamManagerImpl.combine(
-                                prevBlockHash,
-                                allPrevBlocksHash,
-                                blockStreamInfo.startOfBlockStateHash(),
-                                blockStreamInfo.consensusHeaderRootHash(),
-                                blockStreamInfo.inputTreeRootHash(),
-                                blockStreamInfo.outputItemRootHash(),
-                                lastBlockFinalStateChangesHash,
-                                blockStreamInfo.traceDataRootHash(),
-                                blockStreamInfo.blockTime())
-                        .blockRootHash());
-        requireNonNull(calculatedLastBlockHash);
-        initLastBlockHash(calculatedLastBlockHash);
+        initLastBlockHash(lastBlockHash);
 
         // Finally, add the newly-calculated hash to the previous block hashes subtree so it's up to date
-        previousBlockHashes.addLeaf(calculatedLastBlockHash.toByteArray());
+        previousBlockHashes.addLeaf(lastBlockHash.toByteArray());
     }
 
     @Override
