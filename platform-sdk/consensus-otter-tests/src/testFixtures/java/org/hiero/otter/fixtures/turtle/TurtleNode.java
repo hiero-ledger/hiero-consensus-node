@@ -62,6 +62,7 @@ import org.hiero.otter.fixtures.app.OtterAppState;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
 import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.internal.AbstractNode;
+import org.hiero.otter.fixtures.internal.NetworkConfiguration;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeEventStreamResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodeMarkerFileResultImpl;
@@ -105,8 +106,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     private final TurtleMarkerFileObserver markerFileObserver;
     private final Path outputDirectory;
 
-    private PlatformContext platformContext;
-
+    @NonNull
     private QuiescenceCommand quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
 
     @Nullable
@@ -142,8 +142,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final SimulatedNetwork network,
             @NonNull final TurtleLogging logging,
-            @NonNull final Path outputDirectory) {
-        super(selfId, keysAndCerts);
+            @NonNull final Path outputDirectory,
+            @NonNull final NetworkConfiguration networkConfiguration) {
+        super(selfId, keysAndCerts, networkConfiguration);
         try (final LoggingContextScope ignored = installNodeContext()) {
             this.outputDirectory = requireNonNull(outputDirectory);
             logging.addNodeLogging(selfId, outputDirectory);
@@ -152,7 +153,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             this.timeManager = requireNonNull(timeManager);
             this.network = requireNonNull(network);
             this.logging = requireNonNull(logging);
-            this.nodeConfiguration = new TurtleNodeConfiguration(() -> lifeCycle, outputDirectory);
+            this.nodeConfiguration = new TurtleNodeConfiguration(
+                    () -> lifeCycle, networkConfiguration.overrideProperties(), outputDirectory);
             this.resultsCollector = new NodeResultsCollector(selfId);
             this.markerFileObserver = new TurtleMarkerFileObserver(resultsCollector);
         }
@@ -190,6 +192,13 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             }
 
             final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
+            try {
+                // If a previous test didn't clean up properly, remove any existing metrics for this node
+                // This can happen if a test fails during platform initialization
+                getMetricsProvider().removePlatformMetrics(selfId);
+            } catch (final InterruptedException | IllegalArgumentException e) {
+                // ignore, this is just a fallback in case an earlier test didn't clean up properly
+            }
             final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
             final FileSystemManager fileSystemManager = FileSystemManager.create(currentConfiguration);
             final RecycleBin recycleBin = RecycleBin.create(
@@ -200,7 +209,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     fileSystemManager,
                     selfId);
 
-            platformContext = TestPlatformContextBuilder.create()
+            final PlatformContext platformContext = TestPlatformContextBuilder.create()
                     .withTime(timeManager.time())
                     .withConfiguration(currentConfiguration)
                     .withFileSystemManager(fileSystemManager)
@@ -209,11 +218,11 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .build();
 
             model = WiringModelBuilder.create(platformContext.getMetrics(), timeManager.time())
-                    .withDeterministicModeEnabled(true)
+                    .deterministic()
                     .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
                     .build();
 
-            otterApp = new OtterApp(version);
+            otterApp = new OtterApp(currentConfiguration, version);
 
             final HashedReservedSignedState reservedState = loadInitialState(
                     recycleBin,
@@ -329,7 +338,10 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             platformStatus = null;
             platform = null;
             platformComponent = null;
+            executionLayer = null;
+            otterApp = null;
             model = null;
+            quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
             lifeCycle = SHUTDOWN;
 
             // Wait a bit to allow a simulated gossip cycle to pass.
@@ -428,7 +440,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     @NonNull
     public SingleNodePcesResult newPcesResult() {
-        return new SingleNodePcesResultImpl(selfId(), platformContext.getConfiguration());
+        final Configuration currentConfiguration = configuration().current();
+        return new SingleNodePcesResultImpl(selfId(), currentConfiguration);
     }
 
     /**

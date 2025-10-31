@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.turtle;
 
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
+import static java.util.Collections.unmodifiableSet;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.io.utility.FileUtils;
@@ -13,6 +14,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
@@ -43,6 +45,9 @@ public class TurtleTestEnvironment implements TestEnvironment {
     }
 
     private static final Logger log = LogManager.getLogger(TurtleTestEnvironment.class);
+
+    /** Capabilities supported by the Turtle test environment */
+    private static final Set<Capability> CAPABILITIES = unmodifiableSet(EnumSet.of(Capability.DETERMINISTIC_EXECUTION));
 
     static final Duration GRANULARITY = Duration.ofMillis(10);
 
@@ -111,7 +116,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
      * @return {@code true} if the Turtle test environment supports the required capabilities, {@code false} otherwise
      */
     public static boolean supports(@NonNull final List<Capability> requiredCapabilities) {
-        return requiredCapabilities.isEmpty();
+        return CAPABILITIES.containsAll(requiredCapabilities);
     }
 
     /**
@@ -120,7 +125,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
     @Override
     @NonNull
     public Set<Capability> capabilities() {
-        return Set.of();
+        return CAPABILITIES;
     }
 
     /**

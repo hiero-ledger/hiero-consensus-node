@@ -6,6 +6,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Function;
+import org.hiero.hapi.support.fees.FeeSchedule;
 
 /**
  * Used to help calculate the fees for a given transaction. The calculator is available on the {@link HandleContext},
@@ -92,4 +93,7 @@ public interface FeeCalculator {
      */
     @NonNull
     FeeCalculator resetUsage();
+
+    @NonNull
+    FeeSchedule getSimpleFeesSchedule();
 }

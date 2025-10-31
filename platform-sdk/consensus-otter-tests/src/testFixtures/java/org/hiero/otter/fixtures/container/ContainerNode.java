@@ -9,6 +9,7 @@ import static org.hiero.otter.fixtures.container.utils.ContainerConstants.EVENT_
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.HASHSTREAM_LOG_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.METRICS_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.NODE_COMMUNICATION_PORT;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.OTTER_LOG_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.SWIRLDS_LOG_PATH;
 import static org.hiero.otter.fixtures.internal.AbstractNetwork.NODE_IDENTIFIER_FORMAT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
@@ -67,6 +68,7 @@ import org.hiero.otter.fixtures.container.utils.ContainerConstants;
 import org.hiero.otter.fixtures.container.utils.ContainerUtils;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
+import org.hiero.otter.fixtures.internal.NetworkConfiguration;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeEventStreamResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodeMarkerFileResultImpl;
@@ -138,14 +140,16 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final Network network,
             @NonNull final ImageFromDockerfile dockerImage,
-            @NonNull final Path outputDirectory) {
-        super(selfId, keysAndCerts);
+            @NonNull final Path outputDirectory,
+            @NonNull final NetworkConfiguration networkConfiguration) {
+        super(selfId, keysAndCerts, networkConfiguration);
 
         this.localOutputDirectory = requireNonNull(outputDirectory, "outputDirectory must not be null");
         this.timeManager = requireNonNull(timeManager, "timeManager must not be null");
 
         this.resultsCollector = new NodeResultsCollector(selfId);
-        this.nodeConfiguration = new ContainerNodeConfiguration(() -> lifeCycle);
+        this.nodeConfiguration =
+                new ContainerNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
         this.random = new SecureRandom();
 
         container = new ContainerImage(dockerImage, network, selfId);
@@ -204,7 +208,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 .setRoster(ProtobufConverter.fromPbj(roster()))
                 .setKeysAndCerts(KeysAndCertsConverter.toProto(keysAndCerts))
                 .setVersion(ProtobufConverter.fromPbj(version))
-                .putAllOverriddenProperties(nodeConfiguration.overriddenProperties())
+                .putAllOverriddenProperties(nodeConfiguration.overrideProperties())
                 .build();
 
         // Blocking stub for communicating with the consensus node
@@ -367,6 +371,17 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     }
 
     /**
+     * Gets the container instance for this node. This allows direct access to the underlying
+     * Testcontainers container for operations like retrieving console logs.
+     *
+     * @return the container instance
+     */
+    @NonNull
+    public ContainerImage container() {
+        return container;
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override
@@ -473,12 +488,13 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             throw new UncheckedIOException("Failed to copy files from container", e);
         }
 
-        if (lifeCycle == RUNNING) {
-            log.info("Destroying container of node {}...", selfId);
-            containerControlChannel.shutdownNow();
-            nodeCommChannel.shutdownNow();
+        log.info("Destroying container of node {}...", selfId);
+        containerControlChannel.shutdownNow();
+        nodeCommChannel.shutdownNow();
+        if (container.isRunning()) {
             container.stop();
         }
+
         resultsCollector.destroy();
         platformStatus = null;
         lifeCycle = DESTROYED;
@@ -510,6 +526,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
         copyFileFromContainerIfExists(localOutputDirectory, SWIRLDS_LOG_PATH);
         copyFileFromContainerIfExists(localOutputDirectory, HASHSTREAM_LOG_PATH);
+        copyFileFromContainerIfExists(localOutputDirectory, OTTER_LOG_PATH);
         copyFileFromContainerIfExists(localOutputDirectory, METRICS_PATH.formatted(selfId.id()));
     }
 
