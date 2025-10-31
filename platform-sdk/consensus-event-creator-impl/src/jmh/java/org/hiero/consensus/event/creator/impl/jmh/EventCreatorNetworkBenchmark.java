@@ -18,7 +18,6 @@ import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import org.hiero.consensus.event.creator.EventCreationConfig;
@@ -44,18 +43,10 @@ import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 /**
- * Benchmark for measuring network-wide event creation throughput when multiple {@link DefaultEventCreator} instances
- * create and share events.
- * <p>
- * This benchmark simulates a network of nodes where each node:
- * <ul>
- *   <li>Creates events using its own DefaultEventCreator instance</li>
- *   <li>Shares created events with all other nodes in the network</li>
- *   <li>Receives and processes events from other nodes</li>
- * </ul>
- * <p>
- * The benchmark measures the aggregate event creation rate across all nodes in the network,
- * providing insight into network-wide throughput rather than single-node performance.
+ * Benchmark for measuring event creation throughput of {@link DefaultEventCreator} instances. This benchmark runs
+ * multiple event creators in a single thread. Although this is not a completely accurate benchmark of a single event
+ * creator, it should be a good approximation of throughput. The reason for using multiple event creators is that it
+ * is not trivial to use just one, since it has to build on top of events created by other nodes.
  */
 @State(Scope.Benchmark)
 @Fork(value = 1)
@@ -123,7 +114,7 @@ public class EventCreatorNetworkBenchmark {
             final NodeId nodeId = NodeId.of(entry.nodeId());
             final KeysAndCerts keysAndCerts = nodeKeysAndCerts.apply(nodeId);
             final SecureRandom nodeRandom = new SecureRandom();
-            nodeRandom.setSeed(new Random(seed).nextLong());
+            nodeRandom.setSeed(nodeId.id());
 
             final DefaultEventCreator eventCreator = new DefaultEventCreator();
             eventCreator.initialize(
@@ -141,7 +132,7 @@ public class EventCreatorNetworkBenchmark {
     }
 
     /**
-     * Benchmark that measures network-wide event creation throughput.
+     * Benchmark that measures event creation throughput.
      * <p>
      * In each iteration:
      * <ol>
