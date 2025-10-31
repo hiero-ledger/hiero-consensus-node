@@ -39,7 +39,7 @@ class LocalConsensusGenerationTest {
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Metrics metrics = new NoOpMetrics();
         final DefaultOrphanBuffer orphanBuffer =
-                new DefaultOrphanBuffer(configuration, metrics, Mockito.mock(IntakeEventCounter.class));
+                new DefaultOrphanBuffer(metrics, Mockito.mock(IntakeEventCounter.class));
         // Create a simple graph
         events = SimpleGraphs.graph8e4n(randotron).stream()
                 .peek(orphanBuffer::handleEvent)
