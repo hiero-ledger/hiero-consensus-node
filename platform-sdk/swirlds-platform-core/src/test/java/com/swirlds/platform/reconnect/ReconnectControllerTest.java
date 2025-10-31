@@ -29,7 +29,6 @@ import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SigSet;
@@ -46,6 +45,7 @@ import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import java.time.Duration;
 import java.util.Random;
@@ -84,7 +84,7 @@ class ReconnectControllerTest {
     private MerkleCryptography merkleCryptography;
     private Platform platform;
     private PlatformCoordinator platformCoordinator;
-    private SwirldStateManager swirldStateManager;
+    private StateLifecycleManager stateLifecycleManager;
     private SavedStateController savedStateController;
     private ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
     private ReservedSignedStateResultPromise peerReservedSignedStateResultPromise;
@@ -166,8 +166,8 @@ class ReconnectControllerTest {
         platformCoordinator = mock(PlatformCoordinator.class);
 
         // Mock SwirldStateManager
-        swirldStateManager = mock(SwirldStateManager.class);
-        when(swirldStateManager.getConsensusState()).thenReturn(testWorkingState);
+        stateLifecycleManager = mock(StateLifecycleManager.class);
+        when(stateLifecycleManager.getMutableState()).thenReturn(testWorkingState);
 
         // Mock SavedStateController
         savedStateController = mock(SavedStateController.class);
@@ -209,7 +209,7 @@ class ReconnectControllerTest {
                 platform,
                 platformContext,
                 platformCoordinator,
-                swirldStateManager,
+                stateLifecycleManager,
                 savedStateController,
                 consensusStateEventHandler,
                 peerReservedSignedStateResultPromise,
@@ -809,7 +809,7 @@ class ReconnectControllerTest {
                 platform,
                 shortWindowContext,
                 platformCoordinator,
-                swirldStateManager,
+                stateLifecycleManager,
                 savedStateController,
                 consensusStateEventHandler,
                 peerReservedSignedStateResultPromise,
@@ -886,7 +886,7 @@ class ReconnectControllerTest {
                 platform,
                 disabledContext,
                 platformCoordinator,
-                swirldStateManager,
+                stateLifecycleManager,
                 savedStateController,
                 consensusStateEventHandler,
                 peerReservedSignedStateResultPromise,

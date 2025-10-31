@@ -119,12 +119,6 @@ public class ConsistencyTestingToolState extends VirtualMapState<ConsistencyTest
         return new ConsistencyTestingToolState(this);
     }
 
-    @Override
-    protected ConsistencyTestingToolState newInstance(
-            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
-        return new ConsistencyTestingToolState(virtualMap, metrics, time);
-    }
-
     /**
      * Initialize the state
      */

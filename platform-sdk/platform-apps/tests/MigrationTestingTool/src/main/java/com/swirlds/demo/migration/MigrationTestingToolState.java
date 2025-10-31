@@ -32,12 +32,6 @@ public class MigrationTestingToolState extends VirtualMapState<MigrationTestingT
         return new MigrationTestingToolState(this);
     }
 
-    @Override
-    protected MigrationTestingToolState newInstance(
-            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
-        return new MigrationTestingToolState(virtualMap, metrics, time);
-    }
-
     /**
      * {@inheritDoc}
      */

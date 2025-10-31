@@ -8,6 +8,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.StateChanges;
+import com.hedera.node.app.HederaVirtualMapState;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils;
 import com.hedera.statevalidation.util.PlatformContextHelper;
@@ -18,6 +19,8 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileWriter;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -149,9 +152,14 @@ public class BlockStreamRecoveryWorkflow {
                 false,
                 DEFAULT_PLATFORM_STATE_FACADE);
 
+        final StateLifecycleManager<SignedState> stateLifecycleManager = new StateLifecycleManagerImpl<>(
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                vm -> new HederaVirtualMapState(vm, platformContext.getMetrics(), platformContext.getTime()));
+        stateLifecycleManager.setSnapshotSource(signedState);
         try {
             SignedStateFileWriter.writeSignedStateFilesToDirectory(
-                    platformContext, selfId, outputPath, signedState, DEFAULT_PLATFORM_STATE_FACADE);
+                    platformContext, selfId, outputPath, DEFAULT_PLATFORM_STATE_FACADE, stateLifecycleManager);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
