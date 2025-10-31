@@ -43,6 +43,7 @@ import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransferList;
+import com.hedera.hapi.node.state.token.AccountCryptoAllowance;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.token.CryptoAllowance;
 import com.hedera.hapi.node.token.CryptoApproveAllowanceTransactionBody;
@@ -82,6 +83,7 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.time.InstantSource;
+import java.util.List;
 import java.util.stream.Stream;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.NodeFee;
@@ -222,12 +224,13 @@ class CryptoHandlerFeeCalculationTest {
             final String description,
             final CryptoApproveAllowanceTransactionBody approveAllowanceOp,
             final int numSignatures,
+            final ReadableAccountStore accountStore,
             final long expectedFee) {
         // Arrange
         final var txBody = TransactionBody.newBuilder()
                 .cryptoApproveAllowance(approveAllowanceOp)
                 .build();
-        final var feeContext = createMockFeeContext(txBody, numSignatures);
+        final var feeContext = createMockFeeContext(txBody, numSignatures, accountStore);
 
         // Act
         final var result = approveAllowanceHandler.calculateFeeResult(feeContext);
@@ -459,14 +462,14 @@ class CryptoHandlerFeeCalculationTest {
     }
 
     static Stream<Arguments> cryptoApproveAllowanceTestCases() {
+        final var payerId = AccountID.newBuilder().accountNum(1001L).build();
+
         return Stream.of(
                 Arguments.of(
-                        "Approve 1 allowance",
+                        "Approve 1 new allowance (no existing allowances)",
                         CryptoApproveAllowanceTransactionBody.newBuilder()
                                 .cryptoAllowances(CryptoAllowance.newBuilder()
-                                        .owner(AccountID.newBuilder()
-                                                .accountNum(1001L)
-                                                .build())
+                                        .owner(payerId)
                                         .spender(AccountID.newBuilder()
                                                 .accountNum(1002L)
                                                 .build())
@@ -474,33 +477,28 @@ class CryptoHandlerFeeCalculationTest {
                                         .build())
                                 .build(),
                         1,
-                        20L),
+                        createAccountStoreWithAllowances(payerId, List.of()),
+                        20L), // 20 + (1-1)*2000 = 20 (first allowance is included)
                 Arguments.of(
-                        "Approve 3 allowances",
+                        "Approve 3 new allowances (no existing allowances)",
                         CryptoApproveAllowanceTransactionBody.newBuilder()
                                 .cryptoAllowances(
                                         CryptoAllowance.newBuilder()
-                                                .owner(AccountID.newBuilder()
-                                                        .accountNum(1001L)
-                                                        .build())
+                                                .owner(payerId)
                                                 .spender(AccountID.newBuilder()
                                                         .accountNum(1002L)
                                                         .build())
                                                 .amount(1000L)
                                                 .build(),
                                         CryptoAllowance.newBuilder()
-                                                .owner(AccountID.newBuilder()
-                                                        .accountNum(1001L)
-                                                        .build())
+                                                .owner(payerId)
                                                 .spender(AccountID.newBuilder()
                                                         .accountNum(1003L)
                                                         .build())
                                                 .amount(2000L)
                                                 .build(),
                                         CryptoAllowance.newBuilder()
-                                                .owner(AccountID.newBuilder()
-                                                        .accountNum(1001L)
-                                                        .build())
+                                                .owner(payerId)
                                                 .spender(AccountID.newBuilder()
                                                         .accountNum(1004L)
                                                         .build())
@@ -508,7 +506,87 @@ class CryptoHandlerFeeCalculationTest {
                                                 .build())
                                 .build(),
                         1,
-                        20L + 4000L) // 20 + (3-1)*2000
+                        createAccountStoreWithAllowances(payerId, List.of()),
+                        20L + 4000L), // 20 + (3-1)*2000 = 4020 (first allowance is included)
+                Arguments.of(
+                        "Update 2 existing allowances (no new allowances)",
+                        CryptoApproveAllowanceTransactionBody.newBuilder()
+                                .cryptoAllowances(
+                                        CryptoAllowance.newBuilder()
+                                                .owner(payerId)
+                                                .spender(AccountID.newBuilder()
+                                                        .accountNum(1002L)
+                                                        .build())
+                                                .amount(1500L) // updating existing
+                                                .build(),
+                                        CryptoAllowance.newBuilder()
+                                                .owner(payerId)
+                                                .spender(AccountID.newBuilder()
+                                                        .accountNum(1003L)
+                                                        .build())
+                                                .amount(2500L) // updating existing
+                                                .build())
+                                .build(),
+                        1,
+                        createAccountStoreWithAllowances(
+                                payerId,
+                                List.of(
+                                        com.hedera.hapi.node.state.token.AccountCryptoAllowance.newBuilder()
+                                                .spenderId(AccountID.newBuilder()
+                                                        .accountNum(1002L)
+                                                        .build())
+                                                .amount(1000L)
+                                                .build(),
+                                        com.hedera.hapi.node.state.token.AccountCryptoAllowance.newBuilder()
+                                                .spenderId(AccountID.newBuilder()
+                                                        .accountNum(1003L)
+                                                        .build())
+                                                .amount(2000L)
+                                                .build())),
+                        20L), // 20 + (0)*2000 - no new allowances
+                Arguments.of(
+                        "Approve 3 allowances where 2 already exist (1 new)",
+                        CryptoApproveAllowanceTransactionBody.newBuilder()
+                                .cryptoAllowances(
+                                        CryptoAllowance.newBuilder()
+                                                .owner(payerId)
+                                                .spender(AccountID.newBuilder()
+                                                        .accountNum(1002L)
+                                                        .build())
+                                                .amount(1500L) // updating existing
+                                                .build(),
+                                        CryptoAllowance.newBuilder()
+                                                .owner(payerId)
+                                                .spender(AccountID.newBuilder()
+                                                        .accountNum(1003L)
+                                                        .build())
+                                                .amount(2500L) // updating existing
+                                                .build(),
+                                        CryptoAllowance.newBuilder()
+                                                .owner(payerId)
+                                                .spender(AccountID.newBuilder()
+                                                        .accountNum(1004L)
+                                                        .build())
+                                                .amount(3000L) // new allowance
+                                                .build())
+                                .build(),
+                        1,
+                        createAccountStoreWithAllowances(
+                                payerId,
+                                List.of(
+                                        com.hedera.hapi.node.state.token.AccountCryptoAllowance.newBuilder()
+                                                .spenderId(AccountID.newBuilder()
+                                                        .accountNum(1002L)
+                                                        .build())
+                                                .amount(1000L)
+                                                .build(),
+                                        com.hedera.hapi.node.state.token.AccountCryptoAllowance.newBuilder()
+                                                .spenderId(AccountID.newBuilder()
+                                                        .accountNum(1003L)
+                                                        .build())
+                                                .amount(2000L)
+                                                .build())),
+                        20L) // 20 + (1-1)*2000 = 20 - only 1 new allowance, but 1 is included
                 );
     }
 
@@ -581,6 +659,7 @@ class CryptoHandlerFeeCalculationTest {
         lenient().when(feeContext.numTxnSignatures()).thenReturn(numSignatures);
         lenient().when(feeContext.feeCalculatorFactory()).thenReturn(feeCalculatorFactory);
         lenient().when(feeContext.configuration()).thenReturn(configuration);
+        lenient().when(feeContext.payer()).thenReturn(AccountID.newBuilder().accountNum(1001L).build());
         lenient().when(feeCalculatorFactory.feeCalculator(SubType.DEFAULT)).thenReturn(feeCalculator);
         lenient().when(feeCalculator.getSimpleFeesSchedule()).thenReturn(createTestFeeSchedule());
         lenient().when(configuration.getConfigData(HederaConfig.class)).thenReturn(hederaConfig);
@@ -589,6 +668,13 @@ class CryptoHandlerFeeCalculationTest {
         lenient().when(hederaConfig.realm()).thenReturn(0L);
         lenient().when(entitiesConfig.unlimitedAutoAssociationsEnabled()).thenReturn(false);
 
+        return feeContext;
+    }
+
+    private FeeContext createMockFeeContext(
+            final TransactionBody txBody, final int numSignatures, final ReadableAccountStore accountStore) {
+        final var feeContext = createMockFeeContext(txBody, numSignatures);
+        lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
         return feeContext;
     }
 
@@ -646,6 +732,17 @@ class CryptoHandlerFeeCalculationTest {
 
     private static ReadableTokenRelationStore createEmptyTokenRelStore() {
         return mock(ReadableTokenRelationStore.class);
+    }
+
+    private static ReadableAccountStore createAccountStoreWithAllowances(
+            final AccountID accountId, final List<AccountCryptoAllowance> cryptoAllowances) {
+        final var store = mock(ReadableAccountStore.class);
+        final var account = com.hedera.hapi.node.state.token.Account.newBuilder()
+                .accountId(accountId)
+                .cryptoAllowances(cryptoAllowances)
+                .build();
+        when(store.getAccountById(accountId)).thenReturn(account);
+        return store;
     }
 
     private static FeeSchedule createTestFeeSchedule() {
