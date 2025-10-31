@@ -7,6 +7,7 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.ha
 import static java.util.Objects.requireNonNull;
 import static org.hyperledger.besu.evm.frame.MessageFrame.State.CODE_EXECUTING;
 import static org.hyperledger.besu.evm.frame.MessageFrame.State.CODE_SUSPENDED;
+import static org.hyperledger.besu.evm.frame.MessageFrame.Type.CONTRACT_CREATION;
 
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActionType;
@@ -97,7 +98,10 @@ public class EvmActionTracer implements ActionSidecarContentTracer {
         // reason is present, since that means creation failed before executing the frame's
         // code, and tracePostExecution() will never be called; so this is our only chance
         // to keep the action stack in sync with the message frame stack.
-        if (hasActionSidecarsEnabled(frame) && haltReason.isPresent()) {
+        // We skip finalizing for contract creation frames, as those produce empty action stack warnings.
+        if (hasActionSidecarsEnabled(frame)
+                && haltReason.isPresent()
+                && !frame.getType().equals(CONTRACT_CREATION)) {
             actionStack.finalizeLastAction(frame, stackValidationChoice(frame));
         }
     }
