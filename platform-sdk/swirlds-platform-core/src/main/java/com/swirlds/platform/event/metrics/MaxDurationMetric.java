@@ -14,8 +14,7 @@ public class MaxDurationMetric {
 
     public MaxDurationMetric(final Metrics metrics, final Time time, final String name) {
         final LongAccumulator.Config config = new LongAccumulator.Config(PLATFORM_CATEGORY, name)
-                .withUnit("micros")
-                //.withInitializer(()->0)
+                .withUnit("ms")
                 .withAccumulator(Math::max)
                 .withInitialValue(0);
         metric = metrics.getOrCreate(config);
@@ -23,7 +22,7 @@ public class MaxDurationMetric {
     }
 
     public void update(final Instant start) {
-        final long duration = Duration.between(start, time.now()).toNanos() / 1000;
+        final long duration = Duration.between(start, time.now()).toMillis();
         metric.update(duration);
     }
 }
