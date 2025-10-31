@@ -293,19 +293,37 @@ public interface Node {
     boolean isAlive();
 
     /**
-     * Starts async-profiler on this node, saving results to the specified output file.
+     * Starts Java Flight Recorder (JFR) profiling on this node with default settings.
+     * Uses 1ms sampling rate and enables CPU and allocation profiling by default.
      * The profiler runs in the background until {@link #stopProfiling} is called.
      * <p>
      * <b>Note:</b> This feature is not supported in all environments.
      * Calling this on unsupported environments will throw {@link UnsupportedOperationException}.
      *
-     * @param outputFile filename for the profile output (e.g., "profile.html", "profile.jfr")
+     * @param outputFile filename for the profile output (must end with ".jfr")
+     * @param events the profiling events to enable (e.g., ProfilerEvent.CPU, ProfilerEvent.ALLOCATION).
+     *               If empty, defaults to CPU and ALLOCATION profiling.
      * @throws UnsupportedOperationException if profiling is not supported in this environment
      */
-    void startProfiling(@NonNull String outputFile);
+    void startProfiling(@NonNull String outputFile, @NonNull ProfilerEvent... events);
 
     /**
-     * Stops async-profiler and automatically downloads the profiling results to the host machine.
+     * Starts Java Flight Recorder (JFR) profiling on this node with custom settings.
+     * The profiler runs in the background until {@link #stopProfiling} is called.
+     * <p>
+     * <b>Note:</b> This feature is not supported in all environments.
+     * Calling this on unsupported environments will throw {@link UnsupportedOperationException}.
+     *
+     * @param outputFile filename for the profile output (must end with ".jfr")
+     * @param samplingInterval sampling interval for timed events (e.g., Duration.ofMillis(1) for 1ms sampling)
+     * @param events the profiling events to enable (e.g., ProfilerEvent.CPU, ProfilerEvent.ALLOCATION).
+     *               If empty, defaults to CPU and ALLOCATION profiling.
+     * @throws UnsupportedOperationException if profiling is not supported in this environment
+     */
+    void startProfiling(@NonNull String outputFile, @NonNull Duration samplingInterval, @NonNull ProfilerEvent... events);
+
+    /**
+     * Stops Java Flight Recorder profiling and automatically downloads the profiling results to the host machine.
      * The file is saved to {@code build/container/node-<selfId>/<filename>} where filename was
      * specified in {@link #startProfiling}.
      * <p>

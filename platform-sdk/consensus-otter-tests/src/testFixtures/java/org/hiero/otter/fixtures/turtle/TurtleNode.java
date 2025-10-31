@@ -56,6 +56,7 @@ import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
+import org.hiero.otter.fixtures.ProfilerEvent;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterAppState;
@@ -574,7 +575,22 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * @throws UnsupportedOperationException always, as profiling is only supported in container environments
      */
     @Override
-    public void startProfiling(@NonNull final String outputFilename) {
+    public void startProfiling(@NonNull final String outputFilename, @NonNull final ProfilerEvent... events) {
+        throw new UnsupportedOperationException("Profiling is not supported in the Turtle environment");
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Profiling is not supported in the Turtle environment.
+     *
+     * @throws UnsupportedOperationException always, as profiling is only supported in container environments
+     */
+    @Override
+    public void startProfiling(
+            @NonNull final String outputFilename,
+            @NonNull final Duration samplingInterval,
+            @NonNull final ProfilerEvent... events) {
         throw new UnsupportedOperationException("Profiling is not supported in the Turtle environment");
     }
 
