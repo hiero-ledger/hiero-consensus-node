@@ -184,6 +184,9 @@ public class DeterministicWiringModel extends TraceableWiringModel {
         return !currentCycleWork.isEmpty() || !nextCycleWork.isEmpty();
     }
 
+    /**
+     * Does all pending work in the queues
+     */
     public void doAllWork() {
         while (this.hasPendingWork()) {
             this.tick();
