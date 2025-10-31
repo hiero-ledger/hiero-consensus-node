@@ -18,7 +18,8 @@ import picocli.CommandLine.Parameters;
             ExportCommand.class,
             SortedExportCommand.class,
             CompactionCommand.class,
-            ApplyBlocksCommand.class
+            ApplyBlocksCommand.class,
+            PocCommand.class
         },
         description = "CLI tool with validation and introspection modes.")
 public class StateOperatorCommand implements Runnable {
