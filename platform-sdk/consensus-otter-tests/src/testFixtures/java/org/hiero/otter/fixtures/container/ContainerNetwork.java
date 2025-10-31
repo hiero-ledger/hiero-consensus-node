@@ -25,6 +25,8 @@ import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.container.network.NetworkBehavior;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
+import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
+import org.hiero.otter.fixtures.internal.NodeProperties;
 import org.hiero.otter.fixtures.internal.RegularTimeManager;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.Topology.ConnectionData;
@@ -48,7 +50,7 @@ public class ContainerNetwork extends AbstractNetwork {
 
     private ToxiproxyContainer toxiproxyContainer;
     private NetworkBehavior networkBehavior;
-    private boolean restartNodesOnSelfShutdown;
+    private final NodeProperties nodeProperties;
 
     /**
      * Constructor for {@link ContainerNetwork}.
@@ -69,6 +71,7 @@ public class ContainerNetwork extends AbstractNetwork {
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);
         this.dockerImage = new ImageFromDockerfile()
                 .withDockerfile(Path.of("..", "consensus-otter-docker-app", "build", "data", "Dockerfile"));
+        this.nodeProperties = new NodeProperties(new ContainerNodeConfiguration(() -> LifeCycle.INIT));
         transactionGenerator.setNodesSupplier(this::nodes);
     }
 
@@ -88,6 +91,15 @@ public class ContainerNetwork extends AbstractNetwork {
     @NonNull
     protected TransactionGenerator transactionGenerator() {
         return transactionGenerator;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    protected NodeProperties nodeProperties() {
+        return nodeProperties;
     }
 
     /**
