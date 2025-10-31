@@ -40,6 +40,9 @@ blocks.
 
 <dt>Priority-based Selection</dt>
 <dd>Algorithm for selecting the next block node to connect to based on configured priority values. Lower priority numbers indicate higher preference.</dd>
+
+<dt>Block Nodes Health Monitor</dt>
+<dd>A dedicated background thread that continuously monitors the health of all available block nodes. The monitor periodically polls nodes to assess their health status and can trigger connection switching to healthier nodes when appropriate.</dd>
 </dl>
 
 ## Component Responsibilities
@@ -51,6 +54,8 @@ blocks.
 - Track retry state and health statistics per node across connection lifecycles.
 - Remove or replace failed connections.
 - Support lifecycle control and dynamic configuration updates.
+- Monitor block node health continuously via a dedicated background thread.
+- Trigger proactive connection switching based on health assessments.
 
 ## Component Interaction
 
@@ -119,6 +124,7 @@ sequenceDiagram
 
     alt shutdown
       Manager -> Manager: Stop configuration watcher
+      Manager -> Manager: Stop block nodes health monitor
       Manager -> Manager: Deactivate connection manager
       Manager -> Manager: Shutdown block buffer service
       Manager -> Manager: Shutdown executor service
@@ -168,3 +174,33 @@ Used when retrying the same block node after transient issues:
 - State persists across individual connection instances
 - Automatic reset of retry counter after configurable idle period
 - Nodes are excluded from selection only while they have an active connection in the `connections` map
+
+### Block Nodes Health Monitor
+
+The connection manager runs a dedicated background thread (`BlockNodesHealthMonitor`) that continuously monitors the health of all available block nodes.
+
+#### Thread Lifecycle
+
+- **Start**: Automatically started when `BlockNodeConnectionManager.start()` is called, immediately after the configuration watcher is started
+- **Stop**: Gracefully stopped during `BlockNodeConnectionManager.shutdown()`, before shutting down the executor service
+- **Lifecycle Management**: Thread reference stored in `blockNodesHealthMonitorThreadRef` (`AtomicReference<Thread>`)
+
+#### Implementation Pattern
+
+The health monitor follows the same design pattern as the configuration watcher:
+
+- **Platform Thread**: Uses `Thread.ofPlatform()` for a dedicated OS thread
+- **Named Thread**: Thread name is `BlockNodesHealthMonitor` for easy identification in logs and debugging
+- **Interrupt-based Shutdown**: Responds to thread interruption for clean shutdown
+- **Exception Handling**: Catches and logs exceptions without terminating the monitoring loop
+- **Periodic Polling**: Uses `Thread.sleep()` between monitoring cycles
+
+#### Monitoring Responsibilities
+
+The health monitor is responsible for:
+
+1. **Health Polling**: Periodically poll all available block nodes for health status
+2. **Metric Comparison**: Compare health metrics of the current active node against alternatives
+3. **Decision-making**: Determine if connection switching is warranted based on health scores
+4. **Triggering Switches**: Initiate connection switching when a healthier node is identified
+5. **Statistics Updates**: Update node health statistics and emit metrics

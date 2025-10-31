@@ -75,6 +75,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private static final VarHandle blockNodeConfigDirectoryHandle;
     private static final VarHandle configWatchServiceHandle;
     private static final VarHandle configWatcherThreadRef;
+    private static final VarHandle blockNodesHealthMonitorThreadRef;
     private static final MethodHandle closeAllConnectionsHandle;
     private static final MethodHandle refreshAvailableBlockNodesHandle;
     private static final MethodHandle extractBlockNodesConfigurationsHandle;
@@ -108,6 +109,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                     .findVarHandle(BlockNodeConnectionManager.class, "configWatchServiceRef", AtomicReference.class);
             configWatcherThreadRef = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
                     .findVarHandle(BlockNodeConnectionManager.class, "configWatcherThreadRef", AtomicReference.class);
+            blockNodesHealthMonitorThreadRef = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
+                    .findVarHandle(
+                            BlockNodeConnectionManager.class,
+                            "blockNodesHealthMonitorThreadRef",
+                            AtomicReference.class);
 
             final Method closeAllConnections =
                     BlockNodeConnectionManager.class.getDeclaredMethod("closeAllConnections");
@@ -1377,10 +1383,26 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     void testStartConfigWatcher_alreadyRunning() throws Exception {
         connectionManager.start(); // This starts the config watcher
 
+        // Verify config watcher started
+        @SuppressWarnings("unchecked")
+        final AtomicReference<Thread> watcherThreadRefValue =
+                (AtomicReference<Thread>) configWatcherThreadRef.get(connectionManager);
+        final Thread firstConfigWatcherThreadRef = watcherThreadRefValue.get();
+        assertThat(firstConfigWatcherThreadRef).isNotNull();
+        assertThat(firstConfigWatcherThreadRef.isAlive()).isTrue();
+
+        // Verify the manager is still active
+        assertThat(isActiveFlag().get()).isTrue();
+
         // Call startConfigWatcher again via reflection to trigger the "already running" check
         final var method = BlockNodeConnectionManager.class.getDeclaredMethod("startConfigWatcher");
         method.setAccessible(true);
         method.invoke(connectionManager);
+
+        // Verify the same thread is still running (no new thread was created)
+        final Thread secondHConfigWatcherThreadRef = watcherThreadRefValue.get();
+        assertThat(secondHConfigWatcherThreadRef).isSameAs(firstConfigWatcherThreadRef);
+        assertThat(secondHConfigWatcherThreadRef.isAlive()).isTrue();
 
         // Verify the manager is still active
         assertThat(isActiveFlag().get()).isTrue();
@@ -1812,6 +1834,82 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(newConnection).createRequestPipeline();
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
         assertThat(activeConnectionRef).hasValue(newConnection);
+    }
+
+    @Test
+    void testStartBlockNodesHealthMonitor_alreadyRunning() throws Exception {
+        connectionManager.start(); // This starts the health monitor
+
+        // Verify health monitor started
+        @SuppressWarnings("unchecked")
+        final AtomicReference<Thread> healthMonitorThreadRefValue =
+                (AtomicReference<Thread>) blockNodesHealthMonitorThreadRef.get(connectionManager);
+        final Thread firstHealthMonitorThread = healthMonitorThreadRefValue.get();
+        assertThat(firstHealthMonitorThread).isNotNull();
+        assertThat(firstHealthMonitorThread.isAlive()).isTrue();
+
+        // Verify the manager is still active
+        assertThat(isActiveFlag().get()).isTrue();
+
+        // Call startBlockNodesHealthMonitor again to verify it doesn't create duplicate threads
+        final var healthMonitorMethod =
+                BlockNodeConnectionManager.class.getDeclaredMethod("startBlockNodesHealthMonitor");
+        healthMonitorMethod.setAccessible(true);
+        healthMonitorMethod.invoke(connectionManager);
+
+        // Verify the same thread is still running (no new thread was created)
+        final Thread secondHealthMonitorThread = healthMonitorThreadRefValue.get();
+        assertThat(secondHealthMonitorThread).isSameAs(firstHealthMonitorThread);
+        assertThat(secondHealthMonitorThread.isAlive()).isTrue();
+    }
+
+    @Test
+    void testStopBlockNodesHealthMonitor_nullThread() throws Exception {
+        // Ensure the thread reference is null
+        @SuppressWarnings("unchecked")
+        final AtomicReference<Thread> healthMonitorThreadRefValue =
+                (AtomicReference<Thread>) blockNodesHealthMonitorThreadRef.get(connectionManager);
+        healthMonitorThreadRefValue.set(null);
+
+        // Call stopBlockNodesHealthMonitor via reflection - should handle null gracefully
+        final var method = BlockNodeConnectionManager.class.getDeclaredMethod("stopBlockNodesHealthMonitor");
+        method.setAccessible(true);
+        method.invoke(connectionManager);
+
+        // Verify no exceptions and thread reference remains null
+        assertThat(healthMonitorThreadRefValue.get()).isNull();
+    }
+
+    @Test
+    void testStopBlockNodesHealthMonitor_handlesInterruptedExceptionOnJoin() throws Exception {
+        connectionManager.start();
+
+        @SuppressWarnings("unchecked")
+        final AtomicReference<Thread> threadRef =
+                (AtomicReference<Thread>) blockNodesHealthMonitorThreadRef.get(connectionManager);
+        final Thread monitorThread = threadRef.get();
+
+        assertThat(monitorThread).isNotNull();
+        assertThat(monitorThread.isAlive()).isTrue();
+
+        // Interrupt the CURRENT test thread. This causes monitorThread.join()
+        // inside the invoked method to immediately throw InterruptedException.
+        Thread.currentThread().interrupt();
+
+        final var stopMethod = BlockNodeConnectionManager.class.getDeclaredMethod("stopBlockNodesHealthMonitor");
+        stopMethod.setAccessible(true);
+        // This call executes monitorThread.join(), which throws and enters the catch block.
+        stopMethod.invoke(connectionManager);
+
+        // Verify the catch block executed and restored the interrupted status.
+        assertThat(Thread.currentThread().isInterrupted()).isTrue();
+
+        // Cleanup: clear the flag so it doesn't affect other tests.
+        Thread.interrupted();
+
+        // Verify the monitor thread has stopped.
+        monitorThread.join(1000);
+        assertThat(monitorThread.isAlive()).isFalse();
     }
 
     // Utilities
