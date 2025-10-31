@@ -129,7 +129,7 @@ public abstract class AbstractNetwork implements Network {
     private final Map<ConnectionKey, BandwidthLimit> bandwidthOverrides = new HashMap<>();
     private final boolean useRandomNodeIds;
 
-    private Topology topology;
+    private Topology internalTopology;
 
     protected Lifecycle lifecycle = Lifecycle.INIT;
 
@@ -146,7 +146,7 @@ public abstract class AbstractNetwork implements Network {
         this.random = requireNonNull(random);
         this.useRandomNodeIds = useRandomNodeIds;
         // Initialize with default GeoMeshTopology
-        this.topology = new GeoMeshTopologyImpl(random, this::createNodes, this::createInstrumentedNode);
+        this.internalTopology = new GeoMeshTopologyImpl(random, this::createNodes, this::createInstrumentedNode);
     }
 
     /**
@@ -155,7 +155,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Topology topology() {
-        return topology;
+        return internalTopology;
     }
 
     /**
@@ -172,7 +172,7 @@ public abstract class AbstractNetwork implements Network {
         }
 
         // Create new MeshTopologyImpl with the configuration
-        this.topology = new MeshTopologyImpl(configuration, this::createNodes, this::createInstrumentedNode);
+        this.internalTopology = new MeshTopologyImpl(configuration, this::createNodes, this::createInstrumentedNode);
         return this;
     }
 
@@ -193,7 +193,7 @@ public abstract class AbstractNetwork implements Network {
         final GeoMeshTopologyImpl geoTopology =
                 new GeoMeshTopologyImpl(random, this::createNodes, this::createInstrumentedNode);
         geoTopology.setGeographicLatencyConfiguration(configuration);
-        this.topology = geoTopology;
+        this.internalTopology = geoTopology;
         return this;
     }
 
