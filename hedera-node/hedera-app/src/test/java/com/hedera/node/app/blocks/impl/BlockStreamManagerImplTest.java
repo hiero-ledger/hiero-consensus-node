@@ -340,7 +340,7 @@ class BlockStreamManagerImplTest {
                 List.of(
                         Bytes.EMPTY,
                         Bytes.fromHex(
-                                "839ddb854c8f4cf9c3705268b17bc7d53e91454ff14dbbfffd6c77b6118a0e79fb1e478b4924bfb0fd93ef60101d3237")),
+                                "280de009b8941c300751d77c3b888f93571731eb858bdb837399d91b512764a6b6c3c0afac6ddb4a1d1d082aa0ca2dcd")),
                 asTimestamp(CONSENSUS_NOW),
                 true,
                 SemanticVersion.DEFAULT,
@@ -354,7 +354,7 @@ class BlockStreamManagerImplTest {
                         "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
                 List.of(
                         Bytes.fromHex(
-                                "adbabc2f7e3216d4d64de1d2a6896ad1330ba8b099cf7d55a027c937893896072a290d0b63b7fb3ab8a0147bbd1258af")));
+                                "a3d31b33cdf17f47954988b2eeb655852353fdfce28fdd9f9885abb990bc6053607a27f66f62a9c60d6c631b1c4783b8")));
 
         final var actualBlockInfo = infoRef.get();
         assertEquals(expectedBlockInfo, actualBlockInfo);
@@ -571,7 +571,7 @@ class BlockStreamManagerImplTest {
                 List.of(
                         Bytes.EMPTY,
                         Bytes.fromHex(
-                                "839ddb854c8f4cf9c3705268b17bc7d53e91454ff14dbbfffd6c77b6118a0e79fb1e478b4924bfb0fd93ef60101d3237")),
+                                "280de009b8941c300751d77c3b888f93571731eb858bdb837399d91b512764a6b6c3c0afac6ddb4a1d1d082aa0ca2dcd")),
                 asTimestamp(CONSENSUS_NOW),
                 false,
                 SemanticVersion.DEFAULT,
@@ -585,7 +585,7 @@ class BlockStreamManagerImplTest {
                         "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
                 List.of(
                         Bytes.fromHex(
-                                "adbabc2f7e3216d4d64de1d2a6896ad1330ba8b099cf7d55a027c937893896072a290d0b63b7fb3ab8a0147bbd1258af")));
+                                "a3d31b33cdf17f47954988b2eeb655852353fdfce28fdd9f9885abb990bc6053607a27f66f62a9c60d6c631b1c4783b8")));
         final var actualBlockInfo = infoRef.get();
         assertEquals(expectedBlockInfo, actualBlockInfo);
 
