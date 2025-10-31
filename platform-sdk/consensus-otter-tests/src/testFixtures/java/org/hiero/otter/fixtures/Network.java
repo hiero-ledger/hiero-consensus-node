@@ -16,9 +16,11 @@ import java.util.Set;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.internal.helpers.Utils;
+import org.hiero.otter.fixtures.network.MeshTopologyConfiguration;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology;
 import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
+import org.hiero.otter.fixtures.network.utils.GeographicLatencyConfiguration;
 import org.hiero.otter.fixtures.network.utils.LatencyRange;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeEventStreamResults;
@@ -57,6 +59,38 @@ public interface Network {
      */
     @NonNull
     Topology topology();
+
+    /**
+     * Configures the network to use a mesh topology with the specified configuration.
+     *
+     * <p>This method must be called before any nodes are added to the network. It configures the topology with the
+     * specified latency, jitter, and bandwidth settings that apply to all node-to-node connections.
+     *
+     * <p>If this method is not called, the default mesh topology configuration is used.
+     *
+     * @param configuration the mesh topology configuration to apply
+     * @return this {@code Network} instance for method chaining
+     * @throws NullPointerException if {@code configuration} is {@code null}
+     * @throws IllegalStateException if any nodes have already been added to the network
+     */
+    @NonNull
+    Network withMeshTopology(@NonNull MeshTopologyConfiguration configuration);
+
+    /**
+     * Configures the network to use a geographic mesh topology with the specified configuration.
+     *
+     * <p>This method must be called before any nodes are added to the network. It configures the topology with
+     * realistic latency, jitter, and bandwidth settings based on geographic distribution of nodes.
+     *
+     * <p>If this method is not called, the default geographic mesh topology configuration is used.
+     *
+     * @param configuration the geographic mesh topology configuration to apply
+     * @return this {@code Network} instance for method chaining
+     * @throws NullPointerException if {@code configuration} is {@code null}
+     * @throws IllegalStateException if any nodes have already been added to the network
+     */
+    @NonNull
+    Network withGeoMeshTopology(@NonNull GeographicLatencyConfiguration configuration);
 
     /**
      * Adds a single node to the network.
