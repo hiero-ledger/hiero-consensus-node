@@ -7,6 +7,7 @@ import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.RedactedItem;
 import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -245,25 +246,9 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
      */
     private List<Block> readBlocksFromDisk(@NonNull final List<Path> blockFiles) throws IOException {
         final List<Block> reloadedBlocks = new ArrayList<>();
-
         for (final Path blockFile : blockFiles) {
-            try {
-                // Read file contents
-                final byte[] fileBytes = Files.readAllBytes(blockFile);
-
-                // Deserialize using PBJ protobuf codec
-                final Block reloadedBlock = Block.PROTOBUF.parseStrict(Bytes.wrap(fileBytes));
-                reloadedBlocks.add(reloadedBlock);
-
-            } catch (final IOException e) {
-                logger.error("Failed to reload block from {}", blockFile, e);
-                throw new RuntimeException("Failed to reload block from " + blockFile, e);
-            } catch (final ParseException e) {
-                logger.error("Failed to parse block from {}", blockFile, e);
-                throw new RuntimeException("Failed to parse block from " + blockFile, e);
-            }
+            BlockStreamAccess.readBlocks(blockFile, false).forEach(reloadedBlocks::add);
         }
-
         return reloadedBlocks;
     }
 
