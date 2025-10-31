@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Set;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.internal.helpers.Utils;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology;
@@ -347,6 +348,10 @@ public interface Network {
      * {@code FREEZE_COMPLETE} state. The default can be overridden by calling {@link #withTimeout(Duration)}.
      */
     void freeze();
+
+    void submitTransaction(final OtterTransaction transaction);
+
+    void submitTransactions(final List<OtterTransaction> transactions);
 
     /**
      * Triggers a catastrophic ISS. All nodes in the network will calculate different hashes for an upcoming round.

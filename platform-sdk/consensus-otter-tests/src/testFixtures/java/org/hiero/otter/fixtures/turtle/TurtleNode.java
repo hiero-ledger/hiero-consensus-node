@@ -42,6 +42,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 import java.util.Random;
 import java.util.function.Consumer;
@@ -82,6 +83,7 @@ import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 import org.hiero.otter.fixtures.util.SecureRandomBuilder;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * A node in the turtle network.
@@ -393,6 +395,11 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             assert executionLayer != null; // executionLayer must be initialized
             executionLayer.submitApplicationTransaction(transaction.toByteArray());
         }
+    }
+
+    @Override
+    public void submitTransactions(@NotNull final List<OtterTransaction> transactions) {
+
     }
 
     /**

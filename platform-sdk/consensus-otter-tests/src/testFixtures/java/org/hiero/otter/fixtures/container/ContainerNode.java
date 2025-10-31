@@ -35,6 +35,7 @@ import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -64,6 +65,7 @@ import org.hiero.otter.fixtures.container.proto.StartRequest;
 import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
+import org.hiero.otter.fixtures.container.proto.TransactionRequestOrBuilder;
 import org.hiero.otter.fixtures.container.utils.ContainerConstants;
 import org.hiero.otter.fixtures.container.utils.ContainerUtils;
 import org.hiero.otter.fixtures.internal.AbstractNode;
@@ -325,17 +327,15 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      * {@inheritDoc}
      */
     @Override
-    public void submitTransaction(@NonNull final OtterTransaction transaction) {
+    public void submitTransactions(@NonNull final List<OtterTransaction> transactions) {
         throwIfInLifecycle(INIT, "Node has not been started yet.");
         throwIfInLifecycle(SHUTDOWN, "Node has been shut down.");
         throwIfInLifecycle(DESTROYED, "Node has been destroyed.");
 
         try {
-            final TransactionRequest request = TransactionRequest.newBuilder()
-                    .setPayload(transaction.toByteString())
-                    .build();
-
-            final TransactionRequestAnswer answer = nodeCommBlockingStub.submitTransaction(request);
+            final TransactionRequest.Builder builder = TransactionRequest.newBuilder();
+            transactions.forEach(t -> builder.addPayload(t.toByteString()));
+            final TransactionRequestAnswer answer = nodeCommBlockingStub.submitTransaction(builder.build());
             if (!answer.getResult()) {
                 fail("Failed to submit transaction for node %d.".formatted(selfId.id()));
             }

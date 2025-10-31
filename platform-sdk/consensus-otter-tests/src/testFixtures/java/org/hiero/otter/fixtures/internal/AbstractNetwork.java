@@ -608,13 +608,17 @@ public abstract class AbstractNetwork implements Network {
      *
      * @param transaction the transaction to submit
      */
-    private void submitTransaction(@NonNull final OtterTransaction transaction) {
+    public void submitTransaction(@NonNull final OtterTransaction transaction) {
         nodes().stream()
                 .filter(Node::isActive)
                 .findFirst()
                 .map(node -> (AbstractNode) node)
                 .orElseThrow(() -> new AssertionError("No active node found to send transaction to."))
                 .submitTransaction(transaction);
+    }
+
+    public void submitTransactions(@NonNull final List<OtterTransaction> transactions) {
+
     }
 
     /**

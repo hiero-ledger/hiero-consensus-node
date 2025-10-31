@@ -6,10 +6,12 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.List;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeEventStreamResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
@@ -101,6 +103,12 @@ public interface Node {
      * @param command the new quiescence command
      */
     void sendQuiescenceCommand(@NonNull QuiescenceCommand command);
+
+    default void submitTransaction(@NonNull OtterTransaction transaction) {
+        submitTransactions(List.of(transaction));
+    }
+
+    void submitTransactions(@NonNull List<OtterTransaction> transactions);
 
     /**
      * Allows to override the default timeout for node operations.

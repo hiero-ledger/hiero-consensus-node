@@ -7,6 +7,7 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.internal.helpers.Utils.createConfiguration;
 
+import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -208,8 +209,10 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
         }
 
         wrapWithErrorHandling(responseObserver, () -> {
-            final boolean result =
-                    consensusNodeManager.submitTransaction(request.getPayload().toByteArray());
+            boolean result = true;
+            for (final ByteString payload : request.getPayloadList()) {
+                result &= consensusNodeManager.submitTransaction(payload.toByteArray());
+            }
             responseObserver.onNext(
                     TransactionRequestAnswer.newBuilder().setResult(result).build());
             responseObserver.onCompleted();

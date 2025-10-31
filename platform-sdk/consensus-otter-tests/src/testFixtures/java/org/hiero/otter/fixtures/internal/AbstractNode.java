@@ -14,6 +14,7 @@ import java.nio.file.Path;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
@@ -289,13 +290,6 @@ public abstract class AbstractNode implements Node {
      * @param timeout the maximum duration to wait for the node to stop
      */
     protected abstract void doKillImmediately(@NonNull Duration timeout);
-
-    /**
-     * Submit a transaction to the node.
-     *
-     * @param transaction the transaction to submit
-     */
-    protected abstract void submitTransaction(@NonNull OtterTransaction transaction);
 
     /**
      * {@inheritDoc}
