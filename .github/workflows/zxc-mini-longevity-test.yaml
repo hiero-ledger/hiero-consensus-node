@@ -920,9 +920,9 @@ jobs:
             NftTransferLoadTest ${{ needs.longevity-tests-start.outputs.NFTscore }} ${{ env.MinNFTscore }}\n\
             HCSLoadTest ${{ needs.longevity-tests-start.outputs.HCSscore }} ${{ env.MinHCSLoadTest }}\n\
             CryptoTransferLoadTest ${{ needs.longevity-tests-start.outputs.Cryptoscore }} ${{ env.MinCryptoTransferLoadTest }}\n\
-            SmartContractLoadTest ${{ needs.longevity-tests-start.outputs.Smartscore }} ${{ env.MinSmartContractLoadTest }}"\n\
-            ReconnectTest ${{ needs.longevity-tests-start.outputs.ReconnectStatus }} "${{ env.ReconnectExitCode }}"\n\
-            ValidatorTest ${{ needs.longevity-tests-start.outputs.ValidatorStatus }} "${{ env.ValidatorExitCode }}"
+            SmartContractLoadTest ${{ needs.longevity-tests-start.outputs.Smartscore }} ${{ env.MinSmartContractLoadTest }}\n\
+            ReconnectTest ${{ needs.longevity-tests-start.outputs.ReconnectStatus }} ${{ env.ReconnectExitCode }}\n\
+            ValidatorTest ${{ needs.longevity-tests-start.outputs.ValidatorStatus }} ${{ env.ValidatorExitCode }}"
 
           #last line is 6, it does not need comma block separator
           # use back-ticks for proper substitution in the json report
