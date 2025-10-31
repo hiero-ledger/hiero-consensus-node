@@ -155,10 +155,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
          * The builder to resume work on the block's proof.
          */
         public BlockProof.Builder proofBuilder() {
-            return BlockProof.newBuilder()
-                    .block(pendingProof().block())
-                    .previousBlockRootHash(pendingProof.previousBlockHash())
-                    .startOfBlockStateRootHash(pendingProof.startOfBlockStateRootHash());
+            return BlockProof.newBuilder().block(pendingProof().block());
         }
 
         /**

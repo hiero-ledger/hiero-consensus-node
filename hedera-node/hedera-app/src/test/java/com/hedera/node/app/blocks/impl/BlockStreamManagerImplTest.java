@@ -15,6 +15,7 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_LABEL;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
+import static java.time.Instant.EPOCH;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -72,7 +73,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -80,10 +80,13 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import org.bouncycastle.util.Arrays;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.transaction.ConsensusTransaction;
+import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -155,9 +158,6 @@ class BlockStreamManagerImplTest {
 
     @Mock
     private HederaVirtualMapState state;
-
-    @Mock
-    private Iterator<ConsensusEvent> mockIterator;
 
     @Mock
     private ConsensusEvent mockEvent;
@@ -247,11 +247,11 @@ class BlockStreamManagerImplTest {
                 TEST_PLATFORM_STATE_FACADE,
                 lifecycle,
                 metrics);
-        assertSame(Instant.EPOCH, subject.lastIntervalProcessTime());
+        assertSame(EPOCH, subject.lastIntervalProcessTime());
         subject.setLastIntervalProcessTime(CONSENSUS_NOW);
         assertEquals(CONSENSUS_NOW, subject.lastIntervalProcessTime());
 
-        assertSame(Instant.EPOCH, subject.lastTopLevelConsensusTime());
+        assertSame(EPOCH, subject.lastTopLevelConsensusTime());
         subject.setLastTopLevelTime(CONSENSUS_NOW);
         assertEquals(CONSENSUS_NOW, subject.lastTopLevelConsensusTime());
     }
@@ -288,7 +288,7 @@ class BlockStreamManagerImplTest {
         given(round.getRoundNum()).willReturn(ROUND_NO);
 
         // Initialize the last (N-1) block hash
-        subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
         assertFalse(subject.hasLedgerId());
 
         given(blockHashSigner.isReady()).willReturn(true);
@@ -340,8 +340,8 @@ class BlockStreamManagerImplTest {
                 List.of(
                         Bytes.EMPTY,
                         Bytes.fromHex(
-                                "839ddb854c8f4cf9c3705268b17bc7d53e91454ff14dbbfffd6c77b6118a0e79fb1e478b4924bfb0fd93ef60101d3237")),
-                FAKE_TRANSACTION_RESULT.transactionResultOrThrow().consensusTimestampOrThrow(),
+                                "280de009b8941c300751d77c3b888f93571731eb858bdb837399d91b512764a6b6c3c0afac6ddb4a1d1d082aa0ca2dcd")),
+                asTimestamp(CONSENSUS_NOW),
                 true,
                 SemanticVersion.DEFAULT,
                 CONSENSUS_THEN,
@@ -349,9 +349,12 @@ class BlockStreamManagerImplTest {
                 Bytes.fromHex(
                         "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
                 Bytes.fromHex(
-                        "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
+                        "bf99e1dfd15ffe551ae4bc0953f396639755f0419522f323875806a55a57dca6a4df61ea6dee28bec0c37ed54881d392"),
                 Bytes.fromHex(
-                        "bf99e1dfd15ffe551ae4bc0953f396639755f0419522f323875806a55a57dca6a4df61ea6dee28bec0c37ed54881d392"));
+                        "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
+                List.of(
+                        Bytes.fromHex(
+                                "a3d31b33cdf17f47954988b2eeb655852353fdfce28fdd9f9885abb990bc6053607a27f66f62a9c60d6c631b1c4783b8")));
 
         final var actualBlockInfo = infoRef.get();
         assertEquals(expectedBlockInfo, actualBlockInfo);
@@ -363,7 +366,7 @@ class BlockStreamManagerImplTest {
         assertTrue(item.hasBlockProof());
         final var proof = item.blockProofOrThrow();
         assertEquals(N_BLOCK_NO, proof.block());
-        assertEquals(FIRST_FAKE_SIGNATURE, proof.blockSignature());
+        assertEquals(FIRST_FAKE_SIGNATURE, proof.signedBlockProof().blockSignature());
     }
 
     @Test
@@ -420,7 +423,7 @@ class BlockStreamManagerImplTest {
         given(round.getRoundNum()).willReturn(ROUND_NO);
 
         // Initialize the last (N-1) block hash
-        subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
         assertFalse(subject.hasLedgerId());
 
         given(blockHashSigner.isReady()).willReturn(true);
@@ -520,7 +523,7 @@ class BlockStreamManagerImplTest {
         given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
 
         // Initialize the last (N-1) block hash
-        subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
 
         given(blockHashSigner.isReady()).willReturn(true);
         // Start the round that will be block N
@@ -568,8 +571,8 @@ class BlockStreamManagerImplTest {
                 List.of(
                         Bytes.EMPTY,
                         Bytes.fromHex(
-                                "839ddb854c8f4cf9c3705268b17bc7d53e91454ff14dbbfffd6c77b6118a0e79fb1e478b4924bfb0fd93ef60101d3237")),
-                FAKE_TRANSACTION_RESULT.transactionResultOrThrow().consensusTimestampOrThrow(),
+                                "280de009b8941c300751d77c3b888f93571731eb858bdb837399d91b512764a6b6c3c0afac6ddb4a1d1d082aa0ca2dcd")),
+                asTimestamp(CONSENSUS_NOW),
                 false,
                 SemanticVersion.DEFAULT,
                 CONSENSUS_THEN,
@@ -577,9 +580,12 @@ class BlockStreamManagerImplTest {
                 Bytes.fromHex(
                         "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
                 Bytes.fromHex(
-                        "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
+                        "8ee0718d5f75f867f85cb4e400ebf7bfbb4cd91479d7f3f8bfd28ce062c318c312b8f4de185a994b78337e6391e3f000"),
                 Bytes.fromHex(
-                        "8ee0718d5f75f867f85cb4e400ebf7bfbb4cd91479d7f3f8bfd28ce062c318c312b8f4de185a994b78337e6391e3f000"));
+                        "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
+                List.of(
+                        Bytes.fromHex(
+                                "a3d31b33cdf17f47954988b2eeb655852353fdfce28fdd9f9885abb990bc6053607a27f66f62a9c60d6c631b1c4783b8")));
         final var actualBlockInfo = infoRef.get();
         assertEquals(expectedBlockInfo, actualBlockInfo);
 
@@ -590,7 +596,7 @@ class BlockStreamManagerImplTest {
         assertTrue(item.hasBlockProof());
         final var proof = item.blockProofOrThrow();
         assertEquals(N_BLOCK_NO, proof.block());
-        assertEquals(FIRST_FAKE_SIGNATURE, proof.blockSignature());
+        assertEquals(FIRST_FAKE_SIGNATURE, proof.signedBlockProof().blockSignature());
     }
 
     @Test
@@ -615,7 +621,7 @@ class BlockStreamManagerImplTest {
         given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
 
         // Initialize the last (N-1) block hash
-        subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
 
         // Start the round that will be block N
         subject.startRound(round, state);
@@ -662,8 +668,13 @@ class BlockStreamManagerImplTest {
         assertTrue(aItem.hasBlockProof());
         final var aProof = aItem.blockProofOrThrow();
         assertEquals(N_BLOCK_NO, aProof.block());
-        assertEquals(FIRST_FAKE_SIGNATURE, aProof.blockSignature());
-        assertEquals(3, aProof.siblingHashes().size());
+        assertEquals(
+                FIRST_FAKE_SIGNATURE,
+                aProof.blockStateProof().signedBlockProof().blockSignature());
+        // Since the state proof's first merkle path should be the leaf containing the block merkle tree's previous
+        // block hash (4 levels descended from the signed block root hash), there are four required siblings to keep for
+        // indirect proofs
+        assertEquals(4, aProof.siblingHashes().size());
         // And the proof for N+1 using a direct proof
         final var bProofItem = lastBItem.get();
         assertNotNull(bProofItem);
@@ -671,7 +682,7 @@ class BlockStreamManagerImplTest {
         assertTrue(bItem.hasBlockProof());
         final var bProof = bItem.blockProofOrThrow();
         assertEquals(N_BLOCK_NO + 1, bProof.block());
-        assertEquals(FIRST_FAKE_SIGNATURE, bProof.blockSignature());
+        assertEquals(FIRST_FAKE_SIGNATURE, bProof.signedBlockProof().blockSignature());
         assertTrue(bProof.siblingHashes().isEmpty());
 
         verify(indirectProofsCounter).increment();
@@ -702,21 +713,29 @@ class BlockStreamManagerImplTest {
                 .thenAcceptAsync(any());
 
         // When starting a round at t=0
-        given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(1000));
-        subject.initLastBlockHash(N_MINUS_2_BLOCK_HASH);
+        var time = EPOCH;
+        mockRoundWithTxnTimestamp(time);
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
         subject.startRound(round, state);
+        subject.endRound(state, ROUND_NO);
 
         // And another round at t=1
-        given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(1001));
+        time = EPOCH.plusSeconds(1);
+        mockRoundWithTxnTimestamp(time);
         subject.startRound(round, state);
+        // Advance tracked block end timestamp to t=1
+        subject.writeItem(transactionResultItemFrom(time));
         subject.endRound(state, ROUND_NO);
 
         // Then block should not be closed
         verify(aWriter, never()).closeCompleteBlock();
 
         // When starting another round at t=3 (after period)
-        given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(1003));
+        time = EPOCH.plusSeconds(3);
+        mockRoundWithTxnTimestamp(time);
         subject.startRound(round, state);
+        // Advance tracked block end timestamp to t=3
+        subject.writeItem(transactionResultItemFrom(time));
         subject.endRound(state, ROUND_NO);
 
         // Then block should be closed
@@ -734,17 +753,20 @@ class BlockStreamManagerImplTest {
                 platformStateWithFreezeTime(null),
                 aWriter);
         givenEndOfRoundSetup();
-        given(round.getRoundNum()).willReturn(ROUND_NO);
         given(blockHashSigner.isReady()).willReturn(true);
 
         // When starting a round at t=0
-        given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(1000));
+        var time = EPOCH;
+        mockRoundWithTxnTimestamp(time);
         subject.initLastBlockHash(N_MINUS_2_BLOCK_HASH);
         subject.startRound(round, state);
 
         // And another round at t=1.5
-        given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(1001, 500_000_000));
+        time = EPOCH.plusSeconds(1).plusNanos(500_000_000);
+        mockRoundWithTxnTimestamp(time);
         subject.startRound(round, state);
+        // Advance tracked block end timestamp to t=1.5
+        subject.writeItem(transactionResultItemFrom(time));
         subject.endRound(state, ROUND_NO);
 
         // Then block should not be closed
@@ -762,7 +784,6 @@ class BlockStreamManagerImplTest {
                 platformStateWithFreezeTime(Instant.ofEpochSecond(1001)),
                 aWriter);
         givenEndOfRoundSetup();
-        given(round.getRoundNum()).willReturn(ROUND_NO);
         given(blockHashSigner.isReady()).willReturn(true);
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.getSingleton(PLATFORM_STATE_STATE_ID)).willReturn(platformStateReadableSingletonState);
@@ -781,13 +802,17 @@ class BlockStreamManagerImplTest {
                 .thenAcceptAsync(any());
 
         // When starting a round at t=0
-        given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(1000));
-        subject.initLastBlockHash(N_MINUS_2_BLOCK_HASH);
+        var time = EPOCH;
+        mockRoundWithTxnTimestamp(time);
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
         subject.startRound(round, state);
 
         // And another round at t=1 with freeze
-        given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(1001));
+        time = EPOCH.plusSeconds(1);
+        mockRoundWithTxnTimestamp(time);
         subject.startRound(round, state);
+        // Advance tracked block end timestamp to t=1
+        subject.writeItem(transactionResultItemFrom(time));
         subject.endRound(state, ROUND_NO);
 
         // Then block should be closed due to freeze, even though period not elapsed
@@ -819,7 +844,7 @@ class BlockStreamManagerImplTest {
 
         // When processing rounds
         given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(1000));
-        subject.initLastBlockHash(N_MINUS_2_BLOCK_HASH);
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
 
         // First round (not mod 2)
         given(round.getRoundNum()).willReturn(3L);
@@ -892,7 +917,7 @@ class BlockStreamManagerImplTest {
                 .thenAcceptAsync(any());
 
         // Initialize hash and start a round
-        subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
         subject.startRound(round, state);
 
         // Track event hashes in the first block
@@ -966,9 +991,7 @@ class BlockStreamManagerImplTest {
 
     private void givenEndOfRoundSetup(@Nullable final AtomicReference<BlockHeader> headerRef) {
         // Add mock for round iterator
-        lenient().when(round.iterator()).thenReturn(mockIterator);
-        lenient().when(mockIterator.next()).thenReturn(mockEvent);
-        lenient().when(mockEvent.getConsensusTimestamp()).thenReturn(CONSENSUS_NOW);
+        mockRoundWithTxnTimestamp(CONSENSUS_NOW);
         lenient()
                 .doAnswer(invocationOnMock -> {
                     lastAItem.set(invocationOnMock.getArgument(1));
@@ -1014,6 +1037,12 @@ class BlockStreamManagerImplTest {
                 .lastIntervalProcessTime(CONSENSUS_THEN)
                 .lastHandleTime(CONSENSUS_THEN)
                 .blockTime(asTimestamp(CONSENSUS_NOW.minusSeconds(5))) // Add block time to track last block creation
+                .startOfBlockStateHash(
+                        Bytes.fromHex(
+                                "60875644fb1d810f012284f35845b2d6990a0d4d1543625a98095087648ee671effeb2742c91e4fbd390bc3e52faf89f"))
+                .intermediatePreviousBlockRootHashes(
+                        Bytes.fromHex(
+                                "adbabc2f7e3216d4d64de1d2a6896ad1330ba8b099cf7d55a027c937893896072a290d0b63b7fb3ab8a0147bbd1258af"))
                 .build();
     }
 
@@ -1021,6 +1050,28 @@ class BlockStreamManagerImplTest {
         return PlatformState.newBuilder()
                 .creationSoftwareVersion(CREATION_VERSION)
                 .freezeTime(freezeTime == null ? null : asTimestamp(freezeTime))
+                .build();
+    }
+
+    private void mockRound(Instant timestamp) {
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        lenient().when(round.iterator()).thenReturn(new Arrays.Iterator<>(new ConsensusEvent[] {mockEvent}));
+        lenient().when(round.getConsensusTimestamp()).thenReturn(timestamp);
+    }
+
+    private void mockRoundWithTxnTimestamp(Instant timestamp) {
+        mockRound(timestamp);
+
+        final var txn = new TransactionWrapper(Bytes.fromHex("abcdefABCDEF"));
+        txn.setConsensusTimestamp(timestamp);
+        lenient()
+                .when(mockEvent.consensusTransactionIterator())
+                .thenReturn(new Arrays.Iterator<>(new ConsensusTransaction[] {txn}));
+    }
+
+    private BlockItem transactionResultItemFrom(Instant consensusTimestamp) {
+        return BlockItem.newBuilder()
+                .transactionResult(TransactionResult.newBuilder().consensusTimestamp(asTimestamp(consensusTimestamp)))
                 .build();
     }
 
