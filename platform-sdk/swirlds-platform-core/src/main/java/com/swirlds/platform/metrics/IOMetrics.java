@@ -72,7 +72,7 @@ public final class IOMetrics {
                     PLATFORM_CATEGORY, "ioDiskReadRate")
             .withDescription("current disk read rate in bytes per second")
             .withFormat(FORMAT_16_0)
-            .withUnit("bytes/s")
+            .withUnit("bytes_per_sec")
             .withHalfLife(0.0);
     private final RunningAverageMetric diskReadRate;
 
@@ -80,7 +80,7 @@ public final class IOMetrics {
                     PLATFORM_CATEGORY, "ioDiskWriteRate")
             .withDescription("current disk write rate in bytes per second")
             .withFormat(FORMAT_16_0)
-            .withUnit("bytes/s")
+            .withUnit("bytes_per_sec")
             .withHalfLife(0.0);
     private final RunningAverageMetric diskWriteRate;
 
