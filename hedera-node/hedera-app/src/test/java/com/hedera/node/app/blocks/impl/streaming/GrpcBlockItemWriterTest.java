@@ -58,12 +58,13 @@ class GrpcBlockItemWriterTest {
         // Create BlockProof as easiest way to build object from BlockStreams
         Bytes bytes = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
         final var proof = BlockItem.newBuilder()
-                .blockProof(BlockProof.newBuilder().blockSignature(bytes).siblingHashes(new ArrayList<>())) // deprecated
-				.blockProof(BlockProof.newBuilder()
-						.signedBlockProof(TssSignedBlockProof.newBuilder()
-								.blockSignature(bytes)
-								.build())
-						.siblingHashes(new ArrayList<>()))
+                .blockProof(
+                        BlockProof.newBuilder().blockSignature(bytes).siblingHashes(new ArrayList<>())) // deprecated
+                .blockProof(BlockProof.newBuilder()
+                        .signedBlockProof(TssSignedBlockProof.newBuilder()
+                                .blockSignature(bytes)
+                                .build())
+                        .siblingHashes(new ArrayList<>()))
                 .build();
 
         grpcBlockItemWriter.writePbjItemAndBytes(proof, bytes);
@@ -79,13 +80,14 @@ class GrpcBlockItemWriterTest {
         // Create BlockProof as easiest way to build object from BlockStreams
         Bytes bytes = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
         final var proof = BlockItem.newBuilder()
-                .blockProof(BlockProof.newBuilder().blockSignature(bytes).siblingHashes(new ArrayList<>())) // deprecated
-				.blockProof(BlockProof.newBuilder()
-						.blockSignature(bytes)  // deprecated
-						.signedBlockProof(TssSignedBlockProof.newBuilder()  // New BMT
-								.blockSignature(bytes)
-								.build())
-						.siblingHashes(new ArrayList<>()))
+                .blockProof(
+                        BlockProof.newBuilder().blockSignature(bytes).siblingHashes(new ArrayList<>())) // deprecated
+                .blockProof(BlockProof.newBuilder()
+                        .blockSignature(bytes) // deprecated
+                        .signedBlockProof(TssSignedBlockProof.newBuilder() // New BMT
+                                .blockSignature(bytes)
+                                .build())
+                        .siblingHashes(new ArrayList<>()))
                 .build();
 
         grpcBlockItemWriter.writePbjItem(proof);

@@ -222,10 +222,10 @@ public class BlockTestUtils {
     public static BlockItem newBlockProof(final long blockNumber) {
         final BlockProof proof = BlockProof.newBuilder()
                 .block(blockNumber)
-                .blockSignature(SIGNATURE)	// deprecated
+                .blockSignature(SIGNATURE) // deprecated
                 .verificationKey(VERIFICATION_KEY)
-                .previousBlockRootHash(PREV_BLOCK_ROOT_HASH)  // deprecated
-                .startOfBlockStateRootHash(ROOT_HASH_START)  // deprecated
+                .previousBlockRootHash(PREV_BLOCK_ROOT_HASH) // deprecated
+                .startOfBlockStateRootHash(ROOT_HASH_START) // deprecated
                 .build();
         return BlockItem.newBuilder().blockProof(proof).build();
     }

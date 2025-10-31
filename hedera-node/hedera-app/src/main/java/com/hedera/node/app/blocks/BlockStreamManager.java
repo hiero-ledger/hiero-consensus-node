@@ -9,7 +9,6 @@ import com.swirlds.platform.system.state.notifications.StateHashedListener;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
@@ -71,21 +70,21 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
         void onCloseBlock(@NonNull State state);
     }
 
-	/**
-	 * Initializes the block stream manager after a restart or during reconnect with the hashes necessary to
-	 * infer the starting block tree states and the last block hash used in the restart or reconnect. At
-	 * genesis, the last block hash should be the {@link #ZERO_BLOCK_HASH}. For migration scenarios, the last
-	 * block hash should be the migrated block hash from {@link BlockStreamService#migratedLastBlockHash()}.
-	 * In all other cases this value should be null, and the method should calculate it from the given state.
-	 *
-	 * NOTE: will replace {@code initLastBlockHash(Bytes)}
-	 *
-	 * @param state the state to use
-	 * @param lastBlockHash the hash of the last block
-	 */
-	void init(@NonNull State state, @Nullable Bytes lastBlockHash);
+    /**
+     * Initializes the block stream manager after a restart or during reconnect with the hashes necessary to
+     * infer the starting block tree states and the last block hash used in the restart or reconnect. At
+     * genesis, the last block hash should be the {@link #ZERO_BLOCK_HASH}. For migration scenarios, the last
+     * block hash should be the migrated block hash from {@link BlockStreamService#migratedLastBlockHash()}.
+     * In all other cases this value should be null, and the method should calculate it from the given state.
+     *
+     * NOTE: will replace {@code initLastBlockHash(Bytes)}
+     *
+     * @param state the state to use
+     * @param lastBlockHash the hash of the last block
+     */
+    void init(@NonNull State state, @Nullable Bytes lastBlockHash);
 
-	/**
+    /**
      * Returns whether the ledger ID has been set.
      * @return true if the ledger ID has been set, false otherwise
      */
