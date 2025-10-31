@@ -13,11 +13,13 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhance
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.Optional;
 import org.hyperledger.besu.datatypes.Address;
 
 public record CallAttemptOptions<T extends AbstractCallAttempt<T>>(
         @NonNull ContractID contractID,
         @NonNull Address senderAddress,
+        @NonNull Optional<Address> maybeRedirectAddress,
         @NonNull Address authorizingAddress,
         boolean onlyDelegatableContractKeysActive,
         @NonNull HederaWorldUpdater.Enhancement enhancement,
@@ -46,6 +48,7 @@ public record CallAttemptOptions<T extends AbstractCallAttempt<T>>(
     public CallAttemptOptions(
             @NonNull final ContractID contractID,
             @NonNull final Address senderAddress,
+            @NonNull final Optional<Address> maybeRedirectAddress,
             @NonNull final Address authorizingAddress,
             final boolean onlyDelegatableContractKeysActive,
             @NonNull final Enhancement enhancement,
@@ -58,6 +61,7 @@ public record CallAttemptOptions<T extends AbstractCallAttempt<T>>(
             final boolean isStaticCall) {
         this.contractID = requireNonNull(contractID);
         this.senderAddress = requireNonNull(senderAddress);
+        this.maybeRedirectAddress = requireNonNull(maybeRedirectAddress);
         this.authorizingAddress = requireNonNull(authorizingAddress);
         this.onlyDelegatableContractKeysActive = onlyDelegatableContractKeysActive;
         this.enhancement = requireNonNull(enhancement);

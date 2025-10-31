@@ -29,8 +29,8 @@ import static com.hedera.services.bdd.suites.contract.Utils.getResourcePath;
 import static com.hedera.services.bdd.suites.contract.precompile.CreatePrecompileSuite.MEMO;
 
 import com.google.common.io.Files;
-import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
-import com.hedera.node.app.service.contract.impl.utils.RedirectBytecodeUtils;
+import com.hedera.node.app.service.contract.impl.state.ScheduleEvmAccount;
+import com.hedera.node.app.service.contract.impl.state.TokenEvmAccount;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
@@ -40,13 +40,11 @@ import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import java.io.File;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
 import org.bouncycastle.util.encoders.Hex;
-import org.hyperledger.besu.datatypes.Address;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -122,17 +120,13 @@ public class ContractGetBytecodeSuite {
                 .hasAnswerOnlyPrecheck(ResponseCodeEnum.INVALID_CONTRACT_ID));
     }
 
-    private CustomSpecAssert getContractBytecodeRedirectBytecodeCheck(
-            String contract, String key, Function<Address, Bytes> redirectBytecodeFunction) {
+    private CustomSpecAssert getContractBytecodeCheck(String contract, String key, Bytes expectedCode) {
         return withOpContext((spec, opLog) -> {
             final var getBytecode = getContractBytecode(contract).saveResultTo(key);
             allRunFor(spec, getBytecode);
             final var actualBytecode = spec.registry().getBytes(key);
             ContractID contractId = TxnUtils.asContractId(contract, spec);
-            final byte[] expectedBytecode = redirectBytecodeFunction
-                    .apply(Address.wrap(Bytes.wrap(ConversionUtils.asEvmAddress(contractId.getContractNum()))))
-                    .toArray();
-            Assertions.assertArrayEquals(expectedBytecode, actualBytecode);
+            Assertions.assertArrayEquals(expectedCode.toArray(), actualBytecode);
         });
     }
 
@@ -142,7 +136,7 @@ public class ContractGetBytecodeSuite {
         final var key = "accountByteCode";
         return hapiTest(
                 cryptoCreate(account).balance(ONE_HUNDRED_HBARS).asCallableContract(),
-                getContractBytecodeRedirectBytecodeCheck(account, key, RedirectBytecodeUtils::accountProxyBytecodeFor));
+                getContractBytecodeCheck(account, key, Bytes.of()));
     }
 
     @HapiTest
@@ -150,8 +144,7 @@ public class ContractGetBytecodeSuite {
         final var token = "fungibleToken";
         final var key = "tokenByteCode";
         return hapiTest(
-                tokenCreate(token).asCallableContract(),
-                getContractBytecodeRedirectBytecodeCheck(token, key, RedirectBytecodeUtils::tokenProxyBytecodeFor));
+                tokenCreate(token).asCallableContract(), getContractBytecodeCheck(token, key, TokenEvmAccount.CODE));
     }
 
     @HapiTest
@@ -162,7 +155,6 @@ public class ContractGetBytecodeSuite {
                 cryptoCreate("sender"),
                 scheduleCreate(schedule, cryptoTransfer(tinyBarsFromTo("sender", GENESIS, 1)))
                         .asCallableSchedule(),
-                getContractBytecodeRedirectBytecodeCheck(
-                        schedule, key, RedirectBytecodeUtils::scheduleProxyBytecodeFor));
+                getContractBytecodeCheck(schedule, key, ScheduleEvmAccount.CODE));
     }
 }

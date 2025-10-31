@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_EVM_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_16C_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CallType.QUALIFIED_DELEGATE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
@@ -17,10 +19,12 @@ import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CallType;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 import org.apache.tuweni.bytes.Bytes;
+import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
@@ -66,11 +70,20 @@ public class HtsCallFactory implements CallFactory<HtsCallAttempt> {
         requireNonNull(input);
         requireNonNull(frame);
         final var enhancement = proxyUpdaterFor(frame).enhancement();
+
+        // If we're executing a HTS call, but the recipient isn't the HTS address
+        // then it must be a redirect/delegate call.
+        final var isRedirect = !frame.getRecipientAddress().equals(Address.fromHexString(HTS_167_EVM_ADDRESS))
+                && !frame.getRecipientAddress().equals(Address.fromHexString(HTS_16C_EVM_ADDRESS));
+        final Optional<Address> maybeRedirectAddress =
+                isRedirect ? Optional.of(frame.getRecipientAddress()) : Optional.empty();
+
         return new HtsCallAttempt(
                 input,
                 new CallAttemptOptions<>(
                         contractID,
                         frame.getSenderAddress(),
+                        maybeRedirectAddress,
                         // We only need to distinguish between the EVM sender id and the
                         // "authorizing id" for qualified delegate calls; and even then, only
                         // for classic transfers. In that specific case, the qualified delegate

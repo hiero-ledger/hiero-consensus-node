@@ -143,119 +143,57 @@ public interface EvmFrameState {
     MutableAccount getMutableAccount(Address address);
 
     /**
-     * Returns the storage value for the contract with the given contract id and key.
+     * Returns the storage value for the account with the given account id and key.
      *
-     * @param contractID the contract id
+     * @param accountID the account id
      * @param key the key
      * @return the storage value
      */
     @NonNull
-    UInt256 getStorageValue(ContractID contractID, @NonNull UInt256 key);
+    UInt256 getStorageValue(AccountID accountID, @NonNull UInt256 key);
 
     /**
-     * Sets the storage value for the contract with the given contract id and key.
-     * @param contractID the contract id
+     * Sets the storage value for the account with the given account id and key.
+     * @param accountID the account id
      * @param key the key
      * @param value the value to set
      */
-    void setStorageValue(ContractID contractID, @NonNull UInt256 key, @NonNull UInt256 value);
+    void setStorageValue(AccountID accountID, @NonNull UInt256 key, @NonNull UInt256 value);
 
     /**
-     * Returns the original storage value for the contract with the given contract id and key.
+     * Returns the original storage value for the account with the given account id and key.
      *
-     * @param contractID the contract id
+     * @param accountID the account id
      * @param key the key
      * @return the original storage value
      */
     @NonNull
-    UInt256 getOriginalStorageValue(ContractID contractID, @NonNull UInt256 key);
+    UInt256 getOriginalStorageValue(AccountID accountID, @NonNull UInt256 key);
 
     /**
-     * Returns the code for the account with the given contract id, or empty code if no such code exists.
+     * Returns the code for the account with the given account id, or empty code if no such code exists.
      *
-     * @param contractID the contract id
+     * @param accountID the account id
      * @return the code for the account
      */
     @NonNull
-    Bytes getCode(ContractID contractID);
+    Bytes getCode(AccountID accountID);
 
     /**
-     * Sets the code for the contract with the given contract id. Only used during contract creation.
+     * Sets the code for the contract with the given account id.
+     * Used during contract creation and when setting EIP-7702 delegation.
      *
-     * @param contractID the contract id
+     * @param accountID the account id
      * @param code the new code
      */
-    void setCode(ContractID contractID, @NonNull Bytes code);
+    void setCode(AccountID accountID, @NonNull Bytes code);
 
     /**
-     * Returns the redirect bytecode for the token with the given address, which must be a long-zero address.
-     *
-     * <p>Since a {@link TokenEvmAccount} never needs its Hedera entity number, we may as well use
-     * the long-zero address there, and here.
-     *
-     * @param address the token long-zero address
-     * @return the redirect code for the token
-     */
-    @NonNull
-    Bytes getTokenRedirectCode(@NonNull Address address);
-
-    /**
-     * @param contractID the contract to extract its code hash
+     * @param accountID the account to extract its code hash
      * @return the code hash of the contract
      */
     @NonNull
-    Hash getCodeHash(ContractID contractID, @NonNull final CodeFactory codeFactory);
-
-    /**
-     * Returns the hash of the redirect bytecode for the token with the given address, which must be a
-     * long-zero address.
-     *
-     * <p>Since a {@link TokenEvmAccount} never needs its Hedera entity number, we may as well use
-     * the long-zero address there, and here.
-     *
-     * @param address the token long-zero address
-     * @return the redirect code for the token
-     */
-    @NonNull
-    Hash getTokenRedirectCodeHash(@NonNull Address address);
-
-    /**
-     * Returns the redirect bytecode for the account with the given address.  This should only be called for regular accounts
-     * that are not contracts.
-     *
-     * @param address the account address
-     * @return the redirect code for the account
-     */
-    @NonNull
-    Bytes getAccountRedirectCode(@Nullable Address address);
-
-    /**
-     * Returns the hash of the redirect bytecode for the account with the given address.
-     *
-     * @param address the account address
-     * @return the redirect code for the account
-     */
-    @NonNull
-    Hash getAccountRedirectCodeHash(@Nullable Address address);
-
-    /**
-     * Returns the redirect bytecode for the schedule with the given address.  This should only be called for schedule
-     * transaction entities
-     *
-     * @param address the schedule address
-     * @return the redirect code for the schedule
-     */
-    @NonNull
-    Bytes getScheduleRedirectCode(@Nullable Address address);
-
-    /**
-     * Returns the hash of the redirect bytecode for the schedule with the given address.
-     *
-     * @param address the schedule address
-     * @return the redirect code for the schedule
-     */
-    @NonNull
-    Hash getScheduleRedirectCodeHash(@Nullable Address address);
+    Hash getCodeHash(AccountID accountID, @NonNull final CodeFactory codeFactory);
 
     /**
      * Returns the native account with the given account id.

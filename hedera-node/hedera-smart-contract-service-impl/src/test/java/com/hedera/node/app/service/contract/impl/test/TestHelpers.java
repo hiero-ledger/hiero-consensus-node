@@ -113,6 +113,7 @@ import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.frame.MessageFrame;
+import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.log.Log;
 import org.hyperledger.besu.evm.log.LogTopic;
 import org.hyperledger.besu.evm.operation.Operation;
@@ -529,6 +530,7 @@ public class TestHelpers {
             List.of(new ContractNonceInfo(CALLED_CONTRACT_ID, NONCE), new ContractNonceInfo(CHILD_CONTRACT_ID, 1L));
     public static final EntityNumber CALLED_CONTRACT_ENTITY_NUMBER = new EntityNumber(666);
     public static final CodeFactory CODE_FACTORY = new CodeFactory(0, 0);
+    public static final GasCalculator GAS_CALCULATOR = new HederaGasCalculatorImpl();
     public static final Code CONTRACT_CODE = CODE_FACTORY.createCode(pbjToTuweniBytes(CALL_DATA), false);
     public static final Log BESU_LOG = new Log(
             NON_SYSTEM_LONG_ZERO_ADDRESS,

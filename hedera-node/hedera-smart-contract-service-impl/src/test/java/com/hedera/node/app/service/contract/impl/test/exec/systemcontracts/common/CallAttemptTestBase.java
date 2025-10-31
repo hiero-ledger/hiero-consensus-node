@@ -26,6 +26,7 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import org.apache.tuweni.bytes.Bytes;
 import org.hiero.base.utility.CommonUtils;
 import org.hyperledger.besu.datatypes.Address;
@@ -161,6 +162,7 @@ public class CallAttemptTestBase extends CallTestBase {
                 new CallAttemptOptions<>(
                         contractID,
                         senderAddress,
+                        Optional.empty(),
                         authorizingAddress,
                         onlyDelegatableContractKeysActive,
                         mockEnhancement(),
@@ -200,6 +202,7 @@ public class CallAttemptTestBase extends CallTestBase {
                 new CallAttemptOptions<>(
                         HAS_CONTRACT_ID,
                         OWNER_BESU_ADDRESS,
+                        Optional.empty(),
                         OWNER_BESU_ADDRESS,
                         false,
                         mockEnhancement(),
@@ -244,6 +247,7 @@ public class CallAttemptTestBase extends CallTestBase {
                 new CallAttemptOptions<>(
                         HSS_CONTRACT_ID,
                         senderAddress,
+                        Optional.empty(),
                         senderAddress,
                         onlyDelegatableContractKeysActive,
                         mockEnhancement(),

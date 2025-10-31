@@ -4,7 +4,9 @@ package com.hedera.node.app.service.contract.impl.exec.processors;
 import static com.hedera.hapi.streams.ContractActionType.PRECOMPILE;
 import static com.hedera.hapi.streams.ContractActionType.SYSTEM;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.*;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract.HAS_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractNativeSystemContract.FUNCTION_SELECTOR_LENGTH;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateCommons.createMethodsSet;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.*;
 import static com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure.MISSING_RECEIVER_SIGNATURE;
@@ -29,9 +31,11 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.EVM;
+import org.hyperledger.besu.evm.account.Account;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.operation.Operation;
@@ -40,6 +44,7 @@ import org.hyperledger.besu.evm.precompile.PrecompiledContract;
 import org.hyperledger.besu.evm.precompile.PrecompiledContract.PrecompileContractResult;
 import org.hyperledger.besu.evm.processor.MessageCallProcessor;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
+import org.hyperledger.besu.evm.worldstate.CodeDelegationHelper;
 
 /**
  * A {@link MessageCallProcessor} customized to,
@@ -52,6 +57,15 @@ import org.hyperledger.besu.evm.tracing.OperationTracer;
  * and the core {@link MessageCallProcessor#process(MessageFrame, OperationTracer)} logic we inherit.
  */
 public class CustomMessageCallProcessor extends MessageCallProcessor {
+    /**
+     * A set of call data prefixes (i.e. function selectors in the realm of Solidity)
+     * that are eligible for proxy redirection to the Hedera Account Service system contract.
+     */
+    private static final Set<Integer> ACCOUNT_PROXY_ELIGIBLE_CALL_DATA_PREFIXES = Set.of(
+            0xbbee989e, // hbarAllowance(address spender)
+            0x86aff07c, // hbarApprove(address spender, int256 amount)
+            0xf5677e99); // setUnlimitedAutomaticAssociations(bool enableAutoAssociations
+
     private final FeatureFlags featureFlags;
     private final AddressChecks addressChecks;
     private final PrecompileContractRegistry precompiles;
@@ -105,7 +119,21 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
      */
     @Override
     public void start(@NonNull final MessageFrame frame, @NonNull final OperationTracer tracer) {
-        final var codeAddress = frame.getContractAddress();
+        final Address targetAddress;
+
+        final Account contractAccount = frame.getWorldUpdater().get(frame.getContractAddress());
+        if (contractAccount != null && CodeDelegationHelper.hasCodeDelegation(contractAccount.getCode())) {
+            targetAddress =
+                    Address.wrap(contractAccount.getCode().slice(CodeDelegationHelper.CODE_DELEGATION_PREFIX.size()));
+        } else if (contractAccount != null
+                && contractAccount.getCode().isEmpty()
+                && isPayloadEligibleForAccountServiceRedirect(frame.getInputData())) {
+            // Redirect to HAS
+            targetAddress = Address.fromHexString(HAS_EVM_ADDRESS);
+        } else {
+            targetAddress = frame.getContractAddress();
+        }
+
         // This must be done first as the system contract address range overlaps with system
         // accounts. Note that unlike EVM precompiles, we do allow sending value "to" Hedera
         // system contracts because they sometimes require fees greater than be reasonably
@@ -113,27 +141,28 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
         // only diverts this value to the network's fee collection accounts, instead of
         // actually receiving it.
         // We do not allow sending value to Hedera system contracts except in the case of token creation.
-        if (systemContracts.containsKey(codeAddress)) {
+        if (systemContracts.containsKey(targetAddress)) {
             if (!isTokenCreation(frame)) {
                 doHaltIfInvalidSystemCall(frame, tracer);
                 if (alreadyHalted(frame)) {
                     return;
                 }
             }
-            doExecuteSystemContract(systemContracts.get(codeAddress), codeAddress, frame, tracer);
+            doExecuteSystemContract(systemContracts.get(targetAddress), targetAddress, frame, tracer);
             return;
         }
 
-        var evmPrecompile = precompiles.get(codeAddress);
-        if (evmPrecompile != null && !isPrecompileEnabled(codeAddress, frame)) {
+        var evmPrecompile = precompiles.get(targetAddress);
+        if (evmPrecompile != null && !isPrecompileEnabled(targetAddress, frame)) {
             // disable precompile if so configured.
             evmPrecompile = null;
         }
+        // TODO(Pectra): revisit this?
         // Check to see if the code address is a system account and possibly halt
         // Note that we allow calls to the allowance hook address(0x16d) if the call is part of
         // a hook dispatch; in that case, the allowance hook is being treated as a normal
         // contract, not as a system account.
-        if (addressChecks.isSystemAccount(codeAddress) && isNotAllowanceHook(frame, codeAddress)) {
+        if (addressChecks.isSystemAccount(targetAddress) && isNotAllowanceHook(frame, targetAddress)) {
             doHaltIfInvalidSystemCall(frame, tracer);
             if (alreadyHalted(frame)) {
                 return;
@@ -158,7 +187,7 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
         // For mono-service fidelity, we need to consider called contracts
         // as a special case eligible for staking rewards
         if (isTopLevelTransaction(frame)) {
-            final var maybeCalledContract = proxyUpdaterFor(frame).get(codeAddress);
+            final var maybeCalledContract = proxyUpdaterFor(frame).get(targetAddress);
             if (maybeCalledContract instanceof ProxyEvmContract a) {
                 recordBuilderFor(frame).trackExplicitRewardSituation(a.hederaId());
             }
@@ -366,5 +395,13 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
                         frame, new Operation.OperationResult(frame.getRemainingGas(), reason));
             }
         }
+    }
+
+    private static boolean isPayloadEligibleForAccountServiceRedirect(Bytes payload) {
+        // The compiled binary uses an ABI-compatible function dispatch, so we expect
+        // the first 4 bytes of the payload to be the selector of the function.
+        // We check that against a fixed list of selectors.
+        final int prefix = payload.size() >= FUNCTION_SELECTOR_LENGTH ? payload.getInt(0) : 0;
+        return ACCOUNT_PROXY_ELIGIBLE_CALL_DATA_PREFIXES.contains(prefix);
     }
 }

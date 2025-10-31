@@ -51,11 +51,6 @@ public class ProxyEvmHook extends AbstractProxyEvmAccount {
     }
 
     @Override
-    public @NonNull Code getEvmCode(@NonNull final Bytes functionSelector, @NonNull final CodeFactory codeFactory) {
-        return codeFactory.createCode(getCode(), false);
-    }
-
-    @Override
     public Address getAddress() {
         return HTS_HOOKS_CONTRACT_ADDRESS;
     }
@@ -68,17 +63,18 @@ public class ProxyEvmHook extends AbstractProxyEvmAccount {
 
     @Override
     public @NonNull Bytes getCode() {
-        return state.getCode(hookState.hookContractIdOrThrow());
+        // TODO(Pectra): double check
+        return state.getCode(entityIdFactory.newAccountId(hookState.hookContractIdOrThrow().contractNum()));
     }
 
     @Override
     public @NonNull Hash getCodeHash() {
-        return state.getCodeHash(hookState.hookContractIdOrThrow(), codeFactory);
+        return state.getCodeHash(entityIdFactory.newAccountId(hookState.hookContractIdOrThrow().contractNum()), codeFactory);
     }
 
     @Override
     public @NonNull UInt256 getStorageValue(@NonNull final UInt256 key) {
-        return state.getStorageValue(entityIdFactory.newContractId(HTS_HOOKS_CONTRACT_NUM), key);
+        return state.getStorageValue(entityIdFactory.newAccountId(HTS_HOOKS_CONTRACT_NUM), key);
     }
 
     @NonNull

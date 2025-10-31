@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.state;
 
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.hbarallowance.HbarAllowanceTranslator.HBAR_ALLOWANCE_PROXY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CODE_FACTORY;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuHash;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
@@ -30,8 +29,6 @@ class ProxyEvmContractTest {
     private static final long ACCOUNT_NUM = 0x9abcdefabcdefbbbL;
     private static final AccountID ACCOUNT_ID =
             AccountID.newBuilder().accountNum(ACCOUNT_NUM).build();
-    private static final ContractID CONTRACT_ID =
-            ContractID.newBuilder().contractNum(ACCOUNT_NUM).build();
     private static final Address EVM_ADDRESS = Address.fromHexString("abcabcabcabcabcabeeeeeee9abcdefabcdefbbb");
     private static final Bytes SOME_PRETEND_CODE = Bytes.wrap("<NOT-REALLY-CODE>");
     private static final Bytes SOME_PRETEND_CODE_HASH = Bytes.wrap("<NOT-REALLY-BYTECODE-HASH-12345>");
@@ -102,44 +99,26 @@ class ProxyEvmContractTest {
     @Test
     void returnsCode() {
         final var code = pbjToTuweniBytes(SOME_PRETEND_CODE);
-        given(hederaState.getCode(CONTRACT_ID)).willReturn(code);
+        given(hederaState.getCode(ACCOUNT_ID)).willReturn(code);
         assertEquals(code, subject.getCode());
-    }
-
-    @Test
-    void returnsEvmCode() {
-        final var code = pbjToTuweniBytes(SOME_PRETEND_CODE);
-        given(hederaState.getCode(CONTRACT_ID)).willReturn(code);
-        assertEquals(
-                CODE_FACTORY.createCode(code, false),
-                subject.getEvmCode(org.apache.tuweni.bytes.Bytes.EMPTY, CODE_FACTORY));
-    }
-
-    @Test
-    void returnsEvmCodeButSetsState() {
-        final var code = pbjToTuweniBytes(SOME_PRETEND_CODE);
-        given(hederaState.getCode(CONTRACT_ID)).willReturn(code);
-        assertEquals(
-                CODE_FACTORY.createCode(code, false),
-                subject.getEvmCode(org.apache.tuweni.bytes.Bytes.wrap(HBAR_ALLOWANCE_PROXY.selector()), CODE_FACTORY));
     }
 
     @Test
     void returnsCodeHash() {
         final var hash = pbjToBesuHash(SOME_PRETEND_CODE_HASH);
-        given(hederaState.getCodeHash(CONTRACT_ID, CODE_FACTORY)).willReturn(hash);
+        given(hederaState.getCodeHash(ACCOUNT_ID, CODE_FACTORY)).willReturn(hash);
         assertEquals(hash, subject.getCodeHash());
     }
 
     @Test
     void getsStorageValue() {
-        given(hederaState.getStorageValue(CONTRACT_ID, SOME_KEY)).willReturn(SOME_VALUE);
+        given(hederaState.getStorageValue(ACCOUNT_ID, SOME_KEY)).willReturn(SOME_VALUE);
         assertEquals(SOME_VALUE, subject.getStorageValue(SOME_KEY));
     }
 
     @Test
     void getsOriginalStorageValue() {
-        given(hederaState.getOriginalStorageValue(CONTRACT_ID, SOME_KEY)).willReturn(SOME_VALUE);
+        given(hederaState.getOriginalStorageValue(ACCOUNT_ID, SOME_KEY)).willReturn(SOME_VALUE);
         assertEquals(SOME_VALUE, subject.getOriginalStorageValue(SOME_KEY));
     }
 
@@ -156,14 +135,14 @@ class ProxyEvmContractTest {
 
         subject.setCode(code);
 
-        verify(hederaState).setCode(CONTRACT_ID, code);
+        verify(hederaState).setCode(ACCOUNT_ID, code);
     }
 
     @Test
     void delegatesSettingStorage() {
         subject.setStorageValue(SOME_KEY, SOME_VALUE);
 
-        verify(hederaState).setStorageValue(CONTRACT_ID, SOME_KEY, SOME_VALUE);
+        verify(hederaState).setStorageValue(ACCOUNT_ID, SOME_KEY, SOME_VALUE);
     }
 
     @Test

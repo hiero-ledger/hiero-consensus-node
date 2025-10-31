@@ -77,7 +77,8 @@ public interface V030Module {
             @ServicesV030 @NonNull final ContractCreationProcessor contractCreationProcessor,
             @NonNull final CustomGasCharging gasCharging,
             @ServicesV030 @NonNull final FeatureFlags featureFlags,
-            @NonNull final CodeFactory codeFactory) {
+            @NonNull final CodeFactory codeFactory,
+            @NonNull final GasCalculator gasCalculator) {
         return new TransactionProcessor(
                 frameBuilder,
                 frameRunner,
@@ -85,7 +86,8 @@ public interface V030Module {
                 messageCallProcessor,
                 contractCreationProcessor,
                 featureFlags,
-                codeFactory);
+                codeFactory,
+                gasCalculator);
     }
 
     @Provides

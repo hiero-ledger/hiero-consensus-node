@@ -5,7 +5,6 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.is
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static java.util.Objects.requireNonNull;
 
-import com.esaulpaugh.headlong.abi.Function;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
@@ -14,20 +13,19 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemC
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallAttemptOptions;
-import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
-import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.SystemContract;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
+import com.esaulpaugh.headlong.abi.Function;
 
 /**
  * Manages the call attempted by a {@link Bytes} payload received by the {@link HtsSystemContract}. Translates a valid
  * attempt into an appropriate {@link Call} subclass, giving the {@link Call} everything it will need to execute.
  */
 public class HtsCallAttempt extends AbstractCallAttempt<HtsCallAttempt> {
-    /** Selector for redirectForToken(address,bytes) method. */
-    public static final Function REDIRECT_FOR_TOKEN = new Function("redirectForToken(address,bytes)");
+    public static final Function LEGACY_REDIRECT_FOR_TOKEN =
+            new Function("redirectForToken(address,bytes)");
 
     // The id address of the account authorizing the call, in the sense
     // that (1) a dispatch should omit the key of this account from the
@@ -42,20 +40,17 @@ public class HtsCallAttempt extends AbstractCallAttempt<HtsCallAttempt> {
     private final Token redirectToken;
 
     public HtsCallAttempt(@NonNull final Bytes input, @NonNull final CallAttemptOptions<HtsCallAttempt> options) {
-        super(input, options, REDIRECT_FOR_TOKEN);
-        if (isRedirect()) {
-            this.redirectToken = linkedToken(redirectAddress);
-        } else {
-            redirectToken = null;
-        }
+        super(input, options, LEGACY_REDIRECT_FOR_TOKEN);
+
+        this.redirectToken =
+            this.legacyRedirectAddress
+                .or(options::maybeRedirectAddress)
+                .map(this::linkedToken)
+                .orElse(null);
+
         this.authorizingId = (options.authorizingAddress() != senderAddress())
                 ? addressIdConverter().convertSender(options.authorizingAddress())
                 : senderId;
-    }
-
-    @Override
-    protected SystemContract systemContractKind() {
-        return SystemContractMethod.SystemContract.HTS;
     }
 
     @Override

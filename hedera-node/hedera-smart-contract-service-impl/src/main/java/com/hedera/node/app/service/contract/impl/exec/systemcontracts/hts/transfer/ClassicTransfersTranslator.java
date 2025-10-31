@@ -110,16 +110,19 @@ public class ClassicTransfersTranslator extends AbstractCallTranslator<HtsCallAt
 
     @Override
     public @NonNull Optional<SystemContractMethod> identifyMethod(@NonNull final HtsCallAttempt attempt) {
-        if (attempt.isRedirect()) return Optional.empty();
-        return attempt.isMethod(
-                CRYPTO_TRANSFER,
-                CRYPTO_TRANSFER_V2,
-                TRANSFER_TOKENS,
-                TRANSFER_TOKEN,
-                TRANSFER_NFTS,
-                TRANSFER_NFT,
-                TRANSFER_FROM,
-                TRANSFER_NFT_FROM);
+        if (attempt.isRedirect()) {
+            return Optional.empty();
+        } else {
+            return attempt.isMethod(
+                    CRYPTO_TRANSFER,
+                    CRYPTO_TRANSFER_V2,
+                    TRANSFER_TOKENS,
+                    TRANSFER_TOKEN,
+                    TRANSFER_NFTS,
+                    TRANSFER_NFT,
+                    TRANSFER_FROM,
+                    TRANSFER_NFT_FROM);
+        }
     }
 
     @Override
