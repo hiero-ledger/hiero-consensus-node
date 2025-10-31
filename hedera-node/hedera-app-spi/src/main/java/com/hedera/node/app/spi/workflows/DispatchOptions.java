@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.workflows;
 
-import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
+import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CUSTOM_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
@@ -176,7 +176,7 @@ public record DispatchOptions<T extends StreamBuilder>(
                 ReversingBehavior.IRREVERSIBLE,
                 NOOP_SIGNED_TX_CUSTOMIZER,
                 EMPTY_METADATA,
-                NOOP_FEE_CHARGING);
+                UNIVERSAL_NOOP_FEE_CHARGING);
     }
 
     /**
@@ -334,7 +334,7 @@ public record DispatchOptions<T extends StreamBuilder>(
                 reversingBehavior,
                 signedTxCustomizer,
                 metadata,
-                NOOP_FEE_CHARGING);
+                UNIVERSAL_NOOP_FEE_CHARGING);
     }
 
     /**
@@ -370,7 +370,7 @@ public record DispatchOptions<T extends StreamBuilder>(
                 ReversingBehavior.REMOVABLE,
                 signedTxCustomizer,
                 metaData,
-                NOOP_FEE_CHARGING);
+                UNIVERSAL_NOOP_FEE_CHARGING);
     }
 
     /**

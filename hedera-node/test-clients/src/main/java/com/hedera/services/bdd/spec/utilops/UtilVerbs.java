@@ -491,7 +491,7 @@ public class UtilVerbs {
      * application logs do not contain the given pattern.
      *
      * @param selector the selector for the node whose log to validate
-     * @param pattern the pattern that must be present
+     * @param pattern the pattern that must not be present
      * @param delay the delay before validation
      * @return the operation that validates the logs of the target network
      */
@@ -502,10 +502,24 @@ public class UtilVerbs {
 
     /**
      * Returns an operation that delays for the given time and then validates that the selected nodes'
-     * block node comms logs do not contain the given pattern.
+     * block node comms logs contain the given pattern.
      *
      * @param selector the selector for the node whose log to validate
      * @param pattern the pattern that must be present
+     * @param delay the delay before validation
+     * @return the operation that validates the logs of the target network
+     */
+    public static LogContainmentOp assertBlockNodeCommsLogContains(
+            @NonNull final NodeSelector selector, @NonNull final String pattern, @NonNull final Duration delay) {
+        return new LogContainmentOp(selector, BLOCK_NODE_COMMS_LOG, CONTAINS, pattern, delay);
+    }
+
+    /**
+     * Returns an operation that delays for the given time and then validates that the selected nodes'
+     * block node comms logs do not contain the given pattern.
+     *
+     * @param selector the selector for the node whose log to validate
+     * @param pattern the pattern that must not be present
      * @param delay the delay before validation
      * @return the operation that validates the logs of the target network
      */
@@ -2059,6 +2073,16 @@ public class UtilVerbs {
         return validateChargedUsdWithin(txn, expectedUsd, allowedPercentDiff);
     }
 
+    public static CustomSpecAssert validateChargedFee(String txn, long expectedFee) {
+        return assertionsHold((spec, assertLog) -> {
+            final var actualFeeCharged = getChargedFee(spec, txn);
+            assertEquals(
+                    expectedFee,
+                    actualFeeCharged,
+                    String.format("%s fee (%s) is different than expected!", actualFeeCharged, txn));
+        });
+    }
+
     public static CustomSpecAssert validateChargedUsdWithChild(
             String txn, double expectedUsd, double allowedPercentDiff) {
         return assertionsHold((spec, assertLog) -> {
@@ -2726,6 +2750,15 @@ public class UtilVerbs {
                 / rcd.getReceipt().getExchangeRate().getCurrentRate().getHbarEquiv()
                 * rcd.getReceipt().getExchangeRate().getCurrentRate().getCentEquiv()
                 / 100;
+    }
+
+    private static long getChargedFee(@NonNull final HapiSpec spec, @NonNull final String txn) {
+        requireNonNull(spec);
+        requireNonNull(txn);
+        var subOp = getTxnRecord(txn).logged();
+        allRunFor(spec, subOp);
+        final var rcd = subOp.getResponseRecord();
+        return rcd.getTransactionFee();
     }
 
     private static double getChargedUsedForInnerTxn(

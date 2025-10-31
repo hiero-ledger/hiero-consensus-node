@@ -286,7 +286,8 @@ public class Hip1195StreamParityTest {
                                         .contractCallResult(resultWith().contract(HOOK_CONTRACT_NUM)),
                                 recordWith()
                                         .status(SUCCESS)
-                                        .contractCallResult(resultWith().contract(HOOK_CONTRACT_NUM))),
+                                        .contractCallResult(resultWith().contract(HOOK_CONTRACT_NUM)))
+                        .logged(),
                 getAliasedAccountInfo("alias").has(accountWith().balance(10L)).hasToken(relationshipWith("tokenA")));
     }
 

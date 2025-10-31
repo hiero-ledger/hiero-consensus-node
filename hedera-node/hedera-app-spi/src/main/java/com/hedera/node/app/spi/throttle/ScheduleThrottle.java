@@ -5,27 +5,25 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.AppContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 
 /**
- * A throttle that can be used to limit the rate of transactions. Provided in the {@link AppContext} so that services
- * can align to the application's strategy for throttling transactions.
+ * A throttle that is used by HSS to limit the rate of transactions scheduled for future execution.
  */
-public interface Throttle {
+public interface ScheduleThrottle {
     /**
-     * A factory for creating {@link Throttle} instances.
+     * A factory for creating {@link ScheduleThrottle} instances.
      */
     interface Factory {
         /**
-         * Creates a new throttle based on the capacity split and usage snapshots.
+         * Creates a new schedule throttle based on the capacity split and usage snapshots.
          * @param capacitySplit the split of the capacity
          * @param initialUsageSnapshots if not null, the usage snapshots the throttle should start with
          * @return the new throttle
          */
-        Throttle newThrottle(int capacitySplit, @Nullable ThrottleUsageSnapshots initialUsageSnapshots);
+        ScheduleThrottle newScheduleThrottle(int capacitySplit, @Nullable ThrottleUsageSnapshots initialUsageSnapshots);
     }
 
     /**
