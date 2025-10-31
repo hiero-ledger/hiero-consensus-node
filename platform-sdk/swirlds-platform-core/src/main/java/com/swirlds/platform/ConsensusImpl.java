@@ -294,11 +294,6 @@ public class ConsensusImpl implements Consensus {
     @Override
     public List<ConsensusRound> addEvent(@NonNull final EventImpl event) {
         try {
-            final long endNanos = System.nanoTime() + 250_000L; // 250 microseconds
-            while (System.nanoTime() < endNanos) {
-                // busy wait
-                Thread.onSpinWait();
-            }
             final int index = event.getBaseEvent().getIndex();
             if (index > 0) {
                 TimestampCollector.timestamp(Position.CONSENSUS_ADDED, index);
