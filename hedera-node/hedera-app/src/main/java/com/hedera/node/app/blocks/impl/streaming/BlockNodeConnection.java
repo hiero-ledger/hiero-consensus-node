@@ -1277,6 +1277,16 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             // Swap blocks and reset
             final BlockState oldBlock = block;
             block = blockBufferService.getBlockState(latestActiveBlockNumber);
+
+            if (block == null && latestActiveBlockNumber < blockBufferService.getEarliestAvailableBlockNumber()) {
+                // Indicate that the block node should catch up from another trustworthy block node
+                logger.warn(
+                        "{} Wanted block ({}) is not obtainable; notifying block node it is too far behind and closing connection",
+                        BlockNodeConnection.this,
+                        latestActiveBlockNumber);
+                endStreamAndReschedule(TOO_FAR_BEHIND);
+            }
+
             pendingRequestBytes = BYTES_PADDING;
             itemIndex = 0;
             pendingRequestItems.clear();
