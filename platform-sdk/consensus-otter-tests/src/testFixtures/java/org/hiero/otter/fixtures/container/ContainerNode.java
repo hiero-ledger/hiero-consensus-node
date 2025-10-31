@@ -10,7 +10,6 @@ import static org.hiero.otter.fixtures.container.utils.ContainerConstants.HASHST
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.METRICS_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.NODE_COMMUNICATION_PORT;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.OTTER_LOG_PATH;
-import static org.hiero.otter.fixtures.container.utils.ContainerConstants.PROFILE_OUTPUT_DIRECTORY;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.SWIRLDS_LOG_PATH;
 import static org.hiero.otter.fixtures.internal.AbstractNetwork.NODE_IDENTIFIER_FORMAT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
@@ -24,7 +23,6 @@ import com.google.protobuf.ProtocolStringList;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Status.Code;
@@ -37,12 +35,9 @@ import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.config.EventConfig;
@@ -96,7 +91,6 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
 public class ContainerNode extends AbstractNode implements Node, TimeTickReceiver {
 
     private static final Logger log = LogManager.getLogger();
-    private static final ProfilerEvent[] DEFAULT_PROFILER_EVENTS = {ProfilerEvent.CPU, ProfilerEvent.ALLOCATION};
 
     /** The time manager to use for this node */
     private final TimeManager timeManager;
@@ -131,8 +125,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     /** A source of randomness for the node */
     private final Random random;
 
-    /** The output filename for profiling results, set when profiling is started */
-    private String profilingOutputFilename;
+    /** The profiler for this node */
+    private final ContainerProfiler profiler;
 
     /**
      * Constructor for the {@link ContainerNode} class.
@@ -175,6 +169,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
         // Blocking stub for initializing and killing the consensus node
         containerControlBlockingStub = ContainerControlServiceGrpc.newBlockingStub(containerControlChannel);
+
+        profiler = new ContainerProfiler(selfId, container,localOutputDirectory);
     }
 
     /**
@@ -484,7 +480,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      */
     @Override
     public void startProfiling(@NonNull final String outputFilename, @NonNull final ProfilerEvent... events) {
-        doStartProfiling(outputFilename, null, events);
+        profiler.startProfiling(outputFilename, null, events);
     }
 
     /**
@@ -495,118 +491,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             @NonNull final String outputFilename,
             @NonNull final Duration samplingInterval,
             @NonNull final ProfilerEvent... events) {
-        doStartProfiling(outputFilename, samplingInterval, events);
-    }
-
-    private void doStartProfiling(
-            @NonNull final String outputFilename,
-            @Nullable final Duration samplingInterval,
-            @NonNull final ProfilerEvent... events) {
-        requireNonNull(outputFilename);
-        requireNonNull(events);
-
-        if (profilingOutputFilename != null) {
-            throw new IllegalStateException("Profiling was already started.");
-        }
-
-        // Default to CPU and ALLOCATION if no events specified
-        final ProfilerEvent[] eventsToEnable =
-                events.length == 0 ? DEFAULT_PROFILER_EVENTS : events;
-
-        try {
-            // Store filename for later download
-            this.profilingOutputFilename = outputFilename;
-
-            // Generate JFC configuration based on selected events and sampling rate
-            final String jfcContent = generateJfcConfiguration(samplingInterval, eventsToEnable);
-
-            // Write custom JFC file to container
-            final String writeJfcCommand =
-                    String.format("sh -c 'cat > /tmp/profiling/custom.jfc << \"EOF\"\n%s\nEOF'", jfcContent);
-            container.execInContainer("sh", "-c", writeJfcCommand);
-
-            // Get the Java process PID
-            final String getPidCommand = "jps | grep -E \"DockerApp|ConsensusNodeMain\" | head -1 | awk '{print $1}'";
-            final ExecResult pidResult = container.execInContainer("sh", "-c", getPidCommand);
-            if (pidResult.getExitCode() != 0 || pidResult.getStdout().trim().isEmpty()) {
-                fail("Failed to find Java process on node " + selfId.id());
-            }
-            final String pid = pidResult.getStdout().trim();
-
-            // Start JFR with default profile configuration to test
-            final String startJfrCommand = String.format(
-                    "jcmd %s JFR.start name=otter-profile",
-                    pid);
-
-            final ExecResult result = container.execInContainer("sh", "-c", startJfrCommand);
-            if (result.getExitCode() != 0) {
-                fail("Failed to start JFR profiling on node " + selfId.id() + ": " + result.getStderr());
-            }
-
-            log.info(
-                    "Started JFR profiling on node {} with {} sampling and events {} -> {}",
-                    selfId.id(),
-                    samplingInterval == null? "default" : samplingInterval.toMillis() + "ms",
-                    Stream.of(eventsToEnable).map(Enum::name).collect(Collectors.joining(", ")),
-                    outputFilename);
-        } catch (final IOException e) {
-            fail("Failed to start profiling on node " + selfId.id(), e);
-        } catch (final InterruptedException e) {
-            Thread.currentThread().interrupt();
-            fail("Interrupted while starting profiling on node " + selfId.id(), e);
-        }
-    }
-
-    /**
-     * Generates a JFC (Java Flight Recorder Configuration) XML file content based on the specified
-     * sampling rate and enabled events.
-     *
-     * @param samplingRate the sampling interval for timed events
-     * @param events the profiling events to enable
-     * @return the JFC XML configuration as a string
-     */
-    private String generateJfcConfiguration(@Nullable final Duration samplingRate, @NonNull final ProfilerEvent[] events) {
-        final StringBuilder jfc = new StringBuilder();
-        jfc.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-        jfc.append(
-                "<configuration version=\"2.0\" label=\"Otter Custom Profile\" description=\"Custom JFR configuration for Otter tests\" provider=\"Otter\">\n");
-
-        // Collect all JFR event names from the enabled ProfilerEvents
-        final List<String> jfrEventNames = Stream.of(events)
-                .flatMap(event -> event.getJfrEventNames().stream())
-                .toList();
-
-        // Generate event configuration for each JFR event
-        for (final String eventName : jfrEventNames) {
-            jfc.append("  <event name=\"").append(eventName).append("\">\n");
-            jfc.append("    <setting name=\"enabled\">true</setting>\n");
-
-            // Add period setting for sampling-based events (CPU profiling)
-            if (eventName.contains("Sample") && samplingRate != null) {
-                jfc.append("    <setting name=\"period\">")
-                        .append(samplingRate.toMillis())
-                        .append(" ms</setting>\n");
-            }
-
-            // Add stackTrace setting for allocation events
-            if (eventName.contains("Allocation")) {
-                jfc.append("    <setting name=\"stackTrace\">true</setting>\n");
-            }
-
-            // Add threshold settings for I/O and lock events (0 = record all)
-            if (eventName.contains("Read")
-                    || eventName.contains("Write")
-                    || eventName.contains("Monitor")
-                    || eventName.contains("Park")) {
-                jfc.append("    <setting name=\"threshold\">0 ms</setting>\n");
-                jfc.append("    <setting name=\"stackTrace\">true</setting>\n");
-            }
-
-            jfc.append("  </event>\n");
-        }
-
-        jfc.append("</configuration>");
-        return jfc.toString();
+        profiler.startProfiling(outputFilename, samplingInterval, events);
     }
 
     /**
@@ -614,72 +499,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      */
     @Override
     public void stopProfiling() {
-        if (profilingOutputFilename == null) {
-            throw new IllegalStateException("Profiling was not started. Call startProfiling() first.");
-        }
-
-        try {
-            // Get the Java process PID
-            final String getPidCommand = "jps | grep -E \"DockerApp|ConsensusNodeMain\" | head -1 | awk '{print $1}'";
-            final ExecResult pidResult = container.execInContainer("sh", "-c", getPidCommand);
-            if (pidResult.getExitCode() != 0 || pidResult.getStdout().trim().isEmpty()) {
-                throw new IOException("Failed to find Java process on node " + selfId.id());
-            }
-            final String pid = pidResult.getStdout().trim();
-
-            // Dump the recording to file
-            final String containerPath = "/tmp/profiling/" + profilingOutputFilename;
-
-            // Ensure the directory exists and is writable
-            final ExecResult mkdirResult = container.execInContainer("sh", "-c", "mkdir -p /tmp/profiling && chmod 777 /tmp/profiling");
-            if (mkdirResult.getExitCode() != 0) {
-                throw new IOException("Failed to create profiling directory on node " + selfId.id());
-            }
-
-            final String dumpJfrCommand = String.format("jcmd %s JFR.dump name=otter-profile filename=%s", pid, containerPath);
-            final ExecResult dumpResult = container.execInContainer("sh", "-c", dumpJfrCommand);
-            if (dumpResult.getExitCode() != 0 || dumpResult.getStdout().contains("Dump failed")) {
-                throw new IOException(
-                        "Failed to dump JFR profiling on node " + selfId.id() + ": " + dumpResult.getStdout());
-            }
-
-            // Stop JFR recording
-            final String stopJfrCommand = String.format("jcmd %s JFR.stop name=otter-profile", pid);
-            final ExecResult result = container.execInContainer("sh", "-c", stopJfrCommand);
-            if (result.getExitCode() != 0) {
-                throw new IOException(
-                        "Failed to stop JFR profiling on node " + selfId.id() + ": " + result.getStderr());
-            }
-
-            log.info("Stopped JFR profiling on node {}", selfId.id());
-
-            // Download the profiling result to build/container/node-{selfId}/{filename}
-            final Path hostPath = localOutputDirectory.resolve(profilingOutputFilename);
-
-            // Ensure parent directory exists
-            Files.createDirectories(hostPath.getParent());
-
-//
-//            // Set up the output
-//            final Path outputPath = localOutputDirectory.resolve(PROFILE_OUTPUT_DIRECTORY);
-//            Files.createDirectories(outputPath);
-//
-//
-//
-//
-            // Copy the file from container to host
-            container.copyFileFromContainer(containerPath, hostPath.toString());
-
-            log.info("Downloaded JFR profiling result from node {} to {}", selfId.id(), hostPath.toAbsolutePath());
-
-            // Clear the filename
-            profilingOutputFilename = null;
-        } catch (final IOException e) {
-            fail("Failed to stop profiling and download results from node " + selfId.id(), e);
-        } catch (final InterruptedException e) {
-            Thread.currentThread().interrupt();
-            fail("Interrupted while stopping profiling and downloading results from node " + selfId.id(), e);
-        }
+        profiler.stopProfiling();
     }
 
     /**

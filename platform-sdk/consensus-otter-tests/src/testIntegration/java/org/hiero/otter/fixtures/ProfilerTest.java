@@ -30,7 +30,7 @@ class ProfilerTest {
 
             // Profile for 20 seconds
             node.startProfiling("profile.jfr");
-            timeManager.waitFor(Duration.ofSeconds(20));
+            timeManager.waitFor(Duration.ofSeconds(60));
             node.stopProfiling();
 
             // Verify the profiling file was created and is not empty
