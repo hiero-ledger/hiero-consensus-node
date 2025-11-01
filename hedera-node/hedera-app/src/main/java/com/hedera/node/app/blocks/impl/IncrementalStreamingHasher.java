@@ -26,8 +26,8 @@ public class IncrementalStreamingHasher {
     private long leafCount;
 
     /** Create a StreamingHasher with an existing intermediate hashing state. */
-    public IncrementalStreamingHasher(final MessageDigest digest, List<byte[]> intermediateHashingState,
-                                      final long leafCount) {
+    public IncrementalStreamingHasher(
+            final MessageDigest digest, List<byte[]> intermediateHashingState, final long leafCount) {
         if (digest == null) {
             throw new IllegalArgumentException("digest must not be null");
         }

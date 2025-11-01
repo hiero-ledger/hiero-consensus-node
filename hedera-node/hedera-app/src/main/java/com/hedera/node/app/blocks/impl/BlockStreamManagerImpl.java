@@ -80,7 +80,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -287,14 +286,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         blockStreamInfo.blockNumber() - 1,
                         blockStreamInfo.blockNumber() - 1);
         // Branch 2
-        final var prevBlocksIntermediateHashes = blockStreamInfo
-                .intermediatePreviousBlockRootHashes()
-                .stream()
+        final var prevBlocksIntermediateHashes = blockStreamInfo.intermediatePreviousBlockRootHashes().stream()
                 .map(Bytes::toByteArray)
                 .toList();
-        previousBlockHashes = new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(),
-                        prevBlocksIntermediateHashes,
-                        blockStreamInfo.intermediateBlockRootsLeafCount());
+        previousBlockHashes = new IncrementalStreamingHasher(
+                CommonUtils.sha384DigestOrThrow(),
+                prevBlocksIntermediateHashes,
+                blockStreamInfo.intermediateBlockRootsLeafCount());
         final var allPrevBlocksHash = Bytes.wrap(previousBlockHashes.computeRootHash());
 
         // Branch 3: Retrieve the previous block's starting state hash (not done right here, just part of the calculated
@@ -613,7 +611,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .build();
 
             // Write BlockFooter to block stream (last item before BlockProof)
-            final var footerItem = BlockItem.newBuilder().blockFooter(blockFooter).build();
+            final var footerItem =
+                    BlockItem.newBuilder().blockFooter(blockFooter).build();
             worker.addItem(footerItem);
             worker.sync();
 
