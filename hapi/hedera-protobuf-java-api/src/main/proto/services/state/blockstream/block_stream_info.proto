@@ -180,4 +180,6 @@ message BlockStreamInfo {
    * previous block
    */
   repeated bytes intermediate_previous_block_root_hashes = 19;
+
+  uint64  intermediate_block_roots_leaf_count = 20;
 }

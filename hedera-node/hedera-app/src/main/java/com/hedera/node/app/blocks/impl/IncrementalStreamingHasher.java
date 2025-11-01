@@ -23,16 +23,17 @@ public class IncrementalStreamingHasher {
     /** A list to store intermediate hashes as we build the tree. */
     private final LinkedList<byte[]> hashList = new LinkedList<>();
     /** The count of leaves in the tree. */
-    private int leafCount;
+    private long leafCount;
 
     /** Create a StreamingHasher with an existing intermediate hashing state. */
-    public IncrementalStreamingHasher(final MessageDigest digest, List<byte[]> intermediateHashingState) {
+    public IncrementalStreamingHasher(final MessageDigest digest, List<byte[]> intermediateHashingState,
+                                      final long leafCount) {
         if (digest == null) {
             throw new IllegalArgumentException("digest must not be null");
         }
         this.digest = digest;
         this.hashList.addAll(intermediateHashingState);
-        this.leafCount = intermediateHashingState.size();
+        this.leafCount = leafCount;
     }
 
     /**
@@ -88,7 +89,7 @@ public class IncrementalStreamingHasher {
      *
      * @return the number of leaves
      */
-    public int leafCount() {
+    public long leafCount() {
         return leafCount;
     }
 
