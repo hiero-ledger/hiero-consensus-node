@@ -505,9 +505,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     traceDataHash, // deprecated
                     outputHash, // deprecated
                     consensusHeaderHash, // New BMT
-                    outputHash, // New BMT
-                    traceDataHash, // New BMT
-                    previousBlockHashes.intermediateHashingState())); // New BMT
+                    null, // outputHash New BMT
+                    null, // traceDataHash New BMT
+                    null)); // previousBlockHashes.intermediateHashingState() New BMT
             ((CommittableWritableStates) writableState).commit();
 
             worker.addItem(flushChangesFromListener(boundaryStateChangeListener));
@@ -578,7 +578,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
             // Update in-memory state to prepare for the next block
             lastBlockHash = blockHash;
-            previousBlockHashes.addLeaf(lastBlockHash.toByteArray());
+            previousBlockHashes.addLeaf(blockHash.toByteArray());
             writer = null;
 
             // Special case when signing with hinTS and this is the freeze round; we have to wait
@@ -721,23 +721,25 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 }
             }
 
-            // New BMT
-            // (FUTURE) Enable for block proofs
-            if (false && block.number() == blockNumber) {
-                // This must a TssSignedBlockProof since there's a block signature
-                proof.signedBlockProof(latestSignedBlockProof);
-            } else if (false) {
-                // (FUTURE) Replace this static indirect proof with the correct three Merkle paths required for a state
-                // proof to the current block's previous block hash subroot
-                final var fbiBytes = BlockItem.PROTOBUF.toBytes(FAKE_BLOCK_ITEM);
-                proof.blockStateProof((StateProof.newBuilder()
-                        .paths(MerklePath.newBuilder()
-                                .leaf(MerkleLeaf.newBuilder()
-                                        .blockItem(fbiBytes)
-                                        .build())
-                                .build())
-                        .signedBlockProof(latestSignedBlockProof)
-                        .build()));
+            if(false) {
+                // New BMT
+                // (FUTURE) Enable for block proofs
+                if (block.number() == blockNumber) {
+                    // This must a TssSignedBlockProof since there's a block signature
+//                    proof.signedBlockProof(latestSignedBlockProof);
+                } else {
+                    // (FUTURE) Replace this static indirect proof with the correct three Merkle paths required for a state
+                    // proof to the current block's previous block hash subroot
+                    final var fbiBytes = BlockItem.PROTOBUF.toBytes(FAKE_BLOCK_ITEM);
+                    proof.blockStateProof((StateProof.newBuilder()
+                            .paths(MerklePath.newBuilder()
+                                    .leaf(MerkleLeaf.newBuilder()
+                                            .blockItem(fbiBytes)
+                                            .build())
+                                    .build())
+//                            .signedBlockProof(latestSignedBlockProof)
+                            .build()));
+                }
             }
             // END New BMT
 
@@ -1162,12 +1164,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final var depth4Node3 = BlockImplUtils.combine(inputsHash, outputsHash);
         final var depth4Node4 = BlockImplUtils.combine(stateChangesHash, traceDataHash);
 
-        final var combinedNulls = BlockImplUtils.combine(NULL_HASH, NULL_HASH);
         // Nodes 5-8 for depth four are all combined null hashes, but enumerated for clarity
-        final var depth4Node5 = combinedNulls;
-        final var depth4Node6 = combinedNulls;
-        final var depth4Node7 = combinedNulls;
-        final var depth4Node8 = combinedNulls;
+        final var depth4Node5 = BlockImplUtils.combine(NULL_HASH, NULL_HASH);
+        final var depth4Node6 = BlockImplUtils.combine(NULL_HASH, NULL_HASH);
+        final var depth4Node7 = BlockImplUtils.combine(NULL_HASH, NULL_HASH);
+        final var depth4Node8 = BlockImplUtils.combine(NULL_HASH, NULL_HASH);
 
         // Compute depth three hashes
         final var depth3Node1 = BlockImplUtils.combine(depth4Node1, depth4Node2);
