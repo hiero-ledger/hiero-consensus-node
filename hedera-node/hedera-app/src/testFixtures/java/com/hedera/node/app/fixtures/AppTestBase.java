@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fixtures;
 
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
@@ -27,9 +27,9 @@ import com.hedera.node.app.fixtures.state.FakePlatform;
 import com.hedera.node.app.fixtures.state.FakeSchemaRegistry;
 import com.hedera.node.app.fixtures.state.FakeStartupNetworks;
 import com.hedera.node.app.fixtures.state.FakeState;
-import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.service.addressbook.AddressBookService;
+import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.spi.fixtures.Scenarios;
 import com.hedera.node.app.spi.fixtures.TransactionFactory;

@@ -124,7 +124,7 @@ jobs:
     with:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ github.ref }}"
-      solo-version: "${{ vars.CITR_SOLO_VERSION }}"
+      solo-version: "${{ vars.ADHOC_SOLO_VERSION }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
@@ -132,7 +132,6 @@ jobs:
       delete-namespace: ${{ inputs.delete-namespace }}
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
-      rootly-api-token: ${{ secrets.ROOTLY_API_TOKEN }}
 
   tag-sdlt-result:
     name: Tag SDLT Result
@@ -469,7 +468,7 @@ jobs:
           details: ${{ steps.rootly-summary.outputs.details }}
           notification_target_type: "Service"
           notification_target: "CI/CD Workflows"
-          set_as_noise: "true"
+          set_as_noise: "false"
           alert_urgency: "Medium"
           environments: "CITR"
           external_id: ${{ github.run_id }}

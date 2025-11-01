@@ -7,6 +7,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.Serializable;
+import java.nio.ByteOrder;
 import java.util.Objects;
 import org.hiero.base.io.SerializableWithKnownLength;
 import org.hiero.base.io.exceptions.BadIOException;
@@ -199,10 +200,9 @@ public class Hash implements Comparable<Hash>, SerializableWithKnownLength, Seri
         // - since this is a cryptographic hash, it is safe to use the first 4 bytes of the hash as the hash code.
         //   it fulfills the requirements of hashCode, it is consistent with equals, and it is very unlikely to conflict
         //   with other hash codes. by using the first 4 bytes, we can avoid unnecessary overhead
-        // - it does not make a difference if the bytes are big endian or little endian, as long as they are consistent.
-        //   this is why we don't specify the order when calling getInt(), we use whatever order is the default to avoid
-        //   the overhead of reordering the bytes
-        return bytes.getInt(0);
+        // - it does not make a difference if the bytes are big endian or little endian, as long as they are consistent
+        //   during a single run. this is why we use the native order, to avoid the overhead of reordering the bytes.
+        return bytes.getInt(0, ByteOrder.nativeOrder());
     }
 
     /**

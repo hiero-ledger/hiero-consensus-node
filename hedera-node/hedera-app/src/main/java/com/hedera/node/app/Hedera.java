@@ -67,10 +67,6 @@ import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
-import com.hedera.node.app.ids.AppEntityIdFactory;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
-import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.info.CurrentPlatformStatusImpl;
 import com.hedera.node.app.info.StateNetworkInfo;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
@@ -78,6 +74,11 @@ import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
+import com.hedera.node.app.service.entityid.impl.EntityIdServiceImpl;
+import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
+import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
 import com.hedera.node.app.service.networkadmin.impl.NetworkServiceImpl;
@@ -114,6 +115,7 @@ import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -149,6 +151,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -529,7 +532,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
 
         // Register all service schema RuntimeConstructable factories before platform init
         Set.of(
-                        new EntityIdService(),
+                        new EntityIdServiceImpl(),
                         new ConsensusServiceImpl(),
                         contractServiceImpl,
                         fileServiceImpl,
@@ -591,8 +594,9 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
      * {@inheritDoc}
      */
     @Override
-    public Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap() {
-        return HederaVirtualMapState::new;
+    public Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap(
+            @NonNull final Metrics metrics, @NonNull final Time time) {
+        return virtualMap -> new HederaVirtualMapState(virtualMap, metrics, time);
     }
 
     /**
@@ -978,7 +982,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             return;
         }
 
-        final Consumer<StateSignatureTransaction> simplifiedStateSignatureTxnCallback = txn -> {
+        final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback = (txn, ignored) -> {
             final var scopedTxn = new ScopedSystemTransaction<>(event.getCreatorId(), event.getBirthRound(), txn);
             stateSignatureTxnCallback.accept(scopedTxn);
         };
@@ -987,8 +991,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         event.forEachTransaction(transactions::add);
         daggerApp
                 .preHandleWorkflow()
-                .preHandle(
-                        readableStoreFactory, creatorInfo, transactions.stream(), simplifiedStateSignatureTxnCallback);
+                .preHandle(readableStoreFactory, creatorInfo, transactions.stream(), shortCircuitTxnCallback);
     }
 
     public void onNewRecoveredState() {
@@ -1437,10 +1440,9 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             final var adoptedRosterHash = RosterUtils.hash(adoptedRoster).getBytes();
             final var writableHintsStates = initState.getWritableStates(HintsService.NAME);
             final var writableEntityStates = initState.getWritableStates(EntityIdService.NAME);
-            final var entityCounters = new WritableEntityIdStore(writableEntityStates);
+            final var entityCounters = new WritableEntityIdStoreImpl(writableEntityStates);
             final var store = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
-            hintsService.manageRosterAdoption(
-                    store, previousRoster, adoptedRoster, adoptedRosterHash, tssConfig.forceHandoffs());
+            hintsService.handoff(store, previousRoster, adoptedRoster, adoptedRosterHash, tssConfig.forceHandoffs());
             ((CommittableWritableStates) writableHintsStates).commit();
         }
     }

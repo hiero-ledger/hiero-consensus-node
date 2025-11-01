@@ -11,7 +11,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_CR
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SIGNER_NONCE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT_WITH_SIGNER_NONCE;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.handlers.ContractCallHandlerTest.INTRINSIC_GAS_FOR_0_ARG_METHOD;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
@@ -55,6 +54,7 @@ import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
@@ -161,7 +161,7 @@ class EthereumTransactionHandlerTest {
     private ContractsConfig contractsConfig;
 
     @Mock
-    private EvmFrameStates evmFrameStates;
+    private EntityIdFactory entityIdFactory;
 
     private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
 
@@ -176,7 +176,12 @@ class EthereumTransactionHandlerTest {
         contractMetrics.createContractPrimaryMetrics();
         given(contractServiceComponent.contractMetrics()).willReturn(contractMetrics);
         subject = new EthereumTransactionHandler(
-                ethereumSignatures, callDataHydration, () -> factory, gasCalculator, contractServiceComponent);
+                ethereumSignatures,
+                callDataHydration,
+                () -> factory,
+                gasCalculator,
+                entityIdFactory,
+                contractServiceComponent);
         opsDurationCounter = OpsDurationCounter.disabled();
     }
 
@@ -251,7 +256,7 @@ class EthereumTransactionHandlerTest {
         given(callRecordBuilder.contractCallResult(expectedResult)).willReturn(callRecordBuilder);
         given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.getEthereumHash())))
                 .willReturn(recordBuilder);
-        given(callRecordBuilder.withCommonFieldsSetFrom(expectedOutcome, context))
+        given(callRecordBuilder.withCommonFieldsSetFrom(expectedOutcome, context, entityIdFactory))
                 .willReturn(callRecordBuilder);
 
         assertDoesNotThrow(() -> subject.handle(context));
@@ -306,7 +311,7 @@ class EthereumTransactionHandlerTest {
         given(createRecordBuilder.contractCreateResult(expectedResult)).willReturn(createRecordBuilder);
         given(createRecordBuilder.evmCreateTransactionResult(any())).willReturn(createRecordBuilder);
         given(createRecordBuilder.createdEvmAddress(any())).willReturn(createRecordBuilder);
-        given(createRecordBuilder.withCommonFieldsSetFrom(expectedOutcome, context))
+        given(createRecordBuilder.withCommonFieldsSetFrom(expectedOutcome, context, entityIdFactory))
                 .willReturn(createRecordBuilder);
         given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.getEthereumHash())))
                 .willReturn(recordBuilder);
@@ -461,7 +466,7 @@ class EthereumTransactionHandlerTest {
         given(createRecordBuilder.createdContractID(CALLED_CONTRACT_ID)).willReturn(createRecordBuilder);
         given(createRecordBuilder.evmCreateTransactionResult(any())).willReturn(createRecordBuilder);
         given(createRecordBuilder.createdEvmAddress(any())).willReturn(createRecordBuilder);
-        given(createRecordBuilder.withCommonFieldsSetFrom(expectedOutcome, context))
+        given(createRecordBuilder.withCommonFieldsSetFrom(expectedOutcome, context, entityIdFactory))
                 .willReturn(createRecordBuilder);
         given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.getEthereumHash())))
                 .willReturn(recordBuilder);

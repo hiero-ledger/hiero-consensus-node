@@ -10,4 +10,15 @@ import org.hiero.consensus.model.node.NodeId;
  * @param sender the starting node of the connection
  * @param receiver the ending node of the connection
  */
-public record ConnectionKey(@NonNull NodeId sender, @NonNull NodeId receiver) {}
+public record ConnectionKey(@NonNull NodeId sender, @NonNull NodeId receiver) {
+
+    /**
+     * Reverses the connection key by swapping the sender and receiver.
+     *
+     * @return a new ConnectionKey with sender and receiver swapped
+     */
+    @NonNull
+    public ConnectionKey reversed() {
+        return new ConnectionKey(receiver, sender);
+    }
+}

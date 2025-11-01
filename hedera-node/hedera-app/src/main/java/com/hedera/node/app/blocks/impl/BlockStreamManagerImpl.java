@@ -22,6 +22,7 @@ import static java.util.Objects.requireNonNull;
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
+import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
@@ -326,13 +327,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * Recovers the contents and proof context of any pending blocks from disk.
      */
     private void recoverPendingBlocks() {
-        final var blockDirPath = blockDirFor(configProvider.getConfiguration());
+        final var config = configProvider.getConfiguration();
+        final var blockDirPath = blockDirFor(config);
         log.info(
                 "Attempting to recover any pending blocks contiguous to #{} still on disk @ {}",
                 blockNumber,
                 blockDirPath.toAbsolutePath());
         try {
-            final var onDiskPendingBlocks = loadContiguousPendingBlocks(blockDirPath, blockNumber);
+            final var onDiskPendingBlocks = loadContiguousPendingBlocks(
+                    blockDirPath, blockNumber, maxReadDepth(config), maxReadBytesSize(config));
             if (onDiskPendingBlocks.isEmpty()) {
                 log.info("No contiguous pending blocks found for block #{}", blockNumber);
                 final var pendingWriter = writerSupplier.get();
@@ -418,7 +421,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final boolean closesBlock = shouldCloseBlock(roundNum, freezeRoundNumber);
         if (closesBlock) {
             lifecycle.onCloseBlock(state);
-            // FUTURE WORK: the state should always be an instance of  VirtualMapState
+            // FUTURE WORK: the state should always be an instance of VirtualMapState
             // https://github.com/hiero-ledger/hiero-consensus-node/issues/21284
             if (state instanceof VirtualMapState hederaNewStateRoot) {
                 hederaNewStateRoot.commitSingletons();
@@ -461,9 +464,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     version,
                     asTimestamp(lastIntervalProcessTime),
                     asTimestamp(lastTopLevelTime),
-                    consensusHeaderHash,
-                    traceDataHash,
-                    outputHash));
+                    consensusHeaderHash, // deprecated
+                    traceDataHash, // deprecated
+                    outputHash, // deprecated
+                    null,
+                    null,
+                    null,
+                    null));
             ((CommittableWritableStates) writableState).commit();
 
             worker.addItem(flushChangesFromListener(boundaryStateChangeListener));
@@ -506,13 +513,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // until after restart to gossip partial signatures and sign any pending blocks
             if (hintsEnabled && roundNum == freezeRoundNumber) {
                 final var hasPrecedingUnproven = new AtomicBoolean(false);
-                // In case the id of the next hinTS construction changed since a block endede
+                // In case the id of the next hinTS construction changed since a block ended
                 pendingBlocks.forEach(block -> block.flushPending(hasPrecedingUnproven.getAndSet(true)));
             } else {
-                final var schemeId = blockHashSigner.schemeId();
-                blockHashSigner
-                        .signFuture(blockHash)
-                        .thenAcceptAsync(signature -> finishProofWithSignature(blockHash, signature, schemeId));
+                final var attempt = blockHashSigner.sign(blockHash);
+                attempt.signatureFuture()
+                        .thenAcceptAsync(signature -> finishProofWithSignature(
+                                blockHash, signature, attempt.verificationKey(), attempt.chainOfTrustProof()));
             }
 
             final var exportNetworkToDisk =
@@ -595,10 +602,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      *
      * @param blockHash the block hash to finish the block proof for
      * @param blockSignature the signature to use in the block proof
-     * @param schemeId the id of the signing scheme used
+     * @param verificationKey if hinTS is enabled, the verification key to use in the block proof
+     * @param chainOfTrustProof if history proofs are enabled, the chain of trust proof to use in the block proof
      */
     private synchronized void finishProofWithSignature(
-            @NonNull final Bytes blockHash, @NonNull final Bytes blockSignature, final long schemeId) {
+            @NonNull final Bytes blockHash,
+            @NonNull final Bytes blockSignature,
+            @Nullable final Bytes verificationKey,
+            @Nullable final ChainOfTrustProof chainOfTrustProof) {
         // Find the block whose hash is the signed message, tracking any sibling hashes
         // needed for indirect proofs of earlier blocks along the way
         long blockNumber = Long.MIN_VALUE;
@@ -628,7 +639,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final var proof = block.proofBuilder()
                     .blockSignature(blockSignature)
                     .siblingHashes(siblingHashes.stream().flatMap(List::stream).toList());
-            proof.schemeId(schemeId);
+            if (verificationKey != null) {
+                proof.verificationKey(verificationKey);
+                if (chainOfTrustProof != null) {
+                    proof.verificationKeyProof(chainOfTrustProof);
+                }
+            }
             final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
             block.writer().writePbjItemAndBytes(proofItem, BlockItem.PROTOBUF.toBytes(proofItem));
             block.writer().closeCompleteBlock();
@@ -961,5 +977,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final var stateChanges = new StateChanges(lastUsedTime, boundaryStateChangeListener.allStateChanges());
         boundaryStateChangeListener.reset();
         return BlockItem.newBuilder().stateChanges(stateChanges).build();
+    }
+
+    private static int maxReadDepth(@NonNull final Configuration config) {
+        requireNonNull(config);
+        return config.getConfigData(BlockStreamConfig.class).maxReadDepth();
+    }
+
+    private static int maxReadBytesSize(@NonNull final Configuration config) {
+        requireNonNull(config);
+        return config.getConfigData(BlockStreamConfig.class).maxReadBytesSize();
     }
 }
