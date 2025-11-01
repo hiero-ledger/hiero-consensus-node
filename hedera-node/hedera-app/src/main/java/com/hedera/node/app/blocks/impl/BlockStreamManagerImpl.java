@@ -338,6 +338,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         .blockRootHash());
         requireNonNull(calculatedLastBlockHash);
         this.lastBlockHash = calculatedLastBlockHash;
+        previousBlockHashes.addLeaf(calculatedLastBlockHash.toByteArray());
     }
 
     @Override
