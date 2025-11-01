@@ -143,8 +143,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     // The last non-empty (i.e., not skipped) round number that will eventually get a start-of-state hash
     private Bytes lastBlockHash;
     private long lastRoundOfPrevBlock;
-	// A block's starting timestamp is defined as the consensus timestamp of the round's first transaction
-	private Instant blockTimestamp;
+    // A block's starting timestamp is defined as the consensus timestamp of the round's first transaction
+    private Instant blockTimestamp;
     private Instant consensusTimeLastRound;
     private Timestamp lastUsedTime;
     private BlockItemWriter writer;
@@ -575,11 +575,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     asTimestamp(lastIntervalProcessTime),
                     asTimestamp(lastTopLevelTime),
                     consensusHeaderHash,
-                    traceDataHash,
                     outputsHash,
-                    null,
-                    null,
-                    null,
+                    traceDataHash,
                     previousBlockHashes.intermediateHashingState(),
                     previousBlockHashes.leafCount());
             blockStreamInfoState.put(newBlockStreamInfo);
@@ -767,8 +764,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             } else {
                 // This is an indirect proof, thereby requiring a certain number of sibling hashes
 
-				// (FUTURE) Replace this static indirect proof with the correct three Merkle paths required for a state
-				// proof to the current block's previous block hash subroot
+                // (FUTURE) Replace this static indirect proof with the correct three Merkle paths required for a state
+                // proof to the current block's previous block hash subroot
                 proof = block.proofBuilder()
                         .blockStateProof(StateProof.newBuilder()
                                 .paths(MerklePath.newBuilder().build())
