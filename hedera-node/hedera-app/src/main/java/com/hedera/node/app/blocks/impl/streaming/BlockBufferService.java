@@ -68,6 +68,11 @@ public class BlockBufferService {
     private final AtomicLong earliestBlockNumber = new AtomicLong(Long.MIN_VALUE);
 
     /**
+     * This tracks the latest block number in the buffer.
+     */
+    private final AtomicLong latestBlockNumber = new AtomicLong(Long.MIN_VALUE);
+
+    /**
      * This tracks the highest block number that has been acknowledged by the connected block node. This is kept
      * separately instead of individual acknowledgement tracking on a per-block basis because it is possible that after
      * a block node reconnects, it (being the block node) may have processed blocks from another consensus node that are
@@ -192,6 +197,7 @@ public class BlockBufferService {
         highestAckedBlockNumber.set(Long.MIN_VALUE);
         lastProducedBlockNumber.set(-1);
         earliestBlockNumber.set(Long.MIN_VALUE);
+        latestBlockNumber.set(Long.MIN_VALUE);
         lastPruningResult = PruneResult.NIL;
         lastRecoveryActionTimestamp = Instant.MIN;
         awaitingRecovery = false;
@@ -334,9 +340,10 @@ public class BlockBufferService {
         // Create a new block state
         final BlockState blockState = new BlockState(blockNumber);
         blockBuffer.put(blockNumber, blockState);
-        // update the earliest block number if this is first block or lower than current earliest
+        // update the earliest block number if this is the first block or lower than current earliest
         earliestBlockNumber.updateAndGet(
                 current -> current == Long.MIN_VALUE ? blockNumber : Math.min(current, blockNumber));
+        latestBlockNumber.updateAndGet(old -> Math.max(old, blockNumber));
         lastProducedBlockNumber.updateAndGet(old -> Math.max(old, blockNumber));
         blockStreamMetrics.recordLatestBlockOpened(blockNumber);
         blockStreamMetrics.recordBlockOpened();
@@ -445,6 +452,15 @@ public class BlockBufferService {
      */
     public long getEarliestAvailableBlockNumber() {
         return earliestBlockNumber.get() == Long.MIN_VALUE ? -1 : earliestBlockNumber.get();
+    }
+
+    /**
+     * Retrieves the latest available block number in the buffer.
+     * This is the highest block number currently in the buffer.
+     * @return the latest available block number or -1 if the buffer is empty
+     */
+    public long getLatestAvailableBlockNumber() {
+        return latestBlockNumber.get() == Long.MIN_VALUE ? -1 : latestBlockNumber.get();
     }
 
     /**
@@ -618,6 +634,7 @@ public class BlockBufferService {
         newEarliestBlock = newEarliestBlock == Long.MAX_VALUE ? Long.MIN_VALUE : newEarliestBlock;
         newLatestBlock = newLatestBlock == Long.MIN_VALUE ? -1 : newLatestBlock;
         earliestBlockNumber.set(newEarliestBlock);
+        latestBlockNumber.set(newLatestBlock);
 
         blockStreamMetrics.recordNumberOfBlocksPruned(numPruned);
         blockStreamMetrics.recordBufferOldestBlock(newEarliestBlock == Long.MIN_VALUE ? -1 : newEarliestBlock);
