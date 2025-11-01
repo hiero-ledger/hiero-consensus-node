@@ -294,13 +294,6 @@ public abstract class AbstractNode implements Node {
     protected abstract void doKillImmediately(@NonNull Duration timeout);
 
     /**
-     * Submit a transaction to the node.
-     *
-     * @param transaction the transaction to submit
-     */
-    protected abstract void submitTransaction(@NonNull OtterTransaction transaction);
-
-    /**
      * {@inheritDoc}
      */
     @Override
