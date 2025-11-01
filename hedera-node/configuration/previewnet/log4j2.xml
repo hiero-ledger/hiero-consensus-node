@@ -82,8 +82,8 @@
       <DefaultRolloverStrategy max="10"/>
     </RollingFile>
 
-    <RollingFile name="BlockNodeCommsFile" fileName="output/blocknode-comms.log"
-                   filePattern="output/blocknode-comms-%i.log">
+    <RollingFile name="BlockNodeCommsFile" fileName="output/block-node-comms.log"
+                   filePattern="output/block-node-comms-%i.log">
       <PatternLayout>
           <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p %-4L %c{1} - [%t] %m{nolookups}%n</pattern>
       </PatternLayout>
