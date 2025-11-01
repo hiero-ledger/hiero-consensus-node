@@ -150,94 +150,75 @@ public class ContainerProfiler {
                 "<configuration version=\"2.0\" label=\"Otter Custom Profile\" description=\"Custom JFR configuration for Otter tests\" provider=\"Otter\">\n");
 
         // Collect all JFR event names from the enabled ProfilerEvents
-        final List<String> jfrEventNames = Stream.of(this.profilerEvents)
+        final Stream<String> jfrEventNames = Stream.of(this.profilerEvents)
                 .flatMap(event -> event.getJfrEventNames().stream())
-                .distinct()
-                .toList();
-
-        final long periodMs = this.samplingInterval.toMillis();
+                .distinct();
 
         // Generate event configuration for each JFR event
-        for (final String eventName : jfrEventNames) {
+        jfrEventNames.forEach(eventName -> {
             jfc.append("  <event name=\"").append(eventName).append("\">\n");
             jfc.append("    <setting name=\"enabled\">true</setting>\n");
 
             // CPU sampling events: ExecutionSample, NativeMethodSample
-            if (eventName.equals("jdk.ExecutionSample") || eventName.equals("jdk.NativeMethodSample")) {
-                jfc.append("    <setting name=\"period\">").append(periodMs).append(" ms</setting>\n");
-            }
+            switch (eventName) {
+                case "jdk.ExecutionSample", "jdk.NativeMethodSample" ->
+                        jfc.append("    <setting name=\"period\">").append(this.samplingInterval.toMillis()).append(" ms</setting>\n");
 
-            // Allocation events: ObjectAllocationSample uses throttle instead of period
-            else if (eventName.equals("jdk.ObjectAllocationSample")) {
-                jfc.append("    <setting name=\"throttle\">150/s</setting>\n");
-                jfc.append("    <setting name=\"stackTrace\">true</setting>\n");
-            }
+                // Allocation events: ObjectAllocationSample uses throttle instead of period
+                case "jdk.ObjectAllocationSample" -> {
+                    jfc.append("    <setting name=\"throttle\">150/s</setting>\n");
+                    jfc.append("    <setting name=\"stackTrace\">true</setting>\n");
+                }
 
-            // Lock events: JavaMonitorEnter, JavaMonitorWait, ThreadPark
-            else if (eventName.equals("jdk.JavaMonitorEnter")
-                    || eventName.equals("jdk.JavaMonitorWait")
-                    || eventName.equals("jdk.ThreadPark")) {
-                jfc.append("    <setting name=\"threshold\">10 ms</setting>\n");
-                jfc.append("    <setting name=\"stackTrace\">true</setting>\n");
-            }
+                // Lock events: JavaMonitorEnter, JavaMonitorWait, ThreadPark
+                case "jdk.JavaMonitorEnter", "jdk.JavaMonitorWait", "jdk.ThreadPark" -> {
+                    jfc.append("    <setting name=\"threshold\">10 ms</setting>\n");
+                    jfc.append("    <setting name=\"stackTrace\">true</setting>\n");
+                }
 
-            // I/O events: FileRead, FileWrite, SocketRead, SocketWrite
-            else if (eventName.equals("jdk.FileRead") || eventName.equals("jdk.FileWrite")
-                    || eventName.equals("jdk.SocketRead") || eventName.equals("jdk.SocketWrite")) {
-                jfc.append("    <setting name=\"threshold\">10 ms</setting>\n");
-                jfc.append("    <setting name=\"stackTrace\">true</setting>\n");
-            }
+                // I/O events: FileRead, FileWrite, SocketRead, SocketWrite
+                case "jdk.FileRead", "jdk.FileWrite", "jdk.SocketRead", "jdk.SocketWrite" -> {
+                    jfc.append("    <setting name=\"threshold\">10 ms</setting>\n");
+                    jfc.append("    <setting name=\"stackTrace\">true</setting>\n");
+                }
 
-            // Exception events
-            else if (eventName.equals("jdk.JavaExceptionThrow")) {
-                jfc.append("    <setting name=\"stackTrace\">true</setting>\n");
-            }
+                // Exception events
+                case "jdk.JavaExceptionThrow" -> jfc.append("    <setting name=\"stackTrace\">true</setting>\n");
 
-            // Thread sleep event
-            else if (eventName.equals("jdk.ThreadSleep")) {
-                jfc.append("    <setting name=\"threshold\">10 ms</setting>\n");
-                jfc.append("    <setting name=\"stackTrace\">true</setting>\n");
-            }
+                // Thread sleep event
+                case "jdk.ThreadSleep" -> {
+                    jfc.append("    <setting name=\"threshold\">10 ms</setting>\n");
+                    jfc.append("    <setting name=\"stackTrace\">true</setting>\n");
+                }
 
-            // Compiler events - basic compilation
-            else if (eventName.equals("jdk.Compilation")) {
-                jfc.append("    <setting name=\"threshold\">100 ms</setting>\n");
-            }
+                // Compiler events - basic compilation
+                case "jdk.Compilation" -> jfc.append("    <setting name=\"threshold\">100 ms</setting>\n");
 
-            // Compiler detailed events - failures and deoptimization
-            else if (eventName.equals("jdk.CompilerFailure") || eventName.equals("jdk.Deoptimization")) {
-                jfc.append("    <setting name=\"stackTrace\">true</setting>\n");
-            }
+                // Compiler detailed events - failures and deoptimization
+                case "jdk.CompilerFailure", "jdk.Deoptimization" ->
+                        jfc.append("    <setting name=\"stackTrace\">true</setting>\n");
 
-            // Detailed allocation events (high overhead, all allocations not sampled)
-            else if (eventName.equals("jdk.ObjectAllocationInNewTLAB")
-                    || eventName.equals("jdk.ObjectAllocationOutsideTLAB")) {
-                jfc.append("    <setting name=\"stackTrace\">true</setting>\n");
-            }
+                // Detailed allocation events (high overhead, all allocations not sampled)
+                case "jdk.ObjectAllocationInNewTLAB", "jdk.ObjectAllocationOutsideTLAB" ->
+                        jfc.append("    <setting name=\"stackTrace\">true</setting>\n");
 
-            // Metaspace events
-            else if (eventName.equals("jdk.MetaspaceGCThreshold")
-                    || eventName.equals("jdk.MetaspaceAllocationFailure")
-                    || eventName.equals("jdk.MetaspaceOOM")) {
-                jfc.append("    <setting name=\"stackTrace\">true</setting>\n");
-            }
+                // Metaspace events
+                case "jdk.MetaspaceGCThreshold", "jdk.MetaspaceAllocationFailure", "jdk.MetaspaceOOM" ->
+                        jfc.append("    <setting name=\"stackTrace\">true</setting>\n");
 
-            // TLS handshake - might want to limit based on duration
-            else if (eventName.equals("jdk.TLSHandshake")) {
-                jfc.append("    <setting name=\"threshold\">10 ms</setting>\n");
-            }
+                // TLS handshake - might want to limit based on duration
+                case "jdk.TLSHandshake" -> jfc.append("    <setting name=\"threshold\">10 ms</setting>\n");
 
-            // Biased locking - only record actual revocations (not every lock operation)
-            else if (eventName.equals("jdk.BiasedLockRevocation")
-                    || eventName.equals("jdk.BiasedLockClassRevocation")) {
-                jfc.append("    <setting name=\"stackTrace\">true</setting>\n");
+                // Biased locking - only record actual revocations (not every lock operation)
+                case "jdk.BiasedLockRevocation", "jdk.BiasedLockClassRevocation" ->
+                        jfc.append("    <setting name=\"stackTrace\">true</setting>\n");
             }
 
             // For all other events (SafePoint, GC detailed, Thread lifecycle, Class loading, etc.),
             // just enable them with default settings
 
             jfc.append("  </event>\n");
-        }
+        });
 
         // Always add essential JVM metadata events (required for valid JFR files)
         jfc.append("  <!-- Essential JVM metadata events -->\n");

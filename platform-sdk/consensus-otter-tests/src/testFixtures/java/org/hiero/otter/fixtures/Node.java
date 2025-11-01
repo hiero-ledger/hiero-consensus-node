@@ -297,6 +297,9 @@ public interface Node {
      * Uses 1ms sampling rate and enables CPU and allocation profiling by default.
      * The profiler runs in the background until {@link #stopProfiling} is called.
      * <p>
+     * <b>Warning:</b> Please keep in mind that Otter tests run in an artificial environment. Results obtained from
+     * profiling in such environments may not accurately reflect real-world performance characteristics.
+     * <p>
      * <b>Note:</b> This feature is not supported in all environments.
      * Calling this on unsupported environments will throw {@link UnsupportedOperationException}.
      *
@@ -310,6 +313,9 @@ public interface Node {
     /**
      * Starts Java Flight Recorder (JFR) profiling on this node with custom settings.
      * The profiler runs in the background until {@link #stopProfiling} is called.
+     * <p>
+     * <b>Warning:</b> Please keep in mind that Otter tests run in an artificial environment. Results obtained from
+     * profiling in such environments may not accurately reflect real-world performance characteristics.
      * <p>
      * <b>Note:</b> This feature is not supported in all environments.
      * Calling this on unsupported environments will throw {@link UnsupportedOperationException}.
