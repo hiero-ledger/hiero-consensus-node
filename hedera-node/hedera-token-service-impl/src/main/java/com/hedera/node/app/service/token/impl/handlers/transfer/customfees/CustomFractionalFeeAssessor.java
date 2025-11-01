@@ -239,10 +239,9 @@ public class CustomFractionalFeeAssessor {
      */
     private ReclaimResult reclaim(final long amount, @NonNull final Map<AccountID, Long> credits) {
         long availableToReclaim = 0L;
-        try{
-            availableToReclaim = credits.values().stream()
-                    .mapToLong(Long::longValue)
-                    .reduce(0L, Math::addExact);
+        try {
+            availableToReclaim =
+                    credits.values().stream().mapToLong(Long::longValue).reduce(0L, Math::addExact);
         } catch (final ArithmeticException e) {
             throw new HandleException(CUSTOM_FEE_OUTSIDE_NUMERIC_RANGE);
         }
