@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip1195;
 
+import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
+import static com.hedera.services.bdd.spec.assertions.AutoAssocAsserts.accountTokenPairs;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
+import static com.hedera.services.bdd.spec.infrastructure.providers.ops.crypto.RandomAccount.INITIAL_BALANCE;
+import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -13,6 +17,7 @@ import static com.hedera.services.bdd.spec.queries.crypto.ExpectedTokenRel.relat
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
@@ -21,13 +26,21 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
+import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
+import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.AUTO_MEMO;
+import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.LAZY_MEMO;
+import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.createHollowAccountFrom;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenSupplyType.FINITE;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
+import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.esaulpaugh.headlong.abi.Single;
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -50,9 +63,11 @@ import com.hederahashgraph.api.proto.java.NftTransfer;
 import com.hederahashgraph.api.proto.java.TokenTransferList;
 import com.hederahashgraph.api.proto.java.TransferList;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 import java.util.Map;
 import java.util.function.LongFunction;
 import java.util.stream.Stream;
+import org.apache.commons.lang3.tuple.Pair;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -159,71 +174,73 @@ public class Hip1195StreamParityTest {
                 // the odd-numbered ids by being used in pre/post hooks and the even-numbered
                 // ids by being used in two separate pre hook executions
                 cryptoTransfer((spec, b) -> {
-                    final var partyId = spec.registry().getAccountID("party");
-                    final var counterpartyId = spec.registry().getAccountID("counterparty");
-                    final var targetAddress = MULTIPURPOSE.addressOn(spec.targetNetworkOrThrow());
-                    final long gasLimit = 64_000L;
-                    // First the pre/post hooks in the HBAR transfer list
-                    b.setTransfers(TransferList.newBuilder()
-                            .addAccountAmounts(AccountAmount.newBuilder()
-                                    .setAccountID(partyId)
-                                    .setAmount(-123L)
-                                    .setPrePostTxAllowanceHook(HookCall.newBuilder()
-                                            .setHookId(1L)
-                                            .setEvmHookCall(EvmHookCall.newBuilder()
-                                                    .setGasLimit(gasLimit)
-                                                    .setData(ByteString.copyFrom(
-                                                            SET_AND_PASS_ARGS.encode(Tuple.of(1L, targetAddress)))))))
-                            .addAccountAmounts(AccountAmount.newBuilder()
-                                    .setAccountID(counterpartyId)
-                                    .setAmount(+123L)
-                                    .setPrePostTxAllowanceHook(HookCall.newBuilder()
-                                            .setHookId(3L)
-                                            .setEvmHookCall(EvmHookCall.newBuilder()
-                                                    .setGasLimit(gasLimit)
-                                                    .setData(ByteString.copyFrom(
-                                                            SET_AND_PASS_ARGS.encode(Tuple.of(3L, targetAddress))))))));
-                    // Then the first calls to the pre hooks in the fungible token transfer
-                    b.addTokenTransfers(TokenTransferList.newBuilder()
-                            .setToken(spec.registry().getTokenID(aToken.name()))
-                            .addTransfers(AccountAmount.newBuilder()
-                                    .setAccountID(partyId)
-                                    .setAmount(-1L)
-                                    .setPreTxAllowanceHook(HookCall.newBuilder()
-                                            .setHookId(2L)
-                                            .setEvmHookCall(EvmHookCall.newBuilder()
-                                                    .setGasLimit(gasLimit)
-                                                    .setData(ByteString.copyFrom(
-                                                            SET_AND_PASS_ARGS.encode(Tuple.of(2L, targetAddress)))))))
-                            .addTransfers(AccountAmount.newBuilder()
-                                    .setAccountID(counterpartyId)
-                                    .setAmount(+1L)
-                                    .setPreTxAllowanceHook(HookCall.newBuilder()
-                                            .setHookId(4L)
-                                            .setEvmHookCall(EvmHookCall.newBuilder()
-                                                    .setGasLimit(gasLimit)
-                                                    .setData(ByteString.copyFrom(
-                                                            SET_AND_PASS_ARGS.encode(Tuple.of(4L, targetAddress))))))));
-                    // And finally the repeated calls to the pre hooks in the NFT transfer
-                    b.addTokenTransfers(TokenTransferList.newBuilder()
-                            .setToken(spec.registry().getTokenID(bToken.name()))
-                            .addNftTransfers(NftTransfer.newBuilder()
-                                    .setSerialNumber(1L)
-                                    .setSenderAccountID(counterpartyId)
-                                    .setPreTxSenderAllowanceHook(HookCall.newBuilder()
-                                            .setHookId(4L)
-                                            .setEvmHookCall(EvmHookCall.newBuilder()
-                                                    .setGasLimit(gasLimit)
-                                                    .setData(ByteString.copyFrom(
-                                                            SET_AND_PASS_ARGS.encode(Tuple.of(12L, targetAddress))))))
-                                    .setReceiverAccountID(partyId)
-                                    .setPreTxReceiverAllowanceHook(HookCall.newBuilder()
-                                            .setHookId(2L)
-                                            .setEvmHookCall(EvmHookCall.newBuilder()
-                                                    .setGasLimit(gasLimit)
-                                                    .setData(ByteString.copyFrom(SET_AND_PASS_ARGS.encode(
-                                                            Tuple.of(14L, targetAddress))))))));
-                }));
+                            final var partyId = spec.registry().getAccountID("party");
+                            final var counterpartyId = spec.registry().getAccountID("counterparty");
+                            final var targetAddress = MULTIPURPOSE.addressOn(spec.targetNetworkOrThrow());
+                            final long gasLimit = 64_000L;
+                            // First the pre/post hooks in the HBAR transfer list
+                            b.setTransfers(TransferList.newBuilder()
+                                    .addAccountAmounts(AccountAmount.newBuilder()
+                                            .setAccountID(partyId)
+                                            .setAmount(-123L)
+                                            .setPrePostTxAllowanceHook(HookCall.newBuilder()
+                                                    .setHookId(1L)
+                                                    .setEvmHookCall(EvmHookCall.newBuilder()
+                                                            .setGasLimit(gasLimit)
+                                                            .setData(ByteString.copyFrom(SET_AND_PASS_ARGS.encode(
+                                                                    Tuple.of(1L, targetAddress)))))))
+                                    .addAccountAmounts(AccountAmount.newBuilder()
+                                            .setAccountID(counterpartyId)
+                                            .setAmount(+123L)
+                                            .setPrePostTxAllowanceHook(HookCall.newBuilder()
+                                                    .setHookId(3L)
+                                                    .setEvmHookCall(EvmHookCall.newBuilder()
+                                                            .setGasLimit(gasLimit)
+                                                            .setData(ByteString.copyFrom(SET_AND_PASS_ARGS.encode(
+                                                                    Tuple.of(3L, targetAddress))))))));
+                            // Then the first calls to the pre hooks in the fungible token transfer
+                            b.addTokenTransfers(TokenTransferList.newBuilder()
+                                    .setToken(spec.registry().getTokenID(aToken.name()))
+                                    .addTransfers(AccountAmount.newBuilder()
+                                            .setAccountID(partyId)
+                                            .setAmount(-1L)
+                                            .setPreTxAllowanceHook(HookCall.newBuilder()
+                                                    .setHookId(2L)
+                                                    .setEvmHookCall(EvmHookCall.newBuilder()
+                                                            .setGasLimit(gasLimit)
+                                                            .setData(ByteString.copyFrom(SET_AND_PASS_ARGS.encode(
+                                                                    Tuple.of(2L, targetAddress)))))))
+                                    .addTransfers(AccountAmount.newBuilder()
+                                            .setAccountID(counterpartyId)
+                                            .setAmount(+1L)
+                                            .setPreTxAllowanceHook(HookCall.newBuilder()
+                                                    .setHookId(4L)
+                                                    .setEvmHookCall(EvmHookCall.newBuilder()
+                                                            .setGasLimit(gasLimit)
+                                                            .setData(ByteString.copyFrom(SET_AND_PASS_ARGS.encode(
+                                                                    Tuple.of(4L, targetAddress))))))));
+                            // And finally the repeated calls to the pre hooks in the NFT transfer
+                            b.addTokenTransfers(TokenTransferList.newBuilder()
+                                    .setToken(spec.registry().getTokenID(bToken.name()))
+                                    .addNftTransfers(NftTransfer.newBuilder()
+                                            .setSerialNumber(1L)
+                                            .setSenderAccountID(counterpartyId)
+                                            .setPreTxSenderAllowanceHook(HookCall.newBuilder()
+                                                    .setHookId(4L)
+                                                    .setEvmHookCall(EvmHookCall.newBuilder()
+                                                            .setGasLimit(gasLimit)
+                                                            .setData(ByteString.copyFrom(SET_AND_PASS_ARGS.encode(
+                                                                    Tuple.of(12L, targetAddress))))))
+                                            .setReceiverAccountID(partyId)
+                                            .setPreTxReceiverAllowanceHook(HookCall.newBuilder()
+                                                    .setHookId(2L)
+                                                    .setEvmHookCall(EvmHookCall.newBuilder()
+                                                            .setGasLimit(gasLimit)
+                                                            .setData(ByteString.copyFrom(SET_AND_PASS_ARGS.encode(
+                                                                    Tuple.of(14L, targetAddress))))))));
+                        })
+                        .via("complexTransfer"),
+                getTxnRecord("complexTransfer").hasNonStakingChildRecordCount(8).andAllChildRecords());
     }
 
     @HapiTest
@@ -272,5 +289,106 @@ public class Hip1195StreamParityTest {
                                         .contractCallResult(resultWith().contract(HOOK_CONTRACT_NUM)))
                         .logged(),
                 getAliasedAccountInfo("alias").has(accountWith().balance(10L)).hasToken(relationshipWith("tokenA")));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hookExecutionsWithAutoAssociations() {
+        final var beneficiary = "beneficiary";
+        final var uniqueToken = "uniqueToken";
+        final var fungibleToken = "fungibleToken";
+        final var multiPurpose = "multiPurpose";
+        final var transferTxn = "transferTxn";
+
+        return hapiTest(
+                newKeyNamed(multiPurpose),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(fungibleToken)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(1_000L)
+                        .treasury(TOKEN_TREASURY),
+                tokenCreate(uniqueToken)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(multiPurpose)
+                        .initialSupply(0L)
+                        .treasury(TOKEN_TREASURY),
+                mintToken(uniqueToken, List.of(copyFromUtf8("ONE"), copyFromUtf8("TWO"))),
+                cryptoCreate(beneficiary)
+                        .withHook(accountAllowanceHook(1L, TRUE_PRE_POST_ALLOWANCE_HOOK.name()))
+                        .balance(ONE_HUNDRED_HBARS)
+                        .receiverSigRequired(true)
+                        .maxAutomaticTokenAssociations(2),
+                getAccountInfo(beneficiary).savingSnapshot(beneficiary),
+                cryptoTransfer(
+                                movingUnique(uniqueToken, 1L).between(TOKEN_TREASURY, beneficiary),
+                                moving(500, fungibleToken).between(TOKEN_TREASURY, beneficiary))
+                        .withPrePostHookFor(beneficiary, 1L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                cryptoTransfer(
+                                movingUnique(uniqueToken, 1L).between(TOKEN_TREASURY, beneficiary),
+                                moving(500, fungibleToken).between(TOKEN_TREASURY, beneficiary))
+                        .withPrePostHookFor(beneficiary, 1L, 25_000L, "")
+                        .withNftReceiverPrePostHookFor(beneficiary, 1L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER, TOKEN_TREASURY)
+                        .via(transferTxn),
+                getTxnRecord(transferTxn)
+                        .hasPriority(recordWith()
+                                .autoAssociated(accountTokenPairs(List.of(
+                                        Pair.of(beneficiary, fungibleToken), Pair.of(beneficiary, uniqueToken)))))
+                        .andAllChildRecords()
+                        .hasNonStakingChildRecordCount(4)
+                        .hasChildRecords(
+                                recordWith()
+                                        .status(SUCCESS)
+                                        .contractCallResult(resultWith().contract(HOOK_CONTRACT_NUM)),
+                                recordWith()
+                                        .status(SUCCESS)
+                                        .contractCallResult(resultWith().contract(HOOK_CONTRACT_NUM)),
+                                recordWith()
+                                        .status(SUCCESS)
+                                        .contractCallResult(resultWith().contract(HOOK_CONTRACT_NUM)),
+                                recordWith()
+                                        .status(SUCCESS)
+                                        .contractCallResult(resultWith().contract(HOOK_CONTRACT_NUM))),
+                getAccountInfo(beneficiary)
+                        .hasAlreadyUsedAutomaticAssociations(2)
+                        .has(accountWith()
+                                .newAssociationsFromSnapshot(
+                                        beneficiary,
+                                        List.of(
+                                                relationshipWith(fungibleToken).balance(500),
+                                                relationshipWith(uniqueToken).balance(1)))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hookExecutionsWithHollowFinalization() {
+        return hapiTest(flattened(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate("sponsor").balance(INITIAL_BALANCE * ONE_HBAR),
+                cryptoCreate(TOKEN_TREASURY)
+                        .balance(0L)
+                        .withHook(accountAllowanceHook(1L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
+                tokenCreate("token").treasury(TOKEN_TREASURY),
+                cryptoCreate("test"),
+                createHollowAccountFrom(SECP_256K1_SOURCE_KEY),
+                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY)
+                        .has(accountWith().maxAutoAssociations(-1).hasEmptyKey()),
+                cryptoTransfer(moving(1, "token").between(TOKEN_TREASURY, SECP_256K1_SOURCE_KEY))
+                        .payingWith(SECP_256K1_SOURCE_KEY)
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor(SECP_256K1_SOURCE_KEY))
+                        .withPrePostHookFor(TOKEN_TREASURY, 1L, 25_000L, "")
+                        .via("hollowTransfer"),
+                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().hasNonEmptyKey()),
+                getTxnRecord("hollowTransfer")
+                        .andAllChildRecords()
+                        .hasNonStakingChildRecordCount(3)
+                        .hasChildRecords(
+                                recordWith().status(SUCCESS).memo(LAZY_MEMO),
+                                recordWith()
+                                        .status(SUCCESS)
+                                        .contractCallResult(resultWith().contract(HOOK_CONTRACT_NUM)),
+                                recordWith()
+                                        .status(SUCCESS)
+                                        .contractCallResult(resultWith().contract(HOOK_CONTRACT_NUM)))));
     }
 }
