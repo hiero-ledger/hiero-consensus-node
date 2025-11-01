@@ -151,7 +151,11 @@ public abstract class BlockNodeCommunicationTestBase {
 
         final BlockProof proof = BlockProof.newBuilder()
                 .block(blockNumber)
-                .blockSignature(Bytes.wrap(array))
+                .blockSignature(Bytes.wrap(array)) // deprecated
+                // (FUTURE) Enable with v0.68 BMT
+                //                .signedBlockProof(TssSignedBlockProof.newBuilder()
+                //                        .blockSignature(Bytes.wrap(array))
+                //                        .build())
                 .build();
         return BlockItem.newBuilder().blockProof(proof).build();
     }
