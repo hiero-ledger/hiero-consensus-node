@@ -10,6 +10,7 @@ import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ROSTE
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ROSTER_STATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PARTIAL_SIGNATURE;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
+import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
 import static com.hedera.node.app.blocks.impl.BlockStreamManagerImpl.NULL_HASH;
 import static com.hedera.node.app.hapi.utils.CommonUtils.inputOrNullHash;
@@ -29,6 +30,7 @@ import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.working
 import static com.hedera.services.bdd.junit.support.validators.block.RootHashUtils.extractRootMnemonic;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
+import static java.time.Instant.EPOCH;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -38,7 +40,6 @@ import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.output.BlockFooter;
-import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.StateIdentifier;
 import com.hedera.hapi.node.base.Timestamp;
@@ -354,6 +355,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                         c.constructionId(), c.hintsSchemeOrThrow().preprocessedKeysOrThrow()));
         final IncrementalStreamingHasher incrementalBlockHashes =
                 new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0);
+        incrementalBlockHashes.addLeaf(BlockStreamManager.ZERO_BLOCK_HASH.toByteArray());
         for (int i = 0; i < n; i++) {
             final var block = blocks.get(i);
             final var shouldVerifyProof =
@@ -373,6 +375,7 @@ public class StateChangesValidator implements BlockStreamValidator {
             long firstBlockRound = -1;
             long eventNodeId = -1;
             Timestamp firstConsensusTimestamp = null;
+            Timestamp lastConsensusTimestamp = asTimestamp(EPOCH);
             for (final var item : block.items()) {
                 if (firstConsensusTimestamp == null && item.hasBlockHeader()) {
                     firstConsensusTimestamp = item.blockHeaderOrThrow().blockTimestamp();
@@ -383,6 +386,15 @@ public class StateChangesValidator implements BlockStreamValidator {
                 }
                 if (firstBlockRound == -1 && item.hasRoundHeader()) {
                     firstBlockRound = item.roundHeaderOrThrow().roundNumber();
+                }
+                if (item.hasStateChanges()) {
+                    final var thisItemTimestamp = Optional.ofNullable(item.stateChanges())
+                            .map(StateChanges::consensusTimestamp)
+                            .orElse(null);
+                    if (thisItemTimestamp != null
+                            && asInstant(lastConsensusTimestamp).isBefore(asInstant(thisItemTimestamp))) {
+                        lastConsensusTimestamp = thisItemTimestamp;
+                    }
                 }
                 if (shouldVerifyProof) {
                     hashSubTrees(
@@ -446,13 +458,9 @@ public class StateChangesValidator implements BlockStreamValidator {
                             "Final state change " + lastStateChange
                                     + " does not match final block BlockStreamInfo update type");
 
-                    final var penultimateStateChangesHash =
-                            stateChangesHasher.rootHash().join();
-                    final var hashedChangeBytes = noThrowSha384HashOf(StateChange.PROTOBUF.toBytes(lastStateChange));
-
-                    // Combine the penultimate state change leaf with the final state change leaf
+                    // The state changes hasher already incorporated the last state change, so compute its root hash
                     final var finalStateChangesHash =
-                            BlockImplUtils.combine(penultimateStateChangesHash, hashedChangeBytes);
+                            stateChangesHasher.rootHash().join();
 
                     final var expectedBlockHash = computeBlockHash(
                             firstConsensusTimestamp,
@@ -468,11 +476,12 @@ public class StateChangesValidator implements BlockStreamValidator {
                             expectedBlockHash,
                             block.items().getFirst().blockHeaderOrThrow().number());
                     validateBlockProof(i, firstBlockRound, footer, blockProof, expectedBlockHash, startOfStateHash);
-                    incrementalBlockHashes.addLeaf(expectedBlockHash.toByteArray());
                     previousBlockHash = expectedBlockHash;
                 } else {
                     previousBlockHash = footer.previousBlockRootHash();
                 }
+
+                incrementalBlockHashes.addLeaf(previousBlockHash.toByteArray());
             }
         }
         logger.info("Summary of changes by service:\n{}", stateChangesSummary);
