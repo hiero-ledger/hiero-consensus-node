@@ -162,6 +162,12 @@ Used when retrying the same block node after transient issues:
 - **Reset**: Retry count resets if no retry occurs within `protocolExpBackoffTimeframeReset` duration
 - **Behavior**: Connection retries the same node without selecting a new one
 
+#### Forced Connection Switch Retry Delay
+
+When another block node should be selected and forced to become active, the previous active connection
+is closed and scheduled for retry after a fixed delay of 180s (`blockNode.forcedSwitchRescheduleDelay`).
+This may happen when the block buffer saturation action stage is triggered and the manager force switches to a different node.
+
 #### Retry State Management
 
 - `RetryState` tracks retry attempts and last retry time per node configuration
