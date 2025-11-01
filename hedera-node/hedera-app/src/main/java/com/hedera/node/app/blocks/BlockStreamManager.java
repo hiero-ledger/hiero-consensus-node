@@ -87,7 +87,7 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * @param state the state to use
      * @param lastBlockHash the hash of the last block
      */
-    void initBlockTrees(@NonNull State state, @Nullable Bytes lastBlockHash);
+    void init(@NonNull State state, @Nullable Bytes lastBlockHash);
 
     /**
      * Updates the internal state of the block stream manager to reflect the start of a new round.
