@@ -86,4 +86,9 @@ public class BandwidthLimit {
     public boolean isUnlimited() {
         return kilobytesPerSecond == UNLIMITED_KILOBYTES_PER_SECOND;
     }
+
+    @Override
+    public String toString() {
+        return "BandwidthLimit{" + "KB/s=" + kilobytesPerSecond + '}';
+    }
 }
