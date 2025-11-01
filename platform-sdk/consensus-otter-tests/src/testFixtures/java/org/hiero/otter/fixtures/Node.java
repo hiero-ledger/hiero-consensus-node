@@ -326,7 +326,8 @@ public interface Node {
      *               If empty, defaults to CPU and ALLOCATION profiling.
      * @throws UnsupportedOperationException if profiling is not supported in this environment
      */
-    void startProfiling(@NonNull String outputFile, @NonNull Duration samplingInterval, @NonNull ProfilerEvent... events);
+    void startProfiling(
+            @NonNull String outputFile, @NonNull Duration samplingInterval, @NonNull ProfilerEvent... events);
 
     /**
      * Stops Java Flight Recorder profiling and automatically downloads the profiling results to the host machine.

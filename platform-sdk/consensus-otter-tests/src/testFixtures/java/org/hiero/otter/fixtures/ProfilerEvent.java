@@ -155,7 +155,8 @@ public enum ProfilerEvent {
      *   <li>jdk.ExecuteVMOperation - What operation executed at safepoint</li>
      * </ul>
      */
-    SAFEPOINT(List.of("jdk.SafepointBegin", "jdk.SafepointEnd", "jdk.SafepointStateSynchronization", "jdk.ExecuteVMOperation")),
+    SAFEPOINT(List.of(
+            "jdk.SafepointBegin", "jdk.SafepointEnd", "jdk.SafepointStateSynchronization", "jdk.ExecuteVMOperation")),
 
     /**
      * Detailed GC profiling.
@@ -173,8 +174,13 @@ public enum ProfilerEvent {
      *   <li>jdk.OldGarbageCollection - Old generation collections</li>
      * </ul>
      */
-    GC_DETAILED(List.of("jdk.GCPhasePause", "jdk.GCPhaseParallel", "jdk.GCHeapConfiguration",
-                        "jdk.GCConfiguration", "jdk.YoungGarbageCollection", "jdk.OldGarbageCollection")),
+    GC_DETAILED(List.of(
+            "jdk.GCPhasePause",
+            "jdk.GCPhaseParallel",
+            "jdk.GCHeapConfiguration",
+            "jdk.GCConfiguration",
+            "jdk.YoungGarbageCollection",
+            "jdk.OldGarbageCollection")),
 
     /**
      * Detailed memory profiling.
@@ -192,9 +198,10 @@ public enum ProfilerEvent {
      *   <li>jdk.PhysicalMemory - Physical memory information</li>
      * </ul>
      */
-    MEMORY_DETAILED(List.of("jdk.ObjectAllocationInNewTLAB", "jdk.ObjectAllocationOutsideTLAB",
-                            "jdk.MetaspaceGCThreshold", "jdk.MetaspaceAllocationFailure",
-                            "jdk.MetaspaceOOM", "jdk.PhysicalMemory")),
+    MEMORY_DETAILED(List.of(
+            "jdk.ObjectAllocationInNewTLAB", "jdk.ObjectAllocationOutsideTLAB",
+            "jdk.MetaspaceGCThreshold", "jdk.MetaspaceAllocationFailure",
+            "jdk.MetaspaceOOM", "jdk.PhysicalMemory")),
 
     /**
      * Detailed JIT compiler profiling.
@@ -213,9 +220,14 @@ public enum ProfilerEvent {
      *   <li>jdk.SweepCodeCache - Code cache sweeping events</li>
      * </ul>
      */
-    COMPILER_DETAILED(List.of("jdk.CompilerInlining", "jdk.CompilerFailure", "jdk.Deoptimization",
-                              "jdk.CodeCacheFull", "jdk.CodeCacheStatistics",
-                              "jdk.CodeSweeperStatistics", "jdk.SweepCodeCache")),
+    COMPILER_DETAILED(List.of(
+            "jdk.CompilerInlining",
+            "jdk.CompilerFailure",
+            "jdk.Deoptimization",
+            "jdk.CodeCacheFull",
+            "jdk.CodeCacheStatistics",
+            "jdk.CodeSweeperStatistics",
+            "jdk.SweepCodeCache")),
 
     /**
      * Security and TLS profiling.

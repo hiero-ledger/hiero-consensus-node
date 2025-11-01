@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
 import static java.util.Objects.requireNonNull;
@@ -9,7 +10,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -56,7 +56,10 @@ public class ContainerProfiler {
      * @param container the container running the consensus node
      * @param localOutputDirectory the local base directory for storing profiling results
      */
-    public ContainerProfiler(@NonNull final NodeId selfId, @NonNull final ContainerImage container, @NonNull final Path localOutputDirectory) {
+    public ContainerProfiler(
+            @NonNull final NodeId selfId,
+            @NonNull final ContainerImage container,
+            @NonNull final Path localOutputDirectory) {
         this.selfId = requireNonNull(selfId);
         this.container = requireNonNull(container);
         this.localOutputDirectory = requireNonNull(localOutputDirectory);
@@ -77,7 +80,7 @@ public class ContainerProfiler {
             throw new IllegalStateException("Profiling was already started.");
         }
         this.profilingOutputFilename = requireNonNull(outputFilename);
-        this.samplingInterval = samplingInterval == null? DEFAULT_SAMPLING_INTERVAL : samplingInterval;
+        this.samplingInterval = samplingInterval == null ? DEFAULT_SAMPLING_INTERVAL : samplingInterval;
         this.profilerEvents = profilerEvents.length == 0 ? DEFAULT_PROFILER_EVENTS : profilerEvents;
 
         try {
@@ -94,22 +97,23 @@ public class ContainerProfiler {
             final String jfcContent = generateJfcConfiguration();
 
             // Ensure the profiling directory exists
-            final ExecResult mkdirResult = container.execInContainer("sh", "-c", "mkdir -p /tmp/profiling && chmod 777 /tmp/profiling");
+            final ExecResult mkdirResult =
+                    container.execInContainer("sh", "-c", "mkdir -p /tmp/profiling && chmod 777 /tmp/profiling");
             if (mkdirResult.getExitCode() != 0) {
                 throw new IOException("Failed to create profiling directory on node " + selfId.id());
             }
 
             // Write the custom JFC file to the container
-            final String writeJfcCommand = String.format(
-                    "cat > /tmp/profiling/otter.jfc << 'EOF'\n%s\nEOF", jfcContent);
+            final String writeJfcCommand =
+                    String.format("cat > /tmp/profiling/otter.jfc << 'EOF'\n%s\nEOF", jfcContent);
             final ExecResult writeResult = container.execInContainer("sh", "-c", writeJfcCommand);
             if (writeResult.getExitCode() != 0) {
                 throw new IOException("Failed to write JFC configuration on node " + selfId.id());
             }
 
             // Start JFR with our custom configuration
-            final String startJfrCommand = String.format(
-                    "jcmd %s JFR.start name=otter-profile settings=/tmp/profiling/otter.jfc", pid);
+            final String startJfrCommand =
+                    String.format("jcmd %s JFR.start name=otter-profile settings=/tmp/profiling/otter.jfc", pid);
 
             final ExecResult result = container.execInContainer("sh", "-c", startJfrCommand);
             if (result.getExitCode() != 0) {
@@ -162,7 +166,9 @@ public class ContainerProfiler {
             // CPU sampling events: ExecutionSample, NativeMethodSample
             switch (eventName) {
                 case "jdk.ExecutionSample", "jdk.NativeMethodSample" ->
-                        jfc.append("    <setting name=\"period\">").append(this.samplingInterval.toMillis()).append(" ms</setting>\n");
+                    jfc.append("    <setting name=\"period\">")
+                            .append(this.samplingInterval.toMillis())
+                            .append(" ms</setting>\n");
 
                 // Allocation events: ObjectAllocationSample uses throttle instead of period
                 case "jdk.ObjectAllocationSample" -> {
@@ -196,22 +202,22 @@ public class ContainerProfiler {
 
                 // Compiler detailed events - failures and deoptimization
                 case "jdk.CompilerFailure", "jdk.Deoptimization" ->
-                        jfc.append("    <setting name=\"stackTrace\">true</setting>\n");
+                    jfc.append("    <setting name=\"stackTrace\">true</setting>\n");
 
                 // Detailed allocation events (high overhead, all allocations not sampled)
                 case "jdk.ObjectAllocationInNewTLAB", "jdk.ObjectAllocationOutsideTLAB" ->
-                        jfc.append("    <setting name=\"stackTrace\">true</setting>\n");
+                    jfc.append("    <setting name=\"stackTrace\">true</setting>\n");
 
                 // Metaspace events
                 case "jdk.MetaspaceGCThreshold", "jdk.MetaspaceAllocationFailure", "jdk.MetaspaceOOM" ->
-                        jfc.append("    <setting name=\"stackTrace\">true</setting>\n");
+                    jfc.append("    <setting name=\"stackTrace\">true</setting>\n");
 
                 // TLS handshake - might want to limit based on duration
                 case "jdk.TLSHandshake" -> jfc.append("    <setting name=\"threshold\">10 ms</setting>\n");
 
                 // Biased locking - only record actual revocations (not every lock operation)
                 case "jdk.BiasedLockRevocation", "jdk.BiasedLockClassRevocation" ->
-                        jfc.append("    <setting name=\"stackTrace\">true</setting>\n");
+                    jfc.append("    <setting name=\"stackTrace\">true</setting>\n");
             }
 
             // For all other events (SafePoint, GC detailed, Thread lifecycle, Class loading, etc.),
@@ -227,8 +233,10 @@ public class ContainerProfiler {
         jfc.append("  <event name=\"jdk.JVMInformation\"><setting name=\"enabled\">true</setting></event>\n");
         jfc.append("  <event name=\"jdk.OSInformation\"><setting name=\"enabled\">true</setting></event>\n");
         jfc.append("  <event name=\"jdk.CPUInformation\"><setting name=\"enabled\">true</setting></event>\n");
-        jfc.append("  <event name=\"jdk.CPULoad\"><setting name=\"enabled\">true</setting><setting name=\"period\">1 s</setting></event>\n");
-        jfc.append("  <event name=\"jdk.ThreadCPULoad\"><setting name=\"enabled\">true</setting><setting name=\"period\">1 s</setting></event>\n");
+        jfc.append(
+                "  <event name=\"jdk.CPULoad\"><setting name=\"enabled\">true</setting><setting name=\"period\">1 s</setting></event>\n");
+        jfc.append(
+                "  <event name=\"jdk.ThreadCPULoad\"><setting name=\"enabled\">true</setting><setting name=\"period\">1 s</setting></event>\n");
 
         jfc.append("</configuration>");
         return jfc.toString();
@@ -244,7 +252,8 @@ public class ContainerProfiler {
 
         try {
             // Ensure the profiling directory exists with proper permissions
-            final ExecResult mkdirResult = container.execInContainer("sh", "-c", "mkdir -p /tmp/profiling && chmod 777 /tmp/profiling");
+            final ExecResult mkdirResult =
+                    container.execInContainer("sh", "-c", "mkdir -p /tmp/profiling && chmod 777 /tmp/profiling");
             if (mkdirResult.getExitCode() != 0) {
                 throw new IOException("Failed to create profiling directory on node " + selfId.id());
             }
@@ -252,7 +261,8 @@ public class ContainerProfiler {
             // Dump the recording to file
             final String containerPath = "/tmp/profiling/" + profilingOutputFilename;
 
-            final String dumpJfrCommand = String.format("jcmd %s JFR.dump name=otter-profile filename=%s", pid, containerPath);
+            final String dumpJfrCommand =
+                    String.format("jcmd %s JFR.dump name=otter-profile filename=%s", pid, containerPath);
             final ExecResult dumpResult = container.execInContainer("sh", "-c", dumpJfrCommand);
             if (dumpResult.getExitCode() != 0 || dumpResult.getStdout().contains("Dump failed")) {
                 throw new IOException(

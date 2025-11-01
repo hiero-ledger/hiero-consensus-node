@@ -170,7 +170,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         // Blocking stub for initializing and killing the consensus node
         containerControlBlockingStub = ContainerControlServiceGrpc.newBlockingStub(containerControlChannel);
 
-        profiler = new ContainerProfiler(selfId, container,localOutputDirectory);
+        profiler = new ContainerProfiler(selfId, container, localOutputDirectory);
     }
 
     /**
