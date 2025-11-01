@@ -33,24 +33,26 @@ class BucketMutationTest {
     @Test
     void createList() {
         final Bytes rootKey = ExampleLongKey.longToKey(1);
-        final var root = new BucketMutation(rootKey, rootKey.hashCode(), 10);
+        var root = new BucketMutation(rootKey, rootKey.hashCode(), 10);
         for (int i = 2; i < 100; i++) {
             put(root, ExampleLongKey.longToKey(i), 10 * i);
         }
 
         final AtomicLong index = new AtomicLong(1);
-        root.forEachKeyValue((k, khc, ov, v) -> {
+        for (; root != null; root = root.getNext()) {
+            final var k = root.getKeyBytes();
+            final var v = root.getValue();
             final long i = index.getAndIncrement();
             assertEquals(ExampleLongKey.longToKey(i), k, "Unexpected key " + k + " for iteration " + i);
             assertEquals(i * 10, v, "Unexpected value " + v + " for iteration " + i);
-        });
+        }
     }
 
     @Test
     void updateList() {
         // Test adding the keys out of order, and also updating only the first, middle and last.
         final Bytes rootKey = ExampleLongKey.longToKey(1);
-        final var root = new BucketMutation(rootKey, rootKey.hashCode(), 10);
+        var root = new BucketMutation(rootKey, rootKey.hashCode(), 10);
         put(root, ExampleLongKey.longToKey(3), 30);
         put(root, ExampleLongKey.longToKey(2), 20);
         put(root, ExampleLongKey.longToKey(5), 50);
@@ -69,10 +71,12 @@ class BucketMutationTest {
 
         final var expectedValues = new LinkedList<>(List.of(100, 30, 200, 50, 400));
 
-        root.forEachKeyValue((k, khc, ov, v) -> {
+        for (; root != null; root = root.getNext()) {
+            final var k = root.getKeyBytes();
+            final var v = root.getValue();
             assertEquals(expectedKeys.removeFirst(), k, "Unexpected key");
             assertEquals((long) expectedValues.removeFirst(), v, "Unexpected value");
-        });
+        }
 
         assertTrue(expectedKeys.isEmpty(), "Shouldn't have any expected keys left");
         assertTrue(expectedValues.isEmpty(), "Shouldn't have any expected values left");

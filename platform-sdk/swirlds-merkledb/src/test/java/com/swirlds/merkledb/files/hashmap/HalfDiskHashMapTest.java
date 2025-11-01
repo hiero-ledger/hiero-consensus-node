@@ -389,6 +389,32 @@ class HalfDiskHashMapTest {
     }
 
     @Test
+    void skipAllBucketsNoUpdates() throws Exception {
+        try (HalfDiskHashMap map = createNewTempMap("skipAllBucketsNoUpdates", 200)) {
+            final int numOfBuckets = calcExpectedNumOfBuckets(200);
+            map.startWriting();
+            for (int i = 0; i < numOfBuckets; i++) {
+                map.put(Bytes.wrap(new byte[] {(byte) i}), i, i * 3L);
+            }
+            map.endWriting();
+            map.startWriting();
+            for (int i = 0; i < numOfBuckets; i++) {
+                map.put(Bytes.wrap(new byte[] {(byte) i}), i, i * 3L);
+            }
+            map.endWriting();
+            final LongList bucketIndex = (LongList) map.getBucketIndexToBucketLocation();
+            for (int i = 0; i < numOfBuckets; i++) {
+                final BufferedData bucketData = map.getFileCollection().readDataItemUsingIndex(bucketIndex, i);
+                assertNotNull(bucketData);
+                try (ParsedBucket bucket = new ParsedBucket()) {
+                    bucket.readFrom(bucketData);
+                    assertEquals(i * 3L, bucket.findValue(i, Bytes.wrap(new byte[] {(byte) i}), -1));
+                }
+            }
+        }
+    }
+
+    @Test
     void checkBucketsAfterResize() throws Exception {
         try (HalfDiskHashMap map = createNewTempMap("checkBucketsAfterResize", 200)) {
             final int initialNumOfBuckets = calcExpectedNumOfBuckets(200);
