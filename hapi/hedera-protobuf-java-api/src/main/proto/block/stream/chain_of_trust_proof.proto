@@ -1,4 +1,5 @@
 /**
+ * # Chain of Trust Proof
  * Proof that some data belongs to the network's chain of trust, starting from
  * the genesis network whose address book hash formed the ledger id. (In the
  * current system, this data is always a hinTS verification key.)

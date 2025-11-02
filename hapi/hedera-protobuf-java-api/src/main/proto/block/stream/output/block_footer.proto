@@ -22,6 +22,7 @@ option java_package = "com.hedera.hapi.block.stream.output.protoc";
 option java_multiple_files = true;
 
 message BlockFooter {
+
     /** The root hash of the block, for the previous block to the one this
      *  footer belongs to.
      */

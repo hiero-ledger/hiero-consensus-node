@@ -3,6 +3,7 @@ package org.hiero.otter.test;
 
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static org.hiero.otter.fixtures.Capability.DETERMINISTIC_EXECUTION;
 import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 
@@ -52,7 +53,7 @@ class DocExamplesTest {
     }
 
     // This test is used in the turtle-environment.md file.
-    @OtterTest
+    @OtterTest(requires = DETERMINISTIC_EXECUTION)
     @RepeatedTest(10)
     @TurtleSpecs(randomSeed = 42)
     void testDeterministicBehavior(@NonNull final TestEnvironment env) {
@@ -86,7 +87,9 @@ class DocExamplesTest {
 
         // Set the rounds non-ancient and expired to smaller values to allow nodes to fall behind quickly
         for (final Node node : nodes) {
-            node.configuration().set(ConsensusConfig_.ROUNDS_NON_ANCIENT, 5L).set(ConsensusConfig_.ROUNDS_EXPIRED, 10L);
+            node.configuration()
+                    .withConfigValue(ConsensusConfig_.ROUNDS_NON_ANCIENT, 5L)
+                    .withConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, 10L);
         }
 
         network.start();

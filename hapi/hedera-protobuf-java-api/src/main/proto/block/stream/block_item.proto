@@ -135,13 +135,14 @@ import "services/state/blockstream/streaming_tree_snapshot.proto";
  * - Any subtree (depending on what was filtered).
  *   This item contains it's path in the tree and must be fully parsed.
  *    - `filtered_item_hash`
- * - No subtree
+ * - No subtree (and not part of the "proof" merkle tree)
+ *    - `block_footer`
  *    - `block_proof`
  *    - `record_file`
  */
 message BlockItem {
     // Reserved for future items that require separate handling for block hash purposes.
-    reserved 12,13,14,15,16,17,18,19;
+    reserved 14,15,16,17,18,19;
 
     oneof item {
         /**
@@ -219,7 +220,7 @@ message BlockItem {
          * of a block, but MAY preclude verification or reconstruction of
          * consensus state.<br/>
          */
-        FilteredItemHash filtered_item_hash = 8;
+        FilteredItemHash filtered_item_hash = 8 [deprecated = true];
 
         /**
          * A signed block proof.<br/>
@@ -263,15 +264,18 @@ message BlockItem {
         com.hedera.hapi.block.stream.trace.TraceData trace_data = 11;
 
         /**
-         * A transaction intentionally filtered from the stream.
+         * Hashes at the end of each block.
+         * <p>
+         * This footer SHALL signal the end of information to include
+         * in a block's hashed content.<br/>
+         * One or more Block Proof items SHALL follow this item.
          */
-        FilteredSingleItem filtered_single_item = 20;
+        com.hedera.hapi.block.stream.output.BlockFooter block_footer = 12;
 
         /**
-         * A footer item that SHALL signal the end of information to include
-         * in a block's hashed content.
+         * A transaction intentionally filtered from the stream.
          */
-        com.hedera.hapi.block.stream.output.BlockFooter block_footer = 21;
+        FilteredSingleItem filtered_single_item = 13;
   }
 }
 

@@ -1,4 +1,5 @@
 /**
+ * # State Proof
  * A state proof that cryptographically proves one of more nodes in the block
  * merkle tree.<br/>
  * Those nodes can represent state, block items or anything else

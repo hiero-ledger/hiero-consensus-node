@@ -26,9 +26,9 @@ option java_multiple_files = true;
  * A message stored in state to maintain block stream parameters.<br/>
  * Nodes use this information for three purposes.
  * 1. To maintain hash chain continuity at restart and reconnect boundaries.
- * 1. To store historical hashes for implementation of the EVM `BLOCKHASH`
+ * 2. To store historical hashes for implementation of the EVM `BLOCKHASH`
  *    and `PREVRANDAO` opcodes.
- * 1. To track the amount of consensus time that has passed between blocks.
+ * 3. To track the amount of consensus time that has passed between blocks.
  *
  * This value MUST be updated for every block.<br/>
  * This value MUST be transmitted in the "state changes" section of
@@ -45,15 +45,16 @@ message BlockStreamInfo {
    */
   uint64 block_number = 1;
 
-  /**
-   * A consensus time for the current block.<br/>
-   * This is the consensus time of the first round in the current block,
-   * and is used to determine if this block was the first across an
-   * important boundary in consensus time, such as UTC midnight.
-   * This may also be used to purge entities expiring between the last
-   * block time and this time.
-   */
-  proto.Timestamp block_time = 2;
+    /**
+     * A consensus time for the current block.<br/>
+     * This is the consensus time of the first round in the current block,
+     * which equates to the first contained transaction's consensus time.
+     * It is used to determine if this block was the first across an
+     * important boundary in consensus time, such as UTC midnight.
+     * This may also be used to purge entities expiring between the last
+     * block time and this time.
+     */
+    proto.Timestamp block_time = 2;
 
   /**
    * A concatenation of hash values.<br/>
@@ -81,11 +82,11 @@ message BlockStreamInfo {
    */
   bytes trailing_block_hashes = 4;
 
-  /**
-   * A SHA2-384 hash value.<br/>
-   * This is the final hash of the "input" subtree for this block.
-   */
-  bytes input_tree_root_hash = 5;
+    /**
+     * A SHA2-384 hash value.<br/>
+     * This is the final hash of the "input" subtree for this block.
+     */
+    bytes input_tree_root_hash = 5;
 
   /**
    * A SHA2-384 hash value.<br/>

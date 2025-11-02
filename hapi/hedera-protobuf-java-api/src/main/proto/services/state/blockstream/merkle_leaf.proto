@@ -1,6 +1,6 @@
 /**
- * Merkle Leaf
- * TODO
+ * # Merkle Leaf
+ * A leaf node in a block merkle tree structure.
  *
  * ### Keywords
  * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
