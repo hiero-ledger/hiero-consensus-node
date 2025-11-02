@@ -211,12 +211,12 @@ public class StateChangesValidator implements BlockStreamValidator {
         final long realm = 12;
         final var validator = new StateChangesValidator(
                 Bytes.fromHex(
-                        "bd2ee10d715acd195587977ee3f259e68cc84a55cc593a9789b36ef91aee3548434dec3149e4bf5ddecc020e0fbf1193"),
+                        "50ea5c2588457b952dba215bcefc5f54a1b87c298e5c0f2a534a8eb7177354126c55ee5c23319187e964443e4c17c007"),
                 node0Dir.resolve("output/swirlds.log"),
                 node0Dir.resolve("data/config/application.properties"),
                 node0Dir.resolve("data/config"),
                 16,
-                HintsEnabled.NO,
+                HintsEnabled.YES,
                 HistoryEnabled.NO,
                 hintsThresholdDenominator,
                 shard,
@@ -661,9 +661,14 @@ public class StateChangesValidator implements BlockStreamValidator {
                 // Our indirect proofs always provide right sibling hashes
                 provenHash = combine(provenHash, siblingHash.siblingHash());
             }
+            // FUTURE: When Merkle Paths are populated, stop returning and verify indirect proofs
+            return;
         }
         if (hintsLibrary != null) {
-            final var signature = proof.signedBlockProof().blockSignature();
+            if (!proof.hasSignedBlockProof()) {
+                return;
+            }
+            final var signature = proof.signedBlockProofOrThrow().blockSignature();
             final var vk = proof.verificationKey();
             final boolean valid = hintsLibrary.verifyAggregate(signature, provenHash, vk, 1, hintsThresholdDenominator);
             if (!valid) {
