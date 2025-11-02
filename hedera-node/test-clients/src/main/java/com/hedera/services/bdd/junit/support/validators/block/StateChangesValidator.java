@@ -10,7 +10,6 @@ import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ROSTE
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ROSTER_STATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PARTIAL_SIGNATURE;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
-import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
 import static com.hedera.node.app.blocks.impl.BlockStreamManagerImpl.NULL_HASH;
 import static com.hedera.node.app.hapi.utils.CommonUtils.inputOrNullHash;
@@ -30,7 +29,6 @@ import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.working
 import static com.hedera.services.bdd.junit.support.validators.block.RootHashUtils.extractRootMnemonic;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
-import static java.time.Instant.EPOCH;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -210,13 +208,13 @@ public class StateChangesValidator implements BlockStreamValidator {
         final long realm = 12;
         final var validator = new StateChangesValidator(
                 Bytes.fromHex(
-                        "525279ce448629033053af7fd64e1439f415c0acb5ad6819b73363807122847b2d68ded6d47db36b59920474093f0651"),
+                        "bd2ee10d715acd195587977ee3f259e68cc84a55cc593a9789b36ef91aee3548434dec3149e4bf5ddecc020e0fbf1193"),
                 node0Dir.resolve("output/swirlds.log"),
                 node0Dir.resolve("data/config/application.properties"),
                 node0Dir.resolve("data/config"),
                 16,
-                HintsEnabled.YES,
-                HistoryEnabled.YES,
+                HintsEnabled.NO,
+                HistoryEnabled.NO,
                 hintsThresholdDenominator,
                 shard,
                 realm);
@@ -375,7 +373,6 @@ public class StateChangesValidator implements BlockStreamValidator {
             long firstBlockRound = -1;
             long eventNodeId = -1;
             Timestamp firstConsensusTimestamp = null;
-            Timestamp lastConsensusTimestamp = asTimestamp(EPOCH);
             for (final var item : block.items()) {
                 if (firstConsensusTimestamp == null && item.hasBlockHeader()) {
                     firstConsensusTimestamp = item.blockHeaderOrThrow().blockTimestamp();
@@ -386,15 +383,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                 }
                 if (firstBlockRound == -1 && item.hasRoundHeader()) {
                     firstBlockRound = item.roundHeaderOrThrow().roundNumber();
-                }
-                if (item.hasStateChanges()) {
-                    final var thisItemTimestamp = Optional.ofNullable(item.stateChanges())
-                            .map(StateChanges::consensusTimestamp)
-                            .orElse(null);
-                    if (thisItemTimestamp != null
-                            && asInstant(lastConsensusTimestamp).isBefore(asInstant(thisItemTimestamp))) {
-                        lastConsensusTimestamp = thisItemTimestamp;
-                    }
                 }
                 if (shouldVerifyProof) {
                     hashSubTrees(
@@ -435,17 +423,14 @@ public class StateChangesValidator implements BlockStreamValidator {
                 }
             }
             if (i <= lastVerifiableIndex) {
-                final var footer = block.items().stream()
-                        .filter(BlockItem::hasBlockFooter)
-                        .map(BlockItem::blockFooterOrThrow)
-                        .findFirst()
-                        .orElseThrow();
+                final var footer = block.items().get(block.items().size() - 2);
+                assertTrue(footer.hasBlockFooter());
                 final var lastBlockItem = block.items().getLast();
                 assertTrue(lastBlockItem.hasBlockProof());
                 final var blockProof = lastBlockItem.blockProofOrThrow();
                 assertEquals(
                         previousBlockHash,
-                        footer.previousBlockRootHash(),
+                        footer.blockFooterOrThrow().previousBlockRootHash(),
                         "Previous block hash mismatch for block " + blockProof.block());
 
                 if (shouldVerifyProof) {
@@ -475,10 +460,22 @@ public class StateChangesValidator implements BlockStreamValidator {
                     blockNumbers.put(
                             expectedBlockHash,
                             block.items().getFirst().blockHeaderOrThrow().number());
-                    validateBlockProof(i, firstBlockRound, footer, blockProof, expectedBlockHash, startOfStateHash);
+                    validateBlockProof(
+                            i,
+                            firstBlockRound,
+                            footer.blockFooterOrThrow(),
+                            blockProof,
+                            expectedBlockHash,
+                            startOfStateHash);
                     previousBlockHash = expectedBlockHash;
                 } else {
-                    previousBlockHash = footer.previousBlockRootHash();
+                    final var nextBlock = blocks.get(i + 1);
+                    final var nextBlockFooterIndex = nextBlock.items().size() - 2;
+                    previousBlockHash = nextBlock
+                            .items()
+                            .get(nextBlockFooterIndex)
+                            .blockFooterOrThrow()
+                            .previousBlockRootHash();
                 }
 
                 incrementalBlockHashes.addLeaf(previousBlockHash.toByteArray());

@@ -148,6 +148,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private Instant consensusTimeLastRound;
     private Timestamp lastUsedTime;
     private BlockItemWriter writer;
+    private Instant firstConsensusTimeOfCurrentBlock;
 
     // Block merkle subtrees and leaves
     private IncrementalStreamingHasher previousBlockHashes;
@@ -335,7 +336,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                                 blockStreamInfo.outputItemRootHash(),
                                 lastBlockFinalStateChangesHash,
                                 blockStreamInfo.traceDataRootHash(),
-                                blockStreamInfo.blockTime())
+                                blockStreamInfo.blockStartConsensusTimestamp())
                         .blockRootHash());
         requireNonNull(calculatedLastBlockHash);
         this.lastBlockHash = calculatedLastBlockHash;
@@ -392,6 +393,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .blockTimestamp(asTimestamp(blockTimestamp))
                     .hapiProtoVersion(hapiVersion);
             worker.addItem(BlockItem.newBuilder().blockHeader(header).build());
+            firstConsensusTimeOfCurrentBlock = round.getConsensusTimestamp();
         }
         consensusTimeLastRound = round.getConsensusTimestamp();
     }
@@ -577,6 +579,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     consensusHeaderHash,
                     outputsHash,
                     traceDataHash,
+                    asTimestamp(firstConsensusTimeOfCurrentBlock),
                     previousBlockHashes.intermediateHashingState(),
                     previousBlockHashes.leafCount());
             blockStreamInfoState.put(newBlockStreamInfo);
@@ -598,7 +601,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     outputsHash,
                     stateChangesHash,
                     traceDataHash,
-                    newBlockStreamInfo.blockTime());
+                    newBlockStreamInfo.blockStartConsensusTimestamp());
             final var finalBlockRootHash = rootAndSiblingHashes.blockRootHash();
 
             // Create BlockFooter with the three essential hashes:

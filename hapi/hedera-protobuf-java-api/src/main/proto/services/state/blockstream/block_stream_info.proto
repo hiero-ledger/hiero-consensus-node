@@ -168,15 +168,21 @@ message BlockStreamInfo {
   bytes trace_data_root_hash = 17;
 
   /**
+   * The time stamp at which the first transaction was handled in
+   * this block.
+   */
+  proto.Timestamp block_start_consensus_timestamp = 18;
+
+  /**
    * The intermediate hashes needed for branch 2 in the block merkle
    * tree structure. These hashes SHALL include all block root hashes
    * needed to construct branch 2's final state at the end of the
    * previous block
    */
-  repeated bytes intermediate_previous_block_root_hashes = 18;
+  repeated bytes intermediate_previous_block_root_hashes = 19;
 
   /**
    * The number of leaves in the intermediate block roots subtree.
    */
-  uint64 intermediate_block_roots_leaf_count = 19;
+  uint64 intermediate_block_roots_leaf_count = 20;
 }
