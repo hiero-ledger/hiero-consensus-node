@@ -19,6 +19,7 @@ import static com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils.stateNameOf
 import static com.hedera.node.app.hints.HintsService.maybeWeightsFrom;
 import static com.hedera.node.app.history.impl.ProofControllerImpl.EMPTY_PUBLIC_KEY;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.roster.impl.RosterTransitionWeights.atLeastOneThirdOfTotal;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.SAVED_STATES_DIR;
@@ -32,6 +33,7 @@ import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.Block;
@@ -166,6 +168,7 @@ public class StateChangesValidator implements BlockStreamValidator {
 
     /**
      * The relevant context from a history proof construction.
+     *
      * @param proverWeights the weights of the nodes in the prover history roster
      * @param targetWeights the weights of the nodes in the target history roster
      * @param proofKeys the proof keys of the nodes in the target history roster
@@ -659,74 +662,65 @@ public class StateChangesValidator implements BlockStreamValidator {
                 provenHash = combine(provenHash, siblingHash.siblingHash());
             }
         }
-
-        // TODO: verify hints proof
-        //        if (hintsLibrary != null) {
-        //            final var signature = proof.blockSignature();
-        //            final var vk = proof.verificationKey();
-        //            final boolean valid = hintsLibrary.verifyAggregate(signature, provenHash, vk, 1,
-        // hintsThresholdDenominator);
-        //            if (!valid) {
-        //                Assertions.fail(() -> "Invalid signature in proof (start round #" + firstRound + ") - " +
-        // proof);
-        //            } else {
-        //                logger.info("Verified signature on #{}", proof.block());
-        //            }
-        //            if (historyLibrary != null) {
-        //                assertTrue(
-        //                        proof.hasVerificationKeyProof(),
-        //                        "No chain-of-trust for hinTS key in proof (start round #" + firstRound + ") - " +
-        // proof);
-        //                final var chainOfTrustProof = proof.verificationKeyProofOrThrow();
-        //                switch (chainOfTrustProof.proof().kind()) {
-        //                    case UNSET ->
-        //                        Assertions.fail("Empty chain-of-trust for hinTS key in proof (start round #" +
-        // firstRound
-        //                                + ") - " + proof);
-        //                    case NODE_SIGNATURES -> {
-        //                        requireNonNull(activeWeights);
-        //                        final var context = vkContexts.get(vk);
-        //                        assertNotNull(
-        //                                context, "No context for verification key in proof (start round #" +
-        // firstRound + ")");
-        //                        // Signatures are over (targetBookHash || hash(verificationKey))
-        //                        final var targetBookHash = context.targetBookHash(historyLibrary);
-        //                        final var message =
-        // targetBookHash.append(historyLibrary.hashHintsVerificationKey(vk));
-        //                        long signingWeight = 0;
-        //                        final var signatures =
-        //                                chainOfTrustProof.nodeSignaturesOrThrow().nodeSignatures();
-        //                        final var weights = context.proverWeights();
-        //                        for (final var s : signatures) {
-        //                            final long nodeId = s.nodeId();
-        //                            final var proofKey = context.proofKeys().get(nodeId);
-        //                            assertTrue(
-        //                                    historyLibrary.verifySchnorr(s.signature(), message, proofKey),
-        //                                    "Invalid signature for node" + nodeId
-        //                                            + " in chain-of-trust for hinTS key in proof (start round #" +
-        // firstRound
-        //                                            + ") - " + proof);
-        //                            signingWeight += weights.getOrDefault(s.nodeId(), 0L);
-        //                        }
-        //                        final long threshold = atLeastOneThirdOfTotal(weights);
-        //                        assertTrue(
-        //                                signingWeight >= threshold,
-        //                                "Insufficient weight in chain-of-trust for hinTS key in proof (start round #"
-        //                                        + firstRound + ") - " + proof
-        //                                        + " (expected >= " + threshold + ", got " + signingWeight
-        //                                        + ")");
-        //                    }
-        //                    case WRAPS_PROOF ->
-        //                        assertTrue(
-        //                                historyLibrary.verifyChainOfTrust(chainOfTrustProof.wrapsProofOrThrow()),
-        //                                "Insufficient weight in chain-of-trust for hinTS key in proof (start round #"
-        //                                        + firstRound + ") - " + proof);
-        //                }
-        //            }
-        //        } else {
-        //            final var expectedSignature = Bytes.wrap(noThrowSha384HashOf(provenHash.toByteArray()));
-        //            assertEquals(expectedSignature, proof.blockSignature(), "Signature mismatch for " + proof);
-        //        }
+        if (hintsLibrary != null) {
+            final var signature = proof.signedBlockProof().blockSignature();
+            final var vk = proof.verificationKey();
+            final boolean valid = hintsLibrary.verifyAggregate(signature, provenHash, vk, 1, hintsThresholdDenominator);
+            if (!valid) {
+                Assertions.fail(() -> "Invalid signature in proof (start round #" + firstRound + ") - " + proof);
+            } else {
+                logger.info("Verified signature on #{}", proof.block());
+            }
+            if (historyLibrary != null) {
+                assertTrue(
+                        proof.hasVerificationKeyProof(),
+                        "No chain-of-trust for hinTS key in proof (start round #" + firstRound + ") - " + proof);
+                final var chainOfTrustProof = proof.verificationKeyProofOrThrow();
+                switch (chainOfTrustProof.proof().kind()) {
+                    case UNSET ->
+                        Assertions.fail("Empty chain-of-trust for hinTS key in proof (start round #" + firstRound
+                                + ") - " + proof);
+                    case NODE_SIGNATURES -> {
+                        requireNonNull(activeWeights);
+                        final var context = vkContexts.get(vk);
+                        assertNotNull(
+                                context, "No context for verification key in proof (start round #" + firstRound + ")");
+                        // Signatures are over (targetBookHash || hash(verificationKey))
+                        final var targetBookHash = context.targetBookHash(historyLibrary);
+                        final var message = targetBookHash.append(historyLibrary.hashHintsVerificationKey(vk));
+                        long signingWeight = 0;
+                        final var signatures =
+                                chainOfTrustProof.nodeSignaturesOrThrow().nodeSignatures();
+                        final var weights = context.proverWeights();
+                        for (final var s : signatures) {
+                            final long nodeId = s.nodeId();
+                            final var proofKey = context.proofKeys().get(nodeId);
+                            assertTrue(
+                                    historyLibrary.verifySchnorr(s.signature(), message, proofKey),
+                                    "Invalid signature for node" + nodeId
+                                            + " in chain-of-trust for hinTS key in proof (start round #" + firstRound
+                                            + ") - " + proof);
+                            signingWeight += weights.getOrDefault(s.nodeId(), 0L);
+                        }
+                        final long threshold = atLeastOneThirdOfTotal(weights);
+                        assertTrue(
+                                signingWeight >= threshold,
+                                "Insufficient weight in chain-of-trust for hinTS key in proof (start round #"
+                                        + firstRound + ") - " + proof
+                                        + " (expected >= " + threshold + ", got " + signingWeight
+                                        + ")");
+                    }
+                    case WRAPS_PROOF ->
+                        assertTrue(
+                                historyLibrary.verifyChainOfTrust(chainOfTrustProof.wrapsProofOrThrow()),
+                                "Insufficient weight in chain-of-trust for hinTS key in proof (start round #"
+                                        + firstRound + ") - " + proof);
+                }
+            }
+        } else {
+            final var expectedSignature = Bytes.wrap(noThrowSha384HashOf(provenHash.toByteArray()));
+            assertEquals(expectedSignature, proof.blockSignature(), "Signature mismatch for " + proof);
+        }
     }
 
     private String rootMnemonicFor(@NonNull final MerkleNode state) {
