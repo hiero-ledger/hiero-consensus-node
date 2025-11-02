@@ -155,4 +155,3 @@ message SiblingNode {
      */
     bytes hash = 2;
 }
-

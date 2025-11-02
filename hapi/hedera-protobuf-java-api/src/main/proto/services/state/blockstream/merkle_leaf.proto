@@ -22,27 +22,26 @@ option java_package = "com.hedera.hapi.block.stream.protoc";
 // <<<pbj.java_package = "com.hedera.hapi.node.state.blockstream">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
-/**
- * TODO
- */
 message MerkleLeaf {
-  oneof content {
     /**
-     * TODO
+     * The content of this merkle leaf node.
      */
-    proto.Timestamp block_consensus_timestamp = 1;
+    oneof content {
+        /**
+         * The consensus timestamp of the first round in the current
+         * block, which is equivalent to the consensus timestamp of
+         * the first transaction in that round.
+         */
+        bytes block_consensus_timestamp = 1;
 
-    /**
-     * TODO – SHOULD BE BlockItem, not bytes
-     */
-    //    com.hedera.hapi.block.stream.BlockItem block_item = 2;
-    bytes block_item = 2;
+        /**
+         * The serialized bytes of a single BlockItem message.
+         */
+        bytes block_item = 2;
 
-    /**
-     * TODO – SHOULD BE StateItem, not bytes
-     */
-    //    com.hedera.hapi.platform.state.StateItem state_item = 3;
-    bytes state_item = 3;
-  }
+        /**
+         * The serialized bytes of a single StateItem message.
+         */
+        bytes state_item = 3;
+    }
 }
-
