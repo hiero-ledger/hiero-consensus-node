@@ -579,7 +579,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     consensusHeaderHash,
                     outputsHash,
                     traceDataHash,
-					asTimestamp(blockTimestamp),
+                    asTimestamp(blockTimestamp),
                     previousBlockHashes.intermediateHashingState(),
                     previousBlockHashes.leafCount());
             blockStreamInfoState.put(newBlockStreamInfo);
