@@ -44,7 +44,13 @@ import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.hapi.fees.FeeModelRegistry;
+import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
+
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -449,5 +455,28 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
             case NON_FUNGIBLE_UNIQUE ->
                 hasCustomFees ? SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES : SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
         };
+    }
+
+    @Override
+    public @NonNull FeeResult calculateFeeResult(@NonNull FeeContext feeContext) {
+        requireNonNull(feeContext);
+        final var body = feeContext.body();
+//        final var hasCustomFees =
+//                !body.tokenCreationOrThrow().customFees().isEmpty();
+        final var hasCustomFees = false;
+//        final var subType = hasCustomFees ? SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES : SubType.DEFAULT;
+        final var subType = SubType.DEFAULT;
+        final var entity = FeeModelRegistry.lookupModel(HederaFunctionality.TOKEN_CREATE);
+        var tokenCreate = body.tokenCreationOrThrow();
+        var keyCount = tokenCreate.customFees().size();
+        if (tokenCreate.hasAdminKey()) {
+            keyCount += 1;
+        }
+        Map<Extra, Long> params = new HashMap<>();
+        params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
+        params.put(Extra.KEYS, (long) keyCount);
+        params.put(Extra.CUSTOM_FEE, hasCustomFees ? 1L : 0L);
+        return entity.computeFee(
+                params, feeContext.feeCalculatorFactory().feeCalculator(subType).getSimpleFeesSchedule());
     }
 }
