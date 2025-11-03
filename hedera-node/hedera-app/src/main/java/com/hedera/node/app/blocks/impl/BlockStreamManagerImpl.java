@@ -148,7 +148,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private Instant consensusTimeLastRound;
     private Timestamp lastUsedTime;
     private BlockItemWriter writer;
-    private Instant firstConsensusTimeOfCurrentBlock;
 
     // Block merkle subtrees and leaves
     private IncrementalStreamingHasher previousBlockHashes;
@@ -393,7 +392,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .blockTimestamp(asTimestamp(blockTimestamp))
                     .hapiProtoVersion(hapiVersion);
             worker.addItem(BlockItem.newBuilder().blockHeader(header).build());
-            firstConsensusTimeOfCurrentBlock = round.getConsensusTimestamp();
         }
         consensusTimeLastRound = round.getConsensusTimestamp();
     }
@@ -581,7 +579,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     consensusHeaderHash,
                     outputsHash,
                     traceDataHash,
-                    asTimestamp(firstConsensusTimeOfCurrentBlock),
+					asTimestamp(blockTimestamp),
                     previousBlockHashes.intermediateHashingState(),
                     previousBlockHashes.leafCount());
             blockStreamInfoState.put(newBlockStreamInfo);
