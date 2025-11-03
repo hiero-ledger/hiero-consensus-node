@@ -1167,7 +1167,8 @@ class BlockStreamManagerImplTest {
 
         final AtomicBoolean footerWritten = new AtomicBoolean(false);
 
-        doAnswer(invocationOnMock -> {
+        lenient()
+                .doAnswer(invocationOnMock -> {
                     final var item = BlockItem.PROTOBUF.parse((Bytes) invocationOnMock.getArgument(1));
                     if (item.hasBlockFooter()) {
                         footerWritten.set(true);
