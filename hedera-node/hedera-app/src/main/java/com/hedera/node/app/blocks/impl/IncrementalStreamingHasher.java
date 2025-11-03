@@ -3,6 +3,7 @@ package com.hedera.node.app.blocks.impl;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.security.MessageDigest;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -81,7 +82,9 @@ public class IncrementalStreamingHasher {
      */
     public List<Bytes> intermediateHashingState() {
         // do we need to copy the arrays here so they don't change?
-        return hashList.stream().map(Bytes::wrap).toList();
+        return hashList.stream()
+                .map(b -> Bytes.wrap(Arrays.copyOf(b, b.length)))
+                .toList();
     }
 
     /**
