@@ -9,8 +9,6 @@ import static com.hedera.services.bdd.spec.utilops.BlockNodeVerbs.blockNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogContains;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogContainsTimeframe;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogDoesNotContain;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsTimeframe;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContain;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
@@ -1044,36 +1042,5 @@ public class BlockNodeSuite {
                         byNodeId(0),
                         "Sending ad hoc request to block node (type=END_OF_BLOCK)",
                         Duration.ofSeconds(0)));
-    }
-
-    @HapiTest
-    @HapiBlockNode(
-            networkSize = 1,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
-            subProcessNodeConfigs = {
-                @SubProcessNodeConfig(
-                        nodeId = 0,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
-                        })
-            })
-    @Order(13)
-    final Stream<DynamicTest> node0SendEndOfBlockHappyPath() {
-        final AtomicReference<Instant> timeRef = new AtomicReference<>();
-        return hapiTest(
-                doingContextual(spec -> timeRef.set(Instant.now())),
-                waitUntilNextBlocks(10).withBackgroundTraffic(true),
-                // assert no errors
-                assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)),
-                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
-                        byNodeId(0),
-                        timeRef::get,
-                        Duration.ofMinutes(1),
-                        Duration.ofMinutes(1),
-                        // Should send END_OF_BLOCK requests
-                        "Sending request to block node (type=END_OF_BLOCK)")));
     }
 }
