@@ -1182,7 +1182,7 @@ class BlockStreamManagerImplTest {
         given(blockHashSigner.isReady()).willReturn(true);
 
         // Initialize and start first round (block not yet closed)
-        subject.initLastBlockHash(N_MINUS_2_BLOCK_HASH);
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
         subject.startRound(round, state);
         subject.writeItem(FAKE_SIGNED_TRANSACTION);
         subject.endRound(state, ROUND_NO);
