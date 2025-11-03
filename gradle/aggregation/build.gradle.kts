@@ -1,13 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-plugins {
-    id("org.hiero.gradle.base.lifecycle")
-    id("org.hiero.gradle.base.version")
-    id("org.hiero.gradle.report.code-coverage")
-    id("org.hiero.gradle.check.spotless")
-    id("org.hiero.gradle.check.spotless-kotlin")
-    id("org.hiero.gradle.feature.publish-maven-central-aggregation")
-}
-
 dependencies {
     published(project(":app"))
     published(project(":hedera-protobuf-java-api"))
@@ -18,7 +9,7 @@ dependencies {
     implementation(project(":ISSTestingTool"))
     implementation(project(":MigrationTestingTool"))
     implementation(project(":PlatformTestingTool"))
-    // projects that only contains tests (and no production code)
+    // projects that only contain tests (and no production code)
     implementation(project(":test-clients"))
     implementation(project(":consensus-otter-docker-app"))
     implementation(project(":consensus-otter-tests"))
