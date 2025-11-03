@@ -174,7 +174,7 @@ jobs:
         with:
           check_name: "Node: Otter Tests Results"
           json_thousands_separator: ","
-          junit_files: "**/consensus-otter-tests/build/test-results/testOtter/TEST-*.xml"
+          junit_files: "**/consensus-otter-tests/build/test-results/testContainer/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload Full Otter Tests Report Artifacts
@@ -182,7 +182,7 @@ jobs:
         if: ${{ inputs.enable-full-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           name: Otter Tests Report
-          path: "**/consensus-otter-tests/build/test-results/testOtter/TEST-*.xml"
+          path: "**/consensus-otter-tests/build/test-results/testContainer/TEST-*.xml"
           retention-days: 7
 
       - name: Upload Full Otter Tests Turtle Logs
