@@ -1173,39 +1173,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             final PublishStreamRequest req =
                     PublishStreamRequest.newBuilder().blockItems(itemSet).build();
 
-            if (logger.isTraceEnabled()) {
-                // gather information about what type of items are in the request
-
-                int headerIndex = -1;
-                int itemStartIndex = -1;
-                int itemEndIndex = -1;
-                int proofIndex = -1;
-                for (int i = 0; i < pendingRequestItems.size(); ++i) {
-                    final BlockItem item = pendingRequestItems.get(i);
-                    switch (item.item().kind()) {
-                        case BLOCK_HEADER -> headerIndex = i;
-                        case BLOCK_PROOF -> proofIndex = i;
-                        default -> {
-                            if (itemStartIndex == -1) {
-                                itemStartIndex = i;
-                            }
-                            itemEndIndex = Math.max(itemEndIndex, i);
-                        }
-                    }
-                }
-
-                logger.trace(
-                        "{} Request details: block={}, request={}, items={}, headerIndex={}, otherItemsIndexRange=[{}, {}], proofIndex={}",
-                        BlockNodeConnection.this,
-                        block.blockNumber(),
-                        requestCtr.get(),
-                        pendingRequestItems.size(),
-                        headerIndex,
-                        itemStartIndex,
-                        itemEndIndex,
-                        proofIndex);
-            }
-
             logger.trace(
                     "{} Attempting to send request (block={}, request={}, itemCount={}, estimatedBytes={} actualBytes={})",
                     BlockNodeConnection.this,
