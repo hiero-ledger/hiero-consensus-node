@@ -142,6 +142,7 @@ public class TransactionDispatcher {
                     CONSENSUS_DELETE_TOPIC,
                     CRYPTO_DELETE,
                     CRYPTO_CREATE_ACCOUNT -> true;
+            case TOKEN_CREATION -> true;
             default -> false;
         };
     }
