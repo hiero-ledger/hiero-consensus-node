@@ -645,7 +645,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(connectionManager).rescheduleConnection(connection, Duration.ofSeconds(30), null, true);
         verify(bufferService).getBlockState(10L);
         verify(bufferService, times(2)).getEarliestAvailableBlockNumber();
-        verify(bufferService).getLatestAvailableBlockNumber();
+        verify(bufferService).getLastBlockNumberProduced();
         verify(bufferService).getHighestAckedBlockNumber();
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);

@@ -617,7 +617,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             if (resendBlockNumber < blockBufferService.getEarliestAvailableBlockNumber()) {
                 // Indicate that the block node should catch up from another trustworthy block node
                 endStreamAndReschedule(TOO_FAR_BEHIND);
-            } else if (resendBlockNumber > blockBufferService.getLatestAvailableBlockNumber()) {
+            } else if (resendBlockNumber > blockBufferService.getLastBlockNumberProduced()) {
                 endStreamAndReschedule(ERROR);
             }
         }
