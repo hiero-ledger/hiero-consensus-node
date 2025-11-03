@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.metrics.event;
 
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;

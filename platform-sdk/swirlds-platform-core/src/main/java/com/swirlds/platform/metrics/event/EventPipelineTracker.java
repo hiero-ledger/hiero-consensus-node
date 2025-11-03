@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.metrics.event;
 
 import com.swirlds.base.time.Time;
@@ -31,21 +32,13 @@ public class EventPipelineTracker {
      */
     public EventPipelineTracker(@NonNull final Metrics metrics, @NonNull final Time time) {
         int step = 1;
-        this.hashing = new MaxDurationMetric(metrics, time, "eventDelay.%d.hashing"
-                .formatted(step++));
-        this.validation = new MaxDurationMetric(metrics, time, "eventDelay.%d.validation"
-                .formatted(step++));
-        this.deduplication = new MaxDurationMetric(metrics, time, "eventDelay.%d.deduplication"
-                .formatted(step++));
-        this.sigVerification = new MaxDurationMetric(metrics, time, "eventDelay.%d.verification"
-                .formatted(step++));
-        this.orphanBuffer = new MaxDurationMetric(metrics, time, "eventDelay.%d.orphanBuffer"
-                .formatted(step++));
-        this.pces = new MaxDurationMetric(metrics, time, "eventDelay.%d.pces"
-                .formatted(step++));
-        this.consensus = new MaxDurationMetric(metrics, time, "eventDelay.%d.consensus"
-                .formatted(step));
-
+        this.hashing = new MaxDurationMetric(metrics, time, "eventDelay.%d.hashing".formatted(step++));
+        this.validation = new MaxDurationMetric(metrics, time, "eventDelay.%d.validation".formatted(step++));
+        this.deduplication = new MaxDurationMetric(metrics, time, "eventDelay.%d.deduplication".formatted(step++));
+        this.sigVerification = new MaxDurationMetric(metrics, time, "eventDelay.%d.verification".formatted(step++));
+        this.orphanBuffer = new MaxDurationMetric(metrics, time, "eventDelay.%d.orphanBuffer".formatted(step++));
+        this.pces = new MaxDurationMetric(metrics, time, "eventDelay.%d.pces".formatted(step++));
+        this.consensus = new MaxDurationMetric(metrics, time, "eventDelay.%d.consensus".formatted(step));
     }
 
     /**
@@ -93,8 +86,10 @@ public class EventPipelineTracker {
         if (events.isEmpty()) {
             return;
         }
-        orphanBuffer.update(events.stream().map(PlatformEvent::getTimeReceived)
-                .max(Comparator.naturalOrder()).get());
+        orphanBuffer.update(events.stream()
+                .map(PlatformEvent::getTimeReceived)
+                .max(Comparator.naturalOrder())
+                .get());
     }
 
     /**
@@ -112,8 +107,7 @@ public class EventPipelineTracker {
      * @param output the consensus engine output containing the rounds that reached consensus
      */
     public void afterConsensus(@NonNull final ConsensusEngineOutput output) {
-        final Optional<Instant> max = output.consensusRounds()
-                .stream()
+        final Optional<Instant> max = output.consensusRounds().stream()
                 .map(ConsensusRound::getConsensusEvents)
                 .flatMap(List::stream)
                 .map(PlatformEvent::getTimeReceived)
