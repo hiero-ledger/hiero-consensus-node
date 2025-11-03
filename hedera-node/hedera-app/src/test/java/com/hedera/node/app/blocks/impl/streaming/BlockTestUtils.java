@@ -223,8 +223,6 @@ public class BlockTestUtils {
         final BlockProof proof = BlockProof.newBuilder()
                 .block(blockNumber)
                 .verificationKey(VERIFICATION_KEY)
-                // TODO: add TssSigned or StateProof (includes sig)
-                // ???what about history proof?
                 .build();
         return BlockItem.newBuilder().blockProof(proof).build();
     }
