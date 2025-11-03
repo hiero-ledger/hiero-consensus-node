@@ -335,7 +335,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                                 blockStreamInfo.outputItemRootHash(),
                                 lastBlockFinalStateChangesHash,
                                 blockStreamInfo.traceDataRootHash(),
-                                blockStreamInfo.blockStartConsensusTimestamp())
+                                blockStreamInfo.blockTime())
                         .blockRootHash());
         requireNonNull(calculatedLastBlockHash);
         this.lastBlockHash = calculatedLastBlockHash;
@@ -579,7 +579,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     consensusHeaderHash,
                     outputsHash,
                     traceDataHash,
-                    asTimestamp(blockTimestamp),
                     previousBlockHashes.intermediateHashingState(),
                     previousBlockHashes.leafCount());
             blockStreamInfoState.put(newBlockStreamInfo);
@@ -601,7 +600,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     outputsHash,
                     stateChangesHash,
                     traceDataHash,
-                    newBlockStreamInfo.blockStartConsensusTimestamp());
+                    newBlockStreamInfo.blockTime());
             final var finalBlockRootHash = rootAndSiblingHashes.blockRootHash();
 
             // Create BlockFooter with the three essential hashes:
