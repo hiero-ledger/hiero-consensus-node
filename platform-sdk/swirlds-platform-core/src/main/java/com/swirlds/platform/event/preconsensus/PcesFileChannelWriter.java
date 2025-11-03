@@ -20,7 +20,7 @@ import org.hiero.base.utility.MemoryUtils;
  */
 public class PcesFileChannelWriter implements PcesFileWriter {
     /** The capacity of the ByteBuffer used to write events */
-    private static final int BUFFER_CAPACITY = 1024 * 1024 * 10;
+    static final int BUFFER_CAPACITY = 1024 * 1024 * 10;
     /** The file channel for writing events */
     private final FileChannel channel;
     /** The buffer used to hold data being written to the file */
