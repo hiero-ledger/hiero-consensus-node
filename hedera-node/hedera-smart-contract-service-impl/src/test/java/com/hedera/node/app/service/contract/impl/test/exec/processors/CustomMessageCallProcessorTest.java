@@ -128,8 +128,8 @@ class CustomMessageCallProcessorTest {
         given(frame.getMessageFrameStack()).willReturn(stack);
         given(frame.getContextVariable(OPS_DURATION_COUNTER)).willReturn(OpsDurationCounter.disabled());
         given(stack.getLast()).willReturn(frame);
-        given(result.getOutput()).willReturn(OUTPUT_DATA);
-        given(result.getState()).willReturn(MessageFrame.State.CODE_SUCCESS);
+        given(result.output()).willReturn(OUTPUT_DATA);
+        given(result.state()).willReturn(MessageFrame.State.CODE_SUCCESS);
         given(contractMetrics.opsDurationMetrics()).willReturn(mock(OpsDurationMetrics.class));
 
         subject.start(frame, operationTracer);

@@ -20,7 +20,7 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
@@ -44,7 +44,7 @@ public class IsAuthorizedRawCall extends AbstractCall {
     private final byte[] messageHash;
     private final byte[] signature;
 
-    private final CustomGasCalculator customGasCalculator;
+    private final HederaGasCalculatorImpl hederaGasCalculatorImpl;
 
     private final SignatureVerifier signatureVerifier;
 
@@ -59,12 +59,12 @@ public class IsAuthorizedRawCall extends AbstractCall {
             final Address address,
             @NonNull final byte[] messageHash,
             @NonNull final byte[] signature,
-            @NonNull final CustomGasCalculator customGasCalculator) {
+            @NonNull final HederaGasCalculatorImpl hederaGasCalculatorImpl) {
         super(attempt.systemContractGasCalculator(), attempt.enhancement(), true);
         this.address = requireNonNull(address);
         this.messageHash = requireNonNull(messageHash);
         this.signature = requireNonNull(signature);
-        this.customGasCalculator = requireNonNull(customGasCalculator);
+        this.hederaGasCalculatorImpl = requireNonNull(hederaGasCalculatorImpl);
         signatureVerifier = requireNonNull(attempt.signatureVerifier());
     }
 
@@ -78,12 +78,12 @@ public class IsAuthorizedRawCall extends AbstractCall {
         // Now we know how much gas this call will cost
         final long gasRequirement =
                 switch (signatureType) {
-                    case EC -> customGasCalculator.getEcrecPrecompiledContractGasCost();
-                    case ED -> customGasCalculator.getEdSignatureVerificationSystemContractGasCost();
+                    case EC -> hederaGasCalculatorImpl.getEcrecPrecompiledContractGasCost();
+                    case ED -> hederaGasCalculatorImpl.getEdSignatureVerificationSystemContractGasCost();
                     case INVALID ->
                         Math.min(
-                                customGasCalculator.getEcrecPrecompiledContractGasCost(),
-                                customGasCalculator.getEdSignatureVerificationSystemContractGasCost());
+                                hederaGasCalculatorImpl.getEcrecPrecompiledContractGasCost(),
+                                hederaGasCalculatorImpl.getEdSignatureVerificationSystemContractGasCost());
                 };
 
         // Prepare the short-circuit error status returns

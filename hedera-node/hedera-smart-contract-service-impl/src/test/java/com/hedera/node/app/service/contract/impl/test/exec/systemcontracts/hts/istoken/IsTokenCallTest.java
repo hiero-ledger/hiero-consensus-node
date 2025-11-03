@@ -23,13 +23,13 @@ class IsTokenCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(IsKycTranslator.IS_KYC
                         .getOutputs()
                         .encode(Tuple.of(SUCCESS.protoOrdinal(), true))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -38,12 +38,12 @@ class IsTokenCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(IsKycTranslator.IS_KYC
                         .getOutputs()
                         .encode(Tuple.of(SUCCESS.protoOrdinal(), false))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 }

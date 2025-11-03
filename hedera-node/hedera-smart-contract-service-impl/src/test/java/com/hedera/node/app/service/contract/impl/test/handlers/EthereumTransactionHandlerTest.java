@@ -35,7 +35,9 @@ import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextTransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
+import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationProcessor;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.tracers.EvmActionTracer;
@@ -71,7 +73,6 @@ import java.math.BigInteger;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BiConsumer;
-import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -149,7 +150,7 @@ class EthereumTransactionHandlerTest {
     private HederaEvmAccount senderAccount;
 
     @Mock
-    private GasCalculator gasCalculator;
+    private HederaGasCalculator gasCalculator;
 
     @Mock
     private EthTxData ethTxDataReturned;
@@ -162,6 +163,9 @@ class EthereumTransactionHandlerTest {
 
     @Mock
     private EvmFrameStates evmFrameStates;
+
+    @Mock
+    private CodeDelegationProcessor codeDelegationProcessor;
 
     private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
 
@@ -195,7 +199,8 @@ class EthereumTransactionHandlerTest {
                 hevmTransactionFactory,
                 transactionProcessor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                codeDelegationProcessor);
 
         given(component.contextTransactionProcessor()).willReturn(contextTransactionProcessor);
         final var body = TransactionBody.newBuilder()

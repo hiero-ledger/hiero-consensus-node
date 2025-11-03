@@ -84,8 +84,8 @@ class Erc20TransfersCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(Bytes.wrap(INVALID_TOKEN_ID.protoName().getBytes()), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(Bytes.wrap(INVALID_TOKEN_ID.protoName().getBytes()), result.output());
     }
 
     @Test
@@ -107,8 +107,8 @@ class Erc20TransfersCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
-        assertEquals(asBytesResult(ERC_20_TRANSFER.getOutputs().encode(Tuple.singleton(true))), result.getOutput());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
+        assertEquals(asBytesResult(ERC_20_TRANSFER.getOutputs().encode(Tuple.singleton(true))), result.output());
     }
 
     @Test
@@ -130,9 +130,8 @@ class Erc20TransfersCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
-        assertEquals(
-                asBytesResult(ERC_20_TRANSFER_FROM.getOutputs().encode(Tuple.singleton(true))), result.getOutput());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
+        assertEquals(asBytesResult(ERC_20_TRANSFER_FROM.getOutputs().encode(Tuple.singleton(true))), result.output());
     }
 
     @Test
@@ -150,8 +149,8 @@ class Erc20TransfersCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(readableRevertReason(INSUFFICIENT_ACCOUNT_BALANCE), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(readableRevertReason(INSUFFICIENT_ACCOUNT_BALANCE), result.output());
     }
 
     private void givenSynthIdHelperWithFrom() {

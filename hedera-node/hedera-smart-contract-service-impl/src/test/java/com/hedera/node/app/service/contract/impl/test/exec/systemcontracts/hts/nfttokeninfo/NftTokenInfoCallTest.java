@@ -68,7 +68,7 @@ class NftTokenInfoCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(NftTokenInfoTranslator.NON_FUNGIBLE_TOKEN_INFO
                         .getOutputs()
@@ -102,7 +102,7 @@ class NftTokenInfoCallTest extends CallTestBase {
                                                 .toByteArray(),
                                         headlongAddressOf(CIVILIAN_OWNED_NFT.spenderId()))))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -127,7 +127,7 @@ class NftTokenInfoCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(NON_FUNGIBLE_TOKEN_INFO_16C
                         .getOutputs()
@@ -163,7 +163,7 @@ class NftTokenInfoCallTest extends CallTestBase {
                                                 .toByteArray(),
                                         headlongAddressOf(CIVILIAN_OWNED_NFT.spenderId()))))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -177,7 +177,7 @@ class NftTokenInfoCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(NftTokenInfoTranslator.NON_FUNGIBLE_TOKEN_INFO
                         .getOutputs()
@@ -210,7 +210,7 @@ class NftTokenInfoCallTest extends CallTestBase {
                                         com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY.toByteArray(),
                                         headlongAddressOf(ZERO_ACCOUNT_ID))))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -220,8 +220,8 @@ class NftTokenInfoCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.output());
     }
 
     @Test
@@ -231,7 +231,7 @@ class NftTokenInfoCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.output());
     }
 }

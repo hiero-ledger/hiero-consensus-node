@@ -9,6 +9,7 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
+import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationProcessor;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.tracers.AddOnEvmActionTracer;
@@ -60,6 +61,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
     private final HevmTransactionFactory hevmTransactionFactory;
     private final CustomGasCharging gasCharging;
     private final ContractMetrics contractMetrics;
+    private final CodeDelegationProcessor codeDelegationProcessor;
 
     /**
      * @param hydratedEthTxData the hydrated Ethereum transaction data
@@ -87,7 +89,8 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
             @NonNull final HevmTransactionFactory hevmTransactionFactory,
             @NonNull final TransactionProcessor processor,
             @NonNull final CustomGasCharging customGasCharging,
-            @NonNull final ContractMetrics contractMetrics) {
+            @NonNull final ContractMetrics contractMetrics,
+            @NonNull final CodeDelegationProcessor codeDelegationProcessor) {
         this.context = requireNonNull(context);
         this.hydratedEthTxData = hydratedEthTxData;
         this.addOnTracers = addOnTracers;
@@ -100,6 +103,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         this.hevmTransactionFactory = requireNonNull(hevmTransactionFactory);
         this.gasCharging = requireNonNull(customGasCharging);
         this.contractMetrics = requireNonNull(contractMetrics);
+        this.codeDelegationProcessor = requireNonNull(codeDelegationProcessor);
     }
 
     @Override
@@ -126,6 +130,8 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
 
             return outcome;
         }
+
+        possiblyProcessCodeDelegations(hevmTransaction);
 
         final ThrottleAdviser throttleAdviser =
                 rootProxyWorldUpdater.enhancement().operations().getThrottleAdviser();
@@ -155,6 +161,8 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         } else {
             opsDurationCounter = OpsDurationCounter.disabled();
         }
+
+        // Handle code delegations
 
         // Process the transaction and return its outcome
         try {
@@ -300,5 +308,12 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
 
     private @Nullable EthTxData ethTxDataIfApplicable() {
         return hydratedEthTxData == null ? null : hydratedEthTxData.ethTxData();
+    }
+
+    private void possiblyProcessCodeDelegations(@NonNull final HederaEvmTransaction hevmTransaction) {
+        if ((hydratedEthTxData != null && hydratedEthTxData.ethTxData() != null)
+                && contractsConfig.evmPectraEnabled()) {
+            codeDelegationProcessor.process(rootProxyWorldUpdater, hevmTransaction);
+        }
     }
 }
