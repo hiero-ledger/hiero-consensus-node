@@ -112,7 +112,7 @@ import org.junit.jupiter.api.Assertions;
 public class StateChangesValidator implements BlockStreamValidator {
 
     private static final Logger logger = LogManager.getLogger(StateChangesValidator.class);
-    private static final long DEFAULT_HINTS_THRESHOLD_DENOMINATOR = 3;
+    private static final long DEFAULT_HINTS_THRESHOLD_DENOMINATOR = 2;
     private static final SplittableRandom RANDOM = new SplittableRandom(System.currentTimeMillis());
     private static final MerkleCryptography CRYPTO = TestMerkleCryptoFactory.getInstance();
 
