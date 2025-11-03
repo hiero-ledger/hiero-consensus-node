@@ -1440,6 +1440,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordActiveConnectionIp(-1L);
         verify(bufferService, times(2)).getEarliestAvailableBlockNumber();
         verify(bufferService).getHighestAckedBlockNumber();
+        verify(connectionManager).notifyConnectionClosed(connection);
         verify(connectionManager).rescheduleConnection(connection, Duration.ofSeconds(30), null, true);
 
         final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);
