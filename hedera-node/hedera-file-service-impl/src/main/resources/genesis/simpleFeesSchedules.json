@@ -154,7 +154,7 @@
       "schedule": [
         {
           "name": "TokenCreate",
-          "baseFee": 25,
+          "baseFee": 10000000000,
           "extras": [
           ]
         },
