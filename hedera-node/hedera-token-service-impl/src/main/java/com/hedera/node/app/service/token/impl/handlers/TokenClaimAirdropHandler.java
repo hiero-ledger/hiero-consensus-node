@@ -50,6 +50,10 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.TokensConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.hapi.fees.FeeModelRegistry;
+import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
+
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -162,7 +166,7 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
      * @param context the handle context
      * @param op the token claim airdrop transaction body
      * @param accountStore the account store
-     * @return a list of validated pending airdrop ids using the {@code 0.0.X} reference for both sender and receiver
+     * @return a set of validated pending airdrop ids using the {@code 0.0.X} reference for both sender and receiver
      * @throws HandleException if the transaction is invalid
      */
     private Set<PendingAirdropId> validateSemantics(
@@ -194,6 +198,7 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
         return standardAirdropIds;
     }
 
+    @NonNull
     @Override
     public Fees calculateFees(@NonNull FeeContext feeContext) {
         var tokensConfig = feeContext.configuration().getConfigData(TokensConfig.class);
@@ -204,6 +209,18 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
         return feeCalculator
                 .addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1))
                 .calculate();
+    }
+
+    @NonNull
+    @Override
+    public FeeResult calculateFeeResult(@NonNull FeeContext feeContext) {
+       final var feeModel = FeeModelRegistry.lookupModel(HederaFunctionality.TOKEN_CLAIM_AIRDROP);
+
+        final Map<Extra, Long> params = new HashMap<>();
+        params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
+
+        return feeModel.computeFee(
+                params, feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT).getSimpleFeesSchedule());
     }
 
     private void createOrUpdateTransfers(

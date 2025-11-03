@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_R
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PENDING_NFT_AIRDROP_ALREADY_EXISTS;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.AssociateTokenRecipientsStep.PLACEHOLDER_SYNTHETIC_ASSOCIATION;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.AssociateTokenRecipientsStep.associationFeeFor;
 import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.createAccountPendingAirdrop;
@@ -17,6 +18,8 @@ import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.c
 import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.separateFungibleTransfers;
 import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.separateNftTransfers;
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferHelper.createAccountAmount;
+import static com.hedera.node.app.spi.fees.util.FeeUtils.feeResultToFees;
+import static com.hedera.node.app.spi.fees.util.FeeUtils.feesToFeeResult;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.lang.Math.toIntExact;
 import static java.util.Objects.requireNonNull;
@@ -56,18 +59,24 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.TokensConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.hapi.fees.FeeModelRegistry;
+import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
 
 /**
  * This class contains all workflow-related functionality regarding {@link
@@ -513,11 +522,20 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
      * @return the airdrop fee
      */
     private long airdropFee(final HandleContext feeContext) {
-        return ((FeeContext) feeContext)
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .calculate()
-                .totalFee();
+        final var context = ((FeeContext) feeContext);
+        final var feeCalculator = context.feeCalculatorFactory().feeCalculator(SubType.DEFAULT);
+
+        if (feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
+            Map<Extra, Long> params = new HashMap<>();
+            params.put(Extra.SIGNATURES, (long) context.numTxnSignatures());
+
+            final var feeModel = FeeModelRegistry.lookupModel(HederaFunctionality.TOKEN_AIRDROP);
+            final var feeResult = feeModel.computeFee(params, feeCalculator.getSimpleFeesSchedule());
+            final var fee = feeResultToFees(feeResult, fromPbj(context.activeRate()));
+            return fee.totalFee();
+        }
+
+        return feeCalculator.calculate().totalFee();
     }
 
     /**
@@ -535,6 +553,18 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
         // Always charge CryptoTransferFee as base price and then each time a pending airdrop is created
         // we charge airdrop fee in handle
         return calculateCryptoTransferFees(feeContext, op.tokenTransfers());
+    }
+
+    @Override
+    @NonNull
+    public FeeResult calculateFeeResult(@NonNull FeeContext feeContext) {
+        requireNonNull(feeContext);
+        var tokenAirdrop = feeContext.body().tokenAirdropOrThrow();
+
+        // Calculate fees and convert to FeeResult
+        Fees fees = calculateCryptoTransferFees(feeContext, tokenAirdrop.tokenTransfers());
+        var rate = feeContext.activeRate();
+        return feesToFeeResult(fees, fromPbj(rate));
     }
 
     /**
