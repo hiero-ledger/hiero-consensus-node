@@ -24,6 +24,7 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
+import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.fees.FeeManager;
@@ -98,6 +99,7 @@ public class ParentTxnFactory {
     private final Authorizer authorizer;
     private final NetworkInfo networkInfo;
     private final FeeManager feeManager;
+    private final AppFeeCharging appFeeCharging;
     private final DispatchProcessor dispatchProcessor;
     private final ServiceScopeLookup serviceScopeLookup;
     private final ExchangeRateManager exchangeRateManager;
@@ -119,6 +121,7 @@ public class ParentTxnFactory {
             @NonNull final Authorizer authorizer,
             @NonNull final NetworkInfo networkInfo,
             @NonNull final FeeManager feeManager,
+            @NonNull final AppFeeCharging appFeeCharging,
             @NonNull final DispatchProcessor dispatchProcessor,
             @NonNull final ServiceScopeLookup serviceScopeLookup,
             @NonNull final ExchangeRateManager exchangeRateManager,
@@ -136,6 +139,7 @@ public class ParentTxnFactory {
         this.authorizer = requireNonNull(authorizer);
         this.networkInfo = requireNonNull(networkInfo);
         this.feeManager = requireNonNull(feeManager);
+        this.appFeeCharging = requireNonNull(appFeeCharging);
         this.dispatcher = requireNonNull(dispatcher);
         this.networkUtilizationManager = requireNonNull(networkUtilizationManager);
         this.dispatchProcessor = requireNonNull(dispatchProcessor);
@@ -332,7 +336,6 @@ public class ParentTxnFactory {
         final var throttleAdvisor = new AppThrottleAdviser(networkUtilizationManager, consensusNow);
         final var feeAccumulator = new FeeAccumulator(
                 serviceApiFactory.getApi(TokenServiceApi.class), (FeeStreamBuilder) baseBuilder, stack);
-
         final var dispatchHandleContext = new DispatchHandleContext(
                 consensusNow,
                 creatorInfo,
@@ -342,6 +345,7 @@ public class ParentTxnFactory {
                 streamMode != RECORDS ? blockStreamManager : blockRecordManager,
                 priceCalculator,
                 feeManager,
+                appFeeCharging,
                 storeFactory,
                 requireNonNull(txnInfo.payerID()),
                 keyVerifier,

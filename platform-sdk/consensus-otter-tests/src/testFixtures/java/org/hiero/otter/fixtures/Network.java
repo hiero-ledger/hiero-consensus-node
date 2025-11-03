@@ -2,8 +2,10 @@
 package org.hiero.otter.fixtures;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.common.test.fixtures.WeightGenerators;
+import com.swirlds.platform.reconnect.FallenBehindStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
@@ -32,7 +34,7 @@ import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
  * <p>This interface provides methods to add and remove nodes, start the network, and add instrumented nodes.
  */
 @SuppressWarnings("unused")
-public interface Network {
+public interface Network extends Configurable<Network> {
 
     /**
      * Get the list of nodes in the network.
@@ -128,6 +130,16 @@ public interface Network {
     default long totalWeight() {
         return nodes().stream().mapToLong(Node::weight).sum();
     }
+
+    /**
+     * Gets the roster of the network. This method can only be called after the network has been started, because the
+     * roster is created during startup.
+     *
+     * @return the roster of the network
+     * @throws IllegalStateException if the network has not been started yet
+     */
+    @NonNull
+    Roster roster();
 
     /**
      * Start the network with the currently configured setup.
@@ -259,72 +271,6 @@ public interface Network {
     void restoreConnectivity();
 
     /**
-     * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
-     * in the network are running.
-     *
-     * @param key the key of the property
-     * @param value the value of the property
-     * @return this {@code Network} instance for method chaining
-     */
-    @NonNull
-    Network withConfigValue(@NonNull String key, @NonNull String value);
-
-    /**
-     * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
-     * in the network are running.
-     *
-     * @param key the key of the property
-     * @param value the value of the property
-     * @return this {@code Network} instance for method chaining
-     */
-    @NonNull
-    Network withConfigValue(@NonNull String key, @NonNull Duration value);
-
-    /**
-     * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
-     * in the network are running.
-     *
-     * @param key the key of the property
-     * @param value the value of the property
-     * @return this {@code Network} instance for method chaining
-     */
-    @NonNull
-    Network withConfigValue(@NonNull String key, int value);
-
-    /**
-     * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
-     * in the network are running.
-     *
-     * @param key the key of the property
-     * @param value the value of the property
-     * @return this {@code Network} instance for method chaining
-     */
-    @NonNull
-    Network withConfigValue(@NonNull String key, long value);
-
-    /**
-     * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
-     * in the network are running.
-     *
-     * @param key the key of the property
-     * @param value the value of the property
-     * @return this {@code Network} instance for method chaining
-     */
-    @NonNull
-    Network withConfigValue(@NonNull String key, boolean value);
-
-    /**
-     * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
-     * in the network are running.
-     *
-     * @param key the key of the property
-     * @param value the value of the property
-     * @return this {@code Network} instance for method chaining
-     */
-    @NonNull
-    Network withConfigValue(@NonNull String key, @NonNull Path value);
-
-    /**
      * Freezes the network.
      *
      * <p>This method sends a freeze transaction to one of the active nodes with a freeze time shortly after the
@@ -442,7 +388,7 @@ public interface Network {
      *
      * @param maybeBehindNode the node to check behind status for
      * @return {@code true} if the node is behind by node weight, {@code false} otherwise
-     * @see com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus
+     * @see FallenBehindStatus
      */
     boolean nodeIsBehindByNodeWeight(@NonNull Node maybeBehindNode);
 
@@ -452,10 +398,10 @@ public interface Network {
      *
      * @param maybeBehindNode the node to check behind status for
      * @return {@code true} if the node is behind by the specified fraction of peers, {@code false} otherwise
-     * @see com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus
+     * @see FallenBehindStatus
      * @see Network#nodesAreBehindByNodeCount(Node, Node...)
      */
-    default boolean nodeIsBehindByNodeCount(@NonNull Node maybeBehindNode) {
+    default boolean nodeIsBehindByNodeCount(@NonNull final Node maybeBehindNode) {
         return nodesAreBehindByNodeCount(maybeBehindNode);
     }
 
@@ -467,7 +413,7 @@ public interface Network {
      * @param maybeBehindNode the node to check behind status for
      * @param otherNodes additional nodes to consider for the behind check (optional)
      * @return {@code true} if the node is behind by the specified fraction of peers, {@code false} otherwise
-     * @see com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus
+     * @see FallenBehindStatus
      */
     boolean nodesAreBehindByNodeCount(@NonNull Node maybeBehindNode, @Nullable Node... otherNodes);
 
@@ -491,13 +437,15 @@ public interface Network {
     }
 
     /**
-     * Sets the source directory to the state directory for all nodes. The directory is either relative
-     * to {@code platform-sdk/consensus-otter-tests/saved-states} or an absolute path
+     * Sets the source directory to the state directory for all nodes. The directory is either relative to
+     * {@code platform-sdk/consensus-otter-tests/saved-states} or an absolute path
      *
-     * <p>This method sets the directory of all nodes currently added to the network. Please note that the new directory
+     * <p>This method sets the directory of all nodes currently added to the network. Please note that the new
+     * directory
      * will become effective only after a node is (re-)started.
      *
-     * @param savedStateDirectory directory name of the state directory relative to the consensus-otter-tests/saved-states directory
+     * @param savedStateDirectory directory name of the state directory relative to the
+     * consensus-otter-tests/saved-states directory
      */
     void savedStateDirectory(@NonNull final Path savedStateDirectory);
 }

@@ -26,6 +26,7 @@ import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
+import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.fees.FeeManager;
@@ -105,6 +106,7 @@ public class ChildDispatchFactory {
     private final Authorizer authorizer;
     private final NetworkInfo networkInfo;
     private final FeeManager feeManager;
+    private final AppFeeCharging appFeeCharging;
     private final DispatchProcessor dispatchProcessor;
     private final ServiceScopeLookup serviceScopeLookup;
     private final ExchangeRateManager exchangeRateManager;
@@ -117,6 +119,7 @@ public class ChildDispatchFactory {
             @NonNull final Authorizer authorizer,
             @NonNull final NetworkInfo networkInfo,
             @NonNull final FeeManager feeManager,
+            @NonNull final AppFeeCharging appFeeCharging,
             @NonNull final DispatchProcessor dispatchProcessor,
             @NonNull final ServiceScopeLookup serviceScopeLookup,
             @NonNull final ExchangeRateManager exchangeRateManager,
@@ -126,6 +129,7 @@ public class ChildDispatchFactory {
         this.authorizer = requireNonNull(authorizer);
         this.networkInfo = requireNonNull(networkInfo);
         this.feeManager = requireNonNull(feeManager);
+        this.appFeeCharging = requireNonNull(appFeeCharging);
         this.dispatchProcessor = requireNonNull(dispatchProcessor);
         this.serviceScopeLookup = requireNonNull(serviceScopeLookup);
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
@@ -240,7 +244,7 @@ public class ChildDispatchFactory {
             @NonNull final Instant consensusNow,
             @NonNull final DispatchMetadata dispatchMetadata,
             @NonNull final ConsensusThrottling consensusThrottling,
-            @Nullable FeeCharging customFeeCharging,
+            @Nullable final FeeCharging customFeeCharging,
             // @UserTxnScope
             @NonNull final NodeInfo creatorInfo,
             @NonNull final Configuration config,
@@ -268,6 +272,7 @@ public class ChildDispatchFactory {
         final var storeFactory = new StoreFactoryImpl(readableStoreFactory, writableStoreFactory, serviceApiFactory);
         final var childFeeAccumulator = new FeeAccumulator(
                 serviceApiFactory.getApi(TokenServiceApi.class), (FeeStreamBuilder) builder, childStack);
+        final var feeCharging = customFeeCharging != null ? customFeeCharging : appFeeCharging;
         final var dispatchHandleContext = new DispatchHandleContext(
                 consensusNow,
                 creatorInfo,
@@ -277,6 +282,7 @@ public class ChildDispatchFactory {
                 blockRecordInfo,
                 priceCalculator,
                 feeManager,
+                feeCharging,
                 storeFactory,
                 payerId,
                 keyVerifier,

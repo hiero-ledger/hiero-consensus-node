@@ -806,12 +806,11 @@ public class PlatformComponentBuilder {
                     blocks.appVersion(),
                     blocks.swirldStateManager(),
                     () -> blocks.getLatestCompleteStateReference().get().get(),
-                    x -> blocks.statusActionSubmitterReference().get().submitStatusAction(x),
-                    state -> blocks.loadReconnectStateReference().get().accept(state),
-                    () -> blocks.clearAllPipelinesForReconnectReference().get().run(),
                     blocks.intakeEventCounter(),
                     blocks.platformStateFacade(),
-                    blocks.createStateFromVirtualMap());
+                    blocks.createStateFromVirtualMap(),
+                    blocks.fallenBehindMonitor(),
+                    blocks.reservedSignedStateResultPromise());
         }
         return gossip;
     }
@@ -1046,7 +1045,9 @@ public class PlatformComponentBuilder {
                     blocks.swirldStateManager(),
                     blocks.statusActionSubmitterReference().get(),
                     blocks.appVersion(),
-                    blocks.platformStateFacade());
+                    blocks.platformStateFacade(),
+                    blocks.consensusStateEventHandler(),
+                    blocks.selfId());
         }
         return transactionHandler;
     }

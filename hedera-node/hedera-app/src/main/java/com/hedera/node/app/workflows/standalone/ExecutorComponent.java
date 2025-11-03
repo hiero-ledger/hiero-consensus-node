@@ -14,7 +14,7 @@ import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
 import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.ServicesInjectionModule;
 import com.hedera.node.app.spi.AppContext;
-import com.hedera.node.app.spi.throttle.Throttle;
+import com.hedera.node.app.spi.throttle.ScheduleThrottle;
 import com.hedera.node.app.state.HederaStateInjectionModule;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.throttle.ThrottleServiceModule;
@@ -82,7 +82,7 @@ public interface ExecutorComponent {
         Builder metrics(Metrics metrics);
 
         @BindsInstance
-        Builder throttleFactory(Throttle.Factory throttleFactory);
+        Builder throttleFactory(ScheduleThrottle.Factory throttleFactory);
 
         @BindsInstance
         Builder appContext(AppContext appContext);
