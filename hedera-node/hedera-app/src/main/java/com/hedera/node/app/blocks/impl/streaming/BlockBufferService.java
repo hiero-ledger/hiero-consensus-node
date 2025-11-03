@@ -618,7 +618,6 @@ public class BlockBufferService {
         newEarliestBlock = newEarliestBlock == Long.MAX_VALUE ? Long.MIN_VALUE : newEarliestBlock;
         newLatestBlock = newLatestBlock == Long.MIN_VALUE ? -1 : newLatestBlock;
         earliestBlockNumber.set(newEarliestBlock);
-        lastProducedBlockNumber.set(newLatestBlock);
 
         blockStreamMetrics.recordNumberOfBlocksPruned(numPruned);
         blockStreamMetrics.recordBufferOldestBlock(newEarliestBlock == Long.MIN_VALUE ? -1 : newEarliestBlock);
