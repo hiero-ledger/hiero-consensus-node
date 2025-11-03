@@ -32,11 +32,10 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
-import java.util.stream.IntStream;
-import java.util.stream.Stream;
-
 import com.hedera.services.bdd.spec.transactions.token.HapiTokenClaimAirdrop;
 import com.hedera.services.bdd.suites.hip904.TokenAirdropBase;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -128,8 +127,8 @@ public class AirdropSimpleFeesTest extends TokenAirdropBase {
 
                 // do claim
                 tokenClaimAirdrop(
-                        HapiTokenClaimAirdrop.pendingAirdrop(OWNER, receiver, FUNGIBLE_TOKEN),
-                        HapiTokenClaimAirdrop.pendingNFTAirdrop(OWNER, receiver, NON_FUNGIBLE_TOKEN, 1))
+                                HapiTokenClaimAirdrop.pendingAirdrop(OWNER, receiver, FUNGIBLE_TOKEN),
+                                HapiTokenClaimAirdrop.pendingNFTAirdrop(OWNER, receiver, NON_FUNGIBLE_TOKEN, 1))
                         .payingWith("receiver")
                         .via("claimTxn"), // assert txn record
                 getTxnRecord("claimTxn")
@@ -176,7 +175,7 @@ public class AirdropSimpleFeesTest extends TokenAirdropBase {
                                 .pendingAirdrops(includingFungiblePendingAirdrop(moving(10, FUNGIBLE_TOKEN)
                                         .between(account, RECEIVER_WITH_0_AUTO_ASSOCIATIONS)))),
                 getAccountBalance(RECEIVER_WITH_0_AUTO_ASSOCIATIONS).hasTokenBalance(FUNGIBLE_TOKEN, 0),
-                validateChargedUsd("airdrop", BASE_AIRDROP_FEE+TOKEN_ASSOCIATION_FEE, 1),
+                validateChargedUsd("airdrop", BASE_AIRDROP_FEE + TOKEN_ASSOCIATION_FEE, 1),
 
                 // Cancel the airdrop
                 tokenCancelAirdrop(pendingAirdrop(account, RECEIVER_WITH_0_AUTO_ASSOCIATIONS, FUNGIBLE_TOKEN))

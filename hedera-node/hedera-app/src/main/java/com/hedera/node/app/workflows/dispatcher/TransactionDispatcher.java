@@ -134,8 +134,8 @@ public class TransactionDispatcher {
                     CONSENSUS_UPDATE_TOPIC,
                     CONSENSUS_DELETE_TOPIC,
                     TOKEN_AIRDROP,
-                 TOKEN_CLAIM_AIRDROP,
-                 TOKEN_CANCEL_AIRDROP-> true;
+                    TOKEN_CLAIM_AIRDROP,
+                    TOKEN_CANCEL_AIRDROP -> true;
             default -> false;
         };
     }
