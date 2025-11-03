@@ -52,9 +52,9 @@ public class QuiescenceTest {
         timeManager.waitFor(Duration.ofSeconds(5));
 
         assertThat(network.newConsensusResults().results().stream()
-                .mapToLong(SingleNodeConsensusResult::lastRoundNum)
-                .distinct()
-                .count())
+                        .mapToLong(SingleNodeConsensusResult::lastRoundNum)
+                        .distinct()
+                        .count())
                 .withFailMessage("All nodes should have the same last round when quiesced")
                 .isEqualTo(1);
         final long lastRoundWhenQuiesced =
