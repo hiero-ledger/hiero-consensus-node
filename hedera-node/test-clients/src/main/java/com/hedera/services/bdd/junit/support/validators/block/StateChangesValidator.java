@@ -354,9 +354,8 @@ public class StateChangesValidator implements BlockStreamValidator {
                 .filter(HintsConstruction::hasHintsScheme)
                 .forEach(c -> preprocessedKeys.put(
                         c.constructionId(), c.hintsSchemeOrThrow().preprocessedKeysOrThrow()));
-        final IncrementalStreamingHasher incrementalBlockHashes =
-                new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0);
-        incrementalBlockHashes.addLeaf(BlockStreamManager.ZERO_BLOCK_HASH.toByteArray());
+        final IncrementalStreamingHasher incrementalBlockHashes = new IncrementalStreamingHasher(
+                CommonUtils.sha384DigestOrThrow(), List.of(BlockStreamManager.ZERO_BLOCK_HASH.toByteArray()), 1);
         for (int i = 0; i < n; i++) {
             final var block = blocks.get(i);
             final var shouldVerifyProof =
@@ -724,7 +723,8 @@ public class StateChangesValidator implements BlockStreamValidator {
             }
         } else {
             final var expectedSignature = Bytes.wrap(noThrowSha384HashOf(provenHash.toByteArray()));
-            assertEquals(expectedSignature, proof.blockSignature(), "Signature mismatch for " + proof);
+            assertEquals(
+                    expectedSignature, proof.signedBlockProof().blockSignature(), "Signature mismatch for " + proof);
         }
     }
 
