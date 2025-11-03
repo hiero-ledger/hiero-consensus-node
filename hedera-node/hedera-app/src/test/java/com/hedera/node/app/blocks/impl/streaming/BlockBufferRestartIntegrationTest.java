@@ -420,7 +420,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
                 .withValue("blockStream.writerMode", "GRPC")
                 .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("blockStream.blockPeriod", BLOCK_PERIOD)
-                .withValue("blockStream.buffer.maxBufferedBlocks", MAX_BUFFERED_BLOCKS)
+                .withValue("blockStream.buffer.maxBlocks", MAX_BUFFERED_BLOCKS)
                 .withValue("blockStream.buffer.isBufferPersistenceEnabled", true)
                 .withValue("blockStream.buffer.bufferDirectory", TEST_DIR)
                 .withValue("blockStream.buffer.actionStageThreshold", 50.0)

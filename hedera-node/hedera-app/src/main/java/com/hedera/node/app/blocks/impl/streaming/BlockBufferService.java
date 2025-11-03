@@ -53,7 +53,7 @@ public class BlockBufferService {
     /**
      * Buffer that stores recent blocks. This buffer is unbounded, however it is technically capped because back
      * pressure will prevent blocks from being created. Generally speaking, the buffer should contain only blocks that
-     * are recent (that are within the configured {@link BlockBufferConfig#maxBufferedBlocks() number}) and have yet to be
+     * are recent (that are within the configured {@link BlockBufferConfig#maxBlocks() number}) and have yet to be
      * acknowledged. There may be cases where older blocks still exist in the buffer if they are unacknowledged, but
      * once they are acknowledged they will be pruned the next time {@link #openBlock(long)} is invoked.
      */
@@ -216,7 +216,7 @@ public class BlockBufferService {
         final int maxBufferedBlocks = configProvider
                 .getConfiguration()
                 .getConfigData(BlockBufferConfig.class)
-                .maxBufferedBlocks();
+                .maxBlocks();
         return maxBufferedBlocks <= 0 ? DEFAULT_BUFFER_SIZE : maxBufferedBlocks;
     }
 
@@ -556,8 +556,8 @@ public class BlockBufferService {
         int size = blockBuffer.size();
         for (final long blockNumber : orderedBuffer) {
             final BlockState block = blockBuffer.get(blockNumber);
-            if (block == null || block.closedTimestamp() == null) {
-                continue; // raced removal
+            if (block.closedTimestamp() == null) {
+                continue; // the block is not finished yet, so skip checking it
             }
             ++numChecked;
 

@@ -494,7 +494,7 @@ public class BlockNodeSuite {
                         blockNodeIds = {0, 1},
                         blockNodePriorities = {0, 1},
                         applicationPropertiesOverrides = {
-                            "blockStream.buffer.maxBufferedBlocks",
+                            "blockStream.buffer.maxBlocks",
                             "30",
                             "blockStream.blockPeriod",
                             BLOCK_PERIOD_SECONDS + "s",
@@ -502,7 +502,8 @@ public class BlockNodeSuite {
                             "BLOCKS",
                             "blockStream.writerMode",
                             "FILE_AND_GRPC",
-                                "blockNode.forcedSwitchRescheduleDelay", "30s"
+                            "blockNode.forcedSwitchRescheduleDelay",
+                            "30s"
                         })
             })
     @Order(6)
@@ -660,7 +661,7 @@ public class BlockNodeSuite {
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BLOCKS",
                             "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.buffer.maxBufferedBlocks", "60",
+                            "blockStream.buffer.maxBlocks", "60",
                             "blockStream.buffer.isBufferPersistenceEnabled", "true",
                             "blockStream.blockPeriod", BLOCK_PERIOD_SECONDS + "s",
                             "blockNode.streamResetPeriod", "20s",
