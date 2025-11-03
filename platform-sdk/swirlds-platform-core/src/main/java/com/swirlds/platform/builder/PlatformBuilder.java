@@ -30,6 +30,8 @@ import com.swirlds.platform.gossip.DefaultIntakeEventCounter;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
+import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise;
+import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.SwirldStateManager;
@@ -37,7 +39,6 @@ import com.swirlds.platform.state.iss.IssScratchpad;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.MerkleNodeState;
@@ -432,7 +433,6 @@ public final class PlatformBuilder {
         final ApplicationCallbacks callbacks =
                 new ApplicationCallbacks(preconsensusEventConsumer, snapshotOverrideConsumer, staleEventConsumer);
 
-        final AtomicReference<StatusActionSubmitter> statusActionSubmitterAtomicReference = new AtomicReference<>();
         final SwirldStateManager swirldStateManager = new SwirldStateManager(platformContext, currentRoster);
 
         if (model == null) {
@@ -446,15 +446,9 @@ public final class PlatformBuilder {
             logger.info(STARTUP.getMarker(), "Default platform pool parallelism: {}", parallelism);
 
             model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
-                    .withJvmAnchorEnabled(true)
+                    .enableJvmAnchor()
                     .withDefaultPool(defaultPool)
-                    .withHealthMonitorEnabled(wiringConfig.healthMonitorEnabled())
-                    .withHardBackpressureEnabled(wiringConfig.hardBackpressureEnabled())
-                    .withHealthMonitorCapacity(wiringConfig.healthMonitorSchedulerCapacity())
-                    .withHealthMonitorPeriod(wiringConfig.healthMonitorHeartbeatPeriod())
-                    .withHealthLogThreshold(wiringConfig.healthLogThreshold())
-                    .withHealthLogPeriod(wiringConfig.healthLogPeriod())
-                    .withHealthyReportThreshold(wiringConfig.healthyReportThreshold())
+                    .withWiringConfig(wiringConfig)
                     .build();
         }
 
@@ -494,16 +488,16 @@ public final class PlatformBuilder {
                 consensusEventStreamName,
                 issScratchpad,
                 NotificationEngine.buildEngine(getStaticThreadManager()),
-                statusActionSubmitterAtomicReference,
+                new AtomicReference<>(),
                 swirldStateManager,
-                new AtomicReference<>(),
-                new AtomicReference<>(),
                 new AtomicReference<>(),
                 firstPlatform,
                 consensusStateEventHandler,
                 platformStateFacade,
                 execution,
-                createStateFromVirtualMap);
+                createStateFromVirtualMap,
+                new FallenBehindMonitor(rosterHistory.getCurrentRoster(), configuration, platformContext.getMetrics()),
+                new ReservedSignedStateResultPromise());
 
         return new PlatformComponentBuilder(buildingBlocks);
     }
