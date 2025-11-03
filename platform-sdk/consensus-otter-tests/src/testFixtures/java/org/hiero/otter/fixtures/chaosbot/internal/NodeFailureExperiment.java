@@ -47,7 +47,7 @@ public class NodeFailureExperiment extends Experiment {
         final TimeManager timeManager = env.timeManager();
         final Network network = env.network();
         final List<Node> candidates =
-                network.nodes().stream().filter(Node::isActive).toList();
+                network.nodes().stream().filter(Node::isAlive).toList();
         if (candidates.isEmpty()) {
             log.info("No available nodes to apply node failure experiment.");
             return null;

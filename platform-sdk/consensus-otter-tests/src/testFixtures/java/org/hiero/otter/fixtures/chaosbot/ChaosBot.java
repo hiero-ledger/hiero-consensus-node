@@ -5,7 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 
 /**
- * A chaos bot that introduces randomized faults into the test environment.
+ * A chaos bot that introduces randomized faults into the network.
  */
 public interface ChaosBot {
 
