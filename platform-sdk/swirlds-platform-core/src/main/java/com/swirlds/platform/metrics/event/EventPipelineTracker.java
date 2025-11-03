@@ -32,13 +32,13 @@ public class EventPipelineTracker {
      */
     public EventPipelineTracker(@NonNull final Metrics metrics, @NonNull final Time time) {
         int step = 1;
-        this.hashing = new MaxDurationMetric(metrics, time, "eventDelay.%d.hashing".formatted(step++));
-        this.validation = new MaxDurationMetric(metrics, time, "eventDelay.%d.validation".formatted(step++));
-        this.deduplication = new MaxDurationMetric(metrics, time, "eventDelay.%d.deduplication".formatted(step++));
-        this.sigVerification = new MaxDurationMetric(metrics, time, "eventDelay.%d.verification".formatted(step++));
-        this.orphanBuffer = new MaxDurationMetric(metrics, time, "eventDelay.%d.orphanBuffer".formatted(step++));
-        this.pces = new MaxDurationMetric(metrics, time, "eventDelay.%d.pces".formatted(step++));
-        this.consensus = new MaxDurationMetric(metrics, time, "eventDelay.%d.consensus".formatted(step));
+        this.hashing = new MaxDurationMetric(metrics, time, "eventDelay_%d_hashing".formatted(step++));
+        this.validation = new MaxDurationMetric(metrics, time, "eventDelay_%d_validation".formatted(step++));
+        this.deduplication = new MaxDurationMetric(metrics, time, "eventDelay_%d_deduplication".formatted(step++));
+        this.sigVerification = new MaxDurationMetric(metrics, time, "eventDelay_%d_verification".formatted(step++));
+        this.orphanBuffer = new MaxDurationMetric(metrics, time, "eventDelay_%d_orphanBuffer".formatted(step++));
+        this.pces = new MaxDurationMetric(metrics, time, "eventDelay_%d_pces".formatted(step++));
+        this.consensus = new MaxDurationMetric(metrics, time, "eventDelay_%d_consensus".formatted(step));
     }
 
     /**
