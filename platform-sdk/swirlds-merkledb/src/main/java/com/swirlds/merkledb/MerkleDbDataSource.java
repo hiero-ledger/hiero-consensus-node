@@ -657,6 +657,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 storeHashesExecutor.execute(() -> {
                     try {
                         writeHashes(lastLeafPath, hashChunksToUpdate, true);
+                        runHashStoreCompaction();
                     } catch (final IOException e) {
                         logger.error(EXCEPTION.getMarker(), "[{}] Failed to store hashes", tableName, e);
                         throw new UncheckedIOException(e);
@@ -680,6 +681,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             storeLeavesExecutor.execute(() -> {
                 try {
                     writeLeavesToPathToKeyValue(firstLeafPath, lastLeafPath, sortedDirtyLeaves);
+                    runPathToKeyStoreCompaction();
                 } catch (final IOException e) {
                     logger.error(EXCEPTION.getMarker(), "[{}] Failed to store leaves", tableName, e);
                     throw new UncheckedIOException(e);
@@ -694,6 +696,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 try {
                     writeLeavesToKeyToPath(
                             firstLeafPath, lastLeafPath, sortedDirtyLeaves, deletedLeaves, isReconnectContext);
+                    runKeyToPathStoreCompaction();
                 } catch (final IOException e) {
                     logger.error(EXCEPTION.getMarker(), "[{}] Failed to store leaf keys", tableName, e);
                     throw new UncheckedIOException(e);
@@ -970,27 +973,27 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 writeHashes(getLastLeafPath(), hashChunkCache.values().stream(), false);
                 final CountDownLatch countDownLatch = new CountDownLatch(6);
                 // write all data stores
-                runWithSnapshotExecutor(true, countDownLatch, "idToDiskLocationHashChunks", () -> {
+                runWithSnapshotExecutor(countDownLatch, "idToDiskLocationHashChunks", () -> {
                     idToDiskLocationHashChunks.writeToFile(snapshotDbPaths.idToDiskLocationHashChunksFile);
                     return true;
                 });
-                runWithSnapshotExecutor(true, countDownLatch, "pathToDiskLocationLeafNodes", () -> {
+                runWithSnapshotExecutor(countDownLatch, "pathToDiskLocationLeafNodes", () -> {
                     pathToDiskLocationLeafNodes.writeToFile(snapshotDbPaths.pathToDiskLocationLeafNodesFile);
                     return true;
                 });
-                runWithSnapshotExecutor(true, countDownLatch, "hashChunkStore", () -> {
+                runWithSnapshotExecutor(countDownLatch, "hashChunkStore", () -> {
                     hashChunkStore.snapshot(snapshotDbPaths.hashChunkDirectory);
                     return true;
                 });
-                runWithSnapshotExecutor(keyToPath != null, countDownLatch, "keyToPath", () -> {
+                runWithSnapshotExecutor(countDownLatch, "keyToPath", () -> {
                     keyToPath.snapshot(snapshotDbPaths.keyToPathDirectory);
                     return true;
                 });
-                runWithSnapshotExecutor(true, countDownLatch, "keyValueStore", () -> {
+                runWithSnapshotExecutor(countDownLatch, "keyValueStore", () -> {
                     keyValueStore.snapshot(snapshotDbPaths.pathToKeyValueDirectory);
                     return true;
                 });
-                runWithSnapshotExecutor(true, countDownLatch, "metadata", () -> {
+                runWithSnapshotExecutor(countDownLatch, "metadata", () -> {
                     saveMetadata(snapshotDbPaths);
                     return true;
                 });
@@ -1156,40 +1159,34 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      * Run a runnable on background thread using snapshot ExecutorService, counting down latch when
      * done.
      *
-     * @param shouldRun when true, run runnable otherwise just countdown latch
      * @param countDownLatch latch to count down when done
      * @param taskName the name of the task for logging
      * @param runnable the code to run
      */
     private void runWithSnapshotExecutor(
-            final boolean shouldRun,
             final CountDownLatch countDownLatch,
             final String taskName,
             final Callable<Object> runnable) {
-        if (shouldRun) {
-            snapshotExecutor.submit(() -> {
-                final long START = System.currentTimeMillis();
-                try {
-                    runnable.call();
-                    logger.trace(
-                            MERKLE_DB.getMarker(),
-                            "[{}] Snapshot {} complete in {} seconds",
-                            tableName,
-                            taskName,
-                            (System.currentTimeMillis() - START) * UnitConstants.MILLISECONDS_TO_SECONDS);
-                    return true; // turns this into a callable, so it can throw checked
-                    // exceptions
-                } catch (final Throwable t) {
-                    // log and rethrow
-                    logger.error(EXCEPTION.getMarker(), "[{}] Snapshot {} failed", tableName, taskName, t);
-                    throw t;
-                } finally {
-                    countDownLatch.countDown();
-                }
-            });
-        } else {
-            countDownLatch.countDown();
-        }
+        snapshotExecutor.submit(() -> {
+            final long START = System.currentTimeMillis();
+            try {
+                runnable.call();
+                logger.trace(
+                        MERKLE_DB.getMarker(),
+                        "[{}] Snapshot {} complete in {} seconds",
+                        tableName,
+                        taskName,
+                        (System.currentTimeMillis() - START) * UnitConstants.MILLISECONDS_TO_SECONDS);
+                return true; // turns this into a callable, so it can throw checked
+                // exceptions
+            } catch (final Throwable t) {
+                // log and rethrow
+                logger.error(EXCEPTION.getMarker(), "[{}] Snapshot {} failed", tableName, taskName, t);
+                throw t;
+            } finally {
+                countDownLatch.countDown();
+            }
+        });
     }
 
     /**
@@ -1231,7 +1228,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
         final DataFileReader newHashesFile = hashChunkStore.endWriting();
         statisticsUpdater.setFlushHashesStoreFileSize(newHashesFile);
-        runHashStoreCompaction();
     }
 
     /** Write all the given leaf records to pathToKeyValue */
@@ -1290,8 +1286,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         // end writing
         final DataFileReader pathToKeyValueReader = keyValueStore.endWriting();
         statisticsUpdater.setFlushLeavesStoreFileSize(pathToKeyValueReader);
-
-        runPathToKeyStoreCompaction();
     }
 
     /** Write all the given leaf records to keyToPath */
@@ -1352,8 +1346,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         if (!compactionCoordinator.isCompactionRunning(DataFileCompactor.OBJECT_KEY_TO_PATH)) {
             keyToPath.resizeIfNeeded(firstLeafPath, lastLeafPath);
         }
-
-        runKeyToPathStoreCompaction();
     }
 
     /**
