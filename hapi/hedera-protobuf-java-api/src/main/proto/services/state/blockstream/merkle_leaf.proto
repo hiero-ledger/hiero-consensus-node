@@ -32,7 +32,7 @@ message MerkleLeaf {
          * block, which is equivalent to the consensus timestamp of
          * the first transaction in that round.
          */
-        proto.Timestamp block_consensus_timestamp = 1;
+        bytes block_consensus_timestamp = 1;
 
         /**
          * The serialized bytes of a single BlockItem message.
