@@ -109,6 +109,7 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.event.metrics;
     exports com.swirlds.platform.state.iss to
             org.hiero.otter.test;
+    exports com.swirlds.platform.metrics.event;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;

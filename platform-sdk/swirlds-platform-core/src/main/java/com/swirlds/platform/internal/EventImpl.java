@@ -4,7 +4,7 @@ package com.swirlds.platform.internal;
 import com.swirlds.platform.consensus.CandidateWitness;
 import com.swirlds.platform.consensus.DeGen;
 import com.swirlds.platform.consensus.LocalConsensusGeneration;
-import com.swirlds.platform.event.metrics.EventCounter;
+import com.swirlds.platform.event.EventCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
