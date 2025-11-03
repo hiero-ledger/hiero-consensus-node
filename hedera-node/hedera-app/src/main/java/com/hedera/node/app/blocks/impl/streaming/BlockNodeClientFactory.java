@@ -6,6 +6,7 @@ import com.hedera.pbj.grpc.client.helidon.PbjGrpcClientConfig;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.helidon.webclient.api.WebClient;
+import org.hiero.block.api.BlockNodeServiceInterface.BlockNodeServiceClient;
 import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 
 /**
@@ -16,16 +17,28 @@ import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublish
 public class BlockNodeClientFactory {
 
     /**
-     * Creates a new instance of {@link BlockStreamPublishServiceClient} using the provided parameters.
+     * Container for both gRPC service clients that share the same underlying connection.
+     */
+    public record BlockNodeClients(
+            @NonNull PbjGrpcClient grpcClient,
+            @NonNull BlockStreamPublishServiceClient publishServiceClient,
+            @NonNull BlockNodeServiceClient blockNodeServiceClient) {}
+
+    /**
+     * Creates both service clients (publish and block node) that share the same underlying gRPC connection.
      * @param webClient the Helidon WebClient to be used for communication
      * @param config the gRPC client configuration
      * @param requestOptions the request options for the service interface
-     * @return a new instance of {@link BlockStreamPublishServiceClient}
+     * @return a container with both service clients
      */
-    public BlockStreamPublishServiceClient createClient(
+    public BlockNodeClients createClients(
             @NonNull final WebClient webClient,
             @NonNull final PbjGrpcClientConfig config,
             @NonNull final ServiceInterface.RequestOptions requestOptions) {
-        return new BlockStreamPublishServiceClient(new PbjGrpcClient(webClient, config), requestOptions);
+        final PbjGrpcClient grpcClient = new PbjGrpcClient(webClient, config);
+        final BlockStreamPublishServiceClient publishServiceClient =
+                new BlockStreamPublishServiceClient(grpcClient, requestOptions);
+        final BlockNodeServiceClient blockNodeServiceClient = new BlockNodeServiceClient(grpcClient, requestOptions);
+        return new BlockNodeClients(grpcClient, publishServiceClient, blockNodeServiceClient);
     }
 }
