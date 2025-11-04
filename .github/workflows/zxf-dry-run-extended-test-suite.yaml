@@ -169,7 +169,7 @@ jobs:
   xts-otter-tests:
     name: XTS Otter Tests
     if: ${{ inputs.enable-extended-test-suite == true }}
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    uses: ./.github/workflows/zxc-execute-otter-tests.yaml
     with:
       custom-job-label: "XTS Otter Tests"
       enable-full-otter-tests: true

@@ -295,7 +295,7 @@ jobs:
 
   mats-otter-tests:
     name: MATS - Otter Tests
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    uses: ./.github/workflows/zxc-execute-otter-tests.yaml
     needs:
       - dependency-check
       - spotless
@@ -303,7 +303,6 @@ jobs:
       custom-job-label: "MATS Otter Tests"
       java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
       java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
-      enable-unit-tests: false
       enable-fast-otter-tests: ${{ github.event_name == 'push' || github.event.inputs.enable-otter-tests == 'true' }}
       enable-network-log-capture: true
     secrets:
