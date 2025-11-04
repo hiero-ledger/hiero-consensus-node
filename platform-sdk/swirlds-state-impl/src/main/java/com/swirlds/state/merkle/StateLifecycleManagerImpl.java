@@ -166,8 +166,9 @@ public class StateLifecycleManagerImpl<T extends MerkleNodeStateAware> implement
     }
 
     /**
-     * {@inheritDoc}}
+     * {@inheritDoc}
      */
+    @Override
     public void createSnapshot(final @NonNull Path targetPath) {
         requireNonNull(time);
         requireNonNull(snapshotMetrics);
