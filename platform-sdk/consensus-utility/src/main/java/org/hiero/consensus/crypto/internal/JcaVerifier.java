@@ -7,7 +7,7 @@ import java.security.NoSuchProviderException;
 import java.security.PublicKey;
 import java.security.Signature;
 import java.security.SignatureException;
-import org.hiero.consensus.crypto.BytesVerifier;
+import org.hiero.base.crypto.BytesVerifier;
 
 public class JcaVerifier implements BytesVerifier {
     private final Signature verifier;

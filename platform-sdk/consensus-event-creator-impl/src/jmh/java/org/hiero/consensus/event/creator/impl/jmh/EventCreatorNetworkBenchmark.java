@@ -23,7 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-import org.hiero.consensus.crypto.BytesSigner;
+import org.hiero.base.crypto.BytesSigner;
 import org.hiero.consensus.crypto.SigningFactory;
 import org.hiero.consensus.crypto.SigningAlgorithm;
 import org.hiero.consensus.event.creator.EventCreationConfig;

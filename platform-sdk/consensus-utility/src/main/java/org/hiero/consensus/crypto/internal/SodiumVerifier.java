@@ -2,7 +2,7 @@ package org.hiero.consensus.crypto.internal;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.security.PublicKey;
-import org.hiero.consensus.crypto.BytesVerifier;
+import org.hiero.base.crypto.BytesVerifier;
 
 public class SodiumVerifier implements BytesVerifier {
     final byte[] publicKey;

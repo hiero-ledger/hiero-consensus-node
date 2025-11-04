@@ -4,7 +4,7 @@ import com.goterl.lazysodium.interfaces.Sign;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.KeyPair;
-import org.hiero.consensus.crypto.BytesSigner;
+import org.hiero.base.crypto.BytesSigner;
 
 public class SodiumSigner implements BytesSigner {
     private final byte[] sodiumSecretKey;

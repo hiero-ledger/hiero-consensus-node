@@ -10,6 +10,7 @@ import java.security.NoSuchProviderException;
 import java.security.Signature;
 import java.security.SignatureException;
 import java.util.Objects;
+import org.hiero.base.crypto.BytesSigner;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.SignatureType;

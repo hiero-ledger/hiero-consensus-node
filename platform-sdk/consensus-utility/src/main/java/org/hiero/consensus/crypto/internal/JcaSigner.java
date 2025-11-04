@@ -8,7 +8,7 @@ import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
 import java.security.Signature;
 import java.security.SignatureException;
-import org.hiero.consensus.crypto.BytesSigner;
+import org.hiero.base.crypto.BytesSigner;
 
 public class JcaSigner implements BytesSigner {
     private final Signature signature;
