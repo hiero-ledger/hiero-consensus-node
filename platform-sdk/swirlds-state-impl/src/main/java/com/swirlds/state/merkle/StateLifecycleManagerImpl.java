@@ -125,7 +125,7 @@ public class StateLifecycleManagerImpl<T extends MerkleNodeStateAware> implement
         return stateRef.get();
     }
 
-    private void updateStateRefs(MerkleNodeState state) {
+    private void copyAndUpdateStateRefs(MerkleNodeState state) {
         // Create a fast copy so there is always an immutable state to
         // invoke handleTransaction on for pre-consensus transactions
         final long copyStart = System.nanoTime();
