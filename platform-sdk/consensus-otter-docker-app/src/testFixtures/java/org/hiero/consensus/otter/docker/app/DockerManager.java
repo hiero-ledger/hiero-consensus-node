@@ -192,9 +192,25 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
         log.info("Received kill request: {}", request);
         if (process != null) {
             process.destroyForcibly();
+            try {
+                if (process.waitFor(request.getTimeoutSeconds(), TimeUnit.SECONDS)) {
+                    responseObserver.onNext(Empty.getDefaultInstance());
+                    responseObserver.onCompleted();
+                } else {
+                    log.error("Failed to terminate the consensus node process within the timeout period.");
+                    responseObserver.onError(new IllegalStateException(
+                            "Failed to terminate the consensus node process within the timeout period."));
+                }
+            } catch (final InterruptedException e) {
+                log.error("Interrupted while waiting for the consensus node process to terminate.", e);
+                Thread.currentThread().interrupt();
+                responseObserver.onError(new InterruptedException(
+                        "Interrupted while waiting for the consensus node process to terminate."));
+            }
+        } else {
+            responseObserver.onNext(Empty.getDefaultInstance());
+            responseObserver.onCompleted();
         }
-        responseObserver.onNext(Empty.getDefaultInstance());
-        responseObserver.onCompleted();
         log.info("Kill request completed.");
     }
 
