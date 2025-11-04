@@ -126,47 +126,31 @@ public class StateLifecycleManagerImpl<T extends MerkleNodeStateAware> implement
     }
 
     /**
-     * Copies the provided state and updates both the latest immutable state and the mutable state reference.
-     * @param state the state to copy and update references for
+     * Copies the provided to and updates both the latest immutable to and the mutable to reference.
+     * @param stateToCopy the state to copy and update references for
      */
-    private void copyAndUpdateStateRefs(MerkleNodeState state) {
-        // Create a fast copy so there is always an immutable state to
-        // invoke handleTransaction on for pre-consensus transactions
+    private synchronized void copyAndUpdateStateRefs(MerkleNodeState stateToCopy) {
         final long copyStart = System.nanoTime();
-        // Create a fast copy
-        final MerkleNodeState copy = state.copy();
+        final MerkleNodeState newMutableState = stateToCopy.copy();
         // Increment the reference count because this reference becomes the new value
-        copy.getRoot().reserve();
+        newMutableState.getRoot().reserve();
         final long copyEnd = System.nanoTime();
         stateMetrics.stateCopyMicros((copyEnd - copyStart) * NANOSECONDS_TO_MICROSECONDS);
-        // Set latest immutable first to prevent the newly immutable stateRoot from being deleted between setting the
-        // stateRef and the latestImmutableState
-        setLatestImmutableState(state);
-        updateStateRef(copy);
-    }
-
-    /**
-     * Sets the consensus state to the state provided. Must be mutable and have a reference count of at least 1.
-     *
-     * @param state a new mutable state
-     */
-    private void updateStateRef(final MerkleNodeState state) {
-        final var currVal = stateRef.get();
-        if (currVal != null && !currVal.isDestroyed()) {
-            currVal.release();
+        // releasing previous immutable previousMutableState
+        final State previousImmutableState = latestImmutableStateRef.get();
+        if (previousImmutableState != null && !previousImmutableState.isDestroyed()) {
+            previousImmutableState.release();
         }
-        // Do not increment the reference count because the state provided already has a reference count of at least
+        stateToCopy.getRoot().reserve();
+        latestImmutableStateRef.set(stateToCopy);
+        final var previousMutableState = stateRef.get();
+        if (previousMutableState != null && !previousMutableState.isDestroyed()) {
+            previousMutableState.release();
+        }
+        // Do not increment the reference count because the stateToCopy provided already has a reference count of at
+        // least
         // one to represent this reference and to prevent it from being deleted before this reference is set.
-        stateRef.set(state);
-    }
-
-    private void setLatestImmutableState(final MerkleNodeState latestImmutableState) {
-        final State currVal = latestImmutableStateRef.get();
-        if (currVal != null && !currVal.isDestroyed()) {
-            currVal.release();
-        }
-        latestImmutableState.getRoot().reserve();
-        latestImmutableStateRef.set(latestImmutableState);
+        stateRef.set(newMutableState);
     }
 
     /**

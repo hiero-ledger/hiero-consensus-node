@@ -232,7 +232,7 @@ class StateFileManagerTests {
 
         final StateSnapshotManager manager = new DefaultStateSnapshotManager(
                 context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE, stateLifecycleManager);
-        final SavedStateController controller = new DefaultSavedStateController(context, stateLifecycleManager);
+        final SavedStateController controller = new DefaultSavedStateController(context);
 
         Instant timestamp;
         final long firstRound;

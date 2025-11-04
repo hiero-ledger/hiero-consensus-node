@@ -12,24 +12,26 @@ import java.nio.file.Path;
  * <li>Loading snapshots of the state.</li>
  * <li>Creating a mutable copy of the state, while making the current mutable state immutable.</li>
  * </ul>
+ *
+ * An implementation of this class must be thread-safe.
  * @param <T> A type of the snapshot source, which should implement {@link MerkleNodeStateAware}.
  */
 public interface StateLifecycleManager<T extends MerkleNodeStateAware> {
 
     /**
-     * Set the initial State. This method should only be on a startup of after a reconnect.
+     * Set the initial State. This method should only be on a startup or after a reconnect.
      *
      * @param state the initial state
      */
     void initState(@NonNull final MerkleNodeState state, boolean onStartup);
 
     /**
-     * Get the mutable state.
+     * Get the mutable state. This method is idempotent.
      */
     MerkleNodeState getMutableState();
 
     /**
-     * Get the latest immutable state.
+     * Get the latest immutable state.  This method is idempotent.
      * @return the latest immutable state.
      */
     MerkleNodeState getLatestImmutableState();

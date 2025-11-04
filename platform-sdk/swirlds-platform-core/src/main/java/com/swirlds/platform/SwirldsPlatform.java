@@ -190,7 +190,7 @@ public class SwirldsPlatform implements Platform {
 
         final LatestCompleteStateNexus latestCompleteStateNexus = new DefaultLatestCompleteStateNexus(platformContext);
 
-        savedStateController = new DefaultSavedStateController(platformContext, blocks.stateLifecycleManager());
+        savedStateController = new DefaultSavedStateController(platformContext);
         stateLifecycleManager = blocks.stateLifecycleManager();
 
         final SignedStateMetrics signedStateMetrics = new SignedStateMetrics(platformContext.getMetrics());
