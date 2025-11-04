@@ -126,7 +126,9 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                         hevmTransaction.contractId(),
                         requireNonNull(hevmTransaction.exception()).getStatus());
                 final var hookId = new HookId(
-                        requireNonNull(hevmTransaction.hookDispatch()).executionOrThrow().hookEntityIdOrThrow(),
+                        requireNonNull(hevmTransaction.hookDispatch())
+                                .executionOrThrow()
+                                .hookEntityIdOrThrow(),
                         hevmTransaction
                                 .hookDispatch()
                                 .executionOrThrow()
@@ -216,7 +218,9 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
 
             final var hookId = isHookDispatch
                     ? new HookId(
-                            requireNonNull(hevmTransaction.hookDispatch()).executionOrThrow().hookEntityIdOrThrow(),
+                            requireNonNull(hevmTransaction.hookDispatch())
+                                    .executionOrThrow()
+                                    .hookEntityIdOrThrow(),
                             hevmTransaction
                                     .hookDispatch()
                                     .executionOrThrow()
