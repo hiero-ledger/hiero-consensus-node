@@ -803,12 +803,11 @@ public class PlatformComponentBuilder {
                     blocks.appVersion(),
                     blocks.swirldStateManager(),
                     () -> blocks.getLatestCompleteStateReference().get().get(),
-                    x -> blocks.statusActionSubmitterReference().get().submitStatusAction(x),
-                    state -> blocks.loadReconnectStateReference().get().accept(state),
-                    () -> blocks.clearAllPipelinesForReconnectReference().get().run(),
                     blocks.intakeEventCounter(),
                     blocks.platformStateFacade(),
-                    blocks.createStateFromVirtualMap());
+                    blocks.createStateFromVirtualMap(),
+                    blocks.fallenBehindMonitor(),
+                    blocks.reservedSignedStateResultPromise());
         }
         return gossip;
     }
