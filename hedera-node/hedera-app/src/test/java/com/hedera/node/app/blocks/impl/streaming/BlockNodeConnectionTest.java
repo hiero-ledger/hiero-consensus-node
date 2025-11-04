@@ -134,8 +134,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final AtomicReference<Thread> workerThreadRef = workerThreadRef();
         workerThreadRef.set(FAKE_WORKER_THREAD);
 
-        //        resetMocks();
-
         lenient().doReturn(requestPipeline).when(grpcServiceClient).publishBlockStream(connection);
     }
 
@@ -825,7 +823,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
         verifyNoMoreInteractions(metrics);
-        verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(requestPipeline);
         verifyNoInteractions(bufferService);
     }
@@ -1246,20 +1243,25 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(requestPipeline, atLeastOnce()).onNext(requestCaptor.capture());
         final List<PublishStreamRequest> requests4 = requestCaptor.getAllValues();
         final int totalRequestsSent = requests4.size();
+        final int endOfBlockRequest = 1;
+
         reset(requestPipeline);
         requests4.removeAll(requests1);
         requests4.removeAll(requests2);
         requests4.removeAll(requests3);
         assertRequestContainsItems(requests4, item7, item8, item9, item10);
+        assertThat(requests4.getLast()).isEqualTo(createRequest(10));
 
         assertThat(streamingBlockNumber).hasValue(11);
 
-        verify(metrics, times(totalRequestsSent)).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
-        verify(metrics, times(totalRequestsSent)).recordBlockItemsSent(anyInt());
+        verify(metrics, times(endOfBlockRequest)).recordRequestSent(RequestOneOfType.END_OF_BLOCK);
+        verify(metrics, times(totalRequestsSent - endOfBlockRequest)).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
+        verify(metrics, times(totalRequestsSent - endOfBlockRequest)).recordBlockItemsSent(anyInt());
         verify(metrics, times(totalRequestsSent)).recordRequestLatency(anyLong());
         verify(connectionManager).recordBlockProofSent(eq(connection.getNodeConfig()), eq(10L), any(Instant.class));
         verify(bufferService, atLeastOnce()).getBlockState(10);
         verify(bufferService, atLeastOnce()).getBlockState(11);
+        verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(requestPipeline);
@@ -1287,6 +1289,41 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(metrics);
         verifyNoInteractions(requestPipeline);
+    }
+
+    @Test
+    void testConnectionWorker_blockNodeTooFarBehind() throws Exception {
+        openConnectionAndResetMocks();
+        final AtomicReference<Thread> workerThreadRef = workerThreadRef();
+        workerThreadRef.set(null); // clear the fake worker thread
+        final AtomicLong streamingBlockNumber = streamingBlockNumber();
+
+        streamingBlockNumber.set(10);
+        when(bufferService.getEarliestAvailableBlockNumber()).thenReturn(15L);
+        when(bufferService.getBlockState(anyLong())).thenReturn(null);
+
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+        // sleep to let the worker detect the state change and start doing work
+        sleep(150);
+
+        assertThat(workerThreadRef).hasNullValue();
+        assertThat(streamingBlockNumber).hasValue(10);
+
+        verify(metrics).recordRequestLatency(anyLong());
+        verify(metrics).recordRequestEndStreamSent(EndStream.Code.TOO_FAR_BEHIND);
+        verify(metrics).recordConnectionClosed();
+        verify(metrics).recordActiveConnectionIp(-1L);
+        verify(bufferService, times(2)).getEarliestAvailableBlockNumber();
+        verify(bufferService).getHighestAckedBlockNumber();
+        verify(connectionManager).rescheduleConnection(connection, Duration.ofSeconds(30), null, true);
+
+        final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);
+        verify(requestPipeline).onNext(requestCaptor.capture());
+        verify(requestPipeline).onComplete();
+
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(bufferService);
+        verifyNoMoreInteractions(requestPipeline);
     }
 
     @Test
@@ -1332,6 +1369,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordResponseReceived(ResponseOneOfType.SKIP_BLOCK);
         verify(bufferService, atLeastOnce()).getBlockState(10);
         verify(bufferService, atLeastOnce()).getBlockState(11);
+
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
@@ -1380,7 +1418,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(requestPipeline).onComplete();
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(bufferService).getHighestAckedBlockNumber();
-        verify(connectionManager).connectionResetsTheStream(connection);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
         verifyNoMoreInteractions(bufferService);
@@ -1438,7 +1475,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         // Should have sent header, then ended stream due to size violation under configured limit
         verify(requestPipeline, atLeastOnce()).onNext(any(PublishStreamRequest.class));
-        verify(connectionManager).connectionResetsTheStream(connection);
+        verify(connectionManager).notifyConnectionClosed(connection);
     }
 
     // Tests that no response processing occurs when connection is already closed
@@ -1575,7 +1612,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         // Should call onComplete when callOnComplete=true (from handleStreamFailure)
         verify(requestPipeline).onComplete();
         verifyNoMoreInteractions(metrics);
-        verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(requestPipeline);
     }
 
@@ -1596,7 +1632,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordActiveConnectionIp(-1L);
         verifyNoMoreInteractions(metrics);
         verifyNoInteractions(requestPipeline);
-        verifyNoMoreInteractions(connectionManager);
         verifyNoInteractions(bufferService);
     }
 
@@ -1825,7 +1860,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         // Verify reset behavior
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(bufferService).getHighestAckedBlockNumber();
-        verify(connectionManager).connectionResetsTheStream(connection);
+        verify(connectionManager).selectNewBlockNodeForStreaming(false);
         verify(requestPipeline).onNext(any(PublishStreamRequest.class));
         verify(requestPipeline).onComplete();
 

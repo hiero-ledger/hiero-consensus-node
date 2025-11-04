@@ -21,6 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Objects;
+import org.hiero.block.api.BlockEnd;
 import org.hiero.block.api.BlockItemSet;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
@@ -77,6 +78,13 @@ public abstract class BlockNodeCommunicationTestBase {
     protected static PublishStreamRequest createRequest(final EndStream.Code endCode) {
         final EndStream endStream = EndStream.newBuilder().endCode(endCode).build();
         return PublishStreamRequest.newBuilder().endStream(endStream).build();
+    }
+
+    @NonNull
+    protected static PublishStreamRequest createRequest(final long blockNumber) {
+        final BlockEnd endOfBlock =
+                BlockEnd.newBuilder().blockNumber(blockNumber).build();
+        return PublishStreamRequest.newBuilder().endOfBlock(endOfBlock).build();
     }
 
     protected TestConfigBuilder createDefaultConfigProvider() {

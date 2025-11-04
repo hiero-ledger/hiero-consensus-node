@@ -34,10 +34,12 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.block.api.BlockEnd;
 import org.hiero.block.api.BlockItemSet;
 import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 import org.hiero.block.api.PublishStreamRequest;
@@ -360,7 +362,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         if (getConnectionState() == ConnectionState.ACTIVE) {
             logger.info("{} Performing scheduled stream reset.", this);
             endTheStreamWith(RESET);
-            blockNodeConnectionManager.connectionResetsTheStream(this);
+            blockNodeConnectionManager.selectNewBlockNodeForStreaming(false);
         }
     }
 
@@ -667,39 +669,51 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * @return true if the request was sent, else false
      */
     public boolean sendRequest(@NonNull final PublishStreamRequest request) {
+        return sendRequest(-1, -1, request);
+    }
+
+    private boolean sendRequest(
+            final long blockNumber, final int requestNumber, @NonNull final PublishStreamRequest request) {
         requireNonNull(request, "request must not be null");
 
         final Pipeline<? super PublishStreamRequest> pipeline = requestPipelineRef.get();
 
         if (getConnectionState() == ConnectionState.ACTIVE && pipeline != null) {
             try {
-                if (logger.isDebugEnabled()) {
+                if (blockNumber == -1 && requestNumber == -1) {
                     logger.debug(
-                            "{} Sending request to block node (type={}).",
+                            "{} Sending ad hoc request to block node (type={})",
                             this,
                             request.request().kind());
-                }
-                if (logger.isTraceEnabled()) {
-                    /*
-                    PublishStreamRequest#protobufSize does the size calculation lazily and thus calling this can incur
-                    a performance penality. Therefore, we only want to log the byte size at trace level.
-                     */
-                    logger.trace(
-                            "{} Sending request to block node (type={}, bytes={})",
+                } else {
+                    logger.debug(
+                            "{} [block={}, request={}] Sending request to block node (type={})",
                             this,
-                            request.request().kind(),
-                            request.protobufSize());
+                            blockNumber,
+                            requestNumber,
+                            request.request().kind());
                 }
+
                 final long startMs = System.currentTimeMillis();
                 pipeline.onNext(request);
                 final long durationMs = System.currentTimeMillis() - startMs;
                 blockStreamMetrics.recordRequestLatency(durationMs);
-                logger.trace("{} Request took {}ms to send", this, durationMs);
+
+                if (blockNumber == -1 && requestNumber == -1) {
+                    logger.trace("{} Ad hoc request took {}ms to send", this, durationMs);
+                } else {
+                    logger.trace(
+                            "{} [block={}, request={}] Request took {}ms to send",
+                            this,
+                            blockNumber,
+                            requestNumber,
+                            durationMs);
+                }
 
                 if (request.hasEndStream()) {
                     blockStreamMetrics.recordRequestEndStreamSent(
                             request.endStream().endCode());
-                } else {
+                } else if (request.hasBlockItems()) {
                     blockStreamMetrics.recordRequestSent(request.request().kind());
                     final BlockItemSet itemSet = request.blockItems();
                     if (itemSet != null) {
@@ -713,6 +727,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                             }
                         }
                     }
+                } else {
+                    blockStreamMetrics.recordRequestSent(request.request().kind());
                 }
 
                 return true;
@@ -768,6 +784,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             }
             blockStreamMetrics.recordConnectionClosed();
             blockStreamMetrics.recordActiveConnectionIp(-1L);
+            blockNodeConnectionManager.notifyConnectionClosed(this);
             // regardless of outcome, mark the connection as closed
             updateConnectionState(ConnectionState.CLOSED);
         }
@@ -965,6 +982,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         private BlockState block;
         private long lastSendTimeMillis = -1;
         private int maxBytesPerRequest = 0;
+        private final AtomicInteger requestCtr = new AtomicInteger(1);
 
         public ConnectionWorkerLoopTask() {
             if (blockNodeConfig.maxMessageSizeBytes() != null) {
@@ -1020,7 +1038,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                             "{} Starting to process items for block {}", BlockNodeConnection.this, block.blockNumber());
                 }
 
-                final int itemSize = item.protobufSize();
+                final int itemSize = item.protobufSize() + 2; // each item has 2 bytes of overhead
                 final long newRequestBytes = pendingRequestBytes + itemSize;
 
                 if (newRequestBytes > maxBytesPerRequest) {
@@ -1044,7 +1062,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                                 newRequestBytes,
                                 maxBytesPerRequest);
                         endTheStreamWith(EndStream.Code.ERROR);
-                        blockNodeConnectionManager.connectionResetsTheStream(BlockNodeConnection.this);
                         break;
                     }
                 } else {
@@ -1065,6 +1082,17 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             }
 
             if (pendingRequestItems.isEmpty() && block.isClosed() && block.itemCount() == itemIndex) {
+                // Indicate to the block node that this is the end of the current block
+                final PublishStreamRequest endOfBlock = PublishStreamRequest.newBuilder()
+                        .endOfBlock(BlockEnd.newBuilder().blockNumber(block.blockNumber()))
+                        .build();
+                try {
+                    sendRequest(endOfBlock);
+                } catch (RuntimeException e) {
+                    logger.warn("{} Error sending EndOfBlock request", BlockNodeConnection.this, e);
+                    handleStreamFailureWithoutOnComplete();
+                }
+
                 // We've gathered all block items and have sent them to the block node. No additional work is needed
                 // for the current block so we can move to the next block.
                 final long nextBlockNumber = block.blockNumber() + 1;
@@ -1091,14 +1119,26 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             final PublishStreamRequest req =
                     PublishStreamRequest.newBuilder().blockItems(itemSet).build();
 
+            if (logger.isTraceEnabled()) {
+                logger.trace(
+                        "{} Attempting to send request (block={}, request={}, itemCount={}, estimatedBytes={} actualBytes={})",
+                        BlockNodeConnection.this,
+                        block.blockNumber(),
+                        requestCtr.get(),
+                        pendingRequestItems.size(),
+                        pendingRequestBytes,
+                        req.protobufSize());
+            }
+
             try {
-                if (sendRequest(req)) {
+                if (sendRequest(block.blockNumber(), requestCtr.get(), req)) {
                     // record that we've sent the request
                     lastSendTimeMillis = System.currentTimeMillis();
 
                     // clear the pending request data
                     pendingRequestBytes = BYTES_PADDING;
                     pendingRequestItems.clear();
+                    requestCtr.incrementAndGet();
                     return true;
                 }
             } catch (final UncheckedIOException e) {
@@ -1149,10 +1189,17 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                         oldBlock,
                         latestActiveBlockNumber);
             }
+
             block = blockBufferService.getBlockState(latestActiveBlockNumber);
+            if (block == null && latestActiveBlockNumber < blockBufferService.getEarliestAvailableBlockNumber()) {
+                // Indicate that the block node should catch up from another trustworthy block node
+                endStreamAndReschedule(TOO_FAR_BEHIND);
+            }
+
             pendingRequestBytes = BYTES_PADDING;
             itemIndex = 0;
             pendingRequestItems.clear();
+            requestCtr.set(1);
         }
 
         /**
