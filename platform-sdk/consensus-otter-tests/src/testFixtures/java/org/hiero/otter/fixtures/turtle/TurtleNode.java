@@ -27,7 +27,6 @@ import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.builder.internal.StaticPlatformBuilder;
-import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
@@ -65,7 +64,6 @@ import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.NetworkConfiguration;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeEventStreamResultImpl;
-import org.hiero.otter.fixtures.internal.result.SingleNodeMarkerFileResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodeReconnectResultImpl;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
@@ -74,7 +72,6 @@ import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeEventStreamResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
-import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
@@ -103,7 +100,6 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     private final TurtleLogging logging;
     private final TurtleNodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
-    private final TurtleMarkerFileObserver markerFileObserver;
     private final Path outputDirectory;
 
     @NonNull
@@ -134,6 +130,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * @param network the simulated network
      * @param logging the logging instance for the node
      * @param outputDirectory the output directory for the node
+     * @param networkConfiguration the network configuration
      */
     public TurtleNode(
             @NonNull final Randotron randotron,
@@ -156,7 +153,6 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             this.nodeConfiguration = new TurtleNodeConfiguration(
                     () -> lifeCycle, networkConfiguration.overrideProperties(), outputDirectory);
             this.resultsCollector = new NodeResultsCollector(selfId);
-            this.markerFileObserver = new TurtleMarkerFileObserver(resultsCollector);
         }
     }
 
@@ -184,12 +180,6 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final Configuration currentConfiguration = nodeConfiguration.current();
 
             setupGlobalMetrics(currentConfiguration);
-
-            final PathsConfig pathsConfig = currentConfiguration.getConfigData(PathsConfig.class);
-            final Path markerFilesDir = pathsConfig.getMarkerFilesDir();
-            if (markerFilesDir != null) {
-                markerFileObserver.startObserving(markerFilesDir);
-            }
 
             final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
             try {
@@ -327,7 +317,6 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     protected void doKillImmediately(@NonNull final Duration timeout) {
         try (final LoggingContextScope ignored = installNodeContext()) {
-            markerFileObserver.stopObserving();
             try {
                 if (platform != null) {
                     platform.destroy();
@@ -385,15 +374,13 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     public void submitTransaction(@NonNull final OtterTransaction transaction) {
         try (final LoggingContextScope ignored = installNodeContext()) {
             throwIsNotInLifecycle(RUNNING, "Cannot submit transaction when the network is not running.");
-            assert platform != null; // platform must be initialized if lifeCycle is STARTED
-            assert executionLayer != null; // executionLayer must be initialized
+            assert executionLayer != null; // executionLayer must be initialized if lifeCycle is STARTED
 
             if (quiescenceCommand == QuiescenceCommand.QUIESCE) {
                 // When quiescing, ignore new transactions
                 return;
             }
 
-            assert executionLayer != null; // executionLayer must be initialized
             executionLayer.submitApplicationTransaction(transaction.toByteArray());
         }
     }
@@ -465,15 +452,6 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      */
     @Override
     @NonNull
-    public SingleNodeMarkerFileResult newMarkerFileResult() {
-        return new SingleNodeMarkerFileResultImpl(resultsCollector);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
     public SingleNodeEventStreamResult newEventStreamResult() {
         final Configuration currentConfiguration = configuration().current();
         final EventConfig eventConfig = currentConfiguration.getConfigData(EventConfig.class);
@@ -518,7 +496,6 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                 assert model != null; // model must be initialized if lifeCycle is STARTED
                 model.tick();
             }
-            markerFileObserver.tick(now);
         }
     }
 

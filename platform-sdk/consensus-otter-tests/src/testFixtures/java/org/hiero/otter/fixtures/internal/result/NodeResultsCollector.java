@@ -17,8 +17,6 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
 import org.hiero.otter.fixtures.result.LogSubscriber;
-import org.hiero.otter.fixtures.result.MarkerFileSubscriber;
-import org.hiero.otter.fixtures.result.MarkerFilesStatus;
 import org.hiero.otter.fixtures.result.PlatformStatusSubscriber;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
@@ -37,8 +35,6 @@ public class NodeResultsCollector {
     private final List<PlatformStatusSubscriber> platformStatusSubscribers = new CopyOnWriteArrayList<>();
     private final List<StructuredLog> logEntries = new ArrayList<>();
     private final List<LogSubscriber> logSubscribers = new CopyOnWriteArrayList<>();
-    private final List<MarkerFileSubscriber> markerFileSubscribers = new CopyOnWriteArrayList<>();
-    private final MarkerFilesStatus markerFilesStatus = new MarkerFilesStatus();
 
     // This class may be used in a multi-threaded context, so we use volatile to ensure visibility of state changes
     private volatile boolean destroyed = false;
@@ -234,39 +230,6 @@ public class NodeResultsCollector {
     public void subscribeLogSubscriber(@NonNull final LogSubscriber subscriber) {
         requireNonNull(subscriber);
         logSubscribers.add(subscriber);
-    }
-
-    /**
-     * Add new marker files to the collector.
-     *
-     * @param markerFileNames the names of the new marker files
-     */
-    public void addMarkerFiles(@NonNull final List<String> markerFileNames) {
-        requireNonNull(markerFilesStatus);
-        if (!destroyed && !markerFileNames.isEmpty()) {
-            markerFilesStatus.updateWithMarkerFiles(markerFileNames);
-            markerFileSubscribers.removeIf(subscriber ->
-                    subscriber.onNewMarkerFile(nodeId, markerFilesStatus) == SubscriberAction.UNSUBSCRIBE);
-        }
-    }
-
-    /**
-     * Returns the current status of marker files for the node.
-     *
-     * @return the current status of marker files
-     */
-    public MarkerFilesStatus markerFilesStatus() {
-        return markerFilesStatus;
-    }
-
-    /**
-     * Subscribes to marker file updates for the node.
-     *
-     * @param subscriber the subscriber that will receive updates about marker files
-     */
-    public void subscribeMarkerFileSubscriber(@NonNull final MarkerFileSubscriber subscriber) {
-        requireNonNull(subscriber);
-        markerFileSubscribers.add(subscriber);
     }
 
     /**
