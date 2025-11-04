@@ -81,7 +81,12 @@ public class AppFeeCharging implements FeeCharging {
     }
 
     @Override
-    public Fees charge(@NonNull final Context ctx, @NonNull final Validation validation, @NonNull final Fees fees) {
+    public Fees charge(
+            @NonNull final AccountID payerId,
+            @NonNull final Context ctx,
+            @NonNull final Validation validation,
+            @NonNull final Fees fees) {
+        requireNonNull(payerId);
         requireNonNull(ctx);
         requireNonNull(validation);
         requireNonNull(fees);
@@ -93,18 +98,18 @@ public class AppFeeCharging implements FeeCharging {
                 result.serviceFeeStatus() == UNABLE_TO_PAY_SERVICE_FEE || result.duplicateStatus() == DUPLICATE;
         final var feesToCharge = shouldWaiveServiceFee ? fees.withoutServiceComponent() : fees;
         return switch (ctx.category()) {
-            case USER, NODE -> ctx.charge(ctx.payerId(), feesToCharge, ctx.nodeAccountId(), null);
-            default -> ctx.charge(ctx.payerId(), feesToCharge, null);
+            case USER, NODE -> ctx.charge(payerId, feesToCharge, ctx.nodeAccountId(), null);
+            default -> ctx.charge(payerId, feesToCharge, null);
         };
     }
 
     @Override
-    public void refund(@NonNull final Context ctx, @NonNull final Fees fees) {
+    public void refund(@NonNull final AccountID payerId, @NonNull final Context ctx, @NonNull final Fees fees) {
         requireNonNull(ctx);
         requireNonNull(fees);
         switch (ctx.category()) {
-            case USER, NODE -> ctx.refund(ctx.payerId(), fees, ctx.nodeAccountId());
-            default -> ctx.refund(ctx.payerId(), fees);
+            case USER, NODE -> ctx.refund(payerId, fees, ctx.nodeAccountId());
+            default -> ctx.refund(payerId, fees);
         }
     }
 }
