@@ -175,7 +175,7 @@ jobs:
           check_name: "Node: Otter Tests Results"
           json_thousands_separator: ","
           files: "**/consensus-otter-tests/build/test-results/testContainer/TEST-*.xml"
-          comment_mode: errors # only comment if we could not findl,.,,j or parse the JUnit XML files
+          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload Full Otter Tests Report Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
