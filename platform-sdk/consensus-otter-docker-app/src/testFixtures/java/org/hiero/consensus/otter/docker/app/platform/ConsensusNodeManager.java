@@ -75,10 +75,6 @@ public class ConsensusNodeManager {
      */
     private final List<ConsensusRoundListener> consensusRoundListeners = new CopyOnWriteArrayList<>();
 
-    /** An optional observer of marker files. {@code null} if writing marker files is not enabled in the platform. */
-    @Nullable
-    private final ContainerMarkerFileObserver markerFileObserver;
-
     /** The current quiescence command. Volatile because it is read and set by different gRPC messages */
     private volatile QuiescenceCommand quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
 
@@ -176,12 +172,6 @@ public class ConsensusNodeManager {
                 .solderTo("dockerApp", "consensusRounds", this::notifyConsensusRoundListeners);
 
         platform = componentBuilder.build();
-
-        // Setup the marker file observer if the marker files directory is configured
-        final PathsConfig pathsConfig = platformConfig.getConfigData(PathsConfig.class);
-        final Path markerFilesDir = pathsConfig.getMarkerFilesDir();
-        markerFileObserver =
-                markerFilesDir == null ? null : new ContainerMarkerFileObserver(backgroundExecutor, markerFilesDir);
     }
 
     /**
@@ -230,17 +220,6 @@ public class ConsensusNodeManager {
      */
     public void registerConsensusRoundListener(@NonNull final ConsensusRoundListener listener) {
         consensusRoundListeners.add(listener);
-    }
-
-    /**
-     * Register a listener for marker file updates. This listener will be notified when new marker files are created
-     *
-     * @param listener the consumer that will receive updates when marker files are created, must not be {@code null}
-     */
-    public void registerMarkerFileListener(@NonNull final MarkerFileListener listener) {
-        if (markerFileObserver != null) {
-            markerFileObserver.addListener(listener);
-        }
     }
 
     /**

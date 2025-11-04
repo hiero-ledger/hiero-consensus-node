@@ -76,7 +76,6 @@ public class StartFromStateTest {
                 .haveEqualCommonRounds()
                 .haveConsistentRounds();
         assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
-        assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
 
         network.start();
 
@@ -137,7 +136,6 @@ public class StartFromStateTest {
                 .haveEqualCommonRounds()
                 .haveConsistentRounds();
         assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
-        assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
 
         // Start the network
         network.start();
