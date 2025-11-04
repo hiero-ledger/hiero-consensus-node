@@ -61,6 +61,7 @@ public class BlockStreamMetrics {
     private Counter conn_endOfStreamLimitCounter;
     private DoubleGauge conn_ackLatencyGauge;
     private Counter conn_highLatencyCounter;
+    private Counter conn_pipelineOperationTimeoutCounter;
 
     // buffer metrics
     private static final long BACK_PRESSURE_ACTIVE = 3;
@@ -282,6 +283,11 @@ public class BlockStreamMetrics {
         final Counter.Config highLatencyCfg = newCounter(GROUP_CONN, "highLatencyEvents")
                 .withDescription("Count of high latency events from the active block node connection");
         conn_highLatencyCounter = metrics.getOrCreate(highLatencyCfg);
+
+        final Counter.Config pipelineTimeoutCfg = newCounter(GROUP_CONN, "pipelineOperationTimeout")
+                .withDescription(
+                        "Number of times a pipeline onNext() or onComplete() operation timed out on a block node connection");
+        conn_pipelineOperationTimeoutCounter = metrics.getOrCreate(pipelineTimeoutCfg);
     }
 
     /**
@@ -355,6 +361,13 @@ public class BlockStreamMetrics {
      */
     public void recordHighLatencyEvent() {
         conn_highLatencyCounter.increment();
+    }
+
+    /**
+     * Record that a pipeline onNext() or onComplete() operation timed out.
+     */
+    public void recordPipelineOperationTimeout() {
+        conn_pipelineOperationTimeoutCounter.increment();
     }
 
     // Connection RECV metrics -----------------------------------------------------------------------------------------
