@@ -742,7 +742,8 @@ public class BlockNodeConnectionManager {
                                 "{} Active connection has equal/higher priority. Ignoring candidate. Active: {}.",
                                 connection,
                                 activeConnection);
-                        connection.closeAtBlockBoundary();
+                        // This connection was never initialized so we are safe to call close immediately
+                        connection.close(false);
                         return;
                     }
                 }
@@ -794,7 +795,7 @@ public class BlockNodeConnectionManager {
                     }
                 }
             } catch (final Exception e) {
-                logger.debug("{} Failed to establish connection to block node. Will schedule a retry.", connection);
+                logger.debug("{} Failed to establish connection to block node. Will schedule a retry.", connection, e);
                 blockStreamMetrics.recordConnectionCreateFailure();
                 reschedule();
                 selectNewBlockNodeForStreaming(false);
