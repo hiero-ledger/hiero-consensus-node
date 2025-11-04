@@ -59,6 +59,8 @@ import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
+import com.hedera.node.app.service.contract.impl.exec.gas.GasRequirements;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
 import com.hedera.node.app.service.contract.impl.exec.scope.ActiveContractVerificationStrategy;
@@ -538,8 +540,11 @@ public class TestHelpers {
             List.of(LogTopic.of(pbjToTuweniBytes(TestHelpers.OTHER_TOPIC))));
     public static final List<Log> BESU_LOGS = List.of(BESU_LOG, SECOND_BESU_LOG);
 
-    public static final GasCharges CHARGING_RESULT = new GasCharges(INTRINSIC_GAS, MAX_GAS_ALLOWANCE / 2);
-    public static final GasCharges NO_ALLOWANCE_CHARGING_RESULT = new GasCharges(INTRINSIC_GAS, 0);
+    public static final GasRequirements BASE_COST_GAS_REQUIREMENTS =
+            GasRequirements.of(HederaGasCalculatorImpl.TX_BASE_COST);
+    public static final GasRequirements GAS_REQUIREMENTS = GasRequirements.of(INTRINSIC_GAS);
+    public static final GasCharges CHARGING_RESULT = new GasCharges(GAS_REQUIREMENTS, MAX_GAS_ALLOWANCE / 2);
+    public static final GasCharges NO_ALLOWANCE_CHARGING_RESULT = new GasCharges(GAS_REQUIREMENTS, 0);
 
     public static final String PSEUDORANDOM_SEED_GENERATOR_SELECTOR = "0xd83bf9a1";
     public static final org.apache.tuweni.bytes.Bytes PSEUDO_RANDOM_SYSTEM_CONTRACT_ADDRESS =

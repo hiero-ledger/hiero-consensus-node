@@ -37,6 +37,7 @@ import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationProcessor;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
+import com.hedera.node.app.service.contract.impl.exec.gas.GasRequirements;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
@@ -414,8 +415,8 @@ class EthereumTransactionHandlerTest {
             given(ethTxDataReturned.gasLimit()).willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD + 1);
             given(ethTxDataReturned.value()).willReturn(BigInteger.ZERO);
             given(ethTxDataReturned.hasToAddress()).willReturn(true);
-            given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
-                    .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
+            given(gasCalculator.transactionGasRequirements(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
+                    .willReturn(GasRequirements.of(INTRINSIC_GAS_FOR_0_ARG_METHOD));
             given(ethTxDataReturned.to()).willReturn(toAddress);
             given(pureChecksContext.body()).willReturn(ethTxWithTx());
             assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
@@ -424,8 +425,8 @@ class EthereumTransactionHandlerTest {
         // check at least intrinsic gas
         try (MockedStatic<EthTxData> ethTxData = Mockito.mockStatic(EthTxData.class)) {
             ethTxData.when(() -> EthTxData.populateEthTxData(any())).thenReturn(ethTxDataReturned);
-            given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
-                    .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
+            given(gasCalculator.transactionGasRequirements(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
+                    .willReturn(GasRequirements.of(INTRINSIC_GAS_FOR_0_ARG_METHOD));
             given(pureChecksContext.body()).willReturn(ethTxWithTx());
             assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         }

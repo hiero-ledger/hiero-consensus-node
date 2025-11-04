@@ -110,14 +110,13 @@ public class CustomGasCharging {
         requireNonNull(context);
         requireNonNull(worldUpdater);
         requireNonNull(transaction);
-
         // TODO: Revisit baselineGas with Pectra support epic
-        final var intrinsicGas =
-                gasCalculator.transactionIntrinsicGasCost(transaction.evmPayload(), transaction.isCreate(), 0L);
+        final var gasRequirements =
+                gasCalculator.transactionGasRequirements(transaction.evmPayload(), transaction.isCreate(), 0L);
         if (context.isNoopGasContext()) {
-            return new GasCharges(intrinsicGas, 0L);
+            return new GasCharges(gasRequirements, 0L);
         }
-        validateTrue(transaction.gasLimit() >= intrinsicGas, INSUFFICIENT_GAS);
+        validateTrue(transaction.gasLimit() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
         if (transaction.isEthereumTransaction()) {
             requireNonNull(relayer);
             final var allowanceUsed = chargeWithRelayer(sender, relayer, context, worldUpdater, transaction);
@@ -125,10 +124,10 @@ public class CustomGasCharging {
             // Increment nonce right after the gas is charged
             sender.incrementNonce();
 
-            return new GasCharges(intrinsicGas, allowanceUsed);
+            return new GasCharges(gasRequirements, allowanceUsed);
         } else {
             chargeWithOnlySender(sender, context, worldUpdater, transaction);
-            return new GasCharges(intrinsicGas, 0L);
+            return new GasCharges(gasRequirements, 0L);
         }
     }
 
@@ -154,13 +153,14 @@ public class CustomGasCharging {
         requireNonNull(transaction);
 
         // TODO: Revisit baselineGas with Pectra support epic
-        final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(transaction.evmPayload(), false, 0L);
+        final var gasRequirements = gasCalculator.transactionGasRequirements(transaction.evmPayload(), false, 0L);
 
         if (transaction.isEthereumTransaction()) {
-            final var fee = feeForAborted(transaction.relayerId(), context, worldUpdater, intrinsicGas);
+            final var fee =
+                    feeForAborted(transaction.relayerId(), context, worldUpdater, gasRequirements.minimumGasUsed());
             worldUpdater.collectGasFee(transaction.relayerId(), fee, false);
         } else {
-            final var fee = feeForAborted(sender, context, worldUpdater, intrinsicGas);
+            final var fee = feeForAborted(sender, context, worldUpdater, gasRequirements.minimumGasUsed());
             worldUpdater.collectGasFee(sender, fee, false);
         }
     }

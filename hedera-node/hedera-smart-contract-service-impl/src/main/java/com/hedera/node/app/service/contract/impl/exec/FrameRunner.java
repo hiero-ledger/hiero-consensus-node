@@ -19,6 +19,7 @@ import static org.hyperledger.besu.evm.frame.MessageFrame.State.EXCEPTIONAL_HALT
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.node.app.service.contract.impl.exec.gas.GasRequirements;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
@@ -63,6 +64,7 @@ public class FrameRunner {
      * @param tracer the tracer to use
      * @param messageCall the message call processor to use
      * @param contractCreation the contract creation processor to use
+     * @param gasRequirements the gas requirements of the transaction
      * @return the result of the transaction
      */
     public HederaEvmTransactionResult runToCompletion(
@@ -71,7 +73,8 @@ public class FrameRunner {
             @NonNull final MessageFrame frame,
             @NonNull final ActionSidecarContentTracer tracer,
             @NonNull final CustomMessageCallProcessor messageCall,
-            @NonNull final ContractCreationProcessor contractCreation) {
+            @NonNull final ContractCreationProcessor contractCreation,
+            @NonNull final GasRequirements gasRequirements) {
         requireNonNull(frame);
         requireNonNull(tracer);
         requireNonNull(senderId);
@@ -92,7 +95,7 @@ public class FrameRunner {
         tracer.sanitizeTracedActions(frame);
 
         // And return the result, success or failure
-        final var gasUsed = effectiveGasUsed(gasLimit, frame);
+        final var gasUsed = effectiveGasUsed(gasLimit, frame, gasRequirements);
         if (frame.getState() == COMPLETED_SUCCESS) {
             return successFrom(
                     gasUsed,
@@ -157,8 +160,16 @@ public class FrameRunner {
         }
     }
 
-    private long effectiveGasUsed(final long gasLimit, @NonNull final MessageFrame frame) {
-        final var nominalGasUsed = gasLimit - frame.getRemainingGas();
+    private long effectiveGasUsed(
+            final long gasLimit, @NonNull final MessageFrame frame, @NonNull final GasRequirements gasRequirements) {
+        var nominalGasUsed = gasLimit - frame.getRemainingGas();
+        // This check is added according to https://eips.ethereum.org/EIPS/eip-7623
+        // 1. `minimumGasUsed = max(intrinsicGas, floorGas)`
+        // 2. we can calculate `nominalGasUsed` just after `execution_gas_used` will be calculated
+        // 3. if `nominalGasUsed < minimumGasUsed` we should charge `minimumGasUsed` instead
+        if (nominalGasUsed < gasRequirements.minimumGasUsed()) {
+            nominalGasUsed = gasRequirements.minimumGasUsed();
+        }
 
         // A gas refund limit as defined in EIP-3529
         final var nominalRefund = frame.getGasRefund();

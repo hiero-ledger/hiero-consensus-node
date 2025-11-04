@@ -95,9 +95,9 @@ public class ContractCallHandler extends AbstractContractTransactionHandler {
             }
 
             // TODO: Revisit baselineGas with Pectra support epic
-            final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(
+            final var gasRequirements = gasCalculator.transactionGasRequirements(
                     Bytes.wrap(op.functionParameters().toByteArray()), false, 0L);
-            validateTruePreCheck(op.gas() >= intrinsicGas, INSUFFICIENT_GAS);
+            validateTruePreCheck(op.gas() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
         } catch (@NonNull final Exception e) {
             bumpExceptionMetrics(CONTRACT_CALL, e);
             throw e;

@@ -19,6 +19,7 @@ import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
+import com.hedera.node.app.service.contract.impl.exec.gas.GasRequirements;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.handlers.HookDispatchHandler;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
@@ -83,9 +84,10 @@ class HookDispatchHandlerTest extends ContractHandlerTestBase {
         given(handleContext.savepointStack()).willReturn(savepointStack);
         given(savepointStack.getBaseBuilder(HookDispatchStreamBuilder.class)).willReturn(recordBuilder);
         lenient()
-                .when(gasCalculator.transactionIntrinsicGasCost(
+                .when(gasCalculator.transactionGasRequirements(
                         org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
-                .thenReturn((long) config.getConfigData(HooksConfig.class).lambdaIntrinsicGasCost());
+                .thenReturn(GasRequirements.of(
+                        config.getConfigData(HooksConfig.class).lambdaIntrinsicGasCost()));
         subject = new HookDispatchHandler(() -> factory, gasCalculator, contractServiceComponent);
     }
 

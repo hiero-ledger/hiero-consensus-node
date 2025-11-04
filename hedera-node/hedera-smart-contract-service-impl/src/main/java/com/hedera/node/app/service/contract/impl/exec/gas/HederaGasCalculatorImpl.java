@@ -25,7 +25,7 @@ import org.hyperledger.besu.evm.gascalculator.PragueGasCalculator;
 public class HederaGasCalculatorImpl extends PragueGasCalculator implements HederaGasCalculator {
     private static final long TX_DATA_ZERO_COST = 4L;
     private static final long ISTANBUL_TX_DATA_NON_ZERO_COST = 16L;
-    private static final long TX_BASE_COST = 21_000L;
+    public static final long TX_BASE_COST = 21_000L;
     private static final int LOG_CONTRACT_ID_SIZE = 24;
     private static final int LOG_TOPIC_SIZE = 32;
     private static final int LOG_BLOOM_SIZE = 256;
@@ -38,24 +38,32 @@ public class HederaGasCalculatorImpl extends PragueGasCalculator implements Hede
         // Dagger2
     }
 
-    // We won't use the baseline cost for now
-    // should revisit with the Pectra support epic
     @Override
-    public long transactionIntrinsicGasCost(
-            final Bytes payload, final boolean isContractCreate, final long baselineCost) {
+    public GasRequirements transactionGasRequirements(
+            @NonNull final Bytes payload, final boolean isContractCreate, final long baselineCost) {
+        int zeros = payloadZeroBytes(payload);
+        final long intrinsicGas = transactionIntrinsicGas(payload, zeros, isContractCreate, baselineCost);
+        // gasUsed described at https://eips.ethereum.org/EIPS/eip-7623
+        final long floorGas = transactionFloorCost(payload, zeros);
+        return new GasRequirements(intrinsicGas, Math.max(intrinsicGas, floorGas));
+    }
+
+    protected int payloadZeroBytes(@NonNull final Bytes payload) {
         int zeros = 0;
         for (int i = 0; i < payload.size(); i++) {
             if (payload.get(i) == 0) {
                 ++zeros;
             }
         }
+        return zeros;
+    }
+
+    // TODO We won't use the baseline cost for now, should revisit with the Pectra support epic
+    protected long transactionIntrinsicGas(
+            @NonNull final Bytes payload, final int zeros, final boolean isContractCreate, final long baselineCost) {
         final int nonZeros = payload.size() - zeros;
-
         long cost = TX_BASE_COST + TX_DATA_ZERO_COST * zeros + ISTANBUL_TX_DATA_NON_ZERO_COST * nonZeros;
-
         return isContractCreate ? (cost + txCreateExtraGasCost()) : cost;
-        // TODO correct will be like this?
-        //   return isContractCreate ? (cost + contractCreationCost(payload.size())) : cost;
     }
 
     @Override
@@ -77,11 +85,12 @@ public class HederaGasCalculatorImpl extends PragueGasCalculator implements Hede
 
     /**
      * Gas charge to do a signature verification for an ED key.
-     *
+     * <p>
      * Based on the cost of system resources used.
-     *
+     * <p>
      * FUTURE: Gas for system contract method calls needs to be a) determined by measurement of
      * resources consumed, and b) incorporated into the fee schedule.
+     *
      * @return the hardcoded gas cost for ED verification
      */
     public long getEdSignatureVerificationSystemContractGasCost() {
@@ -112,7 +121,7 @@ public class HederaGasCalculatorImpl extends PragueGasCalculator implements Hede
      * and number of topics.
      *
      * @param numberOfTopics the number of topics in the log
-     * @param dataSize the size of the data in the log
+     * @param dataSize       the size of the data in the log
      * @return an idealized computation of the number of bytes needed to store a log with the given data size
      */
     private static long logSize(final int numberOfTopics, final long dataSize) {
