@@ -46,8 +46,6 @@ public class SimpleFeesTestCalculator {
         }
     }
 
-    private SimpleFeeTestCalculator() {}
-
     /**
      *  Compute the expected charges for a txn given:
      *  the fee schedule
