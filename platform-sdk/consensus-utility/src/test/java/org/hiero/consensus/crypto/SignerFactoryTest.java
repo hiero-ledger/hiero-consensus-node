@@ -30,8 +30,8 @@ class SignerFactoryTest {
         final SecureRandom secureRandom = SecureRandom.getInstance("SHA1PRNG", "SUN");
         secureRandom.setSeed(123);
 
-        //final KeyPair keyPair = SignerFactory.generateKeyPair(SigningType.ED25519_SUN, secureRandom);
-        final KeyPair keyPair = generateKeys();
+        final KeyPair keyPair = SignerFactory.generateKeyPair(SigningType.ED25519_SUN, secureRandom);
+        //final KeyPair keyPair = generateKeys();
         System.out.println("Public Key: " + Bytes.wrap(keyPair.getPublic().getEncoded()).toHex());
         final BytesSigner jcaSigner = SignerFactory.createSigner(SigningType.ED25519_SUN, keyPair);
         final BytesSigner sodSigner = SignerFactory.createSigner(SigningType.ED25519_SODIUM, keyPair);
@@ -54,15 +54,20 @@ class SignerFactoryTest {
     }
 
     public static KeyPair fromRawEd25519Keys(final byte[] rawPublicKey, final byte[] rawPrivateKey) throws Exception {
+        // libsodium's "secret key" is 64 bytes: [32-byte seed || 32-byte public key]
+        // For PKCS#8, we only need the first 32 bytes (the seed)
+        final byte[] privateSeed = new byte[32];
+        System.arraycopy(rawPrivateKey, 0, privateSeed, 0, 32);
+
         final byte[] x509Header = HexFormat.of().parseHex("302a300506032b6570032100");
         final byte[] x509Bytes = new byte[x509Header.length + rawPublicKey.length];
         System.arraycopy(x509Header, 0, x509Bytes, 0, x509Header.length);
         System.arraycopy(rawPublicKey, 0, x509Bytes, x509Header.length, rawPublicKey.length);
 
         final byte[] pkcs8Header = HexFormat.of().parseHex("302e020100300506032b657004220420");
-        final byte[] pkcs8Bytes = new byte[pkcs8Header.length + rawPrivateKey.length];
+        final byte[] pkcs8Bytes = new byte[pkcs8Header.length + privateSeed.length];
         System.arraycopy(pkcs8Header, 0, pkcs8Bytes, 0, pkcs8Header.length);
-        System.arraycopy(rawPrivateKey, 0, pkcs8Bytes, pkcs8Header.length, rawPrivateKey.length);
+        System.arraycopy(privateSeed, 0, pkcs8Bytes, pkcs8Header.length, privateSeed.length);
 
         final KeyFactory keyFactory = KeyFactory.getInstance("Ed25519");
         final PublicKey publicKey = keyFactory.generatePublic(new X509EncodedKeySpec(x509Bytes));
