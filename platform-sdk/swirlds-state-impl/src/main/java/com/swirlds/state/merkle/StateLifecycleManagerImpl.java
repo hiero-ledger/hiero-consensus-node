@@ -180,6 +180,9 @@ public class StateLifecycleManagerImpl<T extends MerkleNodeStateAware> implement
         snapshotSource.set(null);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public MerkleNodeState loadSnapshot(@NonNull Path targetPath) {
         final MerkleNode root;
