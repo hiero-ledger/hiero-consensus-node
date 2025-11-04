@@ -9,6 +9,9 @@ import java.util.Objects;
  * Common units used in metrics.
  */
 public enum Unit {
+    /**
+     * No unit.
+     */
     NO_UNIT(""),
     /**
      * Unit of frequency in Hertz.
