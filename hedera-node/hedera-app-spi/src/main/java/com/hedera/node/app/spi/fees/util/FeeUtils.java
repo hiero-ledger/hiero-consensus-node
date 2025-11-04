@@ -26,13 +26,10 @@ public class FeeUtils {
     }
 
     public static FeeResult feesToFeeResult(Fees fees, ExchangeRate rate) {
-        long nodeFee = FeeBuilder.getTinybarsFromTinyCents(rate, fees.nodeFee());
-        long networkFee = FeeBuilder.getTinybarsFromTinyCents(rate, fees.networkFee());
-        long serviceFee = FeeBuilder.getTinybarsFromTinyCents(rate, fees.serviceFee());
         final var feeResult = new FeeResult();
-        feeResult.addNodeFee("Node fee", 1, nodeFee);
-        feeResult.addNetworkFee("Network fee", 1, networkFee);
-        feeResult.addServiceFee("Service fee", 1, serviceFee);
+        feeResult.addNodeFee("Node fee", 1, FeeBuilder.getTinybarsFromTinyCents(rate, fees.nodeFee()));
+        feeResult.addNetworkFee("Network fee", 1, FeeBuilder.getTinybarsFromTinyCents(rate, fees.networkFee()));
+        feeResult.addServiceFee("Service fee", 1, FeeBuilder.getTinybarsFromTinyCents(rate, fees.serviceFee()));
         return feeResult;
     }
 }
