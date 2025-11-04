@@ -115,7 +115,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     @BeforeEach
     @SuppressWarnings("unchecked")
     void beforeEach() throws Exception {
-    configProvider = createConfigProvider(createDefaultConfigProvider());
+        configProvider = createConfigProvider(createDefaultConfigProvider());
         nodeConfig = newBlockNodeConfig(8080, 1);
         connectionManager = mock(BlockNodeConnectionManager.class);
         bufferService = mock(BlockBufferService.class);
