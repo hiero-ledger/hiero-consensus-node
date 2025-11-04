@@ -22,6 +22,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewContract;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.GLOBAL_WATCHER;
@@ -44,6 +45,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_HOOK_CREATION_SPEC;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_HOOKS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSFER_LIST_SIZE_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -1064,6 +1066,113 @@ public class Hip1195BasicTests {
 
     @HapiTest
     final Stream<DynamicTest> cannotDeleteAccountWithHooks() {
+        return hapiTest(
+                cryptoCreate(OWNER).withHooks(accountAllowanceHook(123L, SELF_DESTRUCT_HOOK.name())),
+                cryptoDelete(OWNER)
+                        .hasKnownStatus(TRANSACTION_REQUIRES_ZERO_HOOKS)
+                        .payingWith(OWNER),
+                // after removing hook can delete successfully
+                cryptoUpdate(OWNER).removingHook(123L),
+                cryptoDelete(OWNER).payingWith(OWNER));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> transfersWorkWithCryptoTransferLimit() {
+        final var receiverPrefix = "receiver";
+        return hapiTest(
+                withOpContext((spec, log) -> {
+                    for (int i = 0; i < 10; i++) {
+                        allRunFor(
+                                spec,
+                                cryptoCreate(receiverPrefix + i)
+                                        .withHook(accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()))
+                                        .withHook(accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name()))
+                                        .balance(ONE_HBAR));
+                    }
+                }),
+                cryptoCreate(OWNER)
+                        .withHooks(
+                                accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
+                cryptoTransfer(
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver0"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver1"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver2"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver3"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver4"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver5"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver6"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver7"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver8"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver9"))
+                        .withPreHookFor(OWNER, 123L, 25_000L, "")
+                        .withPreHookFor("receiver0", 123L, 25_000L, "")
+                        .withPreHookFor("receiver1", 123L, 25_000L, "")
+                        .withPreHookFor("receiver2", 123L, 25_000L, "")
+                        .withPreHookFor("receiver3", 123L, 25_000L, "")
+                        .withPreHookFor("receiver4", 123L, 25_000L, "")
+                        .withPreHookFor("receiver5", 123L, 25_000L, "")
+                        .withPreHookFor("receiver6", 123L, 25_000L, "")
+                        .withPreHookFor("receiver7", 123L, 25_000L, "")
+                        .withPreHookFor("receiver8", 123L, 25_000L, "")
+                        .withPreHookFor("receiver9", 123L, 25_000L, "")
+                        .hasKnownStatus(TRANSFER_LIST_SIZE_LIMIT_EXCEEDED),
+                cryptoTransfer(
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver0"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver1"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver2"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver3"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver4"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver5"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver6"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver7"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver8"))
+                        .withPreHookFor(OWNER, 123L, 25_000L, "")
+                        .withPreHookFor("receiver0", 123L, 25_000L, "")
+                        .withPreHookFor("receiver1", 123L, 25_000L, "")
+                        .withPreHookFor("receiver2", 123L, 25_000L, "")
+                        .withPreHookFor("receiver3", 123L, 25_000L, "")
+                        .withPreHookFor("receiver4", 123L, 25_000L, "")
+                        .withPreHookFor("receiver5", 123L, 25_000L, "")
+                        .withPreHookFor("receiver6", 123L, 25_000L, "")
+                        .withPreHookFor("receiver7", 123L, 25_000L, "")
+                        .withPreHookFor("receiver8", 123L, 25_000L, "")
+                        .withPreHookFor("receiver9", 123L, 25_000L, "")
+                        .via("transferTxn"),
+                getTxnRecord("transferTxn")
+                        .andAllChildRecords()
+                        .hasNonStakingChildRecordCount(10)
+                        .logged(),
+                cryptoTransfer(
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver0"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver1"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver2"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver3"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver4"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver5"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver6"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver7"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver8"))
+                        .withPrePostHookFor(OWNER, 124L, 25_000L, "")
+                        .withPrePostHookFor("receiver0", 124L, 25_000L, "")
+                        .withPrePostHookFor("receiver1", 124L, 25_000L, "")
+                        .withPrePostHookFor("receiver2", 124L, 25_000L, "")
+                        .withPrePostHookFor("receiver3", 124L, 25_000L, "")
+                        .withPrePostHookFor("receiver4", 124L, 25_000L, "")
+                        .withPrePostHookFor("receiver5", 124L, 25_000L, "")
+                        .withPrePostHookFor("receiver6", 124L, 25_000L, "")
+                        .withPrePostHookFor("receiver7", 124L, 25_000L, "")
+                        .withPrePostHookFor("receiver8", 124L, 25_000L, "")
+                        .withPrePostHookFor("receiver9", 124L, 25_000L, "")
+                        .via("transferPrePostTxn"),
+                getTxnRecord("transferPrePostTxn")
+                        .andAllChildRecords()
+                        .hasNonStakingChildRecordCount(20)
+                        .logged());
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> transfersExceedingChildTxnLimitFails() {
         return hapiTest(
                 cryptoCreate(OWNER).withHooks(accountAllowanceHook(123L, SELF_DESTRUCT_HOOK.name())),
                 cryptoDelete(OWNER)
