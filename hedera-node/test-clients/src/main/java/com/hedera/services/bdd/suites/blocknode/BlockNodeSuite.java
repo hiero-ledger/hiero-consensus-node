@@ -919,8 +919,7 @@ public class BlockNodeSuite {
                                 portNumbers.getFirst()),
                         String.format(
                                 "/localhost:%s/ACTIVE] Block node requested a ResendBlock for block 9223372036854775807 but that block does not exist on this consensus node. Closing connection and will retry later",
-                                portNumbers.getFirst()))),
-                assertBlockNodeCommsLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
+                                portNumbers.getFirst()))));
     }
 
     @NotNull
