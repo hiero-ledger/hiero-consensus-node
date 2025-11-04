@@ -93,7 +93,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     /**
      * The configuration specific to the block node this connection is for.
      */
-    private final BlockNodeProtocolConfig blockNodeConfig;
+    private final BlockNodeProtocolConfig blockNodeProtocolConfig;
     /**
      * The "parent" connection manager that manages the lifecycle of this connection.
      */
@@ -229,7 +229,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             @Nullable final Long initialBlockToStream,
             @NonNull final BlockNodeClientFactory clientFactory) {
         this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
-        this.blockNodeConfig = requireNonNull(nodeConfig, "nodeConfig must not be null");
+        this.blockNodeProtocolConfig = requireNonNull(nodeConfig, "nodeConfig must not be null");
         this.blockNodeConnectionManager =
                 requireNonNull(blockNodeConnectionManager, "blockNodeConnectionManager must not be null");
         this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
@@ -295,14 +295,14 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     private @NonNull BlockStreamPublishServiceClient createNewGrpcClient() {
         final Duration timeoutDuration = configProvider
                 .getConfiguration()
-                .getConfigData(com.hedera.node.config.data.BlockNodeConnectionConfig.class)
+                .getConfigData(BlockNodeConnectionConfig.class)
                 .grpcOverallTimeout();
 
         final Tls tls = Tls.builder().enabled(false).build();
         final PbjGrpcClientConfig grpcConfig =
                 new PbjGrpcClientConfig(timeoutDuration, tls, Optional.of(""), "application/grpc");
 
-        GrpcClientProtocolConfig extractedGrpcConfig = blockNodeConfig.grpcClientProtocolConfig();
+        GrpcClientProtocolConfig extractedGrpcConfig = blockNodeProtocolConfig.grpcClientProtocolConfig();
         final GrpcClientProtocolConfig grpcProtocolConfig = (extractedGrpcConfig != null)
                 ? extractedGrpcConfig
                 : GrpcClientProtocolConfig.builder()
@@ -312,14 +312,14 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         final List<ProtocolConfig> protocolConfigs = new ArrayList<>();
         protocolConfigs.add(grpcProtocolConfig);
-        Http2ClientProtocolConfig http2ClientProtocolConfig = blockNodeConfig.http2ClientProtocolConfig();
+        Http2ClientProtocolConfig http2ClientProtocolConfig = blockNodeProtocolConfig.http2ClientProtocolConfig();
         if (http2ClientProtocolConfig != null) {
             protocolConfigs.add(http2ClientProtocolConfig);
         }
 
         final WebClient webClient = WebClient.builder()
-                .baseUri("http://" + blockNodeConfig.blockNodeConfig().address() + ":"
-                        + blockNodeConfig.blockNodeConfig().port())
+                .baseUri("http://" + blockNodeProtocolConfig.blockNodeConfig().address() + ":"
+                        + blockNodeProtocolConfig.blockNodeConfig().port())
                 .tls(tls)
                 .protocolConfigs(protocolConfigs)
                 .connectTimeout(timeoutDuration)
@@ -327,8 +327,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         if (logger.isDebugEnabled()) {
             logger.debug(
                     "Created BlockStreamPublishServiceClient for {}:{}.",
-                    blockNodeConfig.blockNodeConfig().address(),
-                    blockNodeConfig.blockNodeConfig().port());
+                    blockNodeProtocolConfig.blockNodeConfig().address(),
+                    blockNodeProtocolConfig.blockNodeConfig().port());
         }
         return clientFactory.createClient(webClient, grpcConfig, OPTIONS);
     }
@@ -480,7 +480,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         // Evaluate latency and high-latency QoS via the connection manager
         final var result = blockNodeConnectionManager.recordBlockAckAndCheckLatency(
-                blockNodeConfig.blockNodeConfig(), acknowledgedBlockNumber, Instant.now());
+                blockNodeProtocolConfig.blockNodeConfig(), acknowledgedBlockNumber, Instant.now());
         if (result.shouldSwitch() && !blockNodeConnectionManager.isOnlyOneBlockNodeConfigured()) {
             if (logger.isInfoEnabled()) {
                 logger.info(
@@ -544,13 +544,13 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         // Record the EndOfStream event and check if the rate limit has been exceeded.
         // The connection manager maintains persistent stats for each node across connections.
         if (blockNodeConnectionManager.recordEndOfStreamAndCheckLimit(
-                blockNodeConfig.blockNodeConfig(), Instant.now())) {
+                blockNodeProtocolConfig.blockNodeConfig(), Instant.now())) {
             if (logger.isInfoEnabled()) {
                 logger.info(
                         "{} Block node has exceeded the allowed number of EndOfStream responses "
                                 + "(received={}, permitted={}, timeWindow={}). Reconnection scheduled for {}.",
                         this,
-                        blockNodeConnectionManager.getEndOfStreamCount(blockNodeConfig.blockNodeConfig()),
+                        blockNodeConnectionManager.getEndOfStreamCount(blockNodeProtocolConfig.blockNodeConfig()),
                         blockNodeConnectionManager.getMaxEndOfStreamsAllowed(),
                         blockNodeConnectionManager.getEndOfStreamTimeframe(),
                         blockNodeConnectionManager.getEndOfStreamScheduleDelay());
@@ -791,7 +791,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                             final BlockProof blockProof = item.blockProof();
                             if (blockProof != null) {
                                 blockNodeConnectionManager.recordBlockProofSent(
-                                        blockNodeConfig.blockNodeConfig(), blockProof.block(), Instant.now());
+                                        blockNodeProtocolConfig.blockNodeConfig(), blockProof.block(), Instant.now());
                             }
                         }
                     }
@@ -912,7 +912,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * @return the block node configuration
      */
     public BlockNodeConfig getNodeConfig() {
-        return blockNodeConfig.blockNodeConfig();
+        return blockNodeProtocolConfig.blockNodeConfig();
     }
 
     /**
@@ -920,7 +920,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * @return the block node connection configuration
      */
     public BlockNodeProtocolConfig getBlockNodeConnectionConfig() {
-        return blockNodeConfig;
+        return blockNodeProtocolConfig;
     }
 
     @Override
@@ -1032,8 +1032,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
     @Override
     public String toString() {
-        return "[" + connectionId + "/" + blockNodeConfig.blockNodeConfig().address() + ":"
-                + blockNodeConfig.blockNodeConfig().port() + "/" + getConnectionState() + "]";
+        return "[" + connectionId + "/"
+                + blockNodeProtocolConfig.blockNodeConfig().address() + ":"
+                + blockNodeProtocolConfig.blockNodeConfig().port() + "/" + getConnectionState() + "]";
     }
 
     @Override
@@ -1042,12 +1043,13 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             return false;
         }
         final BlockNodeConnection that = (BlockNodeConnection) o;
-        return Objects.equals(connectionId, that.connectionId) && Objects.equals(blockNodeConfig, that.blockNodeConfig);
+        return Objects.equals(connectionId, that.connectionId)
+                && Objects.equals(blockNodeProtocolConfig, that.blockNodeProtocolConfig);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(blockNodeConfig, connectionId);
+        return Objects.hash(blockNodeProtocolConfig, connectionId);
     }
 
     /**
@@ -1079,8 +1081,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         private final AtomicInteger requestCtr = new AtomicInteger(1);
 
         public ConnectionWorkerLoopTask() {
-            if (blockNodeConfig.maxMessageSizeBytes() != null) {
-                this.maxBytesPerRequest = blockNodeConfig.maxMessageSizeBytes();
+            if (blockNodeProtocolConfig.maxMessageSizeBytes() != null) {
+                this.maxBytesPerRequest = blockNodeProtocolConfig.maxMessageSizeBytes();
             } else {
                 this.maxBytesPerRequest = MAX_BYTES_PER_REQUEST;
             }
@@ -1302,7 +1304,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         private long maxRequestDelayMillis() {
             return configProvider
                     .getConfiguration()
-                    .getConfigData(com.hedera.node.config.data.BlockNodeConnectionConfig.class)
+                    .getConfigData(BlockNodeConnectionConfig.class)
                     .maxRequestDelay()
                     .toMillis();
         }
@@ -1313,7 +1315,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         private long connectionWorkerSleepMillis() {
             return configProvider
                     .getConfiguration()
-                    .getConfigData(com.hedera.node.config.data.BlockNodeConnectionConfig.class)
+                    .getConfigData(BlockNodeConnectionConfig.class)
                     .connectionWorkerSleepDuration()
                     .toMillis();
         }
