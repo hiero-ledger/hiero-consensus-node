@@ -37,7 +37,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.stream.IntStream;
-import org.hiero.base.crypto.BytesSigner;
+import org.hiero.consensus.crypto.BytesSigner;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;

@@ -1,4 +1,4 @@
-package org.hiero.consensus.crypto;
+package org.hiero.consensus.crypto.internal;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.security.InvalidKeyException;
@@ -7,6 +7,7 @@ import java.security.NoSuchProviderException;
 import java.security.PublicKey;
 import java.security.Signature;
 import java.security.SignatureException;
+import org.hiero.consensus.crypto.BytesVerifier;
 
 public class JcaVerifier implements BytesVerifier {
     private final Signature verifier;

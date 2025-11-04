@@ -23,10 +23,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-import org.hiero.base.crypto.BytesSigner;
-import org.hiero.consensus.crypto.PlatformSigner;
-import org.hiero.consensus.crypto.SignerFactory;
-import org.hiero.consensus.crypto.SigningType;
+import org.hiero.consensus.crypto.BytesSigner;
+import org.hiero.consensus.crypto.SigningFactory;
+import org.hiero.consensus.crypto.SigningAlgorithm;
 import org.hiero.consensus.event.creator.EventCreationConfig;
 import org.hiero.consensus.event.creator.EventCreationConfig_;
 import org.hiero.consensus.event.creator.impl.DefaultEventCreator;
@@ -70,7 +69,7 @@ public class EventCreatorNetworkBenchmark {
     public long seed;
 
     @Param({"RSA_BC", "RSA_SUN", "EC_SUN", "ED25519_SODIUM", "ED25519_SUN"})
-    public SigningType signingType;
+    public SigningAlgorithm signingType;
 
     /** The event creators for each node in the network. */
     private List<DefaultEventCreator> eventCreators;
@@ -124,8 +123,8 @@ public class EventCreatorNetworkBenchmark {
             final NodeId nodeId = NodeId.of(entry.nodeId());
             final SecureRandom nodeRandom = new SecureRandom();
             nodeRandom.setSeed(nodeId.id());
-            final KeyPair keyPair = SignerFactory.generateKeyPair(signingType, nodeRandom);
-            final BytesSigner signer = SignerFactory.createSigner(signingType, keyPair);
+            final KeyPair keyPair = SigningFactory.generateKeyPair(signingType, nodeRandom);
+            final BytesSigner signer = SigningFactory.createSigner(signingType, keyPair);
 
             final DefaultEventCreator eventCreator = new DefaultEventCreator();
             eventCreator.initialize(
