@@ -2,6 +2,6 @@
 package org.hiero.consensus.gossip;
 
 /**
- * Mock gossip.
+ * Mock gossip. a
  */
 public interface Gossip {}
