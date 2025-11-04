@@ -19,7 +19,10 @@ import org.hiero.base.utility.MemoryUtils;
  * Writes preconsensus events to a file using a {@link FileChannel}.
  */
 public class PcesFileChannelWriter implements PcesFileWriter {
-    /** The capacity of the ByteBuffer used to write events */
+    /**
+     * The initial capacity of the ByteBuffer used to write events.
+     *  Can be expanded throughout the lifespan of the app.
+     **/
     static final int BUFFER_CAPACITY = 1024 * 1024 * 10;
     /** The file channel for writing events */
     private final FileChannel channel;

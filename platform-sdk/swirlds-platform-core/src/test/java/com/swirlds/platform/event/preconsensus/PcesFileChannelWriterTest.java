@@ -15,9 +15,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+/**
+ * Test for {@link PcesFileChannelWriter}
+ */
 class PcesFileChannelWriterTest {
-
-    public static final int A_MEGA = 1024 * 1024;
+    // A large payload size that exceeds writer's buffer capacity
+    private static final int LARGE_PAYLOAD_SIZE = BUFFER_CAPACITY + 2 * 1024 * 1024;
+    private final Randotron random = Randotron.create();
 
     @TempDir
     private Path tempDir;
@@ -26,12 +30,12 @@ class PcesFileChannelWriterTest {
     private PcesFileChannelWriter writer;
 
     @BeforeEach
-    void setUp() {
+    void before() {
         testFile = tempDir.resolve("test-events.pces");
     }
 
     @AfterEach
-    void tearDown() throws IOException {
+    void after() throws IOException {
         if (writer != null) {
             writer.close();
         }
@@ -39,17 +43,13 @@ class PcesFileChannelWriterTest {
 
     @Test
     void testWriteEventExceedingBufferCapacity() throws IOException {
-        final Randotron r = Randotron.create();
-
-        // Create a large payload that exceeds buffer capacity
-        final int largePayloadSize = BUFFER_CAPACITY + 2 * A_MEGA;
 
         // Create an event with a very large payload
-        final GossipEvent largeEvent = new TestingEventBuilder(r)
+        final GossipEvent largeEvent = new TestingEventBuilder(random)
                 .setAppTransactionCount(2)
-                .setSelfParent(new TestingEventBuilder(r).build())
-                .setOtherParent(new TestingEventBuilder(r).build())
-                .setTransactionSize(largePayloadSize)
+                .setSelfParent(new TestingEventBuilder(random).build())
+                .setOtherParent(new TestingEventBuilder(random).build())
+                .setTransactionSize(LARGE_PAYLOAD_SIZE)
                 .build()
                 .getGossipEvent();
 
@@ -73,21 +73,18 @@ class PcesFileChannelWriterTest {
 
     @Test
     void testWriteMultipleEventsWithOneExceedingCapacity() throws IOException {
-        final Randotron r = Randotron.create();
 
         // Create normal-sized event
-        final GossipEvent normalEvent = new TestingEventBuilder(r)
+        final GossipEvent normalEvent = new TestingEventBuilder(random)
                 .setAppTransactionCount(3)
-                .setSelfParent(new TestingEventBuilder(r).build())
-                .setOtherParent(new TestingEventBuilder(r).build())
+                .setSelfParent(new TestingEventBuilder(random).build())
+                .setOtherParent(new TestingEventBuilder(random).build())
                 .build()
                 .getGossipEvent();
 
-        final int largePayloadSize = BUFFER_CAPACITY + A_MEGA;
-
-        final GossipEvent largeEvent = new TestingEventBuilder(r)
+        final GossipEvent largeEvent = new TestingEventBuilder(random)
                 .setAppTransactionCount(1)
-                .setTransactionSize(largePayloadSize)
+                .setTransactionSize(LARGE_PAYLOAD_SIZE)
                 .build()
                 .getGossipEvent();
 
