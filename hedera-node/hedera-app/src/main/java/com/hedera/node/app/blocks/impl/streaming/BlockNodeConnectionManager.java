@@ -97,7 +97,7 @@ public class BlockNodeConnectionManager {
      * List of available block nodes this consensus node can connect to, or at least attempt to. This list is read upon
      * startup from the configuration file(s) on disk.
      */
-    private final List<BlockNodeConnectionConfig> availableBlockNodes = new ArrayList<>();
+    private final List<BlockNodeProtocolConfig> availableBlockNodes = new ArrayList<>();
     /**
      * Flag that indicates if this connection manager is active or not. In this case, being active means it is actively
      * processing blocks and attempting to send them to a block node.
@@ -123,7 +123,7 @@ public class BlockNodeConnectionManager {
      * Map that contains one or more connections to block nodes. The connections in this map will be a subset (or all)
      * of the available block node connections. (see {@link BlockNodeConnectionManager#availableBlockNodes})
      */
-    private final Map<BlockNodeConnectionConfig, BlockNodeConnection> connections = new ConcurrentHashMap<>();
+    private final Map<BlockNodeProtocolConfig, BlockNodeConnection> connections = new ConcurrentHashMap<>();
     /**
      * Reference to the currently active connection. If this reference is null, then there is no active connection.
      */
@@ -233,7 +233,7 @@ public class BlockNodeConnectionManager {
      * @param blockNodeConfigPath the path to the block node configuration file
      * @return the configurations for all block nodes
      */
-    private List<BlockNodeConnectionConfig> extractBlockNodesConfigurations(@NonNull final String blockNodeConfigPath) {
+    private List<BlockNodeProtocolConfig> extractBlockNodesConfigurations(@NonNull final String blockNodeConfigPath) {
         final Path configPath = Paths.get(blockNodeConfigPath, BLOCK_NODES_FILE_NAME);
         try {
             if (!Files.exists(configPath)) {
@@ -243,9 +243,9 @@ public class BlockNodeConnectionManager {
 
             final byte[] jsonConfig = Files.readAllBytes(configPath);
             final BlockNodeConnectionInfo protoConfig = BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(jsonConfig));
-            List<BlockNodeConnectionConfig> nodes = new ArrayList<>();
+            List<BlockNodeProtocolConfig> nodes = new ArrayList<>();
             for (BlockNodeConfig nodeConfig : protoConfig.nodes()) {
-                nodes.add(new BlockNodeConnectionConfig(
+                nodes.add(new BlockNodeProtocolConfig(
                         nodeConfig,
                         extractOptionalHttp2ClientProtocolConfig(nodeConfig),
                         extractOptionalGrpcClientProtocolConfig(nodeConfig),
@@ -263,16 +263,17 @@ public class BlockNodeConnectionManager {
 
     private Http2ClientProtocolConfig extractOptionalHttp2ClientProtocolConfig(BlockNodeConfig config) {
         if (config.hasHttp2ClientProtocolConfig()) {
-            com.hedera.node.internal.network.Http2ClientProtocolConfig protocolConfig =
+            final com.hedera.node.internal.network.Http2ClientProtocolConfig protocolConfig =
                     config.http2ClientProtocolConfig();
-            Http2ClientProtocolConfig.Builder builder = Http2ClientProtocolConfig.builder();
+            final Http2ClientProtocolConfig.Builder builder = Http2ClientProtocolConfig.builder();
             if (protocolConfig != null) {
                 if (protocolConfig.flowControlBlockTimeout() != null) {
                     try {
-                        Duration flowControlBlockTimeout = Duration.parse(protocolConfig.flowControlBlockTimeout());
+                        final Duration flowControlBlockTimeout =
+                                Duration.parse(protocolConfig.flowControlBlockTimeout());
                         builder.flowControlBlockTimeout(flowControlBlockTimeout);
                     } catch (DateTimeParseException e) {
-                        logger.info(
+                        logger.warn(
                                 "Unable to parse Http2ClientProtocolConfig flowControlBlockTimeout: {}",
                                 protocolConfig.flowControlBlockTimeout());
                     }
@@ -294,10 +295,10 @@ public class BlockNodeConnectionManager {
                 }
                 if (protocolConfig.pingTimeout() != null) {
                     try {
-                        Duration pingTimeout = Duration.parse(protocolConfig.pingTimeout());
+                        final Duration pingTimeout = Duration.parse(protocolConfig.pingTimeout());
                         builder.pingTimeout(pingTimeout);
                     } catch (DateTimeParseException e) {
-                        logger.info(
+                        logger.warn(
                                 "Unable to parse Http2ClientProtocolConfig pingTimeout: {}",
                                 protocolConfig.pingTimeout());
                     }
@@ -313,9 +314,9 @@ public class BlockNodeConnectionManager {
 
     private GrpcClientProtocolConfig extractOptionalGrpcClientProtocolConfig(BlockNodeConfig config) {
         if (config.hasGrpcClientProtocolConfig()) {
-            com.hedera.node.internal.network.GrpcClientProtocolConfig protocolConfig =
+            final com.hedera.node.internal.network.GrpcClientProtocolConfig protocolConfig =
                     config.grpcClientProtocolConfig();
-            GrpcClientProtocolConfig.Builder builder = GrpcClientProtocolConfig.builder();
+            final GrpcClientProtocolConfig.Builder builder = GrpcClientProtocolConfig.builder();
             if (protocolConfig != null) {
                 if (protocolConfig.abortPollTimeExpired() != null) {
                     builder.abortPollTimeExpired(protocolConfig.abortPollTimeExpired());
@@ -324,7 +325,7 @@ public class BlockNodeConnectionManager {
                     try {
                         builder.heartbeatPeriod(Duration.parse(protocolConfig.heartbeatPeriod()));
                     } catch (DateTimeParseException e) {
-                        logger.info(
+                        logger.warn(
                                 "Unable to parse GrpcClientProtocolConfig heartbeatPeriod: {}",
                                 protocolConfig.heartbeatPeriod());
                     }
@@ -339,7 +340,7 @@ public class BlockNodeConnectionManager {
                     try {
                         builder.pollWaitTime(Duration.parse(protocolConfig.pollWaitTime()));
                     } catch (DateTimeParseException e) {
-                        logger.info(
+                        logger.warn(
                                 "Unable to parse GrpcClientProtocolConfig pollWaitTime: {}",
                                 protocolConfig.pollWaitTime());
                     }
@@ -460,7 +461,7 @@ public class BlockNodeConnectionManager {
     }
 
     private void scheduleConnectionAttempt(
-            @NonNull final BlockNodeConnectionConfig blockNodeConfig,
+            @NonNull final BlockNodeProtocolConfig blockNodeConfig,
             @NonNull final Duration initialDelay,
             @Nullable final Long initialBlockToStream,
             final boolean force) {
@@ -521,10 +522,10 @@ public class BlockNodeConnectionManager {
     private void closeAllConnections() {
         logger.debug("Stopping block node connections");
         // Close all connections
-        final Iterator<Map.Entry<BlockNodeConnectionConfig, BlockNodeConnection>> it =
+        final Iterator<Map.Entry<BlockNodeProtocolConfig, BlockNodeConnection>> it =
                 connections.entrySet().iterator();
         while (it.hasNext()) {
-            final Map.Entry<BlockNodeConnectionConfig, BlockNodeConnection> entry = it.next();
+            final Map.Entry<BlockNodeProtocolConfig, BlockNodeConnection> entry = it.next();
             final BlockNodeConnection connection = entry.getValue();
             try {
                 connection.close(true);
@@ -583,7 +584,7 @@ public class BlockNodeConnectionManager {
 
         logger.debug("Selecting highest priority available block node for connection attempt.");
 
-        final BlockNodeConnectionConfig selectedNode = getNextPriorityBlockNode();
+        final BlockNodeProtocolConfig selectedNode = getNextPriorityBlockNode();
 
         if (selectedNode == null) {
             logger.debug("No available block nodes found for streaming.");
@@ -609,23 +610,23 @@ public class BlockNodeConnectionManager {
      *
      * @return the next available block node configuration
      */
-    private @Nullable BlockNodeConnectionConfig getNextPriorityBlockNode() {
+    private @Nullable BlockNodeProtocolConfig getNextPriorityBlockNode() {
         logger.debug("Searching for new block node connection based on node priorities.");
 
-        final List<BlockNodeConnectionConfig> snapshot;
+        final List<BlockNodeProtocolConfig> snapshot;
         synchronized (availableBlockNodes) {
             snapshot = new ArrayList<>(availableBlockNodes);
         }
 
-        final SortedMap<Integer, List<BlockNodeConnectionConfig>> priorityGroups = snapshot.stream()
+        final SortedMap<Integer, List<BlockNodeProtocolConfig>> priorityGroups = snapshot.stream()
                 .collect(Collectors.groupingBy(
                         config -> config.blockNodeConfig().priority(), TreeMap::new, Collectors.toList()));
 
-        BlockNodeConnectionConfig selectedNode = null;
+        BlockNodeProtocolConfig selectedNode = null;
 
-        for (final Map.Entry<Integer, List<BlockNodeConnectionConfig>> entry : priorityGroups.entrySet()) {
+        for (final Map.Entry<Integer, List<BlockNodeProtocolConfig>> entry : priorityGroups.entrySet()) {
             final int priority = entry.getKey();
-            final List<BlockNodeConnectionConfig> nodesInGroup = entry.getValue();
+            final List<BlockNodeProtocolConfig> nodesInGroup = entry.getValue();
             selectedNode = findAvailableNode(nodesInGroup);
 
             if (selectedNode == null) {
@@ -646,8 +647,7 @@ public class BlockNodeConnectionManager {
      * @param nodes list of possible nodes to connect to
      * @return a node that is a candidate to connect to, or null if no candidate was found
      */
-    private @Nullable BlockNodeConnectionConfig findAvailableNode(
-            @NonNull final List<BlockNodeConnectionConfig> nodes) {
+    private @Nullable BlockNodeProtocolConfig findAvailableNode(@NonNull final List<BlockNodeProtocolConfig> nodes) {
         requireNonNull(nodes, "nodes must not be null");
         // Only allow the selection of nodes which are not currently in the connections map
         return nodes.stream()
@@ -670,7 +670,7 @@ public class BlockNodeConnectionManager {
      */
     @NonNull
     private BlockNodeConnection createConnection(
-            @NonNull final BlockNodeConnectionConfig nodeConfig, @Nullable final Long initialBlockToStream) {
+            @NonNull final BlockNodeProtocolConfig nodeConfig, @Nullable final Long initialBlockToStream) {
         requireNonNull(nodeConfig);
 
         final BlockNodeConnection connection = new BlockNodeConnection(
@@ -779,7 +779,7 @@ public class BlockNodeConnectionManager {
 
     private void refreshAvailableBlockNodes() {
         final String configDir = blockNodeConfigDirectory.toString();
-        final List<BlockNodeConnectionConfig> newConfigs = extractBlockNodesConfigurations(configDir);
+        final List<BlockNodeProtocolConfig> newConfigs = extractBlockNodesConfigurations(configDir);
 
         // Compare new configs with existing ones to determine if a restart is needed
         synchronized (availableBlockNodes) {
