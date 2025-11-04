@@ -14,7 +14,7 @@ import io.helidon.webclient.http2.Http2ClientProtocolConfig;
  * @param grpcClientProtocolConfig the gRPC client protocol configuration
  * @param maxMessageSizeBytes the maximum message size in bytes
  */
-public record BlockNodeConnectionConfig(
+public record BlockNodeProtocolConfig(
         @NonNull BlockNodeConfig blockNodeConfig,
         @Nullable Http2ClientProtocolConfig http2ClientProtocolConfig,
         @Nullable GrpcClientProtocolConfig grpcClientProtocolConfig,

@@ -72,8 +72,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
     private static final Logger logger = LogManager.getLogger(BlockNodeConnection.class);
     /**
-     * PBJ has a deserialization hard limit of 2 MB. Any request we send to the block node MUST BE less than or equal
-     * to 2 MB. If a request exceeds this, it will fail to deserialize.
+     * The default max bytes per PublishStreamRequest.
      */
     private static final int MAX_BYTES_PER_REQUEST = 2_097_152;
 
@@ -93,7 +92,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     /**
      * The configuration specific to the block node this connection is for.
      */
-    private final BlockNodeConnectionConfig blockNodeConfig;
+    private final BlockNodeProtocolConfig blockNodeConfig;
     /**
      * The "parent" connection manager that manages the lifecycle of this connection.
      */
@@ -220,7 +219,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     public BlockNodeConnection(
             @NonNull final ConfigProvider configProvider,
-            @NonNull final BlockNodeConnectionConfig nodeConfig,
+            @NonNull final BlockNodeProtocolConfig nodeConfig,
             @NonNull final BlockNodeConnectionManager blockNodeConnectionManager,
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final BlockStreamMetrics blockStreamMetrics,
@@ -919,7 +918,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * Returns the block node connection configuration for this connection.
      * @return the block node connection configuration
      */
-    public BlockNodeConnectionConfig getBlockNodeConnectionConfig() {
+    public BlockNodeProtocolConfig getBlockNodeConnectionConfig() {
         return blockNodeConfig;
     }
 
@@ -1080,7 +1079,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         public ConnectionWorkerLoopTask() {
             if (blockNodeConfig.maxMessageSizeBytes() != null) {
-                this.maxBytesPerRequest = min(blockNodeConfig.maxMessageSizeBytes(), MAX_BYTES_PER_REQUEST);
+                this.maxBytesPerRequest = blockNodeConfig.maxMessageSizeBytes();
             } else {
                 this.maxBytesPerRequest = MAX_BYTES_PER_REQUEST;
             }

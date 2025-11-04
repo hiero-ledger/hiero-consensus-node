@@ -80,6 +80,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private static final MethodHandle refreshAvailableBlockNodesHandle;
     private static final MethodHandle extractBlockNodesConfigurationsHandle;
     private static final MethodHandle scheduleConnectionAttemptHandle;
+    private static final MethodHandle extractOptionalGrpcClientProtocolConfigHandle;
 
     public static final String PBJ_UNIT_TEST_HOST = "pbj-unit-test-host";
 
@@ -127,12 +128,17 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
             final Method scheduleConnectionAttempt = BlockNodeConnectionManager.class.getDeclaredMethod(
                     "scheduleConnectionAttempt",
-                    BlockNodeConnectionConfig.class,
+                    BlockNodeProtocolConfig.class,
                     Duration.class,
                     Long.class,
                     boolean.class);
             scheduleConnectionAttempt.setAccessible(true);
             scheduleConnectionAttemptHandle = lookup.unreflect(scheduleConnectionAttempt);
+
+            final Method extractOptionalGrpcClientProtocolConfig = BlockNodeConnectionManager.class.getDeclaredMethod(
+                    "extractOptionalGrpcClientProtocolConfig", BlockNodeConfig.class);
+            extractOptionalGrpcClientProtocolConfig.setAccessible(true);
+            extractOptionalGrpcClientProtocolConfigHandle = lookup.unreflect(extractOptionalGrpcClientProtocolConfig);
         } catch (final Exception e) {
             throw new RuntimeException(e);
         }
@@ -153,9 +159,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // (from the block-nodes.json file.) So we replace the bootstrap endpoints here:
         availableNodes().clear();
         availableNodes()
-                .add(new BlockNodeConnectionConfig(newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1), null, null, null));
+                .add(new BlockNodeProtocolConfig(newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1), null, null, null));
         availableNodes()
-                .add(new BlockNodeConnectionConfig(newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8081, 2), null, null, null));
+                .add(new BlockNodeProtocolConfig(newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8081, 2), null, null, null));
     }
 
     @BeforeEach
@@ -178,11 +184,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         sharedExecutorServiceHandle.set(connectionManager, executorService);
 
         // Clear any nodes that might have been loaded
-        final List<BlockNodeConnectionConfig> availableNodes = availableNodes();
+        final List<BlockNodeProtocolConfig> availableNodes = availableNodes();
         availableNodes.clear();
 
         // Clear any connections that might have been created
-        final Map<BlockNodeConnectionConfig, BlockNodeConnection> connections = connections();
+        final Map<BlockNodeProtocolConfig, BlockNodeConnection> connections = connections();
         connections.clear();
 
         // Clear active connection
@@ -202,19 +208,19 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConfig nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
         final Duration delay = Duration.ofSeconds(1);
         doReturn(nodeConfig).when(connection).getNodeConfig();
-        BlockNodeConnectionConfig nodeConnConfig = new BlockNodeConnectionConfig(nodeConfig, null, null, null);
+        BlockNodeProtocolConfig nodeConnConfig = new BlockNodeProtocolConfig(nodeConfig, null, null, null);
         doReturn(nodeConnConfig).when(connection).getBlockNodeConnectionConfig();
 
         // Add both nodes to available nodes so selectNewBlockNodeForStreaming can find a different one
-        final List<BlockNodeConnectionConfig> availableNodes = availableNodes();
+        final List<BlockNodeProtocolConfig> availableNodes = availableNodes();
         availableNodes.clear();
-        nodeConnConfig = new BlockNodeConnectionConfig(nodeConfig, null, null, null);
+        nodeConnConfig = new BlockNodeProtocolConfig(nodeConfig, null, null, null);
         availableNodes.add(nodeConnConfig);
         availableNodes.add(
-                new BlockNodeConnectionConfig(newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8081, 1), null, null, null));
+                new BlockNodeProtocolConfig(newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8081, 1), null, null, null));
 
         // Add the connection to the map so it can be removed during reschedule
-        final Map<BlockNodeConnectionConfig, BlockNodeConnection> connections = connections();
+        final Map<BlockNodeProtocolConfig, BlockNodeConnection> connections = connections();
         connections.put(nodeConnConfig, connection);
 
         connectionManager.rescheduleConnection(connection, delay, null, true);
@@ -228,8 +234,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(connections)
                 .containsKeys(
                         nodeConnConfig,
-                        new BlockNodeConnectionConfig(
-                                newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8081, 1), null, null, null));
+                        new BlockNodeProtocolConfig(newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8081, 1), null, null, null));
     }
 
     @Test
@@ -238,7 +243,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
         final BlockNodeConfig nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
         doReturn(nodeConfig).when(connection).getNodeConfig();
-        doReturn(new BlockNodeConnectionConfig(nodeConfig, null, null, null))
+        doReturn(new BlockNodeProtocolConfig(nodeConfig, null, null, null))
                 .when(connection)
                 .getBlockNodeConnectionConfig();
 
@@ -259,7 +264,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     void rescheduleConnectionAndExponentialBackoffResets() throws Throwable {
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
         final BlockNodeConfig nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
-        doReturn(new BlockNodeConnectionConfig(nodeConfig, null, null, null))
+        doReturn(new BlockNodeProtocolConfig(nodeConfig, null, null, null))
                 .when(connection)
                 .getBlockNodeConnectionConfig();
         doReturn(nodeConfig).when(connection).getNodeConfig();
@@ -289,8 +294,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testScheduleConnectionAttempt_streamingDisabledReturnsEarly() {
-        final BlockNodeConnectionConfig nodeConfig =
-                new BlockNodeConnectionConfig(newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1), null, null, null);
+        final BlockNodeProtocolConfig nodeConfig =
+                new BlockNodeProtocolConfig(newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1), null, null, null);
         useStreamingDisabledManager();
         try {
             scheduleConnectionAttemptHandle.invoke(connectionManager, nodeConfig, Duration.ZERO, null, false);
@@ -308,7 +313,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testShutdown() {
-        final Map<BlockNodeConnectionConfig, BlockNodeConnection> connections = connections();
+        final Map<BlockNodeProtocolConfig, BlockNodeConnection> connections = connections();
         // add some fake connections
         final BlockNodeConfig node1Config = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
         final BlockNodeConnection node1Conn = mock(BlockNodeConnection.class);
@@ -316,9 +321,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConnection node2Conn = mock(BlockNodeConnection.class);
         final BlockNodeConfig node3Config = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8082, 3);
         final BlockNodeConnection node3Conn = mock(BlockNodeConnection.class);
-        connections.put(new BlockNodeConnectionConfig(node1Config, null, null, null), node1Conn);
-        connections.put(new BlockNodeConnectionConfig(node2Config, null, null, null), node2Conn);
-        connections.put(new BlockNodeConnectionConfig(node3Config, null, null, null), node3Conn);
+        connections.put(new BlockNodeProtocolConfig(node1Config, null, null, null), node1Conn);
+        connections.put(new BlockNodeProtocolConfig(node2Config, null, null, null), node2Conn);
+        connections.put(new BlockNodeProtocolConfig(node3Config, null, null, null), node3Conn);
 
         // introduce a failure on one of the connection closes to ensure the shutdown process does not fail prematurely
         doThrow(new RuntimeException("oops, I did it again")).when(node2Conn).close(true);
@@ -369,7 +374,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final AtomicBoolean isActive = isActiveFlag();
         isActive.set(false);
 
-        final List<BlockNodeConnectionConfig> availableNodes = availableNodes();
+        final List<BlockNodeProtocolConfig> availableNodes = availableNodes();
         availableNodes.clear(); // remove all available nodes from config
 
         assertThat(isActive).isFalse();
@@ -400,7 +405,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         // start() creates a real executor, replacing the mock.
         // Verify that a connection was created and scheduled.
-        final Map<BlockNodeConnectionConfig, BlockNodeConnection> connections = connections();
+        final Map<BlockNodeProtocolConfig, BlockNodeConnection> connections = connections();
         assertThat(connections).hasSize(1);
 
         final BlockNodeConnection connection = connections.values().iterator().next();
@@ -415,7 +420,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testSelectNewBlockNodeForStreaming_noneAvailable() {
-        final List<BlockNodeConnectionConfig> availableNodes = availableNodes();
+        final List<BlockNodeProtocolConfig> availableNodes = availableNodes();
         availableNodes.clear();
 
         final boolean isScheduled = connectionManager.selectNewBlockNodeForStreaming(false);
@@ -429,8 +434,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testSelectNewBlockNodeForStreaming_noneAvailableInGoodState() {
-        final Map<BlockNodeConnectionConfig, BlockNodeConnection> connections = connections();
-        final List<BlockNodeConnectionConfig> availableNodes = availableNodes();
+        final Map<BlockNodeProtocolConfig, BlockNodeConnection> connections = connections();
+        final List<BlockNodeProtocolConfig> availableNodes = availableNodes();
         availableNodes.clear();
 
         final BlockNodeConfig node1Config = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
@@ -438,10 +443,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConfig node2Config = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8081, 2);
         final BlockNodeConnection node2Conn = mock(BlockNodeConnection.class);
 
-        availableNodes.add(new BlockNodeConnectionConfig(node1Config, null, null, null));
-        availableNodes.add(new BlockNodeConnectionConfig(node2Config, null, null, null));
-        connections.put(new BlockNodeConnectionConfig(node1Config, null, null, null), node1Conn);
-        connections.put(new BlockNodeConnectionConfig(node2Config, null, null, null), node2Conn);
+        availableNodes.add(new BlockNodeProtocolConfig(node1Config, null, null, null));
+        availableNodes.add(new BlockNodeProtocolConfig(node2Config, null, null, null));
+        connections.put(new BlockNodeProtocolConfig(node1Config, null, null, null), node1Conn);
+        connections.put(new BlockNodeProtocolConfig(node2Config, null, null, null), node2Conn);
 
         final boolean isScheduled = connectionManager.selectNewBlockNodeForStreaming(false);
 
@@ -454,8 +459,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testSelectNewBlockNodeForStreaming_higherPriorityThanActive() {
-        final Map<BlockNodeConnectionConfig, BlockNodeConnection> connections = connections();
-        final List<BlockNodeConnectionConfig> availableNodes = availableNodes();
+        final Map<BlockNodeProtocolConfig, BlockNodeConnection> connections = connections();
+        final List<BlockNodeProtocolConfig> availableNodes = availableNodes();
         final AtomicReference<BlockNodeConnection> activeConnection = activeConnection();
 
         final BlockNodeConfig node1Config = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8081, 1);
@@ -463,10 +468,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConnection node2Conn = mock(BlockNodeConnection.class);
         final BlockNodeConfig node3Config = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8083, 3);
 
-        connections.put(new BlockNodeConnectionConfig(node2Config, null, null, null), node2Conn);
-        availableNodes.add(new BlockNodeConnectionConfig(node1Config, null, null, null));
-        availableNodes.add(new BlockNodeConnectionConfig(node2Config, null, null, null));
-        availableNodes.add(new BlockNodeConnectionConfig(node3Config, null, null, null));
+        connections.put(new BlockNodeProtocolConfig(node2Config, null, null, null), node2Conn);
+        availableNodes.add(new BlockNodeProtocolConfig(node1Config, null, null, null));
+        availableNodes.add(new BlockNodeProtocolConfig(node2Config, null, null, null));
+        availableNodes.add(new BlockNodeProtocolConfig(node3Config, null, null, null));
         activeConnection.set(node2Conn);
 
         final boolean isScheduled = connectionManager.selectNewBlockNodeForStreaming(false);
@@ -493,8 +498,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testSelectNewBlockNodeForStreaming_lowerPriorityThanActive() {
-        final Map<BlockNodeConnectionConfig, BlockNodeConnection> connections = connections();
-        final List<BlockNodeConnectionConfig> availableNodes = availableNodes();
+        final Map<BlockNodeProtocolConfig, BlockNodeConnection> connections = connections();
+        final List<BlockNodeProtocolConfig> availableNodes = availableNodes();
         final AtomicReference<BlockNodeConnection> activeConnection = activeConnection();
 
         final BlockNodeConfig node1Config = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
@@ -503,11 +508,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConnection node2Conn = mock(BlockNodeConnection.class);
         final BlockNodeConfig node3Config = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8082, 3);
 
-        connections.put(new BlockNodeConnectionConfig(node1Config, null, null, null), node1Conn);
-        connections.put(new BlockNodeConnectionConfig(node2Config, null, null, null), node2Conn);
-        availableNodes.add(new BlockNodeConnectionConfig(node1Config, null, null, null));
-        availableNodes.add(new BlockNodeConnectionConfig(node2Config, null, null, null));
-        availableNodes.add(new BlockNodeConnectionConfig(node3Config, null, null, null));
+        connections.put(new BlockNodeProtocolConfig(node1Config, null, null, null), node1Conn);
+        connections.put(new BlockNodeProtocolConfig(node2Config, null, null, null), node2Conn);
+        availableNodes.add(new BlockNodeProtocolConfig(node1Config, null, null, null));
+        availableNodes.add(new BlockNodeProtocolConfig(node2Config, null, null, null));
+        availableNodes.add(new BlockNodeProtocolConfig(node3Config, null, null, null));
         activeConnection.set(node2Conn);
 
         final boolean isScheduled = connectionManager.selectNewBlockNodeForStreaming(false);
@@ -535,8 +540,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testSelectNewBlockNodeForStreaming_samePriority() {
-        final Map<BlockNodeConnectionConfig, BlockNodeConnection> connections = connections();
-        final List<BlockNodeConnectionConfig> availableNodes = availableNodes();
+        final Map<BlockNodeProtocolConfig, BlockNodeConnection> connections = connections();
+        final List<BlockNodeProtocolConfig> availableNodes = availableNodes();
         final AtomicReference<BlockNodeConnection> activeConnection = activeConnection();
 
         final BlockNodeConfig node1Config = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
@@ -546,12 +551,12 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConfig node3Config = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8082, 2);
         final BlockNodeConfig node4Config = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8083, 3);
 
-        connections.put(new BlockNodeConnectionConfig(node1Config, null, null, null), node1Conn);
-        connections.put(new BlockNodeConnectionConfig(node2Config, null, null, null), node2Conn);
-        availableNodes.add(new BlockNodeConnectionConfig(node1Config, null, null, null));
-        availableNodes.add(new BlockNodeConnectionConfig(node2Config, null, null, null));
-        availableNodes.add(new BlockNodeConnectionConfig(node3Config, null, null, null));
-        availableNodes.add(new BlockNodeConnectionConfig(node4Config, null, null, null));
+        connections.put(new BlockNodeProtocolConfig(node1Config, null, null, null), node1Conn);
+        connections.put(new BlockNodeProtocolConfig(node2Config, null, null, null), node2Conn);
+        availableNodes.add(new BlockNodeProtocolConfig(node1Config, null, null, null));
+        availableNodes.add(new BlockNodeProtocolConfig(node2Config, null, null, null));
+        availableNodes.add(new BlockNodeProtocolConfig(node3Config, null, null, null));
+        availableNodes.add(new BlockNodeProtocolConfig(node4Config, null, null, null));
         activeConnection.set(node2Conn);
 
         final boolean isScheduled = connectionManager.selectNewBlockNodeForStreaming(false);
@@ -763,19 +768,19 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
         final BlockNodeConfig nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
-        doReturn(new BlockNodeConnectionConfig(nodeConfig, null, null, null))
+        doReturn(new BlockNodeProtocolConfig(nodeConfig, null, null, null))
                 .when(connection)
                 .getBlockNodeConnectionConfig();
         doThrow(new RuntimeException("are you seeing this?")).when(connection).createRequestPipeline();
 
         // Add the connection to the connections map so it can be rescheduled
-        final Map<BlockNodeConnectionConfig, BlockNodeConnection> connections = connections();
-        connections.put(new BlockNodeConnectionConfig(nodeConfig, null, null, null), connection);
+        final Map<BlockNodeProtocolConfig, BlockNodeConnection> connections = connections();
+        connections.put(new BlockNodeProtocolConfig(nodeConfig, null, null, null), connection);
 
         // Ensure the node config is available for rescheduling
-        final List<BlockNodeConnectionConfig> availableNodes = availableNodes();
+        final List<BlockNodeProtocolConfig> availableNodes = availableNodes();
         availableNodes.clear();
-        availableNodes.add(new BlockNodeConnectionConfig(nodeConfig, null, null, null));
+        availableNodes.add(new BlockNodeProtocolConfig(nodeConfig, null, null, null));
 
         final BlockNodeConnectionTask task =
                 connectionManager.new BlockNodeConnectionTask(connection, Duration.ZERO, false);
@@ -800,20 +805,20 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
         final BlockNodeConfig nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
-        doReturn(new BlockNodeConnectionConfig(nodeConfig, null, null, null))
+        doReturn(new BlockNodeProtocolConfig(nodeConfig, null, null, null))
                 .when(connection)
                 .getBlockNodeConnectionConfig();
 
         doThrow(new RuntimeException("are you seeing this?")).when(connection).createRequestPipeline();
 
         // Add the connection to the connections map so it can be rescheduled
-        final Map<BlockNodeConnectionConfig, BlockNodeConnection> connections = connections();
-        connections.put(new BlockNodeConnectionConfig(nodeConfig, null, null, null), connection);
+        final Map<BlockNodeProtocolConfig, BlockNodeConnection> connections = connections();
+        connections.put(new BlockNodeProtocolConfig(nodeConfig, null, null, null), connection);
 
         // Ensure the node config is available for rescheduling
-        final List<BlockNodeConnectionConfig> availableNodes = availableNodes();
+        final List<BlockNodeProtocolConfig> availableNodes = availableNodes();
         availableNodes.clear();
-        availableNodes.add(new BlockNodeConnectionConfig(nodeConfig, null, null, null));
+        availableNodes.add(new BlockNodeProtocolConfig(nodeConfig, null, null, null));
 
         final BlockNodeConnectionTask task =
                 connectionManager.new BlockNodeConnectionTask(connection, Duration.ofSeconds(10), false);
@@ -834,11 +839,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         isActiveFlag().set(true);
         final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
         activeConnectionRef.set(null);
-        final Map<BlockNodeConnectionConfig, BlockNodeConnection> connections = connections();
+        final Map<BlockNodeProtocolConfig, BlockNodeConnection> connections = connections();
 
         final BlockNodeConfig nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-        doReturn(new BlockNodeConnectionConfig(nodeConfig, null, null, null))
+        doReturn(new BlockNodeProtocolConfig(nodeConfig, null, null, null))
                 .when(connection)
                 .getBlockNodeConnectionConfig();
         doThrow(new RuntimeException("are you seeing this?")).when(connection).createRequestPipeline();
@@ -847,12 +852,12 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 .schedule(any(Runnable.class), anyLong(), any(TimeUnit.class));
 
         connections.clear();
-        connections.put(new BlockNodeConnectionConfig(nodeConfig, null, null, null), connection);
+        connections.put(new BlockNodeProtocolConfig(nodeConfig, null, null, null), connection);
 
         // Ensure the node config is available for rescheduling
-        final List<BlockNodeConnectionConfig> availableNodes = availableNodes();
+        final List<BlockNodeProtocolConfig> availableNodes = availableNodes();
         availableNodes.clear();
-        availableNodes.add(new BlockNodeConnectionConfig(nodeConfig, null, null, null));
+        availableNodes.add(new BlockNodeProtocolConfig(nodeConfig, null, null, null));
 
         final BlockNodeConnectionTask task =
                 connectionManager.new BlockNodeConnectionTask(connection, Duration.ofSeconds(10), false);
@@ -923,7 +928,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     void testConstructor_streamingDisabled() {
         useStreamingDisabledManager();
 
-        final List<BlockNodeConnectionConfig> availableNodes = availableNodes();
+        final List<BlockNodeProtocolConfig> availableNodes = availableNodes();
         assertThat(availableNodes).isEmpty();
     }
 
@@ -940,7 +945,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         connectionManager = new BlockNodeConnectionManager(configProvider, bufferService, metrics);
 
         // Verify that the manager was created but has no available nodes
-        final List<BlockNodeConnectionConfig> availableNodes = availableNodes();
+        final List<BlockNodeProtocolConfig> availableNodes = availableNodes();
         assertThat(availableNodes).isEmpty();
     }
 
@@ -948,29 +953,29 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     void testRestartConnection() {
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
         final BlockNodeConfig nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
-        doReturn(new BlockNodeConnectionConfig(nodeConfig, null, null, null))
+        doReturn(new BlockNodeProtocolConfig(nodeConfig, null, null, null))
                 .when(connection)
                 .getBlockNodeConnectionConfig();
 
         // Add the connection to the connections map and set it as active
-        final Map<BlockNodeConnectionConfig, BlockNodeConnection> connections = connections();
+        final Map<BlockNodeProtocolConfig, BlockNodeConnection> connections = connections();
         final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
-        connections.put(new BlockNodeConnectionConfig(nodeConfig, null, null, null), connection);
+        connections.put(new BlockNodeProtocolConfig(nodeConfig, null, null, null), connection);
         activeConnectionRef.set(connection);
 
         // Ensure the node config is available for selection
-        final List<BlockNodeConnectionConfig> availableNodes = availableNodes();
+        final List<BlockNodeProtocolConfig> availableNodes = availableNodes();
         availableNodes.clear();
-        availableNodes.add(new BlockNodeConnectionConfig(nodeConfig, null, null, null));
+        availableNodes.add(new BlockNodeProtocolConfig(nodeConfig, null, null, null));
 
         connectionManager.connectionResetsTheStream(connection);
 
         // Verify the active connection reference was cleared
         assertThat(activeConnectionRef).hasNullValue();
         // Verify a new connection was created and added to the connections map
-        assertThat(connections).containsKey(new BlockNodeConnectionConfig(nodeConfig, null, null, null));
+        assertThat(connections).containsKey(new BlockNodeProtocolConfig(nodeConfig, null, null, null));
         // Verify it's a different connection object (the old one was replaced)
-        assertThat(connections.get(new BlockNodeConnectionConfig(nodeConfig, null, null, null)))
+        assertThat(connections.get(new BlockNodeProtocolConfig(nodeConfig, null, null, null)))
                 .isNotSameAs(connection);
 
         // Verify that scheduleConnectionAttempt was called with Duration.ZERO and the block number
@@ -994,22 +999,22 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         sharedExecutorServiceHandle.set(connectionManager, executorService);
 
-        final List<BlockNodeConnectionConfig> availableNodes = availableNodes();
+        final List<BlockNodeProtocolConfig> availableNodes = availableNodes();
         availableNodes.clear();
         availableNodes.add(
-                new BlockNodeConnectionConfig(newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1), null, null, null));
+                new BlockNodeProtocolConfig(newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1), null, null, null));
 
         reset(executorService);
 
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
         final BlockNodeConfig nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
-        doReturn(new BlockNodeConnectionConfig(nodeConfig, null, null, null))
+        doReturn(new BlockNodeProtocolConfig(nodeConfig, null, null, null))
                 .when(connection)
                 .getBlockNodeConnectionConfig();
         doReturn(nodeConfig).when(connection).getNodeConfig();
 
-        final Map<BlockNodeConnectionConfig, BlockNodeConnection> connections = connections();
-        connections.put(new BlockNodeConnectionConfig(nodeConfig, null, null, null), connection);
+        final Map<BlockNodeProtocolConfig, BlockNodeConnection> connections = connections();
+        connections.put(new BlockNodeProtocolConfig(nodeConfig, null, null, null), connection);
 
         connectionManager.rescheduleConnection(connection, Duration.ofSeconds(5), null, true);
 
@@ -1052,15 +1057,15 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     @Test
     void testConnectionTask_metricsIpFailsInvalidAddress() {
         isActiveFlag().set(true);
-        final Map<BlockNodeConnectionConfig, BlockNodeConnection> connections = connections();
-        final List<BlockNodeConnectionConfig> availableNodes = availableNodes();
+        final Map<BlockNodeProtocolConfig, BlockNodeConnection> connections = connections();
+        final List<BlockNodeProtocolConfig> availableNodes = availableNodes();
 
         final BlockNodeConfig newConnectionConfig = new BlockNodeConfig("::1", 50211, 1, null, null, null);
         final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
         doReturn(newConnectionConfig).when(newConnection).getNodeConfig();
 
-        connections.put(new BlockNodeConnectionConfig(newConnectionConfig, null, null, null), newConnection);
-        availableNodes.add(new BlockNodeConnectionConfig(newConnectionConfig, null, null, null));
+        connections.put(new BlockNodeProtocolConfig(newConnectionConfig, null, null, null), newConnection);
+        availableNodes.add(new BlockNodeProtocolConfig(newConnectionConfig, null, null, null));
 
         connectionManager.new BlockNodeConnectionTask(newConnection, Duration.ZERO, false).run();
 
@@ -1073,16 +1078,16 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     @Test
     void testConnectionTask_metricsIpFailsInvalidHost() {
         isActiveFlag().set(true);
-        final Map<BlockNodeConnectionConfig, BlockNodeConnection> connections = connections();
-        final List<BlockNodeConnectionConfig> availableNodes = availableNodes();
+        final Map<BlockNodeProtocolConfig, BlockNodeConnection> connections = connections();
+        final List<BlockNodeProtocolConfig> availableNodes = availableNodes();
 
         final BlockNodeConfig newConnectionConfig =
                 new BlockNodeConfig("invalid.hostname.for.test", 50211, 1, null, null, null);
         final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
         doReturn(newConnectionConfig).when(newConnection).getNodeConfig();
 
-        connections.put(new BlockNodeConnectionConfig(newConnectionConfig, null, null, null), newConnection);
-        availableNodes.add(new BlockNodeConnectionConfig(newConnectionConfig, null, null, null));
+        connections.put(new BlockNodeProtocolConfig(newConnectionConfig, null, null, null), newConnection);
+        availableNodes.add(new BlockNodeProtocolConfig(newConnectionConfig, null, null, null));
 
         connectionManager.new BlockNodeConnectionTask(newConnection, Duration.ZERO, false).run();
 
@@ -1119,15 +1124,15 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     void testConnectionResetsTheStream() {
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
         final BlockNodeConfig nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
-        doReturn(new BlockNodeConnectionConfig(nodeConfig, null, null, null))
+        doReturn(new BlockNodeProtocolConfig(nodeConfig, null, null, null))
                 .when(connection)
                 .getBlockNodeConnectionConfig();
-        availableNodes().add(new BlockNodeConnectionConfig(nodeConfig, null, null, null));
+        availableNodes().add(new BlockNodeProtocolConfig(nodeConfig, null, null, null));
 
         // Add the connection to the connections map and set it as active
-        final Map<BlockNodeConnectionConfig, BlockNodeConnection> connections = connections();
+        final Map<BlockNodeProtocolConfig, BlockNodeConnection> connections = connections();
         final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
-        connections.put(new BlockNodeConnectionConfig(nodeConfig, null, null, null), connection);
+        connections.put(new BlockNodeProtocolConfig(nodeConfig, null, null, null), connection);
         activeConnectionRef.set(connection);
 
         connectionManager.connectionResetsTheStream(connection);
@@ -1135,9 +1140,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // Verify the active connection reference was cleared
         assertThat(activeConnectionRef).hasNullValue();
         // Verify a new connection was created and added to the connections map
-        assertThat(connections).containsKey(new BlockNodeConnectionConfig(nodeConfig, null, null, null));
+        assertThat(connections).containsKey(new BlockNodeProtocolConfig(nodeConfig, null, null, null));
         // Verify it's a different connection object (the old one was replaced)
-        assertThat(connections.get(new BlockNodeConnectionConfig(nodeConfig, null, null, null)))
+        assertThat(connections.get(new BlockNodeProtocolConfig(nodeConfig, null, null, null)))
                 .isNotSameAs(connection);
 
         // Verify that selectNewBlockNodeForStreaming was called
@@ -1275,8 +1280,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConnection existingConnection = mock(BlockNodeConnection.class);
 
         // Add the existing connection to make node1 unavailable
-        final Map<BlockNodeConnectionConfig, BlockNodeConnection> connections = connections();
-        connections.put(new BlockNodeConnectionConfig(unavailableNode, null, null, null), existingConnection);
+        final Map<BlockNodeProtocolConfig, BlockNodeConnection> connections = connections();
+        connections.put(new BlockNodeProtocolConfig(unavailableNode, null, null, null), existingConnection);
 
         // Perform selection
         connectionManager.selectNewBlockNodeForStreaming(true);
@@ -1309,11 +1314,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         createConnectionManager(allBlockNodes);
 
         // Make all priority 0 nodes unavailable by adding them to connections
-        final Map<BlockNodeConnectionConfig, BlockNodeConnection> connections = connections();
+        final Map<BlockNodeProtocolConfig, BlockNodeConnection> connections = connections();
         for (int i = 0; i < 2; i++) { // First 2 nodes are priority 0
             final BlockNodeConfig unavailableNode = allBlockNodes.get(i);
             final BlockNodeConnection existingConnection = mock(BlockNodeConnection.class);
-            connections.put(new BlockNodeConnectionConfig(unavailableNode, null, null, null), existingConnection);
+            connections.put(new BlockNodeProtocolConfig(unavailableNode, null, null, null), existingConnection);
         }
 
         // Perform selection
@@ -1359,8 +1364,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     void testRefreshAvailableBlockNodes() {
         final BlockNodeConnection conn = mock(BlockNodeConnection.class);
         final BlockNodeConfig oldNode = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 9999, 1);
-        connections().put(new BlockNodeConnectionConfig(oldNode, null, null, null), conn);
-        availableNodes().add(new BlockNodeConnectionConfig(oldNode, null, null, null));
+        connections().put(new BlockNodeProtocolConfig(oldNode, null, null, null), conn);
+        availableNodes().add(new BlockNodeProtocolConfig(oldNode, null, null, null));
 
         invoke_refreshAvailableBlockNodes();
 
@@ -1413,13 +1418,13 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
         final BlockNodeConfig nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
         doReturn(nodeConfig).when(connection).getNodeConfig();
-        doReturn(new BlockNodeConnectionConfig(nodeConfig, null, null, null))
+        doReturn(new BlockNodeProtocolConfig(nodeConfig, null, null, null))
                 .when(connection)
                 .getBlockNodeConnectionConfig();
 
-        final List<BlockNodeConnectionConfig> availableNodes = availableNodes();
+        final List<BlockNodeProtocolConfig> availableNodes = availableNodes();
         availableNodes.clear();
-        availableNodes.add(new BlockNodeConnectionConfig(nodeConfig, null, null, null));
+        availableNodes.add(new BlockNodeProtocolConfig(nodeConfig, null, null, null));
 
         // Call rescheduleConnection with null delay to trigger the calculateJitteredDelayMs path
         connectionManager.rescheduleConnection(connection, null, null, true);
@@ -1470,10 +1475,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // Exercise unchanged path: write back same content and ensure no restart occurs
         Files.writeString(
                 file, valid, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-        awaitCondition(() -> !availableNodes().isEmpty(), 5_000);
-        final Map<BlockNodeConnectionConfig, BlockNodeConnection> before = new HashMap<>(connections());
+        awaitCondition(() -> !availableNodes().isEmpty(), 2_000);
+        final Map<BlockNodeProtocolConfig, BlockNodeConnection> before = new HashMap<>(connections());
         invoke_refreshAvailableBlockNodes();
-        final Map<BlockNodeConnectionConfig, BlockNodeConnection> after = new HashMap<>(connections());
+        final Map<BlockNodeProtocolConfig, BlockNodeConnection> after = new HashMap<>(connections());
         assertThat(after.keySet()).isEqualTo(before.keySet());
     }
 
@@ -1492,7 +1497,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testExtractBlockNodesConfigurations_fileNotExists() {
-        final List<BlockNodeConnectionConfig> configs = invoke_extractBlockNodesConfigurations("/non/existent/path");
+        final List<BlockNodeProtocolConfig> configs = invoke_extractBlockNodesConfigurations("/non/existent/path");
 
         assertThat(configs).isEmpty();
     }
@@ -1500,7 +1505,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     @Test
     void testExtractBlockNodesConfigurations_invalidJson() {
         // Use a path that exists but doesn't contain valid JSON
-        final List<BlockNodeConnectionConfig> configs = invoke_extractBlockNodesConfigurations("/tmp");
+        final List<BlockNodeProtocolConfig> configs = invoke_extractBlockNodesConfigurations("/tmp");
 
         // Should return empty list when parse fails
         assertThat(configs).isEmpty();
@@ -1541,14 +1546,91 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         Files.writeString(file, json, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
 
-        final List<BlockNodeConnectionConfig> configs = invoke_extractBlockNodesConfigurations(dir.toString());
+        final List<BlockNodeProtocolConfig> configs = invoke_extractBlockNodesConfigurations(dir.toString());
 
         assertThat(configs).hasSize(1);
 
-        final BlockNodeConnectionConfig protocol = configs.getFirst();
+        final BlockNodeProtocolConfig protocol = configs.getFirst();
         assertThat(protocol.http2ClientProtocolConfig()).isNotNull();
         assertThat(protocol.grpcClientProtocolConfig()).isNotNull();
         assertThat(protocol.maxMessageSizeBytes()).isEqualTo(1_500_000);
+    }
+
+    @Test
+    void testExtractOptionalGrpcClientProtocolConfig_noConfigReturnsNull() throws Throwable {
+        final BlockNodeConfig node = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 50051, 1);
+        final Object result = extractOptionalGrpcClientProtocolConfigHandle.invoke(connectionManager, node);
+        assertThat(result).isNull();
+    }
+
+    @Test
+    void testExtractOptionalGrpcClientProtocolConfig_withValidValues() throws Throwable {
+        final String json = "{\n"
+                + "  \"nodes\": [\n"
+                + "    {\n"
+                + "      \"address\": \"localhost\",\n"
+                + "      \"port\": 50051,\n"
+                + "      \"priority\": 1,\n"
+                + "      \"grpcClientProtocolConfig\": {\n"
+                + "        \"abortPollTimeExpired\": true,\n"
+                + "        \"heartbeatPeriod\": \"PT5S\",\n"
+                + "        \"initBufferSize\": 2048,\n"
+                + "        \"name\": \"grpc\",\n"
+                + "        \"pollWaitTime\": \"PT2S\"\n"
+                + "      }\n"
+                + "    }\n"
+                + "  ]\n"
+                + "}";
+
+        final BlockNodeConnectionInfo info =
+                BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(json.getBytes(StandardCharsets.UTF_8)));
+        final BlockNodeConfig node = info.nodes().getFirst();
+
+        final Object obj = extractOptionalGrpcClientProtocolConfigHandle.invoke(connectionManager, node);
+        assertThat(obj).isInstanceOf(io.helidon.webclient.grpc.GrpcClientProtocolConfig.class);
+        final io.helidon.webclient.grpc.GrpcClientProtocolConfig cfg =
+                (io.helidon.webclient.grpc.GrpcClientProtocolConfig) obj;
+
+        assertThat(cfg.abortPollTimeExpired()).isTrue();
+        assertThat(cfg.heartbeatPeriod()).isEqualTo(Duration.parse("PT5S"));
+        assertThat(cfg.initBufferSize()).isEqualTo(2048);
+        assertThat(cfg.name()).isEqualTo("grpc");
+        assertThat(cfg.pollWaitTime()).isEqualTo(Duration.parse("PT2S"));
+    }
+
+    @Test
+    void testExtractOptionalGrpcClientProtocolConfig_invalidDurations_doNotThrow() throws Throwable {
+        final String json = "{\n"
+                + "  \"nodes\": [\n"
+                + "    {\n"
+                + "      \"address\": \"localhost\",\n"
+                + "      \"port\": 50052,\n"
+                + "      \"priority\": 1,\n"
+                + "      \"grpcClientProtocolConfig\": {\n"
+                + "        \"abortPollTimeExpired\": false,\n"
+                + "        \"heartbeatPeriod\": \"not-a-duration\",\n"
+                + "        \"initBufferSize\": 4096,\n"
+                + "        \"name\": \"g\",\n"
+                + "        \"pollWaitTime\": \"also-bad\"\n"
+                + "      }\n"
+                + "    }\n"
+                + "  ]\n"
+                + "}";
+
+        final BlockNodeConnectionInfo info =
+                BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(json.getBytes(StandardCharsets.UTF_8)));
+        final BlockNodeConfig node = info.nodes().getFirst();
+
+        final Object obj = extractOptionalGrpcClientProtocolConfigHandle.invoke(connectionManager, node);
+        assertThat(obj).isInstanceOf(io.helidon.webclient.grpc.GrpcClientProtocolConfig.class);
+        final io.helidon.webclient.grpc.GrpcClientProtocolConfig cfg =
+                (io.helidon.webclient.grpc.GrpcClientProtocolConfig) obj;
+
+        // Non-duration fields should still be applied; invalid durations are ignored internally
+        assertThat(cfg.abortPollTimeExpired()).isFalse();
+        assertThat(cfg.initBufferSize()).isEqualTo(4096);
+        assertThat(cfg.name()).isEqualTo("g");
+        // Do not assert heartbeatPeriod/pollWaitTime values; branch exercised by invalid inputs
     }
 
     @Test
@@ -1583,13 +1665,13 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConnection candidate = mock(BlockNodeConnection.class);
         // Ensure priority comparison path is exercised and pipeline is created
         doReturn(candidateCfg).when(candidate).getNodeConfig();
-        doReturn(new BlockNodeConnectionConfig(candidateCfg, null, null, null))
+        doReturn(new BlockNodeProtocolConfig(candidateCfg, null, null, null))
                 .when(candidate)
                 .getBlockNodeConnectionConfig();
 
         // Ensure candidate's node remains available for reschedule path
-        final List<BlockNodeConnectionConfig> avail = availableNodes();
-        avail.add(new BlockNodeConnectionConfig(candidateCfg, null, null, null));
+        final List<BlockNodeProtocolConfig> avail = availableNodes();
+        avail.add(new BlockNodeProtocolConfig(candidateCfg, null, null, null));
 
         // Simulate preemption: during pipeline creation, another connection becomes active
         final BlockNodeConnection preemptor = mock(BlockNodeConnection.class);
@@ -1726,13 +1808,13 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConfig nodeConfig1 = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
         final BlockNodeConfig nodeConfig2 = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8081, 1);
         doReturn(nodeConfig1).when(connection).getNodeConfig();
-        doReturn(new BlockNodeConnectionConfig(nodeConfig1, null, null, null))
+        doReturn(new BlockNodeProtocolConfig(nodeConfig1, null, null, null))
                 .when(connection)
                 .getBlockNodeConnectionConfig();
 
-        availableNodes().add(new BlockNodeConnectionConfig(nodeConfig1, null, null, null));
-        availableNodes().add(new BlockNodeConnectionConfig(nodeConfig2, null, null, null));
-        connections().put(new BlockNodeConnectionConfig(nodeConfig1, null, null, null), connection);
+        availableNodes().add(new BlockNodeProtocolConfig(nodeConfig1, null, null, null));
+        availableNodes().add(new BlockNodeProtocolConfig(nodeConfig2, null, null, null));
+        connections().put(new BlockNodeProtocolConfig(nodeConfig1, null, null, null), connection);
 
         connectionManager.rescheduleConnection(connection, Duration.ofSeconds(1), null, false);
 
@@ -1746,12 +1828,12 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
         final BlockNodeConfig nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
         doReturn(nodeConfig).when(connection).getNodeConfig();
-        doReturn(new BlockNodeConnectionConfig(nodeConfig, null, null, null))
+        doReturn(new BlockNodeProtocolConfig(nodeConfig, null, null, null))
                 .when(connection)
                 .getBlockNodeConnectionConfig();
 
-        availableNodes().add(new BlockNodeConnectionConfig(nodeConfig, null, null, null));
-        connections().put(new BlockNodeConnectionConfig(nodeConfig, null, null, null), connection);
+        availableNodes().add(new BlockNodeProtocolConfig(nodeConfig, null, null, null));
+        connections().put(new BlockNodeProtocolConfig(nodeConfig, null, null, null), connection);
 
         connectionManager.rescheduleConnection(connection, Duration.ofMillis(-5), null, false);
 
@@ -1766,14 +1848,14 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         isActiveFlag().set(true);
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
         final BlockNodeConfig nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
-        doReturn(new BlockNodeConnectionConfig(nodeConfig, null, null, null))
+        doReturn(new BlockNodeProtocolConfig(nodeConfig, null, null, null))
                 .when(connection)
                 .getBlockNodeConnectionConfig();
 
         doThrow(new RuntimeException("Connection failed")).when(connection).createRequestPipeline();
 
-        connections().put(new BlockNodeConnectionConfig(nodeConfig, null, null, null), connection);
-        availableNodes().add(new BlockNodeConnectionConfig(nodeConfig, null, null, null));
+        connections().put(new BlockNodeProtocolConfig(nodeConfig, null, null, null), connection);
+        availableNodes().add(new BlockNodeProtocolConfig(nodeConfig, null, null, null));
 
         // Create task with a very large initial delay to exceed max backoff
         final BlockNodeConnectionTask task =
@@ -1911,10 +1993,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         // Set the available nodes using reflection
         try {
-            final List<BlockNodeConnectionConfig> availableNodes = availableNodes();
+            final List<BlockNodeProtocolConfig> availableNodes = availableNodes();
             availableNodes.clear();
             for (final BlockNodeConfig cfg : blockNodes) {
-                availableNodes.add(new BlockNodeConnectionConfig(cfg, null, null, null));
+                availableNodes.add(new BlockNodeProtocolConfig(cfg, null, null, null));
             }
         } catch (final Throwable t) {
             throw new RuntimeException("Failed to set available nodes", t);
@@ -1937,13 +2019,13 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @SuppressWarnings("unchecked")
-    private List<BlockNodeConnectionConfig> availableNodes() {
-        return (List<BlockNodeConnectionConfig>) availableNodesHandle.get(connectionManager);
+    private List<BlockNodeProtocolConfig> availableNodes() {
+        return (List<BlockNodeProtocolConfig>) availableNodesHandle.get(connectionManager);
     }
 
     @SuppressWarnings("unchecked")
-    private Map<BlockNodeConnectionConfig, BlockNodeConnection> connections() {
-        return (Map<BlockNodeConnectionConfig, BlockNodeConnection>) connectionsHandle.get(connectionManager);
+    private Map<BlockNodeProtocolConfig, BlockNodeConnection> connections() {
+        return (Map<BlockNodeProtocolConfig, BlockNodeConnection>) connectionsHandle.get(connectionManager);
     }
 
     private AtomicBoolean isActiveFlag() {
@@ -1972,9 +2054,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @SuppressWarnings("unchecked")
-    private List<BlockNodeConnectionConfig> invoke_extractBlockNodesConfigurations(final String path) {
+    private List<BlockNodeProtocolConfig> invoke_extractBlockNodesConfigurations(final String path) {
         try {
-            return (List<BlockNodeConnectionConfig>)
+            return (List<BlockNodeProtocolConfig>)
                     extractBlockNodesConfigurationsHandle.invoke(connectionManager, path);
         } catch (final Throwable e) {
             throw new RuntimeException(e);
