@@ -15,11 +15,17 @@ import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import org.hiero.base.crypto.BytesSigner;
+import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.crypto.SignerFactory;
+import org.hiero.consensus.crypto.SigningType;
 import org.hiero.consensus.event.creator.EventCreationConfig;
 import org.hiero.consensus.event.creator.EventCreationConfig_;
 import org.hiero.consensus.event.creator.impl.DefaultEventCreator;
@@ -50,8 +56,8 @@ import org.openjdk.jmh.infra.Blackhole;
  */
 @State(Scope.Benchmark)
 @Fork(value = 1)
-@Warmup(iterations = 1, time = 10)
-@Measurement(iterations = 2, time = 10)
+@Warmup(iterations = 1, time = 2)
+@Measurement(iterations = 2, time = 2)
 public class EventCreatorNetworkBenchmark {
 
     /** The number of nodes in the simulated network. */
@@ -61,6 +67,9 @@ public class EventCreatorNetworkBenchmark {
     /** Random seed for reproducibility. */
     @Param({"0"})
     public long seed;
+
+    @Param({"RSA_BC", "RSA_SUN", "EC_SUN", "ED25519_SODIUM", "ED25519_SUN"})
+    public SigningType signingType;
 
     /** The event creators for each node in the network. */
     private List<DefaultEventCreator> eventCreators;
@@ -96,7 +105,7 @@ public class EventCreatorNetworkBenchmark {
     }
 
     @Setup(Level.Iteration)
-    public void setupIteration() {
+    public void setupIteration() throws NoSuchAlgorithmException, NoSuchProviderException {
         eventCreators = new ArrayList<>(numNodes);
         eventWindow = EventWindow.getGenesisEventWindow();
         final Configuration configuration = new TestConfigBuilder()
@@ -112,13 +121,13 @@ public class EventCreatorNetworkBenchmark {
         // Create an event creator for each node
         for (final RosterEntry entry : roster.rosterEntries()) {
             final NodeId nodeId = NodeId.of(entry.nodeId());
-            final KeysAndCerts keysAndCerts = nodeKeysAndCerts.apply(nodeId);
             final SecureRandom nodeRandom = new SecureRandom();
             nodeRandom.setSeed(nodeId.id());
+            final BytesSigner signer = SignerFactory.createSigner(signingType, nodeRandom);
 
             final DefaultEventCreator eventCreator = new DefaultEventCreator();
             eventCreator.initialize(
-                    configuration, metrics, time, nodeRandom, keysAndCerts, roster, nodeId, List::of, () -> false);
+                    configuration, metrics, time, nodeRandom, signer, roster, nodeId, List::of, () -> false);
 
             // Set platform status to ACTIVE so events can be created
             eventCreator.updatePlatformStatus(PlatformStatus.ACTIVE);

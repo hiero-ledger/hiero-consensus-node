@@ -9,6 +9,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.SecureRandom;
 import java.time.Duration;
+import org.hiero.base.crypto.BytesSigner;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -30,7 +31,7 @@ public interface EventCreatorModule {
      * @param metrics                   provides the metrics for the event creator
      * @param time                      provides the time source for the event creator
      * @param random                    provides the secure random source for the event creator
-     * @param keysAndCerts              provides the key for signing events
+     * @param signer              signs data
      * @param roster                    provides the current roster
      * @param selfId                    the ID of this node
      * @param transactionSupplier       provides transactions to include in events
@@ -41,7 +42,7 @@ public interface EventCreatorModule {
             @NonNull Metrics metrics,
             @NonNull Time time,
             @NonNull SecureRandom random,
-            @NonNull KeysAndCerts keysAndCerts,
+            @NonNull BytesSigner signer,
             @NonNull Roster roster,
             @NonNull NodeId selfId,
             @NonNull EventTransactionSupplier transactionSupplier,
