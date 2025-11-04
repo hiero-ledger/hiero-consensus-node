@@ -166,8 +166,11 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
+        run: ${GRADLE_EXEC} :consensus-otter-tests:testContainer --fail-fast
+
+      - name: List otter log directories
+        if: ${{ inputs.enable-full-otter-tests && !cancelled() }}
         run: |
-          ${GRADLE_EXEC} :consensus-otter-tests:testContainer --fail-fast
           echo "Listing generated logs:"
           ls -F /platform-sdk/consensus-otter-tests/build/container
           ls -F /platform-sdk/consensus-otter-tests/build/test-results/testContainer
