@@ -14,7 +14,7 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Hashable;
 import org.hiero.consensus.model.event.PlatformEvent;
 
-@SuppressWarnings("unused") // issue tracked #6998
+@SuppressWarnings({"unused", "dangling-doc-comments"}) // issue tracked #6998
 /**
  * Validator that checks if the consensus mechanism does not return events more than once, either as stale or consensus.
  */

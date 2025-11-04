@@ -82,9 +82,9 @@ public class MockFCQueue<E extends FastCopyable & SerializableHashable> extends 
         } // sync
     }
 
-    //////////////////////////////////////////////////////////////////////////////////////////////////
+    /*                                                                                              */
     // the following implement Queue<E>
-    //////////////////////////////////////////////////////////////////////////////////////////////////
+    /*                                                                                              */
 
     /**
      * Inserts the specified element into this queue if it is possible to do so
@@ -280,9 +280,9 @@ public class MockFCQueue<E extends FastCopyable & SerializableHashable> extends 
         }
     }
 
-    //////////////////////////////////////////////////////////////////////////////////////////////////
+    /*                                                                                              */
     // the following implement FastCopyable
-    //////////////////////////////////////////////////////////////////////////////////////////////////
+    /*                                                                                              */
 
     /** {@inheritDoc} */
     @Override

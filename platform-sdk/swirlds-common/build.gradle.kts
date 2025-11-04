@@ -10,7 +10,7 @@ plugins {
 // and then fix the reported issues.
 tasks.withType<JavaCompile>().configureEach {
     options.compilerArgs.add(
-        "-Xlint:-exports,-lossy-conversions,-overloads,-dep-ann,-text-blocks,-varargs"
+        "-Xlint:-dangling-doc-comments,-exports,-lossy-conversions,-overloads,-dep-ann,-text-blocks,-varargs"
     )
 }
 

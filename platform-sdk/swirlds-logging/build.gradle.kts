@@ -11,7 +11,7 @@ plugins {
 // Remove the following line to enable all 'javac' lint checks that we have turned on by default
 // and then fix the reported issues.
 tasks.withType<JavaCompile>().configureEach {
-    options.compilerArgs.add("-Xlint:-deprecation,-exports,-removal,-varargs")
+    options.compilerArgs.add("-Xlint:-dangling-doc-comments,-deprecation,-exports,-removal,-varargs")
 }
 
 mainModuleInfo { annotationProcessor("com.google.auto.service.processor") }

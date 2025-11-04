@@ -172,10 +172,10 @@ public class SlowMockFCQueue<E extends FastCopyable & SerializableHashable> exte
             this.hash = getNullHash();
         }
     }
-
-    //////////////////////////////////////////////////////////////////////////////////////////////////
+    @SuppressWarnings("dangling-doc-comments")
+    /*                                                                                              */
     // the following implement Queue<E>
-    //////////////////////////////////////////////////////////////////////////////////////////////////
+    /*                                                                                              */
 
     /**
      * Inserts the specified element into this queue if it is possible to do so
@@ -335,9 +335,9 @@ public class SlowMockFCQueue<E extends FastCopyable & SerializableHashable> exte
         }
     }
 
-    //////////////////////////////////////////////////////////////////////////////////////////////////
+    /*                                                                                              */
     // the following implement FastCopyable
-    //////////////////////////////////////////////////////////////////////////////////////////////////
+    /*                                                                                              */
 
     /** {@inheritDoc} */
     @Override
@@ -364,9 +364,9 @@ public class SlowMockFCQueue<E extends FastCopyable & SerializableHashable> exte
         }
     }
 
-    //////////////////////////////////////////////////////////////////////////////////////////////////
+    /*                                                                                              */
     // the following implement Java.util.Collection
-    //////////////////////////////////////////////////////////////////////////////////////////////////
+    /*                                                                                              */
 
     /**
      * Returns the number of elements in this collection.

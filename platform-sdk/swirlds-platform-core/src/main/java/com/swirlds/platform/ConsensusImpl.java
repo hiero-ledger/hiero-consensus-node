@@ -800,6 +800,7 @@ public class ConsensusImpl implements Consensus {
         }
     }
 
+    
     /**
      * Find all events that are ancestors of the judges in round and update them. A non-consensus
      * event that is an ancestor of all of them should be marked as consensus, and have its
@@ -905,7 +906,7 @@ public class ConsensusImpl implements Consensus {
     private static boolean notRelevantForConsensus(@NonNull final EventImpl e) {
         return e.getRoundCreated() == ConsensusConstants.ROUND_NEGATIVE_INFINITY;
     }
-
+    @SuppressWarnings("dangling-doc-comments")
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Functions from SWIRLDS-TR-2020-01, verified by Coq proof
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -244,9 +244,9 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
         return true;
     }
 
-    //////////////////////////////////////////////////////////////////////////////////////////////////
+    /*                                                                                              */
     // the following implement Queue<E>
-    //////////////////////////////////////////////////////////////////////////////////////////////////
+    /*                                                                                              */
 
     /**
      * Inserts the specified element into this queue if it is possible to do so
@@ -392,9 +392,9 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
         return head.element;
     }
 
-    //////////////////////////////////////////////////////////////////////////////////////////////////
+    /*                                                                                              */
     // the following implement FastCopyable
-    //////////////////////////////////////////////////////////////////////////////////////////////////
+    /*                                                                                              */
 
     /** {@inheritDoc} */
     @Override
@@ -411,9 +411,9 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
         return queue;
     }
 
-    //////////////////////////////////////////////////////////////////////////////////////////////////
+    /*                                                                                              */
     // the following implement AbstractMerkleNode
-    //////////////////////////////////////////////////////////////////////////////////////////////////
+    /*                                                                                              */
 
     @Override
     protected synchronized void destroyNode() {
@@ -423,9 +423,9 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
         hash = NULL_HASH;
     }
 
-    //////////////////////////////////////////////////////////////////////////////////////////////////
+    /*                                                                                              */
     // the following implement Java.util.Collection
-    //////////////////////////////////////////////////////////////////////////////////////////////////
+    /*                                                                                              */
 
     /**
      * Returns the number of elements in this collection.
@@ -717,9 +717,9 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
         hash = null;
     }
 
-    //////////////////////////////////////////////////////////////////////////////////////////////////
+    /*                                                                                              */
     // the following FastCopyable methods have default implementations, but are overridden here
-    //////////////////////////////////////////////////////////////////////////////////////////////////
+    /*                                                                                              */
 
     @Override
     public boolean equals(final Object o) {

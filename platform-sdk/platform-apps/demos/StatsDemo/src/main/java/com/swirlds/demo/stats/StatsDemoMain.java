@@ -88,6 +88,7 @@ public class StatsDemoMain extends DefaultSwirldMain<StatsDemoState> {
                 .build();
     }
 
+    @SuppressWarnings("dangling-doc-comments")
     /////////////////////////////////////////////////////////////////////
     /** the time of the last call to preEvent */
     long lastEventTime = System.nanoTime();
