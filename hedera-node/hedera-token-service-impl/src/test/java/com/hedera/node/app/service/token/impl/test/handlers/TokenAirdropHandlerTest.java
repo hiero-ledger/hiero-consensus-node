@@ -20,6 +20,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.mock;
@@ -32,10 +33,12 @@ import com.hedera.hapi.node.base.PendingAirdropId;
 import com.hedera.hapi.node.base.PendingAirdropValue;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SubType;
+import com.hedera.hapi.node.base.TimestampSeconds;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.state.token.AccountPendingAirdrop;
 import com.hedera.hapi.node.token.TokenAirdropTransactionBody;
+import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.FractionalFee;
 import com.hedera.hapi.node.transaction.PendingAirdropRecord;
@@ -65,6 +68,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import org.assertj.core.api.Assertions;
+import org.hiero.hapi.fees.FeeResult;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 
@@ -681,6 +685,19 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         given(preHandleContext.body()).willReturn(txn);
         Assertions.assertThatCode(() -> tokenAirdropHandler.preHandle(preHandleContext))
                 .doesNotThrowAnyException();
+    }
+
+    @Test
+    void airdropFeeCalculatesCorrectly() {
+        given(feeContext.payer()).willReturn(payerId);
+        given(feeContext.dispatchComputeFees(any(), eq(payerId))).willReturn(new Fees(100, 200, 300));
+        when(feeContext.body()).thenReturn(transactionBody);
+        when(transactionBody.tokenAirdropOrThrow()).thenReturn(TokenAirdropTransactionBody.DEFAULT);
+        given(feeContext.activeRate()).willReturn(new ExchangeRate(1, 2, TimestampSeconds.DEFAULT));
+
+        FeeResult result = tokenAirdropHandler.calculateFeeResult(feeContext);
+
+        assertEquals(300L, result.total());
     }
 
     private void setupAirdropMocks(TokenAirdropTransactionBody body, boolean enableAirdrop) {
