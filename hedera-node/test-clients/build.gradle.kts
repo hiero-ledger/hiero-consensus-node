@@ -125,7 +125,7 @@ val prCheckPropOverrides =
     buildMap<String, String> {
         put(
             "hapiTestAdhoc",
-            "tss.hintsEnabled=false,tss.forceHandoffs=false,tss.initialCrsParties=16,blockStream.blockPeriod=2s",
+            "tss.hintsEnabled=true,tss.forceHandoffs=false,tss.initialCrsParties=16,blockStream.blockPeriod=2s",
         )
         put(
             "hapiTestCrypto",
