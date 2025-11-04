@@ -15,6 +15,7 @@ import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
+import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
@@ -123,7 +124,8 @@ public class EventCreatorNetworkBenchmark {
             final NodeId nodeId = NodeId.of(entry.nodeId());
             final SecureRandom nodeRandom = new SecureRandom();
             nodeRandom.setSeed(nodeId.id());
-            final BytesSigner signer = SignerFactory.createSigner(signingType, nodeRandom);
+            final KeyPair keyPair = SignerFactory.generateKeyPair(signingType, nodeRandom);
+            final BytesSigner signer = SignerFactory.createSigner(signingType, keyPair);
 
             final DefaultEventCreator eventCreator = new DefaultEventCreator();
             eventCreator.initialize(

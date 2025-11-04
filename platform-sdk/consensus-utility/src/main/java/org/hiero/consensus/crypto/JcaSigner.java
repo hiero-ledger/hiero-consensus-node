@@ -13,11 +13,11 @@ import org.hiero.base.crypto.BytesSigner;
 public class JcaSigner implements BytesSigner {
     private final Signature signature;
 
-    public JcaSigner(PrivateKey privateKey, String algorithm, String provider) {
+    public JcaSigner(final PrivateKey privateKey, final String algorithm, final String provider) {
         try {
             this.signature = Signature.getInstance(algorithm, provider);
             signature.initSign(privateKey);
-        } catch (NoSuchAlgorithmException | NoSuchProviderException | InvalidKeyException e) {
+        } catch (final NoSuchAlgorithmException | NoSuchProviderException | InvalidKeyException e) {
             throw new RuntimeException(e);
         }
     }
@@ -27,7 +27,7 @@ public class JcaSigner implements BytesSigner {
         try {
             data.updateSignature(signature);
             return Bytes.wrap(signature.sign());
-        } catch (SignatureException e) {
+        } catch (final SignatureException e) {
             throw new RuntimeException(e);
         }
     }
