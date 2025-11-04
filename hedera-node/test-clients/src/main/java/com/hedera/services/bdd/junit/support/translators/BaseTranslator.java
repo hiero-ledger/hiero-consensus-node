@@ -3,11 +3,13 @@ package com.hedera.services.bdd.junit.support.translators;
 
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACCOUNTS;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_BYTECODE;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_LAMBDA_STORAGE;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_STORAGE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.CONTRACT_ID_COMPARATOR;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
@@ -18,11 +20,13 @@ import static com.hedera.node.app.hapi.utils.EntityType.NODE;
 import static com.hedera.node.app.hapi.utils.EntityType.SCHEDULE;
 import static com.hedera.node.app.hapi.utils.EntityType.TOKEN;
 import static com.hedera.node.app.hapi.utils.EntityType.TOPIC;
+import static com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore.minimalKey;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asBesuLog;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomFor;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.explicitAddressOf;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.scheduledTxnIdFrom;
+import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
 import static com.hedera.services.bdd.junit.support.translators.impl.FileUpdateTranslator.EXCHANGE_RATES_FILE_NUM;
 import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
@@ -32,7 +36,6 @@ import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.output.MapChangeKey;
 import com.hedera.hapi.block.stream.output.MapUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
-import com.hedera.hapi.block.stream.output.StateIdentifier;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
@@ -40,6 +43,7 @@ import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.PendingAirdropId;
 import com.hedera.hapi.node.base.PendingAirdropValue;
 import com.hedera.hapi.node.base.ScheduleID;
@@ -53,6 +57,7 @@ import com.hedera.hapi.node.contract.ContractLoginfo;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.state.contract.SlotKey;
+import com.hedera.hapi.node.state.hooks.LambdaSlotKey;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.PendingAirdropRecord;
@@ -112,6 +117,8 @@ public class BaseTranslator {
     private boolean externalizeNonces = true;
 
     private ExchangeRateSet activeRates;
+    private final long shard;
+    private final long realm;
     private final Map<Long, Long> nonces = new HashMap<>();
     private final Map<AccountID, Address> evmAddresses = new HashMap<>();
     private final Map<TokenID, Long> totalSupplies = new HashMap<>();
@@ -148,8 +155,17 @@ public class BaseTranslator {
     /**
      * Constructs a base translator.
      */
-    public BaseTranslator() {
-        // Using default field values
+    public BaseTranslator(final long shard, final long realm) {
+        this.shard = shard;
+        this.realm = realm;
+    }
+
+    public long getShard() {
+        return shard;
+    }
+
+    public long getRealm() {
+        return realm;
     }
 
     /**
@@ -499,13 +515,15 @@ public class BaseTranslator {
      * @param spec the specification of the transaction record
      * @param remainingStateChanges the remaining state changes for this transactional unit
      * @param followingUnitTraces any traces following this transaction in its unit
+     * @param executingHookId if not null, the hook execution id of these parts
      * @return the translated record
      */
     public SingleTransactionRecord recordFrom(
             @NonNull final BlockTransactionParts parts,
             @NonNull final Spec spec,
             @NonNull final List<StateChange> remainingStateChanges,
-            @NonNull final List<TraceData> followingUnitTraces) {
+            @NonNull final List<ScopedTraceData> followingUnitTraces,
+            @Nullable final HookId executingHookId) {
         final var txnId = parts.transactionIdOrThrow();
         final var recordBuilder = TransactionRecord.newBuilder()
                 .transactionHash(parts.transactionHash())
@@ -518,8 +536,8 @@ public class BaseTranslator {
                 .automaticTokenAssociations(parts.automaticTokenAssociations())
                 .paidStakingRewards(parts.paidStakingRewards())
                 .parentConsensusTimestamp(parts.parentConsensusTimestamp());
-        final var receiptBuilder =
-                TransactionReceipt.newBuilder().status(parts.transactionResult().status());
+        final var receiptBuilder = TransactionReceipt.newBuilder()
+                .status(requireNonNull(parts.transactionResult()).status());
         final boolean followsUserRecord = asInstant(parts.consensusTimestamp()).isAfter(userTimestamp);
         if ((!followsUserRecord || parts.transactionIdOrThrow().scheduled())
                 && parts.parentConsensusTimestamp() == null) {
@@ -546,7 +564,8 @@ public class BaseTranslator {
                     parts.tracesOrThrow(),
                     followingUnitTraces,
                     remainingStateChanges,
-                    parts);
+                    parts,
+                    executingHookId);
         } else {
             rebuiltSidecars = emptyList();
         }
@@ -560,31 +579,49 @@ public class BaseTranslator {
     private List<TransactionSidecarRecord> recoveredSidecars(
             @NonNull Timestamp now,
             @NonNull final List<TraceData> tracesHere,
-            @NonNull final List<TraceData> followingUnitTraces,
+            @NonNull final List<ScopedTraceData> followingUnitTraces,
             @NonNull final List<StateChange> remainingStateChanges,
-            @NonNull final BlockTransactionParts parts) {
+            @NonNull final BlockTransactionParts parts,
+            @Nullable final HookId executingHookId) {
         final List<TransactionSidecarRecord> sidecars = new ArrayList<>();
+        // First collect all the contract and hook slot updates
         final var slotUpdates = remainingStateChanges.stream()
-                .filter(change -> change.stateId() == StateIdentifier.STATE_ID_STORAGE.protoOrdinal())
+                .filter(change -> change.stateId() == STATE_ID_STORAGE.protoOrdinal())
                 .filter(StateChange::hasMapUpdate)
                 .map(StateChange::mapUpdateOrThrow)
                 .collect(toMap(
                         c -> c.keyOrThrow().slotKeyKeyOrThrow(),
                         c -> c.valueOrThrow().slotValueValueOrThrow().value()));
         final Map<SlotKey, Bytes> writtenSlots = new HashMap<>(slotUpdates);
+        final var lambdaSlotUpdates = remainingStateChanges.stream()
+                .filter(change -> change.stateId() == STATE_ID_LAMBDA_STORAGE.protoOrdinal())
+                .filter(StateChange::hasMapUpdate)
+                .map(StateChange::mapUpdateOrThrow)
+                .collect(toMap(
+                        c -> c.keyOrThrow().lambdaSlotKeyOrThrow(),
+                        c -> c.valueOrThrow().slotValueValueOrThrow().value()));
+        final Map<LambdaSlotKey, Bytes> writtenLambdaSlots = new HashMap<>(lambdaSlotUpdates);
+        // Then the contract and hook slot removals
         final var slotRemovals = remainingStateChanges.stream()
-                .filter(change -> change.stateId() == StateIdentifier.STATE_ID_STORAGE.protoOrdinal())
+                .filter(change -> change.stateId() == STATE_ID_STORAGE.protoOrdinal())
                 .filter(StateChange::hasMapDelete)
                 .map(StateChange::mapDeleteOrThrow)
                 .collect(toMap(d -> d.keyOrThrow().slotKeyKeyOrThrow(), d -> Bytes.EMPTY));
         writtenSlots.putAll(slotRemovals);
+        final var lambdaSlotRemovals = remainingStateChanges.stream()
+                .filter(change -> change.stateId() == STATE_ID_LAMBDA_STORAGE.protoOrdinal())
+                .filter(StateChange::hasMapDelete)
+                .map(StateChange::mapDeleteOrThrow)
+                .collect(toMap(d -> d.keyOrThrow().lambdaSlotKeyOrThrow(), d -> Bytes.EMPTY));
+        writtenLambdaSlots.putAll(lambdaSlotRemovals);
+
+        // Now filter to just EVM traces and build the sidecars
         final var evmTraces = tracesHere.stream()
                 .filter(TraceData::hasEvmTraceData)
                 .map(TraceData::evmTraceDataOrThrow)
                 .toList();
-        final var followingEvmTraces = followingUnitTraces.stream()
-                .filter(TraceData::hasEvmTraceData)
-                .map(TraceData::evmTraceDataOrThrow)
+        final var followingScopedEvmTraces = followingUnitTraces.stream()
+                .filter(ScopedTraceData::hasEvmTraceData)
                 .toList();
         for (final var evmTraceData : evmTraces) {
             if (!evmTraceData.contractSlotUsages().isEmpty()) {
@@ -600,13 +637,23 @@ public class BaseTranslator {
                             final var writtenKey = writes.get(read.indexOrThrow());
                             final var slotKey = new SlotKey(contractId, HookUtils.leftPad32(writtenKey));
                             Bytes value = null;
-                            for (final var nextEvmTraceData : followingEvmTraces) {
-                                final var nextTracedWriteUsage = nextEvmTraceData.contractSlotUsages().stream()
-                                        .filter(nextUsages ->
-                                                nextUsages.contractIdOrThrow().equals(contractId)
-                                                        && writtenKeysFrom(nextUsages, remainingStateChanges).stream()
-                                                                .anyMatch(nextWrite -> nextWrite.equals(writtenKey)))
-                                        .findFirst();
+                            for (final var nextScopedEvmTraceData : followingScopedEvmTraces) {
+                                final var nextEvmTraceData = nextScopedEvmTraceData.evmTraceDataOrThrow();
+                                final var nextHookId = nextScopedEvmTraceData.hookId();
+                                final Optional<ContractSlotUsage> nextTracedWriteUsage;
+                                if (executingHookId == null
+                                        || contractId.contractNumOrThrow() != HTS_HOOKS_CONTRACT_NUM
+                                        || executingHookId.equals(nextHookId)) {
+                                    nextTracedWriteUsage = nextEvmTraceData.contractSlotUsages().stream()
+                                            .filter(nextUsages -> nextUsages
+                                                            .contractIdOrThrow()
+                                                            .equals(contractId)
+                                                    && writtenKeysFrom(nextUsages, remainingStateChanges).stream()
+                                                            .anyMatch(nextWrite -> nextWrite.equals(writtenKey)))
+                                            .findFirst();
+                                } else {
+                                    nextTracedWriteUsage = Optional.empty();
+                                }
                                 if (nextTracedWriteUsage.isPresent()) {
                                     final int finalWriteIndex = writtenKeysFrom(
                                                     nextTracedWriteUsage.get(), remainingStateChanges)
@@ -620,7 +667,14 @@ public class BaseTranslator {
                                 }
                             }
                             if (value == null) {
-                                final var valueFromState = writtenSlots.get(slotKey);
+                                final Bytes valueFromState;
+                                if (executingHookId == null
+                                        || contractId.contractNumOrThrow() != HTS_HOOKS_CONTRACT_NUM) {
+                                    valueFromState = writtenSlots.get(slotKey);
+                                } else {
+                                    valueFromState = writtenLambdaSlots.get(
+                                            new LambdaSlotKey(executingHookId, minimalKey(slotKey.key())));
+                                }
                                 if (valueFromState == null) {
                                     throw new IllegalStateException("No written value found for write to " + slotKey
                                             + " in " + remainingStateChanges);
@@ -706,35 +760,57 @@ public class BaseTranslator {
 
     /**
      * Returns the written keys from the given {@link ContractSlotUsage}.
-     *
      * @param slotUsage the contract slot usage to extract written keys from
      * @param stateChanges the state changes to search for written keys
      * @return a list of written keys
      */
-    private static List<Bytes> writtenKeysFrom(
+    private List<Bytes> writtenKeysFrom(
             @NonNull final ContractSlotUsage slotUsage, @NonNull final List<StateChange> stateChanges) {
         if (slotUsage.hasWrittenSlotKeys()) {
             return slotUsage.writtenSlotKeysOrThrow().keys();
         } else {
+            // There was only one EVM tx in the top-level group, so we can recover written keys from state changes
             final List<Bytes> writtenKeys = new LinkedList<>();
             final var contractId = slotUsage.contractIdOrThrow();
             for (final var stateChange : stateChanges) {
-                if (stateChange.stateId() != STATE_ID_STORAGE.protoOrdinal()) {
-                    continue;
-                }
-                SlotKey slotKey = null;
-                if (stateChange.hasMapUpdate()
-                        && !stateChange.mapUpdateOrThrow().identical()) {
-                    slotKey = stateChange.mapUpdateOrThrow().keyOrThrow().slotKeyKeyOrThrow();
-                } else if (stateChange.hasMapDelete()) {
-                    slotKey = stateChange.mapDeleteOrThrow().keyOrThrow().slotKeyKeyOrThrow();
-                }
-                if (slotKey != null && contractId.equals(slotKey.contractIDOrThrow())) {
-                    writtenKeys.add(HookUtils.minimalRepresentationOf(slotKey.key()));
+                if (stateChange.stateId() == STATE_ID_STORAGE.protoOrdinal()) {
+                    SlotKey slotKey = null;
+                    if (stateChange.hasMapUpdate()
+                            && !stateChange.mapUpdateOrThrow().identical()) {
+                        slotKey = stateChange.mapUpdateOrThrow().keyOrThrow().slotKeyKeyOrThrow();
+                    } else if (stateChange.hasMapDelete()) {
+                        slotKey = stateChange.mapDeleteOrThrow().keyOrThrow().slotKeyKeyOrThrow();
+                    }
+                    if (slotKey != null && contractId.equals(slotKey.contractIDOrThrow())) {
+                        writtenKeys.add(HookUtils.minimalRepresentationOf(slotKey.key()));
+                    }
+                } else if (stateChange.stateId() == STATE_ID_LAMBDA_STORAGE.protoOrdinal()) {
+                    SlotKey slotKey = null;
+                    if (stateChange.hasMapUpdate()
+                            && !stateChange.mapUpdateOrThrow().identical()) {
+                        final var lambdaSlotKey =
+                                stateChange.mapUpdateOrThrow().keyOrThrow().lambdaSlotKeyOrThrow();
+                        slotKey = new SlotKey(hookContractId(), lambdaSlotKey.key());
+                    } else if (stateChange.hasMapDelete()) {
+                        final var lambdaSlotKey =
+                                stateChange.mapDeleteOrThrow().keyOrThrow().lambdaSlotKeyOrThrow();
+                        slotKey = new SlotKey(hookContractId(), lambdaSlotKey.key());
+                    }
+                    if (slotKey != null && contractId.equals(slotKey.contractIDOrThrow())) {
+                        writtenKeys.add(HookUtils.minimalRepresentationOf(slotKey.key()));
+                    }
                 }
             }
             return writtenKeys;
         }
+    }
+
+    private ContractID hookContractId() {
+        return ContractID.newBuilder()
+                .shardNum(shard)
+                .realmNum(realm)
+                .contractNum(HTS_HOOKS_CONTRACT_NUM)
+                .build();
     }
 
     /**
@@ -947,6 +1023,11 @@ public class BaseTranslator {
         });
         userTimestamp = null;
         unit.blockTransactionParts().forEach(parts -> {
+            if (parts.functionality() == STATE_SIGNATURE_TRANSACTION) {
+                // There is no equivalent record for this type of transaction (block) item
+                return;
+            }
+
             if (parts.isTopLevel()) {
                 userTimestamp = asInstant(parts.consensusTimestamp());
             }
@@ -973,7 +1054,7 @@ public class BaseTranslator {
 
     private static Account findContractOrThrow(
             @NonNull final ContractID contractId, @NonNull final List<StateChange> stateChanges) {
-        return stateChanges.stream()
+        final var temp = stateChanges.stream()
                 .filter(change -> change.stateId() == STATE_ID_ACCOUNTS.protoOrdinal())
                 .filter(StateChange::hasMapUpdate)
                 .map(StateChange::mapUpdateOrThrow)
@@ -987,8 +1068,8 @@ public class BaseTranslator {
                             && contractId.realmNum() == accountId.realmNum()
                             && contractId.contractNumOrThrow().longValue() == accountId.accountNumOrThrow();
                 })
-                .findFirst()
-                .orElseThrow();
+                .findFirst();
+        return temp.orElseThrow();
     }
 
     private static Optional<Account> findAccount(

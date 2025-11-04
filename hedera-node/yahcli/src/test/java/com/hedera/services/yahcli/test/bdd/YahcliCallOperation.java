@@ -14,6 +14,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.function.Consumer;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
 import picocli.CommandLine;
 
@@ -22,6 +24,8 @@ import picocli.CommandLine;
  * the {@link SubProcessNetwork} targeted by the containing spec.
  */
 public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOperation> {
+    static final Logger log = LogManager.getLogger(YahcliCallOperation.class);
+
     private final String[] args;
 
     @Nullable
@@ -30,6 +34,8 @@ public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOpera
     private String payer;
 
     private boolean schedule = false;
+
+    private boolean expectFail = false;
 
     public YahcliCallOperation(@NonNull final String[] args) {
         this.args = requireNonNull(args);
@@ -60,6 +66,17 @@ public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOpera
      */
     public YahcliCallOperation schedule() {
         this.schedule = true;
+        return this;
+    }
+
+    /**
+     * Indicates that the Yahcli command is expected to fail when executed.
+     * If set, a non-zero exit code will be treated as a valid outcome rather than a test failure.
+     *
+     * @return this {@link YahcliCallOperation} instance for method chaining
+     */
+    public YahcliCallOperation expectFail() {
+        this.expectFail = true;
         return this;
     }
 
@@ -96,8 +113,13 @@ public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOpera
             }
             final int rc = commandLine.execute(finalizedArgs);
             if (rc != 0) {
-                Assertions.fail(
-                        "Yahcli command <<" + String.join(" ", finalizedArgs) + ">> failed with exit code " + rc);
+                final var msg =
+                        "Yahcli command <<" + String.join(" ", finalizedArgs) + ">> failed with exit code " + rc;
+                if (expectFail) {
+                    log.error(msg);
+                } else {
+                    Assertions.fail(msg);
+                }
             }
             if (outputPath != null) {
                 final var output = Files.readString(outputPath);

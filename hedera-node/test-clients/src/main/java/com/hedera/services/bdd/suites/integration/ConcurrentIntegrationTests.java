@@ -259,9 +259,8 @@ public class ConcurrentIntegrationTests {
         final AtomicReference<ProtoBytes> candidateRosterHash = new AtomicReference<>();
         return hapiTest(
                 // Add a node to the candidate roster
-                nodeCreate("node4")
+                nodeCreate("node4", classicFeeCollectorIdFor(4))
                         .adminKey(DEFAULT_PAYER)
-                        .accountNum(classicFeeCollectorIdFor(4))
                         .description(CLASSIC_NODE_NAMES[4])
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 mutateNode("4", node -> node.weight(123)),
