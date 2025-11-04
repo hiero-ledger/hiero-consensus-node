@@ -18,9 +18,11 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.zip.GZIPInputStream;
@@ -209,20 +211,34 @@ public class OpenMetricsHttpEndpointTest {
         }
 
         @Test
-        public void concurrentRequest() {
+        public void concurrentRequest() throws ExecutionException, InterruptedException {
+            final CountDownLatch firstRequestStarted = new CountDownLatch(1);
+            final CountDownLatch secondRequestFinished = new CountDownLatch(1);
+
+            // simulate a long-running snapshotting in the first request until the second request is done
             when(snapshotSupplier.get()).thenAnswer(invocation -> {
-                Thread.sleep(300); // simulate long-running snapshot retrieval
+                firstRequestStarted.countDown(); // Signal that lock is acquired
+                secondRequestFinished.await(1, TimeUnit.SECONDS); // Wait until the concurrent request is done
                 return Optional.empty();
             });
 
-            CompletableFuture<HttpResponse<String>> response1Future =
+            // Start the first request asynchronously
+            CompletableFuture<HttpResponse<String>> firstRequestResponseFuture =
                     CompletableFuture.supplyAsync(() -> callMetrics(false));
-            HttpResponse<String> response2 = callMetrics(false);
-            HttpResponse<String> response1 = response1Future.join();
 
-            assertThat(Arrays.asList(response1.statusCode(), response2.statusCode()))
-                    .as("Concurrent request should result in 503")
-                    .containsExactlyInAnyOrder(204, 429);
+            // Wait until the first request acquires the lock
+            firstRequestStarted.await(1, TimeUnit.SECONDS);
+            // Now make the second concurrent request
+            HttpResponse<String> concurrentResponse = callMetrics(false);
+            // Allow the first request to finish
+            secondRequestFinished.countDown();
+
+            assertThat(concurrentResponse.statusCode()).isEqualTo(429);
+            assertThat(concurrentResponse.body()).isEmpty();
+
+            HttpResponse<String> firstRequestResponse = firstRequestResponseFuture.get();
+            assertThat(firstRequestResponse.statusCode()).isEqualTo(204);
+            assertThat(firstRequestResponse.body()).isEmpty();
 
             verify(snapshotSupplier, times(1)).get();
         }

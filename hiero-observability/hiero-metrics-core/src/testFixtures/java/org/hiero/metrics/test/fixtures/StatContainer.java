@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.metrics.api;
+package org.hiero.metrics.test.fixtures;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntSupplier;
 import org.hiero.metrics.api.stat.StatUtils;
 
+/**
+ * A simple container for statistical metrics: count, sum, and average.
+ */
 public class StatContainer {
 
     private final AtomicInteger counter;
