@@ -19,7 +19,6 @@ import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.google.protobuf.Empty;
-import com.google.protobuf.ProtocolStringList;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;

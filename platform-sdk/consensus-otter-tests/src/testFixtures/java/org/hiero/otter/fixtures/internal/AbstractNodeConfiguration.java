@@ -6,7 +6,6 @@ import static org.hiero.otter.fixtures.internal.helpers.Utils.createConfiguratio
 
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.config.PathsConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.time.Duration;
