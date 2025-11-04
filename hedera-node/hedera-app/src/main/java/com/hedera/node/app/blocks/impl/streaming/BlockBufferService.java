@@ -556,10 +556,11 @@ public class BlockBufferService {
         int size = blockBuffer.size();
         for (final long blockNumber : orderedBuffer) {
             final BlockState block = blockBuffer.get(blockNumber);
+            ++numChecked;
+
             if (block.closedTimestamp() == null) {
                 continue; // the block is not finished yet, so skip checking it
             }
-            ++numChecked;
 
             final boolean shouldPrune;
             if (!isBackpressureEnabled()) {
