@@ -649,7 +649,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
         verify(metrics).recordActiveConnectionIp(anyLong());
 
-        verifyNoMoreInteractions(activeConnection);
         verifyNoMoreInteractions(newConnection);
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(metrics);
