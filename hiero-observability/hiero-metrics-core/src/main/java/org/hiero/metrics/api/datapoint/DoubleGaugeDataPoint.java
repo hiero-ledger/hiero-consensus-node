@@ -45,4 +45,12 @@ public interface DoubleGaugeDataPoint extends DoubleSupplier, DataPoint {
      * @return the value before reset
      */
     double getAndReset();
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    default void reset() {
+        getAndReset();
+    }
 }
