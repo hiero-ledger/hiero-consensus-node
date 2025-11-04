@@ -120,7 +120,11 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
                 responseObserver.onNext(Empty.getDefaultInstance());
                 responseObserver.onCompleted();
             } else {
-                log.error("Consensus node process started, but marker file was not detected in the allowed time");
+                if (!process.isAlive()) {
+                    log.error("Consensus node stopped prematurely. Errorcode: {}", process.exitValue());
+                } else {
+                    log.error("Consensus node process started, but marker file was not detected in the allowed time");
+                }
                 responseObserver.onError(new IllegalStateException(
                         "Consensus node process started, but marker file was not detected in the allowed time"));
             }
