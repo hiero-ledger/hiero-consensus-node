@@ -63,6 +63,7 @@ import org.hiero.otter.fixtures.app.OtterAppState;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
 import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.internal.AbstractNode;
+import org.hiero.otter.fixtures.internal.NetworkConfiguration;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeEventStreamResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodeMarkerFileResultImpl;
@@ -142,8 +143,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final SimulatedNetwork network,
             @NonNull final TurtleLogging logging,
-            @NonNull final Path outputDirectory) {
-        super(selfId, keysAndCerts);
+            @NonNull final Path outputDirectory,
+            @NonNull final NetworkConfiguration networkConfiguration) {
+        super(selfId, keysAndCerts, networkConfiguration);
         try (final LoggingContextScope ignored = installNodeContext()) {
             this.outputDirectory = requireNonNull(outputDirectory);
             logging.addNodeLogging(selfId, outputDirectory);
@@ -152,7 +154,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             this.timeManager = requireNonNull(timeManager);
             this.network = requireNonNull(network);
             this.logging = requireNonNull(logging);
-            this.nodeConfiguration = new TurtleNodeConfiguration(() -> lifeCycle, outputDirectory);
+            this.nodeConfiguration = new TurtleNodeConfiguration(
+                    () -> lifeCycle, networkConfiguration.overrideProperties(), outputDirectory);
             this.resultsCollector = new NodeResultsCollector(selfId);
             this.markerFileObserver = new TurtleMarkerFileObserver(resultsCollector);
         }
@@ -216,7 +219,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .build();
 
             model = WiringModelBuilder.create(platformContext.getMetrics(), timeManager.time())
-                    .withDeterministicModeEnabled(true)
+                    .deterministic()
                     .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
                     .build();
 

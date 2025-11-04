@@ -35,7 +35,7 @@ import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
  * <p>This interface provides methods to add and remove nodes, start the network, and add instrumented nodes.
  */
 @SuppressWarnings("unused")
-public interface Network {
+public interface Network extends Configurable<Network> {
 
     /**
      * Get the list of nodes in the network.
@@ -272,72 +272,6 @@ public interface Network {
     void restoreConnectivity();
 
     /**
-     * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
-     * in the network are running.
-     *
-     * @param key the key of the property
-     * @param value the value of the property
-     * @return this {@code Network} instance for method chaining
-     */
-    @NonNull
-    Network withConfigValue(@NonNull String key, @NonNull String value);
-
-    /**
-     * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
-     * in the network are running.
-     *
-     * @param key the key of the property
-     * @param value the value of the property
-     * @return this {@code Network} instance for method chaining
-     */
-    @NonNull
-    Network withConfigValue(@NonNull String key, @NonNull Duration value);
-
-    /**
-     * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
-     * in the network are running.
-     *
-     * @param key the key of the property
-     * @param value the value of the property
-     * @return this {@code Network} instance for method chaining
-     */
-    @NonNull
-    Network withConfigValue(@NonNull String key, int value);
-
-    /**
-     * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
-     * in the network are running.
-     *
-     * @param key the key of the property
-     * @param value the value of the property
-     * @return this {@code Network} instance for method chaining
-     */
-    @NonNull
-    Network withConfigValue(@NonNull String key, long value);
-
-    /**
-     * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
-     * in the network are running.
-     *
-     * @param key the key of the property
-     * @param value the value of the property
-     * @return this {@code Network} instance for method chaining
-     */
-    @NonNull
-    Network withConfigValue(@NonNull String key, boolean value);
-
-    /**
-     * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
-     * in the network are running.
-     *
-     * @param key the key of the property
-     * @param value the value of the property
-     * @return this {@code Network} instance for method chaining
-     */
-    @NonNull
-    Network withConfigValue(@NonNull String key, @NonNull Path value);
-
-    /**
      * Freezes the network.
      *
      * <p>This method sends a freeze transaction to one of the active nodes with a freeze time shortly after the
@@ -481,10 +415,10 @@ public interface Network {
      *
      * @param maybeBehindNode the node to check behind status for
      * @return {@code true} if the node is behind by the specified fraction of peers, {@code false} otherwise
-     * @see com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus
+     * @see FallenBehindStatus
      * @see Network#nodesAreBehindByNodeCount(Node, Node...)
      */
-    default boolean nodeIsBehindByNodeCount(@NonNull Node maybeBehindNode) {
+    default boolean nodeIsBehindByNodeCount(@NonNull final Node maybeBehindNode) {
         return nodesAreBehindByNodeCount(maybeBehindNode);
     }
 
@@ -520,13 +454,15 @@ public interface Network {
     }
 
     /**
-     * Sets the source directory to the state directory for all nodes. The directory is either relative
-     * to {@code platform-sdk/consensus-otter-tests/saved-states} or an absolute path
+     * Sets the source directory to the state directory for all nodes. The directory is either relative to
+     * {@code platform-sdk/consensus-otter-tests/saved-states} or an absolute path
      *
-     * <p>This method sets the directory of all nodes currently added to the network. Please note that the new directory
+     * <p>This method sets the directory of all nodes currently added to the network. Please note that the new
+     * directory
      * will become effective only after a node is (re-)started.
      *
-     * @param savedStateDirectory directory name of the state directory relative to the consensus-otter-tests/saved-states directory
+     * @param savedStateDirectory directory name of the state directory relative to the
+     * consensus-otter-tests/saved-states directory
      */
     void savedStateDirectory(@NonNull final Path savedStateDirectory);
 }
