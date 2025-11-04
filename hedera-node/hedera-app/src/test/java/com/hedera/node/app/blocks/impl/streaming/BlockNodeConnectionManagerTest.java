@@ -1081,7 +1081,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         connectionManager.recordBlockProofSent(nodeConfig, 1L, ackedTime);
         connectionManager.recordBlockAckAndCheckLatency(nodeConfig, 1L, ackedTime.plusMillis(30001));
 
-        verify(metrics).recordAcknowledgementLatency(30001);
         verify(metrics).recordHighLatencyEvent();
         verifyNoMoreInteractions(metrics);
     }
@@ -1740,7 +1739,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         assertThat(result.isHighLatency()).isFalse();
         assertThat(result.shouldSwitch()).isFalse();
-        verify(metrics).recordAcknowledgementLatency(100L);
+        // acknowledgement latency gauge removed; no call expected here
     }
 
     @Test

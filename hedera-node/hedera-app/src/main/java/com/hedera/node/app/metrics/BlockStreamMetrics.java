@@ -61,9 +61,11 @@ public class BlockStreamMetrics {
     private Counter conn_createFailureCounter;
     private LongGauge conn_activeConnIpGauge;
     private Counter conn_endOfStreamLimitCounter;
-    private DoubleGauge conn_ackLatencyGauge;
     private Counter conn_highLatencyCounter;
-    private RunningAverageMetric conn_headerToAckLatency;
+    private RunningAverageMetric conn_headerSentToAckLatency;
+    private RunningAverageMetric conn_headerProducedToAckLatency;
+    private RunningAverageMetric conn_blockEndSentToAckLatency;
+    private RunningAverageMetric conn_blockClosedToAckLatency;
 
     // buffer metrics
     private static final long BACK_PRESSURE_ACTIVE = 3;
@@ -277,21 +279,37 @@ public class BlockStreamMetrics {
                         "Number of times the active block node connection has exceeded the allowed number of EndOfStream responses");
         conn_endOfStreamLimitCounter = metrics.getOrCreate(endOfStreamLimitCfg);
 
-        final DoubleGauge.Config ackLatencyCfg = newDoubleGauge(GROUP_CONN, "acknowledgementLatency")
-                .withDescription(
-                        "Latency (ms) between the last sent BlockProof and the corresponding BlockAcknowledgement");
-        conn_ackLatencyGauge = metrics.getOrCreate(ackLatencyCfg);
-
         final Counter.Config highLatencyCfg = newCounter(GROUP_CONN, "highLatencyEvents")
                 .withDescription("Count of high latency events from the active block node connection");
         conn_highLatencyCounter = metrics.getOrCreate(highLatencyCfg);
 
         final RunningAverageMetric.Config headerAckLatencyCfg = new RunningAverageMetric.Config(
-                        CATEGORY, GROUP_CONN + "_headerAckLatency")
+                        CATEGORY, GROUP_CONN + "_headerSentToAckLatency")
                 .withDescription(
-                        "The average latency (ms) between sending a BlockHeader and receiving its BlockAcknowledgement")
+                        "The average latency (ms) between streaming a BlockHeader and receiving its BlockAcknowledgement")
                 .withFormat("%,.2f");
-        conn_headerToAckLatency = metrics.getOrCreate(headerAckLatencyCfg);
+        conn_headerSentToAckLatency = metrics.getOrCreate(headerAckLatencyCfg);
+
+        final RunningAverageMetric.Config headerProducedAckLatencyCfg = new RunningAverageMetric.Config(
+                        CATEGORY, GROUP_CONN + "_headerProducedToAckLatency")
+                .withDescription(
+                        "The average latency (ms) between producing a BlockHeader and receiving its BlockAcknowledgement")
+                .withFormat("%,.2f");
+        conn_headerProducedToAckLatency = metrics.getOrCreate(headerProducedAckLatencyCfg);
+
+        final RunningAverageMetric.Config blockEndSentAckLatencyCfg = new RunningAverageMetric.Config(
+                        CATEGORY, GROUP_CONN + "_blockEndSentToAckLatency")
+                .withDescription(
+                        "The average latency (ms) between streaming an EndOfBlock and receiving its BlockAcknowledgement")
+                .withFormat("%,.2f");
+        conn_blockEndSentToAckLatency = metrics.getOrCreate(blockEndSentAckLatencyCfg);
+
+        final RunningAverageMetric.Config blockClosedAckLatencyCfg = new RunningAverageMetric.Config(
+                        CATEGORY, GROUP_CONN + "_blockClosedToAckLatency")
+                .withDescription(
+                        "The average latency (ms) between the block being complete and receiving its BlockAcknowledgement")
+                .withFormat("%,.2f");
+        conn_blockClosedToAckLatency = metrics.getOrCreate(blockClosedAckLatencyCfg);
     }
 
     /**
@@ -353,14 +371,6 @@ public class BlockStreamMetrics {
     }
 
     /**
-     * Records the latency for a block acknowledgement from a specific block node.
-     * @param latencyMs the latency in milliseconds
-     */
-    public void recordAcknowledgementLatency(final long latencyMs) {
-        conn_ackLatencyGauge.set(latencyMs);
-    }
-
-    /**
      * Record a high-latency event for a specific block node.
      */
     public void recordHighLatencyEvent() {
@@ -371,8 +381,32 @@ public class BlockStreamMetrics {
      * Record the latency between sending a block header and receiving the corresponding acknowledgement.
      * @param latencyMs the latency in milliseconds
      */
-    public void recordHeaderAckLatency(final long latencyMs) {
-        conn_headerToAckLatency.update(latencyMs);
+    public void recordHeaderSentAckLatency(final long latencyMs) {
+        conn_headerSentToAckLatency.update(latencyMs);
+    }
+
+    /**
+     * Record the latency between producing a block header (added to block state) and receiving the acknowledgement.
+     * @param latencyMs the latency in milliseconds
+     */
+    public void recordHeaderProducedToAckLatency(final long latencyMs) {
+        conn_headerProducedToAckLatency.update(latencyMs);
+    }
+
+    /**
+     * Record the latency between sending EndOfBlock and receiving the acknowledgement.
+     * @param latencyMs the latency in milliseconds
+     */
+    public void recordBlockEndSentToAckLatency(final long latencyMs) {
+        conn_blockEndSentToAckLatency.update(latencyMs);
+    }
+
+    /**
+     * Record the latency between the BlockState closed timestamp and receiving the acknowledgement.
+     * @param latencyMs the latency in milliseconds
+     */
+    public void recordBlockClosedToAckLatency(final long latencyMs) {
+        conn_blockClosedToAckLatency.update(latencyMs);
     }
 
     // Connection RECV metrics -----------------------------------------------------------------------------------------

@@ -433,7 +433,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             if (blockNum <= acknowledgedBlockNumber) {
                 if (headerSentAtMsByBlock.remove(blockNum, sentAtMs)) {
                     final long latencyMs = nowMs - sentAtMs;
-                    blockStreamMetrics.recordHeaderAckLatency(latencyMs);
+                    blockStreamMetrics.recordHeaderSentAckLatency(latencyMs);
                 }
             }
         });
