@@ -21,6 +21,7 @@
 | zxc-single-day-longevity-test.yaml                    | ZXC: [CITR] Single Day Longevity Test                             |                  |                      |
 | zxc-single-day-performance-test.yaml                  | ZXC: [CITR] Single Day Performance Test                           |                  |                      |
 | zxc-tck-regression.yaml                               | ZXC: TCK Regression                                               |                  |                      |
+| zxc-execute-otter-tests.yaml                          | ZXC: Execute Otter Tests                                          |                  |                      |
 | platform-zxc-launch-jrs-workflow.yaml                 | ZXC: Launch JRS Workflow                                          |                  |                      |
 | node-zxc-build-release-artifact.yaml                  | ZXC: [Node] Deploy Release Artifacts                              |                  |                      |
 | node-zxc-compile-application-code.yaml                | ZXC: [Node] Compile Application Code                              |                  |                      |
