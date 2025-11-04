@@ -210,7 +210,7 @@ public class AddressBookTestBase {
                 .willReturn(new FunctionWritableSingletonState<>(
                         HIGHEST_NODE_ID_STATE_ID,
                         HIGHEST_NODE_ID_STATE_LABEL,
-                        () -> EntityNumber.newBuilder().number(100).build(),
+                        () -> NodeId.newBuilder().id(num).build(),
                         c -> {}));
         given(writableStates.getSingleton(ENTITY_COUNTS_STATE_ID))
                 .willReturn(new FunctionWritableSingletonState<>(
@@ -226,7 +226,7 @@ public class AddressBookTestBase {
                 .willReturn(new FunctionReadableSingletonState<>(
                         HIGHEST_NODE_ID_STATE_ID,
                         HIGHEST_NODE_ID_STATE_LABEL,
-                        () -> EntityNumber.newBuilder().number(100).build()));
+                        () -> NodeId.newBuilder().id(num).build()));
         given(readableStates.getSingleton(ENTITY_COUNTS_STATE_ID))
                 .willReturn(new FunctionReadableSingletonState<>(
                         ENTITY_COUNTS_STATE_ID,
@@ -340,11 +340,7 @@ public class AddressBookTestBase {
     }
 
     protected void givenValidNode() {
-        givenValidNode(false);
-    }
-
-    protected void givenValidNode(boolean deleted) {
-        final var validNode = new Node(
+        node = new Node(
                 nodeId.number(),
                 accountId,
                 "description",
@@ -353,12 +349,10 @@ public class AddressBookTestBase {
                 Bytes.wrap(gossipCaCertificate),
                 Bytes.wrap(grpcCertificateHash),
                 0,
-                deleted,
+                false,
                 key,
                 false,
                 null);
-
-        node = deleted ? null : validNode;
     }
 
     protected void givenValidNodeWithAdminKey(Key adminKey) {

@@ -87,10 +87,10 @@ class ReadableNodeStoreImplTest extends AddressBookTestBase {
                 .value(new EntityNumber(2), mock(Node.class))
                 .value(new EntityNumber(3), mock(Node.class))
                 .value(new EntityNumber(0), mock(Node.class));
+        givenEntityCounters(3);
         readableNodeState = stateBuilder.build();
         given(readableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(readableNodeState);
         subject = new ReadableNodeStoreImpl(readableStates, writableEntityCounters);
-        writableEntityCounters.adjustEntityCount(EntityType.NODE, 3L);
         final var keys = subject.keys();
         assertFalse(keys.isEmpty());
         assertEquals(keys, List.of(new EntityNumber(0), new EntityNumber(1), new EntityNumber(2), new EntityNumber(3)));
@@ -107,8 +107,8 @@ class ReadableNodeStoreImplTest extends AddressBookTestBase {
                         EntityNumber.newBuilder().number(4).build(),
                         Node.newBuilder().nodeId(4).weight(40).deleted(true).build())
                 .build();
+        givenEntityCounters(3);
         given(readableStates.<EntityNumber, Node>get(anyInt())).willReturn(nodesState);
-        writableEntityCounters.adjustEntityCount(EntityType.NODE, 3L);
 
         subject = new ReadableNodeStoreImpl(readableStates, writableEntityCounters);
         final var result = subject.snapshotOfFutureRoster(nodeId ->

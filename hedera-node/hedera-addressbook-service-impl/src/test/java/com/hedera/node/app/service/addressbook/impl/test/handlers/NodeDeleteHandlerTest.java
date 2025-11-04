@@ -189,12 +189,9 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
     @Test
     @DisplayName("Node already deleted returns error")
     void noFileKeys() {
-        // mark current node as deleted
-        givenValidNode(true);
-        // refresh sate with deleted node
-        rebuildState(1);
-        givenEntityCounters(2);
-        final var txn = newDeleteTxn().nodeDeleteOrThrow();
+        // Missing node id, that is less than the highest node id, is considered as deleted
+        final var txn = newDeleteTxnWithNodeId(45).nodeDeleteOrThrow();
+        givenEntityCounters(50);
 
         given(handleContext.body())
                 .willReturn(TransactionBody.newBuilder().nodeDelete(txn).build());

@@ -20,7 +20,7 @@ import java.util.Set;
  * This class is not complete, it will be extended with other methods like remove, update etc.,
  */
 public class WritableNodeStore extends ReadableNodeStoreImpl {
-    private WritableEntityIdStore writableEntityIdStore;
+    private final WritableEntityIdStore writableEntityIdStore;
     /**
      * Create a new {@link WritableNodeStore} instance.
      *

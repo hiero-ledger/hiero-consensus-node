@@ -490,10 +490,10 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
 
     @Test
     void preHandleFailedWhenNodeDeleted() throws PreCheckException {
-        givenValidNode(true);
-        // refresh state with deleted node
-        rebuildState(1);
-        txn = new NodeUpdateBuilder().withNodeId(nodeId.number()).build();
+        // Missing node id, that is less than the highest node id, is considered as deleted
+        txn = new NodeUpdateBuilder().withNodeId(45).build();
+        givenEntityCounters(50);
+
         final var context = setupPreHandle(true, txn);
         assertThrowsPreCheck(() -> subject.preHandle(context), INVALID_NODE_ID);
     }

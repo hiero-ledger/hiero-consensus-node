@@ -194,7 +194,7 @@ public class ReadableStoreFactory {
 
         @SuppressWarnings("unchecked")
         public <T> T createFrom(
-                @NonNull final ReadableStates readableStates, @NonNull ReadableEntityIdStore entityCounters) {
+                @NonNull final ReadableStates readableStates, @NonNull final ReadableEntityIdStore entityCounters) {
             requireNonNull(readableStates);
             return (T) fromStates.apply(readableStates, entityCounters);
         }
