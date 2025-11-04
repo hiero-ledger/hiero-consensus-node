@@ -5,6 +5,8 @@ import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.Marker;
 import org.hiero.consensus.model.node.NodeId;
@@ -80,4 +82,13 @@ public interface SingleNodeLogResult extends OtterResult {
      * @param subscriber the subscriber that will receive the log entries
      */
     void subscribe(@NonNull LogSubscriber subscriber);
+
+    /**
+     * Subscribes to {@link StructuredLog} entries logged by the node that match the given predicate. When it is found,
+     * the returned AtomicBoolean is set to true, and the subscription is canceled.
+     *
+     * @param matcher the predicate to match log entries
+     * @return an AtomicBoolean that will be set to true when a matching log entry is found
+     */
+    AtomicBoolean onNextMatch(@NonNull Predicate<StructuredLog> matcher);
 }

@@ -57,17 +57,13 @@ class MultipleNodeEventStreamResultsAssertTest {
     }
 
     @Test
-    void testHaveEqualFiles_withNoSignatureFiles_shouldFail() throws IOException {
-        // Create event stream files without signature files
-        createEventStreamFile(node0EventStreamDir, "2024-01-01T00_00_00.000000000Z.evts", "content1");
-        createEventStreamFile(node1EventStreamDir, "2024-01-01T00_00_00.000000000Z.evts", "content1");
-
+    void testHaveEqualFiles_withNoEventStreamFiles_shouldFail() throws IOException {
         final MultipleNodeEventStreamResults results =
                 createResults(createSingleNodeResult(NodeId.of(0), 0), createSingleNodeResult(NodeId.of(1), 0));
 
         assertThatThrownBy(() -> assertThat(results).haveEqualFiles())
                 .isInstanceOf(AssertionError.class)
-                .hasMessageContaining("No signature files found");
+                .hasMessageContaining("no event stream files were created");
     }
 
     @Test

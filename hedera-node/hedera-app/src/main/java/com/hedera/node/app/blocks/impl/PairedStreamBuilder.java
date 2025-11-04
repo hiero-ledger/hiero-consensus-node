@@ -704,4 +704,14 @@ public class PairedStreamBuilder
     public Bytes getEvmCallResult() {
         return blockStreamBuilder.getEvmCallResult();
     }
+
+    @Override
+    public int getDeltaStorageSlotsUpdated() {
+        return blockStreamBuilder.getDeltaStorageSlotsUpdated();
+    }
+
+    @Override
+    public void setDeltaStorageSlotsUpdated(int deltaStorageSlotsUpdated) {
+        blockStreamBuilder.setDeltaStorageSlotsUpdated(deltaStorageSlotsUpdated);
+    }
 }

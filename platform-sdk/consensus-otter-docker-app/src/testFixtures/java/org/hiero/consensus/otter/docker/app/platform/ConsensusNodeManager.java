@@ -22,9 +22,10 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
-import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.state.service.PlatformStateFacade;
+import com.swirlds.platform.state.service.PlatformStateService;
+import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
@@ -33,8 +34,6 @@ import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -73,10 +72,6 @@ public class ConsensusNodeManager {
      */
     private final List<ConsensusRoundListener> consensusRoundListeners = new CopyOnWriteArrayList<>();
 
-    /** An optional observer of marker files. {@code null} if writing marker files is not enabled in the platform. */
-    @Nullable
-    private final ContainerMarkerFileObserver markerFileObserver;
-
     /** The current quiescence command. Volatile because it is read and set by different gRPC messages */
     private volatile QuiescenceCommand quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
 
@@ -86,7 +81,7 @@ public class ConsensusNodeManager {
      *
      * @param selfId the unique identifier for this node, must not be {@code null}
      * @param platformConfig the configuration for the platform, must not be {@code null}
-     * @param genesisRoster the initial roster of nodes in the network, must not be {@code null}
+     * @param activeRoster the roster of nodes in the network, must not be {@code null}
      * @param version the semantic version of the platform, must not be {@code null}
      * @param keysAndCerts the keys and certificates for this node, must not
      * @param backgroundExecutor the executor to run background tasks, must not be {@code null}
@@ -94,7 +89,7 @@ public class ConsensusNodeManager {
     public ConsensusNodeManager(
             @NonNull final NodeId selfId,
             @NonNull final Configuration platformConfig,
-            @NonNull final Roster genesisRoster,
+            @NonNull final Roster activeRoster,
             @NonNull final SemanticVersion version,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final Executor backgroundExecutor) {
@@ -123,21 +118,26 @@ public class ConsensusNodeManager {
         final PlatformContext platformContext = PlatformContext.create(
                 platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
 
-        otterApp = new OtterApp(version);
+        otterApp = new OtterApp(platformConfig, version);
 
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
                 () -> OtterAppState.createGenesisState(
-                        platformConfig, genesisRoster, metrics, version, otterApp.allServices()),
+                        platformConfig, metrics, time, activeRoster, version, otterApp.allServices()),
                 OtterApp.APP_NAME,
                 OtterApp.SWIRLD_NAME,
                 legacySelfId,
                 platformStateFacade,
                 platformContext,
-                OtterAppState::new);
+                virtualMap -> new OtterAppState(virtualMap, metrics, time));
         final ReservedSignedState initialState = reservedState.state();
         final MerkleNodeState state = initialState.get().getState();
+
+        // Set active the roster
+        final ReadablePlatformStateStore store =
+                new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
+        RosterUtils.setActiveRoster(state, activeRoster, store.getRound() + 1);
 
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
         executionCallback = new OtterExecutionLayer(new Random(), metrics, time);
@@ -151,7 +151,7 @@ public class ConsensusNodeManager {
                         Long.toString(selfId.id()),
                         rosterHistory,
                         platformStateFacade,
-                        OtterAppState::new)
+                        virtualMap -> new OtterAppState(virtualMap, metrics, time))
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)
@@ -169,12 +169,6 @@ public class ConsensusNodeManager {
                 .solderTo("dockerApp", "consensusRounds", this::notifyConsensusRoundListeners);
 
         platform = componentBuilder.build();
-
-        // Setup the marker file observer if the marker files directory is configured
-        final PathsConfig pathsConfig = platformConfig.getConfigData(PathsConfig.class);
-        final Path markerFilesDir = pathsConfig.getMarkerFilesDir();
-        markerFileObserver =
-                markerFilesDir == null ? null : new ContainerMarkerFileObserver(backgroundExecutor, markerFilesDir);
     }
 
     /**
@@ -223,17 +217,6 @@ public class ConsensusNodeManager {
      */
     public void registerConsensusRoundListener(@NonNull final ConsensusRoundListener listener) {
         consensusRoundListeners.add(listener);
-    }
-
-    /**
-     * Register a listener for marker file updates. This listener will be notified when new marker files are created
-     *
-     * @param listener the consumer that will receive updates when marker files are created, must not be {@code null}
-     */
-    public void registerMarkerFileListener(@NonNull final MarkerFileListener listener) {
-        if (markerFileObserver != null) {
-            markerFileObserver.addListener(listener);
-        }
     }
 
     /**

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app;
 
-import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_BLOCK_STREAM_INFO;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
@@ -9,12 +8,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.blocks.BlockStreamManager.ZERO_BLOCK_HASH;
-import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
-import static com.hedera.node.app.blocks.impl.BlockStreamManagerImpl.NULL_HASH;
-import static com.hedera.node.app.blocks.impl.ConcurrentStreamingTreeHasher.rootHashFrom;
-import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
-import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
-import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.blockHashByBlockNumber;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.nodeSignedTxWith;
 import static com.hedera.node.app.util.HederaAsciiArt.HEDERA;
@@ -30,9 +23,6 @@ import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.STARTING_UP;
 
-import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
-import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -41,7 +31,6 @@ import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
-import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
@@ -54,7 +43,6 @@ import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
-import com.hedera.node.app.blocks.StreamingTreeHasher;
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
@@ -67,10 +55,6 @@ import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
-import com.hedera.node.app.ids.AppEntityIdFactory;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
-import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.info.CurrentPlatformStatusImpl;
 import com.hedera.node.app.info.StateNetworkInfo;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
@@ -78,6 +62,11 @@ import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
+import com.hedera.node.app.service.entityid.impl.EntityIdServiceImpl;
+import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
+import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
 import com.hedera.node.app.service.networkadmin.impl.NetworkServiceImpl;
@@ -114,6 +103,7 @@ import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -149,6 +139,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -529,7 +520,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
 
         // Register all service schema RuntimeConstructable factories before platform init
         Set.of(
-                        new EntityIdService(),
+                        new EntityIdServiceImpl(),
                         new ConsensusServiceImpl(),
                         contractServiceImpl,
                         fileServiceImpl,
@@ -591,8 +582,9 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
      * {@inheritDoc}
      */
     @Override
-    public Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap() {
-        return HederaVirtualMapState::new;
+    public Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap(
+            @NonNull final Metrics metrics, @NonNull final Time time) {
+        return virtualMap -> new HederaVirtualMapState(virtualMap, metrics, time);
     }
 
     /**
@@ -978,7 +970,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             return;
         }
 
-        final Consumer<StateSignatureTransaction> simplifiedStateSignatureTxnCallback = txn -> {
+        final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback = (txn, ignored) -> {
             final var scopedTxn = new ScopedSystemTransaction<>(event.getCreatorId(), event.getBirthRound(), txn);
             stateSignatureTxnCallback.accept(scopedTxn);
         };
@@ -987,8 +979,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         event.forEachTransaction(transactions::add);
         daggerApp
                 .preHandleWorkflow()
-                .preHandle(
-                        readableStoreFactory, creatorInfo, transactions.stream(), simplifiedStateSignatureTxnCallback);
+                .preHandle(readableStoreFactory, creatorInfo, transactions.stream(), shortCircuitTxnCallback);
     }
 
     public void onNewRecoveredState() {
@@ -1247,82 +1238,12 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         notifications.register(AsyncFatalIssListener.class, daggerApp.fatalIssListener());
         if (blockStreamEnabled) {
             notifications.register(StateHashedListener.class, daggerApp.blockStreamManager());
-            daggerApp
-                    .blockStreamManager()
-                    .initLastBlockHash(
-                            switch (trigger) {
-                                case GENESIS -> ZERO_BLOCK_HASH;
-                                default ->
-                                    blockStreamService
-                                            .migratedLastBlockHash()
-                                            .orElseGet(() -> startBlockHashFrom(state));
-                            });
+            final var lastBlockHash = (trigger == GENESIS)
+                    ? ZERO_BLOCK_HASH
+                    : blockStreamService.migratedLastBlockHash().orElse(null);
+            daggerApp.blockStreamManager().init(state, lastBlockHash);
             migrationStateChanges = null;
         }
-    }
-
-    /**
-     * Given the {@link BlockStreamInfo} context from a {@link State}, infers the block hash of the
-     * last block that was incorporated in this state.
-     *
-     * @param state the state to use
-     * @return the inferred block hash
-     */
-    private Bytes startBlockHashFrom(@NonNull final State state) {
-        final var blockStreamInfo = state.getReadableStates(BlockStreamService.NAME)
-                .<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID)
-                .get();
-        requireNonNull(blockStreamInfo);
-        // Three of the four ingredients in the block hash are directly in the BlockStreamInfo; that is,
-        // the previous block hash, the input tree root hash, and the start of block state hash
-        final var prevBlockHash = blockStreamInfo.blockNumber() == 0L
-                ? ZERO_BLOCK_HASH
-                : blockHashByBlockNumber(
-                        blockStreamInfo.trailingBlockHashes(),
-                        blockStreamInfo.blockNumber() - 1,
-                        blockStreamInfo.blockNumber() - 1);
-        requireNonNull(prevBlockHash);
-
-        // The fourth ingredient, the state changes tree root hash, is not directly in the BlockStreamInfo, but
-        // we can recompute it based on the tree hash information and the fact the last state changes item in
-        // the block was devoted to putting the BlockStreamInfo itself into the state
-        final var stateChangesHash = stateChangesTreeRootHashFrom(blockStreamInfo);
-
-        final var level1A = combine(prevBlockHash, blockStreamInfo.startOfBlockStateHash());
-        final var level1B = combine(blockStreamInfo.consensusHeaderTreeRootHash(), blockStreamInfo.inputTreeRootHash());
-        final var level1C = combine(blockStreamInfo.outputTreeRootHash(), stateChangesHash);
-        final var level1D = combine(blockStreamInfo.traceDataTreeRootHash(), NULL_HASH);
-        final var leftParent = combine(level1A, level1B);
-        final var rightParent = combine(level1C, level1D);
-        return combine(leftParent, rightParent);
-    }
-
-    /**
-     * Given a {@link BlockStreamInfo} context, computes the state changes tree root hash that must have been
-     * computed at the end of the block that the context describes, assuming the final state change block item
-     * was the state change that put the context into the state.
-     *
-     * @param info the context to use
-     * @return the inferred output tree root hash
-     */
-    private @NonNull Bytes stateChangesTreeRootHashFrom(@NonNull final BlockStreamInfo info) {
-        // This was the last state change in the block
-        final var blockStreamInfoChange = StateChange.newBuilder()
-                .stateId(STATE_ID_BLOCK_STREAM_INFO.protoOrdinal())
-                .singletonUpdate(SingletonUpdateChange.newBuilder()
-                        .blockStreamInfoValue(info)
-                        .build())
-                .build();
-        // And this was the last output block item
-        final var lastStateChanges = BlockItem.newBuilder()
-                .stateChanges(new StateChanges(info.blockEndTime(), List.of(blockStreamInfoChange)))
-                .build();
-        // So we can combine this last leaf's has with the size and rightmost hashes
-        // store from the pending state changes tree to recompute its final root hash
-        final var penultimateStateChangesTreeStatus = new StreamingTreeHasher.Status(
-                info.numPrecedingStateChangesItems(), info.rightmostPrecedingStateChangesTreeHashes());
-        final var lastLeafHash = noThrowSha384HashOf(BlockItem.PROTOBUF.toBytes(lastStateChanges));
-        return rootHashFrom(penultimateStateChangesTreeStatus, lastLeafHash);
     }
 
     private void logConfiguration() {
@@ -1437,7 +1358,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             final var adoptedRosterHash = RosterUtils.hash(adoptedRoster).getBytes();
             final var writableHintsStates = initState.getWritableStates(HintsService.NAME);
             final var writableEntityStates = initState.getWritableStates(EntityIdService.NAME);
-            final var entityCounters = new WritableEntityIdStore(writableEntityStates);
+            final var entityCounters = new WritableEntityIdStoreImpl(writableEntityStates);
             final var store = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
             hintsService.handoff(store, previousRoster, adoptedRoster, adoptedRosterHash, tssConfig.forceHandoffs());
             ((CommittableWritableStates) writableHintsStates).commit();
