@@ -54,6 +54,7 @@ public final class BlockStreamUtils {
             case STATE_ID_ROSTER_STATE -> "RosterService.ROSTER_STATE";
             case STATE_ID_ROSTERS -> "RosterService.ROSTERS";
             case STATE_ID_ENTITY_COUNTS -> "EntityIdService.ENTITY_COUNTS";
+            case HIGHEST_NODE_ID_STATE_ID -> "EntityIdService.HIGHEST_NODE_ID";
             case STATE_ID_TRANSACTION_RECEIPTS -> "RecordCache.TRANSACTION_RECEIPTS";
             case STATE_ID_SCHEDULES_BY_EQUALITY -> "ScheduleService.SCHEDULES_BY_EQUALITY";
             case STATE_ID_SCHEDULES_BY_EXPIRY_SEC -> "ScheduleService.SCHEDULES_BY_EXPIRY_SEC";
@@ -112,6 +113,7 @@ public final class BlockStreamUtils {
             case ENTITY_COUNTS_VALUE -> singletonUpdateChange.entityCountsValueOrThrow();
             case HISTORY_PROOF_CONSTRUCTION_VALUE -> singletonUpdateChange.historyProofConstructionValueOrThrow();
             case CRS_STATE_VALUE -> singletonUpdateChange.crsStateValueOrThrow();
+            case HIGHEST_NODE_ID -> singletonUpdateChange.highestNodeIdOrThrow();
         };
     }
 

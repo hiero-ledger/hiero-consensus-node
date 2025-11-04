@@ -8,6 +8,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.entityid.WritableEntityIdStore;
 import com.swirlds.state.spi.WritableSingletonState;
@@ -25,7 +26,7 @@ public class WritableEntityIdStoreImpl extends ReadableEntityIdStoreImpl impleme
     private final WritableSingletonState<EntityNumber> entityIdState;
 
     private final WritableSingletonState<EntityCounts> entityCountsState;
-    private final WritableSingletonState<EntityNumber> highestNodeIdState;
+    private final WritableSingletonState<NodeId> highestNodeIdState;
 
     /**
      * Create a new {@link WritableEntityIdStoreImpl} instance.
@@ -57,13 +58,13 @@ public class WritableEntityIdStoreImpl extends ReadableEntityIdStoreImpl impleme
     public long peekAtNextNodeId() {
         final var current = highestNodeIdState.get();
         // If null, no node assigned yet; start at 0
-        return current == null ? 0 : current.number() + 1;
+        return current == null ? 0 : current.id() + 1;
     }
 
     @Override
     public long incrementHighestNodeIdAndGet() {
         final var next = peekAtNextNodeId();
-        highestNodeIdState.put(new EntityNumber(next));
+        highestNodeIdState.put(new NodeId(next));
         return next;
     }
 

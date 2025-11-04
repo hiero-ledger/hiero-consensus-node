@@ -7,6 +7,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
 import com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSchema;
@@ -26,7 +27,7 @@ public class ReadableEntityIdStoreImpl implements ReadableEntityIdStore {
 
     private final ReadableSingletonState<EntityCounts> entityCountsState;
 
-    private final ReadableSingletonState<EntityNumber> highestNodeIdState;
+    private final ReadableSingletonState<NodeId> highestNodeIdState;
 
     /**
      * Create a new {@link ReadableEntityIdStoreImpl} instance.
@@ -54,7 +55,7 @@ public class ReadableEntityIdStoreImpl implements ReadableEntityIdStore {
     @Override
     public long peekAtNextNodeId() {
         final var current = highestNodeIdState.get();
-        return current == null ? 0 : current.number() + 1;
+        return current == null ? 0 : current.id() + 1;
     }
 
     // Add all getters for number of entities

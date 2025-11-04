@@ -353,7 +353,7 @@ message StateValue {
     /**
      * A state identifier for the highest node identifier allocated so far.
      */
-    proto.EntityNumber EntityIdService_I_HIGHEST_NODE_ID = 54;
+    com.hedera.hapi.platform.state.NodeId EntityIdService_I_HIGHEST_NODE_ID = 54;
 
     /**
      * A state identifier for the Accounts state.

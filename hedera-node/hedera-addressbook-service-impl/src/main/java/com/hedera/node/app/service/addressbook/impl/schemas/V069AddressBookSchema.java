@@ -6,6 +6,7 @@ import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSchema;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
@@ -42,7 +43,7 @@ public class V069AddressBookSchema extends Schema<SemanticVersion> {
                         highest = Math.max(highest, i);
                     }
                 }
-                highestNodeIdState.put(EntityNumber.newBuilder().number(highest).build());
+                highestNodeIdState.put(NodeId.newBuilder().id(highest).build());
             }
 
             // 2) Remove any nodes with deleted=true, scanning ids in [0, 100)

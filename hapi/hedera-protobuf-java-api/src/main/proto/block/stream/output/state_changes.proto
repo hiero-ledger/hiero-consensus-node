@@ -474,9 +474,14 @@ enum StateIdentifier {
     STATE_ID_LAMBDA_STORAGE = 52;
 
     /**
-     * A state identifier fro account to node relation.
+     * A state identifier for account to node relation.
      */
     STATE_ID_ACCOUNT_NODE_REL = 53;
+
+    /**
+     * A state identifier for the highest node identifier allocated so far.
+     */
+    HIGHEST_NODE_ID_STATE_ID = 54;
 
     /**
      * A state identifier for the round receipts queue. Queue state.
@@ -714,6 +719,11 @@ message SingletonUpdateChange {
          * Node rewards SHALL be updated for every non-empty block.
          */
         proto.NodeRewards node_rewards_value = 18;
+
+        /**
+         * A change to the highest node id singleton.
+         */
+        com.hedera.hapi.platform.state.NodeId highest_node_id = 19;
     }
 }
 
