@@ -90,7 +90,7 @@ public class StateLifecycleManagerImpl<T extends MerkleNodeStateAware> implement
             throw new IllegalStateException("Attempt to set initial state when there is already a state reference.");
         }
 
-        updateStateRefs(state);
+        copyAndUpdateStateRefs(state);
     }
 
     @Override
@@ -121,10 +121,14 @@ public class StateLifecycleManagerImpl<T extends MerkleNodeStateAware> implement
     @Override
     public MerkleNodeState copyMutableState() {
         final MerkleNodeState state = stateRef.get();
-        updateStateRefs(state);
+        copyAndUpdateStateRefs(state);
         return stateRef.get();
     }
 
+    /**
+     * Copies the provided state and updates both the latest immutable state and the mutable state reference.
+     * @param state the state to copy and update references for
+     */
     private void copyAndUpdateStateRefs(MerkleNodeState state) {
         // Create a fast copy so there is always an immutable state to
         // invoke handleTransaction on for pre-consensus transactions

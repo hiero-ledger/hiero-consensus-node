@@ -19,7 +19,6 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.lifecycle.StateMetadata;
-import com.swirlds.state.merkle.MerkleRootSnapshotMetrics;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.EmptyReadableStates;
 import com.swirlds.state.spi.KVChangeListener;
@@ -104,11 +103,6 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     }
 
     /**
-     * Metrics for the snapshot creation process
-     */
-    private final MerkleRootSnapshotMetrics snapshotMetrics;
-
-    /**
      * Maintains information about all services known by this instance. Map keys are
      * service names, values are service states by service ID.
      */
@@ -135,8 +129,6 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
 
     private final Metrics metrics;
 
-    private final Time time;
-
     private final MerkleCryptography merkleCryptography;
 
     /**
@@ -149,9 +141,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
             @NonNull final MerkleCryptography merkleCryptography) {
         this.registryRecord = RuntimeObjectRegistry.createRecord(getClass());
         this.metrics = requireNonNull(metrics);
-        this.time = requireNonNull(time);
         this.merkleCryptography = requireNonNull(merkleCryptography);
-        this.snapshotMetrics = new MerkleRootSnapshotMetrics(metrics);
     }
 
     /**
@@ -164,9 +154,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         super(from);
         this.registryRecord = RuntimeObjectRegistry.createRecord(getClass());
         this.metrics = from.metrics;
-        this.time = from.time;
         this.merkleCryptography = from.merkleCryptography;
-        this.snapshotMetrics = new MerkleRootSnapshotMetrics(from.metrics);
         this.listeners.addAll(from.listeners);
 
         // Copy over the metadata

@@ -5,8 +5,14 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 
 /**
- * An implementaion of this class is responsible
- * @param <T> a type of the snapshot source, should implement {@link MerkleNodeStateAware}
+ * Implementations of this interface are responsible for managing the state lifecycle:
+ * <ul>
+ * <li>Maintaining references to a mutable state and the latest immutable state.</li>
+ * <li>Creating snapshots of the state.</li>
+ * <li>Loading snapshots of the state.</li>
+ * <li>Creating a mutable copy of the state, while making the current mutable state immutable.</li>
+ * </ul>
+ * @param <T> A type of the snapshot source, which should implement {@link MerkleNodeStateAware}.
  */
 public interface StateLifecycleManager<T extends MerkleNodeStateAware> {
 
@@ -46,7 +52,7 @@ public interface StateLifecycleManager<T extends MerkleNodeStateAware> {
     void createSnapshot(@NonNull Path targetPath);
 
     /**
-     * Loads a snapshot of a state and uses it as a new mutable state.
+     * Loads a snapshot of a state.
      *
      * @param targetPath The path to load the snapshot from.
      * @return mutable copy of the loaded state
