@@ -190,8 +190,7 @@ jobs:
         if: ${{ inputs.enable-full-otter-tests && inputs.enable-network-log-capture && steps.gradle-full-otter-tests.conclusion == 'failure' && !cancelled() }}
         with:
           name: Aggregated Otter Tests Container Logs
-          path: |
-            "platform-sdk/consensus-otter-tests/build/test-results/aggregateTestContainer"
+          path: platform-sdk/consensus-otter-tests/build/test-results/aggregateTestContainer
           retention-days: 7
 
       - name: Check Results
