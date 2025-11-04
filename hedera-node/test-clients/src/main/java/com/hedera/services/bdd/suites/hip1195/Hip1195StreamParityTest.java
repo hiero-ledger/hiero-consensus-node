@@ -73,8 +73,8 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
-@SuppressWarnings({"rawtypes", "unchecked"})
 @Tag(ADHOC)
+@SuppressWarnings({"rawtypes", "unchecked"})
 public class Hip1195StreamParityTest {
     public static final String HOOK_CONTRACT_NUM = "365";
 
@@ -244,6 +244,7 @@ public class Hip1195StreamParityTest {
     }
 
     @HapiTest
+    @Tag(ADHOC)
     final Stream<DynamicTest> hookExecutionsWithAutoCreations() {
         final var initialTokenSupply = 1000;
         return hapiTest(
@@ -288,7 +289,15 @@ public class Hip1195StreamParityTest {
                                         .status(SUCCESS)
                                         .contractCallResult(resultWith().contract(HOOK_CONTRACT_NUM)))
                         .logged(),
-                getAliasedAccountInfo("alias").has(accountWith().balance(10L)).hasToken(relationshipWith("tokenA")));
+                getAliasedAccountInfo("alias").has(accountWith().balance(10L)).hasToken(relationshipWith("tokenA")),
+                cryptoTransfer(
+                        movingHbar(10L).between("civilian", "alias"),
+                        moving(1, "tokenA").between("civilian", "alias"))
+                        .withPrePostHookFor("civilian", 1L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER, "civilian")
+                        .via("aliasTransfer"),
+                getTxnRecord("transfer").andAllChildRecords().logged(),
+                getAliasedAccountInfo("alias").has(accountWith().balance(20L)));
     }
 
     @HapiTest

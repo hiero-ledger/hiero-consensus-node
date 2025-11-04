@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
@@ -280,4 +281,6 @@ public record CallOutcome(
     private boolean callWasAborted() {
         return txResult.gasUsed() == 0L;
     }
+
+    public void updateHookId(final HookId hookKey) {}
 }

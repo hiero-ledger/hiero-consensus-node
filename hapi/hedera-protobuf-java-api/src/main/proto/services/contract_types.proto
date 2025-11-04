@@ -80,9 +80,14 @@ message EvmTransactionResult {
      * internal call producing this result.
      */
     InternalCallContext internal_call_context = 6;
+
+    /**
+     * If set, the id of the executed hook.
+     */
+    proto.HookId executed_hook_id = 7;
 }
 
-/**
+/**s
  * A contract "nonce" reference.<br/>
  * This connects a contract and its "nonce" value, and is primarily for use in
  * query responses.  A "nonce" is short for "nonsense" and is usually a value

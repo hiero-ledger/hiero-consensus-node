@@ -125,6 +125,7 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
                 final CallOutcome outcome =
                         component.contextTransactionProcessor().call();
                 final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCallStreamBuilder.class);
+                outcome.updateHookId(hookKey);
                 outcome.addCallDetailsTo(streamBuilder, context, entityIdFactory);
 
                 validateTrue(outcome.status() == SUCCESS, outcome.status());

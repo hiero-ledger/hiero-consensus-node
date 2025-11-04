@@ -106,7 +106,6 @@ public class CryptoCreateSuite {
     }
 
     @HapiTest
-    @Tag(ADHOC)
     public Stream<DynamicTest> cantCreateTwoAccountsWithSameAlias() {
         final String ecKey = "ecKey";
         final String key1 = "key1";

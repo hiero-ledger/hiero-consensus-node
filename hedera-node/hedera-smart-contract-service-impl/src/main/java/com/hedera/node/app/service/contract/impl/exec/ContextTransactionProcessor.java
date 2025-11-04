@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
@@ -124,9 +125,16 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                         hevmTransaction.senderId(),
                         hevmTransaction.contractId(),
                         requireNonNull(hevmTransaction.exception()).getStatus());
+                final var hookId = new HookId(
+                        requireNonNull(hevmTransaction.hookDispatch()).executionOrThrow().hookEntityIdOrThrow(),
+                        hevmTransaction
+                                .hookDispatch()
+                                .executionOrThrow()
+                                .callOrThrow()
+                                .hookIdOrThrow());
                 outcome = CallOutcome.fromResultsWithoutSidecars(
                         result.asProtoResultOf(null, rootProxyWorldUpdater, null),
-                        result.asEvmTxResultOf(null, null),
+                        result.asEvmTxResultOf(null, null, hookId),
                         null,
                         null,
                         null,
@@ -206,12 +214,21 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                 requireNonNull(hederaEvmContext.streamBuilder()).addContractBytecode(contractBytecode, false);
             }
 
+            final var hookId = isHookDispatch
+                    ? new HookId(
+                            requireNonNull(hevmTransaction.hookDispatch()).executionOrThrow().hookEntityIdOrThrow(),
+                            hevmTransaction
+                                    .hookDispatch()
+                                    .executionOrThrow()
+                                    .callOrThrow()
+                                    .hookIdOrThrow())
+                    : null;
             final var callData = (hydratedEthTxData != null && hydratedEthTxData.ethTxData() != null)
                     ? Bytes.wrap(hydratedEthTxData.ethTxData().callData())
                     : null;
             final var outcome = CallOutcome.fromResultsWithMaybeSidecars(
                     result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater, callData),
-                    result.asEvmTxResultOf(ethTxDataIfApplicable(), callData),
+                    result.asEvmTxResultOf(ethTxDataIfApplicable(), callData, hookId),
                     result.isSuccess() ? rootProxyWorldUpdater.getUpdatedContractNonces() : null,
                     result.isSuccess() ? rootProxyWorldUpdater.getCreatedContractIds() : null,
                     result.isSuccess() ? result.evmAddressIfCreatedIn(rootProxyWorldUpdater) : null,
@@ -306,13 +323,21 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         if (context.body().hasEthereumTransaction() && sender != null) {
             result = result.withSignerNonce(sender.getNonce());
         }
-
+        final var hookId = hevmTransaction.hookDispatch() != null
+                ? new HookId(
+                        hevmTransaction.hookDispatch().executionOrThrow().hookEntityIdOrThrow(),
+                        hevmTransaction
+                                .hookDispatch()
+                                .executionOrThrow()
+                                .callOrThrow()
+                                .hookIdOrThrow())
+                : null;
         final var ethCallData = (hydratedEthTxData != null && hydratedEthTxData.ethTxData() != null)
                 ? Bytes.wrap(hydratedEthTxData.ethTxData().callData())
                 : null;
         return CallOutcome.fromResultsWithoutSidecars(
                 result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater, ethCallData),
-                result.asEvmTxResultOf(ethTxDataIfApplicable(), ethCallData),
+                result.asEvmTxResultOf(ethTxDataIfApplicable(), ethCallData, hookId),
                 null,
                 null,
                 null,
