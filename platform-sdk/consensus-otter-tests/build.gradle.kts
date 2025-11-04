@@ -114,6 +114,12 @@ tasks.register<Test>("testTurtle") {
 
 // Runs tests against the Container environment
 tasks.register<Test>("testContainer") {
+    beforeTest(
+        KotlinClosure2({ descriptor: TestDescriptor, details: Any ->
+            println("Starting test: ${descriptor.displayName}")
+        })
+    )
+
     dependsOn(":consensus-otter-docker-app:copyDockerizedApp")
 
     useJUnitPlatform()
@@ -133,6 +139,40 @@ tasks.register<Test>("testContainer") {
     // Limit heap and number of processors
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
+
+    afterTest(
+        KotlinClosure2({ descriptor: TestDescriptor, result: TestResult ->
+            try {
+                // Grab all output from the
+                // {root}/platform-sdk/consensus-otter-tests/build/container directory
+                // Ensure the containerized app has spooled down completely
+                // Copy all output from the above directory into an aggregate directory:
+                //  {root}/platform-sdk/consensus-otter-tests/build/aggregateData
+                // The copy should use the copy action from gradle API to ensure proper handling of
+                // file locks, etc.
+                val aggregateDir = layout.buildDirectory.dir("aggregateTestContainer").get().asFile
+                val testName = descriptor.className?.substringAfterLast('.') + "_" + descriptor.name
+                val targetDir = File(aggregateDir, "${testName}")
+                val containerDir = layout.buildDirectory.asFile.get().resolve("container")
+                if (containerDir.exists()) {
+                    // Ensure the container has fully stopped before copying logs
+                    // This is a best-effort attempt; if the container is still running, the copy
+                    // may fail
+                    Thread.sleep(2000)
+
+                    val targetContainerDir = File(targetDir, "container")
+                    copy {
+                        from(containerDir)
+                        into(targetContainerDir)
+                    }
+                } else {
+                    println("No container logs found to copy.")
+                }
+            } catch (e: Exception) {
+                println("Error while copying container logs: ${e.message}")
+            }
+        })
+    )
 }
 
 // Configure the default testIntegration task with proper memory settings
