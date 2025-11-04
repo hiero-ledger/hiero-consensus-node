@@ -14,11 +14,14 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.internal.network.BlockNodeConfig;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Objects;
+import org.hiero.block.api.BlockEnd;
 import org.hiero.block.api.BlockItemSet;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
@@ -32,8 +35,6 @@ import org.hiero.block.api.PublishStreamResponse.SkipBlock;
  * Base class for tests that involve block node communication.
  */
 public abstract class BlockNodeCommunicationTestBase {
-
-    protected static final int BATCH_SIZE = 5;
 
     @NonNull
     protected static PublishStreamResponse createSkipBlock(final long blockNumber) {
@@ -79,6 +80,13 @@ public abstract class BlockNodeCommunicationTestBase {
         return PublishStreamRequest.newBuilder().endStream(endStream).build();
     }
 
+    @NonNull
+    protected static PublishStreamRequest createRequest(final long blockNumber) {
+        final BlockEnd endOfBlock =
+                BlockEnd.newBuilder().blockNumber(blockNumber).build();
+        return PublishStreamRequest.newBuilder().endOfBlock(endOfBlock).build();
+    }
+
     protected TestConfigBuilder createDefaultConfigProvider() {
         final var configPath = Objects.requireNonNull(
                         BlockNodeCommunicationTestBase.class.getClassLoader().getResource("bootstrap/"))
@@ -88,7 +96,6 @@ public abstract class BlockNodeCommunicationTestBase {
         return HederaTestConfigBuilder.create()
                 .withValue("blockStream.writerMode", "FILE_AND_GRPC")
                 .withValue("blockNode.blockNodeConnectionFileDir", configPath)
-                .withValue("blockStream.blockItemBatchSize", BATCH_SIZE)
                 .withValue("blockNode.highLatencyEventsBeforeSwitching", 3)
                 .withValue("blockNode.highLatencyThresholdMs", 500);
     }
@@ -103,8 +110,20 @@ public abstract class BlockNodeCommunicationTestBase {
                 .build();
     }
 
+    protected static BlockItem newBlockHeaderItem(final long blockNumber) {
+        final BlockHeader header = BlockHeader.newBuilder().number(blockNumber).build();
+        return BlockItem.newBuilder().blockHeader(header).build();
+    }
+
     protected static BlockItem newBlockTxItem() {
         return BlockItem.newBuilder().build();
+    }
+
+    protected static BlockItem newBlockTxItem(final int bytes) {
+        final byte[] array = new byte[bytes];
+        Arrays.fill(array, (byte) 10);
+
+        return BlockItem.newBuilder().signedTransaction(Bytes.wrap(array)).build();
     }
 
     protected static BlockItem newPreProofBlockStateChangesItem() {
@@ -126,11 +145,26 @@ public abstract class BlockNodeCommunicationTestBase {
                 .build();
     }
 
-    protected static BlockNodeConfig newBlockNodeConfig(final int port, final int priority) {
+    protected static BlockItem newBlockProofItem(final long blockNumber, final int bytes) {
+        final byte[] array = new byte[bytes];
+        Arrays.fill(array, (byte) 10);
+
+        final BlockProof proof = BlockProof.newBuilder()
+                .block(blockNumber)
+                .blockSignature(Bytes.wrap(array))
+                .build();
+        return BlockItem.newBuilder().blockProof(proof).build();
+    }
+
+    protected static BlockNodeConfig newBlockNodeConfig(final String host, final int port, final int priority) {
         return BlockNodeConfig.newBuilder()
-                .address("localhost")
+                .address(host)
                 .port(port)
                 .priority(priority)
                 .build();
+    }
+
+    protected static BlockNodeConfig newBlockNodeConfig(final int port, final int priority) {
+        return newBlockNodeConfig("localhost", port, priority);
     }
 }

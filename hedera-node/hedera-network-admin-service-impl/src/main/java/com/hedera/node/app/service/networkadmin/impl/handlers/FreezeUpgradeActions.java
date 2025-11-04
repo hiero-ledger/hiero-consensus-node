@@ -5,10 +5,10 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.ReadableUpgradeFileStore;
 import com.hedera.node.app.service.networkadmin.impl.WritableFreezeStore;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.Executor;

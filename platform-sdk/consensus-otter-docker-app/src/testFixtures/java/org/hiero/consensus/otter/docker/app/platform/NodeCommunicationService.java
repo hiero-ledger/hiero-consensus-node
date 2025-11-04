@@ -227,7 +227,10 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
     @Override
     public synchronized void syntheticBottleneckUpdate(
             @NonNull final SyntheticBottleneckRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
-        log.info(DEMO_INFO.getMarker(), "Received synthetic bottleneck request: {}", request);
+        log.info(
+                DEMO_INFO.getMarker(),
+                "Received synthetic bottleneck request: {} ms",
+                request.getSleepMillisPerRound());
         if (consensusNodeManager == null) {
             setPlatformNotStartedResponse(responseObserver);
             return;

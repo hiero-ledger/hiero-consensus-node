@@ -15,6 +15,8 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.stream.RunningEventHashOverride;
+import com.swirlds.common.threading.framework.config.ThreadConfiguration;
+import com.swirlds.common.threading.manager.AdHocThreadManager;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
@@ -34,7 +36,8 @@ import com.swirlds.platform.event.preconsensus.PcesReplayer;
 import com.swirlds.platform.metrics.RuntimeMetrics;
 import com.swirlds.platform.publisher.DefaultPlatformPublisher;
 import com.swirlds.platform.publisher.PlatformPublisher;
-import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.reconnect.DefaultSignedStateValidator;
+import com.swirlds.platform.reconnect.ReconnectController;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.nexus.DefaultLatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
@@ -152,7 +155,6 @@ public class SwirldsPlatform implements Platform {
     public SwirldsPlatform(@NonNull final PlatformComponentBuilder builder) {
         final PlatformBuildingBlocks blocks = builder.getBuildingBlocks();
         platformContext = blocks.platformContext();
-        final ConsensusStateEventHandler consensusStateEventHandler = blocks.consensusStateEventHandler();
 
         // The reservation on this state is held by the caller of this constructor.
         final SignedState initialState = blocks.initialState().get();
@@ -206,22 +208,46 @@ public class SwirldsPlatform implements Platform {
                 () -> latestImmutableStateNexus.getState("PCES replay"),
                 () -> isLessThan(blocks.model().getUnhealthyDuration(), replayHealthThreshold));
 
-        initializeState(this, platformContext, initialState, consensusStateEventHandler, platformStateFacade);
+        initializeState(this, platformContext, initialState, blocks.consensusStateEventHandler(), platformStateFacade);
 
         // This object makes a copy of the state. After this point, initialState becomes immutable.
-        /**
-         * Handles all interaction with {@link ConsensusStateEventHandler}
-         */
-        SwirldStateManager swirldStateManager = blocks.swirldStateManager();
-        swirldStateManager.setInitialState(initialState.getState());
+        final SwirldStateManager swirldStateManager = blocks.swirldStateManager();
+        swirldStateManager.setState(initialState.getState(), true);
+        platformStateFacade.setCreationSoftwareVersionTo(swirldStateManager.getConsensusState(), blocks.appVersion());
 
         final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
 
-        blocks.freezeCheckHolder().setFreezeCheckRef(swirldStateManager::isInFreezePeriod);
+        blocks.freezeCheckHolder()
+                .setFreezeCheckRef(instant ->
+                        platformStateFacade.isInFreezePeriod(instant, swirldStateManager.getConsensusState()));
 
         final AppNotifier appNotifier = new DefaultAppNotifier(blocks.notificationEngine());
 
         final PlatformPublisher publisher = new DefaultPlatformPublisher(blocks.applicationCallbacks());
+        final ReconnectController reconnectController = new ReconnectController(
+                platformStateFacade,
+                currentRoster,
+                getContext().getMerkleCryptography(),
+                this,
+                platformContext,
+                platformCoordinator,
+                swirldStateManager,
+                savedStateController,
+                blocks.consensusStateEventHandler(),
+                blocks.reservedSignedStateResultPromise(),
+                selfId,
+                blocks.fallenBehindMonitor(),
+                new DefaultSignedStateValidator(platformContext, platformStateFacade));
+
+        final Thread reconnectControllerThread = new ThreadConfiguration(AdHocThreadManager.getStaticThreadManager())
+                .setComponent("platform-core")
+                .setThreadName("reconnectController")
+                .setRunnable(reconnectController)
+                .build(true);
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            reconnectController.stopReconnectLoop();
+            reconnectControllerThread.interrupt();
+        }));
 
         platformComponents.bind(
                 builder,
@@ -292,19 +318,6 @@ public class SwirldsPlatform implements Platform {
         blocks.getLatestCompleteStateReference()
                 .set(() -> latestCompleteStateNexus.getState("get latest complete state for reconnect"));
 
-        final ReconnectStateLoader reconnectStateLoader = new ReconnectStateLoader(
-                this,
-                platformContext,
-                platformCoordinator,
-                swirldStateManager,
-                latestImmutableStateNexus,
-                savedStateController,
-                currentRoster,
-                consensusStateEventHandler,
-                platformStateFacade);
-
-        blocks.loadReconnectStateReference().set(reconnectStateLoader::loadReconnectState);
-        blocks.clearAllPipelinesForReconnectReference().set(platformCoordinator::clear);
         blocks.latestImmutableStateProviderReference().set(latestImmutableStateNexus::getState);
 
         if (!initialState.isGenesisState()) {
@@ -431,6 +444,9 @@ public class SwirldsPlatform implements Platform {
         return new PlatformSigner(keysAndCerts).sign(data);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
         platformCoordinator.quiescenceCommand(quiescenceCommand);

@@ -15,7 +15,7 @@ on:
         type: boolean
   schedule:
     # Runs Extended Test Suite every three hours Monday to Friday
-    - cron: "0 */3 * * 1-5"
+    - cron: "0 */3 * * *"
 
 permissions:
   id-token: write
@@ -36,6 +36,31 @@ env:
   BUILD_GREP_PATTERN: "build-*"
 
 jobs:
+  parameters:
+    name: Determine Configurable Parameters
+    runs-on: hiero-citr-linux-medium
+    outputs:
+      solo-ge-0440: ${{ steps.set-parameters.outputs.solo-ge-0440 }}
+      helm-release-name: ${{ steps.set-parameters.outputs.helm-release-name }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Set Parameters
+        id: set-parameters
+        run: |
+          SOLO_GE_0440=$([[ "$(printf '%s\n' "${{vars.CITR_SOLO_VERSION}}" "v0.44.0" | sort -V | head -n1)" == "v0.44.0" ]] && echo "true" || echo "false")
+          HELM_NAME="mirror"
+          if [[ "${SOLO_GE_0440}" == "true" ]]; then
+            HELM_NAME="mirror-1"
+          fi
+
+          echo "::debug::SOLO_GE_0440=${SOLO_GE_0440}"
+          echo "helm-release-name=${HELM_NAME}" >> "${GITHUB_OUTPUT}"
+          echo "solo-ge-0440=${SOLO_GE_0440}" >> "${GITHUB_OUTPUT}"
+
   fetch-xts-candidate:
     name: Fetch XTS Candidate Tag
     runs-on: hiero-citr-linux-medium
@@ -74,20 +99,27 @@ jobs:
           BUILD_PROMO_PATTERN: ${{ env.PROMOTED_GREP_PATTERN }}
           BUILD_PATTERN: ${{ env.BUILD_GREP_PATTERN }}
           RC_TAG: ${{ inputs.rc-tag || '' }}
+          DEFAULT_BRANCH_NAME: "main"
         run: |
           # Check if the tag exists and if so grab its commit id
+          echo "::group::Check for XTS Candidate Tag"
           if [[ -n "${RC_TAG}" ]]; then
+            echo "::group::Use RC Tag"
+            echo "::debug::Using RC Tag: ${RC_TAG}"
             XTS_COMMIT=$(git rev-list -n 1 "${RC_TAG}") >/dev/null 2>&1
             XTS_COMMIT_FOUND="${?}"
             set -e
 
             # Cancel out if the tag does not exist
             if [[ "${XTS_COMMIT_FOUND}" -ne 0 ]]; then
+              echo "::debug::Tag ${RC_TAG} not found. Cancelling out."
               gh run cancel ${{ github.run_id }}
             fi
 
             COMMIT_LIST="$(git log -n 1 --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${XTS_COMMIT}")"
+            echo "::endgroup::" # Use RC Tag
           else
+            echo "::group::Use XTS Candidate Tag"
             set +e
             XTS_COMMIT="$(git rev-list -n 1 "${XTS_CANDIDATE_TAG}")" >/dev/null 2>&1
             XTS_COMMIT_FOUND="${?}"
@@ -95,6 +127,7 @@ jobs:
 
             # Cancel out if the tag does not exist
             if [[ "${XTS_COMMIT_FOUND}" -ne 0 ]]; then
+              echo "::debug::Tag ${XTS_CANDIDATE_TAG} not found. Cancelling out."
               gh run cancel ${{ github.run_id }}
             fi
 
@@ -106,6 +139,7 @@ jobs:
 
             # Use -n; if the BUILD_PROMOTED_TAGGED/XTS_PASS_TAGGED flags are not empty than the commit has been tagged.
             if [[ -n "${XTS_PASS_TAGGED}" || -n "${BUILD_PROMOTED_TAGGED}" ]]; then
+              echo "::debug::Commit ${XTS_COMMIT} has already been tagged as xts-pass or build. Cancelling out."
               gh run cancel ${{ github.run_id }}
             fi
 
@@ -114,32 +148,57 @@ jobs:
             LATEST_XTS_PASS_TAG="$(git tag --list --sort=-version:refname "${XTS_PASS_PATTERN}" | head --lines 1)"
             LATEST_PROMOTED_BUILD_TAG="$(git tag --list --sort=-version:refname "${BUILD_PATTERN}" | head --lines 1)"
             if [[ -n "${LATEST_XTS_PASS_TAG}" ]]; then
+              echo "::debug::Using latest xts-pass tag"
               echo "Latest XTS Pass Tag: ${LATEST_XTS_PASS_TAG}"
               LATEST_XTS_PASS_COMMIT="$(git rev-list -n 1 "${LATEST_XTS_PASS_TAG}")"
               COMMIT_LIST="$(git log --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${LATEST_XTS_PASS_COMMIT}..${XTS_COMMIT}")"
             elif [[ -n "${LATEST_PROMOTED_BUILD_TAG}" ]]; then
+              echo "::debug::Using latest promoted build tag as no xts-pass tag found"
               echo "Latest Promoted Tag: ${LATEST_PROMOTED_BUILD_TAG}"
               LATEST_PROMOTED_BUILD_COMMIT="$(git rev-list -n 1 "${LATEST_PROMOTED_BUILD_TAG}")"
               COMMIT_LIST="$(git log --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${LATEST_PROMOTED_BUILD_COMMIT}..${XTS_COMMIT}")"
             fi
+            echo "::endgroup::" # Use XTS Candidate Tag
+          fi
+          echo "::endgroup::" # Check for XTS Candidate Tag
+
+          echo "::group::Check if XTS COMMIT is on default branch"
+          # Determine which branch the commit belongs to
+          XTS_COMMIT_BRANCHES="$(git branch -r --contains "${XTS_COMMIT}" | sed 's/^[ *]*//')"
+          echo "::debug::XTS_COMMIT_BRANCHES=${XTS_COMMIT_BRANCHES}"
+
+          XTS_COMMIT_BRANCH="${DEFAULT_BRANCH_NAME}"
+          COMMIT_ON_DEFAULT_BRANCH=0
+
+          # Check if the commit on the default branch
+          if echo "${XTS_COMMIT_BRANCHES}" | grep -qE "(^|/)${DEFAULT_BRANCH_NAME}$"; then
+            echo "::debug::Commit ${XTS_COMMIT} found on main branch."
+          else
+            echo "::debug::Commit ${XTS_COMMIT} not found on main branch, determining actual branch."
+            COMMIT_ON_DEFAULT_BRANCH=1
+            XTS_COMMIT_BRANCH="$(
+              git name-rev --name-only --refs="refs/remotes/*" "${XTS_COMMIT}" \
+              | sed 's~^.*origin/~~' \
+              | sed 's/~.*//'
+            )"
           fi
 
+          # Print branch debug info
+          echo "::debug::XTS_COMMIT_BRANCH=${XTS_COMMIT_BRANCH}"
+          echo "::debug::COMMIT_ON_DEFAULT_BRANCH=${COMMIT_ON_DEFAULT_BRANCH}"
+          echo "::endgroup::" # XTS COMMIT is on default branch
+
+          echo "::group::Get XTS Commit Information"
           # Get the short commit id
           XTS_SHORT_COMMIT="$(git rev-parse --short "${XTS_COMMIT}")"
-
-          # Get the branch name for the commit
-          XTS_COMMIT_BRANCH="$(git name-rev --name-only --refs="refs/remotes/*" "${XTS_COMMIT}" | sed 's~^.*origin/~~' | sed 's/~.*//')"
-
-          # Check if the tag exists on the main branch
-          COMMIT_ON_DEFAULT_BRANCH=1
-          if [[ "${XTS_COMMIT_BRANCH}" != "main" ]]; then
-            COMMIT_ON_DEFAULT_BRANCH=0
-          fi
+          echo "::debug::XTS_SHORT_COMMIT=${XTS_SHORT_COMMIT}"
 
           # Get commit author
           AUTHOR_NAME="$(git log -1 --format='%an' "${XTS_COMMIT}")"
           AUTHOR_EMAIL="$(git log -1 --format='%ae' "${XTS_COMMIT}")"
+          echo "::endgroup::" # Get XTS Commit Information
 
+          echo "::group::Set Outputs"
           # If the tag exists on the Main Branch set the output variables as appropriate
           # Otherwise cancel out
           if [[ "${COMMIT_ON_DEFAULT_BRANCH}" -eq 0 ]]; then
@@ -166,12 +225,15 @@ jobs:
             echo "xts-info=${XTS_COMMIT_BRANCH} - ${XTS_SHORT_COMMIT}" >> "${GITHUB_STEP_SUMMARY}"
 
             if [[ -z "${RC_TAG}" ]]; then
+              echo "::debug::Deleting the XTS candidate tag so we can recreate it later."
               git push --delete origin "${XTS_CANDIDATE_TAG}"
               git tag -d "${XTS_CANDIDATE_TAG}"
             fi
           else
+            echo "::debug::Commit ${XTS_COMMIT} not found on main branch. Cancelling out."
             gh run cancel "${{ github.run_id }}"
           fi
+          echo "::endgroup::" # Set Outputs
 
   xts-timing-sensitive-tests:
     name: XTS Timing Sensitive Tests
@@ -248,6 +310,21 @@ jobs:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
 
+  xts-otter-tests:
+    name: XTS Otter Tests
+    uses: ./.github/workflows/zxc-execute-otter-tests.yaml
+    needs: fetch-xts-candidate
+    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
+    with:
+      custom-job-label: "XTS Otter Tests"
+      enable-full-otter-tests: true
+      enable-network-log-capture: true
+      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
   abbreviated-panel:
     name: JRS Panel
     uses: ./.github/workflows/zxc-jrs-regression.yaml
@@ -306,7 +383,7 @@ jobs:
     with:
       ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }} # pass the xts-candidate tag to the JRS panel for checkout
       custom-job-name: "SDK TCK Regression"
-      solo-version: "v0.38.0"
+      solo-version: ${{ vars.CITR_SOLO_VERSION }}
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-tck-report-webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
@@ -314,13 +391,16 @@ jobs:
 
   mirror-node-regression-panel:
     name: Mirror Node Regression Panel
-    needs: fetch-xts-candidate
+    needs:
+      - fetch-xts-candidate
+      - parameters
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
     uses: ./.github/workflows/zxc-mirror-node-regression.yaml
     with:
       ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }} # pass the xts-candidate tag to the JRS panel for checkout
       custom-job-name: "Mirror Node Regression"
       solo-version: ${{ vars.CITR_SOLO_VERSION }}
+      helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
@@ -338,19 +418,20 @@ jobs:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
 
-  #  TODO: Enable block node regression panel when development is further on
-  #  block-node-regression-panel:
-  #    name: Block Node Regression Panel
-  #    needs: fetch-xts-candidate
-  #    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
-  #    uses: ./.github/workflows/zxc-block-node-regression.yaml
-  #    with:
-  #      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }} # pass the xts-candidate tag to the JRS panel for checkout
-  #      custom-job-name: "Block Node Regression"
-  #      solo-version: ${{ vars.CITR_SOLO_VERSION }}
-  #    secrets:
-  #      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
-  #      slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+  block-node-regression-panel:
+    name: Block Node Regression Panel
+    needs:
+      - fetch-xts-candidate
+      - parameters
+    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' && needs.parameters.outputs.solo-ge-0440 == 'true' }}
+    uses: ./.github/workflows/zxc-block-node-regression.yaml
+    with:
+      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }} # pass the xts-candidate tag to the JRS panel for checkout
+      custom-job-name: "Block Node Regression"
+      solo-version: ${{ vars.CITR_SOLO_VERSION }}
+    secrets:
+      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
+      slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
 
   tag-for-promotion:
     name: Tag as XTS-Passing
@@ -405,6 +486,7 @@ jobs:
           TAG_WITH_EPOCH: ${{ inputs.enable-promotion || 'false' }}
         run: |
           if [[ -n "${RC_TAG}" ]] && [[ "${TAG_WITH_EPOCH}" == "false" ]]; then
+            echo "::debug::Tagging adhoc commit as XTS passing"
             TAG="adhoc-xts-pass-${RC_TAG}"
 
             set +e
@@ -413,16 +495,19 @@ jobs:
             set -e
 
             if [[ "${TAG_EXISTS}" -eq 0 ]]; then
+              echo "::debug::Tag exists, recreate it"
               echo "Tag ${TAG} already exists. Deleting."
               git push --delete origin "${TAG}"
               git tag -d "${TAG}"
             fi
 
+            echo "::debug::Push the new tag ${TAG}"
             git tag --annotate "${TAG}" --message "chore: tagging release candidate as XTS passing"
             git push --set-upstream origin "${TAG}"
             echo "### Commit Tagged as XTS-Passing" >>  "${GITHUB_STEP_SUMMARY}"
             echo "xts-pass-tag=${TAG}" >> "${GITHUB_STEP_SUMMARY}"
           else
+            echo "::debug::Tagging commit with epoch timestamp as XTS passing"
             EPOCH_TIME="$(date +%s)"
             TAG="xts-pass-${EPOCH_TIME}"
             git tag --annotate "${TAG}" --message "chore: tagging commit for build candidate promotion"
@@ -439,22 +524,22 @@ jobs:
       - fetch-xts-candidate
       - hedera-node-jrs-panel
       - sdk-tck-regression-panel
-      - tag-for-promotion
       - xts-hammer-tests
       - xts-hapi-block-node-comms-tests
       - xts-hapi-time-consuming-tests
       - xts-time-consuming-tests
       - xts-timing-sensitive-tests
+      - tag-for-promotion
     if: ${{ (needs.abbreviated-panel.result == 'success' &&
       needs.fetch-xts-candidate.result == 'success' &&
       needs.hedera-node-jrs-panel.result == 'success' &&
       needs.sdk-tck-regression-panel.result == 'success' &&
-      needs.tag-for-promotion.result == 'success' &&
       needs.xts-hammer-tests.result == 'success' &&
       needs.xts-hapi-block-node-comms-tests.result == 'success' &&
       needs.xts-hapi-time-consuming-tests.result == 'success' &&
       needs.xts-time-consuming-tests.result == 'success' &&
-      needs.xts-timing-sensitive-tests == 'success') &&
+      needs.xts-timing-sensitive-tests.result == 'success' &&
+      needs.tag-for-promotion.result == 'success') &&
       !cancelled() }}
     steps:
       - name: Harden Runner
@@ -777,7 +862,7 @@ jobs:
           details: "${{ steps.rootly-summary.outputs.summary }}"
           notification_target_type: "Service"
           notification_target: ${{ steps.set-rootly-service.outputs.service }}
-          set_as_noise: "true"
+          set_as_noise: "false"
           alert_urgency: "High"
           external_id: ${{ github.run_id }}
           external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

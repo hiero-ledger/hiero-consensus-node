@@ -55,12 +55,14 @@ public class ContainerNetwork extends AbstractNetwork {
      * @param timeManager the time manager to use
      * @param transactionGenerator the transaction generator to use
      * @param rootOutputDirectory the root output directory for the network
+     * @param useRandomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
      */
     public ContainerNetwork(
             @NonNull final RegularTimeManager timeManager,
             @NonNull final ContainerTransactionGenerator transactionGenerator,
-            @NonNull final Path rootOutputDirectory) {
-        super(new Random());
+            @NonNull final Path rootOutputDirectory,
+            final boolean useRandomNodeIds) {
+        super(new Random(), useRandomNodeIds);
         this.timeManager = requireNonNull(timeManager);
         this.transactionGenerator = requireNonNull(transactionGenerator);
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);
@@ -102,8 +104,8 @@ public class ContainerNetwork extends AbstractNetwork {
     @NonNull
     protected ContainerNode doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
-        final ContainerNode node =
-                new ContainerNode(nodeId, timeManager, keysAndCerts, network, dockerImage, outputDir);
+        final ContainerNode node = new ContainerNode(
+                nodeId, timeManager, keysAndCerts, network, dockerImage, outputDir, networkConfiguration);
         timeManager.addTimeTickReceiver(node);
         return node;
     }
@@ -116,8 +118,8 @@ public class ContainerNetwork extends AbstractNetwork {
     protected InstrumentedNode doCreateInstrumentedNode(
             @NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
-        final InstrumentedContainerNode node =
-                new InstrumentedContainerNode(nodeId, timeManager, keysAndCerts, network, dockerImage, outputDir);
+        final InstrumentedContainerNode node = new InstrumentedContainerNode(
+                nodeId, timeManager, keysAndCerts, network, dockerImage, outputDir, networkConfiguration);
         timeManager.addTimeTickReceiver(node);
         return node;
     }
@@ -165,5 +167,6 @@ public class ContainerNetwork extends AbstractNetwork {
         if (toxiproxyContainer != null) {
             toxiproxyContainer.stop();
         }
+        network.close();
     }
 }

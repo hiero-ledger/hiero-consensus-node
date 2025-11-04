@@ -22,6 +22,7 @@ import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.handlers.HookDispatchHandler;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.AttributeValidator;
@@ -65,6 +66,9 @@ class HookDispatchHandlerTest extends ContractHandlerTestBase {
     @Mock
     private HederaGasCalculator gasCalculator;
 
+    @Mock
+    private EntityIdFactory entityIdFactory;
+
     @Mock(strictness = Mock.Strictness.LENIENT)
     private ContractServiceComponent contractServiceComponent;
 
@@ -86,7 +90,7 @@ class HookDispatchHandlerTest extends ContractHandlerTestBase {
                 .when(gasCalculator.transactionIntrinsicGasCost(
                         org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
                 .thenReturn((long) config.getConfigData(HooksConfig.class).lambdaIntrinsicGasCost());
-        subject = new HookDispatchHandler(() -> factory, gasCalculator, contractServiceComponent);
+        subject = new HookDispatchHandler(() -> factory, gasCalculator, entityIdFactory, contractServiceComponent);
     }
 
     @Test

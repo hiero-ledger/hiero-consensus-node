@@ -34,8 +34,8 @@ produced by a given consensus node in an ordered manner.
 ## Component Interaction
 
 - New blocks and their items are received from `GrpcBlockItemWriter`.
-- Bi-directional communication with `BlockNodeConnectionManager` to notify new blocks available and receive updates on
-  when new blocks are acknowledged by the block node(s).
+- `BlockNodeConnection` makes calls to retrieve blocks from the buffer for streaming.
+- `BlockNodeConnection` notifies the `BlockBufferService` when a block is acknowledged by the block node.
 - Applies back pressure via `HandleWorkflow`.
 
 ## Backpressure Mechanism
@@ -48,11 +48,11 @@ This ensures system stability and prevents the accumulation of unacknowledged bl
 
 The system maintains a buffer of block states in `BlockBufferService` with the following characteristics:
 
-- Each block state contains the block items and requests for a specific block number.
+- Each block state contains the block items for a specific block number.
 - The buffer tracks acknowledgment status as a single high watermark.
 - Entries remain in the buffer until acknowledged and expired, according to a configurable TTL (Time To Live).
 - A periodic pruning mechanism removes acknowledged and expired entries.
-- The buffer size is monitored to implement backpressure when needed.
+- The buffer size is monitored to apply backpressure when needed.
 
 ### Buffer State
 
@@ -171,12 +171,10 @@ sequenceDiagram
 
     Writer ->> Buffer: Open block, add items, etc...
     Buffer ->> ConnMan: Notify new block available
-    ConnMan ->> Buffer: Get block, create requests
-    ConnMan ->> Conn: Send block requests
+    Conn ->> Buffer: Get block, create requests
     Conn ->> BN: Send block requests
     BN ->> Conn: Acknowledge blocks
-    Conn ->> ConnMan: Update connection state <br/>(e.g. last acked per connection)
-    ConnMan ->> Buffer: Notify block acknowledged
+    Conn ->> Buffer: Notify block acknowledged
 
     Buffer ->>+ Buffer: Prune old acknowledged blocks
     Buffer ->>- TxThread: Enable/disable back pressure
