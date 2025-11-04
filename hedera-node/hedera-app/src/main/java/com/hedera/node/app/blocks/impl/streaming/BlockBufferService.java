@@ -322,7 +322,7 @@ public class BlockBufferService {
         // Create a new block state
         final BlockState blockState = new BlockState(blockNumber);
         blockBuffer.put(blockNumber, blockState);
-        // update the earliest block number if this is first block or lower than current earliest
+        // update the earliest block number if this is the first block or lower than current earliest
         earliestBlockNumber.updateAndGet(
                 current -> current == Long.MIN_VALUE ? blockNumber : Math.min(current, blockNumber));
         lastProducedBlockNumber.updateAndGet(old -> Math.max(old, blockNumber));
@@ -575,10 +575,11 @@ public class BlockBufferService {
                 ++numPruned;
                 --size;
             } else {
-                // Track unacknowledged blocks and remaining earliest/latest
+                // Track all unacknowledged blocks
                 if (blockNumber > highestBlockAcked) {
                     ++numPendingAck;
                 }
+                // Keep track of the earliest and the latest remaining blocks
                 newEarliestBlock = Math.min(newEarliestBlock, blockNumber);
                 newLatestBlock = Math.max(newLatestBlock, blockNumber);
             }
