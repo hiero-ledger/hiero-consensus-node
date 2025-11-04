@@ -29,6 +29,7 @@ import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeDeleteHandler;
+import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
@@ -188,18 +189,16 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
     void noFileKeys() {
         // mark current node as deleted
         givenValidNode(true);
-        // refresh sate with updated node
+        // refresh sate with deleted node
         rebuildState(1);
+        givenEntityCounters(2);
         final var txn = newDeleteTxn().nodeDeleteOrThrow();
-
-        final var existingNode = writableStore.get(WELL_KNOWN_NODE_ID);
-        assertThat(existingNode).isNotNull();
-        assertThat(existingNode.deleted()).isTrue();
 
         given(handleContext.body())
                 .willReturn(TransactionBody.newBuilder().nodeDelete(txn).build());
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
+        given(storeFactory.readableStore(ReadableEntityIdStore.class)).willReturn(readableEntityCounters);
         // expect:
         assertFailsWith(() -> subject.handle(handleContext), ResponseCodeEnum.NODE_DELETED);
     }

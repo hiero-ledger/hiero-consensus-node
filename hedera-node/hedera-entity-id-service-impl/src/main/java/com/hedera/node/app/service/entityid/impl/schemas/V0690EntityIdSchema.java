@@ -17,16 +17,16 @@ import java.util.Set;
 /**
  * Minor schema v0.68.0 that introduces a singleton to track the highest node ID ever used.
  */
-public class V0680EntityIdSchema extends Schema<SemanticVersion> {
+public class V0690EntityIdSchema extends Schema<SemanticVersion> {
 
     private static final SemanticVersion VERSION =
-            SemanticVersion.newBuilder().major(0).minor(68).patch(0).build();
+            SemanticVersion.newBuilder().major(0).minor(69).patch(0).build();
 
     public static final String HIGHEST_NODE_ID_KEY = "HIGHEST_NODE_ID";
     public static final int HIGHEST_NODE_ID_STATE_ID = SingletonType.ENTITYIDSERVICE_I_HIGHEST_NODE_ID.protoOrdinal();
     public static final String HIGHEST_NODE_ID_STATE_LABEL = computeLabel(EntityIdService.NAME, HIGHEST_NODE_ID_KEY);
 
-    public V0680EntityIdSchema() {
+    public V0690EntityIdSchema() {
         super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
@@ -38,7 +38,7 @@ public class V0680EntityIdSchema extends Schema<SemanticVersion> {
 
     @Override
     public void migrate(@NonNull final MigrationContext ctx) {
-        // No-op; initialization of the highest node id is handled in the AddressBook v0.68 schema migration.
+        // No-op; initialization of the highest node id is handled in the AddressBook v0.69 schema migration.
         final var highestNodeIdState = ctx.newStates().getSingleton(HIGHEST_NODE_ID_STATE_ID);
         highestNodeIdState.put(EntityNumber.newBuilder().number(-1).build());
     }

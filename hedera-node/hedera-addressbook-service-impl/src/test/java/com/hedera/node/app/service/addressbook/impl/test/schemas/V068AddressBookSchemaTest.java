@@ -14,18 +14,18 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.service.addressbook.impl.schemas.V068AddressBookSchema;
-import com.hedera.node.app.service.entityid.impl.schemas.V0680EntityIdSchema;
+import com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSchema;
 import com.hedera.node.app.services.MigrationContextImpl;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
 import com.swirlds.state.test.fixtures.MapReadableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
-import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import java.util.HashMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -65,8 +65,8 @@ class V068AddressBookSchemaTest {
                 .build();
         // initialize highest node id singleton in newStates
         final var highestNodeIdSingleton = new FunctionWritableSingletonState<>(
-                V0680EntityIdSchema.HIGHEST_NODE_ID_STATE_ID,
-                V0680EntityIdSchema.HIGHEST_NODE_ID_STATE_LABEL,
+                V0690EntityIdSchema.HIGHEST_NODE_ID_STATE_ID,
+                V0690EntityIdSchema.HIGHEST_NODE_ID_STATE_LABEL,
                 () -> EntityNumber.newBuilder().number(-1).build(),
                 v -> {});
         // also ensure entity counts singleton exists if migration references it (defensive)

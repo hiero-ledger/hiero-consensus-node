@@ -30,5 +30,3 @@ public class NodeIdGeneratorImpl implements NodeIdGenerator {
         return entityIdStore.peekAtNextNodeId();
     }
 }
-
-

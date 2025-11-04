@@ -39,7 +39,6 @@ import com.hedera.node.app.service.addressbook.impl.handlers.NodeCreateHandler;
 import com.hedera.node.app.service.addressbook.impl.records.NodeCreateStreamBuilder;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
 import com.hedera.node.app.service.entityid.NodeIdGenerator;
-import com.hedera.node.app.service.entityid.WritableEntityIdStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
@@ -82,7 +81,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
     private StoreFactory storeFactory;
 
     @Mock
-    private NodeIdGenerator  nodeIdGenerator;
+    private NodeIdGenerator nodeIdGenerator;
 
     @Mock
     private ReadableAccountStore accountStore;

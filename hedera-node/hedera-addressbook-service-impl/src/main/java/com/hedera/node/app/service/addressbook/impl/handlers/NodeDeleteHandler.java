@@ -3,6 +3,7 @@ package com.hedera.node.app.service.addressbook.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.NODE_DELETED;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.checkDABEnabled;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
@@ -15,6 +16,7 @@ import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
+import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -55,9 +57,12 @@ public class NodeDeleteHandler implements TransactionHandler {
         final var op = context.body().nodeDeleteOrThrow();
         final var accountConfig = context.configuration().getConfigData(AccountsConfig.class);
         final var nodeStore = context.createStore(ReadableNodeStore.class);
+        final var entityIdStore = context.createStore(ReadableEntityIdStore.class);
         final var payerNum = context.payer().accountNum();
 
         final var existingNode = nodeStore.get(op.nodeId());
+
+        validateFalsePreCheck(existingNode == null && entityIdStore.peekAtNextNodeId() > op.nodeId(), NODE_DELETED);
         validateFalsePreCheck(existingNode == null, INVALID_NODE_ID);
 
         // if payer is not one of the system admin, treasury or address book admin, check the admin key signature
@@ -83,9 +88,11 @@ public class NodeDeleteHandler implements TransactionHandler {
 
         final var nodeStore = context.storeFactory().writableStore(WritableNodeStore.class);
         final var accountNodeRelStore = context.storeFactory().writableStore(WritableAccountNodeRelStore.class);
+        final var entityIdStore = context.storeFactory().readableStore(ReadableEntityIdStore.class);
 
         Node node = nodeStore.get(nodeId);
 
+        validateFalse(node == null && entityIdStore.peekAtNextNodeId() > nodeId, NODE_DELETED);
         validateFalse(node == null, INVALID_NODE_ID);
 
         // Remove node from state entirely and update counters

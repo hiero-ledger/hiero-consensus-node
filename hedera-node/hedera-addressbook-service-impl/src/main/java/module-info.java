@@ -11,13 +11,14 @@ module com.hedera.node.app.service.addressbook.impl {
     requires transitive dagger;
     requires transitive javax.inject;
     requires com.hedera.node.app.hapi.utils;
+    requires com.hedera.node.app.service.entityid.impl;
     requires com.swirlds.config.api;
     requires org.hiero.base.utility;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.databind;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
-    requires static transitive java.compiler; requires com.hedera.node.app.service.entityid.impl;
+    requires static transitive java.compiler;
 
     provides com.hedera.node.app.service.addressbook.AddressBookService with
             com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;

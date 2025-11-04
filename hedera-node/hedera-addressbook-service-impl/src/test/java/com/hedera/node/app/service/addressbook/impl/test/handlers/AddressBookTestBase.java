@@ -10,8 +10,8 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
-import static com.hedera.node.app.service.entityid.impl.schemas.V0680EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
-import static com.hedera.node.app.service.entityid.impl.schemas.V0680EntityIdSchema.HIGHEST_NODE_ID_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSchema.HIGHEST_NODE_ID_STATE_LABEL;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
@@ -300,9 +300,11 @@ public class AddressBookTestBase {
         final var builder =
                 MapReadableKVState.<AccountID, NodeId>builder(ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_LABEL);
         if (nodeCount >= 1) {
-            // add current node
-            builder.value(
-                    node.accountId(), NodeId.newBuilder().id(node.nodeId()).build());
+            // add current node if the node is not deleted
+            if (node != null) {
+                builder.value(
+                        node.accountId(), NodeId.newBuilder().id(node.nodeId()).build());
+            }
             // fill the rest nodes
             for (int i = 1; i < nodeCount; i++) {
                 builder.value(
@@ -320,9 +322,11 @@ public class AddressBookTestBase {
         final var builder =
                 MapWritableKVState.<AccountID, NodeId>builder(ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_LABEL);
         if (nodeCount >= 1) {
-            // add current node
-            builder.value(
-                    node.accountId(), NodeId.newBuilder().id(node.nodeId()).build());
+            // add current node if the node is not deleted
+            if (node != null) {
+                builder.value(
+                        node.accountId(), NodeId.newBuilder().id(node.nodeId()).build());
+            }
             // fill the rest nodes
             for (int i = 1; i < nodeCount; i++) {
                 builder.value(
@@ -340,7 +344,7 @@ public class AddressBookTestBase {
     }
 
     protected void givenValidNode(boolean deleted) {
-        node = new Node(
+        final var validNode = new Node(
                 nodeId.number(),
                 accountId,
                 "description",
@@ -353,6 +357,8 @@ public class AddressBookTestBase {
                 key,
                 false,
                 null);
+
+        node = deleted ? null : validNode;
     }
 
     protected void givenValidNodeWithAdminKey(Key adminKey) {

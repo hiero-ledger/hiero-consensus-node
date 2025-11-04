@@ -15,5 +15,3 @@ public interface NodeIdGenerator {
      */
     long peekAtNewNodeId();
 }
-
-
