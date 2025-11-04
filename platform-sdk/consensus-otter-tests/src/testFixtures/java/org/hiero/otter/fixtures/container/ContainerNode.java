@@ -265,7 +265,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             // conditions with the stream observer receiving an error.
             lifeCycle = SHUTDOWN;
 
-            final KillImmediatelyRequest request = KillImmediatelyRequest.getDefaultInstance();
+            final KillImmediatelyRequest request = KillImmediatelyRequest.newBuilder()
+                    .setTimeoutSeconds((int) timeout.getSeconds())
+                    .build();
             // Unary call – will throw if server returns an error.
             containerControlBlockingStub.withDeadlineAfter(timeout).killImmediately(request);
             platformStatus = null;
