@@ -28,10 +28,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Flow;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -106,6 +110,10 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     private final Duration streamResetPeriod;
     /**
+     * Timeout for pipeline onNext() and onComplete() operations to detect unresponsive block nodes.
+     */
+    private final Duration pipelineOperationTimeout;
+    /**
      * Flag that indicates if this stream is currently shutting down, as initiated by this consensus node.
      */
     private final AtomicBoolean streamShutdownInProgress = new AtomicBoolean(false);
@@ -123,6 +131,13 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * Scheduled executor service that is used to schedule periodic reset of the stream to help ensure stream health.
      */
     private final ScheduledExecutorService executorService;
+    /**
+     * Dedicated executor service for pipeline operations using virtual threads.
+     * This isolates pipeline operations from the shared scheduled executor to prevent
+     * blocking when the connection manager is busy with other tasks. Virtual threads
+     * make this approach lightweight despite creating one executor per connection.
+     */
+    private final ExecutorService pipelineExecutor;
     /**
      * This task runs every 24 hours (initial delay of 24 hours) when a connection is active.
      * The task helps maintain stream stability by forcing periodic reconnections.
@@ -197,6 +212,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * @param blockBufferService the block stream state manager for block node connections
      * @param blockStreamMetrics the block stream metrics for block node connections
      * @param executorService the scheduled executor service used to perform async connection reconnects
+     * @param pipelineExecutor the executor service used for the block processing pipeline
+     * @param initialBlockToStream the initial block number to start streaming from, or null to use default
+     * @param clientFactory the factory for creating block stream clients
      */
     public BlockNodeConnection(
             @NonNull final ConfigProvider configProvider,
@@ -205,6 +223,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final BlockStreamMetrics blockStreamMetrics,
             @NonNull final ScheduledExecutorService executorService,
+            @NonNull final ExecutorService pipelineExecutor,
             @Nullable final Long initialBlockToStream,
             @NonNull final BlockNodeClientFactory clientFactory) {
         this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
@@ -215,10 +234,12 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
         this.connectionState = new AtomicReference<>(ConnectionState.UNINITIALIZED);
         this.executorService = requireNonNull(executorService, "executorService must not be null");
+        this.pipelineExecutor = requireNonNull(pipelineExecutor, "pipelineExecutor must not be null");
         final var blockNodeConnectionConfig =
                 configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
         this.streamResetPeriod = blockNodeConnectionConfig.streamResetPeriod();
         this.clientFactory = requireNonNull(clientFactory, "clientFactory must not be null");
+        this.pipelineOperationTimeout = blockNodeConnectionConfig.pipelineOperationTimeout();
 
         connectionId = String.format("%04d", connectionIdCounter.incrementAndGet());
 
@@ -233,13 +254,33 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     public synchronized void createRequestPipeline() {
         if (requestPipelineRef.get() == null) {
-            blockStreamPublishServiceClient = createNewGrpcClient();
-            final Pipeline<? super PublishStreamRequest> pipeline =
-                    blockStreamPublishServiceClient.publishBlockStream(this);
-            requestPipelineRef.set(pipeline);
-            logger.debug("{} Request pipeline initialized.", this);
-            updateConnectionState(ConnectionState.PENDING);
-            blockStreamMetrics.recordConnectionOpened();
+            // Execute entire pipeline creation (including gRPC client creation) with timeout
+            // to prevent blocking on network operations
+            final Future<?> future = pipelineExecutor.submit(() -> {
+                blockStreamPublishServiceClient = createNewGrpcClient();
+                final Pipeline<? super PublishStreamRequest> pipeline =
+                        blockStreamPublishServiceClient.publishBlockStream(this);
+                requestPipelineRef.set(pipeline);
+            });
+
+            try {
+                future.get(pipelineOperationTimeout.toMillis(), TimeUnit.MILLISECONDS);
+                logger.debug("{} Request pipeline initialized.", this);
+                updateConnectionState(ConnectionState.PENDING);
+                blockStreamMetrics.recordConnectionOpened();
+            } catch (final TimeoutException e) {
+                future.cancel(true);
+                logger.debug("{} Pipeline creation timed out after {}ms", this, pipelineOperationTimeout.toMillis());
+                blockStreamMetrics.recordPipelineOperationTimeout();
+                throw new RuntimeException("Pipeline creation timed out", e);
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logger.debug("{} Interrupted while creating pipeline", this, e);
+                throw new RuntimeException("Interrupted while creating pipeline", e);
+            } catch (final ExecutionException e) {
+                logger.debug("{} Error creating pipeline", this, e.getCause());
+                throw new RuntimeException("Error creating pipeline", e.getCause());
+            }
         } else {
             logger.debug("{} Request pipeline already available.", this);
         }
@@ -641,7 +682,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 highestAckedBlockNumber);
         try {
             sendRequest(endStream);
-        } catch (RuntimeException e) {
+        } catch (final RuntimeException e) {
             logger.warn("{} Error sending EndStream request", this, e);
         }
         close(true);
@@ -680,7 +721,27 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 }
 
                 final long startMs = System.currentTimeMillis();
-                pipeline.onNext(request);
+
+                final Future<?> future = pipelineExecutor.submit(() -> pipeline.onNext(request));
+                try {
+                    future.get(pipelineOperationTimeout.toMillis(), TimeUnit.MILLISECONDS);
+                } catch (final TimeoutException e) {
+                    future.cancel(true); // Cancel the task if it times out
+                    if (getConnectionState() == ConnectionState.ACTIVE) {
+                        logger.debug(
+                                "{} Pipeline onNext() timed out after {}ms", this, pipelineOperationTimeout.toMillis());
+                        blockStreamMetrics.recordPipelineOperationTimeout();
+                        handleStreamFailure();
+                    }
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt(); // Restore interrupt status
+                    logger.debug("{} Interrupted while waiting for pipeline.onNext()", this, e);
+                    throw new RuntimeException("Interrupted while waiting for pipeline.onNext()", e);
+                } catch (final ExecutionException e) {
+                    logger.debug("{} Error executing pipeline.onNext()", this, e.getCause());
+                    throw new RuntimeException("Error executing pipeline.onNext()", e.getCause());
+                }
+
                 final long durationMs = System.currentTimeMillis() - startMs;
                 blockStreamMetrics.recordRequestLatency(durationMs);
 
@@ -767,6 +828,16 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             } catch (final Exception e) {
                 logger.error("{} Error occurred while closing gRPC client.", this, e);
             }
+            try {
+                pipelineExecutor.shutdown();
+                if (!pipelineExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                    pipelineExecutor.shutdownNow();
+                }
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                pipelineExecutor.shutdownNow();
+                logger.error("{} Error occurred while shutting down pipeline executor.", this, e);
+            }
             blockStreamMetrics.recordConnectionClosed();
             blockStreamMetrics.recordActiveConnectionIp(-1L);
             blockNodeConnectionManager.notifyConnectionClosed(this);
@@ -785,8 +856,24 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             try {
                 final ConnectionState state = getConnectionState();
                 if (state == ConnectionState.CLOSING && callOnComplete) {
-                    pipeline.onComplete();
-                    logger.debug("{} Request pipeline successfully closed.", this);
+                    final Future<?> future = pipelineExecutor.submit(pipeline::onComplete);
+                    try {
+                        future.get(pipelineOperationTimeout.toMillis(), TimeUnit.MILLISECONDS);
+                        logger.debug("{} Request pipeline successfully closed.", this);
+                    } catch (final TimeoutException e) {
+                        future.cancel(true); // Cancel the task if it times out
+                        logger.debug(
+                                "{} Pipeline onComplete() timed out after {}ms",
+                                this,
+                                pipelineOperationTimeout.toMillis());
+                        blockStreamMetrics.recordPipelineOperationTimeout();
+                        // Connection is already closing, just log the timeout
+                    } catch (final InterruptedException e) {
+                        Thread.currentThread().interrupt(); // Restore interrupt status
+                        logger.debug("{} Interrupted while waiting for pipeline.onComplete()", this);
+                    } catch (final ExecutionException e) {
+                        logger.debug("{} Error executing pipeline.onComplete()", this, e.getCause());
+                    }
                 }
             } catch (final Exception e) {
                 logger.warn("{} Error while completing request pipeline.", this, e);
