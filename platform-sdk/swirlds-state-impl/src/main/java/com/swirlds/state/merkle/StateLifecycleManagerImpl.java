@@ -15,6 +15,8 @@ import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
@@ -24,6 +26,8 @@ import java.util.function.Function;
 /**
  * This class is responsible for maintaining references to the mutable state and the latest immutable state.
  * It also updates these references upon state signing.
+ *
+ * @param <T> A type of the snapshot source, which should implement {@link MerkleNodeStateAware}.
  */
 public class StateLifecycleManagerImpl<T extends MerkleNodeStateAware> implements StateLifecycleManager<T> {
 
@@ -37,9 +41,19 @@ public class StateLifecycleManagerImpl<T extends MerkleNodeStateAware> implement
      */
     private final MerkleRootSnapshotMetrics snapshotMetrics;
 
+    /**
+     * The object for time measurements
+     */
     private final Time time;
 
+    /**
+     * The metrics registry
+     */
     private final Metrics metrics;
+
+    /**
+     * A factory object to create an instance of a class implementing {@link MerkleNodeState} from a {@link VirtualMap}
+     */
     private final Function<VirtualMap, ? extends MerkleNodeState> stateSupplier;
 
     /**
@@ -80,7 +94,7 @@ public class StateLifecycleManagerImpl<T extends MerkleNodeStateAware> implement
      *
      * @param state the initial state
      */
-    public void initState(@NonNull final MerkleNodeState state, boolean onStartup) {
+    public void initState(@NonNull final MerkleNodeState state, final boolean onStartup) {
         requireNonNull(state);
 
         state.throwIfDestroyed("state must not be destroyed");
@@ -94,9 +108,9 @@ public class StateLifecycleManagerImpl<T extends MerkleNodeStateAware> implement
     }
 
     @Override
-    public void setSnapshotSource(@NonNull T source) {
+    public void setSnapshotSource(@NonNull final T source) {
         requireNonNull(source);
-        MerkleNodeState state = source.getState();
+        final MerkleNodeState state = source.getState();
         state.throwIfDestroyed("state must not be destroyed");
         state.throwIfMutable("state must be immutable");
         boolean result = snapshotSource.compareAndSet(null, source);
@@ -104,6 +118,7 @@ public class StateLifecycleManagerImpl<T extends MerkleNodeStateAware> implement
     }
 
     @Override
+    @Nullable
     public T getSnapshotSource() {
         return snapshotSource.get();
     }
@@ -114,11 +129,13 @@ public class StateLifecycleManagerImpl<T extends MerkleNodeStateAware> implement
     }
 
     @Override
+    @Nullable
     public MerkleNodeState getLatestImmutableState() {
         return latestImmutableStateRef.get();
     }
 
     @Override
+    @NonNull
     public MerkleNodeState copyMutableState() {
         final MerkleNodeState state = stateRef.get();
         copyAndUpdateStateRefs(state);
@@ -129,7 +146,7 @@ public class StateLifecycleManagerImpl<T extends MerkleNodeStateAware> implement
      * Copies the provided to and updates both the latest immutable to and the mutable to reference.
      * @param stateToCopy the state to copy and update references for
      */
-    private synchronized void copyAndUpdateStateRefs(MerkleNodeState stateToCopy) {
+    private synchronized void copyAndUpdateStateRefs(final @NonNull MerkleNodeState stateToCopy) {
         final long copyStart = System.nanoTime();
         final MerkleNodeState newMutableState = stateToCopy.copy();
         // Increment the reference count because this reference becomes the new value
@@ -143,7 +160,7 @@ public class StateLifecycleManagerImpl<T extends MerkleNodeStateAware> implement
         }
         stateToCopy.getRoot().reserve();
         latestImmutableStateRef.set(stateToCopy);
-        final var previousMutableState = stateRef.get();
+        final MerkleNodeState previousMutableState = stateRef.get();
         if (previousMutableState != null && !previousMutableState.isDestroyed()) {
             previousMutableState.release();
         }
@@ -158,9 +175,12 @@ public class StateLifecycleManagerImpl<T extends MerkleNodeStateAware> implement
      */
     @Override
     public void createSnapshot(final @NonNull Path targetPath) {
+        if( snapshotSource.get() == null) {
+            throw new IllegalStateException("Snapshot source is not set");
+        }
         requireNonNull(time);
         requireNonNull(snapshotMetrics);
-        VirtualMapState<?> state = (VirtualMapState<?>) snapshotSource.get().getState();
+        final VirtualMapState<?> state = (VirtualMapState<?>) snapshotSource.get().getState();
         state.throwIfMutable();
         state.throwIfDestroyed();
         final long startTime = time.currentTimeMillis();
@@ -172,8 +192,9 @@ public class StateLifecycleManagerImpl<T extends MerkleNodeStateAware> implement
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
-    public MerkleNodeState loadSnapshot(@NonNull Path targetPath) {
+    public MerkleNodeState loadSnapshot(@NonNull final Path targetPath) {
         final MerkleNode root;
         try {
             root = MerkleTreeSnapshotReader.readStateFileData(targetPath).stateRoot();
@@ -185,7 +206,7 @@ public class StateLifecycleManagerImpl<T extends MerkleNodeStateAware> implement
                     "Root should be a VirtualMap, but it is " + root.getClass().getSimpleName() + " instead");
         }
 
-        final var mutableCopy = readVirtualMap.copy();
+        final VirtualMap mutableCopy = readVirtualMap.copy();
         mutableCopy.registerMetrics(metrics);
         readVirtualMap.release();
         readVirtualMap = mutableCopy;

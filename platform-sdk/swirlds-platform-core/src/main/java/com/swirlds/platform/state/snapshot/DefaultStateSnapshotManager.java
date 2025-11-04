@@ -102,7 +102,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
             @NonNull final NodeId selfId,
             @NonNull final String swirldName,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull StateLifecycleManager<SignedState> stateLifecycleManager) {
+            @NonNull final StateLifecycleManager<SignedState> stateLifecycleManager) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
         this.time = platformContext.getTime();

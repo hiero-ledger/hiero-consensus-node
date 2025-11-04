@@ -217,7 +217,7 @@ public class SwirldsPlatform implements Platform {
         initializeState(this, platformContext, initialState, blocks.consensusStateEventHandler(), platformStateFacade);
 
         // This object makes a copy of the state. After this point, initialState becomes immutable.
-        final StateLifecycleManager<?> stateLifecycleManager = blocks.stateLifecycleManager();
+        final StateLifecycleManager<SignedState> stateLifecycleManager = blocks.stateLifecycleManager();
         stateLifecycleManager.initState(initialState.getState(), true);
         platformStateFacade.setCreationSoftwareVersionTo(stateLifecycleManager.getMutableState(), blocks.appVersion());
 
@@ -388,7 +388,6 @@ public class SwirldsPlatform implements Platform {
             } else {
                 final SignedState signedState = reservedState.get();
                 signedState.markAsStateToSave(StateToDiskReason.PCES_RECOVERY_COMPLETE);
-                stateLifecycleManager.setSnapshotSource(signedState);
 
                 final StateDumpRequest request =
                         StateDumpRequest.create(signedState.reserve("dumping PCES recovery state"));

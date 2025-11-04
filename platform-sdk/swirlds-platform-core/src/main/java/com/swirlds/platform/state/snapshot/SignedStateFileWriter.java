@@ -131,6 +131,8 @@ public final class SignedStateFileWriter {
      * @param platformContext the platform context
      * @param selfId          the id of the platform
      * @param directory       the directory where all files should be placed
+     * @param platformStateFacade the facade to access the platform state
+     * @param stateLifecycleManager the state lifecycle manager
      */
     public static void writeSignedStateFilesToDirectory(
             @Nullable final PlatformContext platformContext,
@@ -150,9 +152,7 @@ public final class SignedStateFileWriter {
         writeMetadataFile(selfId, directory, snapshotSource, platformStateFacade);
         writeEmergencyRecoveryFile(directory, snapshotSource);
         final Roster currentRoster = snapshotSource.getRoster();
-        if (currentRoster != null) {
-            writeRosterFile(directory, currentRoster);
-        }
+        writeRosterFile(directory, currentRoster);
         writeSettingsUsed(directory, platformContext.getConfiguration());
 
         if (selfId != null) {
