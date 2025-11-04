@@ -65,8 +65,8 @@ public class StateLifecycleManagerImpl<T extends MerkleNodeStateAware> implement
      */
     public StateLifecycleManagerImpl(
             @NonNull final Metrics metrics,
-            @NonNull Time time,
-            Function<VirtualMap, ? extends MerkleNodeState> stateSupplier) {
+            @NonNull final Time time,
+            @NonNull final Function<VirtualMap, ? extends MerkleNodeState> stateSupplier) {
         requireNonNull(metrics);
         this.stateSupplier = stateSupplier;
         this.metrics = metrics;
