@@ -84,7 +84,7 @@ class ReconnectControllerTest {
     private MerkleCryptography merkleCryptography;
     private Platform platform;
     private PlatformCoordinator platformCoordinator;
-    private StateLifecycleManager stateLifecycleManager;
+    private StateLifecycleManager<?> stateLifecycleManager;
     private SavedStateController savedStateController;
     private ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
     private ReservedSignedStateResultPromise peerReservedSignedStateResultPromise;

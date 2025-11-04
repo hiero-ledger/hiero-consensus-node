@@ -162,7 +162,7 @@ class SerializationTest extends MerkleTestBase {
     @ValueSource(booleans = {true, false})
     void simpleReadAndWrite(boolean forceFlush) throws IOException, ConstructableRegistryException {
         final Schema schemaV1 = createV1Schema();
-        final StateLifecycleManager stateLifecycleManager = createStateLifecycleManager(schemaV1);
+        final StateLifecycleManager<?> stateLifecycleManager = createStateLifecycleManager(schemaV1);
         final MerkleNodeState originalTree = stateLifecycleManager.getMutableState();
 
         // When we serialize it to bytes and deserialize it back into a tree
@@ -221,7 +221,7 @@ class SerializationTest extends MerkleTestBase {
     @Test
     void dualReadAndWrite() throws IOException, ConstructableRegistryException {
         final Schema<SemanticVersion> schemaV1 = createV1Schema();
-        final StateLifecycleManager stateLifecycleManager = createStateLifecycleManager(schemaV1);
+        final StateLifecycleManager<?> stateLifecycleManager = createStateLifecycleManager(schemaV1);
         final MerkleNodeState originalTree = stateLifecycleManager.getMutableState();
 
         MerkleNodeState copy = stateLifecycleManager.copyMutableState(); // make a copy to make VM flushable

@@ -217,7 +217,7 @@ public class SwirldsPlatform implements Platform {
         initializeState(this, platformContext, initialState, blocks.consensusStateEventHandler(), platformStateFacade);
 
         // This object makes a copy of the state. After this point, initialState becomes immutable.
-        final StateLifecycleManager stateLifecycleManager = blocks.stateLifecycleManager();
+        final StateLifecycleManager<?> stateLifecycleManager = blocks.stateLifecycleManager();
         stateLifecycleManager.initState(initialState.getState(), true);
         platformStateFacade.setCreationSoftwareVersionTo(stateLifecycleManager.getMutableState(), blocks.appVersion());
 

@@ -37,6 +37,7 @@ import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.iss.IssScratchpad;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
+import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformWiring;
@@ -434,7 +435,7 @@ public final class PlatformBuilder {
         final ApplicationCallbacks callbacks =
                 new ApplicationCallbacks(preconsensusEventConsumer, snapshotOverrideConsumer, staleEventConsumer);
 
-        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+        final StateLifecycleManager<SignedState> stateLifecycleManager = new StateLifecycleManagerImpl<>(
                 platformContext.getMetrics(), platformContext.getTime(), createStateFromVirtualMap);
 
         if (model == null) {

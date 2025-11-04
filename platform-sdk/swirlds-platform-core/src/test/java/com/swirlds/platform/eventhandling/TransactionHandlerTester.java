@@ -33,7 +33,7 @@ import org.hiero.consensus.model.node.NodeId;
  */
 public class TransactionHandlerTester {
     private final PlatformStateModifier platformState;
-    private final StateLifecycleManager stateLifecycleManager;
+    private final StateLifecycleManager<?> stateLifecycleManager;
     private final DefaultTransactionHandler defaultTransactionHandler;
     private final List<PlatformStatusAction> submittedActions = new ArrayList<>();
     private final List<Round> handledRounds = new ArrayList<>();
@@ -66,7 +66,7 @@ public class TransactionHandlerTester {
                 .when(consensusStateEventHandler)
                 .onHandleConsensusRound(any(), same(consensusState), any());
         final StatusActionSubmitter statusActionSubmitter = submittedActions::add;
-        stateLifecycleManager = new StateLifecycleManagerImpl(
+        stateLifecycleManager = new StateLifecycleManagerImpl<>(
                 platformContext.getMetrics(), platformContext.getTime(), vm -> consensusState);
         stateLifecycleManager.initState(consensusState, true);
         defaultTransactionHandler = new DefaultTransactionHandler(
@@ -110,7 +110,7 @@ public class TransactionHandlerTester {
     /**
      * @return the {@link StateLifecycleManager} used by this tester
      */
-    public StateLifecycleManager getStateLifecycleManager() {
+    public StateLifecycleManager<?> getStateLifecycleManager() {
         return stateLifecycleManager;
     }
 
