@@ -40,10 +40,10 @@ public class ContainerTestEnvironment implements TestEnvironment {
     private final ContainerTransactionGenerator transactionGenerator = new ContainerTransactionGenerator();
 
     /**
-     * Constructor with default values for using random node-ids
+     * Constructor with default values for using random node-ids and default directory for container logs.
      */
     public ContainerTestEnvironment() {
-        this(true);
+        this(true, getDefaultOutputDirectory());
     }
 
     /**
@@ -52,10 +52,18 @@ public class ContainerTestEnvironment implements TestEnvironment {
      * @param useRandomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
      */
     public ContainerTestEnvironment(final boolean useRandomNodeIds) {
+        this(useRandomNodeIds, getDefaultOutputDirectory());
+    }
 
+    /**
+     * Constructor for the {@link ContainerTestEnvironment} class with custom output directory.
+     *
+     * @param useRandomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
+     * @param rootOutputDirectory the root directory where container logs will be written per test
+     */
+    public ContainerTestEnvironment(final boolean useRandomNodeIds, @NonNull final Path rootOutputDirectory) {
         ContainerLogConfigBuilder.configure();
 
-        final Path rootOutputDirectory = Path.of("build", "container");
         try {
             if (Files.exists(rootOutputDirectory)) {
                 FileUtils.deleteDirectory(rootOutputDirectory);
@@ -66,6 +74,15 @@ public class ContainerTestEnvironment implements TestEnvironment {
         }
 
         network = new ContainerNetwork(timeManager, transactionGenerator, rootOutputDirectory, useRandomNodeIds);
+    }
+
+    /**
+     * Gets the default output directory for container logs.
+     *
+     * @return the default output directory path
+     */
+    private static Path getDefaultOutputDirectory() {
+        return Path.of("build", "container");
     }
 
     /**

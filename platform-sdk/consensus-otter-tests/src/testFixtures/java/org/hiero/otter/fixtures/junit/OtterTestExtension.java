@@ -7,8 +7,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.OtterSpecs;
@@ -21,6 +23,7 @@ import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ConditionEvaluationResult;
 import org.junit.jupiter.api.extension.ExecutionCondition;
 import org.junit.jupiter.api.extension.Extension;
@@ -49,7 +52,8 @@ public class OtterTestExtension
         implements TestInstancePreDestroyCallback,
                 ParameterResolver,
                 TestTemplateInvocationContextProvider,
-                ExecutionCondition {
+                ExecutionCondition,
+                BeforeEachCallback {
 
     private enum Environment {
         TURTLE("turtle"),
@@ -66,6 +70,22 @@ public class OtterTestExtension
      * The namespace of the extension.
      */
     private static final Namespace EXTENSION_NAMESPACE = Namespace.create(OtterTestExtension.class);
+
+    /**
+     * The Target environment factory.
+     */
+    private static final Function<Path, TestEnvironment> TARGET_ENVIRONMENT_FACTORY;
+
+    static {
+        final String targetEnvironment = System.getProperty("otter.env", "turtle");
+        TARGET_ENVIRONMENT_FACTORY = switch (targetEnvironment) {
+            case "turtle" -> path -> new TurtleTestEnvironment();
+            case "container" -> path -> new ContainerTestEnvironment(true, path);
+            default ->
+                throw new IllegalArgumentException("Unknown target environment: " + targetEnvironment
+                        + ". Supported values are 'turtle' and 'container'.");
+        };
+    }
 
     /**
      * The key to store the environment in the extension context.
@@ -98,6 +118,27 @@ public class OtterTestExtension
     }
 
     /**
+     * Sets up the output directory for the test before each test execution.
+     *
+     * @param context
+     * @throws Exception
+     */
+    @Override
+    public void beforeEach(@NonNull final ExtensionContext context) throws Exception {
+        requireNonNull(context, "context must not be null");
+
+        // Generate unique test name for output directory
+        String testName = context.getTestClass().map(Class::getSimpleName).orElse("Unknown-Test") + "_"
+                + context.getDisplayName().replaceAll("[^a-zA-Z0-9_\\-]", "_")
+                + "_" + System.currentTimeMillis();
+
+        Path outputDir = Path.of("build", "test-results", "aggregateTestContainer", testName, "container");
+
+        // Store the output directory in the extension context for later use
+        context.getStore(EXTENSION_NAMESPACE).put("outputDirectory", outputDir);
+    }
+
+    /**
      * Resolves the parameter of a test method, providing a {@link TestEnvironment} instance when needed.
      *
      * @param parameterContext the context of the parameter to be resolved
@@ -118,8 +159,22 @@ public class OtterTestExtension
                 .map(ParameterContext::getParameter)
                 .map(Parameter::getType)
                 .filter(t -> t.equals(TestEnvironment.class))
-                .map(t -> createTestEnvironment(extensionContext))
-                .orElseThrow(() -> new ParameterResolutionException("Could not resolve parameter"));
+                .map(t -> {
+                    // Generate test-specific output directory
+                    String testName = extensionContext
+                                    .getTestClass()
+                                    .map(Class::getSimpleName)
+                                    .orElse("Unknown-Test")
+                            + "_" + extensionContext.getDisplayName().replaceAll("[^a-zA-Z0-9_\\-]", "_")
+                            + "_" + System.currentTimeMillis();
+                    Path outputDir = Path.of("build", "test-results", "aggregateTestContainer", testName, "container");
+
+                    // store for potential cleanup
+                    extensionContext.getStore(EXTENSION_NAMESPACE).put("outputDirectory", outputDir);
+
+                    return createTestEnvironment(extensionContext, outputDir);
+                })
+                .orElseThrow(() -> new ParameterResolutionException("Could not resolve Parameter"));
     }
 
     /**
@@ -235,11 +290,13 @@ public class OtterTestExtension
      * Creates a new {@link TestEnvironment} instance based on the current system property {@code "otter.env"}.
      *
      * @param extensionContext the extension context of the test
+     * @param outputDir the output directory for the test environment
      *
      * @return a new {@link TestEnvironment} instance
      */
     @NonNull
-    private TestEnvironment createTestEnvironment(@NonNull final ExtensionContext extensionContext) {
+    private TestEnvironment createTestEnvironment(
+            @NonNull final ExtensionContext extensionContext, @NonNull final Path outputDir) {
         Environment environment = readEnvironmentFromSystemProperty();
         if (environment == null) {
             final List<Capability> requiredCapabilities = getRequiredCapabilitiesFromTest(extensionContext);
@@ -247,7 +304,7 @@ public class OtterTestExtension
                     TurtleTestEnvironment.supports(requiredCapabilities) ? Environment.TURTLE : Environment.CONTAINER;
         }
         final TestEnvironment testEnvironment = environment == Environment.CONTAINER
-                ? createContainerTestEnvironment(extensionContext)
+                ? createContainerTestEnvironment(extensionContext, outputDir)
                 : createTurtleTestEnvironment(extensionContext);
         extensionContext.getStore(EXTENSION_NAMESPACE).put(ENVIRONMENT_KEY, testEnvironment);
         return testEnvironment;
@@ -277,16 +334,18 @@ public class OtterTestExtension
      * Creates a new {@link ContainerTestEnvironment} instance.
      *
      * @param extensionContext the extension context of the test
+     * @param outputDir the output directory for the test environment
      *
      * @return a new {@link TestEnvironment} instance for container tests
      */
     @NonNull
-    private TestEnvironment createContainerTestEnvironment(@NonNull final ExtensionContext extensionContext) {
+    private TestEnvironment createContainerTestEnvironment(
+            @NonNull final ExtensionContext extensionContext, @NonNull final Path outputDir) {
         final Optional<OtterSpecs> otterSpecs =
                 AnnotationSupport.findAnnotation(extensionContext.getElement(), OtterSpecs.class);
         final boolean randomNodeIds = otterSpecs.map(OtterSpecs::randomNodeIds).orElse(true);
 
-        return new ContainerTestEnvironment(randomNodeIds);
+        return new ContainerTestEnvironment(randomNodeIds, outputDir);
     }
 
     /**

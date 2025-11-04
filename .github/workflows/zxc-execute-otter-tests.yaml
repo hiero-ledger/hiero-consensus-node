@@ -191,7 +191,7 @@ jobs:
         with:
           name: Aggregated Otter Tests Container Logs
           path: |
-            "**/consensus-otter-tests/build/test-results/aggregatedTestContainer/**"
+            "platform-sdk/consensus-otter-tests/build/test-results/aggregateTestContainer"
           retention-days: 7
 
       - name: Check Results
