@@ -491,7 +491,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ inputs.enable-hapi-tests-simplefees && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
-          name: HAPI Test (Crypto) Report
+          name: HAPI Test (Simple Fees) Report
           path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           retention-days: 7
 
