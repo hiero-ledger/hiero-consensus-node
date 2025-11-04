@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip869;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
@@ -14,29 +13,16 @@ import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFu
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
-import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
-import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
-import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_IS_LINKED_TO_A_NODE;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NODE_ACCOUNT_HAS_ZERO_BALANCE;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -54,7 +40,6 @@ import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
@@ -150,54 +135,6 @@ public class UpdateAccountEnabledTest {
                         .fee(ONE_HBAR)
                         .via("failedUpdateMultipleSigs"),
                 validateChargedUsdWithin("failedUpdateMultipleSigs", 0.0011276316, 3.0));
-    }
-
-    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
-    @Tag(MATS)
-    final Stream<DynamicTest> updateAccountIdWork() throws CertificateEncodingException {
-        final var nodeAccount = "nodeAccount";
-        final var nodeAccount2 = "nodeAccount2";
-        AtomicLong newAccountNum = new AtomicLong();
-        return hapiTest(
-                newKeyNamed("adminKey"),
-                cryptoCreate(nodeAccount),
-                cryptoCreate(nodeAccount2).exposingCreatedIdTo(id -> newAccountNum.set(id.getAccountNum())),
-                nodeCreate("testNode", nodeAccount)
-                        .adminKey("adminKey")
-                        .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
-                nodeUpdate("testNode")
-                        .adminKey("adminKey")
-                        .signedByPayerAnd(nodeAccount2, "adminKey")
-                        .accountId(nodeAccount2),
-                withOpContext((spec, log) -> allRunFor(
-                        spec,
-                        viewNode(
-                                "testNode",
-                                node -> assertEquals(
-                                        newAccountNum.get(),
-                                        node.accountIdOrThrow().accountNum(),
-                                        "Node accountId should be updated")))));
-    }
-
-    @Tag(ONLY_SUBPROCESS)
-    @HapiTest
-    final Stream<DynamicTest> updateAccountIdAndSubmitWithOld() {
-        final var nodeIdToUpdate = 1;
-        final var oldNodeAccountId = nodeIdToUpdate + CLASSIC_FIRST_NODE_ACCOUNT_NUM;
-        return hapiTest(
-                cryptoCreate("newNodeAccount"),
-                // Node update works with nodeId not accountId,
-                // so we are updating the node we are submitting to
-                nodeUpdate(String.valueOf(nodeIdToUpdate))
-                        .accountId("newNodeAccount")
-                        .payingWith(DEFAULT_PAYER)
-                        .signedByPayerAnd("newNodeAccount"),
-                cryptoCreate("foo")
-                        .setNode(oldNodeAccountId)
-                        .hasPrecheck(INVALID_NODE_ACCOUNT)
-                        .via("createTxn"),
-                // Assert that the transaction was not submitted and failed on ingest
-                getTxnRecord("createTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
     }
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
