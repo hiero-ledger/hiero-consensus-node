@@ -285,7 +285,7 @@ class SerializationTest extends MerkleTestBase {
         loadedTree.getRoot().migrate(MINIMUM_SUPPORTED_VERSION);
     }
 
-    private StateLifecycleManager createStateLifecycleManager(Schema schemaV1) {
+    private StateLifecycleManager<?> createStateLifecycleManager(Schema schemaV1) {
         final SignedState randomState =
                 new RandomSignedStateGenerator().setRound(1).build();
 

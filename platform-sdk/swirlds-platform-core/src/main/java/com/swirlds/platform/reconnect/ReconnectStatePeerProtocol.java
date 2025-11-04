@@ -82,7 +82,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
     private final Time time;
     private final PlatformContext platformContext;
     private final ReservedSignedStateResultPromise reservedSignedStateResultPromise;
-    private final StateLifecycleManager stateLifecycleManager;
+    private final StateLifecycleManager<?> stateLifecycleManager;
     private final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap;
 
     /**
@@ -112,7 +112,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
             @NonNull final Time time,
             @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final ReservedSignedStateResultPromise reservedSignedStateResultPromise,
-            @NonNull final StateLifecycleManager stateLifecycleManager,
+            @NonNull final StateLifecycleManager<?> stateLifecycleManager,
             @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
 
         this.platformContext = Objects.requireNonNull(platformContext);

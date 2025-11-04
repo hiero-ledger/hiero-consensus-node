@@ -62,7 +62,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
     /**
      * The class responsible for all interactions with the swirld state
      */
-    private final StateLifecycleManager stateLifecycleManager;
+    private final StateLifecycleManager<?> stateLifecycleManager;
 
     private final RoundHandlingMetrics handlerMetrics;
 
@@ -137,7 +137,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
      */
     public DefaultTransactionHandler(
             @NonNull final PlatformContext platformContext,
-            @NonNull final StateLifecycleManager stateLifecycleManager,
+            @NonNull final StateLifecycleManager<?> stateLifecycleManager,
             @NonNull final StatusActionSubmitter statusActionSubmitter,
             @NonNull final SemanticVersion softwareVersion,
             @NonNull final PlatformStateFacade platformStateFacade,

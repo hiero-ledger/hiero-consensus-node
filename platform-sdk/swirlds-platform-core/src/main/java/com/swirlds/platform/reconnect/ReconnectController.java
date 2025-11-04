@@ -72,7 +72,7 @@ public class ReconnectController implements Runnable {
     private final Platform platform;
     private final PlatformContext platformContext;
     private final PlatformCoordinator platformCoordinator;
-    private final StateLifecycleManager stateLifecycleManager;
+    private final StateLifecycleManager<?> stateLifecycleManager;
     private final SavedStateController savedStateController;
     private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
     private final ReservedSignedStateResultPromise peerReservedSignedStateResultPromise;
@@ -90,7 +90,7 @@ public class ReconnectController implements Runnable {
             @NonNull final Platform platform,
             @NonNull final PlatformContext platformContext,
             @NonNull final PlatformCoordinator platformCoordinator,
-            @NonNull final StateLifecycleManager stateLifecycleManager,
+            @NonNull final StateLifecycleManager<?> stateLifecycleManager,
             @NonNull final SavedStateController savedStateController,
             @NonNull final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler,
             @NonNull final ReservedSignedStateResultPromise peerReservedSignedStateResultPromise,

@@ -39,7 +39,7 @@ public class ReconnectStateSyncProtocol implements Protocol {
     private final PlatformContext platformContext;
     private final AtomicReference<PlatformStatus> platformStatus = new AtomicReference<>(PlatformStatus.STARTING_UP);
     private final ReservedSignedStateResultPromise reservedSignedStateResultPromise;
-    private final StateLifecycleManager stateLifecycleManager;
+    private final StateLifecycleManager<?> stateLifecycleManager;
     private final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap;
 
     public ReconnectStateSyncProtocol(
@@ -52,7 +52,7 @@ public class ReconnectStateSyncProtocol implements Protocol {
             @NonNull final FallenBehindMonitor fallenBehindManager,
             @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final ReservedSignedStateResultPromise reservedSignedStateResultPromise,
-            @NonNull final StateLifecycleManager stateLifecycleManager,
+            @NonNull final StateLifecycleManager<?> stateLifecycleManager,
             @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
