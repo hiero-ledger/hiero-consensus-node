@@ -29,7 +29,6 @@ import java.util.List;
  * @param ethCallContext if applicable, the context of an internal call in the transaction
  * @param ethHash if applicable, the hash of the Ethereum transaction
  * @param serializedSignedTx If already known, the serialized signed transaction; otherwise null
- * @param ethTopLevelCreation Whether the transaction was exactly an Ethereum tx top-level creation
  */
 public record ContractOpContext(
         @NonNull String memo,
@@ -44,6 +43,5 @@ public record ContractOpContext(
         @Nullable Long senderNonce,
         @Nullable InternalCallContext ethCallContext,
         @NonNull Bytes ethHash,
-        @Nullable Bytes serializedSignedTx,
-        boolean ethTopLevelCreation)
+        @Nullable Bytes serializedSignedTx)
         implements TranslationContext {}

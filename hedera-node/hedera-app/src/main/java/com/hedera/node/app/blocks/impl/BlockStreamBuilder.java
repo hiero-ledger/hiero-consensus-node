@@ -5,7 +5,6 @@ import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_LAMBD
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_STORAGE;
 import static com.hedera.hapi.block.stream.trace.SlotRead.IdentifierOneOfType.INDEX;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
@@ -1431,9 +1430,13 @@ public class BlockStreamBuilder
                     builder.contractCall(CallContractOutput.newBuilder()
                             .evmTransactionResult(evmTransactionResult)
                             .build());
-                case ETH_CALL, ETH_CREATE ->
+                case ETH_CALL ->
                     builder.ethereumCall(EthereumOutput.newBuilder()
-                            .evmTransactionResult(ethEvmTransactionResult())
+                            .evmCallTransactionResult(ethEvmTransactionResult())
+                            .build());
+                case ETH_CREATE ->
+                    builder.ethereumCall(EthereumOutput.newBuilder()
+                            .evmCreateTransactionResult(ethEvmTransactionResult())
                             .build());
                 case ETH_THROTTLED -> builder.ethereumCall(EthereumOutput.DEFAULT);
             }
@@ -1506,8 +1509,7 @@ public class BlockStreamBuilder
                         senderNonce,
                         evmTransactionResult == null ? null : evmTransactionResult.internalCallContext(),
                         ethereumHash,
-                        serializedSignedTx,
-                        contractOpType == ContractOpType.ETH_CREATE);
+                        serializedSignedTx);
             case CRYPTO_CREATE, CRYPTO_UPDATE ->
                 new CryptoOpContext(
                         memo,

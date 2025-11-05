@@ -78,9 +78,16 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                     recordBuilder.ethereumHash(Bytes.wrap(
                                             requireNonNull(finalEthTxData).getEthereumHash()));
                                 }
-                                final var evmCallResult = ethTxOutput.evmTransactionResultOrThrow();
+                                final var evmResult =
+                                        switch (ethTxOutput.transactionResult().kind()) {
+                                            case UNSET -> throw new IllegalStateException("Missing EVM tx result");
+                                            case EVM_CALL_TRANSACTION_RESULT ->
+                                                ethTxOutput.evmCallTransactionResultOrThrow();
+                                            case EVM_CREATE_TRANSACTION_RESULT ->
+                                                ethTxOutput.evmCreateTransactionResultOrThrow();
+                                        };
                                 final ContractFunctionResult result;
-                                final var derivedBuilder = resultBuilderFrom(evmCallResult);
+                                final var derivedBuilder = resultBuilderFrom(evmResult);
                                 boolean knownCreation = false;
                                 if (finalEthTxData != null) {
                                     knownCreation = !finalEthTxData.hasToAddress();
@@ -90,7 +97,7 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                 }
                                 if (parts.status() == SUCCESS) {
                                     if (knownCreation) {
-                                        final var createdId = evmCallResult.contractIdOrThrow();
+                                        final var createdId = evmResult.contractIdOrThrow();
                                         if (parts.isTopLevel() || parts.isInnerBatchTxn()) {
                                             // If all sidecars are disabled and there were no logs for a
                                             // top-level creation,
@@ -109,7 +116,7 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                             }
                                             baseTranslator.addCreatedIdsTo(derivedBuilder, remainingStateChanges);
                                             baseTranslator.addChangedContractNonces(
-                                                    derivedBuilder, evmCallResult.contractNonces());
+                                                    derivedBuilder, evmResult.contractNonces());
                                             Bytes initcode = null;
                                             requireNonNull(finalEthTxData);
                                             if (!ethTx.hasCallData()
@@ -140,26 +147,26 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                         mapTracesToVerboseLogs(derivedBuilder, parts.traces());
                                         baseTranslator.addCreatedIdsTo(derivedBuilder, remainingStateChanges);
                                         baseTranslator.addChangedContractNonces(
-                                                derivedBuilder, evmCallResult.contractNonces());
+                                                derivedBuilder, evmResult.contractNonces());
                                     }
                                 }
                                 if (knownCreation) {
-                                    if (!PRE_NONCE_ERROR_MESSAGE.equals(evmCallResult.errorMessage())) {
+                                    if (!PRE_NONCE_ERROR_MESSAGE.equals(evmResult.errorMessage())) {
                                         baseTranslator.addSignerNonce(
-                                                evmCallResult.senderId(), derivedBuilder, remainingStateChanges);
+                                                evmResult.senderId(), derivedBuilder, remainingStateChanges);
                                     }
                                 } else {
-                                    if (!PRE_NONCE_ERROR_MESSAGE.equals(evmCallResult.errorMessage())) {
+                                    if (!PRE_NONCE_ERROR_MESSAGE.equals(evmResult.errorMessage())) {
                                         if (parts.isBatchScoped() && finalEthTxData != null) {
                                             handleBatchScopedNonce(
-                                                    evmCallResult.senderId(),
+                                                    evmResult.senderId(),
                                                     finalEthTxData.nonce(),
                                                     derivedBuilder,
                                                     baseTranslator,
                                                     remainingStateChanges);
                                         } else {
                                             baseTranslator.addSignerNonce(
-                                                    evmCallResult.senderId(), derivedBuilder, remainingStateChanges);
+                                                    evmResult.senderId(), derivedBuilder, remainingStateChanges);
                                         }
                                     }
                                 }

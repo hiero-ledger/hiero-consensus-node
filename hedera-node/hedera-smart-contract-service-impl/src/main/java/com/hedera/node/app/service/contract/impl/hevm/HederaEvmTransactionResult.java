@@ -115,7 +115,8 @@ public record HederaEvmTransactionResult(
     public EvmTransactionResult asEvmTxResultOf(
             @Nullable final EthTxData ethTxData,
             @NonNull final RootProxyWorldUpdater updater,
-            @Nullable final Bytes callData, @Nullable final HookId hookId) {
+            @Nullable final Bytes callData,
+            @Nullable final HookId hookId) {
         if (haltReason != null) {
             return txWithMaybeEthFields(
                     asUncommittedFailureResultBuilder(errorMessageFor(haltReason)), ethTxData, callData, hookId);
