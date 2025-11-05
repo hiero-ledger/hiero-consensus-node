@@ -17,7 +17,8 @@ import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
  */
 @SuppressWarnings("unused")
 public record MeshTopologyConfiguration(
-        @NonNull Duration averageLatency, @NonNull Percentage jitter, @NonNull BandwidthLimit bandwidth) {
+        @NonNull Duration averageLatency, @NonNull Percentage jitter, @NonNull BandwidthLimit bandwidth)
+        implements TopologyConfiguration {
 
     /**
      * Default configuration with 200ms average latency, 5% jitter, and unlimited bandwidth.

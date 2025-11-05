@@ -71,6 +71,7 @@ import org.hiero.otter.fixtures.network.MeshTopologyConfiguration;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology;
 import org.hiero.otter.fixtures.network.Topology.ConnectionData;
+import org.hiero.otter.fixtures.network.TopologyConfiguration;
 import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
 import org.hiero.otter.fixtures.network.utils.GeographicLatencyConfiguration;
 import org.hiero.otter.fixtures.network.utils.LatencyRange;
@@ -127,7 +128,7 @@ public abstract class AbstractNetwork implements Network {
     private final Map<ConnectionKey, BandwidthLimit> bandwidthOverrides = new HashMap<>();
     private final boolean useRandomNodeIds;
 
-    private Topology internalTopology;
+    private Topology currentTopology;
     protected final NetworkConfiguration networkConfiguration;
 
     protected Lifecycle lifecycle = Lifecycle.INIT;
@@ -145,7 +146,7 @@ public abstract class AbstractNetwork implements Network {
         this.random = requireNonNull(random);
         this.useRandomNodeIds = useRandomNodeIds;
         // Initialize with default GeoMeshTopology
-        this.internalTopology = new GeoMeshTopologyImpl(random, this::createNodes, this::createInstrumentedNode);
+        this.currentTopology = new GeoMeshTopologyImpl(random, this::createNodes, this::createInstrumentedNode);
         this.networkConfiguration = new NetworkConfiguration();
     }
 
@@ -155,7 +156,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Topology topology() {
-        return internalTopology;
+        return currentTopology;
     }
 
     /**
@@ -163,37 +164,32 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     @NonNull
-    public Network withMeshTopology(@NonNull final MeshTopologyConfiguration configuration) {
-        throwIfInLifecycle(Lifecycle.RUNNING, "Cannot configure topology while the network is running.");
-        throwIfInLifecycle(Lifecycle.SHUTDOWN, "Cannot configure topology after the network has been shutdown.");
+    public Network topology(@NonNull final TopologyConfiguration configuration) {
+        // Only allow topology configuration during network initialization
+        throwIfNotInLifecycle(Lifecycle.INIT,
+                "Topology can only be configured during network initialization.");
+
         requireNonNull(configuration);
+
+        // Prevent reconfiguration if nodes already added
         if (!topology().nodes().isEmpty()) {
-            throw new IllegalStateException("Cannot configure topology after nodes have been added to the network.");
+            throw new IllegalStateException(
+                    "Cannot configure topology after nodes have been added to the network.");
         }
 
-        // Create new MeshTopologyImpl with the configuration
-        this.internalTopology = new MeshTopologyImpl(configuration, this::createNodes, this::createInstrumentedNode);
-        return this;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public Network withGeoMeshTopology(@NonNull final GeographicLatencyConfiguration configuration) {
-        throwIfInLifecycle(Lifecycle.RUNNING, "Cannot configure topology while the network is running.");
-        throwIfInLifecycle(Lifecycle.SHUTDOWN, "Cannot configure topology after the network has been shutdown.");
-        requireNonNull(configuration);
-        if (!topology().nodes().isEmpty()) {
-            throw new IllegalStateException("Cannot configure topology after nodes have been added to the network.");
+        // Dispatch to appropriate implementation based on configuration type
+        if (configuration instanceof MeshTopologyConfiguration meshConfig) {
+            this.currentTopology = new MeshTopologyImpl(meshConfig, this::createNodes, this::createInstrumentedNode);
+        } else if (configuration instanceof GeographicLatencyConfiguration geoConfig) {
+            final GeoMeshTopologyImpl geoTopology =
+                    new GeoMeshTopologyImpl(random, this::createNodes, this::createInstrumentedNode);
+            geoTopology.setGeographicLatencyConfiguration(geoConfig);
+            this.currentTopology = geoTopology;
+        } else {
+            throw new IllegalArgumentException(
+                    "Unknown topology configuration type: " + configuration.getClass());
         }
 
-        // Create new GeoMeshTopologyImpl with the configuration
-        final GeoMeshTopologyImpl geoTopology =
-                new GeoMeshTopologyImpl(random, this::createNodes, this::createInstrumentedNode);
-        geoTopology.setGeographicLatencyConfiguration(configuration);
-        this.internalTopology = geoTopology;
         return this;
     }
 

@@ -19,6 +19,7 @@ import org.hiero.otter.fixtures.internal.helpers.Utils;
 import org.hiero.otter.fixtures.network.MeshTopologyConfiguration;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology;
+import org.hiero.otter.fixtures.network.TopologyConfiguration;
 import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
 import org.hiero.otter.fixtures.network.utils.GeographicLatencyConfiguration;
 import org.hiero.otter.fixtures.network.utils.LatencyRange;
@@ -60,36 +61,27 @@ public interface Network extends Configurable<Network> {
     Topology topology();
 
     /**
-     * Configures the network to use a mesh topology with the specified configuration.
+     * Configures the network topology with the specified configuration.
      *
      * <p>This method must be called before any nodes are added to the network. It configures the topology with the
-     * specified latency, jitter, and bandwidth settings that apply to all node-to-node connections.
+     * characteristics defined by the provided configuration object. Supported configurations include:
+     * <ul>
+     *   <li>{@link MeshTopologyConfiguration} - for uniform mesh topology with specified latency, jitter, and
+     *       bandwidth</li>
+     *   <li>{@link GeographicLatencyConfiguration} - for realistic geographic latency simulation</li>
+     * </ul>
      *
-     * <p>If this method is not called, the default mesh topology configuration is used.
+     * <p>If this method is not called, a default geographic mesh topology configuration is used.
      *
-     * @param configuration the mesh topology configuration to apply
+     * @param configuration the topology configuration to apply (must implement {@link TopologyConfiguration})
      * @return this {@code Network} instance for method chaining
      * @throws NullPointerException if {@code configuration} is {@code null}
-     * @throws IllegalStateException if any nodes have already been added to the network
+     * @throws IllegalStateException if any nodes have already been added to the network or if the network is already
+     *         running
+     * @throws IllegalArgumentException if the configuration type is not supported
      */
     @NonNull
-    Network withMeshTopology(@NonNull MeshTopologyConfiguration configuration);
-
-    /**
-     * Configures the network to use a geographic mesh topology with the specified configuration.
-     *
-     * <p>This method must be called before any nodes are added to the network. It configures the topology with
-     * realistic latency, jitter, and bandwidth settings based on geographic distribution of nodes.
-     *
-     * <p>If this method is not called, the default geographic mesh topology configuration is used.
-     *
-     * @param configuration the geographic mesh topology configuration to apply
-     * @return this {@code Network} instance for method chaining
-     * @throws NullPointerException if {@code configuration} is {@code null}
-     * @throws IllegalStateException if any nodes have already been added to the network
-     */
-    @NonNull
-    Network withGeoMeshTopology(@NonNull GeographicLatencyConfiguration configuration);
+    Network topology(@NonNull TopologyConfiguration configuration);
 
     /**
      * Adds a single node to the network.
