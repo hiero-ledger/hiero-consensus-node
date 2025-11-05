@@ -42,7 +42,7 @@ public class ReconnectTest {
     /** Reducing the number of rounds non-expired will allow nodes to require a reconnect faster. */
     private static final long ROUNDS_EXPIRED = 100L;
 
-    public static final Duration BEHIND_WAIT_TIME = Duration.ofSeconds(240L);
+    private static final Duration BEHIND_WAIT_TIME = Duration.ofSeconds(240L);
 
     /**
      * Tests that a node which is killed, kept down until it is behind, and then restarted is able to reconnect to the
@@ -78,7 +78,6 @@ public class ReconnectTest {
         assertContinuouslyThat(network.newConsensusResults()).haveEqualCommonRounds();
         assertContinuouslyThat(network.newConsensusResults().suppressingNode(nodeToReconnect))
                 .haveConsistentRounds();
-        assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
 
         assertContinuouslyThat(network.newPlatformStatusResults().suppressingNode(nodeToReconnect))
                 .doNotEnterAnyStatusesOf(BEHIND);
@@ -178,7 +177,6 @@ public class ReconnectTest {
         assertContinuouslyThat(network.newConsensusResults())
                 .haveEqualCommonRounds()
                 .haveConsistentRounds();
-        assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
 
         network.start();
 

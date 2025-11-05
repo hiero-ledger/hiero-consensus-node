@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
+import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
@@ -81,6 +82,15 @@ public abstract class BlockNodeCommunicationTestBase {
     }
 
     @NonNull
+    protected static PublishStreamRequest createRequest(final EndStream.Code endCode, final long earliestBlockNumber) {
+        final EndStream endStream = EndStream.newBuilder()
+                .endCode(endCode)
+                .earliestBlockNumber(earliestBlockNumber)
+                .build();
+        return PublishStreamRequest.newBuilder().endStream(endStream).build();
+    }
+
+    @NonNull
     protected static PublishStreamRequest createRequest(final long blockNumber) {
         final BlockEnd endOfBlock =
                 BlockEnd.newBuilder().blockNumber(blockNumber).build();
@@ -151,7 +161,9 @@ public abstract class BlockNodeCommunicationTestBase {
 
         final BlockProof proof = BlockProof.newBuilder()
                 .block(blockNumber)
-                .blockSignature(Bytes.wrap(array))
+                .signedBlockProof(TssSignedBlockProof.newBuilder()
+                        .blockSignature(Bytes.wrap(array))
+                        .build())
                 .build();
         return BlockItem.newBuilder().blockProof(proof).build();
     }

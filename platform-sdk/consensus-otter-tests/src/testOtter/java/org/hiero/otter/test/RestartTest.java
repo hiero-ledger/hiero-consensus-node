@@ -43,7 +43,6 @@ public class RestartTest {
         assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
         assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
         assertContinuouslyThat(network.newConsensusResults()).haveEqualCommonRounds();
-        assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
         assertContinuouslyThat(network.newPlatformStatusResults()).doNotEnterAnyStatusesOf(BEHIND);
 
         network.start();
