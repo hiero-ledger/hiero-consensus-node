@@ -11,7 +11,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.REJECTED_BY_MINT_CONTRO
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_SUPPLY_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TREASURY_MUST_OWN_BURNED_NFT;
-import static com.hedera.hapi.node.hooks.HookExtensionPoint.MINT_CONTROL_HOOK;
 import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
 import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsageUtils.TOKEN_OPS_USAGE_UTILS;
 import static com.hedera.node.app.service.token.impl.validators.TokenSupplyChangeOpsValidator.verifyTokenInstanceAmounts;
@@ -21,14 +20,14 @@ import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.EvmHookCall;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HookCall;
+import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
-import com.hedera.hapi.node.hooks.EvmHookCall;
-import com.hedera.hapi.node.hooks.HookCall;
 import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
-import com.hedera.hapi.node.hooks.HookEntityId;
 import com.hedera.hapi.node.hooks.HookExecution;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -287,7 +286,7 @@ public final class TokenBurnHandler extends BaseTokenHandler implements Transact
         // Determine gas limit
         final long gasLimit;
         if (op.hasHookControlGasLimit()) {
-            gasLimit = op.hookControlGasLimitOrThrow().value();
+            gasLimit = op.hookControlGasLimitOrThrow();
         } else {
             // Use default gas limit from config
             final var hooksConfig = context.configuration().getConfigData(HooksConfig.class);
@@ -300,14 +299,13 @@ public final class TokenBurnHandler extends BaseTokenHandler implements Transact
         final var hookCall = HookCall.newBuilder()
                 .hookId(token.mintControlHookIdOrThrow())
                 .evmHookCall(EvmHookCall.newBuilder()
-                        .calldata(Bytes.wrap(calldata))
+                        .data(Bytes.wrap(calldata))
                         .gasLimit(gasLimit)
                         .build())
                 .build();
         final var hookExecution = HookExecution.newBuilder()
                 .hookEntityId(hookEntityId)
                 .call(hookCall)
-                .extensionPoint(MINT_CONTROL_HOOK)
                 .build();
 
         // Dispatch hook execution and get result

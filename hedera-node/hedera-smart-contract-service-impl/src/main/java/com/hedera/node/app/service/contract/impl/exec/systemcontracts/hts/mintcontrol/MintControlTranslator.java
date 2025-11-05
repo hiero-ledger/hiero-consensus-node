@@ -19,6 +19,7 @@ import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.tuweni.bytes.Bytes;
+import org.hyperledger.besu.evm.code.CodeFactory;
 
 /**
  * Translates FiatTokenV1 mint control management calls to the HTS system contract.
@@ -74,6 +75,8 @@ public class MintControlTranslator extends AbstractCallTranslator<HtsCallAttempt
                     "removeMinter(address)", RESPONSE_CODE_BOOL)
             .withCategories(Category.MINT_CONTROL);
 
+    private final CodeFactory codeFactory;
+
     /**
      * Constructor for injection.
      *
@@ -83,9 +86,10 @@ public class MintControlTranslator extends AbstractCallTranslator<HtsCallAttempt
     @Inject
     public MintControlTranslator(
             @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
-            @NonNull final ContractMetrics contractMetrics) {
+            @NonNull final ContractMetrics contractMetrics,
+            @NonNull final CodeFactory codeFactory) {
         super(SystemContractMethod.SystemContract.HTS, systemContractMethodRegistry, contractMetrics);
-
+        this.codeFactory = requireNonNull(codeFactory);
         registerMethods(UPDATE_MASTER_MINTER, MINTER_ALLOWANCE, IS_MINTER, CONFIGURE_MINTER, REMOVE_MINTER);
     }
 
@@ -113,6 +117,7 @@ public class MintControlTranslator extends AbstractCallTranslator<HtsCallAttempt
                 attempt.enhancement(),
                 token,
                 Bytes.wrap(attempt.selector()),
-                Bytes.wrap(attempt.inputBytes()));
+                Bytes.wrap(attempt.inputBytes()),
+                codeFactory);
     }
 }
