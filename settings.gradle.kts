@@ -7,7 +7,7 @@ pluginManagement {
 }
 
 buildscript {
-    configurations.classpath { resolutionStrategy.cacheChangingModulesFor(0, "seconds") }
+    //  configurations.classpath { resolutionStrategy.cacheChangingModulesFor(0, "seconds") }
 }
 
 plugins {
