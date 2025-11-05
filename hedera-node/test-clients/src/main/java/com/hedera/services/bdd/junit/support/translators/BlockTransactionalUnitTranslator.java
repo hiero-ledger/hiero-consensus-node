@@ -216,11 +216,12 @@ public class BlockTransactionalUnitTranslator {
     public List<SingleTransactionRecord> translate(@NonNull final BlockTransactionalUnit unit) {
         requireNonNull(unit);
         baseTranslator.prepareForUnit(unit);
-        final List<ScopedTraceData> followingTraces = new LinkedList<>(unit.allScopedTraces());
+        final List<ScopedTraceData> followingTraces =
+                new LinkedList<>(unit.allScopedTraces(baseTranslator.getAliases()));
         final List<StateChange> remainingStateChanges = new LinkedList<>(unit.stateChanges());
         final List<SingleTransactionRecord> translatedRecords = new ArrayList<>();
         List<TraceData> tracesSoFar = null;
-        List<HookId> followingHookExecIds = unit.allHookExecIds();
+        List<HookId> followingHookExecIds = unit.allHookExecIds(baseTranslator.getAliases());
         for (final var blockTransactionParts : unit.blockTransactionParts()) {
             final var translator = translators.get(blockTransactionParts.functionality());
             if (translator == null) {
