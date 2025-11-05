@@ -1194,7 +1194,7 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
 
   performance-post-test-validation:
-    name: NFT Transfer Load Test Report
+    name: Consensus Node State Validator
     runs-on: hiero-citr-linux-large
     needs:
       - performance-tests-start
@@ -1514,6 +1514,7 @@ jobs:
       - performance-CryptoTransferLoadTest
       - performance-HeliSwapLoadTest
       - performance-SmartContractLoadTest
+      - performance-post-test-validation
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -1559,7 +1560,7 @@ jobs:
           #last line is 6, it does not need comma block separator
           # use back-ticks for proper substitution in the json report
           freport=`/usr/bin/echo -e "$report" | awk '{print $1" "$2" "$3}' |\
-            perl -ne 'if ($. < 6) {$comma=","} else {$comma="";} ($t,$d,$l)=split(/\s+/,$_,3); $p=int(($d-$l)/100); \
+            perl -ne 'if ($. < 6) {$comma=","} else {$comma="";} ($t,$d,$l)=split(/\s+/,$_,3); $p=int((($d-$l)/$l)*100); \
             $excl=""; if ($d <= $l) {$excl="\\\u2757";}
             printf("{\"type\": \"text\",\"text\": \"%-25s %7d     %5d%% %7d %s\\\n\"}%s",$t,$d,$p,$l,$excl,$comma);'`
           freport="{\"type\": \"text\",\"text\": \"Name                          TPS         Above min\n\"},$freport,\
