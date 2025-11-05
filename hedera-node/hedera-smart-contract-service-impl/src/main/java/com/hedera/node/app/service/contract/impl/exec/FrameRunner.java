@@ -27,10 +27,8 @@ import com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure;
 import com.hedera.node.app.spi.ids.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import javax.inject.Inject;
 import javax.inject.Singleton;
-
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -173,12 +171,14 @@ public class FrameRunner {
         final var actualGasToRefund = Math.min(maxGasRefunded, nominalRefund);
         gasUsedAfterRefund = nominalGasUsed - actualGasToRefund;
 
-        // This check is added according to https://eips.ethereum.org/EIPS/eip-7623. Issue https://github.com/hiero-ledger/hiero-consensus-node/issues/21553
+        // This check is added according to https://eips.ethereum.org/EIPS/eip-7623. Issue
+        // https://github.com/hiero-ledger/hiero-consensus-node/issues/21553
         // 1. `minimumGasUsed = max(intrinsicGas, floorGas)`
-        // 2. we can calculate `gasUsedAfterRefund` just after `execution_gas_used` will be calculated and refund will be applied
+        // 2. we can calculate `gasUsedAfterRefund` just after `execution_gas_used` will be calculated and refund will
+        // be applied
         // 3. if `gasUsedAfterRefund < minimumGasUsed` we should charge `minimumGasUsed` instead.
         if (gasUsedAfterRefund < gasRequirements.minimumGasUsed()) {
-            gasUsedAfterRefund =  gasRequirements.minimumGasUsed();
+            gasUsedAfterRefund = gasRequirements.minimumGasUsed();
         }
 
         // Hedera-specific restriction: the transaction can't use less gas than a certain percentage of gasLimit

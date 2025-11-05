@@ -165,14 +165,52 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     @DisplayName("Jumbo Ethereum Transactions Positive Tests")
     class JumboEthereumTransactionsPositiveTests {
 
+        // Prefix example for 6kb:
+        // 0x424cb7f8000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000018
+        // prefixZeros = 62
+        // prefixNonZeros = 6
+        // Prefix example for 127kb:
+        // 0x424cb7f80000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000001fc
+        // prefixZeros = 61
+        // prefixNonZeros = 7
+        private static int expectedGasCalculator(int prefixZeros, int prefixNonZeros, int txnSize) {
+            final var payloadLength = prefixZeros + prefixNonZeros + txnSize;
+            final var zeros = prefixZeros + txnSize; // transaction consists from zeros
+            // minimumGasUsed according to https://eips.ethereum.org/EIPS/eip-7623
+            return 21_000 + (zeros + (payloadLength - zeros) * 4) * 10;
+        }
+
         private final Stream<TestCombinationWithGas> positiveBoundariesTestCases = Stream.of(
-                new TestCombinationWithGas(SIX_KB_SIZE, EthTxData.EthTransactionType.LEGACY_ETHEREUM, 400_000, 47_358),
-                new TestCombinationWithGas(SIX_KB_SIZE, EthTxData.EthTransactionType.EIP2930, 400_000, 47_358),
-                new TestCombinationWithGas(SIX_KB_SIZE, EthTxData.EthTransactionType.EIP1559, 400_000, 47_358),
                 new TestCombinationWithGas(
-                        MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.LEGACY_ETHEREUM, 9_000_000, 542_986),
-                new TestCombinationWithGas(MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.EIP2930, 9_000_000, 542_986),
-                new TestCombinationWithGas(MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.EIP1559, 9_000_000, 542_986));
+                        SIX_KB_SIZE,
+                        EthTxData.EthTransactionType.LEGACY_ETHEREUM,
+                        400_000,
+                        expectedGasCalculator(62, 6, SIX_KB_SIZE)),
+                new TestCombinationWithGas(
+                        SIX_KB_SIZE,
+                        EthTxData.EthTransactionType.EIP2930,
+                        400_000,
+                        expectedGasCalculator(62, 6, SIX_KB_SIZE)),
+                new TestCombinationWithGas(
+                        SIX_KB_SIZE,
+                        EthTxData.EthTransactionType.EIP1559,
+                        400_000,
+                        expectedGasCalculator(62, 6, SIX_KB_SIZE)),
+                new TestCombinationWithGas(
+                        MAX_ALLOWED_SIZE,
+                        EthTxData.EthTransactionType.LEGACY_ETHEREUM,
+                        9_000_000,
+                        expectedGasCalculator(61, 7, MAX_ALLOWED_SIZE)),
+                new TestCombinationWithGas(
+                        MAX_ALLOWED_SIZE,
+                        EthTxData.EthTransactionType.EIP2930,
+                        9_000_000,
+                        expectedGasCalculator(61, 7, MAX_ALLOWED_SIZE)),
+                new TestCombinationWithGas(
+                        MAX_ALLOWED_SIZE,
+                        EthTxData.EthTransactionType.EIP1559,
+                        9_000_000,
+                        expectedGasCalculator(61, 7, MAX_ALLOWED_SIZE)));
 
         @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Jumbo Ethereum transactions should pass for valid sizes and expected gas used")
@@ -242,7 +280,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                             .nonce(0)
                             .signingWith(cryptoKey)
                             .payingWith(RELAYER)
-                            .gasLimit(1_000_000L)
+                            .gasLimit(1_500_000L)
                             .via(ethereumCallTxn)),
                     getTxnRecord(ethereumCallTxn).logged());
         }

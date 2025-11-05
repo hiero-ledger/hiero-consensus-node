@@ -259,7 +259,13 @@ class FrameRunnerTest {
         given(entityIdFactory.newContractId(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
                 .willReturn(contractId);
         final var result = subject.runToCompletion(
-                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, new GasRequirements(INTRINSIC_GAS, minimumGasUsed));
+                GAS_LIMIT,
+                SENDER_ID,
+                frame,
+                tracer,
+                messageCallProcessor,
+                contractCreationProcessor,
+                new GasRequirements(INTRINSIC_GAS, minimumGasUsed));
 
         assertEquals(minimumGasUsed, result.gasUsed());
 
