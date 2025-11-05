@@ -12,7 +12,7 @@ import org.hiero.otter.fixtures.TestEnvironment;
  * @param testId      the unique identifier for the test
  * @param environment the test environment to manage
  */
-public record Lifecycle (@NonNull String testId, @NonNull TestEnvironment environment) {
+public record Lifecycle(@NonNull String testId, @NonNull TestEnvironment environment) {
     /**
      * Creates a new Lifecycle instance.
      *
