@@ -5,11 +5,23 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.KeyPair;
 import org.hiero.base.crypto.BytesSigner;
+import org.hiero.consensus.crypto.SigningSchema;
 
+/**
+ * A {@link BytesSigner} implementation that uses libsodium to sign data using the Ed25519 algorithm.
+ */
 public class SodiumSigner implements BytesSigner {
     private final byte[] sodiumSecretKey;
 
-    public SodiumSigner(final KeyPair keyPair) {
+    /**
+     * Constructs a SodiumSigner with the given Ed25519 KeyPair.
+     *
+     * @param keyPair the Ed25519 KeyPair to use for signing
+     */
+    public SodiumSigner(@NonNull final KeyPair keyPair) {
+        if (!keyPair.getPrivate().getAlgorithm().equals(SigningSchema.ED25519.getKeyType())) {
+            throw new IllegalArgumentException("SodiumSigner only supports Ed25519 keys");
+        }
         // Extract 32-byte seed from PKCS#8 encoded private key
         final byte[] privateEncoded = keyPair.getPrivate().getEncoded();
         final byte[] privateSeed = new byte[32];
@@ -27,9 +39,10 @@ public class SodiumSigner implements BytesSigner {
     }
 
     @Override
-    public Bytes sign(@NonNull final Bytes data) {
+    public @NonNull Bytes sign(@NonNull final Bytes data) {
         final byte[] signature = new byte[Sign.BYTES];
-        final boolean signed = SodiumJni.SODIUM.cryptoSignDetached(signature, data.toByteArray(), data.length(), sodiumSecretKey);
+        final boolean signed = SodiumJni.SODIUM.cryptoSignDetached(signature, data.toByteArray(), data.length(),
+                sodiumSecretKey);
         if (!signed) {
             throw new RuntimeException("Failed to sign data using Ed25519 with Sodium");
         }

@@ -9,26 +9,38 @@ import java.security.PrivateKey;
 import java.security.Signature;
 import java.security.SignatureException;
 import org.hiero.base.crypto.BytesSigner;
+import org.hiero.base.crypto.CryptographyException;
 
+/**
+ * JCA-based implementation of {@link BytesSigner}.
+ */
 public class JcaSigner implements BytesSigner {
     private final Signature signature;
 
-    public JcaSigner(final PrivateKey privateKey, final String algorithm, final String provider) {
+    /**
+     * Constructor
+     *
+     * @param privateKey the private key
+     * @param algorithm  the signature algorithm
+     * @param provider   the security provider
+     */
+    public JcaSigner(@NonNull final PrivateKey privateKey, @NonNull final String algorithm,
+            @NonNull final String provider) {
         try {
             this.signature = Signature.getInstance(algorithm, provider);
             signature.initSign(privateKey);
         } catch (final NoSuchAlgorithmException | NoSuchProviderException | InvalidKeyException e) {
-            throw new RuntimeException(e);
+            throw new CryptographyException(e);
         }
     }
 
     @Override
-    public Bytes sign(@NonNull final Bytes data) {
+    public @NonNull Bytes sign(@NonNull final Bytes data) {
         try {
             data.updateSignature(signature);
             return Bytes.wrap(signature.sign());
         } catch (final SignatureException e) {
-            throw new RuntimeException(e);
+            throw new CryptographyException(e);
         }
     }
 }

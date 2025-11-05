@@ -85,7 +85,7 @@ public class PlatformSigner implements Signer, BytesSigner {
     }
 
     @Override
-    public Bytes sign(@NonNull final Bytes data) {
+    public @NonNull Bytes sign(@NonNull final Bytes data) {
         try {
             data.updateSignature(signature);
             return Bytes.wrap(signature.sign());

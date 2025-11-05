@@ -1,13 +1,27 @@
 package org.hiero.consensus.crypto.internal;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.PublicKey;
-import org.hiero.base.crypto.BytesVerifier;
+import org.hiero.base.crypto.BytesSignatureVerifier;
+import org.hiero.consensus.crypto.SigningSchema;
 
-public class SodiumVerifier implements BytesVerifier {
-    final byte[] publicKey;
+/**
+ * A {@link BytesSignatureVerifier} implementation that uses libsodium to verify signatures using the Ed25519
+ * algorithm.
+ */
+public class SodiumVerifier implements BytesSignatureVerifier {
+    private final byte[] publicKey;
 
-    public SodiumVerifier(final PublicKey publicKey) {
+    /**
+     * Constructs a SodiumVerifier with the given Ed25519 PublicKey.
+     *
+     * @param publicKey the Ed25519 PublicKey to use for signature verification
+     */
+    public SodiumVerifier(@NonNull final PublicKey publicKey) {
+        if (!publicKey.getAlgorithm().equals(SigningSchema.ED25519.getKeyType())) {
+            throw new IllegalArgumentException("SodiumVerifier only supports Ed25519 keys");
+        }
         final byte[] encoded = publicKey.getEncoded();
         this.publicKey = new byte[32];
         // Extract 32-byte raw public key from X.509 encoded public key
@@ -15,7 +29,8 @@ public class SodiumVerifier implements BytesVerifier {
     }
 
     @Override
-    public boolean verify(final Bytes signature, final Bytes data) {
-        return SodiumJni.SODIUM.cryptoSignVerifyDetached(signature.toByteArray(), data.toByteArray(), Math.toIntExact(data.length()), publicKey);
+    public boolean verify(@NonNull final Bytes data, @NonNull final Bytes signature) {
+        return SodiumJni.SODIUM.cryptoSignVerifyDetached(signature.toByteArray(), data.toByteArray(),
+                Math.toIntExact(data.length()), publicKey);
     }
 }

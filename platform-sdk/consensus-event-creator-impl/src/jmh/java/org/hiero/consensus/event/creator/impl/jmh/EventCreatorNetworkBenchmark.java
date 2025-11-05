@@ -117,7 +117,7 @@ public class EventCreatorNetworkBenchmark {
             final NodeId nodeId = NodeId.of(entry.nodeId());
             final SecureRandom nodeRandom = new SecureRandom();
             nodeRandom.setSeed(nodeId.id());
-            final KeyPair keyPair = SigningFactory.generateKeyPair(signingType.getSigningScheme(), nodeRandom);
+            final KeyPair keyPair = SigningFactory.generateKeyPair(signingType.getSigningSchema(), nodeRandom);
             final BytesSigner signer = SigningFactory.createSigner(signingType, keyPair);
 
             final DefaultEventCreator eventCreator = new DefaultEventCreator();
