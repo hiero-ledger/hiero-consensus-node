@@ -86,12 +86,7 @@ public class MintControlTranslator extends AbstractCallTranslator<HtsCallAttempt
             @NonNull final ContractMetrics contractMetrics) {
         super(SystemContractMethod.SystemContract.HTS, systemContractMethodRegistry, contractMetrics);
 
-        registerMethods(
-                UPDATE_MASTER_MINTER,
-                MINTER_ALLOWANCE,
-                IS_MINTER,
-                CONFIGURE_MINTER,
-                REMOVE_MINTER);
+        registerMethods(UPDATE_MASTER_MINTER, MINTER_ALLOWANCE, IS_MINTER, CONFIGURE_MINTER, REMOVE_MINTER);
     }
 
     @Override
@@ -101,12 +96,7 @@ public class MintControlTranslator extends AbstractCallTranslator<HtsCallAttempt
         if (attempt.isRedirect()) {
             return Optional.empty();
         }
-        return attempt.isMethod(
-                UPDATE_MASTER_MINTER,
-                MINTER_ALLOWANCE,
-                IS_MINTER,
-                CONFIGURE_MINTER,
-                REMOVE_MINTER);
+        return attempt.isMethod(UPDATE_MASTER_MINTER, MINTER_ALLOWANCE, IS_MINTER, CONFIGURE_MINTER, REMOVE_MINTER);
     }
 
     @Override
@@ -114,8 +104,8 @@ public class MintControlTranslator extends AbstractCallTranslator<HtsCallAttempt
         requireNonNull(attempt);
         // Resolve the target token from msg.to (the long-zero address)
         // For direct calls (not redirects), the token address is the contract ID being called
-        final var tokenAddress = contractIDToBesuAddress(
-                attempt.nativeOperations().entityIdFactory(), attempt.systemContractID());
+        final var tokenAddress =
+                contractIDToBesuAddress(attempt.nativeOperations().entityIdFactory(), attempt.systemContractID());
         final var token = attempt.linkedToken(tokenAddress);
 
         return new MintControlManagementCall(
@@ -126,4 +116,3 @@ public class MintControlTranslator extends AbstractCallTranslator<HtsCallAttempt
                 Bytes.wrap(attempt.inputBytes()));
     }
 }
-

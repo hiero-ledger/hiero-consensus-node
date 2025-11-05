@@ -24,7 +24,6 @@ import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
-import com.hedera.hapi.node.hooks.HookCreation;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.token.TokenCreateTransactionBody;
 import com.hedera.hapi.node.transaction.CustomFee;
@@ -112,8 +111,7 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
         if (op.hasMintControlHookCreation()) {
             final var hookCreation = op.mintControlHookCreationOrThrow();
             validateTruePreCheck(
-                    hookCreation.hasDetails()
-                            && hookCreation.detailsOrThrow().extensionPoint() == MINT_CONTROL_HOOK,
+                    hookCreation.hasDetails() && hookCreation.detailsOrThrow().extensionPoint() == MINT_CONTROL_HOOK,
                     INVALID_HOOK_TYPE_FOR_EXTENSION_POINT);
         }
     }
@@ -151,10 +149,8 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
             final var hookCreation = op.mintControlHookCreationOrThrow();
             final var tokenEntityId =
                     HookEntityId.newBuilder().tokenId(newTokenId).build();
-            final var hookCreationWithEntity = hookCreation
-                    .copyBuilder()
-                    .entityId(tokenEntityId)
-                    .build();
+            final var hookCreationWithEntity =
+                    hookCreation.copyBuilder().entityId(tokenEntityId).build();
             dispatchCreation(context, hookCreationWithEntity);
             mintControlHookId = hookCreation.detailsOrThrow().hookId();
         }

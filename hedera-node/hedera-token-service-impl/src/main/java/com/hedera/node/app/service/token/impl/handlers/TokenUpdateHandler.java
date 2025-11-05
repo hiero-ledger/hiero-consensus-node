@@ -35,15 +35,12 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.ThresholdKey;
-import com.hedera.hapi.node.hooks.HookCreation;
 import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.service.token.HookDispatchUtils;
-import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.token.TokenUpdateUsage;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
@@ -54,6 +51,7 @@ import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.util.TokenKey;
 import com.hedera.node.app.service.token.impl.validators.TokenUpdateValidator;
+import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenUpdateStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
@@ -212,7 +210,8 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
             final var hookToDelete = op.mintControlHookToDeleteOrThrow();
             // Delete the existing hook if it exists
             if (token.hasMintControlHookId()) {
-                final var hookEntityId = HookEntityId.newBuilder().tokenId(tokenId).build();
+                final var hookEntityId =
+                        HookEntityId.newBuilder().tokenId(tokenId).build();
                 final var hookIdToDelete = new HookId(hookEntityId, hookToDelete.hookId());
                 final var hookDispatch = HookDispatchTransactionBody.newBuilder()
                         .hookIdToDelete(hookIdToDelete)
@@ -221,8 +220,7 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
                         context.payer(),
                         TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
                         HookDispatchStreamBuilder.class));
-                validateTrue(streamBuilder.status() == SUCCESS,
-                        streamBuilder.status());
+                validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
             }
             return null;
         }
@@ -233,7 +231,8 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
 
             // If there's an existing hook, delete it first (atomic replacement)
             if (token.hasMintControlHookId()) {
-                final var hookEntityId = HookEntityId.newBuilder().tokenId(tokenId).build();
+                final var hookEntityId =
+                        HookEntityId.newBuilder().tokenId(tokenId).build();
                 final var existingHookId = new HookId(hookEntityId, token.mintControlHookIdOrThrow());
                 final var hookDispatch = HookDispatchTransactionBody.newBuilder()
                         .hookIdToDelete(existingHookId)
@@ -242,16 +241,13 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
                         context.payer(),
                         TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
                         HookDispatchStreamBuilder.class));
-                validateTrue(streamBuilder.status() == SUCCESS,
-                        streamBuilder.status());
+                validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
             }
 
             // Create the new hook
             final var tokenEntityId = HookEntityId.newBuilder().tokenId(tokenId).build();
-            final var hookCreationWithEntity = hookCreation
-                    .copyBuilder()
-                    .entityId(tokenEntityId)
-                    .build();
+            final var hookCreationWithEntity =
+                    hookCreation.copyBuilder().entityId(tokenEntityId).build();
             dispatchCreation(context, hookCreationWithEntity);
             return hookCreation.detailsOrThrow().hookId();
         }

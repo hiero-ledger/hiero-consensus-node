@@ -73,7 +73,8 @@ public class MintBurnHooksABI {
      * @return the encoded byte array
      */
     public static byte[] encodeAllowMintArgs(long amount, boolean supplyKeySigned) {
-        return ALLOW_MINT.encodeCall(Tuple.of(BigInteger.valueOf(amount), supplyKeySigned))
+        return ALLOW_MINT
+                .encodeCall(Tuple.of(BigInteger.valueOf(amount), supplyKeySigned))
                 .array();
     }
 
@@ -85,7 +86,8 @@ public class MintBurnHooksABI {
      * @return the encoded byte array
      */
     public static byte[] encodeAllowBurnArgs(long amount, boolean supplyKeySigned) {
-        return ALLOW_BURN.encodeCall(Tuple.of(BigInteger.valueOf(amount), supplyKeySigned))
+        return ALLOW_BURN
+                .encodeCall(Tuple.of(BigInteger.valueOf(amount), supplyKeySigned))
                 .array();
     }
 
@@ -107,4 +109,3 @@ public class MintBurnHooksABI {
         throw new UnsupportedOperationException("Utility class");
     }
 }
-
