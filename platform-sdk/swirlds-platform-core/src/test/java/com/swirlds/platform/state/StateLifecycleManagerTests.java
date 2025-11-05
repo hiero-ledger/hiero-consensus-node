@@ -27,9 +27,6 @@ import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.junit.jupiter.api.AfterEach;
@@ -171,7 +168,6 @@ class StateLifecycleManagerTests {
         final MerkleNodeState immutable = stateLifecycleManager.getLatestImmutableState();
         assertThrows(MutabilityException.class, () -> stateLifecycleManager.initState(immutable, false));
     }
-
 
     private static MerkleNodeState newState(PlatformStateFacade platformStateFacade) {
         final String virtualMapLabel =
