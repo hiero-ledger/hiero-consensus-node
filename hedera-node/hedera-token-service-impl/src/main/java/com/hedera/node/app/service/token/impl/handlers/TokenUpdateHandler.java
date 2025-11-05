@@ -4,34 +4,46 @@ package com.hedera.node.app.service.token.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_TYPE_FOR_EXTENSION_POINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TREASURY_ACCOUNT_FOR_TOKEN;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_KYC_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_IMMUTABLE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES;
 import static com.hedera.hapi.node.base.TokenKeyValidation.NO_VALIDATION;
 import static com.hedera.hapi.node.base.TokenType.FUNGIBLE_COMMON;
+import static com.hedera.hapi.node.hooks.HookExtensionPoint.MINT_CONTROL_HOOK;
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.txnEstimateFactory;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
+import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchCreation;
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsable;
 import static com.hedera.node.app.service.token.impl.util.TokenKey.METADATA_KEY;
 import static com.hedera.node.app.spi.fees.Fees.CONSTANT_FEE_DATA;
 import static com.hedera.node.app.spi.validation.AttributeValidator.isKeyRemoval;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.hookDispatch;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HookEntityId;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.ThresholdKey;
+import com.hedera.hapi.node.hooks.HookCreation;
+import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
+import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.token.HookDispatchUtils;
+import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.token.TokenUpdateUsage;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
@@ -98,6 +110,14 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
                 }
             }
         }
+        // Validate mint control hook creation if present
+        if (op.hasMintControlHookCreation()) {
+            final var hookCreation = op.mintControlHookCreationOrThrow();
+            validateTruePreCheck(hookCreation.hasDetails(), INVALID_HOOK_TYPE_FOR_EXTENSION_POINT);
+            validateTruePreCheck(
+                    hookCreation.detailsOrThrow().extensionPoint() == MINT_CONTROL_HOOK,
+                    INVALID_HOOK_TYPE_FOR_EXTENSION_POINT);
+        }
     }
 
     @Override
@@ -161,9 +181,83 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
                 transferTokensToNewTreasury(existingTreasury, newTreasury, token, tokenRelStore, accountStore);
             }
         }
+        // Update mint control hook if needed
+        final var updatedMintControlHookId = updateMintControlHook(context, token, op);
+
         final var tokenBuilder = customizeToken(token, resolvedExpiry, op, txn.hasTransactionID());
+        // Update mint control hook ID if it changed
+        if (updatedMintControlHookId != null || op.hasMintControlHookToDelete()) {
+            tokenBuilder.mintControlHookId(updatedMintControlHookId);
+        }
         tokenStore.put(tokenBuilder.build());
         recordBuilder.tokenType(token.tokenType());
+    }
+
+    /**
+     * Update the mint control hook for the token. This handles both deletion and creation/replacement.
+     *
+     * @param context the handle context
+     * @param token the token being updated
+     * @param op the token update transaction body
+     * @return the new mint control hook ID, or null if the hook was deleted
+     */
+    private Long updateMintControlHook(
+            @NonNull final HandleContext context,
+            @NonNull final Token token,
+            @NonNull final TokenUpdateTransactionBody op) {
+        final var tokenId = token.tokenIdOrThrow();
+
+        // Handle hook deletion
+        if (op.hasMintControlHookToDelete()) {
+            final var hookToDelete = op.mintControlHookToDeleteOrThrow();
+            // Delete the existing hook if it exists
+            if (token.hasMintControlHookId()) {
+                final var hookEntityId = HookEntityId.newBuilder().tokenId(tokenId).build();
+                final var hookIdToDelete = new HookId(hookEntityId, hookToDelete.hookId());
+                final var hookDispatch = HookDispatchTransactionBody.newBuilder()
+                        .hookIdToDelete(hookIdToDelete)
+                        .build();
+                final var streamBuilder = context.dispatch(hookDispatch(
+                        context.payer(),
+                        TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
+                        HookDispatchStreamBuilder.class));
+                validateTrue(streamBuilder.status() == SUCCESS,
+                        streamBuilder.status());
+            }
+            return null;
+        }
+
+        // Handle hook creation/replacement
+        if (op.hasMintControlHookCreation()) {
+            final var hookCreation = op.mintControlHookCreationOrThrow();
+
+            // If there's an existing hook, delete it first (atomic replacement)
+            if (token.hasMintControlHookId()) {
+                final var hookEntityId = HookEntityId.newBuilder().tokenId(tokenId).build();
+                final var existingHookId = new HookId(hookEntityId, token.mintControlHookIdOrThrow());
+                final var hookDispatch = HookDispatchTransactionBody.newBuilder()
+                        .hookIdToDelete(existingHookId)
+                        .build();
+                final var streamBuilder = context.dispatch(hookDispatch(
+                        context.payer(),
+                        TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
+                        HookDispatchStreamBuilder.class));
+                validateTrue(streamBuilder.status() == SUCCESS,
+                        streamBuilder.status());
+            }
+
+            // Create the new hook
+            final var tokenEntityId = HookEntityId.newBuilder().tokenId(tokenId).build();
+            final var hookCreationWithEntity = hookCreation
+                    .copyBuilder()
+                    .entityId(tokenEntityId)
+                    .build();
+            dispatchCreation(context, hookCreationWithEntity);
+            return hookCreation.detailsOrThrow().hookId();
+        }
+
+        // No hook changes
+        return null;
     }
 
     /**
@@ -447,6 +541,24 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
                     }
                 }
             }
+        }
+
+        // Hook updates require admin key or hook admin key
+        if (op.hasMintControlHookCreation()) {
+            final var hookCreation = op.mintControlHookCreationOrThrow();
+            // Require token admin key for hook creation/replacement
+            requireAdmin(context, token);
+            // If the hook has an admin key, require it to sign as well
+            if (hookCreation.hasDetails() && hookCreation.detailsOrThrow().hasAdminKey()) {
+                context.requireKey(hookCreation.detailsOrThrow().adminKeyOrThrow());
+            }
+        }
+
+        // Hook deletion requires admin key or hook admin key
+        if (op.hasMintControlHookToDelete()) {
+            // Require token admin key for hook deletion
+            requireAdmin(context, token);
+            // Note: Hook admin key authorization is handled by HookDispatchHandler during deletion
         }
     }
 
