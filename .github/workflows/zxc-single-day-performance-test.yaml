@@ -1280,7 +1280,6 @@ jobs:
           grep -E 'validation .* is OK' "${{ github.workspace }}"/report/validator_status.log
           echo "value=$?" >> "${GITHUB_OUTPUT}"
 
-
       - name: Authenticate to Google Cloud
         uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         with:
