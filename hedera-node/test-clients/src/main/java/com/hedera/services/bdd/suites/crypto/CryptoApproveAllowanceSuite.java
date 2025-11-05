@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.crypto;
 
-import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -1497,7 +1496,6 @@ public class CryptoApproveAllowanceSuite {
 
     @HapiTest
     @Tag(MATS)
-    @Tag(ADHOC)
     final Stream<DynamicTest> scheduledCryptoApproveAllowanceWorks() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),

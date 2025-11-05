@@ -2574,7 +2574,6 @@ public class UtilVerbs {
                     final var txId = parts.transactionIdOrThrow();
                     final var baseTxId =
                             txId.copyBuilder().scheduled(false).nonce(0).build();
-                    System.out.println("Comparing baseTxId: " + baseTxId + "  -> " + baseTxId.equals(executionTxnId));
                     if (baseTxId.equals(executionTxnId)) {
                         final var result = items.get(i + 1).transactionResultOrThrow();
                         if (txId.nonce() == 0 && !txId.scheduled()) {

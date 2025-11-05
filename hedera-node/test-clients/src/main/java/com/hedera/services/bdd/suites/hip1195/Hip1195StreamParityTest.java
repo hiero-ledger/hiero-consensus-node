@@ -76,7 +76,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
-// @Tag(ADHOC)
+@Tag(ADHOC)
 @SuppressWarnings({"rawtypes", "unchecked"})
 public class Hip1195StreamParityTest {
     public static final String HOOK_CONTRACT_NUM = "365";
