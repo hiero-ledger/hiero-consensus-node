@@ -15,6 +15,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uncheckedSubmit;
@@ -493,13 +494,15 @@ public class SimpleFeesSuite {
 
     @Nested
     class TokenServiceFees {
+        private static final String FUNGIBLE_TOKEN = "fungibleToken";
+
         @HapiTest
         @DisplayName("create a fungible token")
         final Stream<DynamicTest> createFungibleToken() {
             return hapiTest(
                     cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
                     cryptoCreate(PAYER).balance(ONE_BILLION_HBARS),
-                    tokenCreate("commonNoFees")
+                    tokenCreate(FUNGIBLE_TOKEN)
                             .blankMemo()
                             .payingWith(PAYER)
                             .fee(ONE_HUNDRED_HBARS)
@@ -522,7 +525,7 @@ public class SimpleFeesSuite {
                     newKeyNamed(SUPPLY_KEY),
                     cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
                     cryptoCreate(PAYER).balance(ONE_BILLION_HBARS),
-                    tokenCreate("commonNoFees")
+                    tokenCreate("uniqueNoFees")
                             .blankMemo()
                             .payingWith(PAYER)
                             .fee(ONE_HUNDRED_HBARS)
@@ -539,6 +542,33 @@ public class SimpleFeesSuite {
                     validateChargedUsd("create-token-txn", ucents_to_USD(100000))
             );
         }
+
+        @HapiTest
+        @DisplayName("mint a common token")
+        final Stream<DynamicTest> mintCommonToken() {
+            return hapiTest(
+                    newKeyNamed(SUPPLY_KEY),
+                    cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
+                    cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                    tokenCreate(FUNGIBLE_TOKEN)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .initialSupply(0L)
+                            .payingWith(PAYER)
+                            .supplyKey(SUPPLY_KEY)
+                            .fee(ONE_HUNDRED_HBARS)
+                            .hasKnownStatus(SUCCESS)
+                            .via("create-token-txn"),
+                    mintToken(FUNGIBLE_TOKEN, 1)
+                            .payingWith(PAYER)
+                            .signedBy(SUPPLY_KEY)
+                            .blankMemo()
+                            .fee(ONE_HUNDRED_HBARS)
+                            .hasKnownStatus(SUCCESS)
+                            .via("fungible-mint-txn"),
+                    validateChargedUsd("fungible-mint-txn", 0.001)
+            );
+        }
+
     }
 
     @Nested
