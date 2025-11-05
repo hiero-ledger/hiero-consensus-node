@@ -162,14 +162,13 @@ public class FrameRunner {
 
     private long effectiveGasUsed(
             final long gasLimit, @NonNull final MessageFrame frame, @NonNull final GasRequirements gasRequirements) {
-        var nominalGasUsed = gasLimit - frame.getRemainingGas();
-        long gasUsedAfterRefund;
+        final var nominalGasUsed = gasLimit - frame.getRemainingGas();
 
         // A gas refund limit as defined in EIP-3529
         final var nominalRefund = frame.getGasRefund();
         final var maxGasRefunded = nominalGasUsed / gasCalculator.getMaxRefundQuotient();
         final var actualGasToRefund = Math.min(maxGasRefunded, nominalRefund);
-        gasUsedAfterRefund = nominalGasUsed - actualGasToRefund;
+        var gasUsedAfterRefund = nominalGasUsed - actualGasToRefund;
 
         // This check is added according to https://eips.ethereum.org/EIPS/eip-7623. Issue
         // https://github.com/hiero-ledger/hiero-consensus-node/issues/21553

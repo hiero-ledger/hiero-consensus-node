@@ -46,7 +46,6 @@ public class CustomCreateOperation extends AbstractCustomCreateOperation {
      * GasCalculator#memoryExpansionGasCost(MessageFrame, long, long)}, and {@link GasCalculator#initcodeCost(int)} As done
      * in {@link org.hyperledger.besu.evm.operation.CreateOperation#cost(MessageFrame, Supplier)}
      */
-    // TODO Glib: review and remove?
     @Override
     protected long cost(@NonNull final MessageFrame frame) {
         return new CreateOperation(gasCalculator()).cost(frame, () -> EMPTY_CODE);

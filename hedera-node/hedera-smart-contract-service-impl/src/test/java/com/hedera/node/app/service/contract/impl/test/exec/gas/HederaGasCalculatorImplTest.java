@@ -52,7 +52,7 @@ class HederaGasCalculatorImplTest {
 
     @Test
     void transactionGasRequirements() {
-        final var payloadLength = 6 * 1024;
+        final var payloadLength = 2048;
         byte[] randomPayload = new byte[payloadLength];
         ThreadLocalRandom.current().nextBytes(randomPayload);
         final var zeros = IntStream.range(0, randomPayload.length)
