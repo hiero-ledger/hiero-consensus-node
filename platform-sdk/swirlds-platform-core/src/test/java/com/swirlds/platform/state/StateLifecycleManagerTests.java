@@ -3,11 +3,15 @@ package com.swirlds.platform.state;
 
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.swirlds.base.state.MutabilityException;
 import com.swirlds.common.Reservable;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.Randotron;
@@ -23,7 +27,13 @@ import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,6 +42,16 @@ class StateLifecycleManagerTests {
 
     private StateLifecycleManager stateLifecycleManager;
     private MerkleNodeState initialState;
+
+    @BeforeAll
+    static void beforeAll() throws ConstructableRegistryException {
+        final var registry = ConstructableRegistry.getInstance();
+        registry.registerConstructables("org.hiero");
+        registry.registerConstructables("com.swirlds.platform");
+        registry.registerConstructables("com.swirlds.state");
+        registry.registerConstructables("com.swirlds.virtualmap");
+        registry.registerConstructables("com.swirlds.merkledb");
+    }
 
     @BeforeEach
     void setup() {
@@ -52,6 +72,10 @@ class StateLifecycleManagerTests {
     void tearDown() {
         if (!initialState.isDestroyed()) {
             initialState.release();
+        }
+        final MerkleNodeState latestImmutable = stateLifecycleManager.getLatestImmutableState();
+        if (latestImmutable != null && latestImmutable != initialState && !latestImmutable.isDestroyed()) {
+            latestImmutable.release();
         }
         if (!stateLifecycleManager.getMutableState().isDestroyed()) {
             stateLifecycleManager.getMutableState().release();
@@ -114,6 +138,40 @@ class StateLifecycleManagerTests {
         state2.release();
         consensusState2.release();
     }
+
+    @Test
+    @DisplayName("copyMutableState() updates references and reservation counts")
+    void copyMutableStateReferenceCounts() {
+        final MerkleNodeState beforeMutable = stateLifecycleManager.getMutableState();
+        final MerkleNodeState beforeImmutable = stateLifecycleManager.getLatestImmutableState();
+
+        final MerkleNodeState afterMutable = stateLifecycleManager.copyMutableState();
+        final MerkleNodeState newLatestImmutable = stateLifecycleManager.getLatestImmutableState();
+
+        assertSame(beforeMutable, newLatestImmutable, "Previous mutable should become latest immutable");
+        assertNotSame(beforeMutable, afterMutable, "A new mutable state instance should be created");
+
+        assertEquals(1, afterMutable.getRoot().getReservationCount(), "Mutable state should have one reference");
+        assertEquals(1, newLatestImmutable.getRoot().getReservationCount(), "Latest immutable should have one ref");
+        assertEquals(-1, beforeImmutable.getRoot().getReservationCount(), "Old immutable should be released");
+    }
+
+    @Test
+    @DisplayName("initState() rejects second startup initialization")
+    void initStateRejectsSecondStartup() {
+        final PlatformStateFacade psf = new PlatformStateFacade();
+        final MerkleNodeState another = newState(psf);
+        assertThrows(IllegalStateException.class, () -> stateLifecycleManager.initState(another, true));
+        another.release();
+    }
+
+    @Test
+    @DisplayName("initState() rejects immutable input state")
+    void initStateRejectsImmutableInput() {
+        final MerkleNodeState immutable = stateLifecycleManager.getLatestImmutableState();
+        assertThrows(MutabilityException.class, () -> stateLifecycleManager.initState(immutable, false));
+    }
+
 
     private static MerkleNodeState newState(PlatformStateFacade platformStateFacade) {
         final String virtualMapLabel =
