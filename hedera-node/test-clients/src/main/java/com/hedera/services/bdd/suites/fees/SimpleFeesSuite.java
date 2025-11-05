@@ -41,11 +41,11 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNAT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_START;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MEMO_TOO_LONG;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_EXPIRED;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
+import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -75,6 +75,7 @@ public class SimpleFeesSuite {
     private static final String PAYER = "payer";
     private static final String ADMIN = "admin";
     private static final String NEW_ADMIN = "newAdmin";
+    private static final String SUPPLY_KEY = "supplyKey";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -493,8 +494,8 @@ public class SimpleFeesSuite {
     @Nested
     class TokenServiceFees {
         @HapiTest
-        @DisplayName("create a basic token")
-        final Stream<DynamicTest> createBasicToken() {
+        @DisplayName("create a fungible token")
+        final Stream<DynamicTest> createFungibleToken() {
             return hapiTest(
                     cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
                     cryptoCreate(PAYER).balance(ONE_BILLION_HBARS),
@@ -504,6 +505,31 @@ public class SimpleFeesSuite {
                             .fee(ONE_HUNDRED_HBARS)
                             .treasury(ADMIN)
                             .tokenType(FUNGIBLE_COMMON)
+                            .autoRenewAccount(ADMIN)
+                            .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
+                            .logged()
+                            .hasKnownStatus(SUCCESS)
+                            .via("create-token-txn")
+                    ,
+                    validateChargedUsd("create-token-txn", ucents_to_USD(100000))
+            );
+        }
+
+        @HapiTest
+        @DisplayName("create a non-fungible token")
+        final Stream<DynamicTest> createNonFungibleToken() {
+            return hapiTest(
+                    newKeyNamed(SUPPLY_KEY),
+                    cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
+                    cryptoCreate(PAYER).balance(ONE_BILLION_HBARS),
+                    tokenCreate("commonNoFees")
+                            .blankMemo()
+                            .payingWith(PAYER)
+                            .fee(ONE_HUNDRED_HBARS)
+                            .treasury(ADMIN)
+                            .tokenType(NON_FUNGIBLE_UNIQUE)
+                            .initialSupply(0L)
+                            .supplyKey(SUPPLY_KEY)
                             .autoRenewAccount(ADMIN)
                             .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
                             .logged()
