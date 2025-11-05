@@ -441,6 +441,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
             exchangeRateManager,
             stack,
             entityNumGenerator,
+            nodeIdGenerator,
             dispatcher,
             networkInfo,
             childDispatchFactory,
@@ -458,7 +459,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         for (int i = 0; i < allArgs.length; i++) {
             final var index = i;
             // Skip signatureMapSize, payerKey, preHandleResults and batchInnerTxnPreHandler
-            if (index == 2 || index == 4 || index == 25 || index == 26) {
+            if (index == 2 || index == 4 || index == 26 || index == 27) {
                 continue;
             }
             assertThatThrownBy(() -> {

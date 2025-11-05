@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.swirlds.state.spi.WritableSingletonState;
@@ -25,12 +26,12 @@ class WritableEntityIdStoreImplTest {
 
     private final AtomicReference<EntityNumber> nextEntityNumber = new AtomicReference<>();
     private final AtomicReference<EntityCounts> entityCounts = new AtomicReference<>();
-    private final AtomicReference<EntityNumber> nextHighestNodeId = new AtomicReference<>();
+    private final AtomicReference<NodeId> nextHighestNodeId = new AtomicReference<>();
     private final WritableSingletonState<EntityNumber> entityIdState = new FunctionWritableSingletonState<>(
             ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, nextEntityNumber::get, nextEntityNumber::set);
     private final WritableSingletonState<EntityCounts> entityCountsState = new FunctionWritableSingletonState<>(
             ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, entityCounts::get, entityCounts::set);
-    private final WritableSingletonState<EntityNumber> highestNodeIdState = new FunctionWritableSingletonState<>(
+    private final WritableSingletonState<NodeId> highestNodeIdState = new FunctionWritableSingletonState<>(
             HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, nextHighestNodeId::get, nextHighestNodeId::set);
     private WritableEntityIdStoreImpl subject;
 

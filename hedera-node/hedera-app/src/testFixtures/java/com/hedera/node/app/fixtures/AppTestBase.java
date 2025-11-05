@@ -7,6 +7,8 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSchema.HIGHEST_NODE_ID_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
@@ -113,6 +115,7 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
     protected MapWritableKVState<EntityNumber, Node> nodesState;
     protected WritableSingletonState<EntityCounts> entityCountsState;
     protected WritableSingletonState<EntityNumber> entityIdState;
+    protected WritableSingletonState<NodeId> highestNodeIdState;
     protected State state;
 
     protected void setupStandardStates() {
@@ -129,6 +132,8 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
                 new FunctionWritableSingletonState<>(ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> null, (a) -> {});
         entityCountsState = new FunctionWritableSingletonState<>(
                 ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT, (a) -> {});
+        highestNodeIdState = new FunctionWritableSingletonState<>(
+                HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, () -> null, (a) -> {});
         nodesState = new MapWritableKVState<>(NODES_STATE_ID, NODES_STATE_LABEL);
         nodesState.put(
                 EntityNumber.newBuilder().number(nodeSelfId.id()).build(),
@@ -141,6 +146,7 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
                 .state(aliasesState)
                 .state(entityIdState)
                 .state(entityCountsState)
+                .state(highestNodeIdState)
                 .state(nodesState)
                 .build();
 
