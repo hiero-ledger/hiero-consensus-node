@@ -201,6 +201,25 @@ jobs:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
 
+  mats-hapi-tests-simplefees:
+    name: MATS - HAPI Tests (Simple Fees)
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs:
+      - dependency-check
+      - spotless
+    with:
+      custom-job-label: "MATS HAPI Tests (Simple Fees)"
+      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
+      enable-unit-tests: false
+      enable-hapi-tests-simplefees: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
+      enable-network-log-capture: true
+      mats-suffix: MATS
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
   mats-hapi-tests-iss:
     name: MATS - HAPI Tests (ISS)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
