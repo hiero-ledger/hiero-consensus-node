@@ -13,6 +13,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
@@ -126,16 +127,16 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
     /**
      * If there are any hooks to create, creates them and updates the created contract to point to the first hook.
      * @param context the handle context
-     * @param owner the created contract ID
+     * @param ownerId the created contract ID
      */
-    private void createHooksIfAny(final @NonNull HandleContext context, final ContractID owner) {
+    private void createHooksIfAny(@NonNull final HandleContext context, @NonNull final ContractID ownerId) {
         final var op = context.body().contractCreateInstanceOrThrow();
         if (!op.hookCreationDetails().isEmpty()) {
             final var accountStore = context.storeFactory().readableStore(ReadableAccountStore.class);
-            final var created = requireNonNull(accountStore.getContractById(owner));
-
-            final var deltaSlots = dispatchHookCreations(context, op.hookCreationDetails(), null, created.accountId());
-
+            final var hookEntityId =
+                    HookEntityId.newBuilder().contractId(ownerId).build();
+            final var deltaSlots = dispatchHookCreations(context, op.hookCreationDetails(), null, hookEntityId);
+            final var created = requireNonNull(accountStore.getContractById(ownerId));
             final var updated = created.copyBuilder()
                     .firstHookId(op.hookCreationDetails().getFirst().hookId())
                     .numberHooksInUse(op.hookCreationDetails().size())

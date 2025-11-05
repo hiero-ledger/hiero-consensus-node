@@ -14,7 +14,6 @@ import static com.hedera.node.app.spi.workflows.record.StreamBuilder.signedTxWit
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Function;
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
@@ -48,13 +47,12 @@ public class HookDispatchUtils {
             @NonNull final HandleContext context,
             @NonNull final List<Long> hooksToDelete,
             @Nullable final Long headBefore,
-            @NonNull final AccountID ownerId) {
+            @NonNull final HookEntityId hookEntityId) {
         var currentHead = headBefore;
         for (final var hookId : hooksToDelete) {
             requireNonNull(hookId);
             final var hookDispatch = HookDispatchTransactionBody.newBuilder()
-                    .hookIdToDelete(new HookId(
-                            HookEntityId.newBuilder().accountId(ownerId).build(), hookId))
+                    .hookIdToDelete(new HookId(hookEntityId, hookId))
                     .build();
             final var streamBuilder = context.dispatch(hookDispatch(
                     context.payer(),
@@ -73,15 +71,14 @@ public class HookDispatchUtils {
      * @param context the handle context
      * @param creations the hook creation details
      * @param currentHead the head of the hook list
-     * @param ownerId the owner of the hooks (the created contract)
+     * @param hookOwnerId the owner of the hooks
      */
     public static int dispatchHookCreations(
             @NonNull final HandleContext context,
             @NonNull final List<HookCreationDetails> creations,
             @Nullable final Long currentHead,
-            @NonNull final AccountID ownerId) {
+            @NonNull final HookEntityId hookOwnerId) {
         var totalStorageSlotsUpdated = 0;
-        final var hookOwnerId = HookEntityId.newBuilder().accountId(ownerId).build();
         // Build new block A → B → C → currentHead
         var nextId = currentHead;
         for (int i = creations.size() - 1; i >= 0; i--) {

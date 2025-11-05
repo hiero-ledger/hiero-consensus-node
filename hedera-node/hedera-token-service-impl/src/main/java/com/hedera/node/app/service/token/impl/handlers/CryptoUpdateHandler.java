@@ -35,6 +35,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
@@ -186,15 +187,16 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
             final Account targetAccount,
             final CryptoUpdateTransactionBody op,
             final Account.Builder builder) {
+        final var hookEntityId = HookEntityId.newBuilder()
+                .accountId(op.accountIDToUpdateOrThrow())
+                .build();
         Long headAfterDeletes = targetAccount.numberHooksInUse() > 0 ? targetAccount.firstHookId() : null;
-        // Dispatch all the hooks to delete
         if (!op.hookIdsToDelete().isEmpty()) {
-            headAfterDeletes = dispatchHookDeletions(
-                    context, op.hookIdsToDelete(), headAfterDeletes, op.accountIDToUpdateOrThrow());
+            headAfterDeletes = dispatchHookDeletions(context, op.hookIdsToDelete(), headAfterDeletes, hookEntityId);
         }
         if (!op.hookCreationDetails().isEmpty()) {
-            final var updatedSlots = dispatchHookCreations(
-                    context, op.hookCreationDetails(), headAfterDeletes, op.accountIDToUpdateOrThrow());
+            final var updatedSlots =
+                    dispatchHookCreations(context, op.hookCreationDetails(), headAfterDeletes, hookEntityId);
             builder.numberLambdaStorageSlots(targetAccount.numberLambdaStorageSlots() + updatedSlots);
         }
         // Update firstHookId in the account if needed.
