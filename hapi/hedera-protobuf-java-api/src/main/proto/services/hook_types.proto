@@ -64,10 +64,16 @@ message HookCreationDetails {
    */
   oneof hook {
     /**
-     * A hook programmed in EVM bytecode that may access state or interact with
-     * external contracts.
+     * An nearly unrestricted hook programmed in EVM bytecode that may access
+     * state and interact with external contracts via `CALL` and `STATICCALL`.
      */
     LambdaEvmHook lambda_evm_hook = 3;
+
+    /**
+     * An EVM hook created from the same specification as a lambda, but without
+     * the ability to interact with external contracts at runtime.
+     */
+    LambdaEvmHook inline_evm_hook = 5;
   }
 
   /**
