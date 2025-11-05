@@ -103,7 +103,7 @@ jobs:
           PROMOTED_GREP_PATTERN: "build-(.{5})" # Pattern to match build tags (e.g., build-12345)
           CHECK_TAG: "${{ github.ref }}"
         run: |
-          
+
           echo "GH_ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}"
           echo "SLACK_CITR_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}"
           echo "NLG_ACCESS_TOKEN: ${{ secrets.NLG_ACCESS_TOKEN }}"
