@@ -1136,6 +1136,27 @@ public class Hip1195BasicTests {
                 // Now accounts with lists manipulated via cryptoUpdate
                 cryptoUpdate("zeroHooksToStart").withHook(accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
                 assertAccountHookIdList("zeroHooksToStart", List.of(0L)),
+                cryptoUpdate("zeroHooksToStart").removingHook(0L),
+                assertAccountHookIdList("zeroHooksToStart", List.of()),
+                cryptoUpdate("oneHookToStartZ")
+                        .removingHook(0L)
+                        .withHook(accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
+                assertAccountHookIdList("oneHookToStartZ", List.of(0L)),
+                cryptoUpdate("oneHookToStartNZ").withHook(accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
+                assertAccountHookIdList("oneHookToStartNZ", List.of(0L, -1L)),
+                cryptoUpdate("twoHooksToStartZNZ")
+                        .removingHook(-1L)
+                        .withHook(accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name())),
+                assertAccountHookIdList("twoHooksToStartZNZ", List.of(-1L, 0L)),
+                cryptoUpdate("twoHooksToStartNZZ").withHook(accountAllowanceHook(-2L, TRUE_ALLOWANCE_HOOK.name())),
+                assertAccountHookIdList("twoHooksToStartNZZ", List.of(-2L, -1L, 0L)),
+                cryptoUpdate("threeHooksToStartZNZNZ").removingHook(-1L),
+                assertAccountHookIdList("threeHooksToStartZNZNZ", List.of(0L, 1L)),
+                cryptoUpdate("threeHooksToStartNZZNZ").removingHooks(1L, 0L, -1L),
+                assertAccountHookIdList("threeHooksToStartNZZNZ", List.of()),
+                cryptoUpdate("threeHooksToStartNZNZZ").withHook(accountAllowanceHook(2L, TRUE_ALLOWANCE_HOOK.name())),
+                assertAccountHookIdList("threeHooksToStartNZNZZ", List.of(2L, -1L, 1L, 0L)),
+                // Confirm there were no warning logs about hook list management
                 assertHgcaaLogDoesNotContain(NodeSelector.byNodeId(0), "WritableEvmHookStore", Duration.ofSeconds(1)));
     }
 
