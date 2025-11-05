@@ -20,7 +20,7 @@ public class SodiumVerifier implements BytesSignatureVerifier {
      * @param publicKey the Ed25519 PublicKey to use for signature verification
      */
     public SodiumVerifier(@NonNull final PublicKey publicKey) {
-        if (!publicKey.getAlgorithm().equals(SigningSchema.ED25519.getKeyType())) {
+        if (!publicKey.getAlgorithm().equals("EdDSA")) {
             throw new IllegalArgumentException("SodiumVerifier only supports Ed25519 keys");
         }
         final byte[] encoded = publicKey.getEncoded();

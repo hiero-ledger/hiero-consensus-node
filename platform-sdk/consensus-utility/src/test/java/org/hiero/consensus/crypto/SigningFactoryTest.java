@@ -13,6 +13,8 @@ import org.hiero.base.crypto.BytesSignatureVerifier;
 import org.hiero.base.crypto.BytesSigner;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 /**
  * Tests for the SigningFactory class and its related functionality.
@@ -42,16 +44,16 @@ class SigningFactoryTest {
     /**
      * Tests that all SigningImplementations can sign and verify data correctly.
      */
-    @Test
-    void testImplementations() {
+    @ParameterizedTest()
+    @EnumSource(SigningImplementation.class)
+    void testImplementations(final SigningImplementation implementation) {
         final SecureRandom secureRandom = new SecureRandom();
-        for (final SigningImplementation implementation : SigningImplementation.values()) {
-            final KeyPair keyPair = SigningFactory.generateKeyPair(implementation.getSigningSchema(), secureRandom);
-            final BytesSigner signer = SigningFactory.createSigner(implementation, keyPair);
-            final Bytes signature = signer.sign(DATA_VALID);
-            final BytesSignatureVerifier verifier = SigningFactory.createVerifier(implementation, keyPair.getPublic());
-            assertTrue(verifier.verify(DATA_VALID, signature), "Verification failed for " + implementation);
-            assertFalse(verifier.verify(DATA_INVALID, signature), "Bad data verification passed for " + implementation);
-        }
+        final KeyPair keyPair = SigningFactory.generateKeyPair(implementation.getSigningSchema(), secureRandom);
+        final BytesSigner signer = SigningFactory.createSigner(implementation, keyPair);
+        final Bytes signature = signer.sign(DATA_VALID);
+        final BytesSignatureVerifier verifier = SigningFactory.createVerifier(implementation, keyPair.getPublic());
+        assertTrue(verifier.verify(DATA_VALID, signature), "Verification failed for " + implementation);
+        assertFalse(verifier.verify(DATA_INVALID, signature), "Bad data verification passed for " + implementation);
     }
+
 }

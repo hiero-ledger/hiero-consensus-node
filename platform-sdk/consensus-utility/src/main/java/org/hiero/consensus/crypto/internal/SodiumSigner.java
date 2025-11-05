@@ -20,8 +20,9 @@ public class SodiumSigner implements BytesSigner {
      * @param keyPair the Ed25519 KeyPair to use for signing
      */
     public SodiumSigner(@NonNull final KeyPair keyPair) {
-        if (!keyPair.getPrivate().getAlgorithm().equals(SigningSchema.ED25519.getKeyType())) {
-            throw new IllegalArgumentException("SodiumSigner only supports Ed25519 keys");
+        if (!keyPair.getPrivate().getAlgorithm().equals("EdDSA")) {
+            throw new IllegalArgumentException("SodiumSigner only supports Ed25519 keys, the supplied key is of type: "
+                    + keyPair.getPrivate().getAlgorithm());
         }
         // Extract 32-byte seed from PKCS#8 encoded private key
         final byte[] privateEncoded = keyPair.getPrivate().getEncoded();
