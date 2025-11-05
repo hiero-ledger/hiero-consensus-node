@@ -51,6 +51,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_G
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.hiero.base.utility.CommonUtils.unhex;
@@ -124,6 +125,9 @@ public class Hip1195EnabledTest {
     @Contract(contract = "Create2OpHook", creationGas = 5_000_000)
     static SpecContract CREATE2_OP_HOOK;
 
+    @Contract(contract = "PleasePreHook", creationGas = 5_000_000)
+    static SpecContract PLEASE_PRE_HOOK;
+
     static final String OWNER = "owner";
     static final String PAYER = "payer";
     public static final String HOOK_CONTRACT_NUM = "365";
@@ -144,9 +148,64 @@ public class Hip1195EnabledTest {
         testLifecycle.doAdhoc(CALL_CODE_HOOK.getInfo());
         testLifecycle.doAdhoc(STATIC_CALL_HOOK.getInfo());
         testLifecycle.doAdhoc(TOKEN_REDIRECT_HOOK.getInfo());
+        testLifecycle.doAdhoc(PLEASE_PRE_HOOK.getInfo());
 
         testLifecycle.doAdhoc(withOpContext(
                 (spec, opLog) -> GLOBAL_WATCHER.set(new SidecarWatcher(spec.recordStreamsLoc(byNodeId(0))))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> memoControlsAllow() {
+        final var receiver = "receiver";
+        final var owner = "owner";
+        return hapiTest(
+                cryptoCreate(receiver).receiverSigRequired(true),
+                cryptoCreate(owner).withHooks(accountAllowanceHook(123L, PLEASE_PRE_HOOK.name())),
+
+                /*--------------------------------WITHOUT HOOKS-----------------------------------------*/
+                // Without calling the hook the sender, payer and receiver should sign
+                cryptoTransfer(TokenMovement.movingHbar(1).between(owner, receiver))
+                        .memo("Nope")
+                        .signedBy(DEFAULT_PAYER, owner)
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                cryptoTransfer(TokenMovement.movingHbar(1).between(owner, receiver))
+                        .memo("Nope")
+                        .signedBy(DEFAULT_PAYER, owner, receiver),
+
+                /*--------------------------------WITH HOOKS-----------------------------------------*/
+                // Owner hook approves (memo has expected substring), but failing to sign with the receiver will fail
+                cryptoTransfer(TokenMovement.movingHbar(1).between(owner, receiver))
+                        .withPreHookFor(owner, 123L, 25_000L, "")
+                        .memo("Please approve")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(INVALID_SIGNATURE),
+
+                // Payer and receiver signed. But the owner hook doesn't approve (memo doesn't have expected substring)
+                cryptoTransfer(TokenMovement.movingHbar(1).between(owner, receiver))
+                        .withPreHookFor(owner, 123L, 25_000L, "")
+                        .memo("Something else")
+                        .signedBy(DEFAULT_PAYER, receiver)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .via("failedTxn"),
+                getTxnRecord("failedTxn")
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith()
+                                .status(REVERTED_SUCCESS)
+                                .contractCallResult(resultWith().contract(HOOK_CONTRACT_NUM)))
+                        .logged(),
+
+                // Payer, receiver signed and owner hook approves (memo has expected substring)
+                cryptoTransfer(TokenMovement.movingHbar(1).between(owner, receiver))
+                        .withPreHookFor(owner, 123L, 25_000L, "")
+                        .memo("Please approve") // contains substring → hook returns true
+                        .signedBy(DEFAULT_PAYER, receiver)
+                        .via("approvedTxn"),
+                getTxnRecord("approvedTxn")
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith().contract(HOOK_CONTRACT_NUM)))
+                        .logged());
     }
 
     @HapiTest
