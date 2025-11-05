@@ -42,6 +42,7 @@ class SystemContractOpsDurationMetricTest {
         subject = new SystemContractOpsDurationMetric(metrics);
     }
 
+    // TODO Glib: https://swirldslabs.slack.com/archives/C03EHC2H8CR/p1762351674008869
     @Test
     void recordsAndRetrievesOperationDuration() {
         // Given
