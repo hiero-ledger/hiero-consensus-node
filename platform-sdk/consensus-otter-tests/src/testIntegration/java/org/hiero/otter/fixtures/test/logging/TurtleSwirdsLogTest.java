@@ -14,7 +14,7 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
+import org.hiero.otter.fixtures.integration.BaseIntegrationTest;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -28,9 +28,9 @@ import org.junit.jupiter.api.Test;
  *     <li>The build/turtle folder structure contains only node directories</li>
  * </ul>
  */
-final class TurtleSwirdsLogTest {
+final class TurtleSwirdsLogTest extends BaseIntegrationTest {
 
-    private static final String LOG_DIR = "build/turtle/node-%d/output/";
+    private static final String LOG_DIR = "node-%d/output/";
     private static final String LOG_FILENAME = "swirlds.log";
 
     /**
@@ -41,7 +41,7 @@ final class TurtleSwirdsLogTest {
      */
     @Test
     void testPerNodeLogRouting() throws IOException {
-        final TestEnvironment env = new TurtleTestEnvironment();
+        final TestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -66,10 +66,10 @@ final class TurtleSwirdsLogTest {
             final long nodeId2 = node2.selfId().id();
             final long nodeId3 = node3.selfId().id();
 
-            final Path log0 = Path.of(String.format(LOG_DIR, nodeId0), LOG_FILENAME);
-            final Path log1 = Path.of(String.format(LOG_DIR, nodeId1), LOG_FILENAME);
-            final Path log2 = Path.of(String.format(LOG_DIR, nodeId2), LOG_FILENAME);
-            final Path log3 = Path.of(String.format(LOG_DIR, nodeId3), LOG_FILENAME);
+            final Path log0 = Path.of(env.outputDirectory().toString(), String.format(LOG_DIR, nodeId0), LOG_FILENAME);
+            final Path log1 = Path.of(env.outputDirectory().toString(), String.format(LOG_DIR, nodeId1), LOG_FILENAME);
+            final Path log2 = Path.of(env.outputDirectory().toString(), String.format(LOG_DIR, nodeId2), LOG_FILENAME);
+            final Path log3 = Path.of(env.outputDirectory().toString(), String.format(LOG_DIR, nodeId3), LOG_FILENAME);
 
             // Wait for initial log files to be created
             awaitFile(log0, Duration.ofSeconds(5L));

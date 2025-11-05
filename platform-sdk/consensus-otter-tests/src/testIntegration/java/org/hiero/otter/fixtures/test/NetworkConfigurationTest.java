@@ -9,39 +9,40 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.stream.Stream;
+import org.hiero.otter.fixtures.integration.BaseIntegrationTest;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.hiero.otter.fixtures.internal.AbstractNode;
-import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
+import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.api.TestFactory;
 
 /**
  * Tests for the NetworkConfiguration functionality that enables setting network properties before nodes are added and
  * propagating them to nodes as they are created.
  */
-final class NetworkConfigurationTest {
+final class NetworkConfigurationTest extends BaseIntegrationTest {
 
     /**
-     * Provides a stream of test environments for the parameterized tests.
-     *
-     * @return a stream of {@link TestEnvironment} instances
+     * Provide dynamic test environments for parameterized tests.
      */
-    @NonNull
-    static Stream<TestEnvironment> environments() {
-        return Stream.of(new TurtleTestEnvironment(), new ContainerTestEnvironment());
+    @TestFactory
+    Stream<DynamicTest> testNetworkConfigurationBeforeNodesAreAdded() {
+        return Stream.of(
+                DynamicTest.dynamicTest(
+                        "Turtle", () -> testNetworkConfigurationBeforeNodesAreAddedImpl(createTurtleEnvironment())),
+                DynamicTest.dynamicTest(
+                        "Container",
+                        () -> testNetworkConfigurationBeforeNodesAreAddedImpl(createContainerEnvironment())));
     }
 
     /**
      * Test that node configuration before nodes are added stores the values in NetworkConfiguration and applies them when nodes
      * are subsequently added.
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testNetworkConfigurationBeforeNodesAreAdded(@NonNull final TestEnvironment env) {
+    private void testNetworkConfigurationBeforeNodesAreAddedImpl(@NonNull final TestEnvironment env) {
         try {
             final Network network = env.network();
 
@@ -92,7 +93,7 @@ final class NetworkConfigurationTest {
      */
     @Test
     void testIncrementalNodeAdditionInheritsProperties() {
-        final TestEnvironment env = new TurtleTestEnvironment();
+        final TestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
 
@@ -126,7 +127,7 @@ final class NetworkConfigurationTest {
      */
     @Test
     void testNodeLevelOverridesOfNetworkProperties() {
-        final TestEnvironment env = new TurtleTestEnvironment();
+        final TestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
 
@@ -202,7 +203,7 @@ final class NetworkConfigurationTest {
      */
     @Test
     void testNetworkPropertyChangesPropagatesToExistingNodes() {
-        final TestEnvironment env = new TurtleTestEnvironment();
+        final TestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
 
@@ -249,7 +250,7 @@ final class NetworkConfigurationTest {
      */
     @Test
     void testInvalidWeightValuesThrowErrors() {
-        final TestEnvironment env = new TurtleTestEnvironment();
+        final TestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
 
@@ -292,7 +293,7 @@ final class NetworkConfigurationTest {
      */
     @Test
     void testNetworkConfigurationThrowExceptionWhenNetworkIsRunning() {
-        final TestEnvironment env = new TurtleTestEnvironment();
+        final TestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
 

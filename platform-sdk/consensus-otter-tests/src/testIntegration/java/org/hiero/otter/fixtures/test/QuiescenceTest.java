@@ -8,6 +8,9 @@ import java.time.Duration;
 import java.util.List;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.otter.fixtures.integration.BaseIntegrationTest;
+import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.TestFactory;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
@@ -17,15 +20,18 @@ import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
-class QuiescenceTest {
+class QuiescenceTest extends BaseIntegrationTest {
 
     /**
      * Provides a stream of test environments for the parameterized tests.
      *
      * @return a stream of {@link TestEnvironment} instances
      */
-    public static Stream<TestEnvironment> environments() {
-        return Stream.of(new TurtleTestEnvironment(), new ContainerTestEnvironment());
+    @TestFactory
+    Stream<DynamicTest> testQuiescence() {
+        return Stream.of(
+                DynamicTest.dynamicTest("Turtle", () -> testQuiescenceImpl(createTurtleEnvironment())),
+                DynamicTest.dynamicTest("Container", () -> testQuiescenceImpl(createContainerEnvironment())));
     }
 
     /**
@@ -34,9 +40,7 @@ class QuiescenceTest {
      *
      * @param env the test environment
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testQuiescence(@NonNull final TestEnvironment env) {
+    void testQuiescenceImpl(@NonNull final TestEnvironment env) {
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();

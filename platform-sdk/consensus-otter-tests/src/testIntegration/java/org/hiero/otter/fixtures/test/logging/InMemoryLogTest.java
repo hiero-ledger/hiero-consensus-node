@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.test.logging;
+package org.hiero.otter.fixtures.logging;
 
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
 import static com.swirlds.logging.legacy.LogMarker.PLATFORM_STATUS;
@@ -21,14 +21,13 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterAssertions;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.integration.BaseIntegrationTest;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
-import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.TestFactory;
 
 /**
  * Comprehensive integration tests for in-memory logger content in the Turtle environment.
@@ -41,7 +40,7 @@ import org.junit.jupiter.params.provider.MethodSource;
  *     <li>Each node's logs are correctly tracked separately</li>
  * </ul>
  */
-class InMemoryLogTest {
+class InMemoryLogTest extends BaseIntegrationTest {
 
     /**
      * List of markers that commonly appear during normal Turtle node operation.
@@ -50,18 +49,21 @@ class InMemoryLogTest {
     private static final List<LogMarker> MARKERS_APPEARING_IN_NORMAL_OPERATION =
             List.of(STARTUP, PLATFORM_STATUS, STATE_TO_DISK, MERKLE_DB);
 
-    @NonNull
-    private static Stream<Arguments> nodesAndEnvironments() {
+    /**
+     * Create dynamic test environments for Turtle and Container setups.
+     * @return a stream of test environments
+     */
+    @TestFactory
+    Stream<DynamicTest> testBasicInMemoryLogging() {
         return Stream.of(
-                Arguments.of(1, (Supplier<TestEnvironment>) TurtleTestEnvironment::new),
-                Arguments.of(4, (Supplier<TestEnvironment>) TurtleTestEnvironment::new),
-                Arguments.of(1, (Supplier<TestEnvironment>) ContainerTestEnvironment::new),
-                Arguments.of(4, (Supplier<TestEnvironment>) ContainerTestEnvironment::new));
-    }
-
-    @NonNull
-    private static Stream<TestEnvironment> environments() {
-        return Stream.of(new TurtleTestEnvironment(), new ContainerTestEnvironment());
+                DynamicTest.dynamicTest(
+                        "Turtle_1Node", () -> testBasicInMemoryLoggingImpl(1, this::createTurtleEnvironment)),
+                DynamicTest.dynamicTest(
+                        "Turtle_4Node", () -> testBasicInMemoryLoggingImpl(4, this::createTurtleEnvironment)),
+                DynamicTest.dynamicTest(
+                        "Container_1Node", () -> testBasicInMemoryLoggingImpl(1, this::createContainerEnvironment)),
+                DynamicTest.dynamicTest(
+                        "Container_4Node", () -> testBasicInMemoryLoggingImpl(4, this::createContainerEnvironment)));
     }
 
     /**
@@ -76,9 +78,7 @@ class InMemoryLogTest {
      *
      * @param numNodes the number of nodes to test with
      */
-    @ParameterizedTest
-    @MethodSource("nodesAndEnvironments")
-    void testBasicInMemoryLogging(final int numNodes, @NonNull final Supplier<TestEnvironment> envFactory) {
+    void testBasicInMemoryLoggingImpl(final int numNodes, @NonNull final Supplier<TestEnvironment> envFactory) {
         final TestEnvironment env = envFactory.get();
         try {
             final Network network = env.network();
@@ -163,14 +163,21 @@ class InMemoryLogTest {
     }
 
     /**
+     * Create test environments for parameterized tests.
+     */
+    Stream<DynamicTest> testPerNodeLogTracking() {
+        return Stream.of(
+                DynamicTest.dynamicTest("Turtle", () -> testPerNodeLogTrackingImpl(createTurtleEnvironment())),
+                DynamicTest.dynamicTest("Container", () -> testPerNodeLogTrackingImpl(createContainerEnvironment())));
+    }
+
+    /**
      * Test that each node's in-memory logs are correctly tracked separately.
      *
      * <p>This test verifies per-node log tracking by checking that each node's log results
      * only contain logs with that node's ID, ensuring logs are not mixed between nodes.
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testPerNodeLogTracking(@NonNull final TestEnvironment env) {
+    void testPerNodeLogTrackingImpl(@NonNull final TestEnvironment env) {
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -221,6 +228,16 @@ class InMemoryLogTest {
     }
 
     /**
+     * Create test factory for testNetworkLogResults.
+     */
+    @TestFactory
+    Stream<DynamicTest> testNetworkLogResults() {
+        return Stream.of(
+                DynamicTest.dynamicTest("Turtle", () -> testNetworkLogResultsImpl(createTurtleEnvironment())),
+                DynamicTest.dynamicTest("Container", () -> testNetworkLogResultsImpl(createContainerEnvironment())));
+    }
+
+    /**
      * Test that Network.newLogResults() aggregates all node logs correctly.
      *
      * <p>This test verifies:
@@ -229,9 +246,7 @@ class InMemoryLogTest {
      * <li>Common assertions can be applied across all nodes at once</li>
      * </ul>
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testNetworkLogResults(@NonNull final TestEnvironment env) {
+    void testNetworkLogResultsImpl(@NonNull final TestEnvironment env) {
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -266,6 +281,16 @@ class InMemoryLogTest {
     }
 
     /**
+     * Create a stream of test environments for parameterized tests.
+     */
+    Stream<DynamicTest> testLogsAddedContinuously() {
+        return Stream.of(
+                DynamicTest.dynamicTest("Turtle", () -> testLogsAddedContinuouslyImpl(createTurtleEnvironment())),
+                DynamicTest.dynamicTest(
+                        "Container", () -> testLogsAddedContinuouslyImpl(createContainerEnvironment())));
+    }
+
+    /**
      * Test that log entries are added continuously in real-time as they are logged,
      * not buffered and added all at once.
      *
@@ -276,9 +301,7 @@ class InMemoryLogTest {
      * <li>Multiple calls to newLogResult() return consistent, accumulated log data</li>
      * </ul>
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testLogsAddedContinuously(@NonNull final TestEnvironment env) {
+    void testLogsAddedContinuouslyImpl(@NonNull final TestEnvironment env) {
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();

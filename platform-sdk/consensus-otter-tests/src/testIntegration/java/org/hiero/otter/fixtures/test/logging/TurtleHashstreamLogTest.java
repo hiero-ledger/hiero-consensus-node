@@ -21,7 +21,7 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterAssertions;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
+import org.hiero.otter.fixtures.integration.BaseIntegrationTest;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -36,7 +36,7 @@ import org.junit.jupiter.params.provider.ValueSource;
  *     <li>The build/turtle folder structure contains only node directories</li>
  * </ul>
  */
-final class TurtleHashstreamLogTest {
+final class TurtleHashstreamLogTest extends BaseIntegrationTest {
 
     /**
      * List of markers that commonly appear during normal Turtle node operation, but should not be present in the
@@ -45,7 +45,7 @@ final class TurtleHashstreamLogTest {
     private static final List<LogMarker> MARKERS_NOT_APPEARING_IN_NORMAL_OPERATION =
             List.of(STARTUP, PLATFORM_STATUS, STATE_TO_DISK, MERKLE_DB);
 
-    private static final String HASHSTREAM_LOG_DIR = "build/turtle/node-%d/output/swirlds-hashstream/";
+    private static final String HASHSTREAM_LOG_DIR = "node-%d/output/swirlds-hashstream/";
     private static final String HASHSTREAM_LOG_FILENAME = "swirlds-hashstream.log";
 
     /**
@@ -57,7 +57,7 @@ final class TurtleHashstreamLogTest {
     @ParameterizedTest
     @ValueSource(ints = {1, 4})
     void testBasicHashstreamLogFunctionality(final int numNodes) throws IOException {
-        final TestEnvironment env = new TurtleTestEnvironment();
+        final TestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -77,8 +77,9 @@ final class TurtleHashstreamLogTest {
             // Verify each node's log file contains messages with allowed markers
             for (final Node node : nodes) {
                 final long nodeId = node.selfId().id();
-                final Path logFile =
-                        Path.of(String.format(HASHSTREAM_LOG_DIR, nodeId)).resolve(HASHSTREAM_LOG_FILENAME);
+                final Path logFile = Path.of(
+                                env.outputDirectory().toString(), String.format(HASHSTREAM_LOG_DIR, nodeId))
+                        .resolve(HASHSTREAM_LOG_FILENAME);
                 awaitFile(logFile, Duration.ofSeconds(5L));
 
                 final String logContent = Files.readString(logFile);

@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.file.Path;
 import java.util.Set;
 
 /**
@@ -43,6 +44,13 @@ public interface TestEnvironment {
      */
     @NonNull
     TransactionGenerator transactionGenerator();
+
+    /**
+     * Get the root output directory for this test environment.
+     * @return
+     */
+    @NonNull
+    Path outputDirectory();
 
     /**
      * Destroys the test environment. Once this method is called, the test environment and all its

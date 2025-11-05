@@ -13,6 +13,7 @@ import java.security.SecureRandom;
 import java.security.cert.CertificateEncodingException;
 import java.util.List;
 import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.otter.fixtures.integration.BaseIntegrationTest;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
@@ -21,7 +22,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Tests for verifying that the network roster correctly incorporates node parameters into the network roster.
  */
-public class NetworkRosterTests {
+public class NetworkRosterTests extends BaseIntegrationTest {
     /**
      * Tests that when nodes are created with overridden keys and certificates, the network roster correctly reflects
      * those certificates.
@@ -30,7 +31,7 @@ public class NetworkRosterTests {
     void testCertificates()
             throws NoSuchAlgorithmException, KeyGeneratingException, NoSuchProviderException,
                     CertificateEncodingException {
-        final TurtleTestEnvironment env = new TurtleTestEnvironment();
+        final TurtleTestEnvironment env = createTurtleEnvironment();
         try {
             // Create a network with 2 nodes
             final Network network = env.network();

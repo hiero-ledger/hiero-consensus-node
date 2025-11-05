@@ -16,7 +16,7 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
+import org.hiero.otter.fixtures.integration.BaseIntegrationTest;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -25,9 +25,9 @@ import org.junit.jupiter.params.provider.ValueSource;
  *
  * <p>Note: Per-node log routing is guaranteed by container isolation, so no explicit routing test is needed.
  */
-final class ContainerOtterLogTest {
+final class ContainerOtterLogTest extends BaseIntegrationTest {
 
-    private static final String LOG_DIR = "build/container/node-%d/output/";
+    private static final String LOG_DIR = "node-%d/output/";
     private static final String LOG_FILENAME = "otter.log";
 
     /**
@@ -44,7 +44,7 @@ final class ContainerOtterLogTest {
     @ParameterizedTest
     @ValueSource(ints = {1, 4})
     void testBasicOtterLogFunctionality(final int numNodes) throws IOException {
-        final TestEnvironment env = new ContainerTestEnvironment();
+        final TestEnvironment env = createContainerEnvironment();
         final List<NodeId> nodeIds = new ArrayList<>();
 
         try {
@@ -68,7 +68,8 @@ final class ContainerOtterLogTest {
 
         // After destroy, verify each node's log file contains messages with allowed markers
         for (final NodeId nodeId : nodeIds) {
-            final Path logFile = Path.of(String.format(LOG_DIR, nodeId.id()), LOG_FILENAME);
+            final Path logFile =
+                    Path.of(env.outputDirectory().toString(), String.format(LOG_DIR, nodeId.id()), LOG_FILENAME);
             awaitFile(logFile, Duration.ofSeconds(10L));
 
             final String logContent = Files.readString(logFile);

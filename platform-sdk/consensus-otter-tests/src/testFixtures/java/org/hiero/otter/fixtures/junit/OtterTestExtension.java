@@ -128,11 +128,11 @@ public class OtterTestExtension
         requireNonNull(context, "context must not be null");
 
         // Generate unique test name for output directory
-        String testName = context.getTestClass().map(Class::getSimpleName).orElse("Unknown-Test") + "_"
-                + context.getDisplayName().replaceAll("[^a-zA-Z0-9_\\-]", "_")
-                + "_" + System.currentTimeMillis();
+        String className = context.getTestClass().map(Class::getSimpleName).orElse("Unknown-Class");
+        String testName =
+                context.getDisplayName().replaceAll("[^a-zA-Z0-9_\\-]", "_") + "_" + System.currentTimeMillis();
 
-        Path outputDir = Path.of("build", "test-results", "aggregateTestContainer", testName, "container");
+        Path outputDir = Path.of("build", "aggregateTestContainer", className, testName);
 
         // Store the output directory in the extension context for later use
         context.getStore(EXTENSION_NAMESPACE).put("outputDirectory", outputDir);
@@ -161,13 +161,13 @@ public class OtterTestExtension
                 .filter(t -> t.equals(TestEnvironment.class))
                 .map(t -> {
                     // Generate test-specific output directory
-                    String testName = extensionContext
-                                    .getTestClass()
-                                    .map(Class::getSimpleName)
-                                    .orElse("Unknown-Test")
-                            + "_" + extensionContext.getDisplayName().replaceAll("[^a-zA-Z0-9_\\-]", "_")
-                            + "_" + System.currentTimeMillis();
-                    Path outputDir = Path.of("build", "test-results", "aggregateTestContainer", testName, "container");
+                    String className = extensionContext
+                            .getTestClass()
+                            .map(Class::getSimpleName)
+                            .orElse("Unknown-Class");
+                    String testName = extensionContext.getDisplayName().replaceAll("[^a-zA-Z0-9_\\-]", "_") + "_"
+                            + System.currentTimeMillis();
+                    Path outputDir = Path.of("build", "aggregateTestContainer", className, testName);
 
                     // store for potential cleanup
                     extensionContext.getStore(EXTENSION_NAMESPACE).put("outputDirectory", outputDir);
@@ -327,7 +327,14 @@ public class OtterTestExtension
                 AnnotationSupport.findAnnotation(extensionContext.getElement(), TurtleSpecs.class);
         final long randomSeed = turtleSpecs.map(TurtleSpecs::randomSeed).orElse(0L);
 
-        return new TurtleTestEnvironment(randomSeed, randomNodeIds);
+        // Generate test-specific output directory
+        String className =
+                extensionContext.getTestClass().map(Class::getSimpleName).orElse("Unknown-Class");
+        String testName = extensionContext.getDisplayName().replaceAll("[^a-zA-Z0-9_\\-]", "_") + "_"
+                + System.currentTimeMillis();
+        Path outputDir = Path.of("build", "aggregateTestTurtle", className, testName);
+
+        return new TurtleTestEnvironment(randomSeed, randomNodeIds, outputDir);
     }
 
     /**

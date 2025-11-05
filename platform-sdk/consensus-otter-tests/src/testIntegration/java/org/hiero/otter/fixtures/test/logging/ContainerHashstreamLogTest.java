@@ -21,7 +21,7 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
+import org.hiero.otter.fixtures.integration.BaseIntegrationTest;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -37,7 +37,7 @@ import org.junit.jupiter.params.provider.ValueSource;
  *
  * <p>Note: Per-node log routing is guaranteed by container isolation, so no explicit routing test is needed.
  */
-class ContainerHashstreamLogTest {
+class ContainerHashstreamLogTest extends BaseIntegrationTest {
 
     /**
      * List of markers that commonly appear during normal Container node operation, but should not be present in the
@@ -46,7 +46,7 @@ class ContainerHashstreamLogTest {
     private static final List<LogMarker> MARKERS_NOT_APPEARING_IN_NORMAL_OPERATION =
             List.of(STARTUP, PLATFORM_STATUS, STATE_TO_DISK, MERKLE_DB);
 
-    private static final String HASHSTREAM_LOG_DIR = "build/container/node-%d/output/swirlds-hashstream/";
+    private static final String HASHSTREAM_LOG_DIR = "node-%d/output/swirlds-hashstream/";
     private static final String HASHSTREAM_LOG_FILENAME = "swirlds-hashstream.log";
 
     /**
@@ -58,7 +58,7 @@ class ContainerHashstreamLogTest {
     @ParameterizedTest
     @ValueSource(ints = {1, 4})
     void testBasicHashstreamLogFunctionality(final int numNodes) throws IOException {
-        final TestEnvironment env = new ContainerTestEnvironment();
+        final TestEnvironment env = createContainerEnvironment();
         final List<NodeId> nodeIds = new ArrayList<>();
 
         try {
@@ -83,8 +83,9 @@ class ContainerHashstreamLogTest {
 
         // After destroy, verify each node's log file contains messages with allowed markers
         for (final NodeId nodeId : nodeIds) {
-            final Path logFile =
-                    Path.of(String.format(HASHSTREAM_LOG_DIR, nodeId.id())).resolve(HASHSTREAM_LOG_FILENAME);
+            final Path logFile = Path.of(
+                            env.outputDirectory().toString(), String.format(HASHSTREAM_LOG_DIR, nodeId.id()))
+                    .resolve(HASHSTREAM_LOG_FILENAME);
             awaitFile(logFile, Duration.ofSeconds(10L));
 
             final String logContent = Files.readString(logFile);

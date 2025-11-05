@@ -24,11 +24,9 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
-import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.hiero.otter.fixtures.integration.BaseIntegrationTest;
+import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.TestFactory;
 
 /**
  * Comprehensive integration tests for swirlds.log content in all environments.
@@ -43,7 +41,7 @@ import org.junit.jupiter.params.provider.MethodSource;
  *
  * <p>Note: Per-node log routing is guaranteed by container isolation, so no explicit routing test is needed.
  */
-final class BasicSwirldsLogTest {
+final class BasicSwirldsLogTest extends BaseIntegrationTest {
 
     /**
      * List of markers that commonly appear during normal Container node operation.
@@ -52,17 +50,25 @@ final class BasicSwirldsLogTest {
     private static final List<LogMarker> MARKERS_APPEARING_IN_NORMAL_OPERATION =
             List.of(STARTUP, PLATFORM_STATUS, STATE_TO_DISK, MERKLE_DB);
 
-    @NonNull
-    private static Stream<Arguments> arguments() {
-        return Stream.of(
-                Arguments.of(1, "turtle", (Supplier<TestEnvironment>) TurtleTestEnvironment::new),
-                Arguments.of(4, "turtle", (Supplier<TestEnvironment>) TurtleTestEnvironment::new),
-                Arguments.of(1, "container", (Supplier<TestEnvironment>) ContainerTestEnvironment::new),
-                Arguments.of(4, "container", (Supplier<TestEnvironment>) ContainerTestEnvironment::new));
-    }
-
-    private static final String LOG_DIR = "build/%s/node-%d/output/";
+    private static final String LOG_DIR = "node-%d/output/";
     private static final String LOG_FILENAME = "swirlds.log";
+
+    /**
+     * Create the testBasicSwirldsLogging test environments
+     */
+    @TestFactory
+    Stream<DynamicTest> testBasicSwirldsLogFunctionality() {
+        return Stream.of(
+                DynamicTest.dynamicTest(
+                        "1_turtle", () -> testBasicSwirldsLogFunctionalityImpl(1, this::createTurtleEnvironment)),
+                DynamicTest.dynamicTest(
+                        "4_turtle", () -> testBasicSwirldsLogFunctionalityImpl(4, this::createTurtleEnvironment)),
+                DynamicTest.dynamicTest(
+                        "1_container", () -> testBasicSwirldsLogFunctionalityImpl(1, this::createContainerEnvironment)),
+                DynamicTest.dynamicTest(
+                        "4_container",
+                        () -> testBasicSwirldsLogFunctionalityImpl(4, this::createContainerEnvironment)));
+    }
 
     /**
      * Test with multiple nodes to verify that all allowed markers are logged correctly.
@@ -76,10 +82,7 @@ final class BasicSwirldsLogTest {
      *
      * @param numNodes the number of nodes to test with
      */
-    @ParameterizedTest
-    @MethodSource("arguments")
-    void testBasicSwirldsLogFunctionality(
-            final int numNodes, @NonNull final String pathElement, @NonNull final Supplier<TestEnvironment> envFactory)
+    void testBasicSwirldsLogFunctionalityImpl(final int numNodes, @NonNull final Supplier<TestEnvironment> envFactory)
             throws IOException {
         final TestEnvironment env = envFactory.get();
         final List<NodeId> nodeIds = new ArrayList<>();
@@ -110,7 +113,8 @@ final class BasicSwirldsLogTest {
 
         // After destroy, verify each node's log file contains messages with allowed markers
         for (final NodeId nodeId : nodeIds) {
-            final Path logFile = Path.of(String.format(LOG_DIR, pathElement, nodeId.id()), LOG_FILENAME);
+            final Path logFile =
+                    Path.of(env.outputDirectory().toString(), String.format(LOG_DIR, nodeId.id()), LOG_FILENAME);
             awaitFile(logFile, Duration.ofSeconds(10L));
 
             final String logContent = Files.readString(logFile);

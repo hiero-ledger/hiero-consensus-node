@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.test;
+package org.hiero.otter.fixtures;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import java.util.List;
+import org.hiero.otter.fixtures.integration.BaseIntegrationTest;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
@@ -15,7 +16,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Tests for weight generator functionality in the Network interface.
  */
-class WeightGeneratorTest {
+class WeightGeneratorTest extends BaseIntegrationTest {
 
     /**
      * Test that the weight generator can be set before the network starts, and that the correct balanced weights are
@@ -24,7 +25,7 @@ class WeightGeneratorTest {
      */
     @Test
     void testWeightGeneratorCanBeSetBeforeNetworkStarts() {
-        final TurtleTestEnvironment env = new TurtleTestEnvironment();
+        final TurtleTestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
 
@@ -55,7 +56,7 @@ class WeightGeneratorTest {
      */
     @Test
     void testWeightGeneratorCannotBeSetWhenNetworkIsRunning() {
-        final TurtleTestEnvironment env = new TurtleTestEnvironment();
+        final TurtleTestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
 
@@ -78,7 +79,7 @@ class WeightGeneratorTest {
      */
     @Test
     void testGaussianWeightGeneratorProducesVariedWeights() {
-        final TurtleTestEnvironment env = new TurtleTestEnvironment();
+        final TurtleTestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
 
@@ -114,7 +115,7 @@ class WeightGeneratorTest {
      */
     @Test
     void testWeightGeneratorCanBeChangedBeforeStart() {
-        final TurtleTestEnvironment env = new TurtleTestEnvironment();
+        final TurtleTestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
 
@@ -146,7 +147,7 @@ class WeightGeneratorTest {
      */
     @Test
     void testCustomWeightGenerator() {
-        final TurtleTestEnvironment env = new TurtleTestEnvironment();
+        final TurtleTestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
 
@@ -184,7 +185,7 @@ class WeightGeneratorTest {
      */
     @Test
     void testWeightGeneratorWithSingleNode() {
-        final TurtleTestEnvironment env = new TurtleTestEnvironment();
+        final TurtleTestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
 

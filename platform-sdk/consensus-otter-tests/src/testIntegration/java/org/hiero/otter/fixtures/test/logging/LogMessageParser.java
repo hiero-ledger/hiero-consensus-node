@@ -6,11 +6,12 @@ import static java.util.Objects.requireNonNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.hiero.otter.fixtures.integration.BaseIntegrationTest;
 
 /**
  * Utility class for parsing log messages.
  */
-public class LogMessageParser {
+public class LogMessageParser extends BaseIntegrationTest {
 
     /**
      * Pattern for parsing log messages.

@@ -13,6 +13,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
+import org.hiero.otter.fixtures.integration.BaseIntegrationTest;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
@@ -20,23 +21,26 @@ import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
-import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
+import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.api.TestFactory;
 
 /**
  * Tests for the network partition functionality in the Network interface.
  */
-class NetworkPartitionTest {
+class NetworkPartitionTest extends BaseIntegrationTest {
 
     /**
      * Provides a stream of test environments for the parameterized tests.
      *
      * @return a stream of {@link TestEnvironment} instances
      */
-    public static Stream<TestEnvironment> environments() {
-        return Stream.of(new TurtleTestEnvironment(), new ContainerTestEnvironment());
+    @TestFactory
+    Stream<DynamicTest> testCreateAndRemovePartition() {
+        return Stream.of(
+                DynamicTest.dynamicTest("Turtle", () -> testCreateAndRemovePartitionImpl(createTurtleEnvironment())),
+                DynamicTest.dynamicTest(
+                        "Container", () -> testCreateAndRemovePartitionImpl(createContainerEnvironment())));
     }
 
     /**
@@ -49,9 +53,7 @@ class NetworkPartitionTest {
      *
      * @param env the test environment for this test
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testCreateAndRemovePartition(@NonNull final TestEnvironment env) {
+    void testCreateAndRemovePartitionImpl(@NonNull final TestEnvironment env) {
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -160,7 +162,7 @@ class NetworkPartitionTest {
      */
     @Test
     void testCreatePartitionWithCollection() {
-        final TestEnvironment env = new TurtleTestEnvironment();
+        final TestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -227,7 +229,7 @@ class NetworkPartitionTest {
      */
     @Test
     void testMultiplePartitions() {
-        final TestEnvironment env = new TurtleTestEnvironment();
+        final TestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -285,7 +287,7 @@ class NetworkPartitionTest {
      */
     @Test
     void testMoveNodeBetweenPartitions() {
-        final TestEnvironment env = new TurtleTestEnvironment();
+        final TestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -337,7 +339,7 @@ class NetworkPartitionTest {
      */
     @Test
     void testCreatePartitionWithAllNodes() {
-        final TestEnvironment env = new TurtleTestEnvironment();
+        final TestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -364,7 +366,7 @@ class NetworkPartitionTest {
      */
     @Test
     void testCreatePartitionWithNoNodes() {
-        final TestEnvironment env = new TurtleTestEnvironment();
+        final TestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -391,7 +393,7 @@ class NetworkPartitionTest {
      */
     @Test
     void testRemoveNonExistentPartition() {
-        final TestEnvironment env = new TurtleTestEnvironment();
+        final TestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -422,7 +424,7 @@ class NetworkPartitionTest {
      */
     @Test
     void testRestoreConnectivityWithMultiplePartitions() {
-        final TestEnvironment env = new TurtleTestEnvironment();
+        final TestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -475,7 +477,7 @@ class NetworkPartitionTest {
      */
     @Test
     void testRemoveOneOfTwoPartitions() {
-        final TestEnvironment env = new TurtleTestEnvironment();
+        final TestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();

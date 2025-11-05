@@ -11,18 +11,18 @@ import java.time.Duration;
 import java.util.List;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.otter.fixtures.integration.BaseIntegrationTest;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
-import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.hiero.otter.fixtures.util.TimeoutException;
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.api.TestFactory;
 
 /**
  * Comprehensive tests for Node lifecycle operations (start and kill).
@@ -30,15 +30,19 @@ import org.junit.jupiter.params.provider.MethodSource;
  * <p>This test class validates the behavior of individual nodes being started and killed,
  * verifying platform status transitions and network behavior when nodes are added or removed.
  */
-class NodeLifecycleTest {
+class NodeLifecycleTest extends BaseIntegrationTest {
 
     /**
      * Provides a stream of test environments for the parameterized tests.
      *
      * @return a stream of {@link TestEnvironment} instances
      */
-    public static Stream<TestEnvironment> environments() {
-        return Stream.of(new TurtleTestEnvironment(), new ContainerTestEnvironment());
+    @TestFactory
+    Stream<DynamicTest> testKillAndRestartSingleNode() {
+        return Stream.of(
+                DynamicTest.dynamicTest("Turtle", () -> testKillAndRestartSingleNodeImpl(createTurtleEnvironment())),
+                DynamicTest.dynamicTest(
+                        "Container", () -> testKillAndRestartSingleNodeImpl(createContainerEnvironment())));
     }
 
     /**
@@ -46,9 +50,7 @@ class NodeLifecycleTest {
      *
      * @param env the test environment for this test
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testKillAndRestartSingleNode(@NonNull final TestEnvironment env) {
+    void testKillAndRestartSingleNodeImpl(@NonNull final TestEnvironment env) {
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -136,7 +138,7 @@ class NodeLifecycleTest {
      */
     @Test
     void testStartAlreadyStartedNodeFails() {
-        final TestEnvironment env = new TurtleTestEnvironment();
+        final TestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
 
@@ -161,7 +163,7 @@ class NodeLifecycleTest {
      */
     @Test
     void testKillNotRunningNodeIsNoOp() {
-        final TestEnvironment env = new TurtleTestEnvironment();
+        final TestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
 
@@ -197,7 +199,7 @@ class NodeLifecycleTest {
      */
     @Test
     void testKillAllNodes() {
-        final TestEnvironment env = new TurtleTestEnvironment();
+        final TestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
 
@@ -226,7 +228,7 @@ class NodeLifecycleTest {
      */
     @Test
     void testKillAndRestartNodeWithCustomTimeout() {
-        final TestEnvironment env = new TurtleTestEnvironment();
+        final TestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -261,7 +263,7 @@ class NodeLifecycleTest {
     @Test
     @Disabled("Can be enabled once https://github.com/hiero-ledger/hiero-consensus-node/issues/21658 is fixed")
     void testTimeoutAreObservedInContainerEnvironment() {
-        final TestEnvironment env = new ContainerTestEnvironment();
+        final TestEnvironment env = createContainerEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();

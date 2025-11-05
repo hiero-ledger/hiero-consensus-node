@@ -10,6 +10,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
 import java.util.stream.Stream;
+import org.hiero.otter.fixtures.integration.BaseIntegrationTest;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
@@ -17,23 +18,26 @@ import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
-import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
+import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.api.TestFactory;
 
 /**
  * Tests for the node isolation functionality in the Network interface.
  */
-class NetworkIsolationTest {
+class NetworkIsolationTest extends BaseIntegrationTest {
 
     /**
-     * Provides a stream of test environments for the parameterized tests.
+     * Provides different test environments for parameterized tests.
      *
-     * @return a stream of {@link TestEnvironment} instances
+     * @return a stream of test environments
      */
-    public static Stream<TestEnvironment> environments() {
-        return Stream.of(new TurtleTestEnvironment(), new ContainerTestEnvironment());
+    @TestFactory
+    Stream<DynamicTest> testIsolateAndRejoinSingleNode() {
+        return Stream.of(
+                DynamicTest.dynamicTest("Turtle", () -> testIsolateAndRejoinSingleNodeImpl(createTurtleEnvironment())),
+                DynamicTest.dynamicTest(
+                        "Container", () -> testIsolateAndRejoinSingleNodeImpl(createContainerEnvironment())));
     }
 
     /**
@@ -41,9 +45,7 @@ class NetworkIsolationTest {
      *
      * @param env the test environment for this test
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testIsolateAndRejoinSingleNode(@NonNull final TestEnvironment env) {
+    void testIsolateAndRejoinSingleNodeImpl(@NonNull final TestEnvironment env) {
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -158,7 +160,7 @@ class NetworkIsolationTest {
      */
     @Test
     void testIsolateMultipleNodesSequentially() {
-        final TestEnvironment env = new TurtleTestEnvironment();
+        final TestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -210,7 +212,7 @@ class NetworkIsolationTest {
      */
     @Test
     void testIsolateAlreadyPartitionedNode() {
-        final TestEnvironment env = new TurtleTestEnvironment();
+        final TestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -259,7 +261,7 @@ class NetworkIsolationTest {
      */
     @Test
     void testRejoinNonIsolatedNode() {
-        final TestEnvironment env = new TurtleTestEnvironment();
+        final TestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -291,7 +293,7 @@ class NetworkIsolationTest {
      */
     @Test
     void testIsolateAndRejoinMultipleNodes() {
-        final TestEnvironment env = new TurtleTestEnvironment();
+        final TestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -361,7 +363,7 @@ class NetworkIsolationTest {
      */
     @Test
     void testRestoreConnectivityWithIsolatedNodes() {
-        final TestEnvironment env = new TurtleTestEnvironment();
+        final TestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -412,7 +414,7 @@ class NetworkIsolationTest {
      */
     @Test
     void testIsolationAndPartitionInteraction() {
-        final TestEnvironment env = new TurtleTestEnvironment();
+        final TestEnvironment env = createTurtleEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();

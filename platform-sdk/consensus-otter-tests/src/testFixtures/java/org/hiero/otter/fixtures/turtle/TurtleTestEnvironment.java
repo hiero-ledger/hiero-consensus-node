@@ -54,12 +54,13 @@ public class TurtleTestEnvironment implements TestEnvironment {
     private final TurtleNetwork network;
     private final TurtleTransactionGenerator transactionGenerator;
     private final TurtleTimeManager timeManager;
+    private final Path rootOutputDirectory;
 
     /**
      * Constructor with default values for using a random seed and random node-ids
      */
     public TurtleTestEnvironment() {
-        this(0L, true);
+        this(0L, true, getDefaultOutputDirectory());
     }
 
     /**
@@ -69,7 +70,21 @@ public class TurtleTestEnvironment implements TestEnvironment {
      * @param useRandomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
      */
     public TurtleTestEnvironment(final long randomSeed, final boolean useRandomNodeIds) {
-        final Path rootOutputDirectory = Path.of("build", "turtle");
+        this(randomSeed, useRandomNodeIds, getDefaultOutputDirectory());
+    }
+
+    /**
+     * Constructor for the {@link TurtleTestEnvironment} class with custom output directory.
+     *
+     * @param randomSeed the seed for the PRNG; if {@code 0}, a random seed will be generated
+     * @param useRandomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
+     * @param rootOutputDirectory the root directory where turtle logs will be written per test
+     */
+    public TurtleTestEnvironment(
+            final long randomSeed, final boolean useRandomNodeIds, @NonNull final Path rootOutputDirectory) {
+
+        this.rootOutputDirectory = rootOutputDirectory; // set for later retrieval
+
         try {
             if (Files.exists(rootOutputDirectory)) {
                 FileUtils.deleteDirectory(rootOutputDirectory);
@@ -107,6 +122,15 @@ public class TurtleTestEnvironment implements TestEnvironment {
                 randotron, timeManager, logging, rootOutputDirectory, transactionGenerator, useRandomNodeIds);
 
         timeManager.addTimeTickReceiver(network);
+    }
+
+    /**
+     * Gets the default output directory for Turtle logs.
+     *
+     * @return the default output directory path
+     */
+    private static Path getDefaultOutputDirectory() {
+        return Path.of("build", "aggregateTestTurtle");
     }
 
     /**
@@ -164,5 +188,14 @@ public class TurtleTestEnvironment implements TestEnvironment {
         network.destroy();
         ConstructableRegistry.getInstance().reset();
         RuntimeObjectRegistry.reset();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Path outputDirectory() {
+        return rootOutputDirectory;
     }
 }

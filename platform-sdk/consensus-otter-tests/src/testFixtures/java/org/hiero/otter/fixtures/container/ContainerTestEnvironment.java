@@ -38,6 +38,7 @@ public class ContainerTestEnvironment implements TestEnvironment {
     private final ContainerNetwork network;
     private final RegularTimeManager timeManager = new RegularTimeManager(GRANULARITY);
     private final ContainerTransactionGenerator transactionGenerator = new ContainerTransactionGenerator();
+    private final Path rootOutputDirectory;
 
     /**
      * Constructor with default values for using random node-ids and default directory for container logs.
@@ -64,6 +65,8 @@ public class ContainerTestEnvironment implements TestEnvironment {
     public ContainerTestEnvironment(final boolean useRandomNodeIds, @NonNull final Path rootOutputDirectory) {
         ContainerLogConfigBuilder.configure();
 
+        this.rootOutputDirectory = rootOutputDirectory; // store for later retrieval
+
         try {
             if (Files.exists(rootOutputDirectory)) {
                 FileUtils.deleteDirectory(rootOutputDirectory);
@@ -82,7 +85,7 @@ public class ContainerTestEnvironment implements TestEnvironment {
      * @return the default output directory path
      */
     private static Path getDefaultOutputDirectory() {
-        return Path.of("build", "container");
+        return Path.of("build", "aggregateTestContainer");
     }
 
     /**
@@ -138,5 +141,14 @@ public class ContainerTestEnvironment implements TestEnvironment {
     @Override
     public void destroy() {
         network.destroy();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Path outputDirectory() {
+        return rootOutputDirectory;
     }
 }
