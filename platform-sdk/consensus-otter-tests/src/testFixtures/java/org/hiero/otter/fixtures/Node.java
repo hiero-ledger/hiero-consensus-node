@@ -15,7 +15,6 @@ import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeEventStreamResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
-import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
@@ -275,14 +274,6 @@ public interface Node {
      */
     @NonNull
     SingleNodeReconnectResult newReconnectResult();
-
-    /**
-     * Creates a new result with all marker file result of the node.
-     *
-     * @return the marker file result of the node
-     */
-    @NonNull
-    SingleNodeMarkerFileResult newMarkerFileResult();
 
     /**
      * Creates a new result with all the event streams created by this node.

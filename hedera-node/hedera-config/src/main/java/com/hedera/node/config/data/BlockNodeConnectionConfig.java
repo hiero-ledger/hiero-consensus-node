@@ -24,6 +24,7 @@ import java.time.Duration;
  * @param connectionWorkerSleepDuration the amount of time a connection worker will sleep between handling block items (should be less than {@link #maxRequestDelay})
  * @param maxRequestDelay the maximum amount of time between sending a request to a block node
  * @param forcedSwitchRescheduleDelay the delay to reschedule a closed active connection after a forced switch
+ * @param pipelineOperationTimeout timeout for pipeline onNext() and onComplete() operations to detect unresponsive block nodes
  */
 @ConfigData("blockNode")
 public record BlockNodeConnectionConfig(
@@ -41,4 +42,5 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "30s") @NodeProperty Duration grpcOverallTimeout,
         @ConfigProperty(defaultValue = "25ms") @NetworkProperty Duration connectionWorkerSleepDuration,
         @ConfigProperty(defaultValue = "200ms") @NetworkProperty Duration maxRequestDelay,
-        @ConfigProperty(defaultValue = "180s") @NodeProperty Duration forcedSwitchRescheduleDelay) {}
+        @ConfigProperty(defaultValue = "180s") @NodeProperty Duration forcedSwitchRescheduleDelay,
+        @ConfigProperty(defaultValue = "3s") @NodeProperty Duration pipelineOperationTimeout) {}

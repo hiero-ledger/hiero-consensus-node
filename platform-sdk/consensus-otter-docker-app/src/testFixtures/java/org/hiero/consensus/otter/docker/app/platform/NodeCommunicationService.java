@@ -151,9 +151,6 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
         consensusNodeManager.registerConsensusRoundListener(
                 rounds -> dispatcher.enqueue(EventMessageFactory.fromConsensusRounds(rounds)));
 
-        consensusNodeManager.registerMarkerFileListener(
-                markerFiles -> dispatcher.enqueue(EventMessageFactory.fromMarkerFiles(markerFiles)));
-
         InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
             dispatcher.enqueue(EventMessageFactory.fromStructuredLog(logEntry));
             return currentDispatcher.isCancelled() ? SubscriberAction.UNSUBSCRIBE : SubscriberAction.CONTINUE;

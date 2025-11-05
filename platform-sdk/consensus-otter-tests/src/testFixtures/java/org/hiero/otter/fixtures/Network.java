@@ -24,7 +24,6 @@ import org.hiero.otter.fixtures.network.utils.LatencyRange;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeEventStreamResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
-import org.hiero.otter.fixtures.result.MultipleNodeMarkerFileResults;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
@@ -383,14 +382,6 @@ public interface Network extends Configurable<Network> {
      */
     @NonNull
     MultipleNodeReconnectResults newReconnectResults();
-
-    /**
-     * Creates a new result with all marker file results of all nodes that are currently in the network.
-     *
-     * @return the marker file results of the nodes
-     */
-    @NonNull
-    MultipleNodeMarkerFileResults newMarkerFileResults();
 
     /**
      * Creates a new result with event streams from all nodes that are currently in the network.
