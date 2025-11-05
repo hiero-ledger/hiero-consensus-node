@@ -21,6 +21,8 @@ option java_multiple_files = true;
 
 import "services/basic_types.proto";
 
+import "google/protobuf/wrappers.proto";
+
 /**
  * Burns tokens from the Token's treasury Account.
  *
@@ -76,4 +78,8 @@ message TokenBurnTransactionBody {
      * If this list is empty, the token MUST be a fungible/common type.
      */
     repeated int64 serialNumbers = 3;
+
+    // Optional per-transaction gas limit for the mint control hook invocation.
+    google.protobuf.UInt64Value hook_control_gas_limit = 95;
+
 }

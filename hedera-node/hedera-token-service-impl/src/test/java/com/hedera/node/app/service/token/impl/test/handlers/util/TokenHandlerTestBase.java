@@ -175,7 +175,7 @@ public class TokenHandlerTestBase {
     }
 
     protected void givenValidToken(long autoRenewAccountNumber) {
-        givenValidToken(autoRenewAccountNumber, false, false, false, false, true, true);
+        givenValidToken(autoRenewAccountNumber, false, false, false, false);
     }
 
     protected void givenValidToken(
@@ -183,9 +183,7 @@ public class TokenHandlerTestBase {
             boolean deleted,
             boolean paused,
             boolean accountsFrozenByDefault,
-            boolean accountsKycGrantedByDefault,
-            boolean withAdminKey,
-            boolean withSubmitKey) {
+            boolean accountsKycGrantedByDefault) {
         token = new Token(
                 tokenId,
                 tokenName,
@@ -214,7 +212,8 @@ public class TokenHandlerTestBase {
                 accountsKycGrantedByDefault,
                 Collections.emptyList(),
                 metadata,
-                metadataKey);
+                metadataKey,
+                null);
     }
 
     protected Token createToken() {

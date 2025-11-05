@@ -18,6 +18,10 @@ enum HookExtensionPoint {
    * Used to customize an account's allowances during a CryptoTransfer transaction.
    */
   ACCOUNT_ALLOWANCE_HOOK = 0;
+  /**
+   * Used to control token minting/burning via a hook installed on a token.
+   */
+  MINT_CONTROL_HOOK = 1;
 }
 
 /**

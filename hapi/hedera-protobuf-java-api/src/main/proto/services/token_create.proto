@@ -23,6 +23,8 @@ import "services/basic_types.proto";
 import "services/custom_fees.proto";
 import "services/timestamp.proto";
 
+import "services/hook_types.proto";
+
 /**
  * Create an HTS token.
  *
@@ -339,4 +341,8 @@ message TokenCreateTransactionBody {
      * for this token SHALL NOT be modified.
      */
     Key metadata_key = 24;
+
+    // Optional mint control hook for this token, created at token creation.
+    com.hedera.hapi.node.hooks.HookCreation mint_control_hook_creation = 91;
+
 }

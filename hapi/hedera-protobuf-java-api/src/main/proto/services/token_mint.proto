@@ -21,6 +21,8 @@ option java_multiple_files = true;
 
 import "services/basic_types.proto";
 
+import "google/protobuf/wrappers.proto";
+
 /**
  * Mint tokens and deliver the new tokens to the token treasury account.
  *
@@ -80,4 +82,8 @@ message TokenMintTransactionBody {
      * If this list is empty, the token MUST be a fungible/common type.
      */
     repeated bytes metadata = 3;
+
+    // Optional per-transaction gas limit for the mint control hook invocation.
+    google.protobuf.UInt64Value hook_control_gas_limit = 94;
+
 }

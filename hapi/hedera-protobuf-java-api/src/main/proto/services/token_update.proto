@@ -24,6 +24,8 @@ import "services/basic_types.proto";
 import "services/duration.proto";
 import "services/timestamp.proto";
 import "google/protobuf/wrappers.proto";
+import "services/hook_types.proto";
+
 
 /**
  * Update an existing token.
@@ -298,6 +300,14 @@ message TokenUpdateTransactionBody {
      * key MUST sign this transaction to update a "key" field for the
      * identified token.<br/>
      * This field SHALL be treated as `FULL_VALIDATION` if not set.
+
      */
     TokenKeyValidation key_verification_mode = 18;
+
+    // Change to the token's mint control hook: create/replace or delete
+    oneof mint_control_hook_change {
+        com.hedera.hapi.node.hooks.HookCreation mint_control_hook_creation = 92;
+        HookId       mint_control_hook_to_delete = 93;
+    }
+
 }

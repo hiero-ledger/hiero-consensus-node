@@ -366,7 +366,7 @@ public class NetworkAdminHandlerTestBase {
     }
 
     protected void givenValidFungibleToken(AccountID autoRenewAccountId) {
-        givenValidFungibleToken(autoRenewAccountId, false, false, false, false, true, true);
+        givenValidFungibleToken(autoRenewAccountId, false, false, false, false);
     }
 
     protected void givenValidNonFungibleToken() {
@@ -384,9 +384,7 @@ public class NetworkAdminHandlerTestBase {
             boolean deleted,
             boolean paused,
             boolean accountsFrozenByDefault,
-            boolean accountsKycGrantedByDefault,
-            boolean withAdminKey,
-            boolean withSubmitKey) {
+            boolean accountsKycGrantedByDefault) {
         fungibleToken = new Token(
                 fungibleTokenId,
                 tokenName,
@@ -415,7 +413,8 @@ public class NetworkAdminHandlerTestBase {
                 accountsKycGrantedByDefault,
                 Collections.emptyList(),
                 metadata,
-                metadataKey);
+                metadataKey,
+                null);
     }
 
     protected void givenValidAccount(

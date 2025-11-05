@@ -1074,7 +1074,8 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
                 accountsKycGrantedByDefault,
                 customFees,
                 metadata,
-                metadataKey);
+                metadataKey,
+                null);
     }
 
     protected Token givenValidNonFungibleToken(boolean hasKyc) {

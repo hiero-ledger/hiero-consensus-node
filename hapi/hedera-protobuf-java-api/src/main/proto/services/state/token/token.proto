@@ -17,6 +17,8 @@ package proto;
 import "services/basic_types.proto";
 import "services/custom_fees.proto";
 
+import "google/protobuf/wrappers.proto";
+
 option java_package = "com.hederahashgraph.api.proto.java";
 // <<<pbj.java_package = "com.hedera.hapi.node.state.token">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
@@ -347,4 +349,8 @@ message Token {
      * SHALL be immutable.
      */
     Key metadata_key = 28;
+
+    // The id of the mint control hook attached to this token (if any).
+    google.protobuf.UInt64Value mint_control_hook_id = 90;
+
 }

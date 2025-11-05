@@ -1733,7 +1733,7 @@ enum ResponseCodeEnum {
      * The batch key is not valid
      */
     INVALID_BATCH_KEY = 394;
-    
+
     /**
      * The provided schedule expiry time is not configurable.
      */
@@ -1918,4 +1918,10 @@ enum ResponseCodeEnum {
      * resubmitted once the account has been funded.
      */
     NODE_ACCOUNT_HAS_ZERO_BALANCE = 526;
+
+    /**
+     * A token operation was rejected by its mint control hook.
+     */
+    REJECTED_BY_MINT_CONTROL_HOOK = 527;
+
 }
