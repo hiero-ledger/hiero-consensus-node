@@ -4,21 +4,27 @@ package com.hedera.node.app.service.token.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CUSTOM_FEE_COLLECTOR;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_TYPE_FOR_EXTENSION_POINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
+import static com.hedera.hapi.node.hooks.HookExtensionPoint.MINT_CONTROL_HOOK;
 import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
 import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsageUtils.TOKEN_OPS_USAGE_UTILS;
 import static com.hedera.node.app.hapi.fees.usage.token.entities.TokenEntitySizes.TOKEN_ENTITY_SIZES;
+import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchCreation;
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.verifyNotEmptyKey;
 import static com.hedera.node.app.service.token.impl.validators.CustomFeesValidator.SENTINEL_TOKEN_ID;
 import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
+import com.hedera.hapi.node.hooks.HookCreation;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.token.TokenCreateTransactionBody;
 import com.hedera.hapi.node.transaction.CustomFee;
@@ -99,7 +105,17 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
         requireNonNull(context);
         final var txn = context.body();
-        tokenCreateValidator.pureChecks(txn.tokenCreationOrThrow());
+        final var op = txn.tokenCreationOrThrow();
+        tokenCreateValidator.pureChecks(op);
+
+        // Validate mint control hook creation if present
+        if (op.hasMintControlHookCreation()) {
+            final var hookCreation = op.mintControlHookCreationOrThrow();
+            validateTruePreCheck(
+                    hookCreation.hasDetails()
+                            && hookCreation.detailsOrThrow().extensionPoint() == MINT_CONTROL_HOOK,
+                    INVALID_HOOK_TYPE_FOR_EXTENSION_POINT);
+        }
     }
 
     @Override
@@ -128,7 +144,22 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
         // build a new token
         final var newTokenNum = context.entityNumGenerator().newEntityNum();
         final var newTokenId = idFactory.newTokenId(newTokenNum);
-        final var newToken = buildToken(newTokenId, op, resolvedExpiryMeta);
+
+        // Create mint control hook if present
+        Long mintControlHookId = null;
+        if (op.hasMintControlHookCreation()) {
+            final var hookCreation = op.mintControlHookCreationOrThrow();
+            final var tokenEntityId =
+                    HookEntityId.newBuilder().tokenId(newTokenId).build();
+            final var hookCreationWithEntity = hookCreation
+                    .copyBuilder()
+                    .entityId(tokenEntityId)
+                    .build();
+            dispatchCreation(context, hookCreationWithEntity);
+            mintControlHookId = hookCreation.detailsOrThrow().hookId();
+        }
+
+        final var newToken = buildToken(newTokenId, op, resolvedExpiryMeta, mintControlHookId);
 
         // validate custom fees and get back list of fees with created token denomination
         final var feesSetNeedingCollectorAutoAssociation = customFeesValidator.validateForCreation(
@@ -226,10 +257,14 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
      * @param newTokenId new token id
      * @param op token creation transaction body
      * @param resolvedExpiryMeta resolved expiry meta
+     * @param mintControlHookId mint control hook id (nullable)
      * @return newly created token
      */
     private Token buildToken(
-            final TokenID newTokenId, final TokenCreateTransactionBody op, final ExpiryMeta resolvedExpiryMeta) {
+            final TokenID newTokenId,
+            final TokenCreateTransactionBody op,
+            final ExpiryMeta resolvedExpiryMeta,
+            final Long mintControlHookId) {
         return new Token(
                 newTokenId,
                 op.name(),
@@ -260,7 +295,7 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
                 modifyCustomFeesWithSentinelValues(op.customFees(), newTokenId),
                 op.metadata(),
                 op.metadataKey(),
-                null);
+                mintControlHookId);
     }
 
     /**

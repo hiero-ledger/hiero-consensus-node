@@ -1772,6 +1772,11 @@ enum ResponseCodeEnum {
     INVALID_SERIALIZED_TX_MESSAGE_HASH_ALGORITHM = 401;
 
     /**
+     * A transaction tried to create a hook with an invalid type for the extension point.
+     */
+    INVALID_HOOK_TYPE_FOR_EXTENSION_POINT = 402;
+
+    /**
      * An EVM hook execution was throttled due to high network gas utilization.
      */
     EVM_HOOK_GAS_THROTTLED = 500;

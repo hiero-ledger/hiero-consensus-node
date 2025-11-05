@@ -100,7 +100,7 @@ public class HookDispatchUtils {
      * @param context the handle context
      * @param creation the hook creation to dispatch
      */
-    static int dispatchCreation(@NonNull final HandleContext context, @NonNull final HookCreation creation) {
+    public static int dispatchCreation(@NonNull final HandleContext context, @NonNull final HookCreation creation) {
         final var hookDispatch =
                 HookDispatchTransactionBody.newBuilder().creation(creation).build();
         final var streamBuilder = context.dispatch(hookDispatch(
