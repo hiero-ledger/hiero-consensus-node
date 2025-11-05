@@ -7,11 +7,16 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NFT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_BURN_AMOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_BURN_METADATA;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REJECTED_BY_MINT_CONTROL_HOOK;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_SUPPLY_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TREASURY_MUST_OWN_BURNED_NFT;
+import static com.hedera.hapi.node.hooks.HookExtensionPoint.MINT_CONTROL_HOOK;
 import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
 import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsageUtils.TOKEN_OPS_USAGE_UTILS;
 import static com.hedera.node.app.service.token.impl.validators.TokenSupplyChangeOpsValidator.verifyTokenInstanceAmounts;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.hookDispatchForExecution;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
@@ -20,17 +25,23 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
+import com.hedera.hapi.node.hooks.EvmHookCall;
+import com.hedera.hapi.node.hooks.HookCall;
+import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
+import com.hedera.hapi.node.hooks.HookEntityId;
+import com.hedera.hapi.node.hooks.HookExecution;
 import com.hedera.hapi.node.state.token.Token;
-import com.hedera.hapi.node.state.token.TokenRelation;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
-import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableNftStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
+import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.MintBurnHooksABI;
 import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.service.token.impl.validators.TokenSupplyChangeOpsValidator;
+import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenBurnStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
@@ -40,7 +51,9 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.TokensConfig;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -82,9 +95,20 @@ public final class TokenBurnHandler extends BaseTokenHandler implements Transact
         final var tokenStore = context.createStore(ReadableTokenStore.class);
         final var tokenMetadata = tokenStore.getTokenMeta(tokenId);
         if (tokenMetadata == null) throw new PreCheckException(INVALID_TOKEN_ID);
+
+        // Get the full token to check for mint_control_hook_id
+        final var token = tokenStore.get(tokenId);
+        final boolean hasMintControlHook = token != null && token.hasMintControlHookId();
+
         // we will fail in handle() if token has no supply key
         if (tokenMetadata.hasSupplyKey()) {
-            context.requireKey(tokenMetadata.supplyKey());
+            if (hasMintControlHook) {
+                // If token has mint control hook, supply key is optional
+                context.optionalKey(tokenMetadata.supplyKey());
+            } else {
+                // Otherwise, supply key is required
+                context.requireKey(tokenMetadata.supplyKey());
+            }
         }
     }
 
@@ -104,13 +128,44 @@ public final class TokenBurnHandler extends BaseTokenHandler implements Transact
         final var fungibleBurnCount = op.amount();
         // Wrapping the serial nums this way de-duplicates the serial nums:
         final var nftSerialNums = new ArrayList<>(new LinkedHashSet<>(op.serialNumbers()));
-        final var validated =
-                validateSemantics(tokenId, fungibleBurnCount, nftSerialNums, tokenStore, tokenRelStore, tokensConfig);
-        final var treasuryRel = validated.tokenTreasuryRel();
-        final var token = validated.token();
+
+        // Get token first to check for mint control hook
+        final var token = TokenHandlerHelper.getIfUsable(tokenId, tokenStore);
+
+        // Check if token has mint control hook
+        final boolean hasMintControlHook = token.hasMintControlHookId();
+
+        if (!hasMintControlHook) {
+            // No hook: unchanged behavior - require supply key
+            validateTrue(token.supplyKey() != null, TOKEN_HAS_NO_SUPPLY_KEY);
+        }
+
+        // Determine source account based on hook result (if hook exists)
+        AccountID sourceAccountId = token.treasuryAccountId();
+
+        if (hasMintControlHook) {
+            // Consult the mint control hook
+            final var hookResult = consultMintControlHook(context, token, op, nftSerialNums);
+
+            // Route based on party
+            if (hookResult.partyValue() == MintBurnHooksABI.Party.SENDER.value()) {
+                // Burn from sender (payer)
+                sourceAccountId = context.payer();
+            } else {
+                // Burn from treasury (default)
+                sourceAccountId = token.treasuryAccountId();
+            }
+        }
+
+        // Validate semantics (amount, metadata, etc.)
+        validateTrue(fungibleBurnCount >= 0, INVALID_TOKEN_BURN_AMOUNT);
+        validator.validateBurn(fungibleBurnCount, nftSerialNums, tokensConfig);
+
+        // Get source relation
+        final var sourceRel = TokenHandlerHelper.getIfUsable(sourceAccountId, tokenId, tokenRelStore);
 
         if (token.hasKycKey()) {
-            validateTrue(treasuryRel.kycGranted(), ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN);
+            validateTrue(sourceRel.kycGranted(), ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN);
         }
 
         final TokenBurnStreamBuilder tokenBurnStreamBuilderRecord =
@@ -118,8 +173,8 @@ public final class TokenBurnHandler extends BaseTokenHandler implements Transact
         if (token.tokenType() == TokenType.FUNGIBLE_COMMON) {
             validateTrue(fungibleBurnCount >= 0, INVALID_TOKEN_BURN_AMOUNT);
             final var newTotalSupply = changeSupply(
-                    validated.token(),
-                    treasuryRel,
+                    token,
+                    sourceRel,
                     -fungibleBurnCount,
                     INVALID_TOKEN_BURN_AMOUNT,
                     accountStore,
@@ -136,13 +191,20 @@ public final class TokenBurnHandler extends BaseTokenHandler implements Transact
                 validateTrue(nft != null, INVALID_NFT_ID);
 
                 final var nftOwner = nft.ownerId();
-                validateTrue(treasuryOwnsNft(nftOwner), TREASURY_MUST_OWN_BURNED_NFT);
+                // If burning from treasury, check treasury ownership; if from sender, check sender ownership
+                if (hasMintControlHook && sourceAccountId.equals(context.payer())) {
+                    // Burning from sender - validate sender owns the NFT
+                    validateTrue(nftOwner != null && nftOwner.equals(sourceAccountId), TREASURY_MUST_OWN_BURNED_NFT);
+                } else {
+                    // Burning from treasury - validate treasury ownership (null owner means treasury)
+                    validateTrue(treasuryOwnsNft(nftOwner), TREASURY_MUST_OWN_BURNED_NFT);
+                }
             }
 
             // Update counts for accounts and token rels
             final var newTotalSupply = changeSupply(
                     token,
-                    treasuryRel,
+                    sourceRel,
                     -nftSerialNums.size(),
                     FAIL_INVALID,
                     accountStore,
@@ -150,13 +212,13 @@ public final class TokenBurnHandler extends BaseTokenHandler implements Transact
                     tokenRelStore,
                     context.expiryValidator());
 
-            // Update treasury's NFT count
-            final var treasuryAcct = accountStore.get(token.treasuryAccountIdOrThrow());
-            final var updatedTreasuryAcct = treasuryAcct
+            // Update source account's NFT count
+            final var sourceAcct = accountStore.get(sourceAccountId);
+            final var updatedSourceAcct = sourceAcct
                     .copyBuilder()
-                    .numberOwnedNfts(treasuryAcct.numberOwnedNfts() - nftSerialNums.size())
+                    .numberOwnedNfts(sourceAcct.numberOwnedNfts() - nftSerialNums.size())
                     .build();
-            accountStore.put(updatedTreasuryAcct);
+            accountStore.put(updatedSourceAcct);
 
             // Remove the nft objects
             nftSerialNums.forEach(serialNum -> nftStore.remove(tokenId, serialNum));
@@ -181,28 +243,97 @@ public final class TokenBurnHandler extends BaseTokenHandler implements Transact
                 .calculate();
     }
 
-    private ValidationResult validateSemantics(
-            @NonNull final TokenID tokenId,
-            final long fungibleBurnCount,
-            @NonNull final List<Long> nftSerialNums,
-            @NonNull final ReadableTokenStore tokenStore,
-            @NonNull final ReadableTokenRelationStore tokenRelStore,
-            @NonNull final TokensConfig tokensConfig) {
-        validateTrue(fungibleBurnCount >= 0, INVALID_TOKEN_BURN_AMOUNT);
+    /**
+     * Consults the mint control hook to determine if burning is allowed and from which party.
+     *
+     * @param context the handle context
+     * @param token the token being burned
+     * @param op the token burn operation
+     * @param nftSerialNums the NFT serial numbers being burned (for NFTs)
+     * @return the result from the hook indicating allowed status and party
+     * @throws HandleException if the hook rejects the burn or fails
+     */
+    private MintBurnHooksABI.AllowResult consultMintControlHook(
+            @NonNull final HandleContext context,
+            @NonNull final Token token,
+            @NonNull final com.hedera.hapi.node.token.TokenBurnTransactionBody op,
+            @NonNull final List<Long> nftSerialNums) {
+        requireNonNull(context);
+        requireNonNull(token);
+        requireNonNull(op);
+        requireNonNull(nftSerialNums);
 
-        validator.validateBurn(fungibleBurnCount, nftSerialNums, tokensConfig);
+        // Determine if supply key is active
+        final boolean supplyKeySigned;
+        if (token.supplyKey() != null) {
+            supplyKeySigned = context.keyVerifier().authorizingSimpleKeys().stream()
+                    .anyMatch(key -> key.equals(token.supplyKey()));
+        } else {
+            supplyKeySigned = false;
+        }
 
-        final var token = TokenHandlerHelper.getIfUsable(tokenId, tokenStore);
-        validateTrue(token.supplyKey() != null, TOKEN_HAS_NO_SUPPLY_KEY);
+        // Compute amount
+        final long amount;
+        if (token.tokenType() == TokenType.FUNGIBLE_COMMON) {
+            amount = op.amount();
+        } else {
+            // For NFTs, amount is the number of serials to burn
+            amount = nftSerialNums.size();
+        }
 
-        final var treasuryAcctId = token.treasuryAccountId();
-        final var treasuryRel = TokenHandlerHelper.getIfUsable(treasuryAcctId, tokenId, tokenRelStore);
-        return new ValidationResult(token, treasuryRel);
+        // Encode calldata using MintBurnHooksABI
+        final byte[] calldata = MintBurnHooksABI.encodeAllowBurnArgs(amount, supplyKeySigned);
+
+        // Determine gas limit
+        final long gasLimit;
+        if (op.hasHookControlGasLimit()) {
+            gasLimit = op.hookControlGasLimitOrThrow().value();
+        } else {
+            // Use default gas limit from config
+            final var hooksConfig = context.configuration().getConfigData(HooksConfig.class);
+            gasLimit = hooksConfig.lambdaIntrinsicGasCost();
+        }
+
+        // Build HookExecution
+        final var hookEntityId =
+                HookEntityId.newBuilder().tokenId(token.tokenId()).build();
+        final var hookCall = HookCall.newBuilder()
+                .hookId(token.mintControlHookIdOrThrow())
+                .evmHookCall(EvmHookCall.newBuilder()
+                        .calldata(Bytes.wrap(calldata))
+                        .gasLimit(gasLimit)
+                        .build())
+                .build();
+        final var hookExecution = HookExecution.newBuilder()
+                .hookEntityId(hookEntityId)
+                .call(hookCall)
+                .extensionPoint(MINT_CONTROL_HOOK)
+                .build();
+
+        // Dispatch hook execution and get result
+        final var hookDispatch = HookDispatchTransactionBody.newBuilder()
+                .execution(hookExecution)
+                .build();
+        final var streamBuilder = context.dispatch(hookDispatchForExecution(
+                context.payer(),
+                TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
+                HookDispatchStreamBuilder.class,
+                signedTx -> signedTx, // no customization needed
+                EMPTY_METADATA));
+
+        validateTrue(streamBuilder.status() == SUCCESS, REJECTED_BY_MINT_CONTROL_HOOK);
+
+        // Decode result
+        final var result = streamBuilder.getEvmCallResult();
+        final var allowResult = MintBurnHooksABI.decodeAllowResult(result.toByteArray());
+
+        // Validate result
+        validateTrue(allowResult.allowed(), REJECTED_BY_MINT_CONTROL_HOOK);
+
+        return allowResult;
     }
 
     private boolean treasuryOwnsNft(final AccountID ownerID) {
         return ownerID == null;
     }
-
-    private record ValidationResult(@NonNull Token token, @NonNull TokenRelation tokenTreasuryRel) {}
 }
