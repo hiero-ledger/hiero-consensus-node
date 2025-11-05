@@ -63,7 +63,6 @@ import org.hiero.otter.fixtures.internal.network.GeoMeshTopologyImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeConsensusResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeEventStreamResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeLogResultsImpl;
-import org.hiero.otter.fixtures.internal.result.MultipleNodeMarkerFileResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodePcesResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodePlatformStatusResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeReconnectResultsImpl;
@@ -75,13 +74,11 @@ import org.hiero.otter.fixtures.network.utils.LatencyRange;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeEventStreamResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
-import org.hiero.otter.fixtures.result.MultipleNodeMarkerFileResults;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
-import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
@@ -824,17 +821,6 @@ public abstract class AbstractNetwork implements Network {
         final List<SingleNodePcesResult> results =
                 nodes().stream().map(Node::newPcesResult).toList();
         return new MultipleNodePcesResultsImpl(results);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public MultipleNodeMarkerFileResults newMarkerFileResults() {
-        final List<SingleNodeMarkerFileResult> results =
-                nodes().stream().map(Node::newMarkerFileResult).toList();
-        return new MultipleNodeMarkerFileResultsImpl(results);
     }
 
     /**
