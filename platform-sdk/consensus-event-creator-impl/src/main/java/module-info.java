@@ -5,7 +5,6 @@ import org.hiero.consensus.event.creator.impl.DefaultEventCreator;
 // SPDX-License-Identifier: Apache-2.0
 module org.hiero.consensus.event.creator.impl {
     exports org.hiero.consensus.event.creator.impl.rules;
-    exports org.hiero.consensus.event.creator.impl.signing;
     exports org.hiero.consensus.event.creator.impl.tipset;
     exports org.hiero.consensus.event.creator.impl;
 

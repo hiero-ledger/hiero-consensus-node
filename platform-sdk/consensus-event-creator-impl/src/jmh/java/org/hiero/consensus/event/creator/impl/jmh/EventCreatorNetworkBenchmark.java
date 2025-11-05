@@ -22,16 +22,14 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 import org.hiero.base.crypto.BytesSigner;
 import org.hiero.consensus.crypto.SigningFactory;
-import org.hiero.consensus.crypto.SigningAlgorithm;
+import org.hiero.consensus.crypto.SigningImplementation;
 import org.hiero.consensus.event.creator.EventCreationConfig;
 import org.hiero.consensus.event.creator.EventCreationConfig_;
 import org.hiero.consensus.event.creator.impl.DefaultEventCreator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -68,17 +66,14 @@ public class EventCreatorNetworkBenchmark {
     @Param({"0"})
     public long seed;
 
-    @Param({"RSA_BC", "RSA_SUN", "EC_SUN", "ED25519_SODIUM", "ED25519_SUN"})
-    public SigningAlgorithm signingType;
+    @Param() //Empty means use all available types
+    public SigningImplementation signingType;
 
     /** The event creators for each node in the network. */
     private List<DefaultEventCreator> eventCreators;
 
     /** The roster defining the network. */
     private Roster roster;
-
-    /** Keys and certificates for each node in the network. */
-    private Function<NodeId, KeysAndCerts> nodeKeysAndCerts;
 
     /** Total number of events created in the current iteration. */
     private int eventsCreatedInIteration;
@@ -100,7 +95,6 @@ public class EventCreatorNetworkBenchmark {
                 .withWeightGenerator(WeightGenerators.BALANCED)
                 .withRealKeysEnabled(true);
         roster = rosterBuilder.build();
-        nodeKeysAndCerts = rosterBuilder::getPrivateKeys;
         eventWindowUpdateInterval = Math.round(numNodes * Math.log(numNodes));
     }
 
@@ -123,7 +117,7 @@ public class EventCreatorNetworkBenchmark {
             final NodeId nodeId = NodeId.of(entry.nodeId());
             final SecureRandom nodeRandom = new SecureRandom();
             nodeRandom.setSeed(nodeId.id());
-            final KeyPair keyPair = SigningFactory.generateKeyPair(signingType, nodeRandom);
+            final KeyPair keyPair = SigningFactory.generateKeyPair(signingType.getSigningScheme(), nodeRandom);
             final BytesSigner signer = SigningFactory.createSigner(signingType, keyPair);
 
             final DefaultEventCreator eventCreator = new DefaultEventCreator();
