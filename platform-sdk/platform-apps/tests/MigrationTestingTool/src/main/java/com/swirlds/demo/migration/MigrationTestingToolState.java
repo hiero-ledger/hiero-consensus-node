@@ -36,7 +36,7 @@ public class MigrationTestingToolState extends VirtualMapState<MigrationTestingT
      * {@inheritDoc}
      */
     @Override
-    protected long getRound() {
+    public long getRound() {
         return DEFAULT_PLATFORM_STATE_FACADE.roundOf(this);
     }
 }

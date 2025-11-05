@@ -192,7 +192,7 @@ public class ISSTestingToolState extends VirtualMapState<ISSTestingToolState> im
      * {@inheritDoc}
      */
     @Override
-    protected long getRound() {
+    public long getRound() {
         return DEFAULT_PLATFORM_STATE_FACADE.roundOf(this);
     }
 }

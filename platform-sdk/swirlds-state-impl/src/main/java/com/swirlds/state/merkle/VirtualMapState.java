@@ -304,13 +304,6 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
 
     // Getters and setters
 
-    /**
-     * Retrieves the round number associated with this state.
-     *
-     * @return the round number as a long value
-     */
-    protected abstract long getRound();
-
     public Map<String, Map<Integer, StateMetadata<?, ?>>> getServices() {
         return services;
     }

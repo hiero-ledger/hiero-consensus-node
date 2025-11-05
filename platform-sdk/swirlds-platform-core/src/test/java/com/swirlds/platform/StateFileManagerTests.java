@@ -77,7 +77,7 @@ class StateFileManagerTests {
     private SignedStateFilePath signedStateFilePath;
 
     Path testDirectory;
-    private StateLifecycleManager<SignedState> stateLifecycleManager;
+    private StateLifecycleManager stateLifecycleManager;
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
@@ -101,7 +101,7 @@ class StateFileManagerTests {
         signedStateFilePath =
                 new SignedStateFilePath(context.getConfiguration().getConfigData(StateCommonConfig.class));
         stateLifecycleManager =
-                new StateLifecycleManagerImpl<>(context.getMetrics(), context.getTime(), TestVirtualMapState::new);
+                new StateLifecycleManagerImpl(context.getMetrics(), context.getTime(), TestVirtualMapState::new);
     }
 
     @AfterEach

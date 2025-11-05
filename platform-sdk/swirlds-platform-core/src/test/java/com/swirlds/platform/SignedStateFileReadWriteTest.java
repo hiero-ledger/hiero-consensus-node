@@ -62,7 +62,7 @@ class SignedStateFileReadWriteTest {
 
     private static SemanticVersion platformVersion;
     private static PlatformStateFacade stateFacade;
-    private StateLifecycleManager<SignedState> stateLifecycleManager;
+    private StateLifecycleManager stateLifecycleManager;
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
@@ -82,7 +82,7 @@ class SignedStateFileReadWriteTest {
     void beforeEach() throws IOException {
         testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile("SignedStateFileReadWriteTest", CONFIGURATION);
         stateLifecycleManager =
-                new StateLifecycleManagerImpl<>(new NoOpMetrics(), new FakeTime(), TestVirtualMapState::new);
+                new StateLifecycleManagerImpl(new NoOpMetrics(), new FakeTime(), TestVirtualMapState::new);
         LegacyTemporaryFileBuilder.overrideTemporaryFileLocation(testDirectory.resolve("tmp"));
     }
 
@@ -134,8 +134,7 @@ class SignedStateFileReadWriteTest {
         MerkleNodeState state = signedState.getState();
         state.copy().release();
         hashState(signedState);
-        stateLifecycleManager.setSnapshotSource(signedState);
-        stateLifecycleManager.createSnapshot(testDirectory);
+        stateLifecycleManager.createSnapshot(signedState.getState(), testDirectory);
         writeSignatureSetFile(testDirectory, signedState);
 
         assertTrue(exists(stateFile), "signed state file should be present");
@@ -182,13 +181,13 @@ class SignedStateFileReadWriteTest {
 
         stateLifecycleManager.getMutableState().release();
         hashState(signedState);
-        stateLifecycleManager.setSnapshotSource(signedState);
 
         writeSignedStateToDisk(
                 platformContext,
                 NodeId.of(0),
                 directory,
                 StateToDiskReason.PERIODIC_SNAPSHOT,
+                signedState,
                 stateFacade,
                 stateLifecycleManager);
 

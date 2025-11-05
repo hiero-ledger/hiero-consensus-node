@@ -152,14 +152,18 @@ public class BlockStreamRecoveryWorkflow {
                 false,
                 DEFAULT_PLATFORM_STATE_FACADE);
 
-        final StateLifecycleManager<SignedState> stateLifecycleManager = new StateLifecycleManagerImpl<>(
+        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
                 platformContext.getMetrics(),
                 platformContext.getTime(),
                 vm -> new HederaVirtualMapState(vm, platformContext.getMetrics(), platformContext.getTime()));
-        stateLifecycleManager.setSnapshotSource(signedState);
         try {
             SignedStateFileWriter.writeSignedStateFilesToDirectory(
-                    platformContext, selfId, outputPath, DEFAULT_PLATFORM_STATE_FACADE, stateLifecycleManager);
+                    platformContext,
+                    selfId,
+                    outputPath,
+                    signedState,
+                    DEFAULT_PLATFORM_STATE_FACADE,
+                    stateLifecycleManager);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

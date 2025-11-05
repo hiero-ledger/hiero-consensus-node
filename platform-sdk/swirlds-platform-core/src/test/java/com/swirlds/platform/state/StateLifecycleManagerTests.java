@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Test;
 
 class StateLifecycleManagerTests {
 
-    private StateLifecycleManager<SignedState> stateLifecycleManager;
+    private StateLifecycleManager stateLifecycleManager;
     private MerkleNodeState initialState;
 
     @BeforeEach
@@ -43,7 +43,7 @@ class StateLifecycleManagerTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        stateLifecycleManager = new StateLifecycleManagerImpl<>(
+        stateLifecycleManager = new StateLifecycleManagerImpl(
                 platformContext.getMetrics(), platformContext.getTime(), TestVirtualMapState::new);
         stateLifecycleManager.initState(initialState, true);
     }

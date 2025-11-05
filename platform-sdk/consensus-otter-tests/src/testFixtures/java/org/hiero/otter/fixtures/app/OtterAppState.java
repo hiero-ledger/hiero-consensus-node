@@ -86,7 +86,7 @@ public class OtterAppState extends VirtualMapState<OtterAppState> implements Mer
      * {@inheritDoc}
      */
     @Override
-    protected long getRound() {
+    public long getRound() {
         return DEFAULT_PLATFORM_STATE_FACADE.roundOf(this);
     }
 

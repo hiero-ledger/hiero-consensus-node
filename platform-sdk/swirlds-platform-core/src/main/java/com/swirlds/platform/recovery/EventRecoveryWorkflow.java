@@ -50,6 +50,7 @@ import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -59,6 +60,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.CompareTo;
@@ -157,12 +159,10 @@ public final class EventRecoveryWorkflow {
                         .apply(v),
                 platformStateFacade,
                 platformContext);
-        final StateLifecycleManager<SignedState> stateLifecycleManager = new StateLifecycleManagerImpl<>(
-                platformContext.getMetrics(),
-                platformContext.getTime(),
-                hederaApp.stateRootFromVirtualMap(platformContext.getMetrics(), platformContext.getTime()));
+        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+                platformContext.getMetrics(), platformContext.getTime(), (Function<VirtualMap, MerkleNodeState>)
+                        hederaApp.stateRootFromVirtualMap(platformContext.getMetrics(), platformContext.getTime()));
         try (final ReservedSignedState initialState = deserializedSignedState.reservedSignedState()) {
-            stateLifecycleManager.setSnapshotSource(initialState.get());
             HederaUtils.updateStateHash(hederaApp, deserializedSignedState);
 
             logger.info(
@@ -199,7 +199,12 @@ public final class EventRecoveryWorkflow {
                     recoveredState.state().get().getState().copy();
 
             SignedStateFileWriter.writeSignedStateFilesToDirectory(
-                    platformContext, selfId, resultingStateDirectory, platformStateFacade, stateLifecycleManager);
+                    platformContext,
+                    selfId,
+                    resultingStateDirectory,
+                    recoveredState.state().get(),
+                    platformStateFacade,
+                    stateLifecycleManager);
             final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
             updateEmergencyRecoveryFile(
                     stateConfig, resultingStateDirectory, initialState.get().getConsensusTimestamp());

@@ -45,7 +45,7 @@ public class TestVirtualMapState extends VirtualMapState<TestVirtualMapState> im
      * {@inheritDoc}
      */
     @Override
-    protected long getRound() {
+    public long getRound() {
         return 0; // genesis round
     }
 }

@@ -72,7 +72,7 @@ public class SyncGossipModular implements Gossip {
     private final AbstractSyncProtocol<?> syncProtocol;
     private final FallenBehindMonitor fallenBehindMonitor;
     private final AbstractShadowgraphSynchronizer synchronizer;
-    private final StateLifecycleManager<?> stateLifecycleManager;
+    private final StateLifecycleManager stateLifecycleManager;
     private final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap;
 
     // this is not a nice dependency, should be removed as well as the sharedState
@@ -103,7 +103,7 @@ public class SyncGossipModular implements Gossip {
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
             @NonNull final SemanticVersion appVersion,
-            @NonNull final StateLifecycleManager<?> stateLifecycleManager,
+            @NonNull final StateLifecycleManager stateLifecycleManager,
             @NonNull final Supplier<ReservedSignedState> latestCompleteState,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final PlatformStateFacade platformStateFacade,

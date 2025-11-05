@@ -74,7 +74,7 @@ public class StartupStateUtilsTests {
     private final String swirldName = "swirldName";
     private SemanticVersion currentSoftwareVersion;
     private PlatformStateFacade platformStateFacade;
-    private StateLifecycleManager<SignedState> stateLifecycleManager;
+    private StateLifecycleManager stateLifecycleManager;
 
     @BeforeEach
     void beforeEach() throws IOException {
@@ -131,7 +131,7 @@ public class StartupStateUtilsTests {
                 new RandomSignedStateGenerator(random).setRound(round).build();
 
         stateLifecycleManager =
-                new StateLifecycleManagerImpl<>(new NoOpMetrics(), new FakeTime(), TestVirtualMapState::new);
+                new StateLifecycleManagerImpl(new NoOpMetrics(), new FakeTime(), TestVirtualMapState::new);
         stateLifecycleManager.initState(signedState.getState(), true);
         stateLifecycleManager.getMutableState().release();
         // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19905
@@ -140,12 +140,12 @@ public class StartupStateUtilsTests {
 
         final Path savedStateDirectory =
                 signedStateFilePath.getSignedStateDirectory(mainClassName, selfId, swirldName, round);
-        stateLifecycleManager.setSnapshotSource(signedState);
         writeSignedStateToDisk(
                 platformContext,
                 selfId,
                 savedStateDirectory,
                 StateToDiskReason.PERIODIC_SNAPSHOT,
+                signedState,
                 platformStateFacade,
                 stateLifecycleManager);
 

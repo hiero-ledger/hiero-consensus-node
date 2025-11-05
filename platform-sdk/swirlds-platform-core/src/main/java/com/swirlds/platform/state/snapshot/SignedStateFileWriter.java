@@ -138,20 +138,22 @@ public final class SignedStateFileWriter {
             @Nullable final PlatformContext platformContext,
             @Nullable final NodeId selfId,
             @NonNull final Path directory,
+            @NonNull final SignedState signedState,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final StateLifecycleManager<SignedState> stateLifecycleManager)
+            @NonNull final StateLifecycleManager stateLifecycleManager)
             throws IOException {
         requireNonNull(platformContext);
         requireNonNull(directory);
-        requireNonNull(stateLifecycleManager.getSnapshotSource());
+        requireNonNull(signedState);
+        requireNonNull(platformStateFacade);
+        requireNonNull(stateLifecycleManager);
 
-        SignedState snapshotSource = stateLifecycleManager.getSnapshotSource();
-        stateLifecycleManager.createSnapshot(directory);
-        writeSignatureSetFile(directory, snapshotSource);
-        writeHashInfoFile(platformContext, directory, snapshotSource.getState(), platformStateFacade);
-        writeMetadataFile(selfId, directory, snapshotSource, platformStateFacade);
-        writeEmergencyRecoveryFile(directory, snapshotSource);
-        final Roster currentRoster = snapshotSource.getRoster();
+        stateLifecycleManager.createSnapshot(signedState.getState(), directory);
+        writeSignatureSetFile(directory, signedState);
+        writeHashInfoFile(platformContext, directory, signedState.getState(), platformStateFacade);
+        writeMetadataFile(selfId, directory, signedState, platformStateFacade);
+        writeEmergencyRecoveryFile(directory, signedState);
+        final Roster currentRoster = signedState.getRoster();
         writeRosterFile(directory, currentRoster);
         writeSettingsUsed(directory, platformContext.getConfiguration());
 
@@ -160,8 +162,8 @@ public final class SignedStateFileWriter {
                     platformContext,
                     selfId,
                     directory,
-                    platformStateFacade.ancientThresholdOf(snapshotSource.getState()),
-                    snapshotSource.getRound());
+                    platformStateFacade.ancientThresholdOf(signedState.getState()),
+                    signedState.getRound());
         }
     }
 
@@ -196,33 +198,38 @@ public final class SignedStateFileWriter {
             @Nullable final NodeId selfId,
             @NonNull final Path savedStateDirectory,
             @Nullable final StateToDiskReason stateToDiskReason,
+            @NonNull final SignedState signedState,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final StateLifecycleManager<SignedState> stateLifecycleManager)
+            @NonNull final StateLifecycleManager stateLifecycleManager)
             throws IOException {
 
+        requireNonNull(signedState);
         requireNonNull(platformContext);
         requireNonNull(savedStateDirectory);
         requireNonNull(stateLifecycleManager);
-        final SignedState snapshotSource = stateLifecycleManager.getSnapshotSource();
-        requireNonNull(snapshotSource);
 
         try {
             logger.info(
                     STATE_TO_DISK.getMarker(),
                     "Started writing round {} state to disk. Reason: {}, directory: {}",
-                    snapshotSource.getRound(),
+                    signedState.getRound(),
                     stateToDiskReason == null ? "UNKNOWN" : stateToDiskReason,
                     savedStateDirectory);
 
             executeAndRename(
                     savedStateDirectory,
                     directory -> writeSignedStateFilesToDirectory(
-                            platformContext, selfId, directory, platformStateFacade, stateLifecycleManager),
+                            platformContext,
+                            selfId,
+                            directory,
+                            signedState,
+                            platformStateFacade,
+                            stateLifecycleManager),
                     platformContext.getConfiguration());
 
             logger.info(STATE_TO_DISK.getMarker(), () -> new StateSavedToDiskPayload(
-                            snapshotSource.getRound(),
-                            snapshotSource.isFreezeState(),
+                            signedState.getRound(),
+                            signedState.isFreezeState(),
                             stateToDiskReason == null ? "UNKNOWN" : stateToDiskReason.toString(),
                             savedStateDirectory)
                     .toString());
@@ -230,7 +237,7 @@ public final class SignedStateFileWriter {
             logger.error(
                     EXCEPTION.getMarker(),
                     "Exception when writing the signed state for round {} to disk:",
-                    snapshotSource.getRound(),
+                    signedState.getRound(),
                     e);
             throw e;
         }

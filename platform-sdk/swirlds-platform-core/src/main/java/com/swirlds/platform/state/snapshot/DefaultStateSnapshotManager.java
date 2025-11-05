@@ -84,7 +84,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
     /**
      * Provides access to the state
      */
-    private final StateLifecycleManager<SignedState> stateLifecycleManager;
+    private final StateLifecycleManager stateLifecycleManager;
 
     /**
      * Creates a new instance.
@@ -102,7 +102,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
             @NonNull final NodeId selfId,
             @NonNull final String swirldName,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final StateLifecycleManager<SignedState> stateLifecycleManager) {
+            @NonNull final StateLifecycleManager stateLifecycleManager) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
         this.time = platformContext.getTime();
@@ -180,9 +180,14 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
 
     private boolean saveStateTask(@NonNull final SignedState state, @NonNull final Path directory) {
         try {
-            stateLifecycleManager.setSnapshotSource(state);
             SignedStateFileWriter.writeSignedStateToDisk(
-                    platformContext, selfId, directory, getReason(state), platformStateFacade, stateLifecycleManager);
+                    platformContext,
+                    selfId,
+                    directory,
+                    getReason(state),
+                    state,
+                    platformStateFacade,
+                    stateLifecycleManager);
             return true;
         } catch (final Throwable e) {
             logger.error(

@@ -162,7 +162,7 @@ class SerializationTest extends MerkleTestBase {
     @ValueSource(booleans = {true, false})
     void simpleReadAndWrite(boolean forceFlush) throws IOException, ConstructableRegistryException {
         final Schema schemaV1 = createV1Schema();
-        final StateLifecycleManager<?> stateLifecycleManager = createStateLifecycleManager(schemaV1);
+        final StateLifecycleManager stateLifecycleManager = createStateLifecycleManager(schemaV1);
         final MerkleNodeState originalTree = stateLifecycleManager.getMutableState();
 
         // When we serialize it to bytes and deserialize it back into a tree
@@ -201,8 +201,7 @@ class SerializationTest extends MerkleTestBase {
         // prepare the tree and create a snapshot
         stateLifecycleManager.getMutableState().release();
         originalTree.computeHash();
-        stateLifecycleManager.setSnapshotSource(() -> originalTree);
-        stateLifecycleManager.createSnapshot(tempDir);
+        stateLifecycleManager.createSnapshot(originalTree, tempDir);
         originalTree.release();
 
         final MerkleNodeState state =
@@ -221,7 +220,7 @@ class SerializationTest extends MerkleTestBase {
     @Test
     void dualReadAndWrite() throws IOException, ConstructableRegistryException {
         final Schema<SemanticVersion> schemaV1 = createV1Schema();
-        final StateLifecycleManager<?> stateLifecycleManager = createStateLifecycleManager(schemaV1);
+        final StateLifecycleManager stateLifecycleManager = createStateLifecycleManager(schemaV1);
         final MerkleNodeState originalTree = stateLifecycleManager.getMutableState();
 
         MerkleNodeState copy = stateLifecycleManager.copyMutableState(); // make a copy to make VM flushable
@@ -285,11 +284,11 @@ class SerializationTest extends MerkleTestBase {
         loadedTree.getRoot().migrate(MINIMUM_SUPPORTED_VERSION);
     }
 
-    private StateLifecycleManager<?> createStateLifecycleManager(Schema schemaV1) {
+    private StateLifecycleManager createStateLifecycleManager(Schema schemaV1) {
         final SignedState randomState =
                 new RandomSignedStateGenerator().setRound(1).build();
 
-        final var originalTree = randomState.getState();
+        final MerkleNodeState originalTree = randomState.getState();
         // the state is not hashed yet
         final var originalTreeCopy = originalTree.copy();
         originalTree.release();
@@ -306,8 +305,8 @@ class SerializationTest extends MerkleTestBase {
                 startupNetworks,
                 TEST_PLATFORM_STATE_FACADE);
 
-        final StateLifecycleManager<SignedState> stateLifecycleManager =
-                new StateLifecycleManagerImpl<>(new NoOpMetrics(), new FakeTime(), TestVirtualMapState::new);
+        final StateLifecycleManager stateLifecycleManager =
+                new StateLifecycleManagerImpl(new NoOpMetrics(), new FakeTime(), TestVirtualMapState::new);
 
         stateLifecycleManager.initState(originalTreeCopy, true);
         return stateLifecycleManager;

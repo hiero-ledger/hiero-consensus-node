@@ -16,7 +16,6 @@ import com.swirlds.platform.consensus.SyntheticSnapshot;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.platform.util.BootstrapUtils;
@@ -63,8 +62,8 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
         BootstrapUtils.setupConstructableRegistry();
 
         final PlatformContext platformContext = PlatformContext.create(configuration);
-        final StateLifecycleManager<SignedState> stateLifecycleManager = new StateLifecycleManagerImpl<>(
-                platformContext.getMetrics(), platformContext.getTime(), (virtualMap) -> {
+        final StateLifecycleManager stateLifecycleManager =
+                new StateLifecycleManagerImpl(platformContext.getMetrics(), platformContext.getTime(), (virtualMap) -> {
                     // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
                     throw new UnsupportedOperationException();
                 });
@@ -99,9 +98,13 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
                     .digestTreeAsync(reservedSignedState.get().getState().getRoot())
                     .get();
             System.out.printf("Writing modified state to %s %n", outputDir.toAbsolutePath());
-            stateLifecycleManager.setSnapshotSource(reservedSignedState.get());
             writeSignedStateFilesToDirectory(
-                    platformContext, NO_NODE_ID, outputDir, stateFacade, stateLifecycleManager);
+                    platformContext,
+                    NO_NODE_ID,
+                    outputDir,
+                    reservedSignedState.get(),
+                    stateFacade,
+                    stateLifecycleManager);
         }
 
         return 0;

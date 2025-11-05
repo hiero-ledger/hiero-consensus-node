@@ -23,7 +23,6 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.state.MerkleNodeState;
-import com.swirlds.state.MerkleNodeStateAware;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.cert.X509Certificate;
@@ -63,7 +62,7 @@ import org.hiero.consensus.roster.RosterUtils;
  * rejoining after a long absence.
  * </p>
  */
-public class SignedState implements MerkleNodeStateAware {
+public class SignedState {
 
     private static final Logger logger = LogManager.getLogger(SignedState.class);
 

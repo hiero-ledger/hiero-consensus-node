@@ -10,13 +10,11 @@ import com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader;
 import com.swirlds.common.merkle.utility.MerkleTreeSnapshotWriter;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.MerkleNodeState;
-import com.swirlds.state.MerkleNodeStateAware;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
@@ -27,9 +25,8 @@ import java.util.function.Function;
  * This class is responsible for maintaining references to the mutable state and the latest immutable state.
  * It also updates these references upon state signing.
  *
- * @param <T> A type of the snapshot source, which should implement {@link MerkleNodeStateAware}.
  */
-public class StateLifecycleManagerImpl<T extends MerkleNodeStateAware> implements StateLifecycleManager<T> {
+public class StateLifecycleManagerImpl implements StateLifecycleManager {
 
     /**
      * Metrics for the state object
@@ -54,7 +51,7 @@ public class StateLifecycleManagerImpl<T extends MerkleNodeStateAware> implement
     /**
      * A factory object to create an instance of a class implementing {@link MerkleNodeState} from a {@link VirtualMap}
      */
-    private final Function<VirtualMap, ? extends MerkleNodeState> stateSupplier;
+    private final Function<VirtualMap, MerkleNodeState> stateSupplier;
 
     /**
      * reference to the state that reflects all known consensus transactions
@@ -67,10 +64,8 @@ public class StateLifecycleManagerImpl<T extends MerkleNodeStateAware> implement
     private final AtomicReference<MerkleNodeState> latestImmutableStateRef = new AtomicReference<>();
 
     /**
-     * The most recent immutable state. No value until the first fast copy is created.
+     * The source of the snapshot. This is set when a snapshot is initiated and cleared when the snapshot is complete.
      */
-    private final AtomicReference<T> snapshotSource = new AtomicReference<>();
-
     /**
      * Constructor.
      *
@@ -80,8 +75,9 @@ public class StateLifecycleManagerImpl<T extends MerkleNodeStateAware> implement
     public StateLifecycleManagerImpl(
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final Function<VirtualMap, ? extends MerkleNodeState> stateSupplier) {
+            @NonNull final Function<VirtualMap, MerkleNodeState> stateSupplier) {
         requireNonNull(metrics);
+        requireNonNull(time);
         this.stateSupplier = stateSupplier;
         this.metrics = metrics;
         this.stateMetrics = new StateMetrics(metrics);
@@ -105,22 +101,6 @@ public class StateLifecycleManagerImpl<T extends MerkleNodeStateAware> implement
         }
 
         copyAndUpdateStateRefs(state);
-    }
-
-    @Override
-    public void setSnapshotSource(@NonNull final T source) {
-        requireNonNull(source);
-        final MerkleNodeState state = source.getState();
-        state.throwIfDestroyed("state must not be destroyed");
-        state.throwIfMutable("state must be immutable");
-        boolean result = snapshotSource.compareAndSet(null, source);
-        assert result : "Snapshot source was already set";
-    }
-
-    @Override
-    @Nullable
-    public T getSnapshotSource() {
-        return snapshotSource.get();
     }
 
     @Override
@@ -174,19 +154,12 @@ public class StateLifecycleManagerImpl<T extends MerkleNodeStateAware> implement
      * {@inheritDoc}
      */
     @Override
-    public void createSnapshot(final @NonNull Path targetPath) {
-        if( snapshotSource.get() == null) {
-            throw new IllegalStateException("Snapshot source is not set");
-        }
-        requireNonNull(time);
-        requireNonNull(snapshotMetrics);
-        final VirtualMapState<?> state = (VirtualMapState<?>) snapshotSource.get().getState();
+    public void createSnapshot(final @NonNull MerkleNodeState state, final @NonNull Path targetPath) {
         state.throwIfMutable();
         state.throwIfDestroyed();
         final long startTime = time.currentTimeMillis();
-        MerkleTreeSnapshotWriter.createSnapshot(state.virtualMap, targetPath, state.getRound());
+        MerkleTreeSnapshotWriter.createSnapshot(state.getRoot(), targetPath, state.getRound());
         snapshotMetrics.updateWriteStateToDiskTimeMetric(time.currentTimeMillis() - startTime);
-        snapshotSource.set(null);
     }
 
     /**

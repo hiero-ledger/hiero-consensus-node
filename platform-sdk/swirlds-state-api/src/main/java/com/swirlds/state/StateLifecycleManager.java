@@ -14,9 +14,9 @@ import java.nio.file.Path;
  * </ul>
  *
  * An implementation of this class must be thread-safe.
- * @param <T> A type of the snapshot source, which should implement {@link MerkleNodeStateAware}.
+ *
  */
-public interface StateLifecycleManager<T extends MerkleNodeStateAware> {
+public interface StateLifecycleManager {
 
     /**
      * Set the initial State. This method should only be on a startup or after a reconnect.
@@ -39,21 +39,12 @@ public interface StateLifecycleManager<T extends MerkleNodeStateAware> {
     MerkleNodeState getLatestImmutableState();
 
     /**
-     * Sets the state to create a snapshot from.
-     * @param source the state to create a snapshot from.
-     */
-    void setSnapshotSource(@NonNull T source);
-
-    T getSnapshotSource();
-
-    /**
-     * Creates a snapshot for the state that was previously set with {@link #setSnapshotSource(MerkleNodeStateAware)}.
-     * The state has to be hashed before calling this method. Once the snapshot is created, the manager resets the snapshot source
-     * to null. Therefore, this method is not idempotent.
+     * Creates a snapshot for the state provided as a parameter. The state has to be hashed before calling this method.
      *
+     * @param merkleNodeState The state to save.
      * @param targetPath The path to save the snapshot.
      */
-    void createSnapshot(@NonNull Path targetPath);
+    void createSnapshot(@NonNull MerkleNodeState merkleNodeState, @NonNull Path targetPath);
 
     /**
      * Loads a snapshot of a state.
