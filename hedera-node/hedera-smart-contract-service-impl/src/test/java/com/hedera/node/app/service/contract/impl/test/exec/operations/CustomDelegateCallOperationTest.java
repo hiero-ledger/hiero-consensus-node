@@ -6,6 +6,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYS
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.REQUIRED_GAS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SYSTEM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertSameResult;
+import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.DefaultExceptionalHaltReason.INVALID_OPERATION;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_GAS;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -17,6 +18,8 @@ import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomDelegateCallOperation;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
+import com.hedera.node.app.service.contract.impl.exec.utils.InvalidAddressContext;
+import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
@@ -59,6 +62,9 @@ class CustomDelegateCallOperationTest {
     @Mock
     private ProxyWorldUpdater updater;
 
+    @Mock
+    private HederaEvmAccount hederaAccount;
+
     private CustomDelegateCallOperation subject;
 
     @BeforeEach
@@ -68,10 +74,13 @@ class CustomDelegateCallOperationTest {
 
     @Test
     void catchesUnderflowWhenStackIsEmpty() {
-        givenWellKnownFrameWithNoGasCalc(1L, NON_SYSTEM_LONG_ZERO_ADDRESS, 2L);
-        given(frame.getStackItem(1)).willThrow(UnderflowException.class);
-        final var expected = new Operation.OperationResult(0L, ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS);
-        assertSameResult(expected, subject.execute(frame, evm));
+        try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
+            frameUtils.when(() -> FrameUtils.isHookExecution(frame)).thenReturn(false);
+            givenWellKnownFrameWithNoGasCalc(1L, NON_SYSTEM_LONG_ZERO_ADDRESS, 2L);
+            given(frame.getStackItem(1)).willThrow(UnderflowException.class);
+            final var expected = new Operation.OperationResult(0L, ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS);
+            assertSameResult(expected, subject.execute(frame, evm));
+        }
     }
 
     @Test
@@ -79,6 +88,7 @@ class CustomDelegateCallOperationTest {
         try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
             doCallRealMethod().when(addressChecks).isNeitherSystemNorPresent(any(), any());
             givenWellKnownFrameWith(1L, NON_SYSTEM_LONG_ZERO_ADDRESS, 2L);
+            frameUtils.when(() -> FrameUtils.invalidAddressContext(frame)).thenReturn(new InvalidAddressContext());
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
             frameUtils
                     .when(() -> FrameUtils.contractRequired(frame, NON_SYSTEM_LONG_ZERO_ADDRESS, featureFlags))
@@ -137,5 +147,53 @@ class CustomDelegateCallOperationTest {
                         any(),
                         anyBoolean()))
                 .willReturn(REQUIRED_GAS);
+    }
+
+    @Test
+    void rejectsCallCodeDuringHookExecution() {
+        try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
+            frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
+            frameUtils.when(() -> FrameUtils.isHookExecution(frame)).thenReturn(true);
+            given(frame.getRecipientAddress()).willReturn(SYSTEM_ADDRESS);
+            given(frame.getWorldUpdater()).willReturn(updater);
+            given(updater.getHederaAccount(frame.getRecipientAddress())).willReturn(hederaAccount);
+            given(hederaAccount.isTokenFacade()).willReturn(false);
+            given(hederaAccount.isScheduleTxnFacade()).willReturn(false);
+            given(hederaAccount.isRegularAccount()).willReturn(false);
+
+            final var expected = new Operation.OperationResult(0, INVALID_OPERATION);
+            assertSameResult(expected, subject.execute(frame, evm));
+        }
+    }
+
+    @Test
+    void permitsWhenHookExecutionAndNativeEntity() {
+        try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
+            givenWellKnownFrameWithNoGasCalc(1L, SYSTEM_ADDRESS, 2L);
+            given(frame.getRemainingGas()).willReturn(0L);
+            given(gasCalculator.callOperationGasCost(
+                            any(),
+                            anyLong(),
+                            anyLong(),
+                            anyLong(),
+                            anyLong(),
+                            anyLong(),
+                            any(),
+                            any(),
+                            any(),
+                            anyBoolean()))
+                    .willReturn(REQUIRED_GAS);
+            given(frame.getRecipientAddress()).willReturn(SYSTEM_ADDRESS);
+            frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
+            frameUtils.when(() -> FrameUtils.isHookExecution(frame)).thenReturn(true);
+            given(frame.getRecipientAddress()).willReturn(SYSTEM_ADDRESS);
+            given(frame.getWorldUpdater()).willReturn(updater);
+            given(updater.getHederaAccount(frame.getRecipientAddress())).willReturn(hederaAccount);
+            given(hederaAccount.isTokenFacade()).willReturn(false);
+            given(hederaAccount.isScheduleTxnFacade()).willReturn(true);
+
+            final var expected = new Operation.OperationResult(REQUIRED_GAS, INSUFFICIENT_GAS);
+            assertSameResult(expected, subject.execute(frame, evm));
+        }
     }
 }

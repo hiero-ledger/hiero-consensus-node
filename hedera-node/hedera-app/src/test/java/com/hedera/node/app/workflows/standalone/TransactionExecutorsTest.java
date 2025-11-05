@@ -6,7 +6,7 @@ import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.hedera.node.app.spi.AppContext.Gossip.UNAVAILABLE_GOSSIP;
-import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
+import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.util.FileUtilities.createFileID;
 import static com.hedera.node.app.workflows.standalone.TransactionExecutors.MAX_SIGNED_TXN_SIZE_PROPERTY;
 import static com.hedera.node.app.workflows.standalone.TransactionExecutors.TRANSACTION_EXECUTORS;
@@ -45,9 +45,6 @@ import com.hedera.node.app.fixtures.state.FakeServiceMigrator;
 import com.hedera.node.app.fixtures.state.FakeServicesRegistry;
 import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.hapi.utils.EntityType;
-import com.hedera.node.app.ids.AppEntityIdFactory;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.records.BlockRecordService;
@@ -57,6 +54,11 @@ import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
+import com.hedera.node.app.service.entityid.impl.EntityIdServiceImpl;
+import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
@@ -70,7 +72,6 @@ import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.AppContextImpl;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
@@ -397,7 +398,7 @@ public class TransactionExecutorsTest {
                 () -> NO_OP_METRICS,
                 new AppThrottleFactory(
                         () -> config, () -> state, () -> ThrottleDefinitions.DEFAULT, ThrottleAccumulator::new),
-                () -> NOOP_FEE_CHARGING,
+                () -> UNIVERSAL_NOOP_FEE_CHARGING,
                 new AppEntityIdFactory(config));
         registerServices(appContext, servicesRegistry);
         final var migrator = new FakeServiceMigrator();
@@ -424,7 +425,7 @@ public class TransactionExecutorsTest {
         ((CommittableWritableStates) nodeWritableStates).commit();
         final var writableStates = state.getWritableStates(FileService.NAME);
         final var readableStates = state.getReadableStates(AddressBookService.NAME);
-        final var entityIdStore = new WritableEntityIdStore(state.getWritableStates(EntityIdService.NAME));
+        final var entityIdStore = new WritableEntityIdStoreImpl(state.getWritableStates(EntityIdService.NAME));
         entityIdStore.adjustEntityCount(EntityType.NODE, 1);
         final var nodeStore = new ReadableNodeStoreImpl(readableStates, entityIdStore);
         final var files = writableStates.<FileID, File>get(V0490FileSchema.FILES_STATE_ID);
@@ -481,6 +482,7 @@ public class TransactionExecutorsTest {
                 filesConfig.addressBook(), ignore -> genesisSchema.nodeStoreAddressBook(nodeStore),
                 filesConfig.nodeDetails(), ignore -> genesisSchema.nodeStoreNodeDetails(nodeStore),
                 filesConfig.feeSchedules(), genesisSchema::genesisFeeSchedules,
+                filesConfig.simpleFeesSchedules(), genesisSchema::genesisSimpleFeesSchedules,
                 filesConfig.exchangeRates(), genesisSchema::genesisExchangeRates,
                 filesConfig.networkProperties(), genesisSchema::genesisNetworkProperties,
                 filesConfig.hapiPermissions(), genesisSchema::genesisHapiPermissions,
@@ -491,7 +493,7 @@ public class TransactionExecutorsTest {
             @NonNull final AppContext appContext, @NonNull final ServicesRegistry servicesRegistry) {
         // Register all service schema RuntimeConstructable factories before platform init
         Set.of(
-                        new EntityIdService(),
+                        new EntityIdServiceImpl(),
                         new ConsensusServiceImpl(),
                         new ContractServiceImpl(appContext, NO_OP_METRICS),
                         new FileServiceImpl(),

@@ -29,7 +29,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.as
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.removeIfAnyLeading0x;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthEthTxCreation;
 import static com.hedera.node.app.service.contract.impl.utils.ValidationUtils.getMaxGasLimit;
-import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_ID;
+import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
 import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
@@ -55,10 +55,10 @@ import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
@@ -187,7 +187,7 @@ public class HevmTransactionFactory {
         return new HederaEvmTransaction(
                 payer,
                 null,
-                HTS_HOOKS_CONTRACT_ID,
+                entityIdFactory.newContractId(HTS_HOOKS_CONTRACT_NUM),
                 NOT_APPLICABLE,
                 body.executionOrThrow().callOrThrow().evmHookCallOrThrow().data(),
                 null,
@@ -287,7 +287,7 @@ public class HevmTransactionFactory {
         AccountID sender = null;
         AccountID relayer = null;
 
-        final var gasPrice =
+        final var gasLimit =
                 switch (body.data().kind()) {
                     case CONTRACT_CREATE_INSTANCE ->
                         body.contractCreateInstanceOrThrow().gas();
@@ -298,6 +298,12 @@ public class HevmTransactionFactory {
                         relayer = body.transactionIDOrThrow().accountID();
                         yield ethTxData.gasLimit();
                     }
+                    case HOOK_DISPATCH ->
+                        body.hookDispatchOrThrow()
+                                .executionOrThrow()
+                                .callOrThrow()
+                                .evmHookCallOrThrow()
+                                .gasLimit();
                     default -> throw new IllegalArgumentException("Not a contract operation");
                 };
         return new HederaEvmTransaction(
@@ -308,7 +314,7 @@ public class HevmTransactionFactory {
                 Bytes.EMPTY,
                 null,
                 0,
-                gasPrice,
+                gasLimit,
                 NOT_APPLICABLE,
                 NOT_APPLICABLE,
                 null,
@@ -352,6 +358,7 @@ public class HevmTransactionFactory {
         final var execution = body.executionOrThrow();
 
         final var gasLimit = execution.callOrThrow().evmHookCallOrThrow().gasLimit();
+        validateTrue(gasLimit > 0, INSUFFICIENT_GAS);
         validateTrue(gasLimit >= hooksConfig.lambdaIntrinsicGasCost(), INSUFFICIENT_GAS);
         validateTrue(gasLimit <= getMaxGasLimit(contractsConfig), MAX_GAS_LIMIT_EXCEEDED);
 

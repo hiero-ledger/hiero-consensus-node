@@ -14,6 +14,7 @@ import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent.Factory;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -31,14 +32,17 @@ public abstract class AbstractContractTransactionHandler implements TransactionH
     protected final Provider<Factory> provider;
     protected final ContractServiceComponent component;
     protected final HederaGasCalculator gasCalculator;
+    protected final EntityIdFactory entityIdFactory;
     protected final SmartContractFeeBuilder usageEstimator = new SmartContractFeeBuilder();
 
     protected AbstractContractTransactionHandler(
             @NonNull final Provider<TransactionComponent.Factory> provider,
             @NonNull final HederaGasCalculator gasCalculator,
+            @NonNull final EntityIdFactory entityIdFactory,
             @NonNull final ContractServiceComponent component) {
         this.provider = requireNonNull(provider);
         this.gasCalculator = requireNonNull(gasCalculator);
+        this.entityIdFactory = requireNonNull(entityIdFactory);
         this.component = requireNonNull(component);
     }
 

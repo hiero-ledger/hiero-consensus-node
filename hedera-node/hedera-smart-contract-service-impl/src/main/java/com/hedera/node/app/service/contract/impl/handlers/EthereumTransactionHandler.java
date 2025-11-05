@@ -32,6 +32,7 @@ import com.hedera.node.app.service.contract.impl.infra.EthereumCallDataHydration
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.EthereumTransactionStreamBuilder;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
@@ -74,8 +75,9 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
             @NonNull final EthereumCallDataHydration callDataHydration,
             @NonNull final Provider<TransactionComponent.Factory> provider,
             @NonNull final HederaGasCalculator gasCalculator,
+            @NonNull final EntityIdFactory entityIdFactory,
             @NonNull final ContractServiceComponent component) {
-        super(provider, gasCalculator, component);
+        super(provider, gasCalculator, entityIdFactory, component);
         this.ethereumSignatures = requireNonNull(ethereumSignatures);
         this.callDataHydration = requireNonNull(callDataHydration);
     }
@@ -169,11 +171,11 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
         }
         if (ethTxData.hasToAddress()) {
             final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCallStreamBuilder.class);
-            outcome.addCallDetailsTo(streamBuilder, context);
+            outcome.addCallDetailsTo(streamBuilder, context, entityIdFactory);
             throwIfUnsuccessfulCall(outcome, component.hederaOperations(), streamBuilder);
         } else {
             final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCreateStreamBuilder.class);
-            outcome.addCreateDetailsTo(streamBuilder, context);
+            outcome.addCreateDetailsTo(streamBuilder, context, entityIdFactory);
             throwIfUnsuccessfulCreate(outcome, component.hederaOperations());
         }
     }

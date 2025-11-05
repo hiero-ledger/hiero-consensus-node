@@ -5,8 +5,10 @@ import static java.util.Objects.requireNonNull;
 
 import com.swirlds.platform.ConsensusImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.StringJoiner;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
@@ -16,36 +18,11 @@ import org.hiero.consensus.model.notification.IssNotification.IssType;
  */
 public class MarkerFilesStatus {
 
-    private final boolean hasCoinRoundMarkerFile;
-    private final boolean hasNoSuperMajorityMarkerFile;
-    private final boolean hasNoJudgesMarkerFile;
-    private final boolean hasConsensusExceptionMarkerFile;
-    private final EnumSet<IssType> issMarkerFiles;
-
-    public static final MarkerFilesStatus INITIAL_STATUS =
-            new MarkerFilesStatus(false, false, false, false, EnumSet.noneOf(IssType.class));
-
-    /**
-     * Creates a new instance of {@link MarkerFilesStatus}.
-     *
-     * @param hasCoinRoundMarkerFile indicates if the node wrote a coin round marker file
-     * @param hasNoSuperMajorityMarkerFile indicates if the node wrote a no-super-majority marker file
-     * @param hasNoJudgesMarkerFile indicates if the node wrote a no-judges marker file
-     * @param hasConsensusExceptionMarkerFile indicates if the node has a consensus exception marker file
-     * @param issMarkerFiles the set of ISS marker files written by the node
-     */
-    public MarkerFilesStatus(
-            final boolean hasCoinRoundMarkerFile,
-            final boolean hasNoSuperMajorityMarkerFile,
-            final boolean hasNoJudgesMarkerFile,
-            final boolean hasConsensusExceptionMarkerFile,
-            @NonNull final EnumSet<IssType> issMarkerFiles) {
-        this.hasCoinRoundMarkerFile = hasCoinRoundMarkerFile;
-        this.hasNoSuperMajorityMarkerFile = hasNoSuperMajorityMarkerFile;
-        this.hasNoJudgesMarkerFile = hasNoJudgesMarkerFile;
-        this.hasConsensusExceptionMarkerFile = hasConsensusExceptionMarkerFile;
-        this.issMarkerFiles = EnumSet.copyOf(issMarkerFiles);
-    }
+    private volatile boolean hasCoinRoundMarkerFile;
+    private volatile boolean hasMissingSuperMajorityMarkerFile;
+    private volatile boolean hasMissingJudgesMarkerFile;
+    private volatile boolean hasConsensusExceptionMarkerFile;
+    private final Set<IssType> issMarkerFiles = Collections.synchronizedSet(EnumSet.noneOf(IssType.class));
 
     /**
      * Checks if the node wrote any marker file.
@@ -54,10 +31,10 @@ public class MarkerFilesStatus {
      */
     public boolean hasAnyMarkerFile() {
         return hasCoinRoundMarkerFile()
-                || hasNoSuperMajorityMarkerFile()
-                || hasNoJudgesMarkerFile()
+                || hasMissingSuperMajorityMarkerFile()
+                || hasMissingJudgesMarkerFile()
                 || hasConsensusExceptionMarkerFile()
-                || hasAnyISSMarkerFile();
+                || hasAnyIssMarkerFile();
     }
 
     /**
@@ -70,21 +47,21 @@ public class MarkerFilesStatus {
     }
 
     /**
-     * Checks if the node wrote a no-super-majority marker file.
+     * Checks if the node wrote a missing-super-majority marker file.
      *
-     * @return {@code true} if the node wrote a no-super-majority marker file, {@code false} otherwise
+     * @return {@code true} if the node wrote a missing-super-majority marker file, {@code false} otherwise
      */
-    public boolean hasNoSuperMajorityMarkerFile() {
-        return hasNoSuperMajorityMarkerFile;
+    public boolean hasMissingSuperMajorityMarkerFile() {
+        return hasMissingSuperMajorityMarkerFile;
     }
 
     /**
-     * Checks if the node wrote a no-judges marker file.
+     * Checks if the node wrote a missing-judges marker file.
      *
-     * @return {@code true} if the node wrote a no-judges marker file, {@code false} otherwise
+     * @return {@code true} if the node wrote a missing-judges marker file, {@code false} otherwise
      */
-    public boolean hasNoJudgesMarkerFile() {
-        return hasNoJudgesMarkerFile;
+    public boolean hasMissingJudgesMarkerFile() {
+        return hasMissingJudgesMarkerFile;
     }
 
     /**
@@ -101,8 +78,8 @@ public class MarkerFilesStatus {
      *
      * @return {@code true} if the node has any ISS marker file, {@code false} otherwise
      */
-    public boolean hasAnyISSMarkerFile() {
-        return Stream.of(IssType.values()).anyMatch(this::hasISSMarkerFileOfType);
+    public boolean hasAnyIssMarkerFile() {
+        return Stream.of(IssType.values()).anyMatch(this::hasIssMarkerFileOfType);
     }
 
     /**
@@ -112,42 +89,49 @@ public class MarkerFilesStatus {
      * @return {@code true} if the node has an ISS marker file of the specified type, {@code false} otherwise
      * @throws NullPointerException if {@code issType} is {@code null}
      */
-    public boolean hasISSMarkerFileOfType(@NonNull final IssType issType) {
+    public boolean hasIssMarkerFileOfType(@NonNull final IssType issType) {
         requireNonNull(issType);
         return issMarkerFiles.contains(issType);
     }
 
     /**
-     * Returns a new instance of {@link MarkerFilesStatus} with the specified marker files added to this instance.
+     * Updates the marker files status based on a list of marker file names.
+     * *
+     * <p>We only set flags to true and we only add elements to the set. Thus, we can treat the properties
+     * independently and do not need to worry about race conditions.
      *
-     * @param markerFileNames the list of marker file names to set
-     * @return a new {@link MarkerFilesStatus} with the updated marker file names
+     * @param markerFileNames the list of marker file names to update the status with
      */
-    public MarkerFilesStatus withMarkerFiles(final List<String> markerFileNames) {
-        final EnumSet<IssType> newIssMarkerFiles = EnumSet.copyOf(issMarkerFiles);
-        for (final String markerFileName : markerFileNames) {
-            try {
-                newIssMarkerFiles.add(IssType.valueOf(markerFileName));
-            } catch (final IllegalArgumentException e) {
-                // ignore if the marker file name is not a valid IssType
-            }
+    public void updateWithMarkerFiles(final List<String> markerFileNames) {
+        if (markerFileNames.contains(ConsensusImpl.COIN_ROUND_MARKER_FILE)) {
+            this.hasCoinRoundMarkerFile = true;
         }
-        return new MarkerFilesStatus(
-                this.hasCoinRoundMarkerFile || markerFileNames.contains(ConsensusImpl.COIN_ROUND_MARKER_FILE),
-                this.hasNoSuperMajorityMarkerFile
-                        || markerFileNames.contains(ConsensusImpl.NO_SUPER_MAJORITY_MARKER_FILE),
-                this.hasNoJudgesMarkerFile || markerFileNames.contains(ConsensusImpl.NO_JUDGES_MARKER_FILE),
-                this.hasConsensusExceptionMarkerFile
-                        || markerFileNames.contains(ConsensusImpl.CONSENSUS_EXCEPTION_MARKER_FILE),
-                newIssMarkerFiles);
+        if (markerFileNames.contains(ConsensusImpl.NO_SUPER_MAJORITY_MARKER_FILE)) {
+            this.hasMissingSuperMajorityMarkerFile = true;
+        }
+        if (markerFileNames.contains(ConsensusImpl.NO_JUDGES_MARKER_FILE)) {
+            this.hasMissingJudgesMarkerFile = true;
+        }
+        if (markerFileNames.contains(ConsensusImpl.CONSENSUS_EXCEPTION_MARKER_FILE)) {
+            this.hasConsensusExceptionMarkerFile = true;
+        }
+        if (markerFileNames.contains(IssType.CATASTROPHIC_ISS.toString())) {
+            this.issMarkerFiles.add(IssType.CATASTROPHIC_ISS);
+        }
+        if (markerFileNames.contains(IssType.OTHER_ISS.toString())) {
+            this.issMarkerFiles.add(IssType.OTHER_ISS);
+        }
+        if (markerFileNames.contains(IssType.SELF_ISS.toString())) {
+            this.issMarkerFiles.add(IssType.SELF_ISS);
+        }
     }
 
     @Override
     public String toString() {
         return new StringJoiner(", ", MarkerFilesStatus.class.getSimpleName() + "[", "]")
                 .add("hasCoinRoundMarkerFile=" + hasCoinRoundMarkerFile)
-                .add("hasNoSuperMajorityMarkerFile=" + hasNoSuperMajorityMarkerFile)
-                .add("hasNoJudgesMarkerFile=" + hasNoJudgesMarkerFile)
+                .add("hasMissingSuperMajorityMarkerFile=" + hasMissingSuperMajorityMarkerFile)
+                .add("hasMissingJudgesMarkerFile=" + hasMissingJudgesMarkerFile)
                 .add("hasConsensusExceptionMarkerFile=" + hasConsensusExceptionMarkerFile)
                 .add("issMarkerFiles=" + issMarkerFiles)
                 .toString();

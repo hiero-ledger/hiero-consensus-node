@@ -2,10 +2,12 @@
 package org.hiero.otter.fixtures.turtle;
 
 import static java.util.Objects.requireNonNull;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.test.fixtures.Randotron;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -31,6 +33,7 @@ import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContex
 import org.hiero.otter.fixtures.network.Topology.ConnectionData;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
+import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 
 /**
  * An implementation of {@link Network} that is based on the Turtle framework.
@@ -51,19 +54,21 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     /**
      * Constructor for TurtleNetwork.
      *
-     * @param randotron            the random generator
-     * @param timeManager          the time manager
-     * @param logging              the logging utility
-     * @param rootOutputDirectory  the directory where the node output will be stored, like saved state and so on
+     * @param randotron the random generator
+     * @param timeManager the time manager
+     * @param logging the logging utility
+     * @param rootOutputDirectory the directory where the node output will be stored, like saved state and so on
      * @param transactionGenerator the transaction generator that generates a steady flow of transactions to all nodes
+     * @param useRandomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
      */
     public TurtleNetwork(
             @NonNull final Randotron randotron,
             @NonNull final TurtleTimeManager timeManager,
             @NonNull final TurtleLogging logging,
             @NonNull final Path rootOutputDirectory,
-            @NonNull final TurtleTransactionGenerator transactionGenerator) {
-        super(randotron);
+            @NonNull final TurtleTransactionGenerator transactionGenerator,
+            final boolean useRandomNodeIds) {
+        super(randotron, useRandomNodeIds);
         this.randotron = requireNonNull(randotron);
         this.timeManager = requireNonNull(timeManager);
         this.logging = requireNonNull(logging);
@@ -106,7 +111,15 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     protected TurtleNode doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         simulatedNetwork.addNode(nodeId);
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
-        return new TurtleNode(randotron, timeManager, nodeId, keysAndCerts, simulatedNetwork, logging, outputDir);
+        return new TurtleNode(
+                randotron,
+                timeManager,
+                nodeId,
+                keysAndCerts,
+                simulatedNetwork,
+                logging,
+                outputDir,
+                networkConfiguration);
     }
 
     /**
@@ -119,17 +132,48 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
         simulatedNetwork.addNode(nodeId);
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         return new InstrumentedTurtleNode(
-                randotron, timeManager, nodeId, keysAndCerts, simulatedNetwork, logging, outputDir);
+                randotron,
+                timeManager,
+                nodeId,
+                keysAndCerts,
+                simulatedNetwork,
+                logging,
+                outputDir,
+                networkConfiguration);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     protected void preStartHook(@NonNull final Roster roster) {
         final int size = nodes().size();
         executorService = NodeLoggingContext.wrap(Executors.newFixedThreadPool(
                 Math.min(size, Runtime.getRuntime().availableProcessors()), new ContextAwareThreadFactory()));
+
+        // Synchronize FakeTime when starting from a saved state.
+        // This ensures time never goes backward when starting from saved state.
+        final Path savedStateDirectory = networkConfiguration.savedStateDirectory();
+        if (savedStateDirectory != null) {
+            synchronizeTimeWithSavedState(savedStateDirectory);
+        }
+    }
+
+    /**
+     * Synchronizes FakeTime to the saved state's WALL_CLOCK_TIME plus one hour. This ensures time never goes backward
+     * when starting from a saved state, and is instantaneous.
+     */
+    private void synchronizeTimeWithSavedState(@NonNull final Path savedStateDirectory) {
+        try {
+            final Instant requiredTime = OtterSavedStateUtils.loadSavedStateWallClockTime(savedStateDirectory)
+                    .plus(Duration.ofHours(1));
+            final Instant currentTime = timeManager.now();
+
+            if (currentTime.isBefore(requiredTime)) {
+                final Duration timeAdvance = Duration.between(currentTime, requiredTime);
+                log.info("Advancing TurtleTimeManager instantaneously by {} to match saved state time", timeAdvance);
+                timeManager.advanceTime(timeAdvance);
+            }
+        } catch (final IOException e) {
+            fail("Failed to synchronize TurtleTimeManager with saved state", e);
+        }
     }
 
     @Override

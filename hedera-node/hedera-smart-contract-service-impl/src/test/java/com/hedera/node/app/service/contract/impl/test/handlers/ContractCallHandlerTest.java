@@ -6,7 +6,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HALT_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -26,15 +25,14 @@ import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.exec.gas.GasRequirements;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
-import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCallHandler;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
-import com.hedera.node.app.service.contract.impl.state.EvmFrameStateFactory;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.utils.ConstantUtils;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -65,6 +63,9 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
     private HandleContext context;
 
     @Mock
+    private EntityIdFactory entityIdFactory;
+
+    @Mock
     private PureChecksContext pureChecksContext;
 
     @Mock
@@ -86,12 +87,6 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
     private HederaOperations hederaOperations;
 
     @Mock
-    private HederaNativeOperations nativeOperations;
-
-    @Mock
-    private CodeFactory codeFactory;
-
-    @Mock
     private HederaGasCalculator gasCalculator;
 
     @Mock(strictness = Strictness.LENIENT)
@@ -99,12 +94,6 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
 
     @Mock
     private ContractsConfig contractsConfig;
-
-    @Mock
-    private EvmFrameStates evmFrameStates;
-
-    @Mock
-    private EvmFrameStateFactory evmFrameStateFactory;
 
     private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
 
@@ -118,7 +107,7 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
     void setUp() {
         contractMetrics.createContractPrimaryMetrics();
         given(contractServiceComponent.contractMetrics()).willReturn(contractMetrics);
-        subject = new ContractCallHandler(() -> factory, gasCalculator, contractServiceComponent);
+        subject = new ContractCallHandler(() -> factory, gasCalculator, entityIdFactory, contractServiceComponent);
     }
 
     @Test
@@ -147,7 +136,8 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
 
         given(recordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(recordBuilder);
         given(recordBuilder.contractCallResult(expectedResult)).willReturn(recordBuilder);
-        given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome, context)).willReturn(recordBuilder);
+        given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome, context, entityIdFactory))
+                .willReturn(recordBuilder);
 
         assertDoesNotThrow(() -> subject.handle(context));
     }
@@ -177,7 +167,8 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
 
         given(recordBuilder.contractID(null)).willReturn(recordBuilder);
         given(recordBuilder.contractCallResult(expectedResult)).willReturn(recordBuilder);
-        given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome, context)).willReturn(recordBuilder);
+        given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome, context, entityIdFactory))
+                .willReturn(recordBuilder);
 
         assertFailsWith(INVALID_SIGNATURE, () -> subject.handle(context));
     }

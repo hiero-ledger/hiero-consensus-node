@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app;
 
+import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 
 import com.hedera.hapi.platform.state.QueueState;
 import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.config.api.Configuration;
@@ -32,22 +34,34 @@ import org.json.JSONObject;
 @ConstructableIgnored
 public class HederaVirtualMapState extends VirtualMapState<HederaVirtualMapState> implements MerkleNodeState {
 
-    public HederaVirtualMapState(@NonNull final Configuration configuration, @NonNull final Metrics metrics) {
-        super(configuration, metrics);
+    /**
+     * Constructs a {@link HederaVirtualMapState}.
+     *
+     * @param configuration the platform configuration instance to use when creating the new instance of state
+     * @param metrics       the platform metric instance to use when creating the new instance of state
+     * @param time          the time instance to use when creating the new instance of state
+     */
+    public HederaVirtualMapState(
+            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
+        super(configuration, metrics, time);
     }
 
     /**
      * Constructs a {@link HederaVirtualMapState} using the specified {@link VirtualMap}.
      *
      * @param virtualMap the virtual map whose metrics must already be registered
+     * @param metrics    the platform metric instance to use when creating the new instance of state
+     * @param time       the time instance to use when creating the new instance of state
      */
-    public HederaVirtualMapState(@NonNull final VirtualMap virtualMap) {
-        super(virtualMap);
+    public HederaVirtualMapState(
+            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
+        super(virtualMap, metrics, time);
     }
 
     protected HederaVirtualMapState(@NonNull final HederaVirtualMapState from) {
         super(from);
     }
+
     /**
      * {@inheritDoc}
      */
@@ -60,11 +74,22 @@ public class HederaVirtualMapState extends VirtualMapState<HederaVirtualMapState
      * Creates a new instance of {@link HederaVirtualMapState} with the specified {@link VirtualMap}.
      *
      * @param virtualMap the virtual map whose metrics must already be registered
+     * @param metrics    the platform metric instance to use when creating the new instance of state
+     * @param time       the time instance to use when creating the new instance of state
      * @return a new instance of {@link HederaVirtualMapState}
      */
     @Override
-    protected HederaVirtualMapState newInstance(@NonNull final VirtualMap virtualMap) {
-        return new HederaVirtualMapState(virtualMap);
+    protected HederaVirtualMapState newInstance(
+            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
+        return new HederaVirtualMapState(virtualMap, metrics, time);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long getRound() {
+        return DEFAULT_PLATFORM_STATE_FACADE.roundOf(this);
     }
 
     @Override

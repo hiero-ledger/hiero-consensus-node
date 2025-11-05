@@ -25,7 +25,7 @@ import com.hedera.hapi.node.state.contract.SlotValue;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.hapi.node.state.hooks.LambdaSlotKey;
 import com.hedera.node.app.service.contract.impl.state.StorageAccess.StorageAccessType;
-import com.hedera.node.app.spi.ids.WritableEntityCounters;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.WritableKVState;
@@ -94,27 +94,15 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
     }
 
     /**
-     * Puts the given single slot value for the given lambda, ensuring storage linked list pointers are preserved.
-     * If the new value is {@link Bytes#EMPTY}, the slot is removed.
+     * Puts the given single slot value for the given lambda
      *
      * @param key the slot key
      * @param value the new slot value
-     * @return {@code 1} if a new slot was created, {@code -1} if an existing slot was removed,
-     * or {@code 0} if an existing slot was updated or no change was made
-     * @throws HandleException if the lambda ID is not found
      */
-    public int updateStorage(@NonNull final LambdaSlotKey key, @NonNull final SlotValue value) {
+    public void updateStorage(@NonNull final LambdaSlotKey key, @NonNull final SlotValue value) {
         requireNonNull(key);
         requireNonNull(value);
-
-        final var hookId = key.hookId();
-        Bytes newValue = value.value();
-        if (isAllZeroWord(newValue)) {
-            // if value is empty we remove the slot
-            newValue = Bytes.EMPTY;
-        }
-        final var minimalKey = minimalKey(key.key());
-        return applyStorageMutations(hookId, List.of(minimalKey), List.of(newValue));
+        storage.put(key, value);
     }
 
     /**
@@ -169,9 +157,10 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
      * Tries to create a new EVM hook for the given entity.
      *
      * @param creation the hook creation spec
+     * @return the number of storage slots initialized
      * @throws HandleException if the creation fails
      */
-    public void createEvmHook(@NonNull final HookCreation creation) throws HandleException {
+    public int createEvmHook(@NonNull final HookCreation creation) throws HandleException {
         final var details = creation.detailsOrThrow();
         final var hookId = new HookId(creation.entityIdOrThrow(), details.hookId());
         validateTrue(hookStates.get(hookId) == null, HOOK_ID_IN_USE);
@@ -209,13 +198,13 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
                 log.warn("Inconsistent state: next hook {} not found when linking {}", next, hookId);
             }
         }
-        if (type == LAMBDA) {
-            final var initialUpdates = details.lambdaEvmHookOrThrow().storageUpdates();
-            if (!initialUpdates.isEmpty()) {
-                updateStorage(hookId, initialUpdates);
-            }
+        final var initialUpdates = details.lambdaEvmHookOrThrow().storageUpdates();
+        int updatedStorageSlots = 0;
+        if (!initialUpdates.isEmpty()) {
+            updatedStorageSlots = updateStorage(hookId, initialUpdates);
         }
         entityCounters.incrementEntityTypeCount(HOOK);
+        return updatedStorageSlots;
     }
 
     public @Nullable SlotValue getOriginalSlotValue(@NonNull final LambdaSlotKey key) {
@@ -282,7 +271,7 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
      *
      * @return the set of modified slot keys
      */
-    public Set<LambdaSlotKey> getModifiedSlotKeys() {
+    public Set<LambdaSlotKey> getModifiedLambdaSlotKeys() {
         return storage.modifiedKeys();
     }
 
@@ -358,7 +347,7 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
      * @param val the value to check
      * @return true if the value is a 32-byte word with all bytes zero
      */
-    private static boolean isAllZeroWord(@NonNull final Bytes val) {
+    public static boolean isAllZeroWord(@NonNull final Bytes val) {
         for (long i = 0, n = val.length(); i < n; i++) {
             if (val.getByte(i) != 0) return false;
         }
@@ -420,5 +409,28 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
             return delta;
         }
         return 0;
+    }
+
+    /**
+     * Returns a list of slot values for the given hook and keys.
+     * @param hookId the hook ID
+     * @param keys the keys
+     * @return a list of slots
+     * @throws HandleException if the hook
+     */
+    private EvmHookView getView(@NonNull final HookId hookId, @NonNull final List<Bytes> keys) throws HandleException {
+        requireNonNull(hookId);
+        requireNonNull(keys);
+        final var state = hookStates.get(hookId);
+        if (state == null) {
+            throw new HandleException(HOOK_NOT_FOUND);
+        }
+        final List<Slot> slots = new ArrayList<>(keys.size());
+        keys.forEach(key -> {
+            final var slotKey = new LambdaSlotKey(hookId, key);
+            final var slotValue = storage.getOriginalValue(slotKey);
+            slots.add(new Slot(slotKey, slotValue));
+        });
+        return new EvmHookView(state, slots);
     }
 }

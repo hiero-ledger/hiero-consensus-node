@@ -2,8 +2,10 @@
 package org.hiero.otter.fixtures;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.common.test.fixtures.WeightGenerators;
+import com.swirlds.platform.reconnect.FallenBehindStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
@@ -16,7 +18,10 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.internal.helpers.Utils;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology;
+import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
+import org.hiero.otter.fixtures.network.utils.LatencyRange;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
+import org.hiero.otter.fixtures.result.MultipleNodeEventStreamResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.MultipleNodeMarkerFileResults;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
@@ -29,7 +34,7 @@ import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
  * <p>This interface provides methods to add and remove nodes, start the network, and add instrumented nodes.
  */
 @SuppressWarnings("unused")
-public interface Network {
+public interface Network extends Configurable<Network> {
 
     /**
      * Get the list of nodes in the network.
@@ -127,6 +132,16 @@ public interface Network {
     }
 
     /**
+     * Gets the roster of the network. This method can only be called after the network has been started, because the
+     * roster is created during startup.
+     *
+     * @return the roster of the network
+     * @throws IllegalStateException if the network has not been started yet
+     */
+    @NonNull
+    Roster roster();
+
+    /**
      * Start the network with the currently configured setup.
      *
      * <p>The method will wait until all nodes have become
@@ -184,7 +199,7 @@ public interface Network {
      *
      * @param partition the partition to remove
      */
-    void removePartition(@NonNull Partition partition);
+    void removeNetworkPartition(@NonNull Partition partition);
 
     /**
      * Gets all currently active partitions.
@@ -231,60 +246,29 @@ public interface Network {
     boolean isIsolated(@NonNull Node node);
 
     /**
+     * Sets the latency range for all connections from and to this node.
+     *
+     * <p>This method sets the latency for all connections from the specified node to the given latency range. If a
+     * connection already has a custom latency set, it will be overridden by this method.
+     *
+     * @param node the node for which to set the latency
+     * @param latencyRange the latency range to apply to all connections
+     */
+    void setLatencyForAllConnections(@NonNull Node node, @NonNull LatencyRange latencyRange);
+
+    /**
+     * Sets the bandwidth limit for all connections from and to this node.
+     *
+     * @param node the node for which to set the bandwidth limit
+     * @param bandwidthLimit the bandwidth limit to apply to all connections
+     */
+    void setBandwidthForAllConnections(@NonNull Node node, @NonNull BandwidthLimit bandwidthLimit);
+
+    /**
      * Restore the network connectivity to its original/default state. Removes all partitions, cliques, and custom
      * connection settings. The defaults are defined by the {@link Topology} of the network.
      */
     void restoreConnectivity();
-
-    /**
-     * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
-     * in the network are running.
-     *
-     * @param key the key of the property
-     * @param value the value of the property
-     * @return this {@code Network} instance for method chaining
-     */
-    Network withConfigValue(@NonNull String key, @NonNull String value);
-
-    /**
-     * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
-     * in the network are running.
-     *
-     * @param key the key of the property
-     * @param value the value of the property
-     * @return this {@code Network} instance for method chaining
-     */
-    Network withConfigValue(@NonNull String key, int value);
-
-    /**
-     * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
-     * in the network are running.
-     *
-     * @param key the key of the property
-     * @param value the value of the property
-     * @return this {@code Network} instance for method chaining
-     */
-    Network withConfigValue(@NonNull String key, long value);
-
-    /**
-     * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
-     * in the network are running.
-     *
-     * @param key the key of the property
-     * @param value the value of the property
-     * @return this {@code Network} instance for method chaining
-     */
-    Network withConfigValue(@NonNull String key, boolean value);
-
-    /**
-     * Updates a single property of the configuration for every node in the network. Can only be invoked when no nodes
-     * in the network are running.
-     *
-     * @param key the key of the property
-     * @param value the value of the property
-     * @return this {@code Network} instance for method chaining
-     */
-    Network withConfigValue(@NonNull String key, @NonNull Path value);
 
     /**
      * Freezes the network.
@@ -392,12 +376,19 @@ public interface Network {
     MultipleNodeMarkerFileResults newMarkerFileResults();
 
     /**
+     * Creates a new result with event streams from all nodes that are currently in the network.
+     *
+     * @return the event streams results of the nodes
+     */
+    MultipleNodeEventStreamResults newEventStreamResults();
+
+    /**
      * Checks if a node is behind compared to a strong minority of the network. A node is considered behind a peer when
      * its minimum non-ancient round is older than the peer's minimum non-expired round.
      *
      * @param maybeBehindNode the node to check behind status for
      * @return {@code true} if the node is behind by node weight, {@code false} otherwise
-     * @see com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus
+     * @see FallenBehindStatus
      */
     boolean nodeIsBehindByNodeWeight(@NonNull Node maybeBehindNode);
 
@@ -406,11 +397,25 @@ public interface Network {
      * when its minimum non-ancient round is older than the peer's minimum non-expired round.
      *
      * @param maybeBehindNode the node to check behind status for
-     * @param fraction the fraction of peers to consider for the behind check
      * @return {@code true} if the node is behind by the specified fraction of peers, {@code false} otherwise
-     * @see com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus
+     * @see FallenBehindStatus
+     * @see Network#nodesAreBehindByNodeCount(Node, Node...)
      */
-    boolean nodeIsBehindByNodeCount(@NonNull Node maybeBehindNode, double fraction);
+    default boolean nodeIsBehindByNodeCount(@NonNull final Node maybeBehindNode) {
+        return nodesAreBehindByNodeCount(maybeBehindNode);
+    }
+
+    /**
+     * Checks if one or more nodes are behind compared to a fraction of peers in the network. A node is considered
+     * behind a peer when its minimum non-ancient round is older than the peer's minimum non-expired round. This method
+     * will return {@code true} if all supplied nodes are behind the specified fraction of peers.
+     *
+     * @param maybeBehindNode the node to check behind status for
+     * @param otherNodes additional nodes to consider for the behind check (optional)
+     * @return {@code true} if the node is behind by the specified fraction of peers, {@code false} otherwise
+     * @see FallenBehindStatus
+     */
+    boolean nodesAreBehindByNodeCount(@NonNull Node maybeBehindNode, @Nullable Node... otherNodes);
 
     /**
      * Checks if all nodes in the network are in the specified {@link PlatformStatus}.
@@ -430,4 +435,17 @@ public interface Network {
     default boolean allNodesAreActive() {
         return allNodesInStatus(PlatformStatus.ACTIVE);
     }
+
+    /**
+     * Sets the source directory to the state directory for all nodes. The directory is either relative to
+     * {@code platform-sdk/consensus-otter-tests/saved-states} or an absolute path
+     *
+     * <p>This method sets the directory of all nodes currently added to the network. Please note that the new
+     * directory
+     * will become effective only after a node is (re-)started.
+     *
+     * @param savedStateDirectory directory name of the state directory relative to the
+     * consensus-otter-tests/saved-states directory
+     */
+    void savedStateDirectory(@NonNull final Path savedStateDirectory);
 }

@@ -19,8 +19,8 @@ public record ContractsConfig(
                 boolean noncesExternalizationEnabled,
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean enforceCreationThrottle,
         @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerTransaction,
-        @ConfigProperty(defaultValue = "1500000000") @NetworkProperty long maxGasPerSec,
-        @ConfigProperty(defaultValue = "1500000000") @NetworkProperty long maxGasPerSecBackend,
+        @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerSec,
+        @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerSecBackend,
         @ConfigProperty(defaultValue = "500000000") @NetworkProperty long opsDurationThrottleCapacity,
         @ConfigProperty(defaultValue = "500000000") @NetworkProperty long opsDurationThrottleUnitsFreedPerSecond,
         @ConfigProperty(value = "maxKvPairs.aggregate", defaultValue = "500000000") @NetworkProperty
@@ -65,7 +65,7 @@ public record ContractsConfig(
         @ConfigProperty(value = "systemContract.scheduleService.scheduleNative.enabled", defaultValue = "true")
                 @NetworkProperty
                 boolean systemContractScheduleNativeEnabled,
-        @ConfigProperty(value = "systemContract.scheduleService.scheduleCall.enabled", defaultValue = "false")
+        @ConfigProperty(value = "systemContract.scheduleService.scheduleCall.enabled", defaultValue = "true")
                 @NetworkProperty
                 boolean systemContractScheduleCallEnabled,
         @ConfigProperty(value = "systemContract.accountService.isAuthorizedRawEnabled", defaultValue = "true")
@@ -100,7 +100,7 @@ public record ContractsConfig(
         @ConfigProperty(value = "evm.version", defaultValue = "v0.51") @NetworkProperty String evmVersion,
         @ConfigProperty(value = "evm.nativeLibVerification.halt.enabled", defaultValue = "false") @NetworkProperty
                 boolean nativeLibVerificationHaltEnabled,
-        @ConfigProperty(value = "evm.pectra.enabled", defaultValue = "false") @NetworkProperty boolean evmPectraEnabled,
+        @ConfigProperty(value = "evm.pectra.enabled", defaultValue = "true") @NetworkProperty boolean evmPectraEnabled,
         @ConfigProperty(value = "metrics.smartContract.primary.enabled", defaultValue = "true") @NetworkProperty
                 boolean metricsSmartContractPrimaryEnabled,
         @ConfigProperty(value = "metrics.smartContract.secondary.enabled", defaultValue = "true") @NetworkProperty
