@@ -1,73 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXF: [CITR] Adhoc - Merge Queue Longevity Test Controller"
+name: "ZXF: [CITR] Merge Queue Longevity Test Controller"
 on:
   workflow_dispatch:
-    inputs:
-      test-asset:
-        required: true
-        default: "AdHocSD8"
-        description: "Test on given Longevity Machine (AdHoc5, AdHoc6, AdHoc7, AdHocSD8, AdHocSD9)"
-        type: choice
-        options:
-          - AdHoc5
-          - AdHoc6
-          - AdHoc7
-          - AdHocSD8
-          - AdHocSD9
-      nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
-        required: true
-        default: "100000"
-        description: "Number of Accounts and NFT tokens"
-        type: choice
-        options:
-          - "100000"
-          - "1000000"
-          - "20000000"
-          - "100000000"
-          - "500000000"
-          - "1000000000"
-      nlg-time: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
-        required: true
-        default: "3"
-        description: "Test execution time options"
-        type: choice
-        options:
-          - "3"
-          - "9"
-          - "21"
-          - "30"
-          - "60"
-          - "180"
-          - "330"
-          - "960"
-          - "1200"
-          - "10080"
-          - "20160"
-      add-app-props:
-        required: false
-        default: ""
-        type: string
-        description: 'Add props to application.properties, e.g. "blockStream.streamMode=RECORDS". Newline is "\n"'
-      add-settings:
-        required: false
-        default: ""
-        type: string
-        description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
-      run_NLGDparams:
-        required: false
-        default: "-Dbenchmark.stepDuration=5m -Dbenchmark.coolDown=2m"
-        type: string
-        description: 'Special miniLongevity settings. Newline is "\n"'
-      disable-notifications:
-        required: false
-        default: true
-        type: boolean
-        description: "If true, skip tag and notifications"
-      delete-namespace:
-        required: false
-        default: true
-        type: boolean
-        description: "If true, automatically delete namespace when done"
 
 defaults:
   run:
@@ -103,12 +37,6 @@ jobs:
           PROMOTED_GREP_PATTERN: "build-(.{5})" # Pattern to match build tags (e.g., build-12345)
           CHECK_TAG: "${{ github.ref }}"
         run: |
-          
-          echo "GH_ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}"
-          echo "SLACK_CITR_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}"
-          echo "NLG_ACCESS_TOKEN: ${{ secrets.NLG_ACCESS_TOKEN }}"
-          echo "PERF_ANALYSIS_TOKEN: ${{ secrets.PERF_ANALYSIS_TOKEN }}"
-
           # Ensure the tag that we received is a build tag
           # if the tag is a build tag then we can parse out the build number (the last 5 characters)
           # return the build tag as an output
@@ -127,33 +55,33 @@ jobs:
             echo "Ref: ${CHECK_TAG}" >> "${GITHUB_STEP_SUMMARY}"
           fi
 
-  run-mini-longevity-test:
+  run-single-day-longevity-test:
     name: Longevity Test
     needs:
       - verify-tag
     uses: ./.github/workflows/zxc-mini-longevity-test.yaml
-    if: ${{ needs.verify-tag.result == 'success' || inputs.disable-notifications == true }}
+    if: ${{ needs.verify-tag.result == 'success' }}
     with:
-      test-asset: "${{ inputs.test-asset }}"
+      test-asset: "SDLT2"
       ref: "${{ github.ref }}"
       solo-version: "${{ vars.CITR_SOLO_VERSION }}"
-      nlg-accounts: "${{ inputs.nlg-accounts }}"
-      nlg-time: "${{ inputs.nlg-time }}"
-      add-app-props: "${{ inputs.add-app-props }}"
-      run_NLGDparams: "${{ inputs.run_NLGDparams }}"
-      add-settings: "${{ inputs.add-settings }}"
-      delete-namespace: ${{ inputs.delete-namespace }}
+      nlg-accounts: "20000000"
+      nlg-time: "60"
+      add-app-props: ""
+      add-settings: ""
+      run_NLGDparams: "-Dbenchmark.stepDuration=20m -Dbenchmark.coolDown=3m"
+      delete-namespace: true
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       rootly-api-token: ${{ secrets.ROOTLY_API_TOKEN }}
 
+
   tag-sdlt-result:
-    name: Tag SDLT Result
+    name: Tag MQLT Result
     runs-on: hiero-citr-linux-medium
     needs:
-      - run-mini-longevity-test
+      - run-single-day-longevity-test
       - verify-tag
-    if: ${{ inputs.disable-notifications != true }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -177,24 +105,17 @@ jobs:
           gpg_private_key: ${{ secrets.SVCS_GPG_KEY_CONTENTS }}
           passphrase: ${{ secrets.SVCS_GPG_KEY_PASSPHRASE }}
 
-      - name: Tag SDLT Result
+      - name: Tag MQLT Result
         run: |
-          RESULT="${{ needs.run-mini-longevity-test.outputs.result }}"
+          RESULT="${{ needs.run-single-day-longevity-test.outputs.result }}"
           BUILD_NUM="${{ needs.verify-tag.outputs.build-number }}"
 
-          # Skip tagging if no build number is found
-          if [ -z "$BUILD_NUM" ]; then
-            echo "No build number found. Skipping tagging step." >> "${GITHUB_STEP_SUMMARY}"
-            exit 0
-          fi
-
-          # Populate the SDLT tag name and message
           if [ "$RESULT" == "success" ]; then
-            TAG_NAME="sdlt-pass-${BUILD_NUM}"
-            MSG="Mini Longevity Test passed for build-${BUILD_NUM}"
+            TAG_NAME="mqlt-pass-${BUILD_NUM}"
+            MSG="Merge Queue Longevity Test passed for build-${BUILD_NUM}"
           elif [ "$RESULT" == "failure" ]; then
-            TAG_NAME="sdlt-fail-${BUILD_NUM}"
-            MSG="Mini Longevity Test FAILED for build-${BUILD_NUM}"
+            TAG_NAME="mqlt-fail-${BUILD_NUM}"
+            MSG="Merge Queue Longevity Test FAILED for build-${BUILD_NUM}"
           else
             echo "No tag will be applied. Test result was: $RESULT" >> "${GITHUB_STEP_SUMMARY}"
             exit 0
@@ -203,13 +124,12 @@ jobs:
           git tag --annotate "${TAG_NAME}" --message "${MSG}"
           git push --set-upstream origin --tags
 
-          echo "### SDLT Result - Tag Information" >> "${GITHUB_STEP_SUMMARY}"
-          echo "SDLT Tag: ${TAG_NAME}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### MQLT Result - Tag Information" >> "${GITHUB_STEP_SUMMARY}"
+          echo "MQLT Tag: ${TAG_NAME}" >> "${GITHUB_STEP_SUMMARY}"
 
   get-commit-info:
     name: Get Commit Information
     runs-on: hiero-citr-linux-medium
-    if: ${{ inputs.disable-notifications != true }}
     needs:
       - verify-tag
     outputs:
@@ -226,8 +146,9 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          fetch-depth: "0"
           token: ${{ secrets.GH_ACCESS_TOKEN }}
+          fetch-depth: "0"
+          ref: ${{ github.ref }}
 
       - name: Find Commit Author in Slack
         id: find-commit-author-slack
@@ -262,13 +183,13 @@ jobs:
     needs:
       - verify-tag
       - tag-sdlt-result
-      - run-mini-longevity-test
+      - run-single-day-longevity-test
       - get-commit-info
     if: ${{ (needs.verify-tag.result == 'success' &&
       needs.tag-sdlt-result.result == 'success' &&
-      needs.run-mini-longevity-test.outputs.result == 'success' &&
+      needs.run-single-day-longevity-test.outputs.result == 'success' &&
       needs.get-commit-info.result == 'success') &&
-      inputs.disable-notifications != true && !cancelled() }}
+      !cancelled() }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -291,7 +212,7 @@ jobs:
                       "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": ":tada: SDLT - Mini Longevity Test (${{ github.ref }}) Passed",
+                        "text": ":tada: MQLT - Merge Queue Longevity Test (${{ github.ref }}) Passed",
                         "emoji": true
                       }
                     },
@@ -302,7 +223,7 @@ jobs:
                       "type": "section",
                       "text": {
                         "type": "mrkdwn",
-                        "text": "*SDLT Job Succeeded. Test panel status below*"
+                        "text": "*MQLT Job Succeeded. Test panel status below*"
                       },
                       "fields": [
                         {
@@ -315,15 +236,15 @@ jobs:
                         },
                         {
                           "type": "plain_text",
-                          "text": "Run Mini Longevity Test"
+                          "text": "Run Merge Queue Longevity Test"
                         },
                         {
                           "type": "plain_text",
-                          "text": "${{ needs.run-mini-longevity-test.outputs.result  }}"
+                          "text": "${{ needs.run-single-day-longevity-test.outputs.result  }}"
                         },
                         {
                           "type": "plain_text",
-                          "text": "Tag SDLT Passing"
+                          "text": "Tag MQLT Passing"
                         },
                         {
                           "type": "plain_text",
@@ -381,20 +302,20 @@ jobs:
             }
 
   report-failure:
-    name: Report SDLT execution failure
+    name: Report MQLT execution failure
     runs-on: hiero-citr-linux-medium
     needs:
       - verify-tag
-      - run-mini-longevity-test
+      - run-single-day-longevity-test
       - tag-sdlt-result
       - get-commit-info
       - report-success
     if: ${{ (needs.verify-tag.result != 'success' ||
       needs.tag-sdlt-result.result != 'success' ||
-      needs.run-mini-longevity-test.outputs.result != 'success' ||
+      needs.run-single-day-longevity-test.outputs.result != 'success' ||
       needs.get-commit-info.result != 'success' ||
       needs.report-success.result != 'success') &&
-      inputs.disable-notifications != true && !cancelled() && always() }}
+      !cancelled() && always() }}
 
     steps:
       - name: Harden Runner
@@ -433,30 +354,30 @@ jobs:
         with:
           path: run.log
 
-      - name: Set Create-Alert Flag
-        id: set-alert-flag
+      - name: Set Service Name
+        id: set-service
         run: |
-          CREATE_ALERT="false"
+          ROOTLY_SERVICE="CITR SDLT"
           if [[ "${{ needs.verify-tag.result }}" =~ ^(cancelled|failure)$ ]] \
             || [[ "${{ needs.tag-sdlt-result.result }}" =~ ^(cancelled|failure)$ ]] \
             || [[ "${{ needs.get-commit-info.result }}" =~ ^(cancelled|failure)$ ]] \
             || [[ "${{ needs.report-success.result }}" =~ ^(cancelled|failure)$ ]]; then
-            CREATE_ALERT="true"
+            ROOTLY_SERVICE="CI/CD Workflows"
           fi
-          echo "create=${CREATE_ALERT}" >> "${GITHUB_OUTPUT}"
+          echo "service=${ROOTLY_SERVICE}" >> "${GITHUB_OUTPUT}"
 
       - name: Build Rootly Summary
         id: rootly-summary
         run: |
-          summary="The AdHoc SDLT Job Failed"
-          echo "summary=${summary}" >> "${GITHUB_OUTPUT}"
+          title="The MQLT Job Failed"
+          echo "title=${title}" >> "${GITHUB_OUTPUT}"
           {
-            echo 'details<<EOF'
+            echo 'summary<<EOF'
             echo "------------------------------------"
             echo "Status of each job:"
             echo "- Verify Tag: ${{ needs.verify-tag.result }}"
-            echo "- Run Mini Longevity Test: ${{ needs.run-mini-longevity-test.outputs.result }}"
-            echo "- Tag SDLT Result: ${{ needs.tag-sdlt-result.result }}"
+            echo "- Run Merge Queue Longevity Test: ${{ needs.run-single-day-longevity-test.outputs.result }}"
+            echo "- Tag MQLT Result: ${{ needs.tag-sdlt-result.result }}"
             echo "- Get Commit Info: ${{ needs.get-commit-info.result }}"
             echo "- Report Success: ${{ needs.report-success.result }}"
             echo "------------------------------------"
@@ -469,22 +390,23 @@ jobs:
       - name: Log Rootly Summary
         run: |
           echo "## Rootly Summary:"
-          echo "### Summary: ${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "${{ steps.rootly-summary.outputs.details }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Service" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.set-service.outputs.service }}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Create Rootly Alert
-        if: false
-        ##if: ${{ steps.set-alert-flag.outputs.create == 'true' }}
+        id: create-rootly-alert
         uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
-        continue-on-error: true
+        continue-on-error: true # continue on error so we can get the incident reporting
         with:
           api_key: ${{ secrets.ROOTLY_API_TOKEN }}
-          summary: ${{ steps.rootly-summary.outputs.summary }}
-          details: ${{ steps.rootly-summary.outputs.details }}
+          summary: ${{ steps.rootly-summary.outputs.title }}
+          details: ${{ steps.rootly-summary.outputs.summary }}
           notification_target_type: "Service"
-          notification_target: "CI/CD Workflows"
+          notification_target: ${{ steps.set-service.outputs.service }}
           set_as_noise: "true"
-          alert_urgency: "Medium"
+          alert_urgency: "High"
           environments: "CITR"
           external_id: ${{ github.run_id }}
           external_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -502,7 +424,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": ":grey_exclamation: SDLT - Mini Longevity Test (${{ github.ref }}) Failed",
+                      "text": ":grey_exclamation: MQLT - Merge Queue Longevity Test (${{ github.ref }}) Failed",
                       "emoji": true
                     }
                   },
@@ -513,7 +435,7 @@ jobs:
                     "type": "section",
                     "text": {
                       "type": "mrkdwn",
-                      "text": "*SDLT Job Resulted in failure. See status below.*"
+                      "text": "*MQLT Job Resulted in failure. See status below.*"
                     },
                     "fields": [
                       {
@@ -526,15 +448,15 @@ jobs:
                       },
                       {
                         "type": "plain_text",
-                        "text": "Run Mini Longevity Test"
+                        "text": "Run Merge Queue Longevity Test"
                       },
                       {
                         "type": "plain_text",
-                        "text": "${{ needs.run-mini-longevity-test.outputs.result }}"
+                        "text": "${{ needs.run-single-day-longevity-test.outputs.result }}"
                       },
                       {
                         "type": "plain_text",
-                        "text": "Tag SDLT Passing"
+                        "text": "Tag MQLT Passing"
                       },
                       {
                         "type": "plain_text",
