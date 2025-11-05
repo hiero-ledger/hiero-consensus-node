@@ -1,13 +1,17 @@
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import com.hedera.hapi.node.base.SubType;
+import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.token.TokenCreateTransactionBody;
+import com.hedera.hapi.node.token.TokenMintTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.impl.handlers.TokenCreateHandler;
+import com.hedera.node.app.service.token.impl.handlers.TokenMintHandler;
 import com.hedera.node.app.service.token.impl.validators.CustomFeesValidator;
 import com.hedera.node.app.service.token.impl.validators.TokenCreateValidator;
+import com.hedera.node.app.service.token.impl.validators.TokenSupplyChangeOpsValidator;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -45,12 +49,16 @@ public class TokenServicesFeeTests {
     private CustomFeesValidator customFeesValidator;
     @Mock
     private TokenCreateValidator tokenCreateValidator;
+    @Mock
+    private TokenSupplyChangeOpsValidator tokenSupplyChangeOpsValidator;
 
     private TokenCreateHandler createHandler;
+    private TokenMintHandler mintHandler;
 
     @BeforeEach
     void beforeEach() {
         createHandler = new TokenCreateHandler(entityIdFactory, customFeesValidator,tokenCreateValidator);
+        mintHandler = new TokenMintHandler(tokenSupplyChangeOpsValidator);
     }
 
     @Test
@@ -77,18 +85,19 @@ public class TokenServicesFeeTests {
         assertEquals(TOKEN_CREATE_BASE_FEE, result.total());
     }
 
-//    @Test
-//    void mintCommonToken() {
-//        final var txBody2 = TransactionBody.newBuilder().tokenMint(
-//                TokenMintTransactionBody.newBuilder()
-//                        .token(commonToken)
-//                        .amount(10)
-//                        .build()).build();
-//        final var feeContext = createMockFeeContext(txBody2,1);
-//        final var result = createHandler.calculateFeeResult(feeContext);
-//        assertNotNull(result);
-//        assertEquals(TOKEN_MINT_BASE_FEE, result.total());
-//    }
+    @Test
+    void mintCommonToken() {
+        final var commonToken = TokenID.newBuilder().tokenNum(1234).build();
+        final var txBody2 = TransactionBody.newBuilder().tokenMint(
+                TokenMintTransactionBody.newBuilder()
+                        .token(commonToken)
+                        .amount(10)
+                        .build()).build();
+        final var feeContext = createMockFeeContext(txBody2,1);
+        final var result = mintHandler.calculateFeeResult(feeContext);
+        assertNotNull(result);
+        assertEquals(TOKEN_MINT_BASE_FEE, result.total());
+    }
 
 //    @Test
 //    void mintUniqueToken() {
