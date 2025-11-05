@@ -50,6 +50,7 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
@@ -495,6 +496,8 @@ public class SimpleFeesSuite {
     @Nested
     class TokenServiceFees {
         private static final String FUNGIBLE_TOKEN = "fungibleToken";
+        private static final String NFT_TOKEN = "nonFungibleToken";
+        private static final String METADATA_KEY = "metadata-key";
 
         @HapiTest
         @DisplayName("create a fungible token")
@@ -569,6 +572,32 @@ public class SimpleFeesSuite {
             );
         }
 
+        @HapiTest
+        @DisplayName("mint a unique token")
+        final Stream<DynamicTest> mintUniqueToken() {
+            return hapiTest(
+                    newKeyNamed(SUPPLY_KEY),
+                    newKeyNamed(METADATA_KEY),
+                    cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
+                    cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                    tokenCreate(NFT_TOKEN)
+                            .tokenType(NON_FUNGIBLE_UNIQUE)
+                            .initialSupply(0L)
+                            .payingWith(PAYER)
+                            .supplyKey(SUPPLY_KEY)
+                            .fee(ONE_HUNDRED_HBARS)
+                            .hasKnownStatus(SUCCESS)
+                            .via("create-token-txn"),
+                    mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("Bart Simpson")))
+                            .payingWith(PAYER)
+                            .signedBy(SUPPLY_KEY)
+                            .blankMemo()
+                            .fee(ONE_HUNDRED_HBARS)
+                            .hasKnownStatus(SUCCESS)
+                            .via("non-fungible-mint-txn"),
+                    validateChargedUsd("non-fungible-mint-txn", 0.001)
+            );
+        }
     }
 
     @Nested
