@@ -182,10 +182,8 @@ message TransactionRequest {
 
 // Response to a transaction submission request.
 message TransactionRequestAnswer {
-  // The number of transactions successfully submitted to the node
-  uint32 numSucceeded = 1;
   // The number of transactions that failed submission to the node
-  uint32 numFailed = 2;
+  uint32 numFailed = 1;
 }
 
 // Request to set the synthetic bottleneck.

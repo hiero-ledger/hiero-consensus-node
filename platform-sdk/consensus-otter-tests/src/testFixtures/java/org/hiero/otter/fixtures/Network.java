@@ -287,7 +287,7 @@ public interface Network extends Configurable<Network> {
      *
      * @param transaction the transaction to submit
      */
-    default void submitTransaction(@NonNull OtterTransaction transaction) {
+    default void submitTransaction(@NonNull final OtterTransaction transaction) {
         submitTransactions(List.of(transaction));
     }
 

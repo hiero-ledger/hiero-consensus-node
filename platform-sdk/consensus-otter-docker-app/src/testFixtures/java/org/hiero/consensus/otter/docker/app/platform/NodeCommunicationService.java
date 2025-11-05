@@ -207,17 +207,13 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
 
         wrapWithErrorHandling(responseObserver, () -> {
             int numFailed = 0;
-            int numSucceeded = 0;
             for (final ByteString payload : request.getPayloadList()) {
-                if (consensusNodeManager.submitTransaction(payload.toByteArray())) {
-                    numSucceeded++;
-                } else {
+                if (!consensusNodeManager.submitTransaction(payload.toByteArray())) {
                     numFailed++;
                 }
             }
             responseObserver.onNext(TransactionRequestAnswer.newBuilder()
                     .setNumFailed(numFailed)
-                    .setNumSucceeded(numSucceeded)
                     .build());
             responseObserver.onCompleted();
         });

@@ -343,10 +343,6 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 fail("%d out of %d transaction(s) failed to submit for node %d."
                         .formatted(answer.getNumFailed(), transactions.size(), selfId.id()));
             }
-            if (answer.getNumFailed() + answer.getNumSucceeded() != transactions.size()) {
-                fail("Node %d returned an invalid number of results when submitting transactions."
-                        .formatted(selfId.id()));
-            }
         } catch (final Exception e) {
             fail("Failed to submit transaction(s) to node %d".formatted(selfId.id()), e);
         }
