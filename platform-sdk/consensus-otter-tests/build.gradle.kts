@@ -57,6 +57,9 @@ testing.suites {
             targets {
                 all {
                     testTask.configure {
+                        // Stop execution on first test failure to preserve node data
+                        failFast = true
+
                         dependsOn(":consensus-otter-docker-app:assemble")
 
                         // Disable all parallelism
@@ -100,6 +103,9 @@ tasks.register<Test>("testTurtle") {
     testClassesDirs = sourceSets.named("testOtter").get().output.classesDirs
     classpath = sourceSets.named("testOtter").get().runtimeClasspath
 
+    // Stop execution on first test failure to preserve node data
+    failFast = true
+
     // Disable all parallelism
     systemProperty("junit.jupiter.execution.parallel.enabled", false)
     systemProperty(
@@ -121,6 +127,9 @@ tasks.register<Test>("testContainer") {
     useJUnitPlatform()
     testClassesDirs = sourceSets.named("testOtter").get().output.classesDirs
     classpath = sourceSets.named("testOtter").get().runtimeClasspath
+
+    // Stop execution on first test failure to preserve node data
+    failFast = true
 
     // Disable all parallelism
     systemProperty("junit.jupiter.execution.parallel.enabled", false)
@@ -144,6 +153,9 @@ tasks.testIntegration {
     useJUnitPlatform()
     testClassesDirs = sourceSets.testIntegration.get().output.classesDirs
     classpath = sourceSets.testIntegration.get().runtimeClasspath
+
+    // Stop execution on first test failure to preserve node data
+    failFast = true
 
     // Disable all parallelism
     systemProperty("junit.jupiter.execution.parallel.enabled", false)

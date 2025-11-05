@@ -2,6 +2,7 @@
 package org.hiero.otter.test;
 
 import static com.swirlds.common.test.fixtures.WeightGenerators.TOTAL_NETWORK_WEIGHT;
+import static org.assertj.core.api.Assertions.fail;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.CATASTROPHIC_FAILURE;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
@@ -77,6 +78,11 @@ public class IssTest {
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
 
         issNode.killImmediately();
+
+
+        fail("Failing temporarily to investigate CI behavior");
+
+
         issNode.start();
 
         env.timeManager()
