@@ -1,5 +1,4 @@
 # SPDX-License-Identifier: Apache-2.0
-error on purpose
 name: "ZXF: [CITR] Merge Queue Longevity Test Controller"
 on:
   workflow_dispatch:
