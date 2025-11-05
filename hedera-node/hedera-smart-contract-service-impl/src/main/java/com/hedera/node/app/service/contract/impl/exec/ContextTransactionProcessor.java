@@ -7,7 +7,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.TransactionID;
-import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
@@ -115,13 +114,11 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         // Try to translate the HAPI operation to a Hedera EVM transaction, throw HandleException on failure
         // if an exception occurs during a ContractCall, charge fees to the sender and return a CallOutcome reflecting
         // the error.
-        final var creation = safeCreateHevmTransaction();
-        final var hevmTransaction = requireNonNull(creation.hevmTransaction());
-        final var isHookDispatch = creation.hookDispatch() != null;
+        final var hevmTransaction = safeCreateHevmTransaction();
         if (hevmTransaction.isException()) {
             CallOutcome outcome;
-            if (isHookDispatch) {
-                var result = HederaEvmTransactionResult.fromAborted(
+            if (hevmTransaction.hookDispatch() != null) {
+                final var result = HederaEvmTransactionResult.fromAborted(
                         hevmTransaction.senderId(),
                         hevmTransaction.contractId(),
                         requireNonNull(hevmTransaction.exception()).getStatus());
@@ -263,21 +260,15 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                 outcome.isSuccess()));
     }
 
-    private HevmTransactionCreationResult safeCreateHevmTransaction() {
+    private HederaEvmTransaction safeCreateHevmTransaction() {
         try {
             final var hevmTransaction = hevmTransactionFactory.fromHapiTransaction(context.body(), context.payer());
             validatePayloadLength(hevmTransaction);
-            return new HevmTransactionCreationResult(hevmTransaction, hevmTransaction.hookDispatch());
+            return hevmTransaction;
         } catch (HandleException e) {
-            final var evmTxn = hevmTransactionFactory.fromContractTxException(context.body(), e);
-            // Return a HederaEvmTransaction that represents the error in order to charge fees to the sender
-            return new HevmTransactionCreationResult(
-                    evmTxn, context.body().hasHookDispatch() ? context.body().hookDispatchOrThrow() : null);
+            return hevmTransactionFactory.fromContractTxException(context.body(), e);
         }
     }
-
-    private record HevmTransactionCreationResult(
-            @Nullable HederaEvmTransaction hevmTransaction, @Nullable HookDispatchTransactionBody hookDispatch) {}
 
     private void validatePayloadLength(HederaEvmTransaction hevmTransaction) {
         final var maxJumboEthereumCallDataSize =

@@ -375,6 +375,9 @@ public record HederaEvmTransactionResult(
             builder.senderId(senderId)
                     .internalCallContext(new InternalCallContext(
                             ethTxData.gasLimit(), ethTxData.getAmount(), requireNonNull(callData)));
+            if (signerNonce != null) {
+                builder.signerNonce(signerNonce);
+            }
         }
         if (hookId != null) {
             builder.executedHookId(hookId);

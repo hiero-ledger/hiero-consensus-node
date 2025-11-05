@@ -95,7 +95,8 @@ message EvmTransactionResult {
     repeated ContractNonceInfo contract_nonces = 8;
 
     /**
-     * In an EthereumTransaction, the nonce of the signer account.<br/>
+     * In an EthereumTransaction, the nonce of the signer account at the end of
+     * the transaction.<br/>
      */
     google.protobuf.Int64Value signer_nonce = 9;
 }
