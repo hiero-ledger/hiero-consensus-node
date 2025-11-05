@@ -7,6 +7,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
@@ -116,7 +117,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         // the error.
         final var creation = safeCreateHevmTransaction();
         final var hevmTransaction = requireNonNull(creation.hevmTransaction());
-        final var isHookDispatch = creation.isHookDispatch();
+        final var isHookDispatch = creation.hookDispatch() != null;
         if (hevmTransaction.isException()) {
             CallOutcome outcome;
             if (isHookDispatch) {
@@ -124,9 +125,10 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                         hevmTransaction.senderId(),
                         hevmTransaction.contractId(),
                         requireNonNull(hevmTransaction.exception()).getStatus());
+                final var hookId = hevmTransaction.maybeHookId();
                 outcome = CallOutcome.fromResultsWithoutSidecars(
                         result.asProtoResultOf(null, rootProxyWorldUpdater, null),
-                        result.asEvmTxResultOf(null, rootProxyWorldUpdater, null),
+                        result.asEvmTxResultOf(null, rootProxyWorldUpdater, null, hookId),
                         null,
                         null,
                         null,
@@ -206,12 +208,13 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                 requireNonNull(hederaEvmContext.streamBuilder()).addContractBytecode(contractBytecode, false);
             }
 
+            final var hookId = hevmTransaction.maybeHookId();
             final var callData = (hydratedEthTxData != null && hydratedEthTxData.ethTxData() != null)
                     ? Bytes.wrap(hydratedEthTxData.ethTxData().callData())
                     : null;
             final var outcome = CallOutcome.fromResultsWithMaybeSidecars(
                     result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater, callData),
-                    result.asEvmTxResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater, callData),
+                    result.asEvmTxResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater, callData, hookId),
                     result.isSuccess() ? rootProxyWorldUpdater.getUpdatedContractNonces() : null,
                     result.isSuccess() ? rootProxyWorldUpdater.getCreatedContractIds() : null,
                     result.isSuccess() ? result.evmAddressIfCreatedIn(rootProxyWorldUpdater) : null,
@@ -264,16 +267,17 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         try {
             final var hevmTransaction = hevmTransactionFactory.fromHapiTransaction(context.body(), context.payer());
             validatePayloadLength(hevmTransaction);
-            return new HevmTransactionCreationResult(hevmTransaction, hevmTransaction.hookOwnerAddress() != null);
+            return new HevmTransactionCreationResult(hevmTransaction, hevmTransaction.hookDispatch());
         } catch (HandleException e) {
             final var evmTxn = hevmTransactionFactory.fromContractTxException(context.body(), e);
             // Return a HederaEvmTransaction that represents the error in order to charge fees to the sender
-            return new HevmTransactionCreationResult(evmTxn, context.body().hasHookDispatch());
+            return new HevmTransactionCreationResult(
+                    evmTxn, context.body().hasHookDispatch() ? context.body().hookDispatchOrThrow() : null);
         }
     }
 
     private record HevmTransactionCreationResult(
-            @Nullable HederaEvmTransaction hevmTransaction, boolean isHookDispatch) {}
+            @Nullable HederaEvmTransaction hevmTransaction, @Nullable HookDispatchTransactionBody hookDispatch) {}
 
     private void validatePayloadLength(HederaEvmTransaction hevmTransaction) {
         final var maxJumboEthereumCallDataSize =
@@ -306,13 +310,13 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         if (context.body().hasEthereumTransaction() && sender != null) {
             result = result.withSignerNonce(sender.getNonce());
         }
-
+        final var hookId = hevmTransaction.maybeHookId();
         final var ethCallData = (hydratedEthTxData != null && hydratedEthTxData.ethTxData() != null)
                 ? Bytes.wrap(hydratedEthTxData.ethTxData().callData())
                 : null;
         return CallOutcome.fromResultsWithoutSidecars(
                 result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater, ethCallData),
-                result.asEvmTxResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater, ethCallData),
+                result.asEvmTxResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater, ethCallData, hookId),
                 null,
                 null,
                 null,

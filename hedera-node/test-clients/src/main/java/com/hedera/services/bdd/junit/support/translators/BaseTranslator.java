@@ -121,6 +121,7 @@ public class BaseTranslator {
     private final long realm;
     private final Map<Long, Long> nonces = new HashMap<>();
     private final Map<AccountID, Address> evmAddresses = new HashMap<>();
+    private final Map<Bytes, AccountID> aliases = new HashMap<>();
     private final Map<TokenID, Long> totalSupplies = new HashMap<>();
     private final Map<TokenID, TokenType> tokenTypes = new HashMap<>();
     private final Map<TransactionID, ScheduleID> scheduleRefs = new HashMap<>();
@@ -1001,6 +1002,13 @@ public class BaseTranslator {
                     highestPutSerialNos
                             .computeIfAbsent(tokenId, ignore -> new LinkedList<>())
                             .add(nftId.serialNumber());
+                } else if (key.hasProtoBytesKey()) {
+                    final var keyBytes = key.protoBytesKeyOrThrow();
+                    final var value = mapUpdate.valueOrThrow();
+                    if (value.hasAccountIdValue()) {
+                        final var accountId = value.accountIdValueOrThrow();
+                        aliases.put(keyBytes, accountId);
+                    }
                 }
             }
         });
@@ -1179,5 +1187,9 @@ public class BaseTranslator {
                     .build();
         }
         return Optional.ofNullable(result);
+    }
+
+    public Map<Bytes, AccountID> getAliases() {
+        return aliases;
     }
 }
