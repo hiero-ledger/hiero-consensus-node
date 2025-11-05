@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.crypto.internal;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -24,8 +25,8 @@ public class JcaSigner implements BytesSigner {
      * @param algorithm  the signature algorithm
      * @param provider   the security provider
      */
-    public JcaSigner(@NonNull final PrivateKey privateKey, @NonNull final String algorithm,
-            @NonNull final String provider) {
+    public JcaSigner(
+            @NonNull final PrivateKey privateKey, @NonNull final String algorithm, @NonNull final String provider) {
         try {
             this.signature = Signature.getInstance(algorithm, provider);
             signature.initSign(privateKey);

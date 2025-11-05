@@ -68,7 +68,8 @@ public class TipsetEventCreatorTestUtils {
         final Metrics metrics = new NoOpMetrics();
 
         final BytesSigner signer = mock(BytesSigner.class);
-        when(signer.sign(any())).thenAnswer(invocation -> randomSignature(random).getBytes());
+        when(signer.sign(any()))
+                .thenAnswer(invocation -> randomSignature(random).getBytes());
 
         // Use SHA1PRNG for deterministic behavior
         final SecureRandom secureRandom;

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.crypto.internal;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -30,7 +31,7 @@ public class SodiumVerifier implements BytesSignatureVerifier {
 
     @Override
     public boolean verify(@NonNull final Bytes data, @NonNull final Bytes signature) {
-        return SodiumJni.SODIUM.cryptoSignVerifyDetached(signature.toByteArray(), data.toByteArray(),
-                Math.toIntExact(data.length()), publicKey);
+        return SodiumJni.SODIUM.cryptoSignVerifyDetached(
+                signature.toByteArray(), data.toByteArray(), Math.toIntExact(data.length()), publicKey);
     }
 }

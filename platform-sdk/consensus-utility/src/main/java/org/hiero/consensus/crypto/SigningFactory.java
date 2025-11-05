@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.crypto;
 
 import static org.hiero.consensus.crypto.SigningImplementation.ED25519_SODIUM;
@@ -21,8 +22,7 @@ import org.hiero.consensus.crypto.internal.SodiumVerifier;
  * Factory for creating instances to use for the supported signing schemas.
  */
 public final class SigningFactory {
-    private SigningFactory() {
-    }
+    private SigningFactory() {}
 
     /**
      * The default implementations to use for each schema.
@@ -30,8 +30,7 @@ public final class SigningFactory {
     private static final Map<String, SigningImplementation> defaultImplementations = Map.of(
             SigningSchema.RSA.getKeyType(), SigningImplementation.RSA_BC,
             SigningSchema.EC.getKeyType(), SigningImplementation.EC_JDK,
-            SigningSchema.ED25519.getKeyType(), ED25519_SODIUM
-    );
+            SigningSchema.ED25519.getKeyType(), ED25519_SODIUM);
 
     /**
      * Generates a new key pair for the specified signing schema.
@@ -41,8 +40,7 @@ public final class SigningFactory {
      * @return the generated key pair
      */
     public static @NonNull KeyPair generateKeyPair(
-            @NonNull final SigningSchema signingSchema,
-            @NonNull final SecureRandom secureRandom) {
+            @NonNull final SigningSchema signingSchema, @NonNull final SecureRandom secureRandom) {
         final KeyPairGenerator keyPairGen;
         try {
             keyPairGen = KeyPairGenerator.getInstance(signingSchema.getKeyType());
@@ -60,11 +58,11 @@ public final class SigningFactory {
      * @return the signer
      */
     public static @NonNull BytesSigner createSigner(@NonNull final KeyPair keyPair) {
-        final SigningImplementation implementation = defaultImplementations.get(
-                keyPair.getPrivate().getAlgorithm());
+        final SigningImplementation implementation =
+                defaultImplementations.get(keyPair.getPrivate().getAlgorithm());
         if (implementation == null) {
-            throw new IllegalArgumentException("No implementation for key type: "
-                    + keyPair.getPrivate().getAlgorithm());
+            throw new IllegalArgumentException(
+                    "No implementation for key type: " + keyPair.getPrivate().getAlgorithm());
         }
         return createSigner(implementation, keyPair);
     }
@@ -76,13 +74,13 @@ public final class SigningFactory {
      * @param keyPair  the key pair to use for signing
      * @return the signer
      */
-    public static @NonNull BytesSigner createSigner(@NonNull final SigningImplementation signType,
-            @NonNull final KeyPair keyPair) {
+    public static @NonNull BytesSigner createSigner(
+            @NonNull final SigningImplementation signType, @NonNull final KeyPair keyPair) {
         if (signType == ED25519_SODIUM) {
             return new SodiumSigner(keyPair);
         }
-        return new JcaSigner(keyPair.getPrivate(), signType.getSigningSchema().getSigningAlgorithm(),
-                signType.getProvider());
+        return new JcaSigner(
+                keyPair.getPrivate(), signType.getSigningSchema().getSigningAlgorithm(), signType.getProvider());
     }
 
     /**
@@ -92,11 +90,11 @@ public final class SigningFactory {
      * @return the verifier
      */
     public static @NonNull BytesSignatureVerifier createVerifier(@NonNull final KeyPair keyPair) {
-        final SigningImplementation implementation = defaultImplementations.get(
-                keyPair.getPublic().getAlgorithm());
+        final SigningImplementation implementation =
+                defaultImplementations.get(keyPair.getPublic().getAlgorithm());
         if (implementation == null) {
-            throw new IllegalArgumentException("No implementation for key type: "
-                    + keyPair.getPublic().getAlgorithm());
+            throw new IllegalArgumentException(
+                    "No implementation for key type: " + keyPair.getPublic().getAlgorithm());
         }
         return createVerifier(implementation, keyPair.getPublic());
     }
@@ -108,8 +106,8 @@ public final class SigningFactory {
      * @param publicKey the public key to use for verification
      * @return the verifier
      */
-    public static @NonNull BytesSignatureVerifier createVerifier(@NonNull final SigningImplementation signType,
-            @NonNull final PublicKey publicKey) {
+    public static @NonNull BytesSignatureVerifier createVerifier(
+            @NonNull final SigningImplementation signType, @NonNull final PublicKey publicKey) {
         if (signType == ED25519_SODIUM) {
             return new SodiumVerifier(publicKey);
         }

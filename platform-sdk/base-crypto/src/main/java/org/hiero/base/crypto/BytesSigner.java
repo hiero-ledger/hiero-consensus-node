@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.crypto;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -19,5 +20,6 @@ public interface BytesSigner {
      * @param data the data to sign
      * @return signature bytes
      */
-    @NonNull Bytes sign(@NonNull Bytes data);
+    @NonNull
+    Bytes sign(@NonNull Bytes data);
 }

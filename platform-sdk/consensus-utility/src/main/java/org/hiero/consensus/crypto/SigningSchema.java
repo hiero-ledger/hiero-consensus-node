@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.crypto;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -11,8 +12,7 @@ public enum SigningSchema {
      * in CryptoConstants since these constants are used in multiple places in the codebase. Once the system is fully
      * migrated to use this enum, these constants can be removed.
      */
-    RSA(CryptoConstants.SIG_TYPE1,
-            CryptoConstants.SIG_KEY_SIZE_BITS, CryptoConstants.SIG_TYPE2),
+    RSA(CryptoConstants.SIG_TYPE1, CryptoConstants.SIG_KEY_SIZE_BITS, CryptoConstants.SIG_TYPE2),
     /**
      * Elliptic Curve signing schema.
      */

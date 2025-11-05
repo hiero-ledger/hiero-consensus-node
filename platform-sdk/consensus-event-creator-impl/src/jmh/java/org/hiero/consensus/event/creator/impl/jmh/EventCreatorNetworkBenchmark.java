@@ -66,7 +66,7 @@ public class EventCreatorNetworkBenchmark {
     @Param({"0"})
     public long seed;
 
-    @Param() //Empty means use all available types
+    @Param() // Empty means use all available types
     public SigningImplementation signingType;
 
     /** The event creators for each node in the network. */

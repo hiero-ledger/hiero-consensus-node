@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.crypto.internal;
 
 import com.goterl.lazysodium.LazySodiumJava;

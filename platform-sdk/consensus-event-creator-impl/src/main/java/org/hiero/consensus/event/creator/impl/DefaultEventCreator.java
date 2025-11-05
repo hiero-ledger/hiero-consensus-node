@@ -99,14 +99,7 @@ public class DefaultEventCreator implements EventCreatorModule {
         }
 
         final EventCreator eventCreator = new TipsetEventCreator(
-                configuration,
-                metrics,
-                time,
-                random,
-                signer,
-                roster,
-                selfId,
-                transactionSupplier);
+                configuration, metrics, time, random, signer, roster, selfId, transactionSupplier);
         this.initialize(configuration, metrics, time, signatureTransactionCheck, eventCreator);
     }
 

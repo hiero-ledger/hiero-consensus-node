@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.crypto.internal;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -24,8 +25,8 @@ public class JcaVerifier implements BytesSignatureVerifier {
      * @param algorithm the signature algorithm
      * @param provider  the security provider
      */
-    public JcaVerifier(@NonNull final PublicKey publicKey, @NonNull final String algorithm,
-            @NonNull final String provider) {
+    public JcaVerifier(
+            @NonNull final PublicKey publicKey, @NonNull final String algorithm, @NonNull final String provider) {
         try {
             verifier = Signature.getInstance(algorithm, provider);
             verifier.initVerify(publicKey);

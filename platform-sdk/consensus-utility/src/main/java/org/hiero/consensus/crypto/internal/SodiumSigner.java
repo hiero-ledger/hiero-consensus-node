@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.crypto.internal;
 
 import com.goterl.lazysodium.interfaces.Sign;
@@ -41,8 +42,8 @@ public class SodiumSigner implements BytesSigner {
     @Override
     public @NonNull Bytes sign(@NonNull final Bytes data) {
         final byte[] signature = new byte[Sign.BYTES];
-        final boolean signed = SodiumJni.SODIUM.cryptoSignDetached(signature, data.toByteArray(), data.length(),
-                sodiumSecretKey);
+        final boolean signed =
+                SodiumJni.SODIUM.cryptoSignDetached(signature, data.toByteArray(), data.length(), sodiumSecretKey);
         if (!signed) {
             throw new RuntimeException("Failed to sign data using Ed25519 with Sodium");
         }
