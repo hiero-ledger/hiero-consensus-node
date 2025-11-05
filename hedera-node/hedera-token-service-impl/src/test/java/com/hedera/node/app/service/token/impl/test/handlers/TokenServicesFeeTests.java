@@ -53,19 +53,8 @@ public class TokenServicesFeeTests {
         createHandler = new TokenCreateHandler(entityIdFactory, customFeesValidator,tokenCreateValidator);
     }
 
-    /*
-    TODO:
-    token create variations
-
-    create FT with no custom fees
-    create FT with custom fees
-    create NFT with no custom fees
-    create NFT with custom fees
-
-     */
-
     @Test
-    void createFTPlain() {
+    void createCommonToken() {
         final var txBody2 = TransactionBody.newBuilder().tokenCreation(
                 TokenCreateTransactionBody.newBuilder()
                         .tokenType(TokenType.FUNGIBLE_COMMON)
@@ -77,7 +66,7 @@ public class TokenServicesFeeTests {
     }
 
     @Test
-    void createNFTPlain() {
+    void createUniqueToken() {
         final var txBody = TokenCreateTransactionBody.newBuilder()
                 .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                 .build();
@@ -87,6 +76,52 @@ public class TokenServicesFeeTests {
         assertNotNull(result);
         assertEquals(TOKEN_CREATE_BASE_FEE, result.total());
     }
+
+//    @Test
+//    void mintCommonToken() {
+//        final var txBody2 = TransactionBody.newBuilder().tokenMint(
+//                TokenMintTransactionBody.newBuilder()
+//                        .token(commonToken)
+//                        .amount(10)
+//                        .build()).build();
+//        final var feeContext = createMockFeeContext(txBody2,1);
+//        final var result = createHandler.calculateFeeResult(feeContext);
+//        assertNotNull(result);
+//        assertEquals(TOKEN_MINT_BASE_FEE, result.total());
+//    }
+
+//    @Test
+//    void mintUniqueToken() {
+//        final var txBody2 = TransactionBody.newBuilder().tokenMint(
+//                TokenMintTransactionBody.newBuilder()
+//                        .token(uniqueToken)
+//                        .amount(10)
+//                        .build()).build();
+//        final var feeContext = createMockFeeContext(txBody2,1);
+//        final var result = createHandler.calculateFeeResult(feeContext);
+//        assertNotNull(result);
+//        assertEquals(TOKEN_MINT_BASE_FEE, result.total());
+//    }
+    /*
+        // TODO
+        create FT with custom fees
+        create NFT with custom fees
+        mint an common token
+        mint an NFT token
+        mint 10 NTF tokens
+        burn an NFT
+        grant and revoke KYC
+        freeze and unfreeze NFT
+        freeze and unfreeze common
+        pause and unpause
+        update common token
+        update NFT token
+        update multiple NFT tokens
+        delete token
+        token associate dissociate
+        get info for common token
+        get info for NFT token
+     */
 
     private FeeContext createMockFeeContext(TransactionBody txBody, int numSignatures) {
         final var feeContext = mock(FeeContext.class);
