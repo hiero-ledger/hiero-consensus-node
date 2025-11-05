@@ -19,7 +19,6 @@ import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.google.protobuf.Empty;
-import com.google.protobuf.ProtocolStringList;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -68,15 +67,14 @@ import org.hiero.otter.fixtures.container.utils.ContainerConstants;
 import org.hiero.otter.fixtures.container.utils.ContainerUtils;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
+import org.hiero.otter.fixtures.internal.NetworkConfiguration;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeEventStreamResultImpl;
-import org.hiero.otter.fixtures.internal.result.SingleNodeMarkerFileResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodeReconnectResultImpl;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeEventStreamResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
-import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
@@ -128,10 +126,12 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      * Constructor for the {@link ContainerNode} class.
      *
      * @param selfId the unique identifier for this node
+     * @param timeManager the time manager to use for this node
      * @param keysAndCerts the keys for the node
      * @param network the network this node is part of
      * @param dockerImage the Docker image to use for this node
      * @param outputDirectory the directory where the node's output will be stored
+     * @param networkConfiguration the network configuration for this node
      */
     public ContainerNode(
             @NonNull final NodeId selfId,
@@ -139,14 +139,16 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final Network network,
             @NonNull final ImageFromDockerfile dockerImage,
-            @NonNull final Path outputDirectory) {
-        super(selfId, keysAndCerts);
+            @NonNull final Path outputDirectory,
+            @NonNull final NetworkConfiguration networkConfiguration) {
+        super(selfId, keysAndCerts, networkConfiguration);
 
         this.localOutputDirectory = requireNonNull(outputDirectory, "outputDirectory must not be null");
         this.timeManager = requireNonNull(timeManager, "timeManager must not be null");
 
         this.resultsCollector = new NodeResultsCollector(selfId);
-        this.nodeConfiguration = new ContainerNodeConfiguration(() -> lifeCycle);
+        this.nodeConfiguration =
+                new ContainerNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
         this.random = new SecureRandom();
 
         container = new ContainerImage(dockerImage, network, selfId);
@@ -205,7 +207,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 .setRoster(ProtobufConverter.fromPbj(roster()))
                 .setKeysAndCerts(KeysAndCertsConverter.toProto(keysAndCerts))
                 .setVersion(ProtobufConverter.fromPbj(version))
-                .putAllOverriddenProperties(nodeConfiguration.overriddenProperties())
+                .putAllOverriddenProperties(nodeConfiguration.overrideProperties())
                 .build();
 
         // Blocking stub for communicating with the consensus node
@@ -262,7 +264,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             // conditions with the stream observer receiving an error.
             lifeCycle = SHUTDOWN;
 
-            final KillImmediatelyRequest request = KillImmediatelyRequest.getDefaultInstance();
+            final KillImmediatelyRequest request = KillImmediatelyRequest.newBuilder()
+                    .setTimeoutSeconds((int) timeout.getSeconds())
+                    .build();
             // Unary call – will throw if server returns an error.
             containerControlBlockingStub.withDeadlineAfter(timeout).killImmediately(request);
             platformStatus = null;
@@ -461,15 +465,6 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     }
 
     /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public SingleNodeMarkerFileResult newMarkerFileResult() {
-        return new SingleNodeMarkerFileResultImpl(resultsCollector);
-    }
-
-    /**
      * Shuts down the container and cleans up resources. Once this method is called, the node cannot be started again
      * and no more data can be retrieved. This method is idempotent and can be called multiple times without any side
      * effects.
@@ -600,12 +595,6 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 case PLATFORM_STATUS_CHANGE -> handlePlatformChange(event);
                 case CONSENSUS_ROUNDS ->
                     resultsCollector.addConsensusRounds(ProtobufConverter.toPbj(event.getConsensusRounds()));
-                case MARKER_FILE_ADDED -> {
-                    final ProtocolStringList markerFiles =
-                            event.getMarkerFileAdded().getMarkerFileNameList();
-                    log.info("Received marker file event from node {}: {}", selfId, markerFiles);
-                    resultsCollector.addMarkerFiles(markerFiles);
-                }
                 default -> log.warn("Received unexpected event: {}", event);
             }
         }

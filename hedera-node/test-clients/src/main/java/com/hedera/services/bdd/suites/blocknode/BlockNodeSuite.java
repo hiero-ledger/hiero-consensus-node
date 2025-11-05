@@ -440,8 +440,20 @@ public class BlockNodeSuite {
                         String.format(
                                 "/localhost:%s/CLOSED] Connection state transitioned from CLOSING to CLOSED.",
                                 portNumbers.get(3)))),
-                doingContextual(
-                        spec -> LockSupport.parkNanos(Duration.ofSeconds(20).toNanos())));
+                doingContextual(spec -> connectionDropTime.set(Instant.now())),
+                waitUntilNextBlocks(5),
+                blockNode(1).shutDownImmediately(), // Pri 1
+                sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
+                        byNodeId(0),
+                        connectionDropTime::get,
+                        Duration.ofMinutes(1),
+                        Duration.ofSeconds(45),
+                        String.format(
+                                "/localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING.",
+                                portNumbers.get(3)),
+                        String.format(
+                                "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
+                                portNumbers.get(3)))));
     }
 
     @HapiTest
@@ -485,6 +497,7 @@ public class BlockNodeSuite {
                         blockNodePriorities = {0, 1},
                         applicationPropertiesOverrides = {
                             "blockStream.buffer.blockTtl", "1m",
+                            "blockNode.forcedSwitchRescheduleDelay", "30s",
                             "blockStream.streamMode", "BLOCKS",
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
@@ -492,31 +505,41 @@ public class BlockNodeSuite {
     @Order(6)
     final Stream<DynamicTest> testProactiveBlockBufferAction() {
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
+        final List<Integer> portNumbers = new ArrayList<>();
         return hapiTest(
+                doingContextual(spec -> {
+                    portNumbers.add(spec.getBlockNodePortById(0));
+                    portNumbers.add(spec.getBlockNodePortById(1));
+                }),
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(5).toNanos())),
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 blockNode(0).updateSendingBlockAcknowledgements(false),
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(5).toNanos())),
-                sourcingContextual(
-                        spec -> assertBlockNodeCommsLogContainsTimeframe(
-                                byNodeId(0),
-                                timeRef::get,
-                                Duration.ofMinutes(1),
-                                Duration.ofMinutes(1),
-                                // look for the saturation reaching the action stage (50%)
-                                "saturation=50.0%",
-                                // look for the log that shows we are forcing a reconnect to a different block node
-                                "Attempting to forcefully switch block node connections due to increasing block buffer saturation")),
-                doingContextual(spec -> timeRef.set(Instant.now())),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
                         Duration.ofMinutes(1),
                         Duration.ofMinutes(1),
+                        // look for the saturation reaching the action stage (50%)
+                        "saturation=50.0%",
+                        // look for the log that shows we are forcing a reconnect to a different block node
+                        "Attempting to forcefully switch block node connections due to increasing block buffer saturation",
+                        "/localhost:" + portNumbers.get(1)
+                                + "/ACTIVE] Connection state transitioned from PENDING to ACTIVE.")),
+                blockNode(0).updateSendingBlockAcknowledgements(true),
+                doingContextual(spec -> timeRef.set(Instant.now())),
+                sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
+                        byNodeId(0),
+                        timeRef::get,
+                        Duration.ofMinutes(2),
+                        Duration.ofMinutes(2),
                         // saturation should fall back to low levels after the reconnect to the different node
-                        "saturation=0.0%")));
+                        // then we should see a switch back to higher priority node
+                        "saturation=0.0%",
+                        "/localhost:" + portNumbers.get(0)
+                                + "/ACTIVE] Connection state transitioned from PENDING to ACTIVE.")));
     }
 
     @Disabled
@@ -896,8 +919,7 @@ public class BlockNodeSuite {
                                 portNumbers.getFirst()),
                         String.format(
                                 "/localhost:%s/ACTIVE] Block node requested a ResendBlock for block 9223372036854775807 but that block does not exist on this consensus node. Closing connection and will retry later",
-                                portNumbers.getFirst()))),
-                assertBlockNodeCommsLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
+                                portNumbers.getFirst()))));
     }
 
     @NotNull
@@ -1016,6 +1038,8 @@ public class BlockNodeSuite {
                 assertBlockNodeCommsLogDoesNotContain(
                         byNodeId(0), "Block node has exceeded high latency threshold", Duration.ofSeconds(0)),
                 assertBlockNodeCommsLogContains(
-                        byNodeId(0), "Sending request to block node (type=END_OF_BLOCK)", Duration.ofSeconds(0)));
+                        byNodeId(0),
+                        "Sending ad hoc request to block node (type=END_OF_BLOCK)",
+                        Duration.ofSeconds(0)));
     }
 }

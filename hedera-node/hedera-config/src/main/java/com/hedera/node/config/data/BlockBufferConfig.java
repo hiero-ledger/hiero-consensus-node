@@ -27,7 +27,7 @@ import java.time.Duration;
  *                          can be removed. (For example, a value of '85.0' means at least 15% of the buffer capacity
  *                          must be available. Said another way: the buffer saturation must be at or below 85% before
  *                          the buffer is considered recovered.)
- * @param isBufferPersistenceEnabled  true if periodic persistence to disk of the block buffer is permitted, else false
+ * @param isBufferPersistenceEnabled true if periodic persistence to disk of the block buffer is permitted, else false
  * @param bufferDirectory the root directory that the block buffer will be persisted into, if enabled
  */
 @ConfigData("blockStream.buffer")
@@ -37,5 +37,5 @@ public record BlockBufferConfig(
         @ConfigProperty(defaultValue = "50.0") @Min(0) @NetworkProperty double actionStageThreshold,
         @ConfigProperty(defaultValue = "20s") @Min(0) @NetworkProperty Duration actionGracePeriod,
         @ConfigProperty(defaultValue = "85.0") @Min(0) @NetworkProperty double recoveryThreshold,
-        @ConfigProperty(defaultValue = "false") @NodeProperty boolean isBufferPersistenceEnabled,
+        @ConfigProperty(defaultValue = "true") @NodeProperty boolean isBufferPersistenceEnabled,
         @ConfigProperty(defaultValue = "/opt/hgcapp/blockStreams/buffer") @NodeProperty String bufferDirectory) {}
