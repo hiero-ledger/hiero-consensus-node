@@ -316,6 +316,7 @@ public class TokenMintHandler extends BaseTokenHandler implements TransactionHan
         final var model = FeeModelRegistry.lookupModel(HederaFunctionality.TOKEN_MINT);
         Map<Extra, Long> params = new HashMap<>();
         params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
+        params.put(Extra.KEYS,0L);
 
         var op = feeContext.body().tokenMintOrThrow();
         if (op.amount() > 0) {
