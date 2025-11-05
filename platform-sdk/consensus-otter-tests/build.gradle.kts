@@ -17,7 +17,6 @@ testing {
     }
 
     suites.named<JvmTestSuite>("testIntegration") {
-        javaModuleTesting.whitebox(this) { sourcesUnderTest = sourceSets.testFixtures }
         targets.configureEach { testTask { dependsOn(":consensus-otter-docker-app:assemble") } }
     }
 
@@ -47,18 +46,8 @@ testModuleInfo {
     requiresStatic("com.github.spotbugs.annotations")
 }
 
-testIntegrationModuleInfo {
-    requires("awaitility")
-    requires("com.swirlds.common.test.fixtures")
-    requires("com.swirlds.logging")
-    requires("org.apache.logging.log4j")
-    requires("org.assertj.core")
-    requires("org.hiero.otter.fixtures")
-    requires("org.junit.jupiter.params")
-    requiresStatic("com.github.spotbugs.annotations")
+testIntegrationModuleInfo { //
     runtimeOnly("io.grpc.netty.shaded")
-
-    opensTo("com.fasterxml.jackson.databind")
 }
 
 extensions.getByName<GradleOnlyDirectives>("testOtterModuleInfo").apply {
