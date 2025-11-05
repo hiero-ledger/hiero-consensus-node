@@ -382,6 +382,9 @@ public record HederaEvmTransactionResult(
         if (hookId != null) {
             builder.executedHookId(hookId);
         }
+        if (hookId != null) {
+            builder.executedHookId(hookId);
+        }
         return builder.build();
     }
 
