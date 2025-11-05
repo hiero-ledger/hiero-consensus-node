@@ -125,7 +125,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                         hevmTransaction.senderId(),
                         hevmTransaction.contractId(),
                         requireNonNull(hevmTransaction.exception()).getStatus());
-                final var hookId = hevmTransaction.hookIdOrThrow();
+                final var hookId = hevmTransaction.maybeHookId();
                 outcome = CallOutcome.fromResultsWithoutSidecars(
                         result.asProtoResultOf(null, rootProxyWorldUpdater, null),
                         result.asEvmTxResultOf(null, null, hookId),
@@ -208,7 +208,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                 requireNonNull(hederaEvmContext.streamBuilder()).addContractBytecode(contractBytecode, false);
             }
 
-            final var hookId = hevmTransaction.hookIdOrThrow();
+            final var hookId = hevmTransaction.maybeHookId();
             final var callData = (hydratedEthTxData != null && hydratedEthTxData.ethTxData() != null)
                     ? Bytes.wrap(hydratedEthTxData.ethTxData().callData())
                     : null;
@@ -310,7 +310,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         if (context.body().hasEthereumTransaction() && sender != null) {
             result = result.withSignerNonce(sender.getNonce());
         }
-        final var hookId = hevmTransaction.hookIdOrThrow();
+        final var hookId = hevmTransaction.maybeHookId();
         final var ethCallData = (hydratedEthTxData != null && hydratedEthTxData.ethTxData() != null)
                 ? Bytes.wrap(hydratedEthTxData.ethTxData().callData())
                 : null;

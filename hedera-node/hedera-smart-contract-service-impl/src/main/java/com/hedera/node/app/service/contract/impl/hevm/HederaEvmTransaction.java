@@ -140,7 +140,8 @@ public record HederaEvmTransaction(
     /**
      * @return the hook id, or null if this is not a hook dispatch
      */
-    public HookId hookIdOrThrow(){
+    @Nullable
+    public HookId maybeHookId() {
         return hookDispatch != null
                 ? new HookId(
                         hookDispatch.executionOrThrow().hookEntityIdOrThrow(),
