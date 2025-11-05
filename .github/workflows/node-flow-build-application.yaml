@@ -212,7 +212,7 @@ jobs:
       java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
       java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
       enable-unit-tests: false
-      enable-hapi-tests-crypto: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
+      enable-hapi-tests-simplefees: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
       enable-network-log-capture: true
       mats-suffix: MATS
     secrets:

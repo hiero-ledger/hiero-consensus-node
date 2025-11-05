@@ -497,7 +497,7 @@ jobs:
 
       - name: Upload HAPI Test (Simple Fees) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-hapi-tests-simplefees && inputs.enable-network-log-capture && steps.gradle-hapi-crypto.conclusion == 'failure' && !cancelled() }}
+        if: ${{ inputs.enable-hapi-tests-simplefees && inputs.enable-network-log-capture && steps.gradle-hapi-simplefees.conclusion == 'failure' && !cancelled() }}
         with:
           name: HAPI Test (Simple Fees) Network Logs
           path: |
