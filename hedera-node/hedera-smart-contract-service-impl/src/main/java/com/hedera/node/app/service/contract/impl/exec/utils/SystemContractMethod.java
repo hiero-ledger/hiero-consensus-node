@@ -171,6 +171,7 @@ public record SystemContractMethod(
         FREEZE_UNFREEZE("FREEZE_UNFREEZE", "(Freeze or Unfreeze Token)"),
         KYC("KYC"),
         MINT_BURN("MINT_OR_BURN", "(Mint or Burn Token)"),
+        MINT_CONTROL("MINT_CONTROL", "(FiatTokenV1 mint control management)"),
         PAUSE_UNPAUSE("PAUSE_UNPAUSE", "(Pause or Unpause Token)"),
         REJECT("REJECT_TOKEN"),
         TRANSFER("TRANSFER_TOKEN", "(any token transfer transaction"),

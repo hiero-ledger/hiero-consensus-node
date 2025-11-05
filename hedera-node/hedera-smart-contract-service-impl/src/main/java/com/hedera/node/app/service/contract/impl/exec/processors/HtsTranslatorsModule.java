@@ -25,6 +25,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.isfroz
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.iskyc.IsKycTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.istoken.IsTokenTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.mint.MintTranslator;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.mintcontrol.MintControlTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.name.NameTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ownerof.OwnerOfTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.pauses.PausesTranslator;
@@ -377,6 +378,15 @@ public interface HtsTranslatorsModule {
     @Named("HtsTranslators")
     static CallTranslator<HtsCallAttempt> provideTokenRejectsTranslator(
             @NonNull final RejectTokensTranslator translator) {
+        return translator;
+    }
+
+    @Provides
+    @Singleton
+    @IntoSet
+    @Named("HtsTranslators")
+    static CallTranslator<HtsCallAttempt> provideMintControlTranslator(
+            @NonNull final MintControlTranslator translator) {
         return translator;
     }
 }
