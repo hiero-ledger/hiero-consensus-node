@@ -23,8 +23,7 @@ import java.util.function.Function;
 
 /**
  * This class is responsible for maintaining references to the mutable state and the latest immutable state.
- * It also updates these references upon state signing.
- *
+ * It also updates these references upon state signing. This implementation is thread-safe.
  */
 public class StateLifecycleManagerImpl implements StateLifecycleManager {
 
@@ -64,9 +63,6 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
     private final AtomicReference<MerkleNodeState> latestImmutableStateRef = new AtomicReference<>();
 
     /**
-     * The source of the snapshot. This is set when a snapshot is initiated and cleared when the snapshot is complete.
-     */
-    /**
      * Constructor.
      *
      * @param metrics the metrics object to gather state metrics
@@ -90,7 +86,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
      *
      * @param state the initial state
      */
-    public void initState(@NonNull final MerkleNodeState state, final boolean onStartup) {
+    public synchronized void initState(@NonNull final MerkleNodeState state, final boolean onStartup) {
         requireNonNull(state);
 
         state.throwIfDestroyed("state must not be destroyed");
@@ -116,7 +112,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
 
     @Override
     @NonNull
-    public MerkleNodeState copyMutableState() {
+    public synchronized MerkleNodeState copyMutableState() {
         final MerkleNodeState state = stateRef.get();
         copyAndUpdateStateRefs(state);
         return stateRef.get();
@@ -126,7 +122,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
      * Copies the provided to and updates both the latest immutable to and the mutable to reference.
      * @param stateToCopy the state to copy and update references for
      */
-    private synchronized void copyAndUpdateStateRefs(final @NonNull MerkleNodeState stateToCopy) {
+    private void copyAndUpdateStateRefs(final @NonNull MerkleNodeState stateToCopy) {
         final long copyStart = System.nanoTime();
         final MerkleNodeState newMutableState = stateToCopy.copy();
         // Increment the reference count because this reference becomes the new value
