@@ -187,8 +187,8 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
             final CryptoUpdateTransactionBody op,
             final Account.Builder builder) {
         // compute head after deletes
-        long currentHead = targetAccount.firstHookId();
-        long headAfterDeletes = currentHead;
+        Long currentHead = targetAccount.numberHooksInUse() > 0 ? targetAccount.firstHookId() : null;
+        Long headAfterDeletes = currentHead;
         // Dispatch all the hooks to delete
         if (!op.hookIdsToDelete().isEmpty()) {
             headAfterDeletes =
