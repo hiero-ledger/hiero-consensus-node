@@ -6,7 +6,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
-import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
 import com.hedera.hapi.streams.ContractBytecode;
@@ -126,11 +125,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                         hevmTransaction.senderId(),
                         hevmTransaction.contractId(),
                         requireNonNull(hevmTransaction.exception()).getStatus());
-                final var hookId = new HookId(
-                        requireNonNull(creation.hookDispatch())
-                                .executionOrThrow()
-                                .hookEntityIdOrThrow(),
-                        creation.hookDispatch().executionOrThrow().callOrThrow().hookIdOrThrow());
+                final var hookId = hevmTransaction.hookIdOrThrow();
                 outcome = CallOutcome.fromResultsWithoutSidecars(
                         result.asProtoResultOf(null, rootProxyWorldUpdater, null),
                         result.asEvmTxResultOf(null, null, hookId),
@@ -213,17 +208,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                 requireNonNull(hederaEvmContext.streamBuilder()).addContractBytecode(contractBytecode, false);
             }
 
-            final var hookId = isHookDispatch
-                    ? new HookId(
-                            requireNonNull(hevmTransaction.hookDispatch())
-                                    .executionOrThrow()
-                                    .hookEntityIdOrThrow(),
-                            hevmTransaction
-                                    .hookDispatch()
-                                    .executionOrThrow()
-                                    .callOrThrow()
-                                    .hookIdOrThrow())
-                    : null;
+            final var hookId = hevmTransaction.hookIdOrThrow();
             final var callData = (hydratedEthTxData != null && hydratedEthTxData.ethTxData() != null)
                     ? Bytes.wrap(hydratedEthTxData.ethTxData().callData())
                     : null;
@@ -325,15 +310,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         if (context.body().hasEthereumTransaction() && sender != null) {
             result = result.withSignerNonce(sender.getNonce());
         }
-        final var hookId = hevmTransaction.hookDispatch() != null
-                ? new HookId(
-                        hevmTransaction.hookDispatch().executionOrThrow().hookEntityIdOrThrow(),
-                        hevmTransaction
-                                .hookDispatch()
-                                .executionOrThrow()
-                                .callOrThrow()
-                                .hookIdOrThrow())
-                : null;
+        final var hookId = hevmTransaction.hookIdOrThrow();
         final var ethCallData = (hydratedEthTxData != null && hydratedEthTxData.ethTxData() != null)
                 ? Bytes.wrap(hydratedEthTxData.ethTxData().callData())
                 : null;
