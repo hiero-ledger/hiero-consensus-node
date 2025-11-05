@@ -57,6 +57,8 @@ testing.suites {
             targets {
                 all {
                     testTask.configure {
+                        dependsOn(":consensus-otter-docker-app:assemble")
+
                         // Disable all parallelism
                         systemProperty("junit.jupiter.execution.parallel.enabled", false)
                         systemProperty(
@@ -114,7 +116,7 @@ tasks.register<Test>("testTurtle") {
 
 // Runs tests against the Container environment
 tasks.register<Test>("testContainer") {
-    dependsOn(":consensus-otter-docker-app:copyDockerizedApp")
+    dependsOn(":consensus-otter-docker-app:assemble")
 
     useJUnitPlatform()
     testClassesDirs = sourceSets.named("testOtter").get().output.classesDirs
@@ -137,6 +139,8 @@ tasks.register<Test>("testContainer") {
 
 // Configure the default testIntegration task with proper memory settings
 tasks.testIntegration {
+    dependsOn(":consensus-otter-docker-app:assemble")
+
     useJUnitPlatform()
     testClassesDirs = sourceSets.testIntegration.get().output.classesDirs
     classpath = sourceSets.testIntegration.get().runtimeClasspath
