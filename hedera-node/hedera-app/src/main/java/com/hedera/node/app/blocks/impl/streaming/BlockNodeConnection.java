@@ -1005,7 +1005,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                             "{} Starting to process items for block {}", BlockNodeConnection.this, block.blockNumber());
                 }
 
-                final int itemSize = item.protobufSize() + 2; // each item has 2 bytes of overhead
+                final int itemSize = item.protobufSize() + 5; // add an extra 5 bytes to account for potential overhead
                 final long newRequestBytes = pendingRequestBytes + itemSize;
 
                 if (newRequestBytes > MAX_BYTES_PER_REQUEST) {
