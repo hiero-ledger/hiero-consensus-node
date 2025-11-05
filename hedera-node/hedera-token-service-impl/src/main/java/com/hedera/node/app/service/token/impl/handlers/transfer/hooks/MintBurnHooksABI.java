@@ -9,6 +9,12 @@ import java.math.BigInteger;
 /**
  * ABI helpers for mint and burn hook entrypoints.
  * Provides encoding and decoding utilities for allowMint and allowBurn functions.
+ *
+ * <p>Hook Selectors:
+ * <ul>
+ *   <li>allowMint(uint256,bool) → 0x029e433c</li>
+ *   <li>allowBurn(uint256,bool) → 0x81c003b7</li>
+ * </ul>
  */
 public class MintBurnHooksABI {
 
@@ -59,10 +65,20 @@ public class MintBurnHooksABI {
      */
     public record AllowResult(boolean allowed, int partyValue) {}
 
-    /** Function for allowMint(uint256,bool) - selector 0x029e433c */
+    /**
+     * Hook function allowMint(uint256,bool) returns (bool,uint8).
+     * <p>Selector: 0x029e433c
+     * <p>Called by TokenMintHandler to check if a mint operation is allowed
+     * and determine the destination (treasury or sender).
+     */
     public static final Function ALLOW_MINT = new Function("allowMint(uint256,bool)", "(bool,uint8)");
 
-    /** Function for allowBurn(uint256,bool) - selector 0x81c003b7 */
+    /**
+     * Hook function allowBurn(uint256,bool) returns (bool,uint8).
+     * <p>Selector: 0x81c003b7
+     * <p>Called by TokenBurnHandler to check if a burn operation is allowed
+     * and determine the source (treasury or sender).
+     */
     public static final Function ALLOW_BURN = new Function("allowBurn(uint256,bool)", "(bool,uint8)");
 
     /**

@@ -25,22 +25,29 @@ import org.hyperledger.besu.evm.code.CodeFactory;
  * Translates FiatTokenV1 mint control management calls to the HTS system contract.
  * These selectors are recognized when called on a token address (via long-zero address)
  * that has a mint_control_hook_id configured.
+ *
+ * <p>FiatTokenV1 Management Selectors:
+ * <ul>
+ *   <li>updateMasterMinter(address) → 0xaa20e1e4</li>
+ *   <li>minterAllowance(address) → 0x8a6db9c3</li>
+ *   <li>isMinter(address) → 0xaa271e1a</li>
+ *   <li>configureMinter(address,uint256) → 0x4e44d956</li>
+ *   <li>removeMinter(address) → 0x3092afd5</li>
+ * </ul>
  */
 @Singleton
 public class MintControlTranslator extends AbstractCallTranslator<HtsCallAttempt> {
     /**
-     * Selector for updateMasterMinter(address) method.
-     * Function signature: updateMasterMinter(address)
-     * Selector: 0xaa20e1e4
+     * FiatTokenV1 updateMasterMinter(address) method.
+     * <p>Selector: 0xaa20e1e4
      */
     public static final SystemContractMethod UPDATE_MASTER_MINTER = SystemContractMethod.declare(
                     "updateMasterMinter(address)", RESPONSE_CODE_BOOL)
             .withCategories(Category.MINT_CONTROL);
 
     /**
-     * Selector for minterAllowance(address) method.
-     * Function signature: minterAllowance(address)
-     * Selector: 0x8a6db9c3
+     * FiatTokenV1 minterAllowance(address) method.
+     * <p>Selector: 0x8a6db9c3
      */
     public static final SystemContractMethod MINTER_ALLOWANCE = SystemContractMethod.declare(
                     "minterAllowance(address)", RESPONSE_CODE_UINT256)
@@ -48,9 +55,8 @@ public class MintControlTranslator extends AbstractCallTranslator<HtsCallAttempt
             .withCategories(Category.MINT_CONTROL);
 
     /**
-     * Selector for isMinter(address) method.
-     * Function signature: isMinter(address)
-     * Selector: 0xaa271e1a
+     * FiatTokenV1 isMinter(address) method.
+     * <p>Selector: 0xaa271e1a
      */
     public static final SystemContractMethod IS_MINTER = SystemContractMethod.declare(
                     "isMinter(address)", RESPONSE_CODE_BOOL)
@@ -58,18 +64,16 @@ public class MintControlTranslator extends AbstractCallTranslator<HtsCallAttempt
             .withCategories(Category.MINT_CONTROL);
 
     /**
-     * Selector for configureMinter(address,uint256) method.
-     * Function signature: configureMinter(address,uint256)
-     * Selector: 0x4e44d956
+     * FiatTokenV1 configureMinter(address,uint256) method.
+     * <p>Selector: 0x4e44d956
      */
     public static final SystemContractMethod CONFIGURE_MINTER = SystemContractMethod.declare(
                     "configureMinter(address,uint256)", RESPONSE_CODE_BOOL)
             .withCategories(Category.MINT_CONTROL);
 
     /**
-     * Selector for removeMinter(address) method.
-     * Function signature: removeMinter(address)
-     * Selector: 0x3092afd5
+     * FiatTokenV1 removeMinter(address) method.
+     * <p>Selector: 0x3092afd5
      */
     public static final SystemContractMethod REMOVE_MINTER = SystemContractMethod.declare(
                     "removeMinter(address)", RESPONSE_CODE_BOOL)
