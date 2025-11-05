@@ -1227,7 +1227,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             }
 
             /*
-            We are now down with the current block and have two options.
+            We are now done with the current block and have two options:
             1) We advance to the next block (normal case).
             2) This connection has been marked for closure after we are finished processing the current block. If this
                is true, then we will close this connection. This allows us to close the connection at a block boundary
