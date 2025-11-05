@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.integration.hip1195;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
+import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STATES_STATE_ID;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
@@ -25,7 +28,11 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fix
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewContract;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.GLOBAL_WATCHER;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContain;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -45,24 +52,35 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_HOOK_C
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_HOOKS;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.google.protobuf.ByteString;
+import com.hedera.hapi.node.base.HookEntityId;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.hooks.EvmHookSpec;
 import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.hapi.node.hooks.HookExtensionPoint;
 import com.hedera.hapi.node.hooks.LambdaEvmHook;
+import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.node.app.service.contract.ContractService;
+import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
+import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
+import com.hedera.services.bdd.spec.utilops.EmbeddedVerbs;
 import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -1072,5 +1090,120 @@ public class Hip1195BasicTests {
                 // after removing hook can delete successfully
                 cryptoUpdate(OWNER).removingHook(123L),
                 cryptoDelete(OWNER).payingWith(OWNER));
+    }
+
+    /**
+     * Repetitive test to validate the linked list management of hooks is as expected.
+     */
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+    final Stream<DynamicTest> accountLinkedListManagementAsExpected() {
+        return hapiTest(
+                // First accounts whose lists were constructed purely via cryptoCreate
+                cryptoCreate("zeroHooksToStart"),
+                assertAccountHookIdList("zeroHooksToStart", List.of()),
+                cryptoCreate("oneHookToStartZ").withHooks(accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
+                assertAccountHookIdList("oneHookToStartZ", List.of(0L)),
+                cryptoCreate("oneHookToStartNZ").withHooks(accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name())),
+                assertAccountHookIdList("oneHookToStartNZ", List.of(-1L)),
+                cryptoCreate("twoHooksToStartZNZ")
+                        .withHooks(
+                                accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name())),
+                assertAccountHookIdList("twoHooksToStartZNZ", List.of(0L, -1L)),
+                cryptoCreate("twoHooksToStartNZZ")
+                        .withHooks(
+                                accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
+                assertAccountHookIdList("twoHooksToStartNZZ", List.of(-1L, 0L)),
+                cryptoCreate("threeHooksToStartZNZNZ")
+                        .withHooks(
+                                accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(1L, TRUE_ALLOWANCE_HOOK.name())),
+                assertAccountHookIdList("threeHooksToStartZNZNZ", List.of(0L, -1L, 1L)),
+                cryptoCreate("threeHooksToStartNZZNZ")
+                        .withHooks(
+                                accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(1L, TRUE_ALLOWANCE_HOOK.name())),
+                assertAccountHookIdList("threeHooksToStartNZZNZ", List.of(-1L, 0L, 1L)),
+                cryptoCreate("threeHooksToStartNZNZZ")
+                        .withHooks(
+                                accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(1L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
+                assertAccountHookIdList("threeHooksToStartNZNZZ", List.of(-1L, 1L, 0L)),
+                // Now accounts with lists manipulated via cryptoUpdate
+                cryptoUpdate("zeroHooksToStart").withHook(accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
+                assertAccountHookIdList("zeroHooksToStart", List.of(0L)),
+                assertHgcaaLogDoesNotContain(NodeSelector.byNodeId(0), "WritableEvmHookStore", Duration.ofSeconds(1)));
+    }
+
+    private SpecOperation assertAccountHookIdList(
+            @NonNull final String account, @NonNull final List<Long> expectedHookIds) {
+        return assertHookIdList(account, expectedHookIds, false);
+    }
+
+    private SpecOperation assertHookIdList(
+            @NonNull final String account, @NonNull final List<Long> expectedHookIds, final boolean isContract) {
+        return blockingOrder(
+                viewAccount(account, a -> {
+                    if (expectedHookIds.isEmpty()) {
+                        assertEquals(0L, a.firstHookId());
+                        assertEquals(0, a.numberHooksInUse());
+                    } else {
+                        assertEquals(expectedHookIds.getFirst(), a.firstHookId());
+                        assertEquals(expectedHookIds.size(), a.numberHooksInUse());
+                    }
+                }),
+                sourcingContextual(spec -> {
+                    if (expectedHookIds.isEmpty()) {
+                        return noOp();
+                    }
+                    return EmbeddedVerbs.<HookId, EvmHookState>viewKVState(
+                            ContractService.NAME, EVM_HOOK_STATES_STATE_ID, state -> {
+                                final var hookEntityId = isContract
+                                        ? HookEntityId.newBuilder()
+                                                .contractId(
+                                                        toPbj(spec.registry().getContractId(account)))
+                                                .build()
+                                        : HookEntityId.newBuilder()
+                                                .accountId(toPbj(spec.registry().getAccountID(account)))
+                                                .build();
+                                for (int i = 0, n = expectedHookIds.size(); i < n; i++) {
+                                    final var hookId = idWith(hookEntityId, requireNonNull(expectedHookIds.get(i)));
+                                    final var evmHookState = requireNonNull(state.get(hookId));
+                                    // Check prev/next hook IDs
+                                    final var actualPrevHookId = evmHookState.previousHookId();
+                                    if (i == 0) {
+                                        assertNull(
+                                                actualPrevHookId,
+                                                "Expected no previous hook for initial " + hookId + " for account "
+                                                        + account);
+                                    } else {
+                                        assertEquals(
+                                                expectedHookIds.get(i - 1),
+                                                actualPrevHookId,
+                                                "Wrong previous hook for " + hookId + " for account " + account);
+                                    }
+                                    final var actualNextHookId = evmHookState.nextHookId();
+                                    if (i == n - 1) {
+                                        assertNull(
+                                                actualNextHookId,
+                                                "Expected no next hook for final " + hookId + " for account "
+                                                        + account);
+                                    } else {
+                                        assertEquals(
+                                                expectedHookIds.get(i + 1),
+                                                actualNextHookId,
+                                                "Wrong next hook for " + hookId + " for account " + account);
+                                    }
+                                }
+                            });
+                }));
+    }
+
+    private static HookId idWith(@NonNull final HookEntityId entityId, final long hookId) {
+        return HookId.newBuilder().entityId(entityId).hookId(hookId).build();
     }
 }
