@@ -23,8 +23,8 @@ import org.hyperledger.besu.evm.gascalculator.PragueGasCalculator;
 @SuppressWarnings("java:S110")
 @Singleton
 public class HederaGasCalculatorImpl extends PragueGasCalculator implements HederaGasCalculator {
-    private static final long TX_DATA_ZERO_COST = 4L;
-    private static final long ISTANBUL_TX_DATA_NON_ZERO_COST = 16L;
+    public static final long TX_DATA_ZERO_COST = 4L;
+    public static final long ISTANBUL_TX_DATA_NON_ZERO_COST = 16L;
     public static final long TX_BASE_COST = 21_000L;
     private static final int LOG_CONTRACT_ID_SIZE = 24;
     private static final int LOG_TOPIC_SIZE = 32;

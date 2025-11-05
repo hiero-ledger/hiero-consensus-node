@@ -97,6 +97,7 @@ class CustomGasChargingTest {
         final var chargingResult = subject.chargeForGas(sender, relayer, context, worldUpdater, wellKnownHapiCall());
         assertEquals(0, chargingResult.relayerAllowanceUsed());
         assertEquals(TestHelpers.INTRINSIC_GAS, chargingResult.intrinsicGas());
+        assertEquals(TestHelpers.INTRINSIC_GAS, chargingResult.gasRequirement().minimumGasUsed());
     }
 
     @Test

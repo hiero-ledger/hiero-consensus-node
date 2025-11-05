@@ -27,8 +27,10 @@ import com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure;
 import com.hedera.node.app.spi.ids.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
 import javax.inject.Inject;
 import javax.inject.Singleton;
+
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -58,13 +60,13 @@ public class FrameRunner {
      * Runs the EVM transaction implied by the given {@link MessageFrame} to completion using the provided
      * {@link org.hyperledger.besu.evm.processor.AbstractMessageProcessor} implementations, and returns the result.
      *
-     * @param gasLimit the gas limit for the transaction
-     * @param frame the frame to run
-     * @param senderId the Hedera id of the sending account
-     * @param tracer the tracer to use
-     * @param messageCall the message call processor to use
+     * @param gasLimit         the gas limit for the transaction
+     * @param frame            the frame to run
+     * @param senderId         the Hedera id of the sending account
+     * @param tracer           the tracer to use
+     * @param messageCall      the message call processor to use
      * @param contractCreation the contract creation processor to use
-     * @param gasRequirements the gas requirements of the transaction
+     * @param gasRequirements  the gas requirements of the transaction
      * @return the result of the transaction
      */
     public HederaEvmTransactionResult runToCompletion(
@@ -163,20 +165,21 @@ public class FrameRunner {
     private long effectiveGasUsed(
             final long gasLimit, @NonNull final MessageFrame frame, @NonNull final GasRequirements gasRequirements) {
         var nominalGasUsed = gasLimit - frame.getRemainingGas();
-        // This check is added according to https://eips.ethereum.org/EIPS/eip-7623
-        // 1. `minimumGasUsed = max(intrinsicGas, floorGas)`
-        // 2. we can calculate `nominalGasUsed` just after `execution_gas_used` will be calculated
-        // 3. if `nominalGasUsed < minimumGasUsed` we should charge `minimumGasUsed` instead
-        if (nominalGasUsed < gasRequirements.minimumGasUsed()) {
-            nominalGasUsed = gasRequirements.minimumGasUsed();
-        }
+        long gasUsedAfterRefund;
 
         // A gas refund limit as defined in EIP-3529
         final var nominalRefund = frame.getGasRefund();
         final var maxGasRefunded = nominalGasUsed / gasCalculator.getMaxRefundQuotient();
         final var actualGasToRefund = Math.min(maxGasRefunded, nominalRefund);
+        gasUsedAfterRefund = nominalGasUsed - actualGasToRefund;
 
-        final var gasUsedAfterRefund = nominalGasUsed - actualGasToRefund;
+        // This check is added according to https://eips.ethereum.org/EIPS/eip-7623. Issue https://github.com/hiero-ledger/hiero-consensus-node/issues/21553
+        // 1. `minimumGasUsed = max(intrinsicGas, floorGas)`
+        // 2. we can calculate `gasUsedAfterRefund` just after `execution_gas_used` will be calculated and refund will be applied
+        // 3. if `gasUsedAfterRefund < minimumGasUsed` we should charge `minimumGasUsed` instead.
+        if (gasUsedAfterRefund < gasRequirements.minimumGasUsed()) {
+            gasUsedAfterRefund =  gasRequirements.minimumGasUsed();
+        }
 
         // Hedera-specific restriction: the transaction can't use less gas than a certain percentage of gasLimit
         final var maxRefundPercentOfGasLimit = contractsConfigOf(frame).maxRefundPercentOfGasLimit();

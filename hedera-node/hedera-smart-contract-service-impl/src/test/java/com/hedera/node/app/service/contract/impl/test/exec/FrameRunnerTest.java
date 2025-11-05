@@ -21,6 +21,7 @@ import static org.mockito.Mockito.doAnswer;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.node.app.service.contract.impl.exec.FrameRunner;
+import com.hedera.node.app.service.contract.impl.exec.gas.GasRequirements;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
@@ -51,7 +52,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class FrameRunnerTest {
 
-    private static final long EXPECTED_GAS_USED_NO_REFUNDS = 400000;
+    private static final long EXPECTED_GAS_USED_NO_REFUNDS = 400_000;
 
     @Mock
     private MessageFrame frame;
@@ -224,8 +225,6 @@ class FrameRunnerTest {
     @Test
     void failurePathWorksWithHaltReasonWhenExceedingChildRecords() {
         final var inOrder = Mockito.inOrder(frame, childFrame, tracer, messageCallProcessor, contractCreationProcessor);
-        final Deque<MessageFrame> messageFrameStack = new ArrayDeque<>();
-        messageFrameStack.addFirst(frame);
 
         givenBaseFailureWith(NON_SYSTEM_LONG_ZERO_ADDRESS);
         given(frame.getExceptionalHaltReason()).willReturn(Optional.of(INSUFFICIENT_CHILD_RECORDS));
@@ -247,6 +246,25 @@ class FrameRunnerTest {
         assertFailureExpectationsWith(frame, result);
         assertEquals(INSUFFICIENT_CHILD_RECORDS, result.haltReason());
         assertNull(result.revertReason());
+    }
+
+    @Test
+    void happyPathWithMinimumGasUsed() {
+        final var minimumGasUsed = 1_000_000;
+        givenBaseSuccessWith(NON_SYSTEM_LONG_ZERO_ADDRESS);
+        final var contractId = ContractID.newBuilder()
+                .contractNum(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS))
+                .build();
+        given(entityIdFactory.newContractIdWithEvmAddress(any())).willReturn(contractId);
+        given(entityIdFactory.newContractId(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
+                .willReturn(contractId);
+        final var result = subject.runToCompletion(
+                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, new GasRequirements(INTRINSIC_GAS, minimumGasUsed));
+
+        assertEquals(minimumGasUsed, result.gasUsed());
+
+        assertSuccessExpectationsWith(
+                NON_SYSTEM_CONTRACT_ID, asEvmContractId(entityIdFactory, NON_SYSTEM_LONG_ZERO_ADDRESS), result);
     }
 
     private void assertSuccessExpectationsWith(
