@@ -232,7 +232,7 @@ tasks.register<Test>("testSubprocess") {
     systemProperty("hapi.spec.default.shard", 11)
     systemProperty("hapi.spec.default.realm", 12)
 
-    if (ciTagExpression.contains("BLOCK_NODE_SIMULATOR")) {
+    if (ciTagExpression.contains("BLOCK_NODE")) {
         systemProperty("hapi.spec.logging.blocknode", "true")
     }
 
