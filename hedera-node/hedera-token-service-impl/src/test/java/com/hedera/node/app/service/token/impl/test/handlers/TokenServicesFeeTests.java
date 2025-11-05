@@ -1,6 +1,7 @@
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import com.hedera.hapi.node.base.SubType;
+import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.token.TokenCreateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -22,6 +23,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
@@ -34,6 +36,8 @@ import static org.mockito.Mockito.mock;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Token Handler Fee Tests")
 public class TokenServicesFeeTests {
+    private static final long TOKEN_CREATE_BASE_FEE = 15;
+    private static final long TOKEN_MINT_BASE_FEE = 20;
 
     @Mock
     private EntityIdFactory entityIdFactory;
@@ -49,17 +53,39 @@ public class TokenServicesFeeTests {
         createHandler = new TokenCreateHandler(entityIdFactory, customFeesValidator,tokenCreateValidator);
     }
 
+    /*
+    TODO:
+    token create variations
+
+    create FT with no custom fees
+    create FT with custom fees
+    create NFT with no custom fees
+    create NFT with custom fees
+
+     */
 
     @Test
-    void testCreateToken() {
-        final var txBody = TokenCreateTransactionBody.newBuilder().build();
-        final var txBody2 = TransactionBody.newBuilder().tokenCreation(txBody).build();
-        final var numSignatures = 1;
-        final var feeContext = createMockFeeContext(txBody2,numSignatures);
+    void createFTPlain() {
+        final var txBody2 = TransactionBody.newBuilder().tokenCreation(
+                TokenCreateTransactionBody.newBuilder()
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .build()).build();
+        final var feeContext = createMockFeeContext(txBody2,1);
         final var result = createHandler.calculateFeeResult(feeContext);
-        final var expectedFee = 15;
         assertNotNull(result);
-        assertEquals(expectedFee, result.total());
+        assertEquals(TOKEN_CREATE_BASE_FEE, result.total());
+    }
+
+    @Test
+    void createNFTPlain() {
+        final var txBody = TokenCreateTransactionBody.newBuilder()
+                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                .build();
+        final var txBody2 = TransactionBody.newBuilder().tokenCreation(txBody).build();
+        final var feeContext = createMockFeeContext(txBody2,1);
+        final var result = createHandler.calculateFeeResult(feeContext);
+        assertNotNull(result);
+        assertEquals(TOKEN_CREATE_BASE_FEE, result.total());
     }
 
     private FeeContext createMockFeeContext(TransactionBody txBody, int numSignatures) {
@@ -87,8 +113,10 @@ public class TokenServicesFeeTests {
                 .network(NetworkFee.DEFAULT.copyBuilder().multiplier(2).build())
                                     .services(makeService(
                                             "Token",
-                                            makeServiceFee(TOKEN_CREATE, 15, makeExtraIncluded(Extra.KEYS,
-                 1))
+                                            makeServiceFee(TOKEN_CREATE, TOKEN_CREATE_BASE_FEE,
+                                                    makeExtraIncluded(Extra.KEYS,   1)),
+                                            makeServiceFee(TOKEN_MINT, TOKEN_MINT_BASE_FEE,
+                                                    makeExtraIncluded(Extra.KEYS, 1))
                                     ))
 
                 .build();
