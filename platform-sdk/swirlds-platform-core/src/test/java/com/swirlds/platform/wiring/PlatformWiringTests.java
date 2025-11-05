@@ -177,8 +177,7 @@ class PlatformWiringTests {
         when(blocks.rosterHistory()).thenReturn(rosterHistory);
         final KeysAndCerts keysAndCerts;
         try {
-            keysAndCerts = KeysAndCertsGenerator.generate(NodeId.FIRST_NODE_ID, new SecureRandom(),
-                    new SecureRandom());
+            keysAndCerts = KeysAndCertsGenerator.generate(NodeId.FIRST_NODE_ID, new SecureRandom(), new SecureRandom());
         } catch (final NoSuchAlgorithmException | NoSuchProviderException | KeyGeneratingException e) {
             throw new RuntimeException(e);
         }

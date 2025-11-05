@@ -55,5 +55,4 @@ class SigningFactoryTest {
         assertTrue(verifier.verify(DATA_VALID, signature), "Verification failed for " + implementation);
         assertFalse(verifier.verify(DATA_INVALID, signature), "Bad data verification passed for " + implementation);
     }
-
 }

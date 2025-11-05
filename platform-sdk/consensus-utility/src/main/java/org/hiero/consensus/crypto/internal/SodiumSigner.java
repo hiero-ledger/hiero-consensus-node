@@ -6,7 +6,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.KeyPair;
 import org.hiero.base.crypto.BytesSigner;
-import org.hiero.consensus.crypto.SigningSchema;
 
 /**
  * A {@link BytesSigner} implementation that uses libsodium to sign data using the Ed25519 algorithm.
