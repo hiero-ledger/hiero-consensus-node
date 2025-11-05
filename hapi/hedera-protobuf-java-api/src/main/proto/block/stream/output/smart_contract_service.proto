@@ -28,11 +28,11 @@ import "services/contract_types.proto";
  * the original transaction.
  */
 message CallContractOutput {
-    /**
-     * An EVM transaction result. Contains just the information not already
-     * externalized in the matching transaction body.
-     */
-    proto.EvmTransactionResult evm_transaction_result = 1;
+  /**
+   * An EVM transaction result. Contains just the information not already
+   * externalized in the matching transaction body.
+   */
+  proto.EvmTransactionResult evm_transaction_result = 1;
 }
 
 /**
@@ -42,11 +42,11 @@ message CallContractOutput {
  * the original transaction.
  */
 message CreateContractOutput {
-    /**
-     * An EVM transaction result. Contains just the information not already
-     * externalized in the matching transaction body.
-     */
-    proto.EvmTransactionResult evm_transaction_result = 1;
+  /**
+   * An EVM transaction result. Contains just the information not already
+   * externalized in the matching transaction body.
+   */
+  proto.EvmTransactionResult evm_transaction_result = 1;
 }
 
 // no evm exec, only modified entity
@@ -104,4 +104,5 @@ message EthereumOutput {
      * matching transaction body.
      */
     proto.EvmTransactionResult evm_create_transaction_result = 2;
-  }}
+  }
+}
