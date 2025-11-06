@@ -56,8 +56,11 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
     private String account;
     Optional<Long> expected = Optional.empty();
     Optional<Supplier<String>> entityFn = Optional.empty();
-    Optional<Function<HapiSpec, Function<Long, Optional<String>>>> expectedCondition = Optional.empty();
+    Optional<Function<HapiSpec, Function<Long, Optional<String>>>> expectedTinybarCondition = Optional.empty();
     Optional<Map<String, LongConsumer>> tokenBalanceObservers = Optional.empty();
+
+    @Nullable
+    private Map<String, Function<HapiSpec, Function<Long, Optional<String>>>> expectedTokenConditions = null;
 
     @Nullable
     LongConsumer balanceObserver;
@@ -112,13 +115,22 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
         return this;
     }
 
+    public HapiGetAccountBalance hasTokenBalance(
+            String token, Function<HapiSpec, Function<Long, Optional<String>>> condition) {
+        if (expectedTokenConditions == null) {
+            expectedTokenConditions = new HashMap<>();
+        }
+        expectedTokenConditions.put(token, condition);
+        return this;
+    }
+
     public HapiGetAccountBalance includeTokenMemoOnError() {
         includeTokenMemoOnError = true;
         return this;
     }
 
     public HapiGetAccountBalance hasTinyBars(Function<HapiSpec, Function<Long, Optional<String>>> condition) {
-        expectedCondition = Optional.of(condition);
+        expectedTinybarCondition = Optional.of(condition);
         return this;
     }
 
@@ -203,8 +215,9 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
             assertEquals(expectedId, response.getCryptogetAccountBalance().getAccountID(), "Wrong account id");
         }
 
-        if (expectedCondition.isPresent()) {
-            Function<Long, Optional<String>> condition = expectedCondition.get().apply(spec);
+        if (expectedTinybarCondition.isPresent()) {
+            Function<Long, Optional<String>> condition =
+                    expectedTinybarCondition.get().apply(spec);
             Optional<String> failure = condition.apply(actual);
             if (failure.isPresent()) {
                 Assertions.fail("Bad balance! :: " + failure.get());
@@ -215,7 +228,7 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
 
         // Since we don't support token balances from getAccountBalance query, for internal testing
         // we are using getAccountDetails query to get token balances.
-        if (!expectedTokenBalances.isEmpty() || tokenBalanceObservers.isPresent()) {
+        if (!expectedTokenBalances.isEmpty() || tokenBalanceObservers.isPresent() || expectedTokenConditions != null) {
             final var detailsLookup = QueryVerbs.getAccountDetails(toEntityId(balanceResponse.getAccountID()))
                     .payingWith(GENESIS);
             allRunFor(spec, detailsLookup);
@@ -229,6 +242,19 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
                                     .build())
                             .collect(Collectors.toMap(
                                     TokenBalance::getTokenId, tb -> Pair.of(tb.getBalance(), tb.getDecimals())));
+            if (expectedTokenConditions != null) {
+                expectedTokenConditions.forEach((key, value) -> {
+                    final var tokenId = asTokenId(key, spec);
+                    final var condition = value.apply(spec);
+                    final long actualBalance = actualTokenBalances
+                            .getOrDefault(tokenId, Pair.of(0L, 0))
+                            .getLeft();
+                    condition
+                            .apply(actualBalance)
+                            .ifPresent(s -> Assertions.fail("Bad token balance (" + tokenId.toString() + " was "
+                                    + actualBalance + ") :: " + s));
+                });
+            }
             Pair<Long, Integer> defaultTb = Pair.of(0L, 0);
             for (Map.Entry<String, String> tokenBalance : expectedTokenBalances) {
                 var tokenId = asTokenId(tokenBalance.getKey(), spec);

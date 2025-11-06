@@ -80,7 +80,7 @@ public class GrpcInterceptorTest extends GrpcTestBase {
          */
         return List.of(
                 Arguments.of("hiero-sdk-java/1.1.0", UserAgentType.HIERO_SDK_JAVA, "1.1.0"),
-                Arguments.of("foo/bar hiero-sdk-java/3 baz", UserAgentType.HIERO_SDK_JAVA, "3"),
+                Arguments.of("foo/bar hiero-sdk-java/3 baz", UserAgentType.HIERO_SDK_JAVA, "Unknown"),
                 Arguments.of(null, UserAgentType.UNSPECIFIED, "Unknown"));
     }
 }

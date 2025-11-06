@@ -14,15 +14,16 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshot;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
 import com.hedera.node.app.hapi.utils.throttles.LeakyBucketDeterministicThrottle;
+import com.hedera.node.app.hapi.utils.throttles.OpsDurationDeterministicThrottle;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -44,7 +45,7 @@ class AppThrottleFactoryTest {
     private static final AccountID PAYER_ID =
             AccountID.newBuilder().accountNum(666L).build();
     private static final TransactionInfo TXN_INFO = new TransactionInfo(
-            Transaction.DEFAULT,
+            SignedTransaction.DEFAULT,
             TransactionBody.newBuilder()
                     .cryptoTransfer(CryptoTransferTransactionBody.DEFAULT)
                     .build(),
@@ -58,6 +59,7 @@ class AppThrottleFactoryTest {
             List.of(
                     new ThrottleUsageSnapshot(1L, new Timestamp(234567, 8)),
                     new ThrottleUsageSnapshot(2L, new Timestamp(345678, 9))),
+            ThrottleUsageSnapshot.DEFAULT,
             ThrottleUsageSnapshot.DEFAULT);
 
     @Mock
@@ -82,6 +84,9 @@ class AppThrottleFactoryTest {
     private LeakyBucketDeterministicThrottle bytesThrottle;
 
     @Mock
+    private OpsDurationDeterministicThrottle opsDurationThrottle;
+
+    @Mock
     private AppThrottleFactory.ThrottleAccumulatorFactory throttleAccumulatorFactory;
 
     private AppThrottleFactory subject;
@@ -101,8 +106,9 @@ class AppThrottleFactoryTest {
                 .willReturn(throttleAccumulator);
         given(throttleAccumulator.allActiveThrottles()).willReturn(List.of(firstThrottle, lastThrottle));
         given(throttleAccumulator.gasLimitThrottle()).willReturn(gasThrottle);
+        given(throttleAccumulator.opsDurationThrottle()).willReturn(opsDurationThrottle);
 
-        final var throttle = subject.newThrottle(SPLIT_FACTOR, FAKE_SNAPSHOTS);
+        final var throttle = subject.newScheduleThrottle(SPLIT_FACTOR, FAKE_SNAPSHOTS);
 
         verify(throttleAccumulator).applyGasConfig();
         verify(throttleAccumulator).rebuildFor(ThrottleDefinitions.DEFAULT);
@@ -110,7 +116,7 @@ class AppThrottleFactoryTest {
         verify(lastThrottle).resetUsageTo(FAKE_SNAPSHOTS.tpsThrottles().getLast());
         verify(gasThrottle).resetUsageTo(FAKE_SNAPSHOTS.gasThrottleOrThrow());
 
-        given(throttleAccumulator.checkAndEnforceThrottle(TXN_INFO, CONSENSUS_NOW, state))
+        given(throttleAccumulator.checkAndEnforceThrottle(TXN_INFO, CONSENSUS_NOW, state, null, true))
                 .willReturn(true);
         assertThat(throttle.allow(PAYER_ID, TXN_INFO.txBody(), TXN_INFO.functionality(), CONSENSUS_NOW))
                 .isFalse();
@@ -120,6 +126,7 @@ class AppThrottleFactoryTest {
         given(lastThrottle.usageSnapshot())
                 .willReturn(FAKE_SNAPSHOTS.tpsThrottles().getLast());
         given(gasThrottle.usageSnapshot()).willReturn(FAKE_SNAPSHOTS.gasThrottleOrThrow());
+        given(opsDurationThrottle.usageSnapshot()).willReturn(FAKE_SNAPSHOTS.evmOpsDurationThrottleOrThrow());
         assertEquals(FAKE_SNAPSHOTS, throttle.usageSnapshots());
     }
 }

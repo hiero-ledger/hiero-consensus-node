@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip991;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
@@ -13,6 +14,8 @@ import static com.hedera.services.bdd.spec.keys.SigControl.SECP256K1_ON;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.isEndOfStakingPeriodRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
@@ -20,6 +23,8 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
@@ -32,12 +37,14 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fix
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.hbarLimit;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.htsLimit;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.maxCustomFee;
+import static com.hedera.services.bdd.spec.transactions.token.CustomFeeTests.expectedCustomFeeLimit;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
@@ -54,6 +61,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CUSTOM_FEE
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NO_VALID_MAX_CUSTOM_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -68,6 +76,7 @@ import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenType;
+import com.hederahashgraph.api.proto.java.TransactionRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.stream.Stream;
@@ -75,6 +84,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 @DisplayName("Submit message")
@@ -353,6 +363,7 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
         @HapiTest
         @DisplayName("Collector submits a message to a topic with fee of 1 FT.")
         // TOPIC_FEE_125
+        @Tag(MATS)
         final Stream<DynamicTest> collectorSubmitMessageToTopicWithFTFee() {
             final var collector = "collector";
             final var fee = fixedConsensusHtsFee(1, BASE_TOKEN, collector);
@@ -1817,7 +1828,8 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                             .via("submit1024"),
                     submitMessageTo(TOPIC)
                             .message("test")
-                            .signedBy(SUBMIT_KEY, SUBMITTER)
+                            .signedBy(SUBMITTER, SUBMIT_KEY)
+                            .sigMapPrefixes(uniqueWithFullPrefixesFor(SUBMITTER, SUBMIT_KEY))
                             .payingWith(SUBMITTER)
                             .via("extraSigs"),
                     getAccountBalance("collector").hasTinyBars(60),
@@ -1885,6 +1897,7 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                                 .hasNonStakingChildRecordCount(0)
                                 .logged();
                         allRunFor(spec, submitTxnRecord);
+                        validateTransactionFees(submitTxnRecord.getResponseRecord());
                     }),
                     // assert topic fee collector balance
                     getAccountBalance(collector).hasTokenBalance(tokenName, 1),
@@ -1892,6 +1905,14 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                     getAccountBalance(denomCollector)
                             .hasTokenBalance(denomToken, 1)
                             .hasTinyBars(ONE_HBAR)));
+        }
+
+        private void validateTransactionFees(final TransactionRecord record) {
+            final var feeCreditSum = record.getTransferList().getAccountAmountsList().stream()
+                    .filter(aa -> aa.getAccountID().getAccountNum() < 1000)
+                    .mapToInt(aa -> (int) aa.getAmount())
+                    .sum();
+            assertEquals(record.getTransactionFee(), feeCreditSum);
         }
 
         @HapiTest
@@ -1922,5 +1943,45 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                     // assert topic fee collector balance
                     assertAllCollectorsBalances(9)));
         }
+    }
+
+    @HapiTest
+    @DisplayName("Schedule Submit Message with maxFee")
+    final Stream<DynamicTest> scheduleSubmitMessageWithMaxFee() {
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                cryptoCreate(COLLECTOR),
+                cryptoCreate(SUBMITTER),
+                createTopic(TOPIC).adminKeyName(ADMIN_KEY).withConsensusCustomFee(fixedConsensusHbarFee(2, COLLECTOR)),
+
+                // Testing Raw SubmitMessage to Topic w/ Low Max Fee
+                submitMessageTo(TOPIC)
+                        .maxCustomFee(maxCustomFee(SUBMITTER, hbarLimit(1)))
+                        .message("Test")
+                        .payingWith(SUBMITTER)
+                        .hasKnownStatus(MAX_CUSTOM_FEE_LIMIT_EXCEEDED),
+                getTopicInfo(TOPIC).hasSeqNo(0),
+
+                // Testing Scheduled SubmitMessage to Topic w/ Low Max Fee
+                scheduleCreate(
+                                "schedule",
+                                submitMessageTo(TOPIC)
+                                        .maxCustomFee(maxCustomFee(SUBMITTER, hbarLimit(1)))
+                                        .message("Test")
+                                        .payingWith(SUBMITTER))
+                        .payingWith(DEFAULT_PAYER)
+                        .designatingPayer(SUBMITTER)
+                        .via("scheduleTxn")
+                        .hasKnownStatus(SUCCESS),
+                getScheduleInfo("schedule").hasCustomFeeLimit(expectedCustomFeeLimit(SUBMITTER, 1)),
+                scheduleSign("schedule").payingWith(SUBMITTER).hasKnownStatus(SUCCESS),
+                withOpContext((spec, opLog) -> {
+                    var scheduledTxnRecord = getTxnRecord("scheduleTxn").scheduled();
+                    allRunFor(spec, scheduledTxnRecord);
+                    var scheduledTxnStatus =
+                            scheduledTxnRecord.getResponseRecord().getReceipt().getStatus();
+                    assertEquals(MAX_CUSTOM_FEE_LIMIT_EXCEEDED, scheduledTxnStatus);
+                }),
+                getTopicInfo(TOPIC).hasSeqNo(0));
     }
 }

@@ -3,7 +3,8 @@ package com.swirlds.platform.state.service;
 
 import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState;
 import static com.swirlds.platform.state.service.PbjConverterTest.randomPlatformState;
-import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
+import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
+import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_LABEL;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -11,12 +12,20 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
+import com.hedera.pbj.runtime.Codec;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.state.merkle.singleton.SingletonNode;
-import com.swirlds.state.merkle.singleton.WritableSingletonStateImpl;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
+import com.swirlds.state.merkle.StateUtils;
+import com.swirlds.state.merkle.StateValue;
+import com.swirlds.state.merkle.StateValue.StateValueCodec;
+import com.swirlds.state.merkle.disk.OnDiskWritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
+import com.swirlds.virtualmap.VirtualMap;
 import java.time.Instant;
 import org.hiero.base.utility.CommonUtils;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,16 +41,27 @@ class WritablePlatformStateStoreTest {
     private WritablePlatformStateStore store;
 
     private Randotron randotron;
+    private VirtualMap virtualMap;
 
     @BeforeEach
     void setUp() {
         randotron = Randotron.create();
-        SingletonNode<PlatformState> platformSingleton =
-                new SingletonNode<>(PlatformStateService.NAME, PLATFORM_STATE_KEY, 0, PlatformState.PROTOBUF, null);
-        platformSingleton.setValue(toPbjPlatformState(randomPlatformState(randotron)));
 
-        when(writableStates.<PlatformState>getSingleton(PLATFORM_STATE_KEY))
-                .thenReturn(new WritableSingletonStateImpl<>(PLATFORM_STATE_KEY, platformSingleton));
+        final String virtualMapLabel =
+                "vm-" + WritablePlatformStateStoreTest.class.getSimpleName() + java.util.UUID.randomUUID();
+        virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel, 1);
+
+        final Bytes key = StateUtils.getStateKeyForSingleton(PLATFORM_STATE_STATE_ID);
+        final StateValue<PlatformState> value = StateUtils.getStateValueForSingleton(
+                PLATFORM_STATE_STATE_ID, toPbjPlatformState(randomPlatformState(randotron)));
+
+        final Codec<PlatformState> codec = PlatformState.PROTOBUF;
+        final Codec<StateValue<PlatformState>> stateValueCodec = new StateValueCodec<>(PLATFORM_STATE_STATE_ID, codec);
+        virtualMap.put(key, value, stateValueCodec);
+
+        when(writableStates.<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID))
+                .thenReturn(new OnDiskWritableSingletonState<>(
+                        PLATFORM_STATE_STATE_ID, PLATFORM_STATE_STATE_LABEL, codec, virtualMap));
         store = new WritablePlatformStateStore(writableStates);
     }
 
@@ -58,11 +78,6 @@ class WritablePlatformStateStoreTest {
         assertEquals(platformState.getRoundsNonAncient(), store.getRoundsNonAncient());
         assertEquals(platformState.getSnapshot(), store.getSnapshot());
         assertEquals(platformState.getFreezeTime(), store.getFreezeTime());
-        assertEquals(platformState.getFirstVersionInBirthRoundMode(), store.getFirstVersionInBirthRoundMode());
-        assertEquals(platformState.getLastRoundBeforeBirthRoundMode(), store.getLastRoundBeforeBirthRoundMode());
-        assertEquals(
-                platformState.getLowestJudgeGenerationBeforeBirthRoundMode(),
-                store.getLowestJudgeGenerationBeforeBirthRoundMode());
     }
 
     @Test
@@ -122,25 +137,9 @@ class WritablePlatformStateStoreTest {
         assertEquals(lastFrozenTime, store.getLastFrozenTime());
     }
 
-    @Test
-    void verifyFirstVersionInBirthRoundMode() {
-        final var version = nextInt(1, 100);
-        store.setFirstVersionInBirthRoundMode(
-                SemanticVersion.newBuilder().major(version).build());
-        assertEquals(version, store.getFirstVersionInBirthRoundMode().major());
-    }
-
-    @Test
-    void verifyLastRoundBeforeBirthRoundMode() {
-        final var round = nextInt(1, 100);
-        store.setLastRoundBeforeBirthRoundMode(round);
-        assertEquals(round, store.getLastRoundBeforeBirthRoundMode());
-    }
-
-    @Test
-    void verifyLowestJudgeGenerationBeforeBirthRoundMode() {
-        final var generation = nextInt(1, 100);
-        store.setLowestJudgeGenerationBeforeBirthRoundMode(generation);
-        assertEquals(generation, store.getLowestJudgeGenerationBeforeBirthRoundMode());
+    @AfterEach
+    void tearDown() {
+        virtualMap.release();
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 }

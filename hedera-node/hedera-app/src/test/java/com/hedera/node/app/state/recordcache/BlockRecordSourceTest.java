@@ -92,9 +92,10 @@ class BlockRecordSourceTest {
         given(recordTranslator.translateRecord(
                         translationContext,
                         TRANSACTION_RESULT.transactionResultOrThrow(),
+                        null,
                         FIRST_OUTPUT.transactionOutputOrThrow()))
                 .willReturn(FIRST_RECORD);
-        given(recordTranslator.translateRecord(translationContext, TRANSACTION_RESULT.transactionResultOrThrow()))
+        given(recordTranslator.translateRecord(translationContext, TRANSACTION_RESULT.transactionResultOrThrow(), null))
                 .willReturn(SECOND_RECORD);
         subjectWith(List.of(
                 new BlockStreamBuilder.Output(List.of(TRANSACTION_RESULT, FIRST_OUTPUT), translationContext),

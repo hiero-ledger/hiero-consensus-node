@@ -59,15 +59,13 @@ class OwnerOfCallTest extends CallTestBase {
     void haltWhenTokenIsNotERC721() {
         // given
         subject = new OwnerOfCall(gasCalculator, mockEnhancement(), FUNGIBLE_TOKEN, NFT_SERIAL_NO);
-
         // when
         final var result = subject.execute().fullResult().result();
-
         // then
         assertEquals(MessageFrame.State.EXCEPTIONAL_HALT, result.getState());
         assertEquals(
                 HederaExceptionalHaltReason.ERROR_DECODING_PRECOMPILE_INPUT,
-                result.getHaltReason().get());
+                result.getHaltReason().orElse(null));
     }
 
     @Test
@@ -80,6 +78,17 @@ class OwnerOfCallTest extends CallTestBase {
 
         assertEquals(MessageFrame.State.REVERT, result.getState());
         assertEquals(revertOutputFor(INVALID_ACCOUNT_ID), result.getOutput());
+    }
+
+    @Test
+    void revertsWithNegativeSerial() {
+        subject = new OwnerOfCall(gasCalculator, mockEnhancement(), NON_FUNGIBLE_TOKEN, -1);
+        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, -1)).willReturn(null);
+
+        final var result = subject.execute().fullResult().result();
+
+        assertEquals(MessageFrame.State.REVERT, result.getState());
+        assertEquals(ordinalRevertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER), result.getOutput());
     }
 
     @Test
@@ -96,7 +105,7 @@ class OwnerOfCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(OwnerOfTranslator.OWNER_OF
                         .getOutputs()
-                        .encode(Tuple.singleton(asHeadlongAddress(asLongZeroAddress(entityIdFactory, ownerNum))))
+                        .encode(Tuple.singleton(asHeadlongAddress(asLongZeroAddress(ownerNum))))
                         .array()),
                 result.getOutput());
     }
@@ -106,7 +115,6 @@ class OwnerOfCallTest extends CallTestBase {
         subject = new OwnerOfCall(gasCalculator, mockEnhancement(), NON_FUNGIBLE_TOKEN, NFT_SERIAL_NO);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, NFT_SERIAL_NO)).willReturn(TREASURY_OWNED_NFT);
-        final long ownerNum = NON_FUNGIBLE_TOKEN.treasuryAccountIdOrThrow().accountNumOrThrow();
         given(nativeOperations.getAccount(any(AccountID.class))).willReturn(TestHelpers.ALIASED_SOMEBODY);
 
         final var result = subject.execute().fullResult().result();

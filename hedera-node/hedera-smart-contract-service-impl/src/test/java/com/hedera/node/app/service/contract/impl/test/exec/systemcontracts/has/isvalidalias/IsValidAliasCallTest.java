@@ -11,8 +11,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.RECEIVE
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.UNALIASED_RECEIVER;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadlongAddress;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.realm;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.shard;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -71,8 +69,7 @@ public class IsValidAliasCallTest extends CallTestBase {
         given(nativeOperations.getAccount(any(AccountID.class))).willReturn(ALIASED_RECEIVER);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
-        subject = new IsValidAliasCall(
-                attempt, asHeadlongAddress(asEvmAddress(shard, realm, RECEIVER_ID.accountNumOrThrow())));
+        subject = new IsValidAliasCall(attempt, asHeadlongAddress(asEvmAddress(RECEIVER_ID.accountNumOrThrow())));
         final var result = subject.execute(frame).fullResult().result();
 
         assertEquals(State.COMPLETED_SUCCESS, result.getState());
@@ -91,8 +88,7 @@ public class IsValidAliasCallTest extends CallTestBase {
         given(nativeOperations.getAccount(any(AccountID.class))).willReturn(UNALIASED_RECEIVER);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
-        subject = new IsValidAliasCall(
-                attempt, asHeadlongAddress(asEvmAddress(shard, realm, RECEIVER_ID.accountNumOrThrow())));
+        subject = new IsValidAliasCall(attempt, asHeadlongAddress(asEvmAddress(RECEIVER_ID.accountNumOrThrow())));
         final var result = subject.execute(frame).fullResult().result();
 
         assertEquals(State.COMPLETED_SUCCESS, result.getState());
@@ -131,7 +127,6 @@ public class IsValidAliasCallTest extends CallTestBase {
     void failsWhenLongZeroAccountDoesNotExist() {
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
         given(attempt.enhancement()).willReturn(mockEnhancement());
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(nativeOperations.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
         given(nativeOperations.resolveAlias(
                         DEFAULT_HEDERA_CONFIG.shard(), DEFAULT_HEDERA_CONFIG.realm(), OWNER_ADDRESS))

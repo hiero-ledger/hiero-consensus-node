@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops;
 
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTokenId;
+
 import com.google.common.base.MoreObjects;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
 import com.hedera.services.bdd.spec.queries.crypto.HapiGetAccountBalance;
+import com.hederahashgraph.api.proto.java.TokenBalance;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Optional;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
@@ -15,6 +19,10 @@ public class BalanceSnapshot extends UtilOp {
 
     private String account;
     private String snapshot;
+
+    @Nullable
+    private String token;
+
     private Optional<Function<HapiSpec, String>> snapshotFn = Optional.empty();
     private Optional<String> payer = Optional.empty();
     private boolean aliased = false;
@@ -39,6 +47,11 @@ public class BalanceSnapshot extends UtilOp {
         return this;
     }
 
+    public BalanceSnapshot forToken(String token) {
+        this.token = token;
+        return this;
+    }
+
     @Override
     protected boolean submitOp(HapiSpec spec) {
         snapshot = snapshotFn.map(fn -> fn.apply(spec)).orElse(snapshot);
@@ -52,9 +65,19 @@ public class BalanceSnapshot extends UtilOp {
             log.error("Failed to take balance snapshot for '{}'!", account);
             return false;
         }
-        long balance = delegate.getResponse().getCryptogetAccountBalance().getBalance();
 
-        spec.registry().saveBalanceSnapshot(snapshot, balance);
+        if (token == null) {
+            long balance = delegate.getResponse().getCryptogetAccountBalance().getBalance();
+            spec.registry().saveBalanceSnapshot(snapshot, balance);
+        } else {
+            final var tokenId = asTokenId(token, spec);
+            final long balance = delegate.getResponse().getCryptogetAccountBalance().getTokenBalancesList().stream()
+                    .filter(tb -> tb.getTokenId().equals(tokenId))
+                    .findFirst()
+                    .map(TokenBalance::getBalance)
+                    .orElse(0L);
+            spec.registry().saveTokenBalanceSnapshot(token, snapshot, balance);
+        }
         return false;
     }
 

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.event;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventConsensusData;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.GossipEvent;
@@ -91,7 +90,8 @@ public class CesEvent extends AbstractSerializableHashable
     public void deserialize(@NonNull final SerializableDataInputStream in, final int version) throws IOException {
         this.platformEvent = switch (version) {
             case CES_EVENT_VERSION_PBJ_EVENT -> new PlatformEvent(in.readPbjRecord(GossipEvent.PROTOBUF));
-            default -> throw new IOException("Unsupported version " + version);};
+            default -> throw new IOException("Unsupported version " + version);
+        };
 
         in.readInt(); // ConsensusData.version
         in.readLong(); // ConsensusData.generation
@@ -159,10 +159,9 @@ public class CesEvent extends AbstractSerializableHashable
         return platformEvent.getCreatorId();
     }
 
-    @NonNull
     @Override
-    public SemanticVersion getSoftwareVersion() {
-        return platformEvent.getSoftwareVersion();
+    public long getBirthRound() {
+        return platformEvent.getBirthRound();
     }
 
     /**

@@ -141,8 +141,10 @@ public final class DiverseStateCreation extends HapiSuite {
                         fuseContract, FUSE_EXPIRY_TIME, GENESIS, num -> entityNums.put(FUSE_INITCODE, num)),
                 uploadSingleInitCode(
                         multiContract, MULTI_EXPIRY_TIME, GENESIS, num -> entityNums.put(MULTI_INITCODE, num)),
-                contractCreate(fuseContract).exposingNumTo(num -> entityNums.put(FUSE_CONTRACT, num)),
-                contractCreate(multiContract).exposingNumTo(num -> entityNums.put(MULTI_CONTRACT, num)),
+                contractCreate(fuseContract)
+                        .exposingContractIdTo(id -> entityNums.put(FUSE_CONTRACT, id.getContractNum())),
+                contractCreate(multiContract)
+                        .exposingContractIdTo(id -> entityNums.put(MULTI_CONTRACT, id.getContractNum())),
                 contractCall(multiContract, "believeIn", EXPECTED_LUCKY_NO),
                 systemFileDelete(fuseContract).payingWith(GENESIS),
                 systemFileDelete(multiContract).payingWith(GENESIS),

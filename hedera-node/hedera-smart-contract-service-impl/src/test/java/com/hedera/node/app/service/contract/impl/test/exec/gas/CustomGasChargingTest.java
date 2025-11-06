@@ -13,10 +13,12 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownContextWith;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownHapiCall;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownRelayedHapiCall;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownRelayedHapiCallWithGasLimit;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownRelayedHapiCallWithUserGasPriceAndMaxAllowance;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
@@ -131,7 +133,7 @@ class CustomGasChargingTest {
                 null,
                 wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator),
                 worldUpdater);
-        verify(worldUpdater).refundFee(SENDER_ID, unusedGas * NETWORK_GAS_PRICE);
+        verify(worldUpdater).refundGasFee(SENDER_ID, unusedGas * NETWORK_GAS_PRICE);
     }
 
     @Test
@@ -148,8 +150,8 @@ class CustomGasChargingTest {
                 relayer,
                 wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator),
                 worldUpdater);
-        verify(worldUpdater).refundFee(RELAYER_ID, allowanceUsed);
-        verify(worldUpdater).refundFee(SENDER_ID, refund - allowanceUsed);
+        verify(worldUpdater).refundGasFee(RELAYER_ID, allowanceUsed);
+        verify(worldUpdater).refundGasFee(SENDER_ID, refund - allowanceUsed);
     }
 
     @Test
@@ -165,7 +167,7 @@ class CustomGasChargingTest {
                 relayer,
                 wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator),
                 worldUpdater);
-        verify(worldUpdater).refundFee(RELAYER_ID, refund);
+        verify(worldUpdater).refundGasFee(RELAYER_ID, refund);
         verifyNoMoreInteractions(worldUpdater);
     }
 
@@ -210,7 +212,7 @@ class CustomGasChargingTest {
                 worldUpdater,
                 transaction);
         assertEquals(0, chargingResult.relayerAllowanceUsed());
-        verify(worldUpdater).collectFee(SENDER_ID, transaction.gasCostGiven(NETWORK_GAS_PRICE));
+        verify(worldUpdater).collectGasFee(SENDER_ID, transaction.gasCostGiven(NETWORK_GAS_PRICE), false);
     }
 
     @Test
@@ -259,7 +261,7 @@ class CustomGasChargingTest {
                 worldUpdater,
                 transaction);
         assertEquals(gasCost, chargingResult.relayerAllowanceUsed());
-        verify(worldUpdater).collectFee(RELAYER_ID, gasCost);
+        verify(worldUpdater).collectGasFee(RELAYER_ID, gasCost, false);
     }
 
     @Test
@@ -278,7 +280,7 @@ class CustomGasChargingTest {
                 worldUpdater,
                 transaction);
         assertEquals(0, chargingResult.relayerAllowanceUsed());
-        verify(worldUpdater).collectFee(SENDER_ID, gasCost);
+        verify(worldUpdater).collectGasFee(SENDER_ID, gasCost, true);
     }
 
     @Test
@@ -363,8 +365,8 @@ class CustomGasChargingTest {
                 worldUpdater,
                 transaction);
         assertEquals(relayerGasCost, chargingResult.relayerAllowanceUsed());
-        verify(worldUpdater).collectFee(SENDER_ID, transaction.offeredGasCost());
-        verify(worldUpdater).collectFee(RELAYER_ID, relayerGasCost);
+        verify(worldUpdater).collectGasFee(SENDER_ID, transaction.offeredGasCost(), true);
+        verify(worldUpdater).collectGasFee(RELAYER_ID, relayerGasCost, false);
     }
 
     @Test
@@ -377,7 +379,23 @@ class CustomGasChargingTest {
                 wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator),
                 worldUpdater,
                 wellKnownHapiCall());
-        verify(worldUpdater).collectFee(SENDER_ID, Math.multiplyExact(NETWORK_GAS_PRICE, TestHelpers.INTRINSIC_GAS));
+        verify(worldUpdater)
+                .collectGasFee(SENDER_ID, Math.multiplyExact(NETWORK_GAS_PRICE, TestHelpers.INTRINSIC_GAS), false);
+    }
+
+    @Test
+    void chargeGasForAbortedRelayedTransaction() {
+        givenWellKnownIntrinsicGasCost();
+        given(worldUpdater.getHederaAccount(RELAYER_ID)).willReturn(relayer);
+
+        given(relayer.getBalance()).willReturn(Wei.of(100_000_000));
+        subject.chargeGasForAbortedTransaction(
+                RELAYER_ID,
+                wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator),
+                worldUpdater,
+                wellKnownRelayedHapiCall(0L));
+        verify(worldUpdater)
+                .collectGasFee(RELAYER_ID, Math.multiplyExact(NETWORK_GAS_PRICE, TestHelpers.INTRINSIC_GAS), false);
     }
 
     @Test
@@ -390,7 +408,7 @@ class CustomGasChargingTest {
                 wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator),
                 worldUpdater,
                 wellKnownHapiCall());
-        verify(worldUpdater).collectFee(SENDER_ID, ONE_HBAR_IN_TINYBARS);
+        verify(worldUpdater).collectGasFee(SENDER_ID, ONE_HBAR_IN_TINYBARS, false);
     }
 
     private void givenWellKnownIntrinsicGasCost() {
@@ -398,10 +416,12 @@ class CustomGasChargingTest {
     }
 
     private void givenWellKnownIntrinsicGasCost(boolean isCreation) {
-        given(gasCalculator.transactionIntrinsicGasCost(any(), eq(isCreation))).willReturn(TestHelpers.INTRINSIC_GAS);
+        given(gasCalculator.transactionIntrinsicGasCost(any(), eq(isCreation), anyLong()))
+                .willReturn(TestHelpers.INTRINSIC_GAS);
     }
 
     private void givenExcessiveIntrinsicGasCost(boolean isCreation) {
-        given(gasCalculator.transactionIntrinsicGasCost(any(), eq(isCreation))).willReturn(100_000_000L);
+        given(gasCalculator.transactionIntrinsicGasCost(any(), eq(isCreation), anyLong()))
+                .willReturn(100_000_000L);
     }
 }

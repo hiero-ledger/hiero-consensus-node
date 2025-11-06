@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.file.impl;
 
-import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.BLOBS_KEY;
+import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.node.app.hapi.utils.EntityType;
-import com.hedera.node.app.spi.ids.WritableEntityCounters;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -21,6 +21,7 @@ import java.util.Set;
  * class is not complete, it will be extended with other methods like remove, update etc.,
  */
 public class WritableFileStore extends ReadableFileStoreImpl {
+
     /** The underlying data storage class that holds the file data. */
     private final WritableKVState<FileID, File> filesState;
 
@@ -34,7 +35,7 @@ public class WritableFileStore extends ReadableFileStoreImpl {
     public WritableFileStore(
             @NonNull final WritableStates states, @NonNull final WritableEntityCounters entityCounters) {
         super(states, entityCounters);
-        this.filesState = requireNonNull(states.get(BLOBS_KEY));
+        this.filesState = requireNonNull(states.get(FILES_STATE_ID));
         this.entityCounters = entityCounters;
     }
 

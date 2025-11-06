@@ -4,6 +4,8 @@
 # Start: /package/admin/s6/command/s6-svc -o /run/service/consensus
 # Stop:  /package/admin/s6/command/s6-svc -d /run/service/consensus
 
+INITIAL_START=$(s6-svstat -o wantedup .)
+
 # Do not restart
 s6-svc -O .
 
@@ -12,10 +14,7 @@ trap "kill 0" EXIT
 
 if [ "${AUTO_START_CONSENSUS_SERVICE:-true}" == false ]; then
   # Exit on initial start
-  file=/tmp/consensus/s6-svc/start
-  if ! ps ho lstart 1 | diff ${file} - 2> /dev/null; then
-    mkdir -p $(dirname ${file})
-    ps ho lstart 1 > ${file}
+  if [ "${INITIAL_START}" == "true" ]; then
     exit
   fi
 fi

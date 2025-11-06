@@ -79,21 +79,21 @@ public final class EventUtils {
     }
 
     /**
-     * Check to see if all events have increasing generation numbers for each node.
+     * Check to see if all events have increasing birth round numbers for each node.
      */
-    public static boolean areGenerationNumbersValid(
+    public static boolean areBirthRoundNumbersValid(
             @NonNull final Iterable<EventImpl> events, final int numberOfNodes) {
         Objects.requireNonNull(events, "events must not be null");
-        final Map<NodeId, Long> previousGenNumber = new HashMap<>(numberOfNodes);
+        final Map<NodeId, Long> previousBirthRound = new HashMap<>(numberOfNodes);
 
         for (final EventImpl event : events) {
             final NodeId nodeId = event.getCreatorId();
-            if (previousGenNumber.containsKey(nodeId)) {
-                if (previousGenNumber.get(nodeId) >= event.getGeneration()) {
+            if (previousBirthRound.containsKey(nodeId)) {
+                if (previousBirthRound.get(nodeId) > event.getBirthRound()) {
                     return false;
                 }
             }
-            previousGenNumber.put(nodeId, event.getGeneration());
+            previousBirthRound.put(nodeId, event.getBirthRound());
         }
         return true;
     }
@@ -218,7 +218,7 @@ public final class EventUtils {
      * recent event from it's parent node 1 = the other parent is the second most recent event from
      * its other parent etc.
      *
-     * <p>This method will not work correctly in the presence of forking. Age may not be constant
+     * <p>This method will not work correctly in the presence of branching. Age may not be constant
      * after shuffling node order.
      *
      * @param events a list of events

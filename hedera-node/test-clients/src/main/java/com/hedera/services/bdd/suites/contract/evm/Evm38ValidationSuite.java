@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.evm;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -30,6 +30,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.captureOneChildCreate2MetaFor;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_DELETED;
@@ -131,6 +132,7 @@ public class Evm38ValidationSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> verifiesExistenceOfAccountsAndContracts() {
         final var contract = "BalanceChecker";
         final var BALANCE = 10L;
@@ -191,7 +193,7 @@ public class Evm38ValidationSuite {
                         .hasKnownStatus(INVALID_SOLIDITY_ADDRESS),
                 withOpContext((spec, opLog) -> {
                     final var id = spec.registry().getAccountID(DEFAULT_PAYER);
-                    final var solidityAddress = HapiPropertySource.asHexedSolidityAddress(id);
+                    final var solidityAddress = asHexedSolidityAddress(id);
 
                     final var contractCall = contractCall(contract, "callCode", asHeadlongAddress(solidityAddress))
                             .hasKnownStatus(SUCCESS);
@@ -251,7 +253,7 @@ public class Evm38ValidationSuite {
                         .hasKnownStatus(INVALID_SOLIDITY_ADDRESS),
                 withOpContext((spec, opLog) -> {
                     final var id = spec.registry().getAccountID(DEFAULT_PAYER);
-                    final var solidityAddress = HapiPropertySource.asHexedSolidityAddress(id);
+                    final var solidityAddress = asHexedSolidityAddress(id);
 
                     final var contractCall = contractCall(contract, "delegateCall", asHeadlongAddress(solidityAddress))
                             .hasKnownStatus(SUCCESS);
@@ -262,6 +264,7 @@ public class Evm38ValidationSuite {
 
     @SuppressWarnings("java:S5960")
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> verifiesExistenceForExtCodeOperation() {
         final var contract = "ExtCodeOperationsChecker";
         final var invalidAddress = "0x0000000000000000000000000000000000123456";
@@ -431,7 +434,7 @@ public class Evm38ValidationSuite {
                         .hasKnownStatus(INVALID_SOLIDITY_ADDRESS),
                 withOpContext((spec, opLog) -> {
                     final var id = spec.registry().getAccountID(DEFAULT_PAYER);
-                    final var solidityAddress = HapiPropertySource.asHexedSolidityAddress(id);
+                    final var solidityAddress = asHexedSolidityAddress(id);
 
                     final var contractCall = contractCall(contract, STATIC_CALL, asHeadlongAddress(solidityAddress))
                             .hasKnownStatus(SUCCESS);

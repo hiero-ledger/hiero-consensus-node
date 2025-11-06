@@ -75,7 +75,7 @@ public class DeleteTranslator extends AbstractCallTranslator<HtsCallAttempt> {
 
     private TransactionBody bodyForClassic(@NonNull final HtsCallAttempt attempt) {
         final var call = DELETE_TOKEN.decodeCall(attempt.inputBytes());
-        final var token = ConversionUtils.asTokenId(call.get(0));
+        final var token = ConversionUtils.asTokenId(attempt.nativeOperations().entityIdFactory(), call.get(0));
         return TransactionBody.newBuilder()
                 .tokenDeletion(
                         TokenDeleteTransactionBody.newBuilder().token(token).build())

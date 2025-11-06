@@ -4,6 +4,7 @@ package com.hedera.node.app.service.file.impl.test;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.mockito.Mockito.verify;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
@@ -20,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class FileServiceImplTest {
+
     @Mock
     private SchemaRegistry registry;
 
@@ -27,7 +29,7 @@ class FileServiceImplTest {
 
     @Test
     void registersExpectedSchema() {
-        ArgumentCaptor<Schema> schemaCaptor = ArgumentCaptor.forClass(Schema.class);
+        ArgumentCaptor<Schema<SemanticVersion>> schemaCaptor = ArgumentCaptor.forClass(Schema.class);
 
         subject().registerSchemas(registry);
 
@@ -38,8 +40,8 @@ class FileServiceImplTest {
         final var statesToCreate = schema.statesToCreate(DEFAULT_CONFIG);
         assertThat(11).isEqualTo(statesToCreate.size());
         final var iter =
-                statesToCreate.stream().map(StateDefinition::stateKey).sorted().iterator();
-        assertThat(V0490FileSchema.BLOBS_KEY).isEqualTo(iter.next());
+                statesToCreate.stream().map(StateDefinition::stateId).sorted().iterator();
+        assertThat(V0490FileSchema.FILES_STATE_ID).isEqualTo(iter.next());
     }
 
     private FileService subject() {

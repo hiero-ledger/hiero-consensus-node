@@ -51,6 +51,14 @@ public class DefaultLongGauge extends AbstractMetric implements LongGauge {
      * {@inheritDoc}
      */
     @Override
+    public void add(final long change) {
+        value.addAndGet(change);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public String toString() {
         return new ToStringBuilder(this)
                 .appendSuper(super.toString())

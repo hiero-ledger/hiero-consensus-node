@@ -5,6 +5,7 @@ import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticT
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 import com.swirlds.common.test.fixtures.threading.ExceptionSuppressingParallelExecutor;
+import java.util.concurrent.Callable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -19,10 +20,10 @@ class ExceptionSuppressingParallelExecutorTests {
 
         assertDoesNotThrow(
                 () -> executor.doParallel(
-                        () -> {
+                        (Callable<Void>) () -> {
                             throw new NullPointerException();
                         },
-                        () -> null),
+                        () -> {}),
                 "Exceptions from task 1 should be suppressed.");
 
         assertDoesNotThrow(

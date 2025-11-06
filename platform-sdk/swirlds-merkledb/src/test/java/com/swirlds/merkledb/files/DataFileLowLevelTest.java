@@ -138,7 +138,7 @@ class DataFileLowLevelTest {
 
             listOfDataItemLocations.add(storeDataItem(writer, dataValue));
         }
-        writer.finishWriting();
+        writer.close();
         final DataFileMetadata dataFileMetadata = writer.getMetadata();
         // tests
         assertTrue(Files.exists(writer.getPath()), "expected file does not exist");
@@ -345,7 +345,7 @@ class DataFileLowLevelTest {
             }
         }
 
-        newDataFileWriter.finishWriting();
+        newDataFileWriter.close();
         final DataFileMetadata newDataFileMetadata = newDataFileWriter.getMetadata();
         // now read back and check
         DataFileReader dataFileReader = new DataFileReader(dbConfig, newDataFileWriter.getPath(), newDataFileMetadata);

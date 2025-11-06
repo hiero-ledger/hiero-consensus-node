@@ -5,7 +5,9 @@ import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
  * Module that provides the implementation of the Hedera Consensus Service.
  */
 module com.hedera.node.app.service.consensus.impl {
+    requires transitive com.hedera.node.app.hapi.fees;
     requires transitive com.hedera.node.app.service.consensus;
+    requires transitive com.hedera.node.app.service.entityid;
     requires transitive com.hedera.node.app.service.token;
     requires transitive com.hedera.node.app.spi;
     requires transitive com.hedera.node.hapi;
@@ -27,7 +29,8 @@ module com.hedera.node.app.service.consensus.impl {
 
     exports com.hedera.node.app.service.consensus.impl to
             com.hedera.node.app,
-            com.hedera.node.test.clients;
+            com.hedera.node.test.clients,
+            com.hedera.state.validator;
     exports com.hedera.node.app.service.consensus.impl.handlers;
     exports com.hedera.node.app.service.consensus.impl.handlers.customfee;
     exports com.hedera.node.app.service.consensus.impl.records;

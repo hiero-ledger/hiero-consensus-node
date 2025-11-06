@@ -107,6 +107,11 @@ public class HapiSpecRegistry {
         saveKey(setup.feeScheduleName(), asKeyList(genesisKey));
         saveAccountId(setup.feeScheduleControlName(), setup.feeScheduleControl());
         saveKey(setup.feeScheduleControlName(), asKeyList(genesisKey));
+        /* (system 4) :: Simple Fees Schedule */
+        saveFileId(setup.simpleFeesScheduleName(), setup.simpleFeesScheduleId());
+        saveKey(setup.simpleFeesScheduleName(), asKeyList(genesisKey));
+        saveAccountId(setup.simpleFeesScheduleControlName(), setup.simpleFeesScheduleControl());
+        saveKey(setup.simpleFeesScheduleControlName(), asKeyList(genesisKey));
         /* (system 5) :: API Permissions */
         saveFileId(setup.apiPermissionsFile(), setup.apiPermissionsId());
         saveKey(setup.apiPermissionsFile(), asKeyList(genesisKey));
@@ -196,6 +201,14 @@ public class HapiSpecRegistry {
 
     public long getBalanceSnapshot(String name) {
         return get(name, Long.class);
+    }
+
+    public void saveTokenBalanceSnapshot(String token, String name, Long balance) {
+        put(token + "-" + name, balance);
+    }
+
+    public long getTokenBalanceSnapshot(String token, String name) {
+        return get(token + "-" + name, Long.class);
     }
 
     public Timestamp getTimestamp(String label) {
@@ -598,6 +611,16 @@ public class HapiSpecRegistry {
 
     public void saveContractId(String name, ContractID id) {
         put(name, id);
+    }
+
+    public void saveContractId(String name, HapiSpec spec, ByteString evmAddress) {
+        put(
+                name,
+                ContractID.newBuilder()
+                        .setShardNum(spec.shard())
+                        .setRealmNum(spec.realm())
+                        .setEvmAddress(evmAddress)
+                        .build());
     }
 
     public ContractID getContractId(String name) {

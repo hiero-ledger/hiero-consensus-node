@@ -43,7 +43,7 @@ public class RosterHistory {
      */
     @NonNull
     public Roster getCurrentRoster() {
-        return rosters.get(history.get(0).activeRosterHash());
+        return rosters.get(history.getFirst().activeRosterHash());
     }
 
     /**

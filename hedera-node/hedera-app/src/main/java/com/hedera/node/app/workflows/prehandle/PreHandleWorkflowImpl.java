@@ -25,11 +25,13 @@ import com.hedera.node.app.signature.ExpandedSignaturePair;
 import com.hedera.node.app.signature.SignatureExpander;
 import com.hedera.node.app.signature.SignatureVerificationFuture;
 import com.hedera.node.app.signature.SignatureVerifier;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.workflows.InnerTransaction;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
@@ -38,14 +40,13 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -123,12 +124,12 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             @NonNull final ReadableStoreFactory readableStoreFactory,
             @NonNull final NodeInfo creatorInfo,
             @NonNull final Stream<Transaction> transactions,
-            @NonNull final Consumer<StateSignatureTransaction> stateSignatureTxnCallback) {
+            @NonNull final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback) {
 
         requireNonNull(readableStoreFactory);
         requireNonNull(creatorInfo);
         requireNonNull(transactions);
-        requireNonNull(stateSignatureTxnCallback);
+        requireNonNull(shortCircuitTxnCallback);
 
         // Used for looking up payer account information.
         final var accountStore = readableStoreFactory.getStore(ReadableAccountStore.class);
@@ -142,7 +143,7 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
                         accountStore,
                         tx.getApplicationTransaction(),
                         null,
-                        stateSignatureTxnCallback);
+                        shortCircuitTxnCallback);
                 tx.setMetadata(result);
             } catch (final Exception unexpectedException) {
                 // If some random exception happened, then we should not charge the node for it. Instead,
@@ -160,12 +161,12 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
     @Override
     @NonNull
     public PreHandleResult preHandleTransaction(
-            @NonNull final NodeInfo creatorInfo,
+            @Nullable final NodeInfo creatorInfo,
             @NonNull final ReadableStoreFactory storeFactory,
             @NonNull final ReadableAccountStore accountStore,
-            @NonNull final Bytes applicationTxBytes,
+            @NonNull final Bytes serializedSignedTx,
             @Nullable PreHandleResult previousResult,
-            @NonNull final Consumer<StateSignatureTransaction> stateSignatureTransactionCallback,
+            @NonNull final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback,
             @NonNull final InnerTransaction innerTransaction) {
         // 0. Ignore the previous result if it was computed using different node configuration
         if (!wasComputedWithCurrentNodeConfiguration(previousResult)) {
@@ -182,11 +183,7 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
                     .getConfigData(HederaConfig.class)
                     .nodeTransactionMaxBytes();
             if (previousResult == null) {
-                if (InnerTransaction.YES.equals(innerTransaction)) {
-                    txInfo = transactionChecker.parseSignedAndCheck(applicationTxBytes, maxBytes);
-                } else {
-                    txInfo = transactionChecker.parseAndCheck(applicationTxBytes, maxBytes);
-                }
+                txInfo = transactionChecker.parseSignedAndCheck(serializedSignedTx, maxBytes);
             } else {
                 txInfo = previousResult.txInfo();
             }
@@ -194,10 +191,16 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
                 // In particular, a null transaction info means we already know the transaction's final failure status
                 return previousResult;
             }
+            final var isStateSig = txInfo.functionality() == HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
+            if (creatorInfo == null || isStateSig) {
+                final var bytes = txInfo.serializedSignedTx();
+                if (isStateSig) {
+                    shortCircuitTxnCallback.accept(txInfo.txBody().stateSignatureTransaction(), bytes);
+                } else {
+                    shortCircuitTxnCallback.accept(null, bytes);
+                }
 
-            if (txInfo.functionality() == HederaFunctionality.STATE_SIGNATURE_TRANSACTION) {
-                stateSignatureTransactionCallback.accept(txInfo.txBody().stateSignatureTransaction());
-                return PreHandleResult.stateSignatureTransactionEncountered(txInfo);
+                return PreHandleResult.shortCircuitingTransaction(txInfo);
             }
 
             // But we still re-check for node diligence failures

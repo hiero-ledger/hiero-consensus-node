@@ -132,6 +132,9 @@ public final class DataFileCommon {
      * @return String with split file and offset
      */
     public static String dataLocationToString(final long dataLocation) {
+        if (dataLocation <= 0) {
+            return String.valueOf(dataLocation);
+        }
         return "{" + fileIndexFromDataLocation(dataLocation) + "," + byteOffsetFromDataLocation(dataLocation) + "}";
     }
 

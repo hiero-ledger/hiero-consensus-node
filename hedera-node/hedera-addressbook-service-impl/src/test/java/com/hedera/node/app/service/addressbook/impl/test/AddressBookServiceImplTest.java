@@ -8,9 +8,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
-import com.hedera.node.app.service.addressbook.impl.schemas.AddressBookTransplantSchema;
 import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
-import com.hedera.node.app.service.addressbook.impl.schemas.V057AddressBookSchema;
+import com.hedera.node.app.service.addressbook.impl.schemas.V068AddressBookSchema;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,7 +38,6 @@ class AddressBookServiceImplTest {
         final var schemas = schemaCaptor.getAllValues();
         assertThat(schemas).hasSize(2);
         assertThat(schemas.getFirst()).isInstanceOf(V053AddressBookSchema.class);
-        assertThat(schemas.getLast()).isInstanceOf(V057AddressBookSchema.class);
-        assertThat(schemas.getLast()).isInstanceOf(AddressBookTransplantSchema.class);
+        assertThat(schemas.getLast()).isInstanceOf(V068AddressBookSchema.class);
     }
 }

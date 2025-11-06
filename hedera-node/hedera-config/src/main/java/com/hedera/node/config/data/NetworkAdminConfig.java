@@ -27,6 +27,7 @@ public record NetworkAdminConfig(
         @ConfigProperty(defaultValue = "data/upgrade/current/data/keys") @NodeProperty String keysPath,
         @ConfigProperty(defaultValue = "data/config") String upgradeSysFilesLoc,
         @ConfigProperty(defaultValue = "feeSchedules.json") String upgradeFeeSchedulesFile,
+        @ConfigProperty(defaultValue = "simpleFeesSchedules.json") String upgradeSimpleFeeSchedulesFile,
         @ConfigProperty(defaultValue = "throttles.json") String upgradeThrottlesFile,
         @ConfigProperty(defaultValue = "application-override.properties") String upgradePropertyOverridesFile,
         @ConfigProperty(defaultValue = "api-permission-override.properties") String upgradePermissionOverridesFile,
@@ -36,7 +37,7 @@ public record NetworkAdminConfig(
                                 "HintsKeyPublication,HintsPreprocessingVote,HintsPartialSignature,HistoryAssemblySignature,HistoryProofKeyPublication,HistoryProofVote,CrsPublication")
                 @NetworkProperty
                 HederaFunctionalitySet nodeTransactionsAllowList,
-        @ConfigProperty(defaultValue = "network.json") @NodeProperty String diskNetworkExportFile,
+        @ConfigProperty(defaultValue = "output/network.json") @NodeProperty String diskNetworkExportFile,
         @ConfigProperty(defaultValue = "NEVER") DiskNetworkExport diskNetworkExport,
         @ConfigProperty(defaultValue = "true") @NodeProperty boolean exportCandidateRoster,
         @ConfigProperty(defaultValue = "candidate-roster.json") @NodeProperty String candidateRosterExportFile,

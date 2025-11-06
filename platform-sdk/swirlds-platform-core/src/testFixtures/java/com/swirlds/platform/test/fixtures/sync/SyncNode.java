@@ -20,25 +20,25 @@ import com.swirlds.platform.gossip.sync.config.SyncConfig_;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.Connection;
+import com.swirlds.platform.reconnect.FallenBehindMonitor;
+import com.swirlds.platform.reconnect.FallenBehindStatus;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 
 /**
  * Represents a node in a sync for tests. This node can be the caller or the listener.
@@ -56,14 +56,13 @@ public class SyncNode {
     private final int numNodes;
     private final EventEmitter eventEmitter;
     private int eventsEmitted = 0;
-    private final TestingSyncManager syncManager;
+    private final FallenBehindMonitor fallenBehindMonitor;
     private final Shadowgraph shadowGraph;
     private ParallelExecutor executor;
     private Connection connection;
     private boolean saveGeneratedEvents;
     private boolean shouldAcceptSync = true;
     private boolean reconnected = false;
-    private final AncientMode ancientMode;
 
     private long expirationThreshold;
 
@@ -77,37 +76,21 @@ public class SyncNode {
 
     private final PlatformContext platformContext;
 
-    public SyncNode(
-            final int numNodes,
-            final long nodeId,
-            final EventEmitter eventEmitter,
-            @NonNull final AncientMode ancientMode) {
+    public SyncNode(final int numNodes, final long nodeId, final EventEmitter eventEmitter) {
 
-        this(
-                numNodes,
-                nodeId,
-                eventEmitter,
-                new CachedPoolParallelExecutor(getStaticThreadManager(), "sync-node"),
-                ancientMode);
+        this(numNodes, nodeId, eventEmitter, new CachedPoolParallelExecutor(getStaticThreadManager(), "sync-node"));
     }
 
     public SyncNode(
-            final int numNodes,
-            final long nodeId,
-            final EventEmitter eventEmitter,
-            final ParallelExecutor executor,
-            @NonNull final AncientMode ancientMode) {
+            final int numNodes, final long nodeId, final EventEmitter eventEmitter, final ParallelExecutor executor) {
 
         if (executor.isMutable()) {
             executor.start();
         }
 
-        this.ancientMode = Objects.requireNonNull(ancientMode);
         this.numNodes = numNodes;
         this.nodeId = NodeId.of(nodeId);
         this.eventEmitter = eventEmitter;
-
-        syncManager = new TestingSyncManager();
 
         receivedEventQueue = new LinkedBlockingQueue<>();
         receivedEvents = new ArrayList<>();
@@ -119,17 +102,15 @@ public class SyncNode {
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(SyncConfig_.FILTER_LIKELY_DUPLICATES, false)
                 .withValue(SyncConfig_.MAX_SYNC_EVENT_COUNT, 0)
-                .withValue(
-                        EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD,
-                        ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD)
                 .getOrCreateConfig();
 
+        fallenBehindMonitor = new SyncNodeFakeMonitor(numNodes - 1);
         platformContext = TestPlatformContextBuilder.create()
                 .withConfiguration(configuration)
                 .build();
 
         shadowGraph = new Shadowgraph(platformContext, numNodes, new NoOpIntakeEventCounter());
-        shadowGraph.updateEventWindow(EventWindow.getGenesisEventWindow(ancientMode));
+        shadowGraph.updateEventWindow(EventWindow.getGenesisEventWindow());
         this.executor = executor;
     }
 
@@ -196,7 +177,7 @@ public class SyncNode {
     private void addToShadowGraph(final PlatformEvent newEvent) {
         try {
             shadowGraph.addEvent(newEvent);
-        } catch (ShadowgraphInsertionException e) {
+        } catch (final ShadowgraphInsertionException e) {
             fail("Something went wrong adding initial events to the shadow graph.", e);
         }
     }
@@ -231,9 +212,6 @@ public class SyncNode {
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(SyncConfig_.FILTER_LIKELY_DUPLICATES, false)
                 .withValue(SyncConfig_.MAX_SYNC_EVENT_COUNT, 0)
-                .withValue(
-                        EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD,
-                        ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD)
                 .getOrCreateConfig();
 
         final PlatformContext platformContext = TestPlatformContextBuilder.create()
@@ -247,9 +225,10 @@ public class SyncNode {
                 numNodes,
                 mock(SyncMetrics.class),
                 eventHandler,
-                syncManager,
+                fallenBehindMonitor,
                 mock(IntakeEventCounter.class),
-                executor);
+                executor,
+                lag -> {});
     }
 
     /**
@@ -266,10 +245,12 @@ public class SyncNode {
     public void expireBelow(final long expirationThreshold) {
         this.expirationThreshold = expirationThreshold;
 
-        final long ancientThreshold = Math.max(shadowGraph.getEventWindow().getAncientThreshold(), expirationThreshold);
+        final long ancientThreshold = Math.max(shadowGraph.getEventWindow().ancientThreshold(), expirationThreshold);
 
-        final EventWindow eventWindow =
-                new EventWindow(0 /* ignored by shadowgraph */, ancientThreshold, expirationThreshold, ancientMode);
+        final EventWindow eventWindow = EventWindowBuilder.builder()
+                .setAncientThreshold(ancientThreshold)
+                .setExpiredThreshold(expirationThreshold)
+                .build();
 
         updateEventWindow(eventWindow);
     }
@@ -297,8 +278,8 @@ public class SyncNode {
         shadowGraph.updateEventWindow(eventWindow);
     }
 
-    public TestingSyncManager getSyncManager() {
-        return syncManager;
+    public FallenBehindMonitor getFallenBehindMonitor() {
+        return fallenBehindMonitor;
     }
 
     public List<PlatformEvent> getReceivedEvents() {
@@ -342,7 +323,7 @@ public class SyncNode {
     }
 
     public long getCurrentAncientThreshold() {
-        return shadowGraph.getEventWindow().getAncientThreshold();
+        return shadowGraph.getEventWindow().ancientThreshold();
     }
 
     public long getExpirationThreshold() {
@@ -363,5 +344,42 @@ public class SyncNode {
 
     public Boolean getSynchronizerReturn() {
         return synchronizerReturn.get();
+    }
+
+    private static class SyncNodeFakeMonitor extends FallenBehindMonitor {
+        public SyncNodeFakeMonitor(final int numNeighbors) {
+            super(numNeighbors, 0.50);
+        }
+
+        private boolean fallenBehind = false;
+
+        @Override
+        public synchronized FallenBehindStatus check(
+                @NonNull EventWindow self, @NonNull EventWindow other, @NonNull NodeId peer) {
+            final var status = FallenBehindStatus.getStatus(self, other);
+            fallenBehind = FallenBehindStatus.getStatus(self, other)
+                    == com.swirlds.platform.reconnect.FallenBehindStatus.SELF_FALLEN_BEHIND;
+            return status;
+        }
+
+        @Override
+        public boolean isBehindPeer(@NonNull final NodeId peerId) {
+            return false;
+        }
+
+        @Override
+        public synchronized void clear() {
+            fallenBehind = false;
+        }
+
+        @Override
+        public synchronized int reportedSize() {
+            return 0;
+        }
+
+        @Override
+        public boolean hasFallenBehind() {
+            return fallenBehind;
+        }
     }
 }

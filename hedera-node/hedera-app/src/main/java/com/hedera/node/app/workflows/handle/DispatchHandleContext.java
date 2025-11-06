@@ -3,6 +3,9 @@ package com.hedera.node.app.workflows.handle;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNRESOLVABLE_REQUIRED_SIGNERS;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.INNER_TRANSACTION_BYTES;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
 import static com.hedera.node.app.workflows.handle.stack.SavepointStackImpl.castBuilder;
 import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
@@ -15,22 +18,27 @@ import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fees.ChildFeeContextImpl;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.fees.FeeManager;
+import com.hedera.node.app.service.entityid.EntityNumGenerator;
+import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
+import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.ResourcePriceCalculator;
-import com.hedera.node.app.spi.ids.EntityNumGenerator;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.key.KeyVerifier;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
@@ -45,30 +53,33 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.TransactionKeys;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.store.StoreFactoryImpl;
+import com.hedera.node.app.workflows.InnerTransaction;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.dispatch.ChildDispatchFactory;
+import com.hedera.node.app.workflows.handle.dispatch.ValidationResult;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.app.workflows.handle.validation.AttributeValidatorImpl;
 import com.hedera.node.app.workflows.handle.validation.ExpiryValidatorImpl;
 import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
+import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.ObjLongConsumer;
 
 /**
  * The {@link HandleContext} implementation.
  */
-public class DispatchHandleContext implements HandleContext, FeeContext {
+public class DispatchHandleContext implements HandleContext, FeeContext, FeeCharging.Context {
     private final Instant consensusNow;
     private final NodeInfo creatorInfo;
     private final TransactionInfo txnInfo;
@@ -77,6 +88,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     private final BlockRecordInfo blockRecordInfo;
     private final ResourcePriceCalculator resourcePriceCalculator;
     private final FeeManager feeManager;
+    private final FeeCharging feeCharging;
     private final StoreFactoryImpl storeFactory;
     private final AccountID payerId;
     private final AppKeyVerifier verifier;
@@ -93,13 +105,20 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     private final DispatchProcessor dispatchProcessor;
     private final ThrottleAdviser throttleAdviser;
     private final FeeAccumulator feeAccumulator;
-    private Map<AccountID, Long> dispatchPaidRewards;
     private final DispatchMetadata dispatchMetaData;
     private final TransactionChecker transactionChecker;
+    private final TransactionCategory transactionCategory;
+
+    @Nullable
+    private Map<AccountID, Long> dispatchPaidRewards;
+
     // This is used to store the pre-handle results for the inner transactions
     // in an atomic batch, null otherwise
     @Nullable
     private final List<PreHandleResult> preHandleResults;
+
+    @Nullable
+    private final PreHandleWorkflow preHandleWorkflow;
 
     public DispatchHandleContext(
             @NonNull final Instant consensusNow,
@@ -110,6 +129,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
             @NonNull final BlockRecordInfo blockRecordInfo,
             @NonNull final ResourcePriceCalculator resourcePriceCalculator,
             @NonNull final FeeManager feeManager,
+            @NonNull final FeeCharging feeCharging,
             @NonNull final StoreFactoryImpl storeFactory,
             @NonNull final AccountID payerId,
             @NonNull final AppKeyVerifier verifier,
@@ -126,7 +146,9 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
             @NonNull final FeeAccumulator feeAccumulator,
             @NonNull final DispatchMetadata handleMetaData,
             @NonNull final TransactionChecker transactionChecker,
-            @Nullable final List<PreHandleResult> preHandleResults) {
+            @Nullable final List<PreHandleResult> preHandleResults,
+            @Nullable final PreHandleWorkflow preHandleWorkflow,
+            @NonNull final TransactionCategory transactionCategory) {
         this.consensusNow = requireNonNull(consensusNow);
         this.creatorInfo = requireNonNull(creatorInfo);
         this.txnInfo = requireNonNull(transactionInfo);
@@ -135,6 +157,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
         this.blockRecordInfo = requireNonNull(blockRecordInfo);
         this.resourcePriceCalculator = requireNonNull(resourcePriceCalculator);
         this.feeManager = requireNonNull(feeManager);
+        this.feeCharging = requireNonNull(feeCharging);
         this.storeFactory = requireNonNull(storeFactory);
         this.payerId = requireNonNull(payerId);
         this.verifier = requireNonNull(verifier);
@@ -153,7 +176,9 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
         this.networkInfo = requireNonNull(networkInfo);
         this.dispatchMetaData = requireNonNull(handleMetaData);
         this.transactionChecker = requireNonNull(transactionChecker);
+        this.transactionCategory = requireNonNull(transactionCategory);
         this.preHandleResults = preHandleResults;
+        this.preHandleWorkflow = preHandleWorkflow;
     }
 
     @NonNull
@@ -175,8 +200,36 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     }
 
     @Override
-    public boolean tryToChargePayer(final long amount) {
-        return feeAccumulator.chargeFee(payerId, amount, null).networkFee() == amount;
+    public boolean tryToCharge(@NonNull final AccountID accountId, final long amount) {
+        requireNonNull(accountId);
+        if (amount < 0) {
+            throw new IllegalArgumentException("Cannot charge negative amount " + amount);
+        }
+        if (feeCharging.bypassForExtraHandlerCharges()) {
+            return feeAccumulator.chargeFee(accountId, amount, null).networkFee() == amount;
+        } else {
+            return feeCharging
+                            .charge(
+                                    accountId,
+                                    this,
+                                    ValidationResult.newSuccess(creatorInfo.accountId()),
+                                    new Fees(0, amount, 0))
+                            .totalFee()
+                    == amount;
+        }
+    }
+
+    @Override
+    public void refundBestEffort(@NonNull final AccountID accountId, final long amount) {
+        requireNonNull(accountId);
+        if (amount < 0) {
+            throw new IllegalArgumentException("Cannot refund negative amount " + amount);
+        }
+        if (feeCharging.bypassForExtraHandlerCharges()) {
+            feeAccumulator.refundFee(accountId, amount);
+        } else {
+            feeCharging.refund(accountId, this, new Fees(0, amount, 0));
+        }
     }
 
     @NonNull
@@ -202,6 +255,11 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
         requireNonNull(childTxBody);
         requireNonNull(syntheticPayerId);
         return dispatchComputeFees(childTxBody, syntheticPayerId, ComputeDispatchFeesAsTopLevel.NO);
+    }
+
+    @Override
+    public ExchangeRate activeRate() {
+        return feeManager.getExchangeRateManager().activeRate(consensusNow);
     }
 
     @NonNull
@@ -327,7 +385,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
         } catch (UnknownHederaFunctionality ex) {
             throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
         }
-
+        final var signatureMapSize = SignatureMap.PROTOBUF.measureRecord(txnInfo.signatureMap());
         return dispatcher.dispatchComputeFees(new ChildFeeContextImpl(
                 feeManager,
                 this,
@@ -336,7 +394,17 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
                 computeDispatchFeesAsTopLevel == ComputeDispatchFeesAsTopLevel.NO,
                 authorizer,
                 storeFactory.asReadOnly(),
-                consensusNow));
+                consensusNow,
+                shouldChargeForSigVerification(txBody) ? verifier : null,
+                shouldChargeForSigVerification(txBody) ? signatureMapSize : 0));
+    }
+
+    private boolean shouldChargeForSigVerification(@NonNull final TransactionBody txBody) {
+        // Certain batch transactions can trigger child transactions inside the batch itself. Such child transactions
+        // must be verified with the parent transaction's context instead of the signatures on the child transaction.
+        // We therefore need to differentiate contextual child transactions from the batch's submitted inner transaction
+        // bodies themselves, which we'll do by checking the transaction body for an included batch key.
+        return transactionCategory == TransactionCategory.BATCH_INNER && txBody.hasBatchKey();
     }
 
     @NonNull
@@ -359,11 +427,26 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     public <T extends StreamBuilder> T dispatch(@NonNull final DispatchOptions<T> options) {
         requireNonNull(options);
         PreHandleResult childPreHandleResult = null;
-        // If we have pre-computed pre-handle results for the inner transactions, pass them to the child
-        // dispatch instead of computing a synthetic pre-handle result for child dispatch.
-        if (preHandleResults != null && !preHandleResults.isEmpty()) {
-            childPreHandleResult = preHandleResults.removeFirst();
+        // Compute pre-handle results for the inner transactions and pass them to the child dispatch.
+        if (options.category() == BATCH_INNER) {
+            // Get precomputed maybeReusablePreHandleResult if available, otherwise null
+            PreHandleResult maybeReusablePreHandleResult =
+                    (preHandleResults != null && !preHandleResults.isEmpty()) ? preHandleResults.removeFirst() : null;
+            // Signature verification will be performed only if the maybeReusablePreHandleResult is null
+            // or there are updates to the keys.
+            final var batchInnerTxnBytes = options.dispatchMetadata()
+                    .getMetadata(INNER_TRANSACTION_BYTES, Bytes.class)
+                    .orElseThrow();
+            childPreHandleResult = preHandleWorkflow.preHandleTransaction(
+                    creatorInfo,
+                    storeFactory.asReadOnly(),
+                    storeFactory.readableStore(ReadableAccountStore.class),
+                    batchInnerTxnBytes,
+                    maybeReusablePreHandleResult,
+                    (s, b) -> {},
+                    InnerTransaction.YES);
         }
+
         final var childDispatch = childDispatchFactory.createChildDispatch(
                 config,
                 stack,
@@ -417,5 +500,49 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     @Override
     public DispatchMetadata dispatchMetadata() {
         return dispatchMetaData;
+    }
+
+    @Override
+    public AccountID payerId() {
+        return payerId;
+    }
+
+    @Override
+    public AccountID nodeAccountId() {
+        return creatorInfo.accountId();
+    }
+
+    @Override
+    public Fees charge(
+            @NonNull final AccountID payerId, @NonNull final Fees fees, @Nullable final ObjLongConsumer<AccountID> cb) {
+        return feeAccumulator.chargeFee(payerId, fees.totalFee(), cb);
+    }
+
+    @Override
+    public void refund(@NonNull final AccountID receiverId, @NonNull final Fees fees) {
+        feeAccumulator.refundFee(receiverId, fees.totalFee());
+    }
+
+    @Override
+    public Fees charge(
+            @NonNull final AccountID payerId,
+            @NonNull final Fees fees,
+            @NonNull final AccountID nodeAccountId,
+            @Nullable final ObjLongConsumer<AccountID> cb) {
+        return feeAccumulator.chargeFees(payerId, nodeAccountId, fees, cb);
+    }
+
+    @Override
+    public void refund(
+            @NonNull final AccountID payerId, @NonNull final Fees fees, @NonNull final AccountID nodeAccountId) {
+        feeAccumulator.refundFees(payerId, fees, nodeAccountId);
+    }
+
+    @Override
+    public TransactionCategory category() {
+        // When the DispatchHandleContext is used as a fee charging context, always report
+        // CHILD category to stay backward compatible with the calls made to FeeAccumulator
+        // when it was invoked directly
+        return CHILD;
     }
 }

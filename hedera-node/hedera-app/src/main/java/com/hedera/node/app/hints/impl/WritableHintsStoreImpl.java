@@ -3,14 +3,14 @@ package com.hedera.node.app.hints.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.hints.HintsService.partySizeForRoster;
-import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINT_CONSTRUCTION_KEY;
-import static com.hedera.node.app.hints.schemas.V059HintsSchema.HINTS_KEY_SETS_KEY;
-import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINT_CONSTRUCTION_KEY;
-import static com.hedera.node.app.hints.schemas.V059HintsSchema.PREPROCESSING_VOTES_KEY;
-import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_PUBLICATIONS_KEY;
-import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_KEY;
-import static com.hedera.node.app.roster.ActiveRosters.Phase.BOOTSTRAP;
-import static com.hedera.node.app.roster.ActiveRosters.Phase.HANDOFF;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.HINTS_KEY_SETS_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.PREPROCESSING_VOTES_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_PUBLICATIONS_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_ID;
+import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
+import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.hints.CRSState;
@@ -26,20 +26,20 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.hints.WritableHintsStore;
-import com.hedera.node.app.roster.ActiveRosters;
-import com.hedera.node.app.spi.ids.WritableEntityCounters;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
+import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalLong;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import org.apache.logging.log4j.LogManager;
@@ -49,10 +49,8 @@ import org.apache.logging.log4j.Logger;
  * Default implementation of {@link WritableHintsStore}.
  */
 public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements WritableHintsStore {
-    private static final Logger log = LogManager.getLogger(WritableHintsStoreImpl.class);
 
-    private static final Comparator<NodePartyId> NODE_PARTY_ID_COMPARATOR =
-            Comparator.comparingLong(NodePartyId::nodeId);
+    private static final Logger log = LogManager.getLogger(WritableHintsStoreImpl.class);
 
     private final WritableKVState<HintsPartyId, HintsKeySet> hintsKeys;
     private final WritableSingletonState<HintsConstruction> nextConstruction;
@@ -63,12 +61,12 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
 
     public WritableHintsStoreImpl(@NonNull final WritableStates states, final WritableEntityCounters entityCounters) {
         super(states, entityCounters);
-        this.hintsKeys = states.get(HINTS_KEY_SETS_KEY);
-        this.nextConstruction = states.getSingleton(NEXT_HINT_CONSTRUCTION_KEY);
-        this.activeConstruction = states.getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY);
-        this.votes = states.get(PREPROCESSING_VOTES_KEY);
-        this.crsState = states.getSingleton(CRS_STATE_KEY);
-        this.crsPublications = states.get(CRS_PUBLICATIONS_KEY);
+        this.hintsKeys = states.get(HINTS_KEY_SETS_STATE_ID);
+        this.nextConstruction = states.getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID);
+        this.activeConstruction = states.getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID);
+        this.votes = states.get(PREPROCESSING_VOTES_STATE_ID);
+        this.crsState = states.getSingleton(CRS_STATE_STATE_ID);
+        this.crsPublications = states.get(CRS_PUBLICATIONS_STATE_ID);
     }
 
     @NonNull
@@ -133,10 +131,12 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
     public HintsConstruction setHintsScheme(
             final long constructionId,
             @NonNull final PreprocessedKeys keys,
-            @NonNull final Map<Long, Integer> nodePartyIds) {
+            @NonNull final Map<Long, Integer> nodePartyIds,
+            @NonNull final Map<Long, Long> nodeWeights) {
         requireNonNull(keys);
         requireNonNull(nodePartyIds);
-        return updateOrThrow(constructionId, b -> b.hintsScheme(new HintsScheme(keys, asList(nodePartyIds))));
+        return updateOrThrow(
+                constructionId, b -> b.hintsScheme(new HintsScheme(keys, asList(nodePartyIds, nodeWeights))));
     }
 
     @Override
@@ -194,10 +194,10 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
 
     @Override
     public void moveToNextNode(
-            @NonNull final OptionalLong nextNodeIdFromRoster, @NonNull final Instant nextContributionTimeEnd) {
+            @Nullable final Long nextNodeIdFromRoster, @NonNull final Instant nextContributionTimeEnd) {
         final var crsState = requireNonNull(this.crsState.get());
         final var newCrsState = crsState.copyBuilder()
-                .nextContributingNodeId(nextNodeIdFromRoster.isPresent() ? nextNodeIdFromRoster.getAsLong() : null)
+                .nextContributingNodeId(nextNodeIdFromRoster)
                 .contributionEndTime(asTimestamp(nextContributionTimeEnd))
                 .build();
         setCrsState(newCrsState);
@@ -320,15 +320,20 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
     }
 
     /**
-     * Internal helper to convert a map of node IDs to party IDs to a list of node party IDs.
+     * Internal helper to construct a list of weighted node party IDs.
      *
-     * @param nodePartyIds the map
-     * @return the list
+     * @param nodePartyIds the map from node ID to party ID
+     * @param nodeWeights the map from node ID to weight
+     * @return the list of weighted node party IDs, sorted by node ID
      */
-    private List<NodePartyId> asList(@NonNull final Map<Long, Integer> nodePartyIds) {
+    private List<NodePartyId> asList(
+            @NonNull final Map<Long, Integer> nodePartyIds, @NonNull final Map<Long, Long> nodeWeights) {
         return nodePartyIds.entrySet().stream()
-                .map(entry -> new NodePartyId(entry.getKey(), entry.getValue()))
-                .sorted(NODE_PARTY_ID_COMPARATOR)
+                .map(entry -> {
+                    final long nodeId = entry.getKey();
+                    return new NodePartyId(nodeId, entry.getValue(), nodeWeights.get(nodeId));
+                })
+                .sorted(Comparator.comparingLong(NodePartyId::nodeId))
                 .toList();
     }
 }

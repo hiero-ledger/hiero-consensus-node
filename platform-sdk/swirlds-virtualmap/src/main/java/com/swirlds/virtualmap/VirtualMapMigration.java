@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.common.threading.manager.ThreadManager;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import java.util.ArrayList;
@@ -34,35 +35,31 @@ public final class VirtualMapMigration {
      * 		a virtual map to read from, will not be modified by this method
      * @param threadCount
      * 		the number of threads used for reading from the original map
-     * @param <K>
-     * 		the type of the key
-     * @param <V>
-     * 		the type of the value
      */
-    public static <K extends VirtualKey, V extends VirtualValue> void extractVirtualMapData(
+    public static void extractVirtualMapData(
             final ThreadManager threadManager,
-            final VirtualMap<K, V> source,
-            final InterruptableConsumer<Pair<K, V>> handler,
+            final VirtualMap source,
+            final InterruptableConsumer<Pair<Bytes, Bytes>> handler,
             final int threadCount)
             throws InterruptedException {
 
-        final long firstLeafPath = source.getState().getFirstLeafPath();
-        final long lastLeafPath = source.getState().getLastLeafPath();
+        final long firstLeafPath = source.getMetadata().getFirstLeafPath();
+        final long lastLeafPath = source.getMetadata().getLastLeafPath();
         if (firstLeafPath == Path.INVALID_PATH || lastLeafPath == Path.INVALID_PATH) {
             return;
         }
 
-        final RecordAccessor<K, V> recordAccessor = source.getRoot().getRecords();
+        final RecordAccessor recordAccessor = source.getRecords();
 
         final long size = source.size();
 
         // A collection of threads iterate over the map. Each thread writes into its own output queue.
         final List<Thread> threads = new ArrayList<>(threadCount);
-        final List<BlockingQueue<Pair<K, V>>> threadQueues = new ArrayList<>(threadCount);
+        final List<BlockingQueue<Pair<Bytes, Bytes>>> threadQueues = new ArrayList<>(threadCount);
 
         for (int threadIndex = 0; threadIndex < threadCount; threadIndex++) {
 
-            final BlockingQueue<Pair<K, V>> queue = new LinkedBlockingQueue<>(QUEUE_CAPACITY);
+            final BlockingQueue<Pair<Bytes, Bytes>> queue = new LinkedBlockingQueue<>(QUEUE_CAPACITY);
             threadQueues.add(queue);
 
             // Java only allows final values to be passed into a lambda
@@ -73,15 +70,15 @@ public final class VirtualMapMigration {
                     .setThreadName("reader-" + threadCount)
                     .setInterruptableRunnable(() -> {
                         for (long path = firstLeafPath + index; path <= lastLeafPath; path += threadCount) {
-                            final VirtualLeafRecord<K, V> leafRecord = recordAccessor.findLeafRecord(path, false);
-                            queue.put(Pair.of(leafRecord.getKey(), leafRecord.getValue()));
+                            final VirtualLeafBytes<?> leafRecord = recordAccessor.findLeafRecord(path);
+                            queue.put(Pair.of(leafRecord.keyBytes(), leafRecord.valueBytes()));
                         }
                     })
                     .build(true));
         }
 
         // Buffers for reading from the thread output queues.
-        final List<List<Pair<K, V>>> buffers = new ArrayList<>(threadCount);
+        final List<List<Pair<Bytes, Bytes>>> buffers = new ArrayList<>(threadCount);
         final List<Integer> bufferIndices = new ArrayList<>(threadCount);
         for (int threadIndex = 0; threadIndex < threadCount; threadIndex++) {
             buffers.add(new ArrayList<>(QUEUE_CAPACITY));
@@ -94,8 +91,8 @@ public final class VirtualMapMigration {
 
                 final int queueIndex = index % threadCount;
 
-                final BlockingQueue<Pair<K, V>> queue = threadQueues.get(queueIndex);
-                final List<Pair<K, V>> buffer = buffers.get(queueIndex);
+                final BlockingQueue<Pair<Bytes, Bytes>> queue = threadQueues.get(queueIndex);
+                final List<Pair<Bytes, Bytes>> buffer = buffers.get(queueIndex);
 
                 // Fill the buffer if needed
                 int bufferIndex = bufferIndices.get(queueIndex);
@@ -126,25 +123,21 @@ public final class VirtualMapMigration {
      * 		a virtual map to read from, will not be modified by this method
      * @param threadCount
      * 		the number of threads used for reading from the original map
-     * @param <K>
-     * 		the type of the key
-     * @param <V>
-     * 		the type of the value
      */
-    public static <K extends VirtualKey, V extends VirtualValue> void extractVirtualMapDataC(
+    public static void extractVirtualMapDataC(
             final ThreadManager threadManager,
-            final VirtualMap<K, V> source,
-            final InterruptableConsumer<Pair<K, V>> handler,
+            final VirtualMap source,
+            final InterruptableConsumer<Pair<Bytes, Bytes>> handler,
             final int threadCount)
             throws InterruptedException {
 
-        final long firstLeafPath = source.getState().getFirstLeafPath();
-        final long lastLeafPath = source.getState().getLastLeafPath();
+        final long firstLeafPath = source.getMetadata().getFirstLeafPath();
+        final long lastLeafPath = source.getMetadata().getLastLeafPath();
         if (firstLeafPath == Path.INVALID_PATH || lastLeafPath == Path.INVALID_PATH) {
             return;
         }
 
-        final RecordAccessor<K, V> recordAccessor = source.getRoot().getRecords();
+        final RecordAccessor recordAccessor = source.getRecords();
 
         // A collection of threads iterate over the map. Each thread writes into its own output queue.
         final List<Thread> threads = new ArrayList<>(threadCount);
@@ -160,8 +153,8 @@ public final class VirtualMapMigration {
                     .setInterruptableRunnable(() -> {
                         try {
                             for (long path = firstPath; path <= lastLeafPath; path += threadCount) {
-                                final VirtualLeafRecord<K, V> leafRecord = recordAccessor.findLeafRecord(path, false);
-                                handler.accept(Pair.of(leafRecord.getKey(), leafRecord.getValue()));
+                                final VirtualLeafBytes<?> leafRecord = recordAccessor.findLeafRecord(path);
+                                handler.accept(Pair.of(leafRecord.keyBytes(), leafRecord.valueBytes()));
                             }
                         } catch (final Throwable t) {
                             if (throwable.compareAndSet(null, t)) {

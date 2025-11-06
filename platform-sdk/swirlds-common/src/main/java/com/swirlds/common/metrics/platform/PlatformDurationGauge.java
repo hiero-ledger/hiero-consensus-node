@@ -4,7 +4,6 @@ package com.swirlds.common.metrics.platform;
 import static com.swirlds.metrics.api.Metric.ValueType.VALUE;
 
 import com.swirlds.common.metrics.DurationGauge;
-import com.swirlds.common.metrics.PlatformMetric;
 import com.swirlds.metrics.api.snapshot.Snapshot;
 import com.swirlds.metrics.impl.AbstractMetric;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -16,7 +15,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Platform-implementation of {@link DurationGauge}
  */
-public class PlatformDurationGauge extends AbstractMetric implements PlatformMetric, DurationGauge {
+public class PlatformDurationGauge extends AbstractMetric implements DurationGauge {
     private final AtomicLong nanos;
     private final ChronoUnit unit;
 

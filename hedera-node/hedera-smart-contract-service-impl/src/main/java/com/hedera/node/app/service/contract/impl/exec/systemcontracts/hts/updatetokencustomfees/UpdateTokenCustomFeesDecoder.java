@@ -14,7 +14,6 @@ import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.FractionalFee;
 import com.hedera.hapi.node.transaction.RoyaltyFee;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.config.data.TokensConfig;
@@ -69,7 +68,9 @@ public class UpdateTokenCustomFeesDecoder {
     private static final int ROYALTY_FEE_FEE_COLLECTOR = 5;
 
     @Inject
-    public UpdateTokenCustomFeesDecoder() {}
+    public UpdateTokenCustomFeesDecoder() {
+        // Dagger2
+    }
 
     /***
      * Decoding the update request for a fungible token's custom fees.
@@ -84,8 +85,7 @@ public class UpdateTokenCustomFeesDecoder {
                 attempt.inputBytes());
         validateCustomFeesLength(attempt, call);
         return TransactionBody.newBuilder()
-                .tokenFeeScheduleUpdate(
-                        updateTokenCustomFees(call, attempt.addressIdConverter(), this::customFungibleFees))
+                .tokenFeeScheduleUpdate(updateTokenCustomFees(call, attempt, this::customFungibleFees))
                 .build();
     }
 
@@ -102,56 +102,51 @@ public class UpdateTokenCustomFeesDecoder {
                 attempt.inputBytes());
         validateCustomFeesLength(attempt, call);
         return TransactionBody.newBuilder()
-                .tokenFeeScheduleUpdate(
-                        updateTokenCustomFees(call, attempt.addressIdConverter(), this::customNonFungibleFees))
+                .tokenFeeScheduleUpdate(updateTokenCustomFees(call, attempt, this::customNonFungibleFees))
                 .build();
     }
 
     private TokenFeeScheduleUpdateTransactionBody updateTokenCustomFees(
             @NonNull final Tuple call,
-            @NonNull final AddressIdConverter addressIdConverter,
-            @NonNull final TriFunction<Tuple, AddressIdConverter, TokenID, List<CustomFee>> customFees) {
+            @NonNull final HtsCallAttempt attempt,
+            @NonNull final TriFunction<Tuple, HtsCallAttempt, TokenID, List<CustomFee>> customFees) {
         final Address tokenAddress = call.get(TOKEN_ADDRESS);
-        final var tokenId = ConversionUtils.asTokenId(tokenAddress);
+        final var tokenId = ConversionUtils.asTokenId(attempt.nativeOperations().entityIdFactory(), tokenAddress);
         return TokenFeeScheduleUpdateTransactionBody.newBuilder()
                 .tokenId(tokenId)
-                .customFees(customFees.apply(call, addressIdConverter, tokenId))
+                .customFees(customFees.apply(call, attempt, tokenId))
                 .build();
     }
 
     private List<CustomFee> customFungibleFees(
-            @NonNull Tuple call, @NonNull final AddressIdConverter addressIdConverter, @NonNull final TokenID tokenId) {
+            @NonNull Tuple call, @NonNull final HtsCallAttempt attempt, @NonNull final TokenID tokenId) {
         return Stream.concat(
-                        decodeFixedFees(call.get(FIXED_FEE), addressIdConverter, tokenId),
-                        decodeFractionalFees(call.get(FRACTIONAL_FEE), addressIdConverter))
+                        decodeFixedFees(call.get(FIXED_FEE), attempt, tokenId),
+                        decodeFractionalFees(call.get(FRACTIONAL_FEE), attempt))
                 .toList();
     }
 
     private List<CustomFee> customNonFungibleFees(
-            @NonNull final Tuple call,
-            @NonNull final AddressIdConverter addressIdConverter,
-            @NonNull final TokenID tokenId) {
+            @NonNull final Tuple call, @NonNull final HtsCallAttempt attempt, @NonNull final TokenID tokenId) {
         return Stream.concat(
-                        decodeFixedFees(call.get(FIXED_FEE), addressIdConverter, tokenId),
-                        decodeRoyaltyFees(call.get(ROYALTY_FEE), addressIdConverter))
+                        decodeFixedFees(call.get(FIXED_FEE), attempt, tokenId),
+                        decodeRoyaltyFees(call.get(ROYALTY_FEE), attempt))
                 .toList();
     }
 
     private Stream<CustomFee> decodeFixedFees(
-            @NonNull final Tuple[] fixedFee,
-            @NonNull final AddressIdConverter addressIdConverter,
-            @NonNull final TokenID tokenId) {
+            @NonNull final Tuple[] fixedFee, @NonNull final HtsCallAttempt attempt, @NonNull final TokenID tokenId) {
         return Arrays.stream(fixedFee).map(fee -> CustomFee.newBuilder()
                 .fixedFee(FixedFee.newBuilder()
                         .amount(fee.get(FIXED_FEE_AMOUNT))
-                        .denominatingTokenId(determineDenominatingToken(fee, tokenId))
+                        .denominatingTokenId(determineDenominatingToken(attempt, fee, tokenId))
                         .build())
-                .feeCollectorAccountId(addressIdConverter.convert(fee.get(FIXED_FEE_FEE_COLLECTOR)))
+                .feeCollectorAccountId(attempt.addressIdConverter().convert(fee.get(FIXED_FEE_FEE_COLLECTOR)))
                 .build());
     }
 
     private Stream<CustomFee> decodeFractionalFees(
-            @NonNull final Tuple[] fractionalFees, @NonNull final AddressIdConverter addressIdConverter) {
+            @NonNull final Tuple[] fractionalFees, @NonNull final HtsCallAttempt attempt) {
         return Arrays.stream(fractionalFees).map(fee -> CustomFee.newBuilder()
                 .fractionalFee(FractionalFee.newBuilder()
                         .fractionalAmount(Fraction.newBuilder()
@@ -162,52 +157,56 @@ public class UpdateTokenCustomFeesDecoder {
                         .maximumAmount(fee.get(FRACTIONAL_FEE_MAX_AMOUNT))
                         .netOfTransfers(fee.get(FRACTIONAL_FEE_NET_OF_TRANSFERS))
                         .build())
-                .feeCollectorAccountId(addressIdConverter.convert(fee.get(FRACTIONAL_FEE_FEE_COLLECTOR)))
+                .feeCollectorAccountId(attempt.addressIdConverter().convert(fee.get(FRACTIONAL_FEE_FEE_COLLECTOR)))
                 .build());
     }
 
     private Stream<CustomFee> decodeRoyaltyFees(
-            @NonNull final Tuple[] royaltyFees, @NonNull final AddressIdConverter addressIdConverter) {
+            @NonNull final Tuple[] royaltyFees, @NonNull final HtsCallAttempt attempt) {
         return Arrays.stream(royaltyFees).map(fee -> CustomFee.newBuilder()
                 .royaltyFee(RoyaltyFee.newBuilder()
                         .exchangeValueFraction(Fraction.newBuilder()
                                 .numerator(fee.get(ROYALTY_FEE_NUMERATOR))
                                 .denominator(fee.get(ROYALTY_FEE_DENOMINATOR))
                                 .build())
-                        .fallbackFee(getFallbackFee(fee))
+                        .fallbackFee(getFallbackFee(attempt, fee))
                         .build())
-                .feeCollectorAccountId(addressIdConverter.convert(fee.get(ROYALTY_FEE_FEE_COLLECTOR)))
+                .feeCollectorAccountId(attempt.addressIdConverter().convert(fee.get(ROYALTY_FEE_FEE_COLLECTOR)))
                 .build());
     }
 
     // In the solidity structure for Fixed Fees we have the property `bool useCurrentTokenForPayment` that is not
     // present in the protobuf version.
     // In order to determine the denominating token we need to check if the property is present.
-    private TokenID determineDenominatingToken(@NonNull final Tuple fee, @NonNull final TokenID tokenId) {
+    private TokenID determineDenominatingToken(
+            @NonNull final HtsCallAttempt attempt, @NonNull final Tuple fee, @NonNull final TokenID tokenId) {
         final boolean useCurrentToken = fee.get(FIXED_FEE_USE_CURRENT_TOKEN_FOR_PAYMENT);
         return useCurrentToken
                 ? tokenId
-                : getDenominationTokenIdOrNull(fee.get(FIXED_FEE_TOKEN_ID), fee.get(FIXED_FEE_USE_HBARS_FOR_PAYMENT));
+                : getDenominationTokenIdOrNull(
+                        attempt, fee.get(FIXED_FEE_TOKEN_ID), fee.get(FIXED_FEE_USE_HBARS_FOR_PAYMENT));
     }
 
     // In the solidity structure for FixedFees we have the property `bool useHbarsForPayment` that is not present
     // in the protobuf version where we set the denominating token to null if the fee is in hbars and/or we provide zero
     // address.
     private @Nullable TokenID getDenominationTokenIdOrNull(
-            @NonNull final Address address, final boolean useHbarsForPayment) {
-        final var tokenId = ConversionUtils.asTokenId(address);
+            @NonNull final HtsCallAttempt attempt, @NonNull final Address address, final boolean useHbarsForPayment) {
+        final var tokenId = ConversionUtils.asTokenId(attempt.nativeOperations().entityIdFactory(), address);
         return useHbarsForPayment || tokenId.equals(TokenID.DEFAULT) ? null : tokenId;
     }
 
-    private @Nullable FixedFee getFallbackFee(@NonNull Tuple fee) {
+    private @Nullable FixedFee getFallbackFee(@NonNull final HtsCallAttempt attempt, @NonNull Tuple fee) {
         final Address tokenAddress = fee.get(ROYALTY_FALLBACK_FEE_TOKEN_ID);
         final long amount = fee.get(ROYALTY_FALLBACK_FEE_AMOUNT);
-        return ConversionUtils.asTokenId(tokenAddress).equals(TokenID.DEFAULT) && amount == 0
+        return ConversionUtils.asTokenId(attempt.nativeOperations().entityIdFactory(), tokenAddress)
+                                .equals(TokenID.DEFAULT)
+                        && amount == 0
                 ? null
                 : FixedFee.newBuilder()
                         .amount(amount)
                         .denominatingTokenId(getDenominationTokenIdOrNull(
-                                tokenAddress, fee.get(ROYALTY_FALLBACK_FEE_USE_HBARS_FOR_PAYMENT)))
+                                attempt, tokenAddress, fee.get(ROYALTY_FALLBACK_FEE_USE_HBARS_FOR_PAYMENT)))
                         .build();
     }
 

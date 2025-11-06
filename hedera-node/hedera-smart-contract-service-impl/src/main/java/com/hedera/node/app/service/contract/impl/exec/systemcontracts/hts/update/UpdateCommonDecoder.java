@@ -83,7 +83,7 @@ public abstract class UpdateCommonDecoder {
             @NonNull final Tuple call,
             @NonNull final AddressIdConverter addressIdConverter,
             @NonNull final HederaNativeOperations nativeOperation) {
-        final var tokenId = ConversionUtils.asTokenId(call.get(TOKEN_ADDRESS));
+        final var tokenId = ConversionUtils.asTokenId(nativeOperation.entityIdFactory(), call.get(TOKEN_ADDRESS));
         final var hederaToken = (Tuple) call.get(HEDERA_TOKEN);
 
         final var tokenName = (String) hederaToken.get(0);
@@ -160,7 +160,8 @@ public abstract class UpdateCommonDecoder {
 
         final var call = decodeCall(attempt);
 
-        final var tokenId = ConversionUtils.asTokenId(call.get(TOKEN_ADDRESS));
+        final var tokenId =
+                ConversionUtils.asTokenId(attempt.nativeOperations().entityIdFactory(), call.get(TOKEN_ADDRESS));
         final var tokenKeys =
                 decodeTokenKeys(call.get(TOKEN_KEYS), attempt.addressIdConverter(), attempt.nativeOperations());
 

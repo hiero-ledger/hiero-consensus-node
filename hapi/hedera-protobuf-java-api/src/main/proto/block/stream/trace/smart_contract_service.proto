@@ -1,0 +1,211 @@
+/**
+ * # Smart Contract Service Trace Data
+ * Block stream messages that report the trace data of transactions handled
+ * by the `smart contract` service.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package com.hedera.hapi.block.stream.trace;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hedera.hapi.block.stream.trace.protoc";
+// <<<pbj.java_package = "com.hedera.hapi.block.stream.trace">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+import "services/contract_types.proto";
+import "streams/sidecar_file.proto";
+import "streams/contract_action.proto";
+import "google/protobuf/wrappers.proto";
+
+/**
+ * Usage of a contract's storage slots in an EVM transaction.<br/>
+ * In the common case that a contract operation is the only EVM
+ * transaction in its Hiero transactional unit, this message simply
+ * sets `written_keys_are_non_identical_state_changes` to true;
+ * meaning a stream consumer should extract the written keys from
+ * the Hiero unit's SlotKey state changes that match this message's
+ * `contract_id` (but ignoring any* MapUpdateChange with
+ * `identical` set to true).
+ * <p>
+ * In the less common case that an EVM transaction is one of
+ * several in its Hiero transactional unit (e.g., because it is
+ * one of several ContractCalls in an AtomicBatch); this message
+ * explicitly traces the storage slots that were written during
+ * its transaction's execution.
+ */
+message ContractSlotUsage {
+    /**
+     * The contract using the storage slots.
+     */
+    proto.ContractID contract_id = 1;
+
+    /**
+     * When this EVM transaction was one of several within its Hiero
+     * transactional unit, the storage slots that it wrote.
+     * <p>
+     * The written value can be unambiguously derived from the block items
+     * in this EVM transaction's Hiero transactional unit. In particular,
+     * 1. If a following EVM trace modifies the same slot, the value written
+     * in this EVM transaction was whatever value the following trace read.
+     * 2. If the slot was not modified in a following EVM trace, the value
+     * is whatever value was committed to the Merkle state for the slot.
+     */
+    WrittenSlotKeys written_slot_keys = 3;
+
+    /**
+     * The storage slots that were read in this EVM execution. They may or
+     * may not have associated slot writes.
+     */
+    repeated SlotRead slot_reads = 4;
+}
+
+message WrittenSlotKeys {
+    repeated bytes keys = 1;
+}
+
+/**
+ * A slot read in a contract's storage, as used in an EVM transaction.<br/>
+ */
+message SlotRead {
+    oneof identifier {
+        /**
+        * If this slot was also written, the index of the written key in a
+        * an explicit or implicit list of written keys in the stream.
+        * <p>
+        * The case of the explicit list is when this SlotRead appears in a
+        * ContractSlotUsage with `written_slot_keys` set to a non-empty list
+        * of keys. In this case, the index is into that list.
+        * <p>
+        * The case of the implicit list is when this SlotRead appears in a
+        * ContractSlotUsage with `written_slot_keys` unset. In this case,
+        * the list is implicit---it is the list of all SlotKey state changes
+        * in the Hiero transactional unit that match this ContractSlotUsage's
+        * `contract_id` and have `identical` set to false.
+        */
+        int32 index = 1;
+
+        /**
+        * If this slot was only read, its key represented with minimal bytes
+        * (no leading zeros); a stream consumer can left-pad this field with
+        * zeros to form a 32-byte EVM slot key.
+        */
+        bytes key = 2;
+    }
+
+    /**
+    * The storage value in this slot, represented with minimal bytes (no
+    * leading zeros); a stream consumer can left-pad this field with zeros.
+    * to form a 32-byte EVM slot value.
+    */
+    bytes read_value = 3;
+}
+
+/**
+  * Information about the initcode executed to create a contract.
+ */
+message ExecutedInitcode {
+    /**
+     * The id of the contract created by the initcode.
+     */
+    proto.ContractID contract_id = 1;
+
+    oneof initcode {
+        /**
+         * If the runtime bytecode follows the common convention of appearing as a subsequence
+         * of the initcode, the initcode pieces that surround the runtime bytecode (which is
+         * necessarily in the Hiero transactional unit's state changes).
+         */
+        InitcodeBookends initcode_bookends = 2;
+
+        /**
+         * If the runtime bytecode is not a subsequence of the initcode, the explicit initcode.
+         */
+        bytes explicit_initcode = 3;
+    }
+}
+
+/**
+  * The initcode bookends of a contract, which are the deploy bytecode and metadata
+  * bytecode that surround the runtime bytecode in a contract's deployment.
+  * <p>
+  * The runtime bytecode is not included here, as it is externalized via a state change
+  * with the matching contract id in the Hiero transactional unit.
+ */
+message InitcodeBookends {
+    /**
+     * The bytecode that precedes the runtime bytecode of a contract in initcode.
+     */
+    bytes deploy_bytecode = 1;
+
+    /**
+     * The bytecode that follows the runtime bytecode of a contract in initcode.
+     */
+    bytes metadata_bytecode = 2;
+}
+
+/**
+ * A EVM transaction log; c.f. eth_getTransactionReceipt.<br/>
+ * Stream consumers may compute bloom values from topics and data if desired.
+ */
+message EvmTransactionLog {
+    /**
+     * The contract emitting the log.
+     */
+    proto.ContractID contract_id = 1;
+
+    /**
+     * The logged data.
+     */
+    bytes data = 2;
+
+    /**
+     * The log's topics represented with minimal bytes (no leading zeros);
+     * a stream consumer can left-pad with zeros to form a 256-bit words.
+     */
+    repeated bytes topics = 3;
+}
+
+/**
+ * EVM trace data, including:
+ * 1. Contract actions executed during the transaction (i.e., the call trace)
+ * 2. Contract slot usages, including reads and writes.
+ * 3. Full error message, if any, produced by the contract call.
+ * 4. Initcode used for any internal contract creations.
+ * 5. Events logged during the transaction.
+ */
+message EvmTraceData {
+    /**
+     * All contract actions executed during the transaction.
+     */
+    repeated proto.ContractAction contract_actions = 1;
+
+    /**
+     * Contract slot usages in the transaction, by contract id.
+     */
+    repeated ContractSlotUsage contract_slot_usages = 2;
+
+    /**
+     * Additional details of any error message in the EVM transaction result.
+     * <p>
+     * This SHALL be unset if the contract call succeeded.
+     */
+    string error_details = 3;
+
+    /**
+     * The initcode executed for an internal contract creation.
+     */
+    ExecutedInitcode executed_initcode = 4;
+
+    /**
+     * Log events produced during the transaction, by contract id.
+     */
+    repeated EvmTransactionLog logs = 5;
+}

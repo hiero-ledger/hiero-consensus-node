@@ -2,11 +2,8 @@
 package com.hedera.node.app.service.token;
 
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
-import static java.lang.System.arraycopy;
 import static java.util.Objects.requireNonNull;
 
-import com.google.common.primitives.Ints;
-import com.google.common.primitives.Longs;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -23,6 +20,8 @@ import java.util.HexFormat;
  * A collection of static utility methods for working with aliases on {@link Account}s.
  */
 public final class AliasUtils {
+    /** The first 12 bytes of an "entity num alias". See {@link #isEntityNumAlias(Bytes)}. */
+    private static final byte[] ENTITY_NUM_ALIAS_PREFIX = new byte[12];
     /** All EVM addresses are 20 bytes long, and key-encoded keys are not. */
     private static final int EVM_ADDRESS_SIZE = 20;
     /** All valid ECDSA protobuf encoded keys have this prefix. */
@@ -78,24 +77,20 @@ public final class AliasUtils {
 
     /**
      * Given some alias, determine whether it is an "entity num alias". If the alias is exactly 20 bytes long, and
-     * if its initial bytes match the entity prefix, then it is an entity num alias.
+     * if its initial bytes match the {@link #ENTITY_NUM_ALIAS_PREFIX}, then it is an entity num alias.
      *
      * <p>Every entity in the system (accounts, tokens, etc.) may be represented within ethereum with a 20-byte EVM
      * address. This address can be explicit (as part of the alias), or it can be based on the entity ID number. When
-     * based on the entity number, the first 12 bytes represent the shard and alias, while the last 8 bytes represent
-     * the entity number. When shard and realm are zero, this prefix is all zeros, which is why it is sometimes known as
-     * the "long-zero" alias.
+     * based on the entity number, the first 12 bytes will be defined to be zero which indicates the current networks
+     * shard and realm, while the last 8 bytes represent the entity number. In the case where such an address is detected,
+     * the resultant entity id extract from such an address will be {@literal <local shard>.<local realm>.<entity number>}.
+     * Because the shard and realm are zero, this prefix is all zeros, which is why it is sometimes known as the "long-zero" alias.
      *
      * @param alias The alias to check
      * @return True if the alias is an entity num alias
      */
-    public static boolean isEntityNumAlias(final Bytes alias, final long shard, final long realm) {
-        final byte[] entityNumAliasPrefix = new byte[12];
-
-        arraycopy(Ints.toByteArray((int) shard), 0, entityNumAliasPrefix, 0, 4);
-        arraycopy(Longs.toByteArray(realm), 0, entityNumAliasPrefix, 4, 8);
-
-        return isOfEvmAddressSize(alias) && alias.matchesPrefix(entityNumAliasPrefix);
+    public static boolean isEntityNumAlias(final Bytes alias) {
+        return isOfEvmAddressSize(alias) && alias.matchesPrefix(ENTITY_NUM_ALIAS_PREFIX);
     }
 
     /**
@@ -157,25 +152,6 @@ public final class AliasUtils {
             // documentation for ReadableStreamingData as well as the parse method for all the various exceptions.
             return false;
         }
-    }
-
-    /**
-     * A utility method that, given an address alias, extracts the shard (skipping shard and ID number).
-     *
-     * @param addressAlias The address alias, where the 0.0.1234 style address has been encoded into 20 bytes
-     * @return The shard of the account or contract.
-     */
-    public static Integer extractShardFromAddressAlias(final Bytes addressAlias) {
-        return addressAlias.getInt(0);
-    }
-
-    /**
-     * A utility method that, given an address alias, extracts the realm (skipping shard and ID number).
-     * @param addressAlias The address alias, where the 0.0.1234 style address has been encoded into 20 bytes
-     * @return The realm of the account or contract
-     */
-    public static Long extractRealmFromAddressAlias(final Bytes addressAlias) {
-        return addressAlias.getLong(4);
     }
 
     /**

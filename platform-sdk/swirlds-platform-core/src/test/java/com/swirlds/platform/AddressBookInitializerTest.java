@@ -31,7 +31,6 @@ import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.config.AddressBookConfig_;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.address.AddressBookInitializer;
 import com.swirlds.platform.state.service.PlatformStateService;
@@ -39,6 +38,7 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.roster.RosterServiceStateMock;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -390,10 +390,8 @@ class AddressBookInitializerTest {
      *
      * @param weightValue         The weight value that the State should set all addresses to in its updateWeight
      *                            method.
-     * @param currentRoster       The roster that should be returned by {@link SignedState#getRoster()} and used to
-     *                            derive the address book for {@link PlatformStateAccessor#getAddressBook()}
-     * @param previousAddressBook The address book that should be returned by
-     *                            {@link PlatformStateAccessor#getPreviousAddressBook()}
+     * @param currentRoster       The roster that should be returned by {@link SignedState#getRoster()} and used as current roster
+     * @param previousAddressBook The address book that should be used to derive the previous roster
      * @param fromGenesis         Whether the state should be from genesis or not.
      * @return The mock SignedState and State configured to set all addresses with given weightValue.
      */

@@ -2,13 +2,10 @@
 package com.hedera.services.bdd.suites.contract.leaky;
 
 import static com.google.protobuf.ByteString.EMPTY;
-import static com.hedera.node.app.hapi.utils.CommonUtils.asEvmAddress;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -16,7 +13,6 @@ import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.re
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.KeyFactory.KeyType.THRESHOLD;
-import static com.hedera.services.bdd.spec.keys.KeyShape.DELEGATE_CONTRACT;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
@@ -45,6 +41,7 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.expectContractActionSidecarFor;
+import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.expectContractBytecodeSansInitcodeFor;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.expectContractStateChangesSidecarFor;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.sidecarValidation;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
@@ -76,9 +73,13 @@ import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTIO
 import static com.hedera.services.bdd.suites.contract.Utils.aaWith;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asHexedAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.contract.Utils.captureOneChildCreate2MetaFor;
+import static com.hedera.services.bdd.suites.contract.Utils.extractBytecodeUnhexed;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
+import static com.hedera.services.bdd.suites.contract.Utils.getResourcePath;
 import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrWith;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.ACCOUNT_INFO;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.ACCOUNT_INFO_AFTER_CALL;
@@ -103,6 +104,7 @@ import static com.hedera.services.bdd.suites.contract.precompile.ApproveAllowanc
 import static com.hedera.services.bdd.suites.contract.precompile.ApproveAllowanceSuite.PRETEND_PAIR;
 import static com.hedera.services.bdd.suites.contract.precompile.CreatePrecompileSuite.TOKEN_NAME;
 import static com.hedera.services.bdd.suites.contract.precompile.ERCPrecompileSuite.NAME_TXN;
+import static com.hedera.services.bdd.suites.contract.precompile.token.GasCalculationIntegrityTest.constantGasAssertion;
 import static com.hedera.services.bdd.suites.contract.traceability.EncodingUtils.formattedAssertionValue;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.LAZY_MEMO;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
@@ -110,6 +112,7 @@ import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.
 import static com.hedera.services.bdd.suites.utils.contracts.AddressResult.hexedAddress;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hedera.services.stream.proto.ContractActionType.CALL;
+import static com.hedera.services.stream.proto.ContractActionType.CREATE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
@@ -142,7 +145,8 @@ import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.assertions.StateChange;
 import com.hedera.services.bdd.spec.assertions.StorageChange;
-import com.hedera.services.bdd.spec.keys.KeyShape;
+import com.hedera.services.bdd.spec.dsl.annotations.Contract;
+import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
 import com.hedera.services.bdd.spec.queries.contract.HapiContractCallLocal;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
@@ -152,7 +156,6 @@ import com.hedera.services.bdd.suites.contract.Utils;
 import com.hedera.services.stream.proto.CallOperationType;
 import com.hedera.services.stream.proto.ContractAction;
 import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
@@ -173,8 +176,10 @@ import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Tag;
 
 @SuppressWarnings("java:S1192") // "string literal should not be duplicated" - this rule makes test suites worse
 @OrderedInIsolation
@@ -186,15 +191,11 @@ public class LeakyContractTestsSuite {
     private static final Logger log = LogManager.getLogger(LeakyContractTestsSuite.class);
     public static final String SENDER = "yahcliSender";
     public static final String RECEIVER = "yahcliReceiver";
-    private static final KeyShape DELEGATE_CONTRACT_KEY_SHAPE =
-            KeyShape.threshOf(1, KeyShape.SIMPLE, DELEGATE_CONTRACT);
-    private static final String CRYPTO_TRANSFER = "CryptoTransfer";
     public static final String TOKEN_TRANSFER_CONTRACT = "TokenTransferContract";
     public static final String TRANSFER_TOKEN_PUBLIC = "transferTokenPublic";
     private static final String FUNGIBLE_TOKEN = "fungibleToken";
     private static final String NON_FUNGIBLE_TOKEN = "nonFungibleToken";
     private static final String MULTI_KEY = "purpose";
-    private static final String OWNER = "owner";
     private static final String ACCOUNT = "anybody";
     public static final String RECIPIENT = "recipient";
     private static final String FIRST = "FIRST";
@@ -202,7 +203,6 @@ public class LeakyContractTestsSuite {
     public static final String TRANSFER_SIG_NAME = "transferSig";
     public static final String ERC_20_CONTRACT = "ERC20Contract";
     private static final String TRANSFER_TXN = "transferTxn";
-    public static final String TRANSFER_FROM_ACCOUNT_TXN = "transferFromAccountTxn";
     public static final String TRANSFER = "transfer";
     public static final String APPROVE = "approve";
     private static final String NF_TOKEN = "nfToken";
@@ -218,8 +218,6 @@ public class LeakyContractTestsSuite {
     private static final String WITH_SPENDER = "WITH_SPENDER";
     private static final String DO_SPECIFIC_APPROVAL = "doSpecificApproval";
     public static final String TRANSFER_SIGNATURE = "Transfer(address,address,uint256)";
-    private static final String EVM_VERSION_PROPERTY = "contracts.evm.version";
-    private static final String EVM_VERSION_038 = "v0.38";
     private static final String CREATION = "creation";
     private static final String ENTITY_MEMO = "JUST DO IT";
     private static final String CREATE_2_TXN = "create2Txn";
@@ -272,10 +270,7 @@ public class LeakyContractTestsSuite {
                 cryptoTransfer((spec, b) -> {
                             final var defaultPayerId = spec.registry().getAccountID(DEFAULT_PAYER);
                             b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(aaWith(
-                                            spec,
-                                            ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())),
-                                            +ONE_HBAR))
+                                    .addAccountAmounts(Utils.aaWith(spec, expectedCreate2Address.get(), +ONE_HBAR))
                                     .addAccountAmounts(aaWith(defaultPayerId, -ONE_HBAR)));
                         })
                         .signedBy(DEFAULT_PAYER)
@@ -692,6 +687,7 @@ public class LeakyContractTestsSuite {
 
     @HapiTest
     @Order(3)
+    @Tag(MATS)
     final Stream<DynamicTest> propagatesNestedCreations() {
         final var call = "callTxn";
         final var creation = "createTxn";
@@ -700,8 +696,8 @@ public class LeakyContractTestsSuite {
         final var adminKey = "adminKey";
         final var entityMemo = "JUST DO IT";
         final var customAutoRenew = 7776001L;
-        final AtomicReference<String> childLiteralId = new AtomicReference<>();
-        final AtomicReference<String> grandChildLiteralId = new AtomicReference<>();
+        final AtomicLong childNum = new AtomicLong();
+        final AtomicLong grandChildNum = new AtomicLong();
         final AtomicReference<ByteString> expectedChildAddress = new AtomicReference<>();
         final AtomicReference<ByteString> expectedParentAddress = new AtomicReference<>();
 
@@ -718,8 +714,7 @@ public class LeakyContractTestsSuite {
                 withOpContext((spec, opLog) -> {
                     final var parentNum = spec.registry().getContractId(contract);
 
-                    final var expectedParentContractAddress = asHeadlongAddress(asEvmAddress(
-                                    parentNum.getShardNum(), parentNum.getRealmNum(), parentNum.getContractNum()))
+                    final var expectedParentContractAddress = asHeadlongAddress(asSolidityAddress(parentNum))
                             .toString()
                             .toLowerCase()
                             .substring(2);
@@ -728,26 +723,15 @@ public class LeakyContractTestsSuite {
                     final var expectedChildContractAddress =
                             contractAddress(fromHexString(expectedParentContractAddress), 1L);
                     final var expectedGrandChildContractAddress = contractAddress(expectedChildContractAddress, 1L);
-
-                    final var childId = ContractID.newBuilder()
-                            .setShardNum(spec.shard())
-                            .setRealmNum(spec.realm())
-                            .setContractNum(parentNum.getContractNum() + 1L)
-                            .build();
-                    childLiteralId.set(HapiPropertySource.asContractString(childId));
+                    childNum.set(parentNum.getContractNum() + 1L);
                     expectedChildAddress.set(ByteString.copyFrom(expectedChildContractAddress.toArray()));
-                    final var grandChildId = ContractID.newBuilder()
-                            .setShardNum(spec.shard())
-                            .setRealmNum(spec.realm())
-                            .setContractNum(parentNum.getContractNum() + 2L)
-                            .build();
-                    grandChildLiteralId.set(HapiPropertySource.asContractString(grandChildId));
+                    grandChildNum.set(parentNum.getContractNum() + 2L);
 
                     final var parentContractInfo =
                             getContractInfo(contract).has(contractWith().addressOrAlias(expectedParentContractAddress));
-                    final var childContractInfo = getContractInfo(childLiteralId.get())
+                    final var childContractInfo = getContractInfo(String.valueOf(childNum.get()))
                             .has(contractWith().addressOrAlias(expectedChildContractAddress.toUnprefixedHexString()));
-                    final var grandChildContractInfo = getContractInfo(grandChildLiteralId.get())
+                    final var grandChildContractInfo = getContractInfo(String.valueOf(grandChildNum.get()))
                             .has(contractWith()
                                     .addressOrAlias(expectedGrandChildContractAddress.toUnprefixedHexString()))
                             .logged();
@@ -763,8 +747,9 @@ public class LeakyContractTestsSuite {
                         recordWith()
                                 .contractCreateResult(resultWith().create1EvmAddress(expectedChildAddress.get(), 1L))
                                 .status(SUCCESS))),
-                sourcing(() ->
-                        getContractInfo(childLiteralId.get()).has(contractWith().propertiesInheritedFrom(contract))));
+                sourcing(() -> getContractInfo(String.valueOf(childNum.get()))
+                        .logged()
+                        .has(contractWith().propertiesInheritedFrom(contract))));
     }
 
     @LeakyHapiTest(overrides = {"contracts.maxRefundPercentOfGasLimit"})
@@ -796,8 +781,8 @@ public class LeakyContractTestsSuite {
                             .getContractCallResult()
                             .getGasUsed();
 
-                    Assertions.assertTrue(gasUsedForTemporaryHoldTx < 23739L);
-                    Assertions.assertTrue(gasUsedForPermanentHoldTx > 20000L);
+                    Assertions.assertTrue(gasUsedForTemporaryHoldTx < 35000L);
+                    Assertions.assertTrue(gasUsedForPermanentHoldTx > 40000L);
                 }));
     }
 
@@ -834,7 +819,36 @@ public class LeakyContractTestsSuite {
                         .via(callTxn)));
     }
 
+    @LeakyHapiTest
+    final Stream<DynamicTest> bytecodeSidecarExternalizedEvenWithInlineInitcode() {
+        return hapiTest(
+                sidecarValidation(),
+                contractCreate("CreateTrivial")
+                        .via("inlineCreation")
+                        .inlineInitCode(extractBytecodeUnhexed(getResourcePath("CreateTrivial", ".bin"))),
+                withOpContext((spec, opLog) -> {
+                    final HapiGetTxnRecord txnRecord = getTxnRecord("inlineCreation");
+                    allRunFor(
+                            spec,
+                            txnRecord,
+                            expectContractActionSidecarFor(
+                                    "inlineCreation",
+                                    List.of(ContractAction.newBuilder()
+                                            .setCallType(CREATE)
+                                            .setCallOperationType(CallOperationType.OP_CREATE)
+                                            .setCallingAccount(spec.registry().getAccountID(DEFAULT_PAYER))
+                                            .setRecipientContract(
+                                                    spec.registry().getContractId("CreateTrivial"))
+                                            .setGas(2934672)
+                                            .setGasUsed(214)
+                                            .setOutput(EMPTY)
+                                            .build())));
+                }),
+                expectContractBytecodeSansInitcodeFor("inlineCreation", "CreateTrivial"));
+    }
+
     @LeakyHapiTest(overrides = {"contracts.evm.version"})
+    @Tag(MATS)
     final Stream<DynamicTest> evmLazyCreateViaSolidityCall() {
         final var LAZY_CREATE_CONTRACT = "NestedLazyCreateContract";
         final var ECDSA_KEY = "ECDSAKey";
@@ -873,7 +887,7 @@ public class LeakyContractTestsSuite {
                                     .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
                                     .gas(6_000_000),
                             emptyChildRecordsCheck(mirrorTxn, CONTRACT_REVERT_EXECUTED),
-                            getAccountInfo(asEntityString(spec.shard(), spec.realm(), NONEXISTENT_CONTRACT_NUM))
+                            getAccountInfo(String.valueOf(NONEXISTENT_CONTRACT_NUM))
                                     .hasCostAnswerPrecheck(INVALID_ACCOUNT_ID),
                             // given a reverting contract call, should also revert the hollow account creation
                             contractCall(LAZY_CREATE_CONTRACT, revertingCallLazyCreateFunction, address)
@@ -1391,7 +1405,7 @@ public class LeakyContractTestsSuite {
     final Stream<DynamicTest> callToNonExistingContractFailsGracefullyInV038() {
         return hapiTest(
                 overriding("contracts.evm.version", "v0.38"),
-                withOpContext((spec, ctxLog) -> spec.registry().saveContractId("invalid", asContract("1.1.1"))),
+                withOpContext((spec, ctxLog) -> spec.registry().saveContractId("invalid", asContract("0.0.100000001"))),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
                 cryptoCreate(TOKEN_TREASURY),
@@ -1439,5 +1453,32 @@ public class LeakyContractTestsSuite {
                     expectedCreate2Address.set(hexedAddress);
                 })
                 .payingWith(GENESIS);
+    }
+
+    @Order(39)
+    @LeakyHapiTest(overrides = "contracts.maxRefundPercentOfGasLimit")
+    @DisplayName("Check that gas refund can be changed")
+    public Stream<DynamicTest> checkGasRefundChange(
+            @Contract(contract = "CallingContract") final SpecContract contract) {
+        record RefundPair(String refundPercentage, Long expectedGasUsed) {}
+        final var gasRefund = Stream.of(
+                new RefundPair("0", 400_000L),
+                new RefundPair("10", 360_000L),
+                new RefundPair("20", 320_000L),
+                new RefundPair("30", 280_000L),
+                new RefundPair("40", 240_000L),
+                new RefundPair("50", 200_000L),
+                new RefundPair("60", 160_000L),
+                new RefundPair("70", 120_000L),
+                new RefundPair("80", 80_000L),
+                new RefundPair("90", 40_000L),
+                new RefundPair("100", 23_653L));
+
+        return gasRefund.flatMap(refundPair -> hapiTest(
+                overriding("contracts.maxRefundPercentOfGasLimit", refundPair.refundPercentage),
+                contract.call("setVar1", BigInteger.ONE)
+                        .gas(400_000L)
+                        .andAssert(txn ->
+                                txn.exposingGasTo(constantGasAssertion(new AtomicLong(refundPair.expectedGasUsed))))));
     }
 }

@@ -22,6 +22,7 @@ import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.roster.RosterUtils;
 
@@ -98,6 +99,11 @@ public class RecoveryPlatform implements Platform, AutoCloseableNonThrowing {
         return new PlatformSigner(keysAndCerts).sign(data);
     }
 
+    @Override
+    public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
+        throw new UnsupportedOperationException("RecoveryPlatform does not support quiescence status changes");
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -153,15 +159,6 @@ public class RecoveryPlatform implements Platform, AutoCloseableNonThrowing {
      * {@inheritDoc}
      */
     @Override
-    public boolean createTransaction(@NonNull final byte[] transaction) {
-        // Transaction creation always fails
-        return false;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void close() {
         immutableState.clear();
         notificationEngine.shutdown();
@@ -173,5 +170,13 @@ public class RecoveryPlatform implements Platform, AutoCloseableNonThrowing {
     @Override
     public void start() {
         // no-op
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void destroy() {
+        close();
     }
 }

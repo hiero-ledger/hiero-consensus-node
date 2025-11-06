@@ -1,67 +1,105 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static com.swirlds.merkledb.files.DataFileCommon.FIELD_DATAFILE_ITEMS;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.randomUtf8Bytes;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.RepeatedTest;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
-@Disabled
 class DataFileWriterTest {
+
+    private static final int BUFFER_SIZE = 1024;
 
     private DataFileWriter dataFileWriter;
 
     @BeforeEach
     public void setUp() throws Exception {
         Path dataFileWriterPath = Files.createTempDirectory("dataFileWriter");
-        dataFileWriter = new DataFileWriter("test", dataFileWriterPath, 1, Instant.now(), 1);
+        dataFileWriter = new DataFileWriter("test", dataFileWriterPath, 1, Instant.now(), 1, BUFFER_SIZE);
     }
 
-    /**
-     * This test reproduces rare scenario when `moveMmapBuffer` method is called on interrupted thread.
-     * It will result in writingChannel.map(MapMode.READ_WRITE, mmapPositionInFile, MMAP_BUF_SIZE) call returning null.
-     * DataFileWriter has to handle this case gracefully.
-     */
-    @RepeatedTest(100) // it takes several iterations to reproduce the issue
-    public void testMoveMmapBufferOnInterruptedThread() {
-        ExecutorService writeExecutor = Executors.newSingleThreadExecutor();
-        Future<?> writeFuture = writeExecutor.submit(() -> {
-            try {
-                BufferedData allocate = BufferedData.allocate(10);
-                allocate.writeBytes("test".getBytes());
-                allocate.flip();
-                dataFileWriter.storeDataItem(allocate);
-            } catch (IOException e) {
-                throw new RuntimeException();
-            }
-        });
+    @Test
+    public void writeAfterCloseIsNotAllowed() throws IOException {
+        BufferedData data = BufferedData.wrap("test".getBytes());
 
-        // at this point a thread in writeExecutor is blocked on serializeLatch.await()
+        dataFileWriter.storeDataItem(data);
+        dataFileWriter.close();
 
-        ExecutorService finishExecutor = Executors.newSingleThreadExecutor();
-        Future<?> finishWritingFuture = finishExecutor.submit(() -> {
-            try {
-                dataFileWriter.finishWriting();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        });
+        data.flip();
+        assertThrows(
+                IOException.class, () -> dataFileWriter.storeDataItem(data), "Cannot write after writing is finished");
+    }
 
-        // At this point a thread in finishExecutor is blocked on finishWriting because a thread from
-        // writeExecutor holds the lock.
+    @Test
+    public void closeWriterIsIdempotent() throws IOException {
+        BufferedData data = BufferedData.wrap("test".getBytes());
 
-        // Releasing the latch by interrupting the thread in writeExecutor
-        writeFuture.cancel(true);
+        dataFileWriter.storeDataItem(data);
+        dataFileWriter.close();
+        assertDoesNotThrow(() -> dataFileWriter.close(), "Closing writer should be idempotent");
+    }
 
-        assertDoesNotThrow(() -> finishWritingFuture.get());
+    @ParameterizedTest
+    @ValueSource(ints = {-1, 1})
+    public void wrongEstimatedSizeWrite(int diff) {
+        BufferedData data = BufferedData.wrap("test".getBytes());
+
+        assertThrows(
+                IOException.class,
+                () -> dataFileWriter.storeDataItem(o -> o.writeBytes(data), (int) (data.length() + diff)),
+                "Wrong estimated data size");
+    }
+
+    @Test
+    public void smallBufferBigDataItem() {
+        BufferedData data = BufferedData.wrap(randomUtf8Bytes(BUFFER_SIZE - 2));
+        assertThrows(IOException.class, () -> dataFileWriter.storeDataItem(data), "Buffer is too small to write data");
+    }
+
+    @Test
+    public void manySmallWritesBufferIsMoving() throws IOException {
+        int dataLengthBytes = (int) (BUFFER_SIZE * 0.01);
+        int iterations = 1000;
+        BufferedData data = BufferedData.wrap(randomUtf8Bytes(dataLengthBytes));
+
+        for (int i = 0; i < iterations; i++) {
+            dataFileWriter.storeDataItem(data);
+            data.flip();
+        }
+
+        dataFileWriter.close();
+        verifyFileSize(dataLengthBytes * iterations);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 57, BUFFER_SIZE / 2, BUFFER_SIZE - 3})
+    public void correctFileSizeAfterFinishWriting(int dataLengthBytes) throws IOException {
+        byte[] bytesData = randomUtf8Bytes(dataLengthBytes);
+        BufferedData data = BufferedData.wrap(bytesData);
+
+        dataFileWriter.storeDataItem(data);
+        dataFileWriter.close();
+
+        verifyFileSize(bytesData.length);
+    }
+
+    private void verifyFileSize(int dataLength) throws IOException {
+        int fileSize = (int) Files.size(dataFileWriter.getPath());
+        int dataSize = ProtoWriterTools.sizeOfDelimited(FIELD_DATAFILE_ITEMS, dataLength);
+        int headerSize = dataFileWriter.getMetadata().metadataSizeInBytes();
+
+        assertEquals(headerSize, dataSize, fileSize, "Unexpected file size");
     }
 }

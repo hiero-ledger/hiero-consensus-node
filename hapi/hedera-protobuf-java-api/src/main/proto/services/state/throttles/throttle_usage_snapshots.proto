@@ -20,8 +20,8 @@ option java_package = "com.hederahashgraph.api.proto.java";
 option java_multiple_files = true;
 
 /**
- * All point-in-time snapshots of throttle usage for TPS and "gas" throttle
- * values for a given point in time.
+ * All point-in-time snapshots of throttle usage for TPS, "gas" throttle
+ * values for a given point in time and evm ops duration throttle.
  *
  * > Question:
  * >> What point in time?  Should this store consensus timestamp here?
@@ -39,6 +39,11 @@ message ThrottleUsageSnapshots {
      * A single snapshot for the gas throttle.
      */
     ThrottleUsageSnapshot gas_throttle = 2;
+
+    /**
+     * A single snapshot for evm ops duration throttle.
+     */
+    ThrottleUsageSnapshot evm_ops_duration_throttle = 3;
 }
 
 /**

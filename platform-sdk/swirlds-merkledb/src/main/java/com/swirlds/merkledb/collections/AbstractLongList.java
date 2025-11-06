@@ -12,6 +12,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -20,8 +21,10 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.function.BooleanSupplier;
 import java.util.stream.LongStream;
 import java.util.stream.StreamSupport;
 
@@ -781,20 +784,30 @@ public abstract class AbstractLongList<C> implements LongList {
         }
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     *
+     * <p>This long list implementation checks the condition (if not null) before every list
+     * item is processed.
+     */
     @Override
-    public <T extends Throwable> void forEach(final LongAction<T> action) throws InterruptedException, T {
+    public <T extends Throwable> boolean forEach(
+            @NonNull final LongAction<T> action, @Nullable final BooleanSupplier cond) throws InterruptedException, T {
         final long max = maxValidIndex.get();
         if (max < 0) {
             // Empty list, nothing to do
-            return;
+            return true;
         }
-        for (long i = minValidIndex.get(); i <= max; i++) {
+        Objects.requireNonNull(action);
+        final BooleanSupplier condition = cond != null ? cond : () -> true;
+        long i = minValidIndex.get();
+        for (; (i <= max) && condition.getAsBoolean(); i++) {
             final long value = get(i);
             if (value != IMPERMISSIBLE_VALUE) {
                 action.handle(i, value);
             }
         }
+        return i == max + 1;
     }
 
     /**

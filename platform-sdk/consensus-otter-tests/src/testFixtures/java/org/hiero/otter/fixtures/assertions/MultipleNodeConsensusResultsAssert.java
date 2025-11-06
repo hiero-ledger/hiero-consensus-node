@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.assertions;
 
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Comparator;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
+import java.util.Map;
+import java.util.TreeMap;
 import org.assertj.core.api.AbstractAssert;
-import org.assertj.core.data.Percentage;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.OtterAssertions;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
@@ -16,7 +19,7 @@ import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 /**
  * Assertions for {@link MultipleNodeConsensusResults}.
  */
-@SuppressWarnings("UnusedReturnValue")
+@SuppressWarnings({"UnusedReturnValue", "unused"})
 public class MultipleNodeConsensusResultsAssert
         extends AbstractAssert<MultipleNodeConsensusResultsAssert, MultipleNodeConsensusResults> {
 
@@ -27,9 +30,6 @@ public class MultipleNodeConsensusResultsAssert
      */
     public MultipleNodeConsensusResultsAssert(@Nullable final MultipleNodeConsensusResults actual) {
         super(actual, MultipleNodeConsensusResultsAssert.class);
-        if (actual.results().isEmpty()) {
-            throw new IllegalArgumentException("Trying to assert empty results. This is unlikely to be intended.");
-        }
     }
 
     /**
@@ -43,26 +43,22 @@ public class MultipleNodeConsensusResultsAssert
         return new MultipleNodeConsensusResultsAssert(actual);
     }
 
-    @NonNull
-    private MultipleNodeConsensusResultsAssert checkAll(
-            @NonNull final Consumer<SingleNodeConsensusResultAssert> check) {
-        isNotNull();
-        for (final SingleNodeConsensusResult result : actual.results()) {
-            check.accept(OtterAssertions.assertThat(result));
-        }
-        return this;
-    }
-
     /**
-     * Verifies that all nodes reached consensus on the same, provided round.
-     * Naturally, this check only makes sense while the nodes are halted.
+     * Verifies that all nodes reached consensus on the same, provided round. Naturally, this check only makes sense
+     * while the nodes are halted.
      *
      * @param expected the expected last round
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeConsensusResultsAssert hasLastRoundNum(final long expected) {
-        return checkAll(singleNodeResult -> singleNodeResult.hasLastRoundNum(expected));
+    public MultipleNodeConsensusResultsAssert haveLastRoundNum(final long expected) {
+        isNotNull();
+
+        for (final SingleNodeConsensusResult result : actual.results()) {
+            OtterAssertions.assertThat(result).hasLastRoundNum(expected);
+        }
+
+        return this;
     }
 
     /**
@@ -72,58 +68,105 @@ public class MultipleNodeConsensusResultsAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeConsensusResultsAssert hasAdvancedSince(final long expected) {
-        return checkAll(singleNodeResult -> singleNodeResult.hasAdvancedSince(expected));
-    }
-
-    /**
-     * Verifies that all nodes have produced the same rounds acknowledging that nodes may have progressed
-     * differently (up to a given maximum).
-     *
-     * @param expectedDifference the maximum percentage of rounds that some nodes may have progressed farther than others
-     * @return this assertion object for method chaining
-     */
-    @NonNull
-    public MultipleNodeConsensusResultsAssert hasEqualRoundsIgnoringLast(@NonNull final Percentage expectedDifference) {
+    public MultipleNodeConsensusResultsAssert haveAdvancedSinceRound(final long expected) {
         isNotNull();
 
-        // find longest and shortest list
-        final SingleNodeConsensusResult longestResult = actual.results().stream()
-                .max(Comparator.comparing(r -> r.consensusRounds().size()))
-                .orElseThrow();
-        final int shortestSize = actual.results().stream()
-                .map(SingleNodeConsensusResult::consensusRounds)
-                .mapToInt(List::size)
-                .min()
-                .orElse(0);
-
-        // Check if difference is within bounds
-        final int longestSize = longestResult.consensusRounds().size();
-        final double actualDifference = 100.0 * (longestSize - shortestSize) / longestSize;
-        if (actualDifference > expectedDifference.value) {
-            failWithMessage(
-                    "Expected the difference between the fastest and the slowest node not to be greater than %s, but was %2.f%%",
-                    expectedDifference, actualDifference);
-        }
-
-        // Check that all nodes produced the same consensus rounds as are in the longest list
-        for (final SingleNodeConsensusResult currentNodeResult : actual.results()) {
-            if (currentNodeResult.nodeId().equals(longestResult.nodeId())) {
-                continue;
-            }
-            final int size = currentNodeResult.consensusRounds().size();
-            final List<ConsensusRound> expectedSublist =
-                    longestResult.consensusRounds().subList(0, size);
-            OtterAssertions.assertThat(currentNodeResult)
-                    .withFailMessage(
-                            "Expected node %s to have the same consensus rounds as node %s, but the former had %s while the later had %s",
-                            currentNodeResult.nodeId(),
-                            longestResult.nodeId(),
-                            currentNodeResult.consensusRounds(),
-                            expectedSublist)
-                    .hasRounds(expectedSublist);
+        for (final SingleNodeConsensusResult result : actual.results()) {
+            OtterAssertions.assertThat(result).hasAdvancedSinceRound(expected);
         }
 
         return this;
+    }
+
+    /**
+     * Identifies the rounds which have reached consensus on more than one node and verifies that they are equal. If no
+     * rounds have been produced or if only one node has produced rounds, this assertion will always pass.
+     *
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public MultipleNodeConsensusResultsAssert haveEqualCommonRounds() {
+        isNotNull();
+
+        // Collect rounds produced by each node and store them in a map keyed by round number.
+        final Map<Long, List<NodeRound>> roundMap = new TreeMap<>();
+        for (final SingleNodeConsensusResult result : actual.results()) {
+            for (final ConsensusRound round : result.consensusRounds()) {
+                roundMap.computeIfAbsent(round.getRoundNum(), k -> new ArrayList<>())
+                        .add(new NodeRound(result.nodeId(), round));
+            }
+        }
+        if (roundMap.isEmpty()) {
+            // no rounds produced
+            return this;
+        }
+
+        // Validate that each node that produced a consensus round for a given round number produced the same round as
+        // the others.
+        for (final long roundNum : roundMap.keySet()) {
+            final List<NodeRound> rounds = roundMap.get(roundNum);
+            if (rounds.size() <= 1) {
+                // no consensus rounds collected or only one node produced rounds
+                continue;
+            }
+
+            // Second, compare the rounds produced by different nodes to ensure they arrived at the same consensus.
+            final NodeRound firstNodeRound = rounds.getFirst();
+            for (int i = 1; i < rounds.size(); i++) {
+                ConsensusRoundValidator.validate(
+                        firstNodeRound.round(), rounds.get(i).round());
+            }
+        }
+
+        return this;
+    }
+
+    /**
+     * Verifies that events with a creation time prior to and including the given {@code splitTime} have a birth round
+     * equal to or less than the {@code splitRound}, and all events with a creation time after the {@code splitTime}
+     * have a birth ground greater than {@code splitRound}.
+     *
+     * @param splitTime all events with a creation time before and including this time should have a birth round equal
+     * to or less that the {@code splitRound}
+     * @param splitRound the maximum birth round for events created before and up to the {@code splitTime}
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public MultipleNodeConsensusResultsAssert haveBirthRoundSplit(
+            @NonNull final Instant splitTime, final long splitRound) {
+        isNotNull();
+        for (final SingleNodeConsensusResult result : actual.results()) {
+            OtterAssertions.assertThat(result).hasBirthRoundSplit(splitTime, splitRound);
+        }
+        return this;
+    }
+
+    /**
+     * Verifies that the created consensus rounds are consistent.
+     *
+     * <p>This includes checking if the ancient thresholds are increasing and the timestamps of
+     * events are strictly increasing.
+     *
+     * @return this assertion object for method chaining
+     */
+    public MultipleNodeConsensusResultsAssert haveConsistentRounds() {
+        isNotNull();
+        for (final SingleNodeConsensusResult result : actual.results()) {
+            OtterAssertions.assertThat(result).hasConsistentRounds();
+        }
+        return this;
+    }
+
+    /**
+     * An internal record used to keep track of which node produced which round. Tracking this is useful for debugging.
+     * @param nodeId the ID of the node that produced the round
+     * @param round the round produced by the node
+     */
+    private record NodeRound(@NonNull NodeId nodeId, @NonNull ConsensusRound round) {}
+
+    private record NodeRoundsResult(@NonNull NodeId nodeId, @NonNull List<ConsensusRound> rounds) {
+        private int size() {
+            return rounds.size();
+        }
     }
 }

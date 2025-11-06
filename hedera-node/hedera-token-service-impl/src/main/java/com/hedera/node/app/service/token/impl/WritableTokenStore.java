@@ -6,8 +6,8 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
-import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -36,7 +36,7 @@ public class WritableTokenStore extends ReadableTokenStoreImpl {
     public WritableTokenStore(
             @NonNull final WritableStates states, @NonNull final WritableEntityCounters entityCounters) {
         super(states, entityCounters);
-        this.tokenState = states.get(V0490TokenSchema.TOKENS_KEY);
+        this.tokenState = states.get(V0490TokenSchema.TOKENS_STATE_ID);
         this.entityCounters = entityCounters;
     }
 

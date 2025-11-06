@@ -62,7 +62,7 @@ public interface AccountSummariesApi {
         final var arbitraryEvmAddress = extractEvmAddress(account.alias());
         final var evmAddress = arbitraryEvmAddress != null
                 ? arbitraryEvmAddress.toByteArray()
-                : asEvmAddress(accountId.shardNum(), accountId.realmNum(), accountId.accountNumOrThrow());
+                : asEvmAddress(accountId.accountNumOrThrow());
         return hex(evmAddress);
     }
 

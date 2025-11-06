@@ -18,6 +18,7 @@ import com.swirlds.merkledb.collections.OffHeapUser;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileCollection.LoadedDataCallback;
+import com.swirlds.merkledb.files.DataFileCommon;
 import com.swirlds.merkledb.files.DataFileReader;
 import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -70,19 +71,18 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
     protected static final long INVALID_VALUE = Long.MIN_VALUE;
 
     /**
-     * This is the average number of entries per bucket we aim for when filled to mapSize. It is a
-     * heuristic used in calculation for how many buckets to create. The larger this number the
-     * slower lookups will be but the more even distribution of entries across buckets will be. So
-     * it is a matter of balance.
+     * The average number of entries per bucket we aim for. When map size grows and
+     * starts to exceed the number of buckets times this average number of entries, the
+     * map is resized by doubling the number of buckets.
      */
-    private static final long GOOD_AVERAGE_BUCKET_ENTRY_COUNT = 32;
+    private final int goodAverageBucketEntryCount;
 
     /** The limit on the number of concurrent read tasks in {@code endWriting()} */
     private static final int MAX_IN_FLIGHT = 1024;
 
     /** Platform configuration */
     @NonNull
-    private final MerkleDbConfig merkleDbConfig;
+    private final Configuration config;
 
     /**
      * Long list used for mapping bucketIndex(index into list) to disk location for latest copy of
@@ -96,7 +96,9 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      * This is the next power of 2 bigger than minimumBuckets. It needs to be a power of two, so
      * that we can optimize and avoid the cost of doing a % to find the bucket index from hash code.
      */
-    private final int numOfBuckets;
+    private final AtomicInteger numOfBuckets = new AtomicInteger();
+
+    private final AtomicInteger bucketMaskBits = new AtomicInteger(0);
 
     /** The name to use for the files prefix on disk */
     private final String storeName;
@@ -117,7 +119,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
     private final AtomicReference<SubmitTask> currentSubmitTask = new AtomicReference<>();
 
     /** Number of buckets updated during flush */
-    private final AtomicInteger numBuckets = new AtomicInteger();
+    private final AtomicInteger updatedBucketsCount = new AtomicInteger();
 
     /**
      * Number of bucket tasks that can be scheduled at the moment, i.e. MAX_IN_FLIGHT minus
@@ -134,7 +136,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
 
     /**
      * Number of "store bucket" tasks created so far in the current flush. This counter is
-     * compared against {@link #numBuckets} to manage the first and the last "store bucket"
+     * compared against {@link #updatedBucketsCount} to manage the first and the last "store bucket"
      * task dependencies
      */
     private final AtomicInteger storeBucketTasksCreated = new AtomicInteger();
@@ -159,14 +161,14 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      * </br>
      * FUTURE WORK: it can be moved to MerkleDb.
      */
-    private static ForkJoinPool getFlushingPool(final @NonNull MerkleDbConfig merkleDbConfig) {
-        requireNonNull(merkleDbConfig);
-
+    private static ForkJoinPool getFlushingPool(final @NonNull Configuration config) {
+        requireNonNull(config);
         ForkJoinPool pool = flushingPool;
         if (pool == null) {
             synchronized (HalfDiskHashMap.class) {
                 pool = flushingPool;
                 if (pool == null) {
+                    final MerkleDbConfig merkleDbConfig = config.getConfigData(MerkleDbConfig.class);
                     final int hashingThreadCount = merkleDbConfig.getNumHalfDiskHashMapFlushThreads();
                     pool = new ForkJoinPool(hashingThreadCount);
                     flushingPool = pool;
@@ -180,8 +182,10 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      * Construct a new HalfDiskHashMap
      *
      * @param configuration                  Platform configuration.
-     * @param mapSize                        The maximum map number of entries. This should be more than big enough to
-     *                                       avoid too many key collisions.
+     * @param initialCapacity                Initial map capacity. This should be more than big enough to avoid too
+     *                                       many key collisions. This capacity is used to calculate the initial number
+     *                                       of key buckets to store key to path entries. This number of buckets will
+     *                                       then grow over time as needed
      * @param storeDir                       The directory to use for storing data files.
      * @param storeName                      The name for the data store, this allows more than one data store in a
      *                                       single directory.
@@ -196,14 +200,19 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      */
     public HalfDiskHashMap(
             final @NonNull Configuration configuration,
-            final long mapSize,
+            final long initialCapacity,
             final Path storeDir,
             final String storeName,
             final String legacyStoreName,
             final boolean preferDiskBasedIndex)
             throws IOException {
-        requireNonNull(configuration);
-        this.merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
+        this.config = requireNonNull(configuration);
+        final MerkleDbConfig merkleDbConfig = this.config.getConfigData(MerkleDbConfig.class);
+        this.goodAverageBucketEntryCount = merkleDbConfig.goodAverageBucketEntryCount();
+        // Max number of keys is limited by merkleDbConfig.maxNumberOfKeys. Number of buckets is,
+        // on average, GOOD_AVERAGE_BUCKET_ENTRY_COUNT times smaller than the number of keys. To
+        // be on the safe side, double that amount and use as a hard limit for bucket index size
+        final long bucketIndexCapacity = merkleDbConfig.maxNumOfKeys() * 2 / goodAverageBucketEntryCount;
         this.storeName = storeName;
         Path indexFile = storeDir.resolve(storeName + BUCKET_INDEX_FILENAME_SUFFIX);
         // create bucket pool
@@ -230,7 +239,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                                 + "].");
                     }
                     metaIn.readInt(); // backwards compatibility, was: minimumBuckets
-                    numOfBuckets = metaIn.readInt();
+                    setNumberOfBuckets(metaIn.readInt());
                 }
                 if (loadedLegacyMetadata) {
                     Files.delete(metaDataFile);
@@ -248,14 +257,14 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             final boolean forceIndexRebuilding = merkleDbConfig.indexRebuildingEnforced();
             if (Files.exists(indexFile) && !forceIndexRebuilding) {
                 bucketIndexToBucketLocation = preferDiskBasedIndex
-                        ? new LongListDisk(indexFile, numOfBuckets, configuration)
-                        : new LongListOffHeap(indexFile, numOfBuckets, configuration);
+                        ? new LongListDisk(indexFile, bucketIndexCapacity, configuration)
+                        : new LongListOffHeap(indexFile, bucketIndexCapacity, configuration);
                 loadedDataCallback = null;
             } else {
                 // create new index and setup call back to rebuild
                 bucketIndexToBucketLocation = preferDiskBasedIndex
-                        ? new LongListDisk(numOfBuckets, configuration)
-                        : new LongListOffHeap(numOfBuckets, configuration);
+                        ? new LongListDisk(bucketIndexCapacity, configuration)
+                        : new LongListOffHeap(bucketIndexCapacity, configuration);
                 loadedDataCallback = (dataLocation, bucketData) -> {
                     final Bucket bucket = bucketPool.getBucket();
                     bucket.readFrom(bucketData);
@@ -266,14 +275,14 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             // create store dir
             Files.createDirectories(storeDir);
             // calculate number of entries we can store in a disk page
-            final int minimumBuckets = (int) (mapSize / GOOD_AVERAGE_BUCKET_ENTRY_COUNT);
+            final int minimumBuckets = (int) (initialCapacity / goodAverageBucketEntryCount);
             // numOfBuckets is the nearest power of two greater than minimumBuckets with a min of 2
-            numOfBuckets = Math.max(Integer.highestOneBit(minimumBuckets) * 2, 2);
+            setNumberOfBuckets(Math.max(Integer.highestOneBit(minimumBuckets) * 2, 2));
             // create new index
             bucketIndexToBucketLocation = preferDiskBasedIndex
-                    ? new LongListDisk(numOfBuckets, configuration)
-                    : new LongListOffHeap(numOfBuckets, configuration);
-            // we are new so no need for a loadedDataCallback
+                    ? new LongListDisk(bucketIndexCapacity, configuration)
+                    : new LongListOffHeap(bucketIndexCapacity, configuration);
+            // we are new, so no need for a loadedDataCallback
             loadedDataCallback = null;
             // write metadata
             writeMetadata(storeDir);
@@ -284,11 +293,12 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                     minimumBuckets,
                     numOfBuckets);
         }
-        bucketIndexToBucketLocation.updateValidRange(0, numOfBuckets - 1);
+        bucketIndexToBucketLocation.updateValidRange(0, numOfBuckets.get() - 1);
         // create file collection
         fileCollection = new DataFileCollection(
                 // Need: propagate MerkleDb merkleDbConfig from the database
                 merkleDbConfig, storeDir, storeName, legacyStoreName, loadedDataCallback);
+        fileCollection.updateValidKeyRange(0, numOfBuckets.get() - 1);
     }
 
     private void writeMetadata(final Path dir) throws IOException {
@@ -296,7 +306,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                 new DataOutputStream(Files.newOutputStream(dir.resolve(storeName + METADATA_FILENAME_SUFFIX)))) {
             metaOut.writeInt(METADATA_FILE_FORMAT_VERSION);
             metaOut.writeInt(0); // backwards compatibility, was: minimumBuckets
-            metaOut.writeInt(numOfBuckets);
+            metaOut.writeInt(numOfBuckets.get());
             metaOut.flush();
         }
     }
@@ -324,34 +334,43 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         // If no stale bucket entries are found, no need to create a new bucket data file
         final AtomicBoolean newDataFile = new AtomicBoolean(false);
         final AtomicLong liveEntries = new AtomicLong(0);
-        for (int i = 0; i < numOfBuckets; i++) {
+        final int bucketCount = numOfBuckets.get();
+        final int bucketMask = (1 << bucketMaskBits.get()) - 1;
+        final LongList bucketIndex = bucketIndexToBucketLocation;
+        for (int i = 0; i < bucketCount; i++) {
             final long bucketId = i;
-            final long bucketDataLocation = bucketIndexToBucketLocation.get(bucketId);
+            final long bucketDataLocation = bucketIndex.get(bucketId);
             if (bucketDataLocation <= 0) {
                 continue;
             }
-            final BufferedData bucketData =
-                    fileCollection.readDataItemUsingIndex(bucketIndexToBucketLocation, bucketId);
+            final BufferedData bucketData = fileCollection.readDataItemUsingIndex(bucketIndex, bucketId);
             if (bucketData == null) {
                 logger.warn("Delete bucket (not found): {}, dataLocation={}", bucketId, bucketDataLocation);
-                bucketIndexToBucketLocation.remove(bucketId);
+                bucketIndex.remove(bucketId);
                 continue;
             }
-            try (final ParsedBucket bucket = new ParsedBucket()) {
+            try (ParsedBucket bucket = new ParsedBucket()) {
                 bucket.readFrom(bucketData);
-                if (bucket.getBucketIndex() != bucketId) {
+                final long loadedBucketId = bucket.getBucketIndex();
+                // Check bucket index. It should match bucketId, unless it's an old bucket created before
+                // HDHM was resized
+                if ((loadedBucketId & bucketId) != loadedBucketId) {
                     logger.warn(MERKLE_DB.getMarker(), "Delete bucket (stale): {}", bucketId);
-                    bucketIndexToBucketLocation.remove(bucketId);
+                    bucketIndex.remove(bucketId);
                     continue;
                 }
                 bucket.forEachEntry(entry -> {
                     final Bytes keyBytes = entry.getKeyBytes();
                     final long path = entry.getValue();
+                    final int hashCode = entry.getHashCode();
                     try {
                         boolean removeKey = true;
                         if ((path < firstLeafPath) || (path > lastLeafPath)) {
                             logger.warn(
                                     MERKLE_DB.getMarker(), "Delete key (path range): key={}, path={}", keyBytes, path);
+                        } else if ((hashCode & loadedBucketId) != loadedBucketId) {
+                            logger.warn(
+                                    MERKLE_DB.getMarker(), "Delete key (hash code): key={}, path={}", keyBytes, path);
                         } else {
                             final BufferedData recordBytes = store.get(path);
                             if (recordBytes == null) {
@@ -373,8 +392,8 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                             if (newDataFile.compareAndSet(false, true)) {
                                 startWriting();
                             }
-                            delete(keyBytes, entry.getHashCode());
-                        } else {
+                            delete(keyBytes);
+                        } else if ((hashCode & bucketMask) == bucketId) {
                             liveEntries.incrementAndGet();
                         }
                     } catch (final Exception e) {
@@ -485,17 +504,20 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      * ended.
      *
      * @param keyBytes the key to store the value for
-     * @param keyHashCode the key hash code
      * @param value the value to store for given key
      */
-    public void put(final Bytes keyBytes, final int keyHashCode, final long value) {
+    public void put(final Bytes keyBytes, final long value) {
+        put(keyBytes, keyBytes.hashCode(), value);
+    }
+
+    void put(final Bytes keyBytes, final int keyHashCode, final long value) {
         final BucketMutation bucketMap = findBucketForUpdate(keyBytes, keyHashCode, INVALID_VALUE, value);
         bucketMap.put(keyBytes, keyHashCode, value);
     }
 
     /**
      * Put a key/value during the current writing session. This method is similar to {@link
-     * #put(Bytes, int, long)}, but the new value is set only if the current value is equal to
+     * #put(Bytes, long)}, but the new value is set only if the current value is equal to
      * the given {@code oldValue}.
      *
      * <p>This method may be called multiple times for the same key in a single writing
@@ -504,15 +526,18 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      * is ended, otherwise the value from the second call will be ignored.
      *
      * <p>If the value for {@code oldValue} is {@link #INVALID_VALUE}, it's ignored, and this
-     * method is identical to {@link #put(Bytes, int, long)}.
+     * method is identical to {@link #put(Bytes, long)}.
      *
      * @param keyBytes the key to store the value for
-     * @param keyHashCode the key hash code
      * @param oldValue the value to check the current value against, or {@link #INVALID_VALUE}
      *                 if no current value check is needed
      * @param value the value to store for the given key
      */
-    public void putIfEqual(final Bytes keyBytes, final int keyHashCode, final long oldValue, final long value) {
+    public void putIfEqual(final Bytes keyBytes, final long oldValue, final long value) {
+        putIfEqual(keyBytes, keyBytes.hashCode(), oldValue, value);
+    }
+
+    void putIfEqual(final Bytes keyBytes, final int keyHashCode, final long oldValue, final long value) {
         final BucketMutation bucketMap = findBucketForUpdate(keyBytes, keyHashCode, oldValue, value);
         bucketMap.putIfEqual(keyBytes, keyHashCode, oldValue, value);
     }
@@ -522,21 +547,21 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      *
      * @param keyBytes The key to delete entry for
      */
-    public void delete(final Bytes keyBytes, final int keyHashCode) {
-        put(keyBytes, keyHashCode, INVALID_VALUE);
+    public void delete(final Bytes keyBytes) {
+        put(keyBytes, INVALID_VALUE);
     }
 
     /**
      * Delete a key entry from the map, if the current value is equal to the given {@code oldValue}.
      * If {@code oldValue} is {@link #INVALID_VALUE}, no current value check is performed, and this
-     * method is identical to {@link #delete(Bytes, int)}.
+     * method is identical to {@link #delete(Bytes)}.
      *
      * @param keyBytes the key to delete the entry for
      * @param oldValue the value to check the current value against, or {@link #INVALID_VALUE}
      *                 if no current value check is needed
      */
-    public void deleteIfEqual(final Bytes keyBytes, final int keyHashCode, final long oldValue) {
-        putIfEqual(keyBytes, keyHashCode, oldValue, INVALID_VALUE);
+    public void deleteIfEqual(final Bytes keyBytes, final long oldValue) {
+        putIfEqual(keyBytes, oldValue, INVALID_VALUE);
     }
 
     /**
@@ -544,7 +569,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      */
     private void resetEndWriting(final ForkJoinPool pool, final int size) {
         exceptionOccurred.set(null);
-        numBuckets.set(size);
+        updatedBucketsCount.set(size);
         bucketPermits.set(MAX_IN_FLIGHT);
         lastStoreTask.set(null);
         storeBucketTasksCreated.set(0);
@@ -563,19 +588,21 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             throw new IllegalStateException("Tried calling endWriting with different thread to startWriting()");
         }
         final int size = oneTransactionsData.size();
-        logger.info(
-                MERKLE_DB.getMarker(),
-                "Finishing writing to {}, num of changed bins = {}, num of changed keys = {}",
-                storeName,
-                size,
-                oneTransactionsData.stream().mapToLong(BucketMutation::size).sum());
+        if (logger.isDebugEnabled(MERKLE_DB.getMarker())) {
+            logger.debug(
+                    MERKLE_DB.getMarker(),
+                    "Finishing writing to {}, num of changed bins = {}, num of changed keys = {}",
+                    storeName,
+                    size,
+                    oneTransactionsData.stream().mapToLong(BucketMutation::size).sum());
+        }
         final DataFileReader dataFileReader;
         try {
             if (size > 0) {
                 final Iterator<IntObjectPair<BucketMutation>> it =
                         oneTransactionsData.keyValuesView().iterator();
                 fileCollection.startWriting();
-                final ForkJoinPool pool = getFlushingPool(merkleDbConfig);
+                final ForkJoinPool pool = getFlushingPool(config);
                 resetEndWriting(pool, size);
                 // Create a task to submit bucket processing tasks. This initial submit task
                 // is scheduled to run right away. Subsequent submit tasks will be run only
@@ -591,7 +618,15 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                     throw new IOException(exceptionOccurred.get());
                 }
                 // close files session
-                dataFileReader = fileCollection.endWriting(0, numOfBuckets);
+                dataFileReader = fileCollection.endWriting();
+                logger.info(
+                        MERKLE_DB.getMarker(),
+                        "Finished writing to {}, newFile={}, numOfFiles={}, minimumValidKey={}, maximumValidKey={}",
+                        storeName,
+                        dataFileReader.getIndex(),
+                        fileCollection.getNumOfFiles(),
+                        0,
+                        numOfBuckets.get() - 1);
             } else {
                 dataFileReader = null;
             }
@@ -654,6 +689,20 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         }
     }
 
+    // This is a helper method used in ReadUpdateBucketTask and StoreBucketTask, when a bucket
+    // is processed (either no updates to the bucket, or it has been written to disk).
+    private void bucketProcessed() {
+        // Let the current submit task know that a bucket is fully processed, and
+        // the task can be run
+        if (bucketPermits.getAndIncrement() == 0) {
+            // If a submit task is currently running in parallel, it must have already created
+            // a new "current" submit task and permits have been set to 0, otherwise the
+            // getAndIncrement() above couldn't return 0. It means, notifyBucketProcessed()
+            // will be called on a different submit task than the one currently running
+            currentSubmitTask.get().notifyBucketProcessed();
+        }
+    }
+
     /**
      * A task to read a bucket identified by the given idex from disk and apply a list of
      * updates to the keys to it. The task has no dependencies, it's executed right after
@@ -673,25 +722,36 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             this.keyUpdates = keyUpdates;
         }
 
-        private void createAndScheduleStoreTask(final Bucket bucket) {
-            // Create a subsequent "store bucket" task for the bucket
-            final StoreBucketTask storeTask = new StoreBucketTask(getPool(), bucket);
-            // The last created "store bucket" task. storeTask above will be set as an
-            // output dependency for that task to make sure tasks are running only one at
-            // a time. See StoreBucketTask for details
-            final StoreBucketTask prevTask = lastStoreTask.getAndSet(storeTask);
-            if (prevTask != null) {
-                // This will trigger prevTask execution as soon as its prev task is complete
-                prevTask.setNext(storeTask);
+        private void createAndScheduleStoreTask(final Bucket bucket, final boolean bucketChanged) throws IOException {
+            if (bucketChanged) {
+                // Create a subsequent "store bucket" task for the bucket
+                final StoreBucketTask storeTask = new StoreBucketTask(getPool(), bucket);
+                // The last created "store bucket" task. storeTask above will be set as an
+                // output dependency for that task to make sure tasks are running only one at
+                // a time. See StoreBucketTask for details
+                final StoreBucketTask prevTask = lastStoreTask.getAndSet(storeTask);
+                if (prevTask != null) {
+                    // This will trigger prevTask execution as soon as its prev task is complete
+                    prevTask.setNext(storeTask);
+                } else {
+                    // The first task: no dependency on the prev task, can be executed rightaway
+                    storeTask.send();
+                }
             } else {
-                // The first task: no dependency on the prev task, can be executed rightaway
-                storeTask.send();
+                // Just close the bucket and mark it as processed
+                bucket.close();
+                bucketProcessed();
             }
-            if (storeBucketTasksCreated.incrementAndGet() == numBuckets.get()) {
+            if (storeBucketTasksCreated.incrementAndGet() == updatedBucketsCount.get()) {
                 // The last task: no dependency on the next task, can be executed as soon as
                 // its prev task is complete, no need to wait until the next task dependency
                 // is set
-                lastStoreTask.get().setNext(notifyTaskRef.get());
+                final StoreBucketTask lastTask = lastStoreTask.get();
+                if (lastTask != null) {
+                    lastTask.setNext(notifyTaskRef.get());
+                } else {
+                    notifyTaskRef.get().send();
+                }
             }
         }
 
@@ -700,13 +760,14 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             BufferedData bucketData = fileCollection.readDataItemUsingIndex(bucketIndexToBucketLocation, bucketIndex);
             // The bucket will be closed by StoreBucketTask
             final Bucket bucket = bucketPool.getBucket();
+            boolean bucketChanged = false;
             if (bucketData == null) {
                 // An empty bucket
                 bucket.setBucketIndex(bucketIndex);
             } else {
                 // Read from bytes
                 bucket.readFrom(bucketData);
-                if (bucketIndex != bucket.getBucketIndex()) {
+                if ((bucket.getBucketIndex() & bucketIndex) != bucket.getBucketIndex()) {
                     logger.error(
                             MERKLE_DB.getMarker(),
                             "Bucket index integrity check " + bucketIndex + " != " + bucket.getBucketIndex());
@@ -718,19 +779,31 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                        anyway) and set the correct index.
                     */
                     bucket.clear();
-                    bucket.setBucketIndex(bucketIndex);
+                }
+                // Clear old bucket entries with wrong hash codes
+                if (bucket.sanitize(bucketIndex, bucketMaskBits.get())) {
+                    bucketChanged = true;
                 }
             }
             // Apply all updates
-            keyUpdates.forEachKeyValue(bucket::putValue);
+            for (BucketMutation m = keyUpdates; m != null; m = m.getNext()) {
+                if (bucket.putValue(m.getKeyBytes(), m.getKeyHashCode(), m.getOldValue(), m.getValue())) {
+                    bucketChanged = true;
+                }
+            }
             // Schedule a "store bucket" task for this bucket
-            createAndScheduleStoreTask(bucket);
+            createAndScheduleStoreTask(bucket, bucketChanged);
             return true;
         }
 
         @Override
         protected void onException(final Throwable t) {
-            logger.error(MERKLE_DB.getMarker(), "Failed to read / update bucket " + bucketIndex, t);
+            logger.error(
+                    MERKLE_DB.getMarker(),
+                    "Failed to read / update bucket {}, location {}",
+                    bucketIndex,
+                    DataFileCommon.dataLocationToString(bucketIndexToBucketLocation.get(bucketIndex)),
+                    t);
             exceptionOccurred.set(t);
             // Make sure the writing thread is resumed
             notifyTaskRef.get().completeExceptionally(t);
@@ -778,15 +851,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                 }
                 return true;
             } finally {
-                // Let the current submit task know that a bucket is fully processed, and
-                // the task can be run
-                if (bucketPermits.getAndIncrement() == 0) {
-                    // If a submit task is currently running in parallel, it must have already created
-                    // a new "current" submit task and permits have been set to 0, otherwise the
-                    // getAndIncrement() above couldn't return 0. It means, notifyBucketProcessed()
-                    // will be called on a different submit task than the one currently running
-                    currentSubmitTask.get().notifyBucketProcessed();
-                }
+                bucketProcessed();
                 next.send();
             }
         }
@@ -826,18 +891,21 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      * Get a value from this map
      *
      * @param keyBytes the key to get value for
-     * @param keyHashCode the key hash code
      * @param notFoundValue the value to return if the key was not found
      * @return the value retrieved from the map or {notFoundValue} if no value was stored for the
      *     given key
      * @throws IOException If there was a problem reading from the map
      */
+    public long get(final Bytes keyBytes, final long notFoundValue) throws IOException {
+        return get(keyBytes, keyBytes.hashCode(), notFoundValue);
+    }
+
     public long get(final Bytes keyBytes, final int keyHashCode, final long notFoundValue) throws IOException {
         if (keyBytes == null) {
             throw new IllegalArgumentException("Can not get a null key");
         }
         final int bucketIndex = computeBucketIndex(keyHashCode);
-        try (final Bucket bucket = readBucket(bucketIndex)) {
+        try (Bucket bucket = readBucket(bucketIndex)) {
             if (bucket != null) {
                 return bucket.findValue(keyHashCode, keyBytes, notFoundValue);
             }
@@ -855,6 +923,42 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         return bucket;
     }
 
+    // -- Resize --
+
+    /**
+     * Check if this map should be resized, given the new virtual map size. If the new map size
+     * exceeds 80% of the current number of buckets times {@link #goodAverageBucketEntryCount},
+     * the map is resized by doubling the number of buckets.
+     *
+     * @param firstLeafPath The first leaf virtual path
+     * @param lastLeafPath The last leaf virtual path
+     */
+    public void resizeIfNeeded(final long firstLeafPath, final long lastLeafPath) {
+        final long currentSize = lastLeafPath - firstLeafPath + 1;
+        if (currentSize / numOfBuckets.get() * 100 <= goodAverageBucketEntryCount * 70L) {
+            // No need to resize yet
+            return;
+        }
+
+        final int oldSize = numOfBuckets.get();
+        final int newSize = oldSize * 2;
+        logger.info(MERKLE_DB.getMarker(), "Resize HDHM {} to {} buckets", storeName, newSize);
+
+        bucketIndexToBucketLocation.updateValidRange(0, newSize - 1);
+        // This straightforward loop works fast enough for now. If in the future it needs to be
+        // even faster, let's consider copying index batches and/or parallel index updates
+        for (int i = 0; i < oldSize; i++) {
+            final long value = bucketIndexToBucketLocation.get(i);
+            if (value != DataFileCommon.NON_EXISTENT_DATA_LOCATION) {
+                bucketIndexToBucketLocation.put(i + oldSize, value);
+            }
+        }
+        fileCollection.updateValidKeyRange(0, newSize - 1);
+
+        setNumberOfBuckets(newSize);
+        logger.info(MERKLE_DB.getMarker(), "Resize HDHM {} to {} buckets done", storeName, newSize);
+    }
+
     // =================================================================================================================
     // Debugging Print API
 
@@ -865,10 +969,10 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                 """
                         HalfDiskHashMap Stats {
                         	numOfBuckets = {}
-                        	GOOD_AVERAGE_BUCKET_ENTRY_COUNT = {}
+                        	goodAverageBucketEntryCount = {}
                         }""",
                 numOfBuckets,
-                GOOD_AVERAGE_BUCKET_ENTRY_COUNT);
+                goodAverageBucketEntryCount);
     }
 
     public DataFileCollection getFileCollection() {
@@ -883,6 +987,20 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
     // Private API
 
     /**
+     * Updates the number of buckets and bucket mask bits. The new value must be a power of 2.
+     */
+    private void setNumberOfBuckets(final int newValue) {
+        numOfBuckets.set(newValue);
+        final int trailingZeroes = Integer.numberOfTrailingZeros(newValue);
+        bucketMaskBits.set(trailingZeroes);
+    }
+
+    // For testing purposes
+    int getNumOfBuckets() {
+        return numOfBuckets.get();
+    }
+
+    /**
      * Computes which bucket a key with the given hash falls. Depends on the fact the numOfBuckets
      * is a power of two. Based on same calculation that is used in java HashMap.
      *
@@ -890,6 +1008,6 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      * @return the index of the bucket that key falls in
      */
     private int computeBucketIndex(final int keyHash) {
-        return (numOfBuckets - 1) & keyHash;
+        return (numOfBuckets.get() - 1) & keyHash;
     }
 }

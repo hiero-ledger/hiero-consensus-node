@@ -5,17 +5,17 @@ import static com.hedera.hapi.node.base.AccountID.AccountOneOfType.ACCOUNT_NUM;
 import static com.hedera.node.app.service.token.AliasUtils.asKeyFromAliasOrElse;
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static com.hedera.node.app.service.token.AliasUtils.extractIdFromAddressAlias;
-import static com.hedera.node.app.service.token.AliasUtils.extractRealmFromAddressAlias;
-import static com.hedera.node.app.service.token.AliasUtils.extractShardFromAddressAlias;
 import static com.hedera.node.app.service.token.AliasUtils.isEntityNumAlias;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.service.entityid.ReadableEntityCounters;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
@@ -28,6 +28,7 @@ import java.util.Optional;
  * Default implementation of {@link ReadableAccountStore}.
  */
 public class ReadableAccountStoreImpl implements ReadableAccountStore {
+
     /** The underlying data storage class that holds the account data. */
     private final ReadableKVState<AccountID, Account> accountState;
     /**
@@ -70,8 +71,8 @@ public class ReadableAccountStoreImpl implements ReadableAccountStore {
      * @param states The state to use.
      */
     public ReadableAccountStoreImpl(@NonNull final ReadableStates states, ReadableEntityCounters entityCounters) {
-        this.accountState = states.get("ACCOUNTS");
-        this.aliases = states.get("ALIASES");
+        this.accountState = states.get(ACCOUNTS_STATE_ID);
+        this.aliases = states.get(ALIASES_STATE_ID);
         this.entityCounters = requireNonNull(entityCounters);
     }
 
@@ -203,10 +204,10 @@ public class ReadableAccountStoreImpl implements ReadableAccountStore {
         // An alias may either be long-zero (in which case it isn't in our alias map), or it may be
         // any other form of valid alias (in which case it will be in the map). So we do a quick check
         // first to see if it is a valid long zero, and if not, then we look it up in the map.
-        if (isEntityNumAlias(alias, shardNum, realmNum)) {
+        if (isEntityNumAlias(alias)) {
             return AccountID.newBuilder()
-                    .shardNum(extractShardFromAddressAlias(alias))
-                    .realmNum(extractRealmFromAddressAlias(alias))
+                    .shardNum(shardNum)
+                    .realmNum(realmNum)
                     .accountNum(extractIdFromAddressAlias(alias))
                     .build();
         }

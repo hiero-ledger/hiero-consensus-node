@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.handle;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_DELETE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.AUTHORIZATION_FAILED;
@@ -12,10 +13,12 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.fees.ExchangeRateManager;
@@ -23,6 +26,7 @@ import com.hedera.node.app.service.contract.impl.handlers.EthereumTransactionHan
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
@@ -36,9 +40,10 @@ import com.hedera.node.app.workflows.handle.throttle.DispatchUsageManager;
 import com.hedera.node.app.workflows.handle.throttle.ThrottleException;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.EnumSet;
+import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -53,6 +58,9 @@ import org.apache.logging.log4j.Logger;
 @Singleton
 public class DispatchProcessor {
     private static final Logger logger = LogManager.getLogger(DispatchProcessor.class);
+
+    // Functions that are only usable as child dispatches from handlers
+    private static final Set<HederaFunctionality> HANDLER_STEP_FUNCTIONS = EnumSet.of(HOOK_DISPATCH);
 
     private final Authorizer authorizer;
     private final DispatchValidator validator;
@@ -148,15 +156,9 @@ public class DispatchProcessor {
             }
             handleSystemUpdates(dispatch);
         } catch (HandleException e) {
-            logger.debug("Transaction failed handle", e);
-            // In case of a ContractCall when it reverts, the gas charged should not be rolled back
-            rollback(e.shouldRollbackStack(), e.getStatus(), dispatch.stack(), dispatch.streamBuilder());
-            if (e.shouldRollbackStack()) {
-                chargePayer(dispatch, validation, false);
-                e.maybeReplayFees(dispatch);
-            }
-            // Since there is no easy way to say how much work was done in the failed dispatch,
-            // and current throttling is very rough-grained, we just return USER_TRANSACTION here
+            rollback(e.getStatus(), dispatch.stack(), dispatch.streamBuilder());
+            chargePayer(dispatch, validation, false);
+            e.maybeReplayFees(dispatch);
         } catch (final ThrottleException e) {
             workflowMetrics.incrementThrottled(functionality);
             rollbackAndRechargeFee(dispatch, validation, e.getStatus());
@@ -206,7 +208,7 @@ public class DispatchProcessor {
             @NonNull final Dispatch dispatch,
             @NonNull final FeeCharging.Validation validation,
             @NonNull final ResponseCodeEnum status) {
-        rollback(true, status, dispatch.stack(), dispatch.streamBuilder());
+        rollback(status, dispatch.stack(), dispatch.streamBuilder());
         chargePayer(dispatch, validation, true);
         dispatchUsageManager.trackFeePayments(dispatch);
     }
@@ -257,21 +259,15 @@ public class DispatchProcessor {
 
     /**
      * Rolls back the stack and sets the status of the transaction in case of a failure.
-     *
-     * @param rollbackStack whether to rollback the stack. Will be false when the failure is due to a
-     *                      {@link HandleException} that is due to a contract call revert.
      * @param status        the status to set
      * @param stack         the save point stack to rollback
      */
     private void rollback(
-            final boolean rollbackStack,
             @NonNull final ResponseCodeEnum status,
             @NonNull final SavepointStackImpl stack,
             @NonNull final StreamBuilder builder) {
         builder.status(status);
-        if (rollbackStack) {
-            stack.rollbackFullStack();
-        }
+        stack.rollbackFullStack();
     }
 
     /**
@@ -307,6 +303,10 @@ public class DispatchProcessor {
      */
     private @Nullable ResponseCodeEnum maybeAuthorizationFailure(@NonNull final Dispatch dispatch) {
         final var function = dispatch.txnInfo().functionality();
+        // Handlers are always allowed to dispatch their child step functions
+        if (dispatch.txnCategory() == CHILD && HANDLER_STEP_FUNCTIONS.contains(function)) {
+            return null;
+        }
         if (!authorizer.isAuthorized(dispatch.payerId(), function)) {
             // Node transactions are judged by a different set of rules; any node account can submit
             // any node transaction as long as it is in the allow list

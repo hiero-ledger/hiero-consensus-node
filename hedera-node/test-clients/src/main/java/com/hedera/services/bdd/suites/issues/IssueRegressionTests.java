@@ -2,9 +2,9 @@
 package com.hedera.services.bdd.suites.issues;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.NO_CONCURRENT_CREATIONS;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.approxChangeFromSnapshot;
@@ -76,6 +76,7 @@ public class IssueRegressionTests {
     private static final String RECEIVER = "receiver";
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> allowsCryptoCreatePayerToHaveLessThanTwiceFee() {
         return hapiTest(
                 cryptoCreate(CIVILIAN_PAYER).balance(ONE_HUNDRED_HBARS),
@@ -96,6 +97,7 @@ public class IssueRegressionTests {
     }
 
     @LeakyHapiTest(requirement = NO_CONCURRENT_CREATIONS)
+    @Tag(MATS)
     final Stream<DynamicTest> createDeleteInSameRoundWorks() {
         final var key = "tbdKey";
         AtomicReference<String> nextFileId = new AtomicReference<>();
@@ -118,6 +120,7 @@ public class IssueRegressionTests {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> recordStorageFeeIncreasesWithNumTransfers() {
         return hapiTest(
                 cryptoCreate("civilian").balance(10 * ONE_HUNDRED_HBARS),
@@ -167,6 +170,7 @@ public class IssueRegressionTests {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> duplicatedTxnsSameTypeDetected() {
         long initialBalance = 10_000L;
 
@@ -182,6 +186,7 @@ public class IssueRegressionTests {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> duplicatedTxnsDifferentTypesDetected() {
         return hapiTest(
                 cryptoCreate("acct2").via("txnId2"),
@@ -197,19 +202,20 @@ public class IssueRegressionTests {
 
     @HapiTest
     @Tag(ONLY_SUBPROCESS)
+    @Tag(MATS)
     final Stream<DynamicTest> duplicatedTxnsSameTypeDifferentNodesDetected() {
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
-                cryptoCreate("acct3").setNode(asEntityString(3)).via("txnId1"),
+                cryptoCreate("acct3").setNode(3).via("txnId1"),
                 sleepFor(2000),
                 cryptoCreate("acctWithDuplicateTxnId")
-                        .setNode(asEntityString(5))
+                        .setNode(5)
                         .txnId("txnId1")
                         .hasPrecheck(DUPLICATE_TRANSACTION),
                 uncheckedSubmit(cryptoCreate("acctWithDuplicateTxnId")
-                                .setNode(asEntityString(5))
+                                .setNode(5)
                                 .txnId("txnId1"))
-                        .setNode(asEntityString(5)),
+                        .setNode(5),
                 sleepFor(2000),
                 getTxnRecord("txnId1")
                         .andAnyDuplicates()
@@ -219,6 +225,7 @@ public class IssueRegressionTests {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> duplicatedTxnsDifferentTypesDifferentNodesDetected() {
         return hapiTest(
                 cryptoCreate("acct4").via("txnId4").setNode("3"),
@@ -233,6 +240,7 @@ public class IssueRegressionTests {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> keepsRecordOfPayerIBE() {
         final var payer = "payer";
         return hapiTest(
@@ -265,6 +273,7 @@ public class IssueRegressionTests {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> tbdCanPayForItsOwnDeletion() {
         return hapiTest(
                 cryptoCreate("tbd"),
@@ -274,6 +283,7 @@ public class IssueRegressionTests {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> transferAccountCannotBeDeleted() {
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
@@ -288,10 +298,12 @@ public class IssueRegressionTests {
                         .transfer(TRANSFER)
                         .hasKnownStatus(ACCOUNT_DELETED),
                 getTxnRecord(DELETE_TXN).logged(),
-                getAccountBalance(PAYER).hasTinyBars(approxChangeFromSnapshot(SNAPSHOT, -9384399, 10000)));
+                // since the account is already deleted, we have less signatures to verify
+                getAccountBalance(PAYER).hasTinyBars(approxChangeFromSnapshot(SNAPSHOT, -6872159, 10000)));
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> transferAccountCannotBeDeletedForContractTarget() {
         return hapiTest(
                 uploadInitCode("CreateTrivial"),

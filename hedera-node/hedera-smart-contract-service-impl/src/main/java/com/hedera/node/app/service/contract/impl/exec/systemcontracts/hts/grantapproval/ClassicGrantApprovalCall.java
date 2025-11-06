@@ -5,7 +5,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -15,12 +14,11 @@ import com.hedera.hapi.node.base.TokenType;
 import com.hedera.node.app.service.contract.impl.exec.gas.DispatchType;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AbiConstants;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.LogBuilder;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhancement;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.log.Log;
@@ -29,6 +27,12 @@ import org.hyperledger.besu.evm.log.Log;
  * Implements the token redirect {@code approve()} call of the HTS system contract
  */
 public class ClassicGrantApprovalCall extends AbstractGrantApprovalCall {
+
+    // Keccak-256 hash of the event signature "Approval(address,address,uint256)".
+    // Used as the topic0 identifier in Ethereum logs to detect Approval events.
+    protected static final Bytes APPROVAL_EVENT =
+            Bytes.fromHexString("8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925");
+
     /**
      * @param gasCalculator the gas calculator for the system contract
      * @param enhancement the enhancement to be used
@@ -67,11 +71,11 @@ public class ClassicGrantApprovalCall extends AbstractGrantApprovalCall {
         if (status != SUCCESS) {
             return reversionWith(gasRequirement, recordBuilder);
         } else {
-            final var tokenAddress = asLongZeroAddress(entityIdFactory(frame), tokenId.tokenNum());
+            final var tokenAddress = asLongZeroAddress(tokenId.tokenNum());
             if (tokenType.equals(TokenType.FUNGIBLE_COMMON)) {
-                frame.addLog(getLogForFungibleAdjustAllowance(entityIdFactory(frame), tokenAddress));
+                frame.addLog(getLogForFungibleAdjustAllowance(tokenAddress));
             } else {
-                frame.addLog(getLogForNftAdjustAllowance(entityIdFactory(frame), tokenAddress));
+                frame.addLog(getLogForNftAdjustAllowance(tokenAddress));
             }
             final var encodedOutput = tokenType.equals(TokenType.FUNGIBLE_COMMON)
                     ? GrantApprovalTranslator.GRANT_APPROVAL.getOutputs().encode(Tuple.of(status.protoOrdinal(), true))
@@ -82,22 +86,22 @@ public class ClassicGrantApprovalCall extends AbstractGrantApprovalCall {
         }
     }
 
-    private Log getLogForFungibleAdjustAllowance(@NonNull final EntityIdFactory entityIdFactory, final Address logger) {
+    private Log getLogForFungibleAdjustAllowance(@NonNull final Address logger) {
         return LogBuilder.logBuilder()
                 .forLogger(logger)
-                .forEventSignature(AbiConstants.APPROVAL_EVENT)
-                .forIndexedArgument(asLongZeroAddress(entityIdFactory, senderId.accountNumOrThrow()))
-                .forIndexedArgument(asLongZeroAddress(entityIdFactory, spenderId.accountNumOrThrow()))
+                .forEventSignature(APPROVAL_EVENT)
+                .forIndexedArgument(asLongZeroAddress(senderId.accountNumOrThrow()))
+                .forIndexedArgument(asLongZeroAddress(spenderId.accountNumOrThrow()))
                 .forDataItem(amount)
                 .build();
     }
 
-    private Log getLogForNftAdjustAllowance(@NonNull final EntityIdFactory entityIdFactory, final Address logger) {
+    private Log getLogForNftAdjustAllowance(@NonNull final Address logger) {
         return LogBuilder.logBuilder()
                 .forLogger(logger)
-                .forEventSignature(AbiConstants.APPROVAL_EVENT)
-                .forIndexedArgument(asLongZeroAddress(entityIdFactory, senderId.accountNumOrThrow()))
-                .forIndexedArgument(asLongZeroAddress(entityIdFactory, spenderId.accountNumOrThrow()))
+                .forEventSignature(APPROVAL_EVENT)
+                .forIndexedArgument(asLongZeroAddress(senderId.accountNumOrThrow()))
+                .forIndexedArgument(asLongZeroAddress(spenderId.accountNumOrThrow()))
                 .forIndexedArgument(amount)
                 .build();
     }

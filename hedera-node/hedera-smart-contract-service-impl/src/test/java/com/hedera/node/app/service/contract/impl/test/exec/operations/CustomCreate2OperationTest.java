@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.operations;
 
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CODE_FACTORY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertSameResult;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
@@ -9,12 +10,14 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomCreate2Operation;
+import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import java.lang.reflect.Field;
 import java.util.Deque;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.bytes.MutableBytes;
 import org.apache.tuweni.units.bigints.UInt256;
+import org.hyperledger.besu.collections.undo.UndoScalar;
 import org.hyperledger.besu.collections.undo.UndoSet;
 import org.hyperledger.besu.collections.undo.UndoTable;
 import org.hyperledger.besu.datatypes.Address;
@@ -28,6 +31,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 class CustomCreate2OperationTest extends CreateOperationTestBase {
     private static final MutableBytes MUTABLE_INITCODE = MutableBytes.wrap(new byte[] {0x01, 0x02, 0x03});
@@ -55,27 +60,32 @@ class CustomCreate2OperationTest extends CreateOperationTestBase {
 
     @BeforeEach
     void setUp() {
-        subject = new CustomCreate2Operation(gasCalculator, featureFlags);
+        subject = new CustomCreate2Operation(gasCalculator, featureFlags, CODE_FACTORY);
     }
 
     @Test
     void returnsInvalidWhenDisabled() {
-        final var expected = new Operation.OperationResult(0L, ExceptionalHaltReason.INVALID_OPERATION);
-        assertSameResult(expected, subject.execute(frame, evm));
+        try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
+            frameUtils.when(() -> FrameUtils.isHookExecution(frame)).thenReturn(false);
+            final var expected = new Operation.OperationResult(0L, ExceptionalHaltReason.INVALID_OPERATION);
+            assertSameResult(expected, subject.execute(frame, evm));
+        }
     }
 
     @Test
     void failsWhenPendingContractIsHollowAccountAndLazyCreationDisabled() {
         givenSpawnPrereqs(4);
-        given(gasCalculator.create2OperationGasCost(frame)).willReturn(GAS_COST);
+        givenGasCostPrereqs();
         given(frame.getStackItem(0)).willReturn(Bytes.ofUnsignedLong(VALUE));
         given(frame.readMemory(anyLong(), anyLong())).willReturn(INITCODE);
         given(frame.readMutableMemory(anyLong(), anyLong())).willReturn(MUTABLE_INITCODE);
         given(featureFlags.isCreate2Enabled(frame)).willReturn(true);
         given(worldUpdater.isHollowAccount(EIP_1014_ADDRESS)).willReturn(true);
-
-        final var expected = new Operation.OperationResult(GAS_COST, null);
-        assertSameResult(expected, subject.execute(frame, evm));
+        try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
+            frameUtils.when(() -> FrameUtils.isHookExecution(frame)).thenReturn(false);
+            final var expected = new Operation.OperationResult(GAS_COST, null);
+            assertSameResult(expected, subject.execute(frame, evm));
+        }
 
         verify(worldUpdater, never()).setupInternalAliasedCreate(RECIEVER_ADDRESS, EIP_1014_ADDRESS);
         verify(frame).popStackItems(4);
@@ -88,7 +98,7 @@ class CustomCreate2OperationTest extends CreateOperationTestBase {
             throws NoSuchFieldException, IllegalAccessException {
         final var frameCaptor = ArgumentCaptor.forClass(MessageFrame.class);
         givenSpawnPrereqs(4);
-        given(gasCalculator.create2OperationGasCost(frame)).willReturn(GAS_COST);
+        givenGasCostPrereqs();
         given(frame.getStackItem(0)).willReturn(Bytes.ofUnsignedLong(VALUE));
         given(frame.readMemory(anyLong(), anyLong())).willReturn(INITCODE);
         given(frame.readMutableMemory(anyLong(), anyLong())).willReturn(MUTABLE_INITCODE);
@@ -100,6 +110,7 @@ class CustomCreate2OperationTest extends CreateOperationTestBase {
         given(txValues.messageFrameStack()).willReturn(messageFrameStack);
         given(txValues.warmedUpAddresses()).willReturn(warmedUpAddresses);
         given(txValues.maxStackSize()).willReturn(1024);
+        given(txValues.gasRefunds()).willReturn(new UndoScalar<>(1L));
         given(undoTable.mark()).willReturn(1L);
 
         final Field worldUdaterField = MessageFrame.class.getDeclaredField("worldUpdater");
@@ -109,9 +120,11 @@ class CustomCreate2OperationTest extends CreateOperationTestBase {
         final Field txValuesField = MessageFrame.class.getDeclaredField("txValues");
         txValuesField.setAccessible(true);
         txValuesField.set(frame, txValues);
-
-        final var expected = new Operation.OperationResult(GAS_COST, null);
-        assertSameResult(expected, subject.execute(frame, evm));
+        try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
+            frameUtils.when(() -> FrameUtils.isHookExecution(frame)).thenReturn(false);
+            final var expected = new Operation.OperationResult(GAS_COST, null);
+            assertSameResult(expected, subject.execute(frame, evm));
+        }
 
         verify(worldUpdater).setupInternalAliasedCreate(RECIEVER_ADDRESS, EIP_1014_ADDRESS);
 

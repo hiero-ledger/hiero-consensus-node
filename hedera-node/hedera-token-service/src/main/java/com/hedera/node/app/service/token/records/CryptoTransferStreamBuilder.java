@@ -5,11 +5,9 @@ import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransferList;
-import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 
 /**
@@ -68,12 +66,4 @@ public interface CryptoTransferStreamBuilder extends StreamBuilder {
      * @return the builder
      */
     CryptoTransferStreamBuilder addAutomaticTokenAssociation(@NonNull TokenAssociation tokenAssociation);
-
-    /**
-     * Tracks the result of a contract call, if any. It is used to update the transaction record.
-     * @param result the result of a contract call
-     * @return this builder
-     */
-    @NonNull
-    CryptoTransferStreamBuilder contractCallResult(@Nullable ContractFunctionResult result);
 }

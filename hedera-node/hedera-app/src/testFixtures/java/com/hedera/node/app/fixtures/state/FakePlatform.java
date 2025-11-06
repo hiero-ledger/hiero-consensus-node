@@ -3,6 +3,7 @@ package com.hedera.node.app.fixtures.state;
 
 import static com.hedera.node.app.fixtures.AppTestBase.METRIC_EXECUTOR;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -26,6 +27,7 @@ import java.util.List;
 import java.util.Random;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.roster.RosterRetriever;
 
@@ -107,6 +109,9 @@ public final class FakePlatform implements Platform {
     }
 
     @Override
+    public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {}
+
+    @Override
     public Roster getRoster() {
         return roster;
     }
@@ -123,10 +128,11 @@ public final class FakePlatform implements Platform {
     }
 
     @Override
-    public boolean createTransaction(@NonNull byte[] bytes) {
-        return false;
-    }
+    public void start() {}
 
     @Override
-    public void start() {}
+    public void destroy() throws InterruptedException {
+        notificationEngine.shutdown();
+        getMetricsProvider().removePlatformMetrics(selfNodeId);
+    }
 }

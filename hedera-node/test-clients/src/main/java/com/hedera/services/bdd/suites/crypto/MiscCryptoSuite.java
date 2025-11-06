@@ -3,7 +3,7 @@ package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
@@ -70,8 +70,9 @@ public class MiscCryptoSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> sysAccountKeyUpdateBySpecialWontNeedNewKeyTxnSign() {
-        String sysAccount = asEntityString(977);
+        String sysAccount = "977";
         String randomAccountA = "randomAccountA";
         String randomAccountB = "randomAccountB";
         String firstKey = "firstKey";

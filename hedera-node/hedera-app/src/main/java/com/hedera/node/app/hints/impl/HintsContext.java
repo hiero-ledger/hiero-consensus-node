@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.impl;
 
-import static com.hedera.node.app.roster.RosterTransitionWeights.atLeastOneThirdOfTotal;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toMap;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.NodePartyId;
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
 import com.hedera.node.app.hints.HintsLibrary;
+import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -25,6 +25,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -44,9 +45,7 @@ public class HintsContext {
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
     private final HintsLibrary library;
-
-    @Nullable
-    private Bytes crs;
+    private final Supplier<Configuration> configProvider;
 
     @Nullable
     private HintsConstruction construction;
@@ -57,16 +56,9 @@ public class HintsContext {
     private long schemeId;
 
     @Inject
-    public HintsContext(@NonNull final HintsLibrary library) {
+    public HintsContext(@NonNull final HintsLibrary library, @NonNull final Supplier<Configuration> configProvider) {
         this.library = requireNonNull(library);
-    }
-
-    /**
-     * Set the CRS in use for this signing context.
-     * @param crs the CRS to use
-     */
-    public void setCrs(@NonNull final Bytes crs) {
-        this.crs = requireNonNull(crs);
+        this.configProvider = requireNonNull(configProvider);
     }
 
     /**
@@ -137,6 +129,14 @@ public class HintsContext {
     }
 
     /**
+     * Returns the active construction, or null if none is active (at genesis).
+     * @return the active construction
+     */
+    public @Nullable HintsConstruction activeConstruction() {
+        return construction;
+    }
+
+    /**
      * Validates a partial signature transaction body under the current hinTS construction.
      * @param nodeId the node ID
      * @param crs the CRS to validate under
@@ -160,26 +160,35 @@ public class HintsContext {
     /**
      * Creates a new asynchronous signing process for the given block hash.
      * @param blockHash     the block hash
-     * @param currentRoster the current roster
+     * @param onCompletion a callback to run when the signing process completes
      * @return the signing process
      */
-    public @NonNull Signing newSigning(
-            @NonNull final Bytes blockHash, final Roster currentRoster, Runnable onCompletion) {
+    public @NonNull Signing newSigning(@NonNull final Bytes blockHash, @NonNull final Runnable onCompletion) {
         requireNonNull(blockHash);
+        requireNonNull(onCompletion);
         throwIfNotReady();
-        final var preprocessedKeys =
-                requireNonNull(construction).hintsSchemeOrThrow().preprocessedKeysOrThrow();
+        requireNonNull(construction);
+        final var preprocessedKeys = construction.hintsSchemeOrThrow().preprocessedKeysOrThrow();
         final var verificationKey = preprocessedKeys.verificationKey();
-        final long totalWeight = currentRoster.rosterEntries().stream()
-                .mapToLong(RosterEntry::weight)
-                .sum();
+        final Map<Long, Long> nodeWeights = new HashMap<>();
+        long totalWeight = 0L;
+        for (final var nodePartyId : construction.hintsSchemeOrThrow().nodePartyIds()) {
+            totalWeight += nodePartyId.partyWeight();
+            nodeWeights.put(nodePartyId.nodeId(), nodePartyId.partyWeight());
+        }
+        final var tssConfig = configProvider.get().getConfigData(TssConfig.class);
+        final int divisor = tssConfig.signingThresholdDivisor();
+        if (divisor <= 0) {
+            throw new IllegalArgumentException("signingThresholdDivisor must be > 0");
+        }
+        final long threshold = totalWeight / divisor;
         return new Signing(
                 blockHash,
-                atLeastOneThirdOfTotal(totalWeight),
+                threshold,
                 preprocessedKeys.aggregationKey(),
                 requireNonNull(nodePartyIds),
+                nodeWeights,
                 verificationKey,
-                currentRoster,
                 onCompletion);
     }
 
@@ -206,14 +215,13 @@ public class HintsContext {
      */
     public class Signing {
         private final long thresholdWeight;
-        private final Bytes blockHash;
         private final Bytes aggregationKey;
         private final Bytes verificationKey;
+        private final Map<Long, Long> nodeWeights;
         private final Map<Long, Integer> partyIds;
         private final CompletableFuture<Bytes> future = new CompletableFuture<>();
         private final ConcurrentMap<Integer, Bytes> signatures = new ConcurrentHashMap<>();
         private final AtomicLong weightOfSignatures = new AtomicLong();
-        private final Roster currentRoster;
         private final AtomicBoolean completed = new AtomicBoolean();
 
         public Signing(
@@ -221,16 +229,15 @@ public class HintsContext {
                 final long thresholdWeight,
                 @NonNull final Bytes aggregationKey,
                 @NonNull final Map<Long, Integer> partyIds,
+                @NonNull final Map<Long, Long> nodeWeights,
                 @NonNull final Bytes verificationKey,
-                @NonNull final Roster currentRoster,
                 @NonNull final Runnable onCompletion) {
             this.thresholdWeight = thresholdWeight;
             requireNonNull(onCompletion);
-            this.blockHash = requireNonNull(blockHash);
             this.aggregationKey = requireNonNull(aggregationKey);
             this.partyIds = requireNonNull(partyIds);
+            this.nodeWeights = requireNonNull(nodeWeights);
             this.verificationKey = requireNonNull(verificationKey);
-            this.currentRoster = requireNonNull(currentRoster);
             executor.schedule(
                     () -> {
                         if (!future.isDone()) {
@@ -257,6 +264,13 @@ public class HintsContext {
         }
 
         /**
+         * The verification key of the hinTS scheme being used for the signing attempt.
+         */
+        public Bytes verificationKey() {
+            return verificationKey;
+        }
+
+        /**
          * Incorporates a node's pre-validated partial signature into the aggregation. If including this node's
          * weight passes the required threshold, completes the future returned from {@link #future()} with the
          * aggregated signature.
@@ -273,13 +287,11 @@ public class HintsContext {
             }
             final var partyId = partyIds.get(nodeId);
             signatures.put(partyId, signature);
-            final var weight = currentRoster.rosterEntries().stream()
-                    .filter(e -> e.nodeId() == nodeId)
-                    .mapToLong(RosterEntry::weight)
-                    .findFirst()
-                    .orElse(0L);
+            final var weight = nodeWeights.getOrDefault(nodeId, 0L);
             final var totalWeight = weightOfSignatures.addAndGet(weight);
-            if (totalWeight >= thresholdWeight && completed.compareAndSet(false, true)) {
+            // For block hash signing, always require strictly greater than threshold
+            final boolean reachedThreshold = totalWeight > thresholdWeight;
+            if (reachedThreshold && completed.compareAndSet(false, true)) {
                 final var aggregatedSignature =
                         library.aggregateSignatures(crs, aggregationKey, verificationKey, signatures);
                 future.complete(aggregatedSignature);

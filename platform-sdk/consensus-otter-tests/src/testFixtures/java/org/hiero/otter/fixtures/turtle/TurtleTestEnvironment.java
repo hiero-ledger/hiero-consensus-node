@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
+import static java.util.Collections.unmodifiableSet;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.io.utility.FileUtils;
@@ -12,27 +14,21 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import org.apache.logging.log4j.Level;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.Filter.Result;
-import org.apache.logging.log4j.core.LoggerContext;
-import org.apache.logging.log4j.core.appender.ConsoleAppender;
-import org.apache.logging.log4j.core.appender.FileAppender;
-import org.apache.logging.log4j.core.config.Configuration;
-import org.apache.logging.log4j.core.config.LoggerConfig;
-import org.apache.logging.log4j.core.filter.MarkerFilter;
-import org.apache.logging.log4j.core.filter.NoMarkerFilter;
-import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
-import org.hiero.otter.fixtures.Validator;
-import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
-import org.hiero.otter.fixtures.validator.ValidatorImpl;
+import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
+import org.hiero.otter.fixtures.turtle.logging.TurtleLogClock;
+import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 
 /**
  * A test environment for the Turtle framework.
@@ -42,120 +38,94 @@ import org.hiero.otter.fixtures.validator.ValidatorImpl;
  */
 public class TurtleTestEnvironment implements TestEnvironment {
 
+    static {
+        // Set custom clock property BEFORE any Log4j2 initialization
+        // This ensures the TurtleClock is used for all log timestamps
+        System.setProperty("log4j.Clock", TurtleLogClock.class.getName());
+    }
+
     private static final Logger log = LogManager.getLogger(TurtleTestEnvironment.class);
 
-    static final String APP_NAME = "otter";
-    static final String SWIRLD_NAME = "123";
+    /** Capabilities supported by the Turtle test environment */
+    private static final Set<Capability> CAPABILITIES = unmodifiableSet(EnumSet.of(Capability.DETERMINISTIC_EXECUTION));
 
     static final Duration GRANULARITY = Duration.ofMillis(10);
-    static final Duration AVERAGE_NETWORK_DELAY = Duration.ofMillis(200);
-    static final Duration STANDARD_DEVIATION_NETWORK_DELAY = Duration.ofMillis(10);
 
     private final TurtleNetwork network;
-    private final TurtleTransactionGenerator generator;
+    private final TurtleTransactionGenerator transactionGenerator;
     private final TurtleTimeManager timeManager;
 
     /**
-     * Constructor for the {@link TurtleTestEnvironment} class.
+     * Constructor with default values for using a random seed and random node-ids
      */
     public TurtleTestEnvironment() {
-        final Randotron randotron = Randotron.create();
+        this(0L, true);
+    }
 
-        final FakeTime time = new FakeTime(randotron.nextInstant(), Duration.ZERO);
-
-        RuntimeObjectRegistry.initialize(time);
-
-        try {
-            final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-            registry.registerConstructables("");
-            registerMerkleStateRootClassIds();
-        } catch (final ConstructableRegistryException e) {
-            throw new RuntimeException(e);
-        }
-
+    /**
+     * Constructor for the {@link TurtleTestEnvironment} class.
+     *
+     * @param randomSeed the seed for the PRNG; if {@code 0}, a random seed will be generated
+     * @param useRandomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
+     */
+    public TurtleTestEnvironment(final long randomSeed, final boolean useRandomNodeIds) {
         final Path rootOutputDirectory = Path.of("build", "turtle");
         try {
             if (Files.exists(rootOutputDirectory)) {
                 FileUtils.deleteDirectory(rootOutputDirectory);
             }
-        } catch (IOException ex) {
+            Files.createDirectories(rootOutputDirectory);
+        } catch (final IOException ex) {
             log.warn("Failed to delete directory: {}", rootOutputDirectory, ex);
         }
-        initLogging();
+
+        final Randotron randotron = randomSeed == 0L ? Randotron.create() : Randotron.create(randomSeed);
+
+        final FakeTime time = new FakeTime(randotron.nextInstant(), Duration.ZERO);
+
+        // Set the fake time for turtle nodes BEFORE configuring logging
+        TurtleLogClock.setFakeTime(time);
+
+        final TurtleLogging logging = new TurtleLogging(rootOutputDirectory);
+
+        RuntimeObjectRegistry.reset();
+        RuntimeObjectRegistry.initialize(time);
+
+        try {
+            final ConstructableRegistry registry = ConstructableRegistry.getInstance();
+            registry.reset();
+            registry.registerConstructables("");
+            registerConstructablesForStorage(CONFIGURATION);
+        } catch (final ConstructableRegistryException e) {
+            throw new RuntimeException(e);
+        }
 
         timeManager = new TurtleTimeManager(time, GRANULARITY);
 
-        network = new TurtleNetwork(randotron, timeManager, rootOutputDirectory);
-
-        generator = new TurtleTransactionGenerator(network, randotron);
+        transactionGenerator = new TurtleTransactionGenerator(randotron);
+        network = new TurtleNetwork(
+                randotron, timeManager, logging, rootOutputDirectory, transactionGenerator, useRandomNodeIds);
 
         timeManager.addTimeTickReceiver(network);
-        timeManager.addTimeTickReceiver(generator);
     }
 
-    private static void initLogging() {
-        final LoggerContext loggerContext = (LoggerContext) LogManager.getContext(false);
-        final Configuration loggerContextConfig = loggerContext.getConfiguration();
+    /**
+     * Checks if the Turtle test environment supports the given capabilities.
+     *
+     * @param requiredCapabilities the list of capabilities required by the test
+     * @return {@code true} if the Turtle test environment supports the required capabilities, {@code false} otherwise
+     */
+    public static boolean supports(@NonNull final List<Capability> requiredCapabilities) {
+        return CAPABILITIES.containsAll(requiredCapabilities);
+    }
 
-        if (loggerContextConfig.getAppender("InMemory") == null) {
-            final InMemoryAppender inMemoryAppender = InMemoryAppender.createAppender("InMemory");
-            inMemoryAppender.start();
-            loggerContextConfig.addAppender(inMemoryAppender);
-
-            final LoggerConfig rootLoggerConfig = loggerContextConfig.getLoggerConfig(LogManager.ROOT_LOGGER_NAME);
-            rootLoggerConfig.addAppender(inMemoryAppender, null, null);
-            rootLoggerConfig.setLevel(Level.ALL);
-
-            final PatternLayout layout = PatternLayout.newBuilder()
-                    .withPattern("%d{yyyy-MM-dd HH:mm:ss.SSS} [%X] [%t] [%marker] %-5level %logger{36} - %msg %n")
-                    .withConfiguration(loggerContextConfig)
-                    .build();
-
-            final ConsoleAppender consoleAppender = ConsoleAppender.newBuilder()
-                    .setName("ConsoleMarker")
-                    .setLayout(layout)
-                    .setTarget(ConsoleAppender.Target.SYSTEM_OUT)
-                    .build();
-
-            final NoMarkerFilter markerExistsFilter = NoMarkerFilter.newBuilder()
-                    .setOnMatch(Result.DENY)
-                    .setOnMismatch(Result.ACCEPT)
-                    .build();
-            consoleAppender.addFilter(markerExistsFilter);
-
-            final MarkerFilter noStateHashFilter = MarkerFilter.createFilter("STATE_HASH", Result.DENY, Result.NEUTRAL);
-            consoleAppender.addFilter(noStateHashFilter);
-
-            consoleAppender.start();
-            rootLoggerConfig.addAppender(consoleAppender, Level.INFO, null);
-
-            final FileAppender fileAppender = FileAppender.newBuilder()
-                    .setName("FileLogger")
-                    .setLayout(layout)
-                    .withFileName("build/turtle/otter.log")
-                    .withAppend(true)
-                    .build();
-            fileAppender.addFilter(noStateHashFilter);
-            fileAppender.start();
-            rootLoggerConfig.addAppender(fileAppender, Level.DEBUG, null);
-
-            final FileAppender stateHashFileAppender = FileAppender.newBuilder()
-                    .setName("StateHashFileLogger")
-                    .setLayout(layout)
-                    .withFileName("build/turtle/otter-state-hash.log")
-                    .withAppend(true)
-                    .build();
-
-            // Accept only logs with marker STATE_HASH
-            final MarkerFilter onlyStateHashFilter =
-                    MarkerFilter.createFilter("STATE_HASH", Result.ACCEPT, Result.DENY);
-            stateHashFileAppender.addFilter(onlyStateHashFilter);
-
-            stateHashFileAppender.start();
-            rootLoggerConfig.addAppender(stateHashFileAppender, Level.DEBUG, null);
-
-            loggerContext.updateLoggers();
-        }
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Set<Capability> capabilities() {
+        return CAPABILITIES;
     }
 
     /**
@@ -181,26 +151,18 @@ public class TurtleTestEnvironment implements TestEnvironment {
      */
     @Override
     @NonNull
-    public TransactionGenerator generator() {
-        return generator;
+    public TransactionGenerator transactionGenerator() {
+        return transactionGenerator;
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    @NonNull
-    public Validator validator() {
-        log.warn("Validator is not implemented yet");
-        return new ValidatorImpl();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void destroy() throws InterruptedException {
-        generator.stop();
+    public void destroy() {
+        InMemorySubscriptionManager.INSTANCE.reset();
         network.destroy();
+        ConstructableRegistry.getInstance().reset();
+        RuntimeObjectRegistry.reset();
     }
 }

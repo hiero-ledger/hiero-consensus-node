@@ -5,7 +5,7 @@ swirld, 123
 
 # app,		HelloSwirldDemo.jar
 # app,		CryptocurrencyDemo.jar
- app,		StatsDemo.jar,		   1, 3000, 0, 100, -1, 200
+ app,		StatsDemo.jar,		   100, 200
 
 
 # ** BEGIN REMOVE FROM SDK RELEASES **
@@ -64,8 +64,6 @@ swirld, 123
 
 # The above addresses assume all are running on the same computer.
 # If multiple computers are being used, then the listed IP addresses should be changed.
-
-# genesisFreezeTime, -1
 
 ###############################################################################################
 # The first line can be “swirld, “ and then a name for this swirld (shared world / ledger),

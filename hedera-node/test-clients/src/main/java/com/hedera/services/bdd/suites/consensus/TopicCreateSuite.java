@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.consensus;
 
-import static com.hedera.services.bdd.junit.TestTags.ADHOC;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
@@ -44,6 +45,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.keys.KeyShape;
+import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -71,7 +73,6 @@ public class TopicCreateSuite {
     }
 
     @HapiTest
-    @Tag(ADHOC)
     final Stream<DynamicTest> autoRenewAccountIsValidated() {
         return hapiTest(createTopic("testTopic")
                 // Intentionally use a bogus shard and realm
@@ -268,27 +269,32 @@ public class TopicCreateSuite {
                 createTopic("testTopic")
                         .payingWith("payer")
                         .signedBy("wrongKey")
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES))
                         .hasPrecheck(INVALID_SIGNATURE),
                 // But contracts without admin keys will get INVALID_SIGNATURE (can't sign!)
                 createTopic("NotToBe")
                         .autoRenewAccountId(PAY_RECEIVABLE_CONTRACT)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES))
                         .hasKnownStatusFrom(INVALID_SIGNATURE),
                 // Auto-renew account should sign if set on a topic
                 createTopic("testTopic")
                         .payingWith("payer")
                         .autoRenewAccountId("autoRenewAccount")
                         .signedBy("payer")
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES))
                         .hasKnownStatus(INVALID_SIGNATURE),
                 createTopic("testTopic")
                         .payingWith("payer")
                         .autoRenewAccountId("autoRenewAccount")
                         .signedBy("autoRenewAccount")
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES))
                         .hasPrecheck(INVALID_SIGNATURE),
                 createTopic("testTopic")
                         .payingWith("payer")
                         .adminKeyName("adminKey")
                         /* SigMap missing signature from adminKey. */
                         .signedBy("payer")
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES))
                         .hasKnownStatus(INVALID_SIGNATURE),
                 createTopic("testTopic")
                         .payingWith("payer")
@@ -296,6 +302,7 @@ public class TopicCreateSuite {
                         .autoRenewAccountId("autoRenewAccount")
                         /* SigMap missing signature from auto-renew account's key. */
                         .signedBy("payer", "adminKey")
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor("payer", "adminKey"))
                         .hasKnownStatus(INVALID_SIGNATURE),
                 createTopic("testTopic")
                         .payingWith("payer")
@@ -303,6 +310,7 @@ public class TopicCreateSuite {
                         .autoRenewAccountId("autoRenewAccount")
                         /* SigMap missing signature from adminKey. */
                         .signedBy("payer", "autoRenewAccount")
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor("payer", "autoRenewAccount"))
                         .hasKnownStatus(INVALID_SIGNATURE),
                 // In hedera-app, we'll allow contracts with admin keys to be auto-renew accounts
                 createTopic("withContractAutoRenew").adminKeyName("adminKey").autoRenewAccountId(contractWithAdminKey),
@@ -327,6 +335,7 @@ public class TopicCreateSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> allFieldsSetHappyCase() {
         return hapiTest(
                 newKeyNamed("adminKey"),
@@ -491,6 +500,7 @@ public class TopicCreateSuite {
 
     // TOPIC_RENEW_21
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> topicCreateWithHollowAccountForAutoRenewAccount() {
         final String accountAlias = "accountAlias";
         final String TOKEN_TREASURY = "tokenTreasury";

@@ -3,27 +3,12 @@ package com.swirlds.demo.virtualmerkle;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.common.merkle.iterators.MerkleIterationOrder.BREADTH_FIRST;
+import static com.swirlds.demo.platform.PlatformTestingToolMain.CONFIGURATION;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.config.TemporaryFileConfig;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.demo.virtualmerkle.map.account.AccountVirtualMapKey;
-import com.swirlds.demo.virtualmerkle.map.account.AccountVirtualMapValue;
-import com.swirlds.demo.virtualmerkle.map.smartcontracts.bytecode.SmartContractByteCodeMapKey;
-import com.swirlds.demo.virtualmerkle.map.smartcontracts.bytecode.SmartContractByteCodeMapValue;
-import com.swirlds.demo.virtualmerkle.map.smartcontracts.data.SmartContractMapKey;
-import com.swirlds.demo.virtualmerkle.map.smartcontracts.data.SmartContractMapValue;
-import com.swirlds.merkledb.MerkleDb;
-import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.virtualmap.VirtualKey;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.VirtualValue;
-import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
@@ -45,18 +30,12 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
 /**
  * Validator to read a data source and all its data and check the complete data set is valid.
  */
-public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValue> {
+public class VirtualMerkleLeafHasher {
+
     private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
 
-    private static final Configuration CONFIGURATION = ConfigurationBuilder.create()
-            .withConfigDataType(MerkleDbConfig.class)
-            .withConfigDataType(VirtualMapConfig.class)
-            .withConfigDataType(TemporaryFileConfig.class)
-            .withConfigDataType(StateCommonConfig.class)
-            .build();
-
     /** The data source we are validating */
-    private final VirtualMap<K, V> virtualMap;
+    private final VirtualMap virtualMap;
 
     /**
      * Open the virtual map and validate all its data
@@ -64,7 +43,7 @@ public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValu
      * @param virtualMap
      * 		The virtual map to validate
      */
-    public VirtualMerkleLeafHasher(final VirtualMap<K, V> virtualMap) {
+    public VirtualMerkleLeafHasher(final VirtualMap virtualMap) {
         this.virtualMap = virtualMap;
     }
 
@@ -82,7 +61,7 @@ public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValu
             final MerkleNode node = iterator.next();
             if (node != null) {
                 if (node instanceof VirtualLeafNode) {
-                    final VirtualLeafNode<K, V> leaf = node.cast();
+                    final VirtualLeafNode leaf = node.cast();
                     hash = computeNextHash(hash, leaf);
                 }
             }
@@ -93,16 +72,16 @@ public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValu
 
     /**
      * computes the rolling hash resulting from the concatenation of the previous hash with the leaf's serialized
-     * key and value. Data to be hashed looks like this: [prevHash,leaf.key.serialize,leaf.value.serialize]
+     * key and value. Data to be hashed looks like this: [prevHash,leaf.keyBytes,leaf.valueBytes]
      *
      * @param prevHash
      * 		hash result of previous call to this function
      * @param leaf
      * 		value to be serialized and hashed with the previous hash
-     * @return rolling hash of [prevHash,leaf.key.serialize,leaf.value.serialize]
+     * @return rolling hash of [prevHash,leaf.keyBytes,leaf.valueBytes]
      * @throws IOException if an I/O error occurs
      */
-    public Hash computeNextHash(final Hash prevHash, final VirtualLeafNode<K, V> leaf) throws IOException {
+    public Hash computeNextHash(final Hash prevHash, final VirtualLeafNode leaf) throws IOException {
         try (final ByteArrayOutputStream bout = new ByteArrayOutputStream();
                 final SerializableDataOutputStream out = new SerializableDataOutputStream(bout)) {
 
@@ -111,9 +90,11 @@ public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValu
                 prevHash.getBytes().writeTo(out);
             }
             // add leaf key
-            leaf.getKey().serialize(out);
+            leaf.getKey().writeTo(out);
             // add leaf value
-            leaf.getValue().serialize(out);
+            if (leaf.getValue() != null) {
+                leaf.getValue().writeTo(out);
+            }
 
             out.flush();
             return hashOf(bout.toByteArray());
@@ -139,7 +120,7 @@ public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValu
             registry.registerConstructables("com.swirlds.merkledb");
             registry.registerConstructables("com.swirlds.demo.virtualmerkle");
             registry.registerConstructables("com.swirlds.common.crypto");
-            registry.registerConstructables("org.hiero.consensus.model.crypto");
+            registry.registerConstructables("org.hiero");
         } catch (final ConstructableRegistryException e) {
             e.printStackTrace();
             return;
@@ -158,47 +139,36 @@ public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValu
             }
         }
 
-        // MerkleDbDataSourceBuilder creates files in a temp folder by default. The temp folder may be on a
-        // different file system than the file(s) used to deserialize the maps. In such case, builders will fail
-        // to create hard file links when constructing new data sources. To fix it, let's override the default
-        // temp location to the same file system as the files to load
-        LegacyTemporaryFileBuilder.overrideTemporaryFileLocation(classFolder.resolve("tmp"));
-
         for (final Path roundFolder : roundsFolders) {
-            // reset the default instance path to force creation of a new MerkleDB instance
-            // https://github.com/hashgraph/hedera-services/pull/8534
-            MerkleDb.resetDefaultInstancePath();
             Hash accountsHash;
             Hash scHash;
             Hash byteCodeHash;
 
             try {
-                final VirtualMap<AccountVirtualMapKey, AccountVirtualMapValue> accountsMap =
-                        new VirtualMap<>(CONFIGURATION);
-                accountsMap.loadFromFile(roundFolder.resolve(accountsName));
-                final VirtualMerkleLeafHasher<AccountVirtualMapKey, AccountVirtualMapValue> accountsHasher =
-                        new VirtualMerkleLeafHasher<>(accountsMap);
+                // AccountVirtualMapKey -> AccountVirtualMapValue
+                final VirtualMap accountsMap = new VirtualMap(CONFIGURATION);
+                accountsMap.loadFromFile(roundFolder.resolve(accountsName), false);
+                final VirtualMerkleLeafHasher accountsHasher = new VirtualMerkleLeafHasher(accountsMap);
                 accountsHash = accountsHasher.validate();
             } catch (final IOException e) {
                 accountsHash = null;
             }
 
             try {
-                final VirtualMap<SmartContractMapKey, SmartContractMapValue> scMap = new VirtualMap<>(CONFIGURATION);
-                scMap.loadFromFile(roundFolder.resolve(scName));
-                final VirtualMerkleLeafHasher<SmartContractMapKey, SmartContractMapValue> scHasher =
-                        new VirtualMerkleLeafHasher<>(scMap);
+                // SmartContractMapKey -> SmartContractMapValue
+                final VirtualMap scMap = new VirtualMap(CONFIGURATION);
+                scMap.loadFromFile(roundFolder.resolve(scName), false);
+                final VirtualMerkleLeafHasher scHasher = new VirtualMerkleLeafHasher(scMap);
                 scHash = scHasher.validate();
             } catch (final IOException e) {
                 scHash = null;
             }
 
             try {
-                final VirtualMap<SmartContractByteCodeMapKey, SmartContractByteCodeMapValue> byteCodeMap =
-                        new VirtualMap<>(CONFIGURATION);
-                byteCodeMap.loadFromFile(roundFolder.resolve(scByteCodeName));
-                final VirtualMerkleLeafHasher<SmartContractByteCodeMapKey, SmartContractByteCodeMapValue>
-                        byteCodeHasher = new VirtualMerkleLeafHasher<>(byteCodeMap);
+                // SmartContractByteCodeMapKey -> SmartContractByteCodeMapValue
+                final VirtualMap byteCodeMap = new VirtualMap(CONFIGURATION);
+                byteCodeMap.loadFromFile(roundFolder.resolve(scByteCodeName), false);
+                final VirtualMerkleLeafHasher byteCodeHasher = new VirtualMerkleLeafHasher(byteCodeMap);
                 byteCodeHash = byteCodeHasher.validate();
             } catch (final IOException e) {
                 byteCodeHash = null;

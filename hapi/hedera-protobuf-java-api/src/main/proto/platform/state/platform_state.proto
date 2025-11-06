@@ -66,6 +66,14 @@ message PlatformState {
      */
     proto.Timestamp last_frozen_time = 5;
 
+    /**
+     * The number of the latest round that was a freeze round. If this round
+     * is a freeze round, then the value is the same as the current round. It
+     * is set after executing all transactions in this round. <br/>
+     * If there has never been a freeze round, this SHALL be zero.<br/>
+     */
+    uint64 latest_freeze_round = 6;
+
     // Fields below are to be deprecated in the foreseeable future.
 
     /**
@@ -78,31 +86,19 @@ message PlatformState {
      bytes legacy_running_event_hash = 10000 [deprecated = true];
 
     /**
-     * A consensus generation.<br/>
-     * The lowest judge generation before birth round mode was enabled.
-     * <p>
-     * This SHALL be `MAX_UNSIGNED` if birth round mode has not yet been enabled.
+     * Previously used to indicate the lowest judge generation before birth round mode was enabled.
      */
-    uint64 lowest_judge_generation_before_birth_round_mode = 10001 [deprecated = true];
+    reserved 10001;
 
     /**
-     * A consensus round.<br/>
-     * The last round before the birth round mode was enabled.
-     * Will be removed after the birth round migration.
-     * <p>
-     * This SHALL be `MAX_UNSIGNED` if birth round mode has not yet been enabled.
+     * Previously used to indicate the last round before the birth round mode was enabled.
      */
-    uint64 last_round_before_birth_round_mode = 10002 [deprecated = true];
+    reserved 10002;
 
     /**
-     * A consensus node semantic version.<br/>
-     * The software version that enabled birth round mode.
-     * <p>
-     * This SHALL be unset if birth round migration has not yet happened.<br/>
-     * If birth round migration is complete, this SHALL be the _first_ software
-     * version that enabled birth round mode.
-    */
-    proto.SemanticVersion first_version_in_birth_round_mode = 10003 [deprecated = true];
+     * Previously used to indicate the software version that enabled birth round mode.
+     */
+    reserved 10003;
 
     reserved 10004;
     reserved "address_book";
@@ -126,13 +122,9 @@ message ConsensusSnapshot {
      */
     uint64 round = 1;
     /**
-     * A list of SHA-384 hash values.<br/>
-     * The hashes of all judges for this round.
-     * <p>
-     * This list SHALL be ordered by creator ID.<br/>
-     * This list MUST be deterministically ordered.
+     * Previously used to be judge hashes, replaced by judge ids which contain creator node ID and judge hash.<br/>
      */
-    repeated bytes judge_hashes = 2 [deprecated = true];
+    reserved 2;
 
     /**
      * A list of minimum judge information entries.<br/>
@@ -196,14 +188,11 @@ message MinimumJudgeInfo {
     uint64 round = 1;
 
     /**
-     * This is a minimum ancient threshold for all judges for a given round.
-     * The value should be interpreted as a generation if the birth
-     * round migration is not yet completed, and a birth round thereafter.
+     * This is a minimum birth round for all judges for a given round.
      * <p>
-     * This SHALL reflect the relevant minimum threshold, whether
-     * generation-based or birth-round-based.
+     * This SHALL reflect the relevant minimum birth round
      */
-    uint64 minimum_judge_ancient_threshold = 2;
+    uint64 minimum_judge_birth_round = 2;
 }
 
 /**

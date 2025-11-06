@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.regression.system;
 
+import static com.hedera.hapi.util.HapiUtils.asReadableIp;
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.CLASSIC_HAPI_TEST_NETWORK_SIZE;
 import static com.hedera.services.bdd.junit.TestTags.UPGRADE;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
@@ -10,10 +11,10 @@ import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classi
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.entryById;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.nodeIdsFrom;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.VALID_CERT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asReadableIp;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asServiceEndpoint;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.operations.transactions.TouchBalancesOperation.touchBalanceOf;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getVersionInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.sysFileUpdateTo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -22,6 +23,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.ensureStakingActivated;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
@@ -32,9 +34,11 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator.EXISTENCE_ONLY_VALIDATOR;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
+import static com.hedera.services.bdd.suites.HapiSuite.NODE_DETAILS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.configVersionOf;
+import static com.hedera.services.bdd.suites.regression.system.MixedOperations.burstOfTps;
 import static com.hedera.services.bdd.suites.utils.sysfiles.AddressBookPojo.nodeDetailsFrom;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_NODES_CREATED;
 import static java.util.stream.Collectors.toSet;
@@ -45,6 +49,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
@@ -61,6 +66,7 @@ import com.hedera.services.bdd.suites.utils.sysfiles.BookEntryPojo;
 import com.hederahashgraph.api.proto.java.NodeAddressBook;
 import com.hederahashgraph.api.proto.java.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -109,13 +115,13 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     @Account(tinybarBalance = ONE_BILLION_HBARS, stakedNodeId = 0)
     static SpecAccount NODE0_STAKER;
 
-    @Account(tinybarBalance = ONE_BILLION_HBARS, stakedNodeId = 1)
+    @Account(tinybarBalance = ONE_BILLION_HBARS / 100, stakedNodeId = 1)
     static SpecAccount NODE1_STAKER;
 
-    @Account(tinybarBalance = ONE_BILLION_HBARS, stakedNodeId = 2)
+    @Account(tinybarBalance = ONE_BILLION_HBARS / 100, stakedNodeId = 2)
     static SpecAccount NODE2_STAKER;
 
-    @Account(tinybarBalance = ONE_MILLION_HBARS, stakedNodeId = 3)
+    @Account(tinybarBalance = ONE_MILLION_HBARS / 100, stakedNodeId = 3)
     static SpecAccount NODE3_STAKER;
 
     @HapiTest
@@ -153,6 +159,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     @HapiTest
     @Order(1)
     final Stream<DynamicTest> upgradeWithSameNodesExportsTheOriginalAddressBook() {
+        final var newNode0CertHash = Bytes.fromHex("ab".repeat(48));
         final AtomicReference<SemanticVersion> startVersion = new AtomicReference<>();
         return hapiTest(
                 recordStreamMustIncludePassFrom(selectedItems(
@@ -165,8 +172,29 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                 getVersionInfo().exposingServicesVersionTo(startVersion::set),
                 prepareFakeUpgrade(),
                 validateCandidateRoster(DabEnabledUpgradeTest::hasClassicRosterMetadata),
+                doingContextual(spec -> spec.subProcessNetworkOrThrow()
+                        .setOneTimeOverrideCustomizer(network -> network.copyBuilder()
+                                .nodeMetadata(network.nodeMetadata().stream()
+                                        .map(meta -> meta.nodeOrThrow().nodeId() == 0L
+                                                ? meta.copyBuilder()
+                                                        .node(meta.nodeOrThrow()
+                                                                .copyBuilder()
+                                                                .grpcCertificateHash(newNode0CertHash))
+                                                        .build()
+                                                : meta)
+                                        .toList())
+                                .build())),
                 upgradeToNextConfigVersion(),
-                assertGetVersionInfoMatches(startVersion::get));
+                assertGetVersionInfoMatches(startVersion::get),
+                burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(2)),
+                getFileContents(NODE_DETAILS).andValidate(bytes -> {
+                    final var node0CertHash = AddressBookPojo.nodeDetailsFrom(bytes).getEntries().stream()
+                            .filter(entry -> entry.getNodeId() == 0L)
+                            .findFirst()
+                            .orElseThrow()
+                            .getCertHash();
+                    assertEquals(newNode0CertHash.toHex(), node0CertHash);
+                }));
     }
 
     @HapiTest
@@ -216,9 +244,8 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
         return hapiTest(
                 recordStreamMustIncludePassFrom(selectedItems(
                         EXISTENCE_ONLY_VALIDATOR, 2, sysFileUpdateTo("files.nodeDetails", "files.addressBook"))),
-                nodeCreate("node4")
+                nodeCreate("node4", classicFeeCollectorIdFor(4))
                         .adminKey(DEFAULT_PAYER)
-                        .accountNum(classicFeeCollectorIdFor(4))
                         .description(CLASSIC_NODE_NAMES[4])
                         .withAvailableSubProcessPorts()
                         .gossipCaCertificate(VALID_CERT),
@@ -244,21 +271,18 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
             // all the successful edits here are before issuing PREPARE_UPGRADE and should be reflected in the
             // address book after the upgrade
             testLifecycle.doAdhoc(
-                    nodeCreate("node5")
+                    nodeCreate("node5", classicFeeCollectorIdFor(5))
                             .adminKey(DEFAULT_PAYER)
-                            .accountNum(classicFeeCollectorIdFor(5))
                             .description(CLASSIC_NODE_NAMES[5])
                             .withAvailableSubProcessPorts()
                             .gossipCaCertificate(VALID_CERT),
-                    nodeCreate("toBeDeletedNode6")
+                    nodeCreate("toBeDeletedNode6", classicFeeCollectorIdFor(6))
                             .adminKey(DEFAULT_PAYER)
-                            .accountNum(classicFeeCollectorIdFor(6))
                             .description(CLASSIC_NODE_NAMES[6])
                             .withAvailableSubProcessPorts()
                             .gossipCaCertificate(VALID_CERT),
-                    nodeCreate("disallowedNode7")
+                    nodeCreate("disallowedNode7", classicFeeCollectorIdFor(7))
                             .adminKey(DEFAULT_PAYER)
-                            .accountNum(classicFeeCollectorIdFor(7))
                             .description(CLASSIC_NODE_NAMES[7])
                             .withAvailableSubProcessPorts()
                             .gossipCaCertificate(VALID_CERT)
@@ -267,6 +291,9 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     nodeDelete("6"),
                     // Delete an already active node
                     nodeDelete("4"),
+                    // New node accounts should have positive balance
+                    cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, String.valueOf(classicFeeCollectorIdFor(905)), 1L)),
+                    cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, String.valueOf(classicFeeCollectorIdFor(902)), 1L)),
                     // Update a pending node
                     nodeUpdate("node5")
                             // These endpoints will be replaced by the FakeNmt process just before

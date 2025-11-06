@@ -11,20 +11,26 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,14 +38,15 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.stream.IntStream;
 import org.hiero.consensus.event.creator.impl.EventCreator;
-import org.hiero.consensus.event.creator.impl.TransactionSupplier;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator.HashSigner;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
-import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.model.test.fixtures.transaction.TestingTransactions;
+import org.hiero.consensus.model.transaction.EventTransactionSupplier;
+import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.junit.jupiter.api.Assertions;
 
@@ -54,19 +61,27 @@ public class TipsetEventCreatorTestUtils {
             @NonNull final Time time,
             @NonNull final Roster roster,
             @NonNull final NodeId nodeId,
-            @NonNull final TransactionSupplier transactionSupplier) {
+            @NonNull final EventTransactionSupplier transactionSupplier) {
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withTime(time).build();
+        final Configuration configuration =
+                ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Metrics metrics = new NoOpMetrics();
 
         final HashSigner signer = mock(HashSigner.class);
         when(signer.sign(any())).thenAnswer(invocation -> randomSignature(random));
 
-        final SemanticVersion softwareVersion =
-                SemanticVersion.newBuilder().major(1).build();
+        // Use SHA1PRNG for deterministic behavior
+        final SecureRandom secureRandom;
+        try {
+            secureRandom = SecureRandom.getInstance("SHA1PRNG", "SUN");
+        } catch (final NoSuchAlgorithmException | NoSuchProviderException e) {
+            throw new RuntimeException(e);
+        }
+        // Set a fixed seed for deterministic output
+        secureRandom.setSeed(random.nextLong());
 
         return new TipsetEventCreator(
-                platformContext, random, signer, roster, nodeId, softwareVersion, transactionSupplier);
+                configuration, metrics, time, secureRandom, signer, roster, nodeId, transactionSupplier);
     }
 
     /**
@@ -77,23 +92,26 @@ public class TipsetEventCreatorTestUtils {
             @NonNull final Random random,
             @NonNull final Time time,
             @NonNull final Roster roster,
-            @NonNull final TransactionSupplier transactionSupplier,
-            @NonNull final AncientMode ancientMode) {
+            @NonNull final EventTransactionSupplier transactionSupplier) {
 
         final Map<NodeId, SimulatedNode> eventCreators = new HashMap<>();
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withTime(time).build();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final Metrics metrics = new NoOpMetrics();
 
         for (final RosterEntry address : roster.rosterEntries()) {
 
             final NodeId selfId = NodeId.of(address.nodeId());
             final EventCreator eventCreator = buildEventCreator(random, time, roster, selfId, transactionSupplier);
-            final TipsetTracker tipsetTracker = new TipsetTracker(time, selfId, roster, ancientMode);
+
+            // Set a wide event window so that no events get stuck in the Future Event Buffer
+            eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
+
+            final TipsetTracker tipsetTracker = new TipsetTracker(time, selfId, roster);
 
             final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
             final TipsetWeightCalculator tipsetWeightCalculator = new TipsetWeightCalculator(
-                    platformContext, roster, NodeId.of(address.nodeId()), tipsetTracker, childlessEventTracker);
-            final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(platformContext, mock(IntakeEventCounter.class));
+                    configuration, time, roster, NodeId.of(address.nodeId()), tipsetTracker, childlessEventTracker);
+            final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, mock(IntakeEventCounter.class));
 
             eventCreators.put(
                     selfId,
@@ -108,20 +126,41 @@ public class TipsetEventCreatorTestUtils {
         return eventCreators;
     }
 
-    public static void validateNewEvent(
+    /**
+     * Validates that @code newEvent satisfies:
+     * <ul>
+     * <li>if it has a null self-parent, is only during genesis scenario</li>
+     * <li>if it has a null other-parent, is only during genesis scenario</li>
+     * <li> the event is contained in allEvents</li>
+     * <li> NGen should be max of parents plus one</li>
+     * <li> Parent's birthround or generation is never higher than event's.</li>
+     * <li> There is a minimum gap of 1-nanosecond between Event's timeCreated and selfparent's ( timeCreated + transactionCount)</li>
+     * <li> Except for genesis scenario, new event must have a positive advancement score.</li>
+     * <li> Application Transactions of the event matches @code expectedTransactions</li>
+     * </ul>
+     * <p>
+     * This method produces a side effect of advancing the last AdvancementWeight of the simulatedNode
+     *
+     * @param allEvents                the list of all events, where parents are going to be retrieved from and the
+     *                                 event is going to be check against
+     * @param newEvent                 the event to validate
+     * @param expectedTransactions     all the application transactions expected to be present in the event
+     * @param simulatedNode            the node that produced the event. This object is changed after invoking this
+     *                                 method.
+     * @param slowNode                 an specific mode of validation
+     * @param forgiveNotAdvancingScore if set to true, test will ignore not advancing score when validating events
+     */
+    public static void validateNewEventAndMaybeAdvanceCreatorScore(
             @NonNull final Map<EventDescriptorWrapper, PlatformEvent> allEvents,
             @NonNull final PlatformEvent newEvent,
-            @NonNull final List<Bytes> expectedTransactions,
+            @NonNull final List<TimestampedTransaction> expectedTransactions,
             @NonNull final SimulatedNode simulatedNode,
-            final boolean slowNode) {
+            final boolean slowNode,
+            final boolean forgiveNotAdvancingScore) {
 
         final PlatformEvent selfParent = allEvents.get(newEvent.getSelfParent());
-        final long selfParentGeneration =
-                selfParent == null ? NonDeterministicGeneration.GENERATION_UNDEFINED : selfParent.getNGen();
         final PlatformEvent otherParent =
                 allEvents.get(newEvent.getOtherParents().stream().findFirst().orElse(null));
-        final long otherParentGeneration =
-                otherParent == null ? NonDeterministicGeneration.GENERATION_UNDEFINED : otherParent.getNGen();
 
         if (selfParent == null) {
             // The only legal time to have a null self parent is genesis.
@@ -136,38 +175,38 @@ public class TipsetEventCreatorTestUtils {
         }
 
         if (otherParent == null) {
-            if (slowNode) {
-                // During the slow node test, we intentionally don't distribute an event that ends up in the
-                // events map. So it's possible for this map to contain two events at this point in time.
-                assertTrue(allEvents.size() == 1 || allEvents.size() == 2);
-            } else {
-                // The only legal time to have no other-parent is at genesis before other events are received.
-                assertEquals(1, allEvents.size());
+            if (!forgiveNotAdvancingScore) {
+                if (slowNode) {
+                    // During the slow node test, we intentionally don't distribute an event that ends up in the
+                    // events map. So it's possible for this map to contain two events at this point in time.
+                    assertTrue(allEvents.size() == 1 || allEvents.size() == 2);
+                } else {
+                    // The only legal time to have no other-parent is at genesis before other events are received.
+                    assertEquals(1, allEvents.size());
+                }
             }
             assertTrue(allEvents.containsKey(newEvent.getDescriptor()));
         }
 
-        // Generation should be max of parents plus one
-        final long expectedGeneration = Math.max(selfParentGeneration, otherParentGeneration) + 1;
-        assertEquals(expectedGeneration, newEvent.getNGen());
-
-        // Timestamp must always increase by 1 nanosecond, and there must always be a unique timestamp
-        // with nanosecond precision for transaction.
+        // Timestamp must always increase by 1 nanosecond
         if (selfParent != null) {
-            final int minimumIncrement = Math.max(1, selfParent.getTransactionCount());
-            final Instant minimumTimestamp = selfParent.getTimeCreated().plus(Duration.ofNanos(minimumIncrement));
+            final Instant minimumTimestamp = selfParent.getTimeCreated().plus(Duration.ofNanos(1));
             assertTrue(isGreaterThanOrEqualTo(newEvent.getTimeCreated(), minimumTimestamp));
         }
 
         // Validate tipset constraints.
         final EventDescriptorWrapper descriptor = newEvent.getDescriptor();
         if (selfParent != null) {
-            // Except for a genesis event, all other new events must have a positive advancement score.
-            assertTrue(simulatedNode
-                    .tipsetWeightCalculator()
-                    .addEventAndGetAdvancementWeight(descriptor)
-                    .isNonZero());
+            // Except for a genesis event and break quiescence events, all other new events must have a positive
+            // advancement score.
+            if (!forgiveNotAdvancingScore) {
+                assertTrue(simulatedNode
+                        .tipsetWeightCalculator()
+                        .addEventAndGetAdvancementWeight(descriptor)
+                        .isNonZero());
+            }
         } else {
+            // the next call will modify the tipsetWeightCalculator
             simulatedNode.tipsetWeightCalculator().addEventAndGetAdvancementWeight(descriptor);
         }
 
@@ -176,7 +215,7 @@ public class TipsetEventCreatorTestUtils {
                 .toList();
         // We should see the expected transactions
         IntStream.range(0, expectedTransactions.size()).forEach(i -> {
-            final Bytes expected = expectedTransactions.get(i);
+            final Bytes expected = expectedTransactions.get(i).transaction();
             final Bytes actual = convertedTransactions.get(i);
             assertEquals(expected, actual, "Transaction " + i + " mismatch");
         });
@@ -230,25 +269,34 @@ public class TipsetEventCreatorTestUtils {
     }
 
     /**
+     * Generates {@code number} of random transactions
+     *
+     * @param random the random instance to use
+     * @param number the number of transactions to generate. Must be positive.
+     * @return a list of bytes for each transaction
+     */
+    @NonNull
+    static List<TimestampedTransaction> generateTransactions(@NonNull final Random random, final int number) {
+        if (number <= 0) {
+            throw new IllegalArgumentException("number must be greater than 0");
+        }
+        return IntStream.range(0, number)
+                .mapToObj(i -> TestingTransactions.generateRandomTransaction(random))
+                .map(b -> new TimestampedTransaction(b, Instant.now()))
+                .toList();
+    }
+
+    /**
      * Generate a small number of random transactions.
      */
     @NonNull
-    public static List<Bytes> generateRandomTransactions(@NonNull final Random random) {
-        final int transactionCount = random.nextInt(0, 10);
-        final List<Bytes> transactions = new ArrayList<>();
-
-        for (int i = 0; i < transactionCount; i++) {
-            final byte[] bytes = new byte[32];
-            random.nextBytes(bytes);
-            transactions.add(Bytes.wrap(bytes));
-        }
-
-        return transactions;
+    public static List<TimestampedTransaction> generateRandomTransactions(@NonNull final Random random) {
+        return generateTransactions(random, random.nextInt(1, 10));
     }
 
     @NonNull
-    public static PlatformEvent createTestEvent(
-            @NonNull final Random random, @NonNull final NodeId creator, final long nGen) {
+    public static PlatformEvent createTestEventWithParent(
+            @NonNull final Random random, @Nullable final NodeId creator, final long nGen, final long birthRound) {
 
         final PlatformEvent selfParent =
                 new TestingEventBuilder(random).setCreatorId(creator).build();
@@ -256,7 +304,16 @@ public class TipsetEventCreatorTestUtils {
         return new TestingEventBuilder(random)
                 .setCreatorId(creator)
                 .setNGen(nGen)
+                .setBirthRound(birthRound)
                 .setSelfParent(selfParent)
                 .build();
+    }
+
+    /**
+     * @return a boolean array containing both false and true values
+     */
+    @NonNull
+    public static List<Boolean> booleanValues() {
+        return Arrays.asList(Boolean.FALSE, Boolean.TRUE);
     }
 }

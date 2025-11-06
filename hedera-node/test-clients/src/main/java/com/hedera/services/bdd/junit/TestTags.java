@@ -7,6 +7,8 @@ public class TestTags {
         throw new UnsupportedOperationException("Utility class");
     }
 
+    public static final String MATS = "MATS";
+
     public static final String CRYPTO = "CRYPTO";
     public static final String SMART_CONTRACT = "SMART_CONTRACT";
     public static final String LONG_RUNNING = "LONG_RUNNING";
@@ -15,7 +17,8 @@ public class TestTags {
     public static final String ND_RECONNECT = "ND_RECONNECT";
     public static final String UPGRADE = "UPGRADE";
     public static final String ISS = "ISS";
-    public static final String BLOCK_NODE_SIMULATOR = "BLOCK_NODE_SIMULATOR";
+    public static final String BLOCK_NODE = "BLOCK_NODE";
+    public static final String SIMPLE_FEES = "SIMPLE_FEES";
     /**
      * Tags a embedded tests run as part of the default {@code Test} to provide efficient
      * integration tests of the app workflows (e.g., ingest, pre-handle, handle) and services.

@@ -27,8 +27,11 @@ import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.CryptoTransferTransactionBody;
+import com.hederahashgraph.api.proto.java.EvmHookCall;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
+import com.hederahashgraph.api.proto.java.HookCall;
 import com.hederahashgraph.api.proto.java.Key;
+import com.hederahashgraph.api.proto.java.NftTransfer;
 import com.hederahashgraph.api.proto.java.TokenTransferList;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
@@ -36,6 +39,7 @@ import com.hederahashgraph.api.proto.java.TransferList;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -67,6 +71,9 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
     private Optional<AtomicReference<FeeObject>> feesObserver = Optional.empty();
     private Optional<BiConsumer<HapiSpec, CryptoTransferTransactionBody.Builder>> explicitDef = Optional.empty();
     private static boolean transferToKey = false;
+    private final Map<String, List<HookSpec>> fungibleHooksByAccount = new java.util.HashMap<>();
+    private final Map<String, List<HookSpec>> nftSenderHooksByAccount = new java.util.HashMap<>();
+    private final Map<String, List<HookSpec>> nftReceiverHooksByAccount = new java.util.HashMap<>();
 
     @Override
     public HederaFunctionality type() {
@@ -391,6 +398,76 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
                 .build();
     }
 
+    public HapiCryptoTransfer withPreHookFor(
+            final String account, final long hookId, final long gasLimit, final ByteString dataUtf8) {
+        fungibleHooksByAccount
+                .computeIfAbsent(account, k -> new ArrayList<>())
+                .add(HookSpec.pre(hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : dataUtf8));
+        return this;
+    }
+
+    public HapiCryptoTransfer withPreHookFor(
+            final String account, final long hookId, final long gasLimit, final String dataUtf8) {
+        fungibleHooksByAccount
+                .computeIfAbsent(account, k -> new ArrayList<>())
+                .add(HookSpec.pre(
+                        hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : ByteString.copyFromUtf8(dataUtf8)));
+        return this;
+    }
+
+    public HapiCryptoTransfer withPrePostHookFor(
+            final String account, final long hookId, final long gasLimit, final String dataUtf8) {
+        fungibleHooksByAccount
+                .computeIfAbsent(account, k -> new ArrayList<>())
+                .add(HookSpec.prePost(
+                        hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : ByteString.copyFromUtf8(dataUtf8)));
+        return this;
+    }
+
+    public HapiCryptoTransfer withNftSenderPreHookFor(
+            final String account, final long hookId, final long gasLimit, final String dataUtf8) {
+        nftSenderHooksByAccount
+                .computeIfAbsent(account, k -> new ArrayList<>())
+                .add(HookSpec.pre(
+                        hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : ByteString.copyFromUtf8(dataUtf8)));
+        return this;
+    }
+
+    public HapiCryptoTransfer withNftSenderPrePostHookFor(
+            final String account, final long hookId, final long gasLimit, final String dataUtf8) {
+        nftSenderHooksByAccount
+                .computeIfAbsent(account, k -> new ArrayList<>())
+                .add(HookSpec.prePost(
+                        hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : ByteString.copyFromUtf8(dataUtf8)));
+        return this;
+    }
+
+    public HapiCryptoTransfer withNftReceiverPreHookFor(
+            final String account, final long hookId, final long gasLimit, final String dataUtf8) {
+        nftReceiverHooksByAccount
+                .computeIfAbsent(account, k -> new ArrayList<>())
+                .add(HookSpec.pre(
+                        hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : ByteString.copyFromUtf8(dataUtf8)));
+        return this;
+    }
+
+    public HapiCryptoTransfer withNftReceiverPreHookFor(
+            final String account, final long hookId, final long gasLimit, final ByteString dataUtf8) {
+        nftReceiverHooksByAccount
+                .computeIfAbsent(account, k -> new ArrayList<>())
+                .add(HookSpec.pre(hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : dataUtf8));
+        return this;
+    }
+
+    public HapiCryptoTransfer withNftReceiverPrePostHookFor(
+            final String account, final long hookId, final long gasLimit, final String dataUtf8) {
+        nftReceiverHooksByAccount
+                .computeIfAbsent(account, k -> new ArrayList<>())
+                .add(HookSpec.prePost(
+                        hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : ByteString.copyFromUtf8(dataUtf8)));
+        return this;
+    }
+
     @Override
     protected Consumer<TransactionBody.Builder> opBodyDef(final HapiSpec spec) throws Throwable {
         final CryptoTransferTransactionBody opBody = spec.txns()
@@ -412,10 +489,145 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
                                     }
                                 }
                                 misconfigureIfRequested(b, spec);
+                                injectAllowanceHooks(b, spec);
                             }
                         });
 
         return builder -> builder.setCryptoTransfer(opBody);
+    }
+
+    private void injectAllowanceHooks(final CryptoTransferTransactionBody.Builder builder, final HapiSpec spec) {
+        final var fungibleResolved = resolveByAllForms(spec, fungibleHooksByAccount);
+        final var nftSenderResolved = resolveByAllForms(spec, nftSenderHooksByAccount);
+        final var nftReceiverResolved = resolveByAllForms(spec, nftReceiverHooksByAccount);
+
+        if (builder.hasTransfers() && !fungibleResolved.isEmpty()) {
+            final var tl = builder.getTransfers().toBuilder();
+            for (int i = 0, n = tl.getAccountAmountsCount(); i < n; i++) {
+                final var aaB = tl.getAccountAmountsBuilder(i);
+                final var hooks = fungibleResolved.get(aaB.getAccountID());
+                if (hooks != null) {
+                    for (var specHook : hooks) {
+                        applyHookToAccountAmount(aaB, specHook);
+                    }
+                }
+            }
+            builder.setTransfers(tl);
+        }
+
+        for (int i = 0, t = builder.getTokenTransfersCount(); i < t; i++) {
+            final var ttlB = builder.getTokenTransfersBuilder(i);
+
+            // Fungible AA entries
+            if (!fungibleResolved.isEmpty()) {
+                for (int j = 0, m = ttlB.getTransfersCount(); j < m; j++) {
+                    final var aaB = ttlB.getTransfersBuilder(j);
+                    final var hooks = fungibleResolved.get(aaB.getAccountID());
+                    if (hooks != null) {
+                        for (var specHook : hooks) {
+                            applyHookToAccountAmount(aaB, specHook);
+                        }
+                    }
+                }
+            }
+
+            // NFT sender/receiver entries
+            if (!nftSenderResolved.isEmpty() || !nftReceiverResolved.isEmpty()) {
+                for (int j = 0, m = ttlB.getNftTransfersCount(); j < m; j++) {
+                    final var nftB = ttlB.getNftTransfersBuilder(j);
+
+                    final var sHook = nftSenderResolved.get(nftB.getSenderAccountID());
+                    if (sHook != null) {
+                        for (var specHook : sHook) {
+                            applyHookToNftSender(nftB, specHook);
+                        }
+                    }
+
+                    final var rHook = nftReceiverResolved.get(nftB.getReceiverAccountID());
+                    if (rHook != null) {
+                        for (var specHook : rHook) {
+                            applyHookToNftReceiver(nftB, specHook);
+                        }
+                    }
+                }
+            }
+
+            builder.setTokenTransfers(i, ttlB);
+        }
+    }
+
+    /** Map every known AccountID form for each name to the same HookSpec. */
+    private static Map<AccountID, List<HookSpec>> resolveByAllForms(
+            final HapiSpec spec, final Map<String, List<HookSpec>> byName) {
+        final var out = new HashMap<AccountID, List<HookSpec>>();
+        for (var e : byName.entrySet()) {
+            final var name = e.getKey();
+            final var hsList = e.getValue();
+
+            // Numeric id (may throw if name is only an alias -> ignore)
+            try {
+                out.computeIfAbsent(asId(name, spec), k -> new ArrayList<>()).addAll(hsList);
+            } catch (Throwable ignore) {
+            }
+
+            // Key-lookup id (often key-alias)
+            try {
+                out.computeIfAbsent(asIdForKeyLookUp(name, spec), k -> new ArrayList<>())
+                        .addAll(hsList);
+            } catch (Throwable ignore) {
+            }
+
+            // If registry can produce an alias AccountID (key/EVM), include it too
+            try {
+                final var aliasId = spec.registry().keyAliasIdFor(spec, name);
+                out.computeIfAbsent(aliasId, k -> new ArrayList<>()).addAll(hsList);
+            } catch (Throwable ignore) {
+            }
+        }
+        return out;
+    }
+
+    private static void applyHookToAccountAmount(final AccountAmount.Builder aaB, final HookSpec spec) {
+        final var evm = EvmHookCall.newBuilder()
+                .setGasLimit(spec.gasLimit)
+                .setData(spec.data)
+                .build();
+        final var hook =
+                HookCall.newBuilder().setHookId(spec.hookId).setEvmHookCall(evm).build();
+
+        if (spec.prePost) {
+            aaB.setPrePostTxAllowanceHook(hook);
+        } else {
+            aaB.setPreTxAllowanceHook(hook);
+        }
+    }
+
+    private void applyHookToNftSender(final NftTransfer.Builder nftB, final HookSpec spec) {
+        final var evm = EvmHookCall.newBuilder()
+                .setGasLimit(spec.gasLimit)
+                .setData(spec.data)
+                .build();
+        final var hook =
+                HookCall.newBuilder().setHookId(spec.hookId).setEvmHookCall(evm).build();
+        if (spec.prePost) {
+            nftB.setPrePostTxSenderAllowanceHook(hook);
+        } else {
+            nftB.setPreTxSenderAllowanceHook(hook);
+        }
+    }
+
+    private void applyHookToNftReceiver(final NftTransfer.Builder nftB, final HookSpec spec) {
+        final var evm = EvmHookCall.newBuilder()
+                .setGasLimit(spec.gasLimit)
+                .setData(spec.data)
+                .build();
+        final var hook =
+                HookCall.newBuilder().setHookId(spec.hookId).setEvmHookCall(evm).build();
+        if (spec.prePost) {
+            nftB.setPrePostTxReceiverAllowanceHook(hook);
+        } else {
+            nftB.setPreTxReceiverAllowanceHook(hook);
+        }
     }
 
     private void misconfigureIfRequested(final CryptoTransferTransactionBody.Builder b, final HapiSpec spec) {
@@ -539,6 +751,28 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
     protected void updateStateOf(final HapiSpec spec) throws Throwable {
         if (logResolvedStatus) {
             log.info("Resolved to {}", actualStatus);
+        }
+    }
+
+    public static final class HookSpec {
+        final long hookId;
+        final long gasLimit;
+        final ByteString data;
+        final boolean prePost;
+
+        HookSpec(long hookId, long gasLimit, ByteString data, boolean prePost) {
+            this.hookId = hookId;
+            this.gasLimit = gasLimit;
+            this.data = data == null ? ByteString.EMPTY : data;
+            this.prePost = prePost;
+        }
+
+        static HookSpec pre(long hookId, long gasLimit, ByteString data) {
+            return new HookSpec(hookId, gasLimit, data, false);
+        }
+
+        static HookSpec prePost(long hookId, long gasLimit, ByteString data) {
+            return new HookSpec(hookId, gasLimit, data, true);
         }
     }
 }

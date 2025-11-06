@@ -2,20 +2,23 @@
 package com.swirlds.platform.system;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
+import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.function.Function;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
  * To implement a swirld, create a class that implements SwirldMain. Its constructor should have no parameters, and its
  * run() method should run until the user quits the swirld.
  */
-public interface SwirldMain<T extends MerkleNodeState> extends Runnable {
+public interface SwirldMain<T extends MerkleNodeState> extends Runnable, ExecutionLayer {
 
     /**
      * Get configuration types to be registered.
@@ -52,12 +55,30 @@ public interface SwirldMain<T extends MerkleNodeState> extends Runnable {
     void run();
 
     /**
-     * Instantiate and return a root node of the merkle state tree for this SwirldMain object.
+     * Instantiate and return a state root object for this SwirldMain object.
+     * The returned state root object could be one of the following:
+     * <ul>
+     *     <li>(Deprecated) Actual root node of the merkle state tree
+     *         - an instance of {@code HederaStateRoot}.
+     *     </li>
+     *     <li>A wrapper around the root node
+     *         - an instance of {@code HederaVirtualMapState}.
+     *     </li>
+     * </ul>
      *
-     * @return merkle state tree root node
+     * @return state root object
      */
     @NonNull
     T newStateRoot();
+
+    /**
+     * A function to instantiate the state root object from a Virtual Map.
+     *
+     * @param metrics the platform metric instance to use when creating the new state root
+     * @param time    the time instance to use when creating the new state root
+     * @return a function that accepts a {@code VirtualMap} and returns the state root object.
+     */
+    Function<VirtualMap, T> stateRootFromVirtualMap(@NonNull final Metrics metrics, @NonNull final Time time);
 
     /**
      * Instantiate and return a new instance of the consensus state event handler for this SwirldMain object.
@@ -87,13 +108,4 @@ public interface SwirldMain<T extends MerkleNodeState> extends Runnable {
      */
     @NonNull
     SemanticVersion getSemanticVersion();
-
-    /**
-     * Encodes a system transaction to {@link Bytes} representation of a {@link com.hedera.hapi.node.base.Transaction}.
-     *
-     * @param transaction the {@link StateSignatureTransaction} to encode
-     * @return {@link Bytes} representation of the transaction
-     */
-    @NonNull
-    Bytes encodeSystemTransaction(@NonNull final StateSignatureTransaction transaction);
 }

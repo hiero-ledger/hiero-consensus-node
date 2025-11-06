@@ -9,7 +9,7 @@ import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema;
-import com.hedera.node.app.spi.ids.WritableEntityCounters;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -20,6 +20,7 @@ import java.util.Set;
  * A fully mutable {@link ContractStateStore}.
  */
 public class WritableContractStateStore extends ReadableContractStateStore implements ContractStateStore {
+
     private final WritableKVState<SlotKey, SlotValue> storage;
     private final WritableKVState<ContractID, Bytecode> bytecode;
     private final WritableEntityCounters entityCounters;
@@ -33,8 +34,8 @@ public class WritableContractStateStore extends ReadableContractStateStore imple
             @NonNull final WritableStates states, @NonNull final WritableEntityCounters entityCounters) {
         super(states, entityCounters);
         requireNonNull(states);
-        this.storage = states.get(V0490ContractSchema.STORAGE_KEY);
-        this.bytecode = states.get(V0490ContractSchema.BYTECODE_KEY);
+        this.storage = states.get(V0490ContractSchema.STORAGE_STATE_ID);
+        this.bytecode = states.get(V0490ContractSchema.BYTECODE_STATE_ID);
         this.entityCounters = requireNonNull(entityCounters);
     }
 

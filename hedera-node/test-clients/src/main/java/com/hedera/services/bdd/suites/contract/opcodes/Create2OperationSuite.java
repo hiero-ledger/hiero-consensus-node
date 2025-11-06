@@ -2,14 +2,10 @@
 package com.hedera.services.bdd.suites.contract.opcodes;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.NO_CONCURRENT_CREATIONS;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.accountIdFromHexedMirrorAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContractString;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySource.contractIdFromHexedMirrorAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.explicitBytesOf;
-import static com.hedera.services.bdd.spec.HapiPropertySource.literalIdFromHexedMirrorAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -52,6 +48,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
@@ -64,12 +61,17 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.aaWith;
-import static com.hedera.services.bdd.suites.contract.Utils.accountId;
+import static com.hedera.services.bdd.suites.contract.Utils.accountIdFromEvmAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.accountIdFromHexedMirrorAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.aliasContractIdKey;
 import static com.hedera.services.bdd.suites.contract.Utils.aliasDelegateContractKey;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.captureOneChildCreate2MetaFor;
+import static com.hedera.services.bdd.suites.contract.Utils.contractIdFromHexedMirrorAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
+import static com.hedera.services.bdd.suites.contract.Utils.literalIdFromHexedMirrorAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.ocWith;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.A_TOKEN;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.LAZY_MEMO;
@@ -111,6 +113,7 @@ import com.hedera.services.bdd.spec.queries.contract.HapiContractCallLocal;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
+import com.hedera.services.bdd.suites.contract.Utils;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.NftTransfer;
@@ -165,7 +168,10 @@ public class Create2OperationSuite {
 
         return hapiTest(
                 uploadInitCode(contract),
-                contractCreate(contract).payingWith(GENESIS).via(CREATION).exposingNumTo(outerCreatorNum::set),
+                contractCreate(contract)
+                        .payingWith(GENESIS)
+                        .via(CREATION)
+                        .exposingContractIdTo(id -> outerCreatorNum.set(id.getContractNum())),
                 contractCall(contract, "startChain", msg).gas(4_000_000).via(noisyTxn),
                 sourcing(() -> {
                     final var idOfFirstThreeLogs = String.valueOf(outerCreatorNum.get() + 1);
@@ -197,10 +203,10 @@ public class Create2OperationSuite {
 
         return hapiTest(
                 uploadInitCode(contract),
-                contractCreate(contract).payingWith(GENESIS).via(CREATION).exposingNumTo(num -> {
-                    factoryEntityNum.set(num);
-                    factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num));
-                }),
+                contractCreate(contract)
+                        .payingWith(GENESIS)
+                        .via(CREATION)
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 sourcing(
                         () -> contractCallLocal(contract, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), foo)
                                 .exposingTypedResultsTo(results -> {
@@ -226,6 +232,7 @@ public class Create2OperationSuite {
 
     @SuppressWarnings("java:S5669")
     @LeakyHapiTest(requirement = NO_CONCURRENT_CREATIONS)
+    @Tag(MATS)
     final Stream<DynamicTest> inlineCreateCanFailSafely() {
         final var tcValue = 1_234L;
         final var creation = CREATION;
@@ -239,9 +246,9 @@ public class Create2OperationSuite {
 
         return hapiTest(
                 uploadInitCode(contract),
-                contractCreate(contract).payingWith(GENESIS).via(creation).exposingNumTo(num -> {
-                    factoryEntityNum.set(num);
-                    factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num));
+                contractCreate(contract).payingWith(GENESIS).via(creation).exposingContractIdTo(id -> {
+                    factoryEntityNum.set(id.getContractNum());
+                    factoryEvmAddress.set(asHexedSolidityAddress(id));
                 }),
                 sourcing(
                         () -> contractCallLocal(contract, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), foo)
@@ -285,6 +292,7 @@ public class Create2OperationSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> payableCreate2WorksAsExpected() {
         final var contract = "PayableCreate2Deploy";
         AtomicReference<String> tcMirrorAddr2 = new AtomicReference<>();
@@ -303,6 +311,7 @@ public class Create2OperationSuite {
     // https://github.com/hashgraph/hedera-services/issues/2868
     @SuppressWarnings("java:S5960")
     @LeakyHapiTest(overrides = {"contracts.evm.version"})
+    @Tag(MATS)
     final Stream<DynamicTest> create2FactoryWorksAsExpected() {
         final var tcValue = 1_234L;
         final var contract = "Create2Factory";
@@ -376,13 +385,8 @@ public class Create2OperationSuite {
                                 .status(SUCCESS))),
                 withOpContext((spec, opLog) -> {
                     final var parentId = spec.registry().getContractId(contract);
-                    final var childId = ContractID.newBuilder()
-                            .setShardNum(spec.shard())
-                            .setRealmNum(spec.realm())
-                            .setContractNum(parentId.getContractNum() + 2L)
-                            .build();
-                    mirrorLiteralId.set(String.valueOf(childId.getContractNum()));
-                    expectedMirrorAddress.set(hex(asSolidityAddress(childId)));
+                    mirrorLiteralId.set(String.valueOf(parentId.getContractNum() + 2L));
+                    expectedMirrorAddress.set(hex(asSolidityAddress(spec, parentId.getContractNum() + 2L)));
                 }),
                 sourcing(() -> getContractBytecode(mirrorLiteralId.get()).exposingBytecodeTo(bytecodeFromMirror::set)),
                 // https://github.com/hashgraph/hedera-services/issues/2874
@@ -427,6 +431,7 @@ public class Create2OperationSuite {
     }
 
     @LeakyHapiTest(overrides = {"contracts.evm.version"})
+    @Tag(MATS)
     final Stream<DynamicTest> canCallFinalizedContractViaHapi() {
         final var contract = "FinalizedDestructible";
         final var salt = BigInteger.valueOf(1_234_567_890L);
@@ -490,10 +495,10 @@ public class Create2OperationSuite {
                         .gas(4_000_000L)
                         .via(CREATE_2_TXN),
                 captureOneChildCreate2MetaFor("Precompile user", CREATE_2_TXN, userMirrorAddr, userAliasAddr),
-                sourcing(() -> getAliasedContractBalance(userAliasAddr.get())
-                        .hasId(accountIdFromHexedMirrorAddress(userMirrorAddr.get()))),
-                withOpContext((spec, opLog) ->
-                        userLiteralId.set(asContractString(contractIdFromHexedMirrorAddress(userMirrorAddr.get())))),
+                withOpContext((spec, opLog) -> getAliasedContractBalance(userAliasAddr.get())
+                        .hasId(accountIdFromHexedMirrorAddress(spec, userMirrorAddr.get()))),
+                withOpContext((spec, opLog) -> userLiteralId.set(
+                        asContractString(contractIdFromHexedMirrorAddress(spec, userMirrorAddr.get())))),
                 sourcing(() -> tokenCreate(nft)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .treasury(userLiteralId.get())
@@ -527,6 +532,7 @@ public class Create2OperationSuite {
 
     @SuppressWarnings("java:S5669")
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> canUseAliasesInPrecompilesAndContractKeys() {
         final var creation2 = CREATE_2_TXN;
         final var contract = "Create2PrecompileUser";
@@ -555,8 +561,8 @@ public class Create2OperationSuite {
                         .gas(4_000_000L)
                         .via(creation2),
                 captureOneChildCreate2MetaFor("Precompile user", creation2, userMirrorAddr, userAliasAddr),
-                withOpContext((spec, opLog) ->
-                        userLiteralId.set(asContractString(contractIdFromHexedMirrorAddress(userMirrorAddr.get())))),
+                withOpContext((spec, opLog) -> userLiteralId.set(
+                        asContractString(contractIdFromHexedMirrorAddress(spec, userMirrorAddr.get())))),
                 tokenCreate(ft)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
@@ -569,7 +575,7 @@ public class Create2OperationSuite {
                         .supplyKey(multiKey),
                 mintToken(nft, List.of(ByteString.copyFromUtf8("PRICELESS"))),
                 tokenUpdate(nft)
-                        .supplyKey(spec -> aliasContractIdKey(spec.shard(), spec.realm(), userAliasAddr.get()))
+                        .supplyKey(spec -> aliasContractIdKey(spec, userAliasAddr.get()))
                         .signedByPayerAnd(multiKey),
                 withOpContext((spec, opLog) -> {
                     final var registry = spec.registry();
@@ -672,7 +678,7 @@ public class Create2OperationSuite {
                 // https://github.com/hashgraph/hedera-services/issues/2876 (mint via
                 // delegatable_contract_id)
                 tokenUpdate(nft)
-                        .supplyKey(spec -> aliasDelegateContractKey(spec.shard(), spec.realm(), userAliasAddr.get()))
+                        .supplyKey(spec -> aliasDelegateContractKey(spec, userAliasAddr.get()))
                         .signedByPayerAnd(multiKey),
                 sourcing(() -> contractCallWithFunctionAbi(
                                 userAliasAddr.get(),
@@ -700,8 +706,8 @@ public class Create2OperationSuite {
                                             .addNftTransfers(NftTransfer.newBuilder()
                                                     .setSerialNumber(2L)
                                                     .setSenderAccountID(tt)
-                                                    .setReceiverAccountID(accountId(
-                                                            spec.shard(), spec.realm(), userMirrorAddr.get()))));
+                                                    .setReceiverAccountID(Utils.accountIdWithHexedEvmAddress(
+                                                            spec, userMirrorAddr.get()))));
                         })
                         .signedBy(DEFAULT_PAYER, TOKEN_TREASURY),
                 sourcing(() -> getContractInfo(userLiteralId.get()).logged()));
@@ -782,7 +788,7 @@ public class Create2OperationSuite {
                 captureOneChildCreate2MetaFor(
                         "Salting creator", creation2, saltingCreatorMirrorAddr, saltingCreatorAliasAddr),
                 withOpContext((spec, opLog) -> saltingCreatorLiteralId.set(
-                        asContractString(contractIdFromHexedMirrorAddress(saltingCreatorMirrorAddr.get())))),
+                        asContractString(contractIdFromHexedMirrorAddress(spec, saltingCreatorMirrorAddr.get())))),
                 // https://github.com/hashgraph/hedera-services/issues/2867 (can't
                 // re-create2 after selfdestruct)
                 sourcing(() -> contractCallWithFunctionAbi(
@@ -827,6 +833,7 @@ public class Create2OperationSuite {
 
     @SuppressWarnings("java:S5669")
     @LeakyHapiTest(overrides = {"contracts.evm.version"})
+    @Tag(MATS)
     final Stream<DynamicTest> create2InputAddressIsStableWithTopLevelCallWhetherMirrorOrAliasIsUsed() {
         final var creation2 = CREATE_2_TXN;
         final var innerCreation2 = "innerCreate2Txn";
@@ -860,8 +867,8 @@ public class Create2OperationSuite {
                         .payingWith(GENESIS)
                         .gas(4_000_000L)
                         .via(innerCreation2)),
-                sourcing(() -> {
-                    final var emitterId = literalIdFromHexedMirrorAddress(saltingCreatorMirrorAddr.get());
+                sourcingContextual(spec -> {
+                    final var emitterId = literalIdFromHexedMirrorAddress(spec, saltingCreatorMirrorAddr.get());
                     return getTxnRecord(innerCreation2)
                             .hasPriority(recordWith()
                                     .contractCallResult(resultWith()
@@ -964,7 +971,7 @@ public class Create2OperationSuite {
                         .adminKey(adminKey)
                         .entityMemo(ENTITY_MEMO)
                         .via(CREATE_2_TXN)
-                        .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num))),
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 // GET BYTECODE OF THE CREATE2 CONTRACT
                 sourcing(() -> contractCallLocal(
@@ -1018,6 +1025,7 @@ public class Create2OperationSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> canMergeCreate2ChildWithHollowAccountHbarAndFungibleTransferUnlimitedAssociations() {
         final var tcValue = 1_234L;
         final var contract = "Create2Factory";
@@ -1035,7 +1043,7 @@ public class Create2OperationSuite {
         final var initialTokenSupply = 1000;
         final AtomicReference<TokenID> ftId = new AtomicReference<>();
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
-        final AtomicReference<ByteString> partyAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> partyAlias = new AtomicReference<>();
 
         return hapiTest(
                 newKeyNamed(adminKey),
@@ -1046,7 +1054,7 @@ public class Create2OperationSuite {
                         .adminKey(adminKey)
                         .entityMemo(ENTITY_MEMO)
                         .via(CREATE_2_TXN)
-                        .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num))),
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 tokenCreate(A_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
@@ -1139,7 +1147,7 @@ public class Create2OperationSuite {
         final AtomicReference<TokenID> ftId = new AtomicReference<>();
         final AtomicReference<TokenID> nftId = new AtomicReference<>();
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
-        final AtomicReference<ByteString> partyAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> partyAlias = new AtomicReference<>();
 
         return hapiTest(
                 newKeyNamed(adminKey),
@@ -1150,7 +1158,7 @@ public class Create2OperationSuite {
                         .adminKey(adminKey)
                         .entityMemo(ENTITY_MEMO)
                         .via(CREATE_2_TXN)
-                        .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num))),
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 tokenCreate(A_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
@@ -1244,7 +1252,7 @@ public class Create2OperationSuite {
         final var initialTokenSupply = 1000;
         final AtomicReference<TokenID> ftId = new AtomicReference<>();
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
-        final AtomicReference<ByteString> partyAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> partyAlias = new AtomicReference<>();
 
         return hapiTest(
                 newKeyNamed(adminKey),
@@ -1255,7 +1263,7 @@ public class Create2OperationSuite {
                         .adminKey(adminKey)
                         .entityMemo(ENTITY_MEMO)
                         .via(CREATE_2_TXN)
-                        .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num))),
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 tokenCreate(A_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
@@ -1337,7 +1345,7 @@ public class Create2OperationSuite {
 
         final AtomicReference<TokenID> nftId = new AtomicReference<>();
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
-        final AtomicReference<ByteString> partyAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> partyAlias = new AtomicReference<>();
         final int nftTransfersSize = 10;
 
         return hapiTest(
@@ -1349,7 +1357,7 @@ public class Create2OperationSuite {
                         .adminKey(adminKey)
                         .entityMemo(ENTITY_MEMO)
                         .via(CREATE_2_TXN)
-                        .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num))),
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 tokenCreate(NFT_INFINITE_SUPPLY_TOKEN)
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
@@ -1495,14 +1503,13 @@ public class Create2OperationSuite {
             Optional<AtomicReference<TokenID>> ftId,
             Optional<AtomicReference<TokenID>> nftId,
             Optional<AtomicReference<AccountID>> partyId,
-            Optional<AtomicReference<ByteString>> partyAlias) {
+            Optional<AtomicReference<byte[]>> partyAlias) {
         return withOpContext((spec, opLog) -> {
             final var registry = spec.registry();
             ftId.ifPresent(id -> id.set(registry.getTokenID(A_TOKEN)));
             nftId.ifPresent(id -> id.set(registry.getTokenID(NFT_INFINITE_SUPPLY_TOKEN)));
             partyId.ifPresent(id -> id.set(registry.getAccountID(PARTY)));
-            partyAlias.ifPresent(
-                    alias -> partyId.ifPresent(id -> alias.set(ByteString.copyFrom(asSolidityAddress(id.get())))));
+            partyAlias.ifPresent(alias -> partyId.ifPresent(id -> alias.set(asSolidityAddress(id.get()))));
         });
     }
 
@@ -1513,13 +1520,13 @@ public class Create2OperationSuite {
     private Iterable<NftTransfer> buildNftTransfers(
             final HapiSpec spec,
             final int nftTransfersSize,
-            AtomicReference<ByteString> partyAlias,
+            AtomicReference<byte[]> partyAlias,
             AtomicReference<String> expectedCreate2Address) {
         NftTransfer[] nftTransfers = new NftTransfer[nftTransfersSize];
         for (int i = 0; i < nftTransfersSize; i++) {
             nftTransfers[i] = ocWith(
-                    accountId(spec, partyAlias.get()),
-                    accountId(spec, ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get()))),
+                    accountIdFromEvmAddress(spec, ByteString.copyFrom(partyAlias.get())),
+                    accountIdFromEvmAddress(spec, ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get()))),
                     i + 1);
         }
         return Arrays.asList(nftTransfers);
@@ -1529,13 +1536,12 @@ public class Create2OperationSuite {
             String creation,
             AtomicReference<String> expectedCreate2Address,
             AtomicReference<TokenID> ftId,
-            AtomicReference<ByteString> partyAlias) {
+            AtomicReference<byte[]> partyAlias) {
         return cryptoTransfer((spec, b) -> {
                     b.addTokenTransfers(TokenTransferList.newBuilder()
                             .setToken(ftId.get())
-                            .addTransfers(aaWith(spec, partyAlias.get(), -500))
-                            .addTransfers(aaWith(
-                                    spec, ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())), +500)));
+                            .addTransfers(Utils.aaWith(spec, partyAlias.get(), -500))
+                            .addTransfers(Utils.aaWith(spec, expectedCreate2Address.get(), +500)));
                 })
                 .signedBy(DEFAULT_PAYER, PARTY)
                 .fee(ONE_HBAR)
@@ -1558,31 +1564,25 @@ public class Create2OperationSuite {
             AtomicReference<String> expectedCreate2Address,
             Optional<AtomicReference<TokenID>> ftId,
             Optional<AtomicReference<TokenID>> nftId,
-            AtomicReference<ByteString> partyAlias) {
+            AtomicReference<byte[]> partyAlias) {
         return cryptoTransfer((spec, b) -> {
                     final var defaultPayerId = spec.registry().getAccountID(DEFAULT_PAYER);
                     var transferListBuilder = TransferList.newBuilder()
-                            .addAccountAmounts(aaWith(
-                                    spec,
-                                    ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())),
-                                    +ONE_HBAR))
+                            .addAccountAmounts(Utils.aaWith(spec, expectedCreate2Address.get(), +ONE_HBAR))
                             .addAccountAmounts(aaWith(defaultPayerId, -ONE_HBAR));
 
                     b.setTransfers(transferListBuilder);
 
                     ftId.ifPresent(id -> b.addTokenTransfers(TokenTransferList.newBuilder()
                             .setToken(id.get())
-                            .addTransfers(aaWith(spec, partyAlias.get(), -500))
-                            .addTransfers(aaWith(
-                                    spec,
-                                    ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())),
-                                    +500))));
+                            .addTransfers(Utils.aaWith(spec, partyAlias.get(), -500))
+                            .addTransfers(Utils.aaWith(spec, expectedCreate2Address.get(), +500))));
 
                     nftId.ifPresent(id -> b.addTokenTransfers(TokenTransferList.newBuilder()
                             .setToken(id.get())
                             .addNftTransfers(ocWith(
-                                    accountId(spec, partyAlias.get()),
-                                    accountId(
+                                    accountIdFromEvmAddress(spec, ByteString.copyFrom(partyAlias.get())),
+                                    accountIdFromEvmAddress(
                                             spec, ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get()))),
                                     1L))));
                 })

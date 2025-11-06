@@ -11,46 +11,42 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
 
 ../../../../../../../../swirlds-cli/pcli.sh diagram \
     -l 'TransactionPrehandler:futures:TransactionHandler' \
-    -l 'EventCreationManager:get transactions:TransactionPool' \
     -l 'ConsensusEventStream:future hash:TransactionHandler' \
     -s 'EventWindowManager:event window:🌀' \
     -s 'Heartbeat:heartbeat:❤️' \
     -s 'TransactionPrehandler:futures:🔮' \
     -s 'pcesReplayer:done streaming pces:✅' \
     -s 'InlinePcesWriter:events to gossip:📬' \
-    -s 'extractOldestMinimumGenerationOnDisk:minimum identifier to store:📀' \
-    -s 'StaleEventDetectorRouter:non-validated events:🍎' \
+    -s 'extractOldestMinimumBirthRoundOnDisk:minimum identifier to store:📀' \
+    -s 'EventCreationManager:non-validated events:🍎' \
     -s 'Mystery Input:mystery data:❔' \
     -s 'StateSigner:submit transaction:🖋️' \
     -s 'StateSigner:signature transactions:🖋️' \
     -s 'IssDetectorSplitter:IssNotification:💥' \
-    -s 'getStatusAction:PlatformStatusAction:💀' \
+    -s 'IssDetector:ISS notification monitoring:💀' \
+    -s 'ConsensusRoundsSplitter:monitor consensus round:🕐' \
     -s 'LatestCompleteStateNotifier:complete state notification:💢' \
     -s 'RunningEventHashOverride:hash override:💨' \
-    -s 'StaleEventDetectorRouter:publishStaleEvent:⚰️' \
-    -s 'toStateWrittenToDiskAction:PlatformStatusAction:💾' \
-    -s 'StatusStateMachine:PlatformStatus:🚦' \
+    -s 'StateSnapshotManager:state saving monitoring:💾' \
+    -s 'PlatformMonitor:PlatformStatus:🚦' \
     -s 'HealthMonitor:health info:🏥' \
     -g 'Orphan Buffer:OrphanBuffer,OrphanBufferSplitter' \
-    -g 'Future Event Buffer:FutureEventBuffer,futureEventSplitter' \
-    -g 'Event Intake:EventHasher,InternalEventValidator,EventDeduplicator,EventSignatureValidator,Orphan Buffer,InlinePcesWriter,Future Event Buffer' \
-    -g 'Consensus Engine:ConsensusEngine,ConsensusEngineSplitter,EventWindowManager,getCesEvents' \
-    -g 'State Snapshot Manager:saveToDiskFilter,StateSnapshotManager,extractOldestMinimumGenerationOnDisk,toStateWrittenToDiskAction,toNotification' \
+    -g 'Event Intake:EventHasher,InternalEventValidator,EventDeduplicator,EventSignatureValidator,Orphan Buffer,InlinePcesWriter' \
+    -g 'Consensus Engine:ConsensusEngine,EventWindowManager,ConsensusRounds,PreConsensusEvents,PreConsensusEventsSplitter,ConsensusRoundsSplitter,RoundsToCesEvents,staleEvents,staleEventsSplitter' \
+    -g 'State Snapshot Manager:saveToDiskFilter,StateSnapshotManager,extractOldestMinimumBirthRoundOnDisk,toNotification' \
     -g 'State File Management:State Snapshot Manager,📀,💾' \
     -g 'State Signature Collector:StateSignatureCollector,reservedStateSplitter,allStatesReserver,completeStateFilter,completeStatesReserver,LatestCompleteStateNotifier' \
     -g 'State Signature Collection:State Signature Collector,LatestCompleteStateNexus,💢' \
-    -g 'Transaction Resubmitter:TransactionResubmitter' \
-    -g 'Stale Event Detector:StaleEventDetector,StaleEventDetectorSplitter,StaleEventDetectorRouter' \
-    -g 'Event Creation:EventCreationManager,TransactionPool,SelfEventSigner,Stale Event Detector,postSigner_encode_systemTransactions,Transaction Resubmitter,⚰️' \
-    -g 'ISS Detector:IssDetector,IssDetectorSplitter,IssHandler,getStatusAction' \
+    -g 'Event Creation:EventCreationManager,🍎' \
+    -g 'ISS Detector:IssDetector,IssDetectorSplitter,IssHandler' \
     -g 'PCES Replay:pcesReplayer,✅' \
     -g 'Transaction Handler:TransactionHandler,notNullStateFilter,postHandler_stateWithHashComplexityReserver,postHandler_stateWithHashComplexityToStateReserver,SavedStateController' \
     -g 'State Hasher:StateHasher,postHasher_stateReserver' \
-    -g 'Consensus:Consensus Engine,🌀' \
-    -g 'State Verification:StateSigner,HashLogger,ISS Detector,🖋️,💥,💀' \
-    -g 'Transaction Handling:Transaction Handler,LatestImmutableStateNexus' \
+    -g 'Consensus:Consensus Engine,ConsensusEventStream,🌀,🕐' \
+    -g 'State Verification:StateSigner,HashLogger,ISS Detector,ExecutionSignatureSubmission,🖋️,💥,💀' \
+    -g 'Transaction Handling:Transaction Handler,LatestImmutableStateNexus,TransactionPrehandler,getSystemTransactions,🔮' \
     -g 'Branch Detection:BranchDetector,BranchReporter' \
-    -g 'Miscellaneous:Mystery Input,RunningEventHashOverride,HealthMonitor,SignedStateSentinel,StatusStateMachine,Heartbeat,❔,🏥,❤️,💨,🚦' \
+    -g 'Miscellaneous:Mystery Input,RunningEventHashOverride,HealthMonitor,SignedStateSentinel,PlatformMonitor,Heartbeat,ExecutionStatusHandler,❔,🏥,❤️,💨,🚦' \
     -c 'Orphan Buffer' \
     -c 'Consensus Engine' \
     -c 'State Signature Collector' \
@@ -62,5 +58,4 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
     -c 'Stale Event Detector' \
     -c 'Transaction Resubmitter' \
     -c 'Branch Detection' \
-    -c 'Future Event Buffer' \
     -o "${SCRIPT_PATH}/../../../../../../../../docs/core/wiring-diagram.svg"

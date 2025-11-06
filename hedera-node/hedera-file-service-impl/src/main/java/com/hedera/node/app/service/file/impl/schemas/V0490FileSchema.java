@@ -2,6 +2,8 @@
 package com.hedera.node.app.service.file.impl.schemas;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.fromString;
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.utility.CommonUtils.hex;
@@ -33,7 +35,10 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
+import com.hedera.hapi.platform.state.SingletonType;
+import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.spi.workflows.SystemContext;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BootstrapConfig;
@@ -79,12 +84,15 @@ import org.apache.logging.log4j.Logger;
  * this schema is always correct for the current version of the software.
  */
 @Singleton
-public class V0490FileSchema extends Schema {
+public class V0490FileSchema extends Schema<SemanticVersion> {
+
     private static final Logger logger = LogManager.getLogger(V0490FileSchema.class);
 
-    public static final String BLOBS_KEY = "FILES";
-    public static final String UPGRADE_FILE_KEY = "UPGRADE_FILE";
-    public static final String UPGRADE_DATA_KEY = "UPGRADE_DATA[FileID[shardNum=%d, realmNum=%d, fileNum=%d]]";
+    public static final String FILES_KEY = "FILES";
+    public static final int FILES_STATE_ID = StateKey.KeyOneOfType.FILESERVICE_I_FILES.protoOrdinal();
+    public static final String FILES_STATE_LABEL = computeLabel(FileService.NAME, FILES_KEY);
+
+    public static final String UPGRADE_DATA_STATE_KEY_PATTERN = "FileService_I_UPGRADE_DATA_%d";
 
     /**
      * The default throttle definitions resource. Used as the ultimate fallback if the configured file and resource is
@@ -93,10 +101,14 @@ public class V0490FileSchema extends Schema {
     private static final String DEFAULT_THROTTLES_RESOURCE = "genesis/throttles.json";
 
     /**
-     * A hint to the database system of the maximum number of files we will store. This MUST NOT BE CHANGED. If it is
-     * changed, then the database has to be rebuilt.
+     * A hint to the database system of the expected maximum number of files we will store. This hint
+     * is used by the database to optimize its indices. If more than this number of files are actually
+     * stored, the database can handle that just fine.
+     *
+     * <p>If this number is changed, it will not have any effect on existing networks. Only new
+     * deployments will use the updated hint.
      */
-    private static final int MAX_FILES_HINT = 50_000_000;
+    private static final int MAX_FILES_HINT = 50_000;
     /**
      * The version of the schema.
      */
@@ -108,7 +120,7 @@ public class V0490FileSchema extends Schema {
      */
     @Inject
     public V0490FileSchema() {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
     @NonNull
@@ -116,18 +128,20 @@ public class V0490FileSchema extends Schema {
     @SuppressWarnings("rawtypes")
     public Set<StateDefinition> statesToCreate(@NonNull final Configuration config) {
         final Set<StateDefinition> definitions = new LinkedHashSet<>();
-        definitions.add(StateDefinition.onDisk(BLOBS_KEY, FileID.PROTOBUF, File.PROTOBUF, MAX_FILES_HINT));
+        definitions.add(
+                StateDefinition.onDisk(FILES_STATE_ID, FILES_KEY, FileID.PROTOBUF, File.PROTOBUF, MAX_FILES_HINT));
 
         final FilesConfig filesConfig = config.getConfigData(FilesConfig.class);
-        final HederaConfig hederaConfig = config.getConfigData(HederaConfig.class);
         final LongPair fileNums = filesConfig.softwareUpdateRange();
         final long firstUpdateNum = fileNums.left();
         final long lastUpdateNum = fileNums.right();
 
         // initializing the files 150 -159
         for (var updateNum = firstUpdateNum; updateNum <= lastUpdateNum; updateNum++) {
-            final var stateKey = UPGRADE_DATA_KEY.formatted(hederaConfig.shard(), hederaConfig.realm(), updateNum);
-            definitions.add(StateDefinition.queue(stateKey, ProtoBytes.PROTOBUF));
+            final var stateKey =
+                    UPGRADE_DATA_STATE_KEY_PATTERN.formatted(updateNum).toUpperCase();
+            final int stateId = SingletonType.valueOf(stateKey).protoOrdinal();
+            definitions.add(StateDefinition.queue(stateId, stateKey, ProtoBytes.PROTOBUF));
         }
 
         return definitions;
@@ -267,6 +281,22 @@ public class V0490FileSchema extends Schema {
                 config.getConfigData(FilesConfig.class).feeSchedules());
     }
 
+    public void createGenesisSimpleFeesSchedule(@NonNull final SystemContext systemContext) {
+        requireNonNull(systemContext);
+        final var config = systemContext.configuration();
+        final var bootstrapConfig = config.getConfigData(BootstrapConfig.class);
+        final var masterKey =
+                Key.newBuilder().ed25519(bootstrapConfig.genesisPublicKey()).build();
+        systemContext.dispatchCreation(
+                b -> b.fileCreate(FileCreateTransactionBody.newBuilder()
+                                .contents(genesisSimpleFeesSchedules(config))
+                                .keys(KeyList.newBuilder().keys(masterKey))
+                                .expirationTime(maxLifetimeExpiry(systemContext))
+                                .build())
+                        .build(),
+                config.getConfigData(FilesConfig.class).simpleFeesSchedules());
+    }
+
     /**
      * Returns the genesis fee schedules for the given configuration.
      *
@@ -279,6 +309,18 @@ public class V0490FileSchema extends Schema {
             final var feeScheduleJsonBytes = requireNonNull(in).readAllBytes();
             final var feeSchedule = parseFeeSchedules(feeScheduleJsonBytes);
             return CurrentAndNextFeeSchedule.PROTOBUF.toBytes(feeSchedule);
+        } catch (IOException | NullPointerException e) {
+            throw new IllegalArgumentException(
+                    "Fee schedule (" + resourceName + ") " + "could not be found in the class path", e);
+        }
+    }
+
+    public Bytes genesisSimpleFeesSchedules(@NonNull final Configuration config) {
+        final var resourceName = config.getConfigData(BootstrapConfig.class).simpleFeesSchedulesJsonResource();
+        try (final var in = loadResourceInPackage(resourceName)) {
+            final var feeScheduleJsonBytes = requireNonNull(in).readAllBytes();
+            final var feeSchedule = parseSimpleFeesSchedules(feeScheduleJsonBytes);
+            return org.hiero.hapi.support.fees.FeeSchedule.PROTOBUF.toBytes(feeSchedule);
         } catch (IOException | NullPointerException e) {
             throw new IllegalArgumentException(
                     "Fee schedule (" + resourceName + ") " + "could not be found in the class path", e);
@@ -358,7 +400,7 @@ public class V0490FileSchema extends Schema {
     }
 
     private static FeeComponents parseFeeComponents(@NonNull final JsonNode componentNode) {
-        return FeeComponents.newBuilder()
+        final var feeComponents = FeeComponents.newBuilder()
                 .constant(componentNode.get("constant").asLong())
                 .bpt(componentNode.get("bpt").asLong())
                 .vpt(componentNode.get("vpt").asLong())
@@ -368,8 +410,23 @@ public class V0490FileSchema extends Schema {
                 .bpr(componentNode.get("bpr").asLong())
                 .sbpr(componentNode.get("sbpr").asLong())
                 .min(componentNode.get("min").asLong())
-                .max(componentNode.get("max").asLong())
-                .build();
+                .max(componentNode.get("max").asLong());
+        // This is only used for ContractUpdate
+        if (componentNode.get("tv") != null) {
+            feeComponents.tv(componentNode.get("tv").asLong());
+        }
+        return feeComponents.build();
+    }
+
+    public static org.hiero.hapi.support.fees.FeeSchedule parseSimpleFeesSchedules(
+            @NonNull final byte[] feeScheduleJsonBytes) {
+        try {
+            final org.hiero.hapi.support.fees.FeeSchedule feeSchedule =
+                    org.hiero.hapi.support.fees.FeeSchedule.JSON.parse(Bytes.wrap(feeScheduleJsonBytes));
+            return feeSchedule;
+        } catch (final Exception e) {
+            throw new IllegalArgumentException("Unable to parse simple fee schedule file", e);
+        }
     }
 
     // ================================================================================================================

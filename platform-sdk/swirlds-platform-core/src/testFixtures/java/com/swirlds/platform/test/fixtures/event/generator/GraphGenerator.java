@@ -10,7 +10,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.AddressBook;
 
 /**
  * Generates a hashgraph of events.
@@ -96,26 +95,10 @@ public interface GraphGenerator {
     }
 
     /**
-     * Get an address book that represents the collection of nodes that are generating the events.
-     */
-    @NonNull
-    @Deprecated(forRemoval = true)
-    AddressBook getAddressBook();
-
-    /**
      * Get the roster that represents the collection of nodes that are generating the events.
      */
     @NonNull
     Roster getRoster();
-
-    /**
-     * Returns the maximum generation of this event generator.
-     *
-     * @param creatorId
-     * 		the event creator
-     * @return the maximum event generation for the supplied creator
-     */
-    long getMaxGeneration(@Nullable final NodeId creatorId);
 
     /**
      * Returns the maximum birth round of this event generator.
@@ -125,11 +108,6 @@ public interface GraphGenerator {
      * @return the maximum event birth round for the supplied creator
      */
     long getMaxBirthRound(@Nullable final NodeId creatorId);
-
-    /**
-     * Returns the maximum generation of all events created by this generator
-     */
-    long getMaxGeneration();
 
     /**
      * Set the affinity of each node for choosing the parents of its events.

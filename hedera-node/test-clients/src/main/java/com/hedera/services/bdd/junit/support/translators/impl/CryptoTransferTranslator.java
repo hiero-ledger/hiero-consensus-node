@@ -2,11 +2,15 @@
 package com.hedera.services.bdd.junit.support.translators.impl;
 
 import com.hedera.hapi.block.stream.output.StateChange;
+import com.hedera.hapi.block.stream.trace.TraceData;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.services.bdd.junit.support.translators.BaseTranslator;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionPartsTranslator;
+import com.hedera.services.bdd.junit.support.translators.ScopedTraceData;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 
 /**
@@ -17,8 +21,15 @@ public class CryptoTransferTranslator implements BlockTransactionPartsTranslator
     public SingleTransactionRecord translate(
             @NonNull final BlockTransactionParts parts,
             @NonNull final BaseTranslator baseTranslator,
-            @NonNull final List<StateChange> remainingStateChanges) {
+            @NonNull final List<StateChange> remainingStateChanges,
+            @Nullable final List<TraceData> tracesSoFar,
+            @NonNull final List<ScopedTraceData> followingUnitTraces,
+            @Nullable final HookId executingHookId) {
         return baseTranslator.recordFrom(
-                parts, (receiptBuilder, recordBuilder) -> recordBuilder.assessedCustomFees(parts.assessedCustomFees()));
+                parts,
+                (receiptBuilder, recordBuilder) -> recordBuilder.assessedCustomFees(parts.assessedCustomFees()),
+                remainingStateChanges,
+                followingUnitTraces,
+                executingHookId);
     }
 }

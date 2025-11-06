@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.token;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -71,6 +72,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_MINT_METADATA;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_WIPING_AMOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_KYC_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_SUPPLY_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_WIPE_KEY;
@@ -108,6 +110,7 @@ public class TokenManagementSpecs {
     public static final String INVALID_ACCOUNT = "999.999.999";
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> aliasFormFailsForAllTokenOps() {
         final var CIVILIAN = "civilian";
         final var PAUSE_KEY = "pauseKey";
@@ -285,6 +288,7 @@ public class TokenManagementSpecs {
     // FULLY_NONDETERMINISTIC because in mono-service zero amount token transfers will create a tokenTransferLists
     // with a just tokenNum, in mono-service the tokenTransferLists will be empty
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> zeroUnitTokenOperationsWorkAsExpected() {
         final var civilian = "civilian";
         final var adminKey = "adminKey";
@@ -340,6 +344,7 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> frozenTreasuryCannotBeMintedOrBurned() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
@@ -359,6 +364,7 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> revokedKYCTreasuryCannotBeMintedOrBurned() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
@@ -378,6 +384,7 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> burnTokenFailsDueToInsufficientTreasuryBalance() {
         final String BURN_TOKEN = "burn";
         final int TOTAL_SUPPLY = 100;
@@ -408,6 +415,7 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> wipeAccountSuccessCasesWork() {
         var wipeableToken = "with";
 
@@ -439,6 +447,7 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> wipeAccountWithAliasesWork() {
         final var initialTokenSupply = 1000;
         return defaultHapiSpec("wipeAccountWithAliasesWork")
@@ -485,6 +494,7 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> wipeAccountFailureCasesWork() {
         var unwipeableToken = "without";
         var wipeableToken = "with";
@@ -522,6 +532,9 @@ public class TokenManagementSpecs {
                 wipeTokenAccount(wipeableToken, TOKEN_TREASURY, 1)
                         .signedBy(GENESIS)
                         .hasKnownStatus(INVALID_SIGNATURE),
+                wipeTokenAccount(wipeableUniqueToken, TOKEN_TREASURY, 1)
+                        .signedBy(GENESIS)
+                        .hasKnownStatus(INVALID_SIGNATURE),
                 wipeTokenAccount(wipeableToken, TOKEN_TREASURY, 1).hasKnownStatus(CANNOT_WIPE_TOKEN_TREASURY_ACCOUNT),
                 wipeTokenAccount(anotherWipeableToken, "misc", 501).hasKnownStatus(INVALID_WIPING_AMOUNT),
                 wipeTokenAccount(anotherWipeableToken, "misc", -1).hasPrecheck(INVALID_WIPING_AMOUNT),
@@ -537,6 +550,7 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> kycMgmtFailureCasesWork() {
         var withoutKycKey = "withoutKycKey";
         var withKycKey = "withKycKey";
@@ -630,6 +644,7 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> freezeMgmtSuccessCasesWork() {
         var withPlusDefaultFalse = "withPlusDefaultFalse";
 
@@ -656,6 +671,7 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> kycMgmtSuccessCasesWork() {
         var withKycKey = "withKycKey";
         var withoutKycKey = "withoutKycKey";
@@ -683,6 +699,7 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> supplyMgmtSuccessCasesWork() {
         return defaultHapiSpec("SupplyMgmtSuccessCasesWork")
                 .given(
@@ -706,6 +723,7 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> fungibleCommonMaxSupplyReachWork() {
         return defaultHapiSpec("FungibleCommonMaxSupplyReachWork")
                 .given(
@@ -733,6 +751,7 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> mintingMaxLongValueWorks() {
         return defaultHapiSpec("MintingMaxLongValueWorks")
                 .given(
@@ -749,6 +768,7 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> nftMintProvidesMintedNftsAndNewTotalSupply() {
         final var multiKey = "multi";
         final var token = "non-fungible";
@@ -776,6 +796,7 @@ public class TokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> supplyMgmtFailureCasesWork() {
         return defaultHapiSpec("SupplyMgmtFailureCasesWork")
                 .given(newKeyNamed(SUPPLY_KEY))
@@ -791,5 +812,22 @@ public class TokenManagementSpecs {
                         burnToken(SUPPLE, 2).hasKnownStatus(INVALID_TOKEN_BURN_AMOUNT),
                         burnToken(SUPPLE, 0).hasPrecheck(OK),
                         burnToken(SUPPLE, -1).hasPrecheck(INVALID_TOKEN_BURN_AMOUNT));
+    }
+
+    @HapiTest
+    @Tag(MATS)
+    final Stream<DynamicTest> requireCorrectSupplyKeys() {
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(TOKEN),
+                tokenCreate(TOKEN).supplyKey(SUPPLY_KEY).initialSupply(1),
+                // mint without the supply key
+                mintToken(TOKEN, 1).signedBy(GENESIS).hasKnownStatus(INVALID_SIGNATURE),
+                // mint with the supply key
+                mintToken(TOKEN, 1).signedBy(GENESIS, SUPPLY_KEY).hasKnownStatus(SUCCESS),
+                // burn without the supply key
+                burnToken(TOKEN, 1).signedBy(GENESIS).hasKnownStatus(INVALID_SIGNATURE),
+                // burn with the supply key
+                burnToken(TOKEN, 1).signedBy(GENESIS, SUPPLY_KEY).hasKnownStatus(SUCCESS));
     }
 }

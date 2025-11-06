@@ -2,12 +2,10 @@
 package com.hedera.node.app.workflows.query;
 
 import com.hedera.hapi.node.base.ResponseType;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.components.QueryInjectionComponent;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
-import com.hedera.node.app.service.addressbook.impl.handlers.AddressBookHandlers;
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusHandlers;
 import com.hedera.node.app.service.contract.impl.handlers.ContractHandlers;
 import com.hedera.node.app.service.file.impl.handlers.FileHandlers;
@@ -59,8 +57,7 @@ public interface QueryWorkflowInjectionModule {
             @NonNull final FeeManager feeManager,
             @NonNull final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator,
             @NonNull final InstantSource instantSource,
-            @NonNull final OpWorkflowMetrics opWorkflowMetrics,
-            @NonNull final SemanticVersion softwareVersionFactory) {
+            @NonNull final OpWorkflowMetrics opWorkflowMetrics) {
         return new QueryWorkflowImpl(
                 stateAccessor,
                 submissionManager,
@@ -76,8 +73,7 @@ public interface QueryWorkflowInjectionModule {
                 synchronizedThrottleAccumulator,
                 instantSource,
                 opWorkflowMetrics,
-                true,
-                softwareVersionFactory);
+                true);
     }
 
     @Provides
@@ -97,8 +93,7 @@ public interface QueryWorkflowInjectionModule {
             @NonNull final FeeManager feeManager,
             @NonNull final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator,
             @NonNull final InstantSource instantSource,
-            @NonNull final OpWorkflowMetrics opWorkflowMetrics,
-            @NonNull final SemanticVersion softwareVersionFactory) {
+            @NonNull final OpWorkflowMetrics opWorkflowMetrics) {
         return new QueryWorkflowImpl(
                 stateAccessor,
                 submissionManager,
@@ -114,8 +109,7 @@ public interface QueryWorkflowInjectionModule {
                 synchronizedThrottleAccumulator,
                 instantSource,
                 opWorkflowMetrics,
-                false,
-                softwareVersionFactory);
+                false);
     }
 
     @Provides
@@ -132,8 +126,7 @@ public interface QueryWorkflowInjectionModule {
             @NonNull final NetworkAdminHandlers networkHandlers,
             @NonNull final Supplier<ContractHandlers> contractHandlers,
             @NonNull final ScheduleHandlers scheduleHandlers,
-            @NonNull final TokenHandlers tokenHandlers,
-            @NonNull final AddressBookHandlers addressBookHandlers) {
+            @NonNull final TokenHandlers tokenHandlers) {
         return new QueryHandlers(
                 consensusHandlers.consensusGetTopicInfoHandler(),
                 contractHandlers.get().contractGetBySolidityIDHandler(),

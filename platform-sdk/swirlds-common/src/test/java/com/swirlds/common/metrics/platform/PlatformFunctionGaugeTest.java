@@ -11,7 +11,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.common.metrics.FunctionGauge;
-import com.swirlds.common.metrics.statistics.StatsBuffered;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.snapshot.Snapshot.SnapshotEntry;
@@ -125,21 +124,6 @@ class PlatformFunctionGaugeTest {
 
         // then
         assertThatCode(gauge::reset).doesNotThrowAnyException();
-    }
-
-    @SuppressWarnings({"unchecked", "removal"})
-    @Test
-    void testGetStatBuffered() {
-        // given
-        final Supplier<String> supplier = mock(Supplier.class);
-        final FunctionGauge.Config<String> config = new FunctionGauge.Config<>(CATEGORY, NAME, String.class, supplier);
-        final PlatformFunctionGauge<String> gauge = new PlatformFunctionGauge<>(config);
-
-        // when
-        final StatsBuffered actual = gauge.getStatsBuffered();
-
-        // then
-        assertThat(actual).isNull();
     }
 
     @SuppressWarnings("unchecked")

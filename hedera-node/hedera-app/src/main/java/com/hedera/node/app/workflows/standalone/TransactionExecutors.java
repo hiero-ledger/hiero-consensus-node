@@ -15,6 +15,7 @@ import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.history.impl.HistoryServiceImpl;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
 import com.hedera.node.app.service.util.impl.UtilServiceImpl;
@@ -27,11 +28,11 @@ import com.hedera.node.app.throttle.AppThrottleFactory;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.InstantSource;
@@ -215,7 +216,7 @@ public enum TransactionExecutors {
         final var executor = newExecutorComponent(
                 state, properties, tracerBinding, customOps, softwareVersionFactory, entityIdFactory);
         executor.stateNetworkInfo().initFrom(state);
-        executor.initializer().accept(state);
+        executor.initializer().initialize(state, StreamMode.BOTH);
         final var exchangeRateManager = executor.exchangeRateManager();
         return (transactionBody, consensusNow, operationTracers) -> {
             final var dispatch = executor.standaloneDispatchFactory().newDispatch(state, transactionBody, consensusNow);
@@ -249,8 +250,8 @@ public enum TransactionExecutors {
         final var configProvider = new ConfigProviderImpl(false, null, properties);
         final AtomicReference<ExecutorComponent> componentRef = new AtomicReference<>();
 
-        var defaultNodeInfo =
-                new NodeInfoImpl(0, entityIdFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY, List.of(), false);
+        var defaultNodeInfo = new NodeInfoImpl(
+                0, entityIdFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY, List.of(), false, null);
         final var disableThrottles = Optional.ofNullable(properties.get(DISABLE_THROTTLES_PROPERTY))
                 .map(Boolean::parseBoolean)
                 .orElse(false);
@@ -298,7 +299,6 @@ public enum TransactionExecutors {
                 .disableThrottles(disableThrottles)
                 .bootstrapConfigProviderImpl(bootstrapConfigProvider)
                 .fileServiceImpl(fileService)
-                .scheduleService(scheduleService)
                 .contractServiceImpl(contractService)
                 .utilServiceImpl(utilService)
                 .scheduleServiceImpl(scheduleService)

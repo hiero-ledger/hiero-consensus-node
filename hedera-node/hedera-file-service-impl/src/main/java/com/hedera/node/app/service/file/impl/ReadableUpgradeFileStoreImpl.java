@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.file.impl;
 
-import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.BLOBS_KEY;
-import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.UPGRADE_DATA_KEY;
-import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.UPGRADE_FILE_KEY;
+import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
+import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.UPGRADE_DATA_STATE_KEY_PATTERN;
 
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.node.app.service.file.ReadableUpgradeFileStore;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.ReadableKVState;
@@ -39,19 +39,7 @@ public class ReadableUpgradeFileStoreImpl implements ReadableUpgradeFileStore {
      */
     public ReadableUpgradeFileStoreImpl(@NonNull final ReadableStates states) {
         this.states = Objects.requireNonNull(states);
-        upgradeFileState = Objects.requireNonNull(states.get(BLOBS_KEY));
-    }
-
-    @Override
-    @NonNull
-    public String getStateKey() {
-        // Note: this doesn't look right, since UPGRADE_DATA_KEY is a pattern, not a concrete key
-        return UPGRADE_DATA_KEY;
-    }
-
-    @NonNull
-    public String getFileStateKey() {
-        return UPGRADE_FILE_KEY;
+        upgradeFileState = Objects.requireNonNull(states.get(FILES_STATE_ID));
     }
 
     @Override
@@ -64,8 +52,10 @@ public class ReadableUpgradeFileStoreImpl implements ReadableUpgradeFileStore {
     @NonNull
     public Bytes getFull(final FileID fileID) throws IOException {
         ByteArrayOutputStream collector = new ByteArrayOutputStream();
-        final String stateKey = UPGRADE_DATA_KEY.formatted(fileID.shardNum(), fileID.realmNum(), fileID.fileNum());
-        final ReadableQueueState<ProtoBytes> upgradeState = Objects.requireNonNull(states.getQueue(stateKey));
+        final String stateKey =
+                UPGRADE_DATA_STATE_KEY_PATTERN.formatted(fileID.fileNum()).toUpperCase();
+        final int stateId = SingletonType.valueOf(stateKey).protoOrdinal();
+        final ReadableQueueState<ProtoBytes> upgradeState = Objects.requireNonNull(states.getQueue(stateId));
         final Bytes fullContents;
         if (upgradeFileState.get(fileID) != null) {
             final var iterator = upgradeState.iterator();

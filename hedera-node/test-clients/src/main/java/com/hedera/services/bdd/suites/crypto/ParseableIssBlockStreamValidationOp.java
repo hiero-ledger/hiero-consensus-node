@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.crypto;
 
+import static com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess.BLOCK_STREAM_ACCESS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
-import static com.hedera.services.bdd.junit.support.BlockStreamAccess.BLOCK_STREAM_ACCESS;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.Block;
@@ -82,9 +82,9 @@ public class ParseableIssBlockStreamValidationOp extends UtilOp {
     private boolean hasFreeze(@NonNull final List<Block> blocks) {
         for (final var block : blocks) {
             for (final var item : block.items()) {
-                if (item.hasEventTransaction()) {
-                    final var appTxn = item.eventTransactionOrThrow().applicationTransactionOrThrow();
-                    final var txnBody = TransactionParts.from(appTxn).body();
+                if (item.hasSignedTransaction()) {
+                    final var txnBody = TransactionParts.from(item.signedTransactionOrThrow())
+                            .body();
                     if (txnBody.hasFreeze()) {
                         return true;
                     }

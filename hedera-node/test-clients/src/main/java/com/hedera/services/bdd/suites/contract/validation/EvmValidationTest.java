@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.validation;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
-import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.toAddressStringWithShardAndRealm;
+import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.toAddressString;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -69,16 +70,14 @@ public class EvmValidationTest {
             @HapiTest
             @DisplayName("when transferring value to long zero address 00000000000000000000000000000000001117d0 ")
             public Stream<DynamicTest> lazyCreateToLongZeroFails() {
-                final Function<HapiSpec, String> longZeroAddress =
-                        (spec) -> toAddressStringWithShardAndRealm((int) spec.shard(), spec.realm(), "1117d0");
+                final Function<HapiSpec, String> longZeroAddress = (spec) -> toAddressString("1117d0");
                 return callContractWithValue(longZeroAddress, CONTRACT_REVERT_EXECUTED);
             }
 
             @HapiTest
             @DisplayName("when transferring value to long zero burn address 000000000000000000000000000000000000dEaD ")
             public Stream<DynamicTest> lazyCreateToLongZeroBurnAddressFails() {
-                final Function<HapiSpec, String> longZeroBurnAddress =
-                        (spec) -> toAddressStringWithShardAndRealm((int) spec.shard(), spec.realm(), "dEaD");
+                final Function<HapiSpec, String> longZeroBurnAddress = (spec) -> toAddressString("dEaD");
                 return callContractWithValue(longZeroBurnAddress, CONTRACT_REVERT_EXECUTED);
             }
 
@@ -102,6 +101,7 @@ public class EvmValidationTest {
 
             @HapiTest
             @DisplayName("when transferring value to realistic evm address 388C818CA8B9251b393131C08a736A67ccB19297")
+            @Tag(MATS)
             public Stream<DynamicTest> lazyCreateToRealisticEvmAddressSucceeds() {
                 final var REALISTIC_EVM_ADDRESS = "388C818CA8B9251b393131C08a736A67ccB19297";
                 return callContractWithValue(REALISTIC_EVM_ADDRESS, ResponseCodeEnum.SUCCESS);
@@ -136,6 +136,7 @@ public class EvmValidationTest {
 
         @HapiTest
         @DisplayName("should fail to deploy")
+        @Tag(MATS)
         public Stream<DynamicTest> canCallBalanceOperationNonExtantContract() {
             return hapiTest(
                     uploadInitCode(emptyContract),

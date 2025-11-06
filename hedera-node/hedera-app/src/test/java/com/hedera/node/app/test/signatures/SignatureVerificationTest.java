@@ -77,8 +77,7 @@ class SignatureVerificationTest implements Scenarios {
 
         // Finally, assert that the verification results are as expected
         final var hederaConfig = CONFIGURATION.getConfigData(HederaConfig.class);
-        final var handleContextVerifier =
-                new DefaultKeyVerifier(testCase.signatureMap.size(), hederaConfig, verificationResults);
+        final var handleContextVerifier = new DefaultKeyVerifier(hederaConfig, verificationResults);
         assertThat(handleContextVerifier.verificationFor(ERIN.account().alias()))
                 .isNotNull()
                 .extracting(SignatureVerification::passed)
@@ -106,8 +105,7 @@ class SignatureVerificationTest implements Scenarios {
 
         // Finally, assert that the verification results are as expected
         final var hederaConfig = CONFIGURATION.getConfigData(HederaConfig.class);
-        final var handleContextVerifier =
-                new DefaultKeyVerifier(signatureMap.size(), hederaConfig, verificationResults);
+        final var handleContextVerifier = new DefaultKeyVerifier(hederaConfig, verificationResults);
         assertThat(handleContextVerifier.verificationFor(keyToVerify))
                 .isNotNull()
                 .extracting(SignatureVerification::passed)
@@ -379,8 +377,9 @@ class SignatureVerificationTest implements Scenarios {
             return switch (keyInfo.publicKey().key().kind()) {
                 case ED25519 -> signEd25519(keyInfo.privateKey(), message);
                 case ECDSA_SECP256K1 -> signEcdsaSecp256k1(keyInfo.privateKey(), message);
-                default -> throw new IllegalArgumentException(
-                        "Unsupported key type: " + keyInfo.publicKey().key().kind());
+                default ->
+                    throw new IllegalArgumentException(
+                            "Unsupported key type: " + keyInfo.publicKey().key().kind());
             };
         }
 
@@ -457,12 +456,9 @@ class SignatureVerificationTest implements Scenarios {
                                     .collect(Collectors.joining(", "))
                             + ")";
                 }
-                case CONTRACT_ID,
-                        DELEGATABLE_CONTRACT_ID,
-                        ECDSA_384,
-                        RSA_3072,
-                        UNSET -> throw new IllegalArgumentException(
-                        "Unsupported key type: " + key.key().kind());
+                case CONTRACT_ID, DELEGATABLE_CONTRACT_ID, ECDSA_384, RSA_3072, UNSET ->
+                    throw new IllegalArgumentException(
+                            "Unsupported key type: " + key.key().kind());
             };
         }
 

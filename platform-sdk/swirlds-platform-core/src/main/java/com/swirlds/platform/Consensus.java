@@ -2,7 +2,6 @@
 package com.swirlds.platform;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.platform.consensus.ConsensusRounds;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -18,6 +17,13 @@ public interface Consensus {
      * @param pcesMode true if we are currently replaying the PCES, false otherwise
      */
     void setPcesMode(final boolean pcesMode);
+
+    /**
+     * Get a list of events that were added to consensus that have not yet reached consensus. This list will not be
+     * accurate if consensus is still waiting for init judges ({@link #waitingForInitJudges()} returns true).
+     * @return a list of pre-consensus events
+     */
+    List<EventImpl> getPreConsensusEvents();
 
     /**
      * Adds an event to the consensus object. This should be the only public method that modifies the state of the
@@ -38,6 +44,15 @@ public interface Consensus {
     void loadSnapshot(@NonNull ConsensusSnapshot snapshot);
 
     /**
+     * When loading consensus from a snapshot (via {@link #loadSnapshot(ConsensusSnapshot)}), consensus has to receive
+     * all init judges before it can proceed with consensus calculation. The method allows to check whether we are still
+     * waiting for init judges to be added to consensus or not.
+     *
+     * @return true if consensus is still waiting for init judges
+     */
+    boolean waitingForInitJudges();
+
+    /**
      * Return the max round number for which we have an event. If there are none yet, return {@link
      * ConsensusConstants#ROUND_UNDEFINED}.
      *
@@ -51,13 +66,6 @@ public interface Consensus {
      * @return the round number
      */
     long getFameDecidedBelow();
-
-    /**
-     * Retrieves the consensus rounds.
-     *
-     * @return an instance of {@link ConsensusRounds} containing the consensus rounds.
-     */
-    ConsensusRounds getRounds();
 
     /**
      * @return the latest round for which fame has been decided

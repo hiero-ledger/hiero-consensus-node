@@ -7,6 +7,7 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
+import com.hedera.hapi.util.HapiUtils;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -16,7 +17,6 @@ import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.cert.X509Certificate;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -113,15 +113,7 @@ public final class RosterUtils {
             return serviceEndpoint.domainName();
         }
         if (length == 4) {
-            return "%d.%d.%d.%d"
-                    .formatted(
-                            // Java expands a byte into an int, and the "sign bit" of the byte gets extended,
-                            // making it possibly a negative integer for values > 0x7F. So we AND 0xFF
-                            // to get rid of the extended "sign bits" to keep this an actual, positive byte.
-                            ipAddressV4.getByte(0) & 0xFF,
-                            ipAddressV4.getByte(1) & 0xFF,
-                            ipAddressV4.getByte(2) & 0xFF,
-                            ipAddressV4.getByte(3) & 0xFF);
+            return HapiUtils.asReadableIp(ipAddressV4);
         }
         throw new IllegalArgumentException("Invalid IP address: " + ipAddressV4 + " in RosterEntry: " + entry);
     }
@@ -287,44 +279,15 @@ public final class RosterUtils {
     }
 
     /**
-     * Build an instance of RosterHistory from the current/previous rosters as reported by the RosterRetriever.
-     * <p>
-     * The RosterRetriever implementation fetches the rosters from the RosterState/RosterMap.
-     *
-     * @param state a State object to fetch data from
-     * @param round of the provided state
-     * @return a RosterHistory
-     * @deprecated To be removed once AddressBook to Roster refactoring is complete and Browser/Turtle stop using it
-     */
-    @Deprecated(forRemoval = true)
-    @NonNull
-    public static RosterHistory buildRosterHistory(final State state, final long round) {
-        final List<RoundRosterPair> roundRosterPairList = new ArrayList<>();
-        final Map<Bytes, Roster> rosterMap = new HashMap<>();
-
-        final Roster currentRoster = RosterRetriever.retrieveActive(state, round);
-        final Bytes currentHash = RosterUtils.hash(currentRoster).getBytes();
-        roundRosterPairList.add(new RoundRosterPair(round, currentHash));
-        rosterMap.put(currentHash, currentRoster);
-
-        final Roster previousRoster = RosterRetriever.retrievePreviousRoster(state);
-        if (previousRoster != null) {
-            final Bytes previousHash = RosterUtils.hash(previousRoster).getBytes();
-            roundRosterPairList.add(new RoundRosterPair(0, previousHash));
-            rosterMap.put(previousHash, previousRoster);
-        }
-
-        return new RosterHistory(roundRosterPairList, rosterMap);
-    }
-
-    /**
      * Creates the Roster History to be used by Platform.
      *
-     * @param rosterStore the roster store containing the active rosters.
+     * @param state the state containing the active roster history.
      * @return the roster history if roster store contains active rosters, otherwise NullPointerException is thrown.
      */
     @NonNull
-    public static RosterHistory createRosterHistory(@NonNull final ReadableRosterStore rosterStore) {
+    public static RosterHistory createRosterHistory(@NonNull final State state) {
+        final ReadableRosterStore rosterStore =
+                new ReadableRosterStoreImpl(state.getReadableStates(RosterStateId.SERVICE_NAME));
         final List<RoundRosterPair> roundRosterPairs = rosterStore.getRosterHistory();
         final Map<Bytes, Roster> rosterMap = new HashMap<>();
         for (final RoundRosterPair pair : roundRosterPairs) {
@@ -341,7 +304,7 @@ public final class RosterUtils {
      * @param round a round number since which the roster is considered active
      */
     public static void setActiveRoster(@NonNull final State state, @NonNull final Roster roster, final long round) {
-        final WritableStates writableStates = state.getWritableStates(RosterStateId.NAME);
+        final WritableStates writableStates = state.getWritableStates(RosterStateId.SERVICE_NAME);
         final WritableRosterStore writableRosterStore = new WritableRosterStore(writableStates);
         writableRosterStore.putActiveRoster(roster, round);
         ((CommittableWritableStates) writableStates).commit();

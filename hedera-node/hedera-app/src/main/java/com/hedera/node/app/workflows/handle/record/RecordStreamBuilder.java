@@ -3,11 +3,16 @@ package com.hedera.node.app.workflows.handle.record;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.PENDING_AIRDROP_ID_COMPARATOR;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logEndTransactionRecord;
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.output.StateChange;
+import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
+import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
+import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -25,6 +30,8 @@ import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.ContractNonceInfo;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.PendingAirdropRecord;
@@ -32,7 +39,7 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
-import com.hedera.hapi.platform.event.TransactionGroupRole;
+import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.hapi.streams.ContractStateChanges;
@@ -56,6 +63,7 @@ import com.hedera.node.app.service.token.records.CryptoDeleteStreamBuilder;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.service.token.records.CryptoUpdateStreamBuilder;
 import com.hedera.node.app.service.token.records.GenesisAccountStreamBuilder;
+import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.service.token.records.NodeStakeUpdateStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenAccountWipeStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenAirdropStreamBuilder;
@@ -85,6 +93,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import org.hiero.base.crypto.DigestType;
 
 /**
@@ -129,16 +138,18 @@ public class RecordStreamBuilder
                 CryptoUpdateStreamBuilder,
                 NodeCreateStreamBuilder,
                 TokenAirdropStreamBuilder,
-                ReplayableFeeStreamBuilder {
+                ReplayableFeeStreamBuilder,
+                HookDispatchStreamBuilder {
     private static final Comparator<TokenAssociation> TOKEN_ASSOCIATION_COMPARATOR =
             Comparator.<TokenAssociation>comparingLong(a -> a.tokenId().tokenNum())
                     .thenComparingLong(a -> a.accountIdOrThrow().accountNum());
     private static final Comparator<PendingAirdropRecord> PENDING_AIRDROP_RECORD_COMPARATOR =
             Comparator.comparing(PendingAirdropRecord::pendingAirdropIdOrThrow, PENDING_AIRDROP_ID_COMPARATOR);
     // base transaction data
-    private Transaction transaction;
+    private SignedTransaction signedTx;
 
-    private Bytes transactionBytes = Bytes.EMPTY;
+    @Nullable
+    private Bytes serializedSignedTx = null;
     // fields needed for TransactionRecord
     // Mutable because the provisional consensus timestamp assigned on dispatch could
     // change when removable records appear "between" this record and the parent record
@@ -162,7 +173,9 @@ public class RecordStreamBuilder
     private long newTotalSupply = 0L;
     private final TransactionReceipt.Builder transactionReceiptBuilder = TransactionReceipt.newBuilder();
     // Sidecar data, booleans are the migration flag
-    private List<AbstractMap.SimpleEntry<ContractStateChanges, Boolean>> contractStateChanges = new LinkedList<>();
+    @Nullable
+    private List<AbstractMap.SimpleEntry<ContractStateChanges, Boolean>> contractStateChanges;
+
     private List<AbstractMap.SimpleEntry<ContractActions, Boolean>> contractActions = new LinkedList<>();
     private List<AbstractMap.SimpleEntry<ContractBytecode, Boolean>> contractBytecodes = new LinkedList<>();
 
@@ -190,16 +203,33 @@ public class RecordStreamBuilder
     // Used to customize the externalized form of a dispatched child transaction, right before
     // its record stream item is built; lets the contract service externalize certain dispatched
     // CryptoCreate transactions as ContractCreate synthetic transactions
-    private final TransactionCustomizer customizer;
+    private final SignedTxCustomizer customizer;
 
     private TokenID tokenID;
     private ScheduleID scheduleID;
     private TokenType tokenType;
     private HederaFunctionality function;
 
+    private boolean isContractCreate;
+    /**
+     * The number of storage slots updated during hook creation or update. Slots updated during hook execution are
+     * tracked and updated through RootProxyWorldUpdater.
+     */
+    private int deltaStorageSlotsUpdated;
+
+    /**
+     * ops duration used by the contract transaction
+     */
+    private long opsDuration;
+    /**
+     * The next hook ID after the hook dispatch.
+     * This is useful to set the first hookId on the account if the head is deleted
+     */
+    private Long nextHookId;
+
     public RecordStreamBuilder(
             @NonNull final ReversingBehavior reversingBehavior,
-            @NonNull final TransactionCustomizer customizer,
+            @NonNull final SignedTxCustomizer customizer,
             @NonNull final TransactionCategory category) {
         this.consensusNow = Instant.EPOCH;
         this.reversingBehavior = requireNonNull(reversingBehavior, "reversingBehavior must not be null");
@@ -213,9 +243,9 @@ public class RecordStreamBuilder
      * @return the transaction record
      */
     public SingleTransactionRecord build() {
-        if (customizer != NOOP_TRANSACTION_CUSTOMIZER) {
-            transaction = customizer.apply(transaction);
-            transactionBytes = transaction.signedTransactionBytes();
+        if (customizer != NOOP_SIGNED_TX_CUSTOMIZER) {
+            signedTx = customizer.apply(signedTx);
+            serializedSignedTx = SignedTransaction.PROTOBUF.toBytes(signedTx);
         }
         final var builder = transactionReceiptBuilder.serialNumbers(serialNumbers);
         // FUTURE : In mono-service exchange rate is not set in preceding child records.
@@ -225,10 +255,27 @@ public class RecordStreamBuilder
         }
         final var transactionReceipt = builder.build();
 
+        // The "re-wrapped" transaction for legacy record stream compliance
+        final Transaction transaction;
         final Bytes transactionHash;
         try {
             final MessageDigest digest = MessageDigest.getInstance(DigestType.SHA_384.algorithmName());
-            transactionHash = Bytes.wrap(digest.digest(transactionBytes.toByteArray()));
+            if (signedTx.useSerializedTxMessageHashAlgorithm()) {
+                transaction = Transaction.newBuilder()
+                        .bodyBytes(signedTx.bodyBytes())
+                        .sigMap(signedTx.sigMap())
+                        .build();
+                final var legacyBytes = Transaction.PROTOBUF.toBytes(transaction);
+                transactionHash = Bytes.wrap(digest.digest(legacyBytes.toByteArray()));
+            } else {
+                if (serializedSignedTx == null) {
+                    serializedSignedTx = SignedTransaction.PROTOBUF.toBytes(signedTx);
+                }
+                transaction = Transaction.newBuilder()
+                        .signedTransactionBytes(serializedSignedTx)
+                        .build();
+                transactionHash = Bytes.wrap(digest.digest(serializedSignedTx.toByteArray()));
+            }
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
         }
@@ -265,12 +312,14 @@ public class RecordStreamBuilder
 
         // create list of sidecar records
         List<TransactionSidecarRecord> transactionSidecarRecords = new ArrayList<>();
-        contractStateChanges.stream()
-                .map(pair -> new TransactionSidecarRecord(
-                        transactionRecord.consensusTimestamp(),
-                        pair.getValue(),
-                        new OneOf<>(TransactionSidecarRecord.SidecarRecordsOneOfType.STATE_CHANGES, pair.getKey())))
-                .forEach(transactionSidecarRecords::add);
+        if (contractStateChanges != null) {
+            contractStateChanges.stream()
+                    .map(pair -> new TransactionSidecarRecord(
+                            transactionRecord.consensusTimestamp(),
+                            pair.getValue(),
+                            new OneOf<>(TransactionSidecarRecord.SidecarRecordsOneOfType.STATE_CHANGES, pair.getKey())))
+                    .forEach(transactionSidecarRecords::add);
+        }
         contractActions.stream()
                 .map(pair -> new TransactionSidecarRecord(
                         transactionRecord.consensusTimestamp(),
@@ -292,11 +341,6 @@ public class RecordStreamBuilder
     }
 
     @Override
-    public void setTransactionGroupRole(@NonNull final TransactionGroupRole role) {
-        // No-op
-    }
-
-    @Override
     public void nullOutSideEffectFields() {
         serialNumbers.clear();
         tokenTransferLists.clear();
@@ -308,10 +352,25 @@ public class RecordStreamBuilder
 
         newTotalSupply = 0L;
         transactionFee = 0L;
+
+        if (contractFunctionResult != null) {
+            final var clearLogs =
+                    contractFunctionResult.copyBuilder().logInfo(emptyList()).bloom(Bytes.EMPTY);
+            if (isContractCreate) {
+                transactionRecordBuilder.contractCreateResult(clearLogs);
+            } else {
+                transactionRecordBuilder.contractCallResult(clearLogs);
+            }
+        }
+
         contractFunctionResult = null;
 
         transactionReceiptBuilder.accountID((AccountID) null);
-        transactionReceiptBuilder.contractID((ContractID) null);
+
+        if (isContractCreate) {
+            transactionReceiptBuilder.contractID((ContractID) null);
+        }
+
         transactionReceiptBuilder.fileID((FileID) null);
         transactionReceiptBuilder.tokenID((TokenID) null);
         if (status != IDENTICAL_SCHEDULE_ALREADY_CREATED) {
@@ -324,7 +383,6 @@ public class RecordStreamBuilder
         transactionReceiptBuilder.topicRunningHashVersion(0L);
         transactionReceiptBuilder.topicSequenceNumber(0L);
         transactionRecordBuilder.alias(Bytes.EMPTY);
-        transactionRecordBuilder.ethereumHash(Bytes.EMPTY);
         transactionRecordBuilder.evmAddress(Bytes.EMPTY);
     }
 
@@ -350,30 +408,19 @@ public class RecordStreamBuilder
     /**
      * Sets the transaction.
      *
-     * @param transaction the transaction
+     * @param signedTx the transaction
      * @return the builder
      */
     @Override
     @NonNull
-    public RecordStreamBuilder transaction(@NonNull final Transaction transaction) {
-        this.transaction = requireNonNull(transaction, "transaction must not be null");
+    public RecordStreamBuilder signedTx(@NonNull final SignedTransaction signedTx) {
+        this.signedTx = requireNonNull(signedTx, "transaction must not be null");
         return this;
     }
 
     @Override
-    public StreamBuilder serializedTransaction(@Nullable final Bytes serializedTransaction) {
-        return this;
-    }
-
-    /**
-     * Sets the transaction bytes that will be used to compute the transaction hash.
-     *
-     * @param transactionBytes the transaction bytes
-     * @return the builder
-     */
-    @NonNull
-    public RecordStreamBuilder transactionBytes(@NonNull final Bytes transactionBytes) {
-        this.transactionBytes = requireNonNull(transactionBytes, "transactionBytes must not be null");
+    public RecordStreamBuilder serializedSignedTx(@Nullable final Bytes serializedSignedTx) {
+        this.serializedSignedTx = serializedSignedTx;
         return this;
     }
 
@@ -409,8 +456,8 @@ public class RecordStreamBuilder
         final var newTransactionID = transactionID;
         final var body =
                 inProgressBody().copyBuilder().transactionID(newTransactionID).build();
-        this.transaction = StreamBuilder.transactionWith(body);
-        this.transactionBytes = transaction.signedTransactionBytes();
+        this.signedTx = StreamBuilder.signedTxWith(body);
+        this.serializedSignedTx = SignedTransaction.PROTOBUF.toBytes(this.signedTx);
         return this;
     }
 
@@ -429,16 +476,6 @@ public class RecordStreamBuilder
 
     // ------------------------------------------------------------------------------------------------------------------------
     // fields needed for TransactionRecord
-
-    /**
-     * Gets the transaction object.
-     *
-     * @return the transaction object
-     */
-    @NonNull
-    public Transaction transaction() {
-        return transaction;
-    }
 
     /**
      * Gets the parent consensus instant.
@@ -496,6 +533,36 @@ public class RecordStreamBuilder
         return this;
     }
 
+    @NonNull
+    @Override
+    public EthereumTransactionStreamBuilder newSenderNonce(long senderNonce) {
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractCallStreamBuilder evmCallTransactionResult(@Nullable EvmTransactionResult result) {
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractCreateStreamBuilder evmCreateTransactionResult(@Nullable EvmTransactionResult result) {
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public RecordStreamBuilder changedNonceInfo(@NonNull final List<ContractNonceInfo> nonceInfos) {
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder createdContractIds(@NonNull final List<ContractID> contractIds) {
+        return this;
+    }
+
     /**
      * Sets the body to contractCreateResult result.
      *
@@ -507,6 +574,12 @@ public class RecordStreamBuilder
     public RecordStreamBuilder contractCreateResult(@Nullable ContractFunctionResult contractCreateResult) {
         transactionRecordBuilder.contractCreateResult(contractCreateResult);
         this.contractFunctionResult = contractCreateResult;
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractCallStreamBuilder addLogs(@NonNull final List<EvmTransactionLog> logs) {
         return this;
     }
 
@@ -840,6 +913,27 @@ public class RecordStreamBuilder
     }
 
     /**
+     * Sets the receipt contractID;
+     * This is used for HAPI and Ethereum contract creation transactions.
+     *
+     * @param contractID the {@link ContractID} for the receipt
+     * @return the builder
+     */
+    @Override
+    @NonNull
+    public RecordStreamBuilder createdContractID(@Nullable final ContractID contractID) {
+        isContractCreate = true;
+        contractID(contractID);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public RecordStreamBuilder createdEvmAddress(@Nullable final Bytes evmAddress) {
+        return this;
+    }
+
+    /**
      * Gets the {@link ExchangeRateSet} that is currently set for the receipt.
      *
      * @return the {@link ExchangeRateSet}
@@ -1029,6 +1123,26 @@ public class RecordStreamBuilder
     // ------------------------------------------------------------------------------------------------------------------------
     // Sidecar data, booleans are the migration flag
 
+    @Override
+    public ContractOperationStreamBuilder testForIdenticalKeys(@NonNull final Predicate<Object> test) {
+        return this;
+    }
+
+    @Override
+    public Bytes getEvmCallResult() {
+        return requireNonNull(contractFunctionResult).contractCallResult();
+    }
+
+    @Override
+    public int getDeltaStorageSlotsUpdated() {
+        return deltaStorageSlotsUpdated;
+    }
+
+    @Override
+    public void setDeltaStorageSlotsUpdated(int deltaStorageSlotsUpdated) {
+        this.deltaStorageSlotsUpdated = deltaStorageSlotsUpdated;
+    }
+
     /**
      * Sets the contractStateChanges which are part of sidecar records.
      *
@@ -1043,6 +1157,11 @@ public class RecordStreamBuilder
         return this;
     }
 
+    @Override
+    public List<StateChange> getStateChanges() {
+        throw new UnsupportedOperationException("Record stream does not accumulate state changes");
+    }
+
     /**
      * Adds contractStateChanges to sidecar records.
      *
@@ -1054,7 +1173,28 @@ public class RecordStreamBuilder
     public RecordStreamBuilder addContractStateChanges(
             @NonNull final ContractStateChanges contractStateChanges, final boolean isMigration) {
         requireNonNull(contractStateChanges, "contractStateChanges must not be null");
+        if (this.contractStateChanges == null) {
+            this.contractStateChanges = new LinkedList<>();
+        }
         this.contractStateChanges.add(new AbstractMap.SimpleEntry<>(contractStateChanges, isMigration));
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder addContractSlotUsages(@NonNull final List<ContractSlotUsage> slotUsages) {
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder addActions(@NonNull final List<ContractAction> actions) {
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder addInitcode(@NonNull final ExecutedInitcode initcode) {
         return this;
     }
 
@@ -1085,7 +1225,10 @@ public class RecordStreamBuilder
     public RecordStreamBuilder addContractBytecode(
             @NonNull final ContractBytecode contractBytecode, final boolean isMigration) {
         requireNonNull(contractBytecode, "contractBytecode must not be null");
-        contractBytecodes.add(new AbstractMap.SimpleEntry<>(contractBytecode, isMigration));
+        final var entry = new AbstractMap.SimpleEntry<>(contractBytecode, isMigration);
+        if (!contractBytecodes.contains(entry)) {
+            contractBytecodes.add(entry);
+        }
         return this;
     }
 
@@ -1148,9 +1291,7 @@ public class RecordStreamBuilder
      */
     private TransactionBody inProgressBody() {
         try {
-            final var signedTransaction = SignedTransaction.PROTOBUF.parseStrict(
-                    transaction.signedTransactionBytes().toReadableSequentialData());
-            return TransactionBody.PROTOBUF.parse(signedTransaction.bodyBytes().toReadableSequentialData());
+            return TransactionBody.PROTOBUF.parse(signedTx.bodyBytes());
         } catch (Exception e) {
             throw new IllegalStateException("Record being built for unparseable transaction", e);
         }
@@ -1191,5 +1332,15 @@ public class RecordStreamBuilder
     @Override
     public HederaFunctionality functionality() {
         return function;
+    }
+
+    @Override
+    public void nextHookId(final Long nextHookId) {
+        this.nextHookId = nextHookId;
+    }
+
+    @Override
+    public Long getNextHookId() {
+        return nextHookId;
     }
 }

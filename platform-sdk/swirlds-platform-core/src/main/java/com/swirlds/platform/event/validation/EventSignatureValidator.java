@@ -6,6 +6,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.roster.RosterHistory;
 
 /**
  * Verifies event signatures
@@ -31,10 +32,10 @@ public interface EventSignatureValidator {
     void setEventWindow(@NonNull final EventWindow eventWindow);
 
     /**
-     * Set the previous and current rosters
+     * Set the rosterHistory
      *
-     * @param rosterUpdate the new rosters
+     * @param rosterHistory the roster history read from state
      */
-    @InputWireLabel("RosterUpdate")
-    void updateRosters(@NonNull final RosterUpdate rosterUpdate);
+    @InputWireLabel("roster history")
+    void updateRosterHistory(@NonNull final RosterHistory rosterHistory);
 }

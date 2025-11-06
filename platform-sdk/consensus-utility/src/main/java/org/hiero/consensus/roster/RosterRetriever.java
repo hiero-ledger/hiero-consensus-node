@@ -2,8 +2,6 @@
 package org.hiero.consensus.roster;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.roster.WritableRosterStore.ROSTER_KEY;
-import static org.hiero.consensus.roster.WritableRosterStore.ROSTER_STATES_KEY;
 
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
@@ -23,6 +21,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import org.hiero.consensus.model.roster.Address;
 import org.hiero.consensus.model.roster.AddressBook;
 
@@ -30,6 +29,7 @@ import org.hiero.consensus.model.roster.AddressBook;
  * A utility class to help retrieve a Roster instance from the state.
  */
 public final class RosterRetriever {
+
     private RosterRetriever() {}
 
     private static final String ROSTER_SERVICE = "RosterService";
@@ -49,7 +49,7 @@ public final class RosterRetriever {
     @Nullable
     public static Roster retrievePreviousRoster(@NonNull final State state) {
         final ReadableSingletonState<RosterState> rosterState =
-                state.getReadableStates(ROSTER_SERVICE).getSingleton(ROSTER_STATES_KEY);
+                state.getReadableStates(ROSTER_SERVICE).getSingleton(RosterStateId.ROSTER_STATE_STATE_ID);
         final List<RoundRosterPair> roundRosterPairs =
                 requireNonNull(rosterState.get()).roundRosterPairs();
 
@@ -96,7 +96,7 @@ public final class RosterRetriever {
     @Nullable
     public static Bytes getActiveRosterHash(@NonNull final State state, final long round) {
         final ReadableSingletonState<RosterState> rosterState =
-                state.getReadableStates(ROSTER_SERVICE).getSingleton(ROSTER_STATES_KEY);
+                state.getReadableStates(ROSTER_SERVICE).getSingleton(RosterStateId.ROSTER_STATE_STATE_ID);
         // replace with binary search when/if the list size becomes unreasonably large (100s of entries or more)
         final var roundRosterPairs = requireNonNull(rosterState.get()).roundRosterPairs();
         for (final var roundRosterPair : roundRosterPairs) {
@@ -113,7 +113,8 @@ public final class RosterRetriever {
      * @return the hash of the candidate roster
      */
     public static @NonNull Bytes getCandidateRosterHash(@NonNull final State state) {
-        final var rosterState = state.getReadableStates(ROSTER_SERVICE).<RosterState>getSingleton(ROSTER_STATES_KEY);
+        final var rosterState =
+                state.getReadableStates(ROSTER_SERVICE).<RosterState>getSingleton(RosterStateId.ROSTER_STATE_STATE_ID);
         return requireNonNull(rosterState.get()).candidateRosterHash();
     }
 
@@ -135,10 +136,9 @@ public final class RosterRetriever {
                     .nodeId(address.getNodeId().id())
                     .weight(address.getWeight())
                     .gossipCaCertificate(cert)
-                    .gossipEndpoint(List.of(
+                    .gossipEndpoint(Stream.of(
                                     Pair.of(address.getHostnameExternal(), address.getPortExternal()),
                                     Pair.of(address.getHostnameInternal(), address.getPortInternal()))
-                            .stream()
                             .filter(pair -> pair.left() != null && !pair.left().isBlank() && pair.right() != 0)
                             .distinct()
                             .map(pair -> {
@@ -197,7 +197,7 @@ public final class RosterRetriever {
     private static Roster retrieveInternal(@NonNull final State state, @Nullable final Bytes activeRosterHash) {
         if (activeRosterHash != null) {
             final ReadableKVState<ProtoBytes, Roster> rosterMap =
-                    state.getReadableStates(ROSTER_SERVICE).get(ROSTER_KEY);
+                    state.getReadableStates(ROSTER_SERVICE).get(RosterStateId.ROSTERS_STATE_ID);
             return rosterMap.get(new ProtoBytes(activeRosterHash));
         }
         return null;

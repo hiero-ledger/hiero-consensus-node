@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test;
 
+import static com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema.AIRDROPS_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -13,10 +14,10 @@ import com.hedera.hapi.node.base.PendingAirdropId;
 import com.hedera.hapi.node.base.PendingAirdropValue;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.AccountPendingAirdrop;
+import com.hedera.node.app.service.entityid.ReadableEntityCounters;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.token.impl.WritableAirdropStore;
 import com.hedera.node.app.service.token.impl.test.handlers.util.StateBuilderUtil;
-import com.hedera.node.app.spi.ids.ReadableEntityCounters;
-import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableStates;
@@ -50,7 +51,7 @@ class WritableAirdropStoreTest extends StateBuilderUtil {
     @BeforeEach
     public void setUp() {
         writableAirdropState = emptyWritableAirdropStateBuilder().build();
-        given(writableStates.<PendingAirdropId, AccountPendingAirdrop>get(AIRDROPS))
+        given(writableStates.<PendingAirdropId, AccountPendingAirdrop>get(AIRDROPS_STATE_ID))
                 .willReturn(writableAirdropState);
         subject = new WritableAirdropStore(writableStates, writableEntityCounters);
     }
@@ -80,7 +81,7 @@ class WritableAirdropStoreTest extends StateBuilderUtil {
                 writableAirdropState = emptyWritableAirdropStateBuilder()
                         .value(nftId, accountAirdrop)
                         .build());
-        given(writableStates.<PendingAirdropId, AccountPendingAirdrop>get(AIRDROPS))
+        given(writableStates.<PendingAirdropId, AccountPendingAirdrop>get(AIRDROPS_STATE_ID))
                 .willReturn(writableAirdropState);
         subject = new WritableAirdropStore(writableStates, writableEntityCounters);
 
@@ -110,7 +111,7 @@ class WritableAirdropStoreTest extends StateBuilderUtil {
         assertThat(writableAirdropState.contains(fungibleAirdropToRemove)).isTrue();
         assertThat(writableAirdropState.contains(nftToRemove)).isTrue();
 
-        given(writableStates.<PendingAirdropId, AccountPendingAirdrop>get(AIRDROPS))
+        given(writableStates.<PendingAirdropId, AccountPendingAirdrop>get(AIRDROPS_STATE_ID))
                 .willReturn(writableAirdropState);
         subject = new WritableAirdropStore(writableStates, writableEntityCounters);
 

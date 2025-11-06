@@ -188,6 +188,11 @@ final Configuration config = ConfigurationBuilder.create()
 final UUID id = config.getValue("app.id");
 ```
 
+You cannot add multiple converters for the same type.
+An exception will be thrown if you try to add a converter for a type that has already has a registered converter.
+You can, however, register converter for any of the above mentioned types that are supported by default.
+In that case your custom converter will be used.
+
 ### Supported config sources
 
 The configuration can support multiple sources for config properties. How such sources can be defined and added will be

@@ -16,6 +16,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_A
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadlongAddress;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -25,6 +26,7 @@ import static org.mockito.Mockito.lenient;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.PendingAirdropId;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.cancelairdrops.TokenCancelAirdropDecoder;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
@@ -48,6 +50,9 @@ class TokenCancelAirdropDecoderTest extends CallAttemptTestBase {
     @Mock
     private TokensConfig tokensConfig;
 
+    @Mock
+    private HederaNativeOperations hederaNativeOperations;
+
     private TokenCancelAirdropDecoder subject;
 
     @BeforeEach
@@ -68,6 +73,8 @@ class TokenCancelAirdropDecoderTest extends CallAttemptTestBase {
         given(addressIdConverter.convert(asHeadlongAddress(SENDER_ID.accountNum())))
                 .willReturn(SENDER_ID);
         given(addressIdConverter.convert(OWNER_ACCOUNT_AS_ADDRESS)).willReturn(OWNER_ID);
+        given(attempt.nativeOperations()).willReturn(hederaNativeOperations);
+        given(hederaNativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         final var encoded = Bytes.wrapByteBuffer(CANCEL_AIRDROPS.encodeCall(Tuple.singleton(new Tuple[] {
             Tuple.of(
@@ -119,6 +126,8 @@ class TokenCancelAirdropDecoderTest extends CallAttemptTestBase {
         given(addressIdConverter.convert(asHeadlongAddress(SENDER_ID.accountNum())))
                 .willReturn(SENDER_ID);
         given(addressIdConverter.convert(OWNER_ACCOUNT_AS_ADDRESS)).willReturn(OWNER_ID);
+        given(attempt.nativeOperations()).willReturn(hederaNativeOperations);
+        given(hederaNativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         final var encoded = Bytes.wrapByteBuffer(CANCEL_AIRDROPS.encodeCall(Tuple.singleton(new Tuple[] {
             Tuple.of(
@@ -142,6 +151,8 @@ class TokenCancelAirdropDecoderTest extends CallAttemptTestBase {
         given(addressIdConverter.convert(asHeadlongAddress(SENDER_ID.accountNum())))
                 .willReturn(SENDER_ID);
         given(addressIdConverter.convert(OWNER_ACCOUNT_AS_ADDRESS)).willReturn(OWNER_ID);
+        given(attempt.nativeOperations()).willReturn(hederaNativeOperations);
+        given(hederaNativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         final var encoded = Bytes.wrapByteBuffer(CANCEL_AIRDROPS.encodeCall(Tuple.singleton(new Tuple[] {
             Tuple.of(

@@ -102,10 +102,7 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
         final boolean isValid = Boolean.TRUE.equals(cache.get(new PartialSignature(
                 hintsContext.constructionIdOrThrow(), crs, context.creatorInfo().nodeId(), op)));
         if (isValid) {
-            signings.computeIfAbsent(
-                            op.message(),
-                            b -> hintsContext.newSigning(
-                                    b, requireNonNull(currentRoster.get()), () -> signings.remove(op.message())))
+            signings.computeIfAbsent(op.message(), b -> hintsContext.newSigning(b, () -> signings.remove(op.message())))
                     .incorporateValid(crs, creatorId, op.partialSignature());
         } else {
             log.warn("Ignoring invalid partial signature on '{}' from node{}", op.message(), creatorId);

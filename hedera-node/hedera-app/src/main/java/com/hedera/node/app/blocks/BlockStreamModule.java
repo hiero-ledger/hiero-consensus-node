@@ -3,19 +3,18 @@ package com.hedera.node.app.blocks;
 
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
-import com.hedera.node.app.blocks.impl.streaming.BlockNodeConfigExtractor;
-import com.hedera.node.app.blocks.impl.streaming.BlockNodeConfigExtractorImpl;
+import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
-import com.hedera.node.app.blocks.impl.streaming.BlockStreamStateManager;
 import com.hedera.node.app.blocks.impl.streaming.FileAndGrpcBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.GrpcBlockItemWriter;
-import com.hedera.node.app.blocks.impl.streaming.NoOpBlockNodeConfigExtractor;
+import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.app.services.NodeRewardManager;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -28,30 +27,28 @@ public interface BlockStreamModule {
 
     @Provides
     @Singleton
-    static BlockNodeConfigExtractor provideBlockNodeConfigExtractor(@NonNull final ConfigProvider configProvider) {
-        final var blockStreamConfig = configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
-        if (blockStreamConfig.streamToBlockNodes()) {
-            return new BlockNodeConfigExtractorImpl(blockStreamConfig.blockNodeConnectionFileDir());
-        } else {
-            return new NoOpBlockNodeConfigExtractor();
-        }
-    }
-
-    @Provides
-    @Singleton
-    static BlockStreamStateManager provideBlockStreamStateManager(@NonNull final ConfigProvider configProvider) {
-        return new BlockStreamStateManager(configProvider);
+    static BlockBufferService provideBlockBufferService(
+            @NonNull final ConfigProvider configProvider, @NonNull final BlockStreamMetrics blockStreamMetrics) {
+        return new BlockBufferService(configProvider, blockStreamMetrics);
     }
 
     @Provides
     @Singleton
     static BlockNodeConnectionManager provideBlockNodeConnectionManager(
-            @NonNull final BlockNodeConfigExtractor blockNodeConfigExtractor,
-            @NonNull final BlockStreamStateManager blockStreamStateManager) {
+            @NonNull final ConfigProvider configProvider,
+            @NonNull final BlockBufferService blockBufferService,
+            @NonNull final BlockStreamMetrics blockStreamMetrics) {
         final BlockNodeConnectionManager manager =
-                new BlockNodeConnectionManager(blockNodeConfigExtractor, blockStreamStateManager);
-        blockStreamStateManager.setBlockNodeConnectionManager(manager);
+                new BlockNodeConnectionManager(configProvider, blockBufferService, blockStreamMetrics);
+        blockBufferService.setBlockNodeConnectionManager(manager);
+        manager.start();
         return manager;
+    }
+
+    @Provides
+    @Singleton
+    static BlockStreamMetrics provideBlockStreamMetrics(@NonNull final Metrics metrics) {
+        return new BlockStreamMetrics(metrics);
     }
 
     @Provides
@@ -66,14 +63,16 @@ public interface BlockStreamModule {
             @NonNull final ConfigProvider configProvider,
             @NonNull final NodeInfo selfNodeInfo,
             @NonNull final FileSystem fileSystem,
-            @NonNull final BlockStreamStateManager blockStreamStateManager) {
+            @NonNull final BlockBufferService blockBufferService,
+            @NonNull final BlockNodeConnectionManager blockNodeConnectionManager) {
         final var config = configProvider.getConfiguration();
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
         return switch (blockStreamConfig.writerMode()) {
             case FILE -> () -> new FileBlockItemWriter(configProvider, selfNodeInfo, fileSystem);
-            case GRPC -> () -> new GrpcBlockItemWriter(blockStreamStateManager);
-            case FILE_AND_GRPC -> () ->
-                    new FileAndGrpcBlockItemWriter(configProvider, selfNodeInfo, fileSystem, blockStreamStateManager);
+            case GRPC -> () -> new GrpcBlockItemWriter(blockBufferService, blockNodeConnectionManager);
+            case FILE_AND_GRPC ->
+                () -> new FileAndGrpcBlockItemWriter(
+                        configProvider, selfNodeInfo, fileSystem, blockBufferService, blockNodeConnectionManager);
         };
     }
 

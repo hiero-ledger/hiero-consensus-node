@@ -11,9 +11,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.ReferenceCounter;
 import com.swirlds.common.utility.RuntimeObjectRecord;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
@@ -21,11 +19,10 @@ import com.swirlds.common.utility.Threshold;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.crypto.SignatureVerifier;
-import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
+import com.swirlds.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.cert.X509Certificate;
@@ -65,7 +62,7 @@ import org.hiero.consensus.roster.RosterUtils;
  * rejoining after a long absence.
  * </p>
  */
-public class SignedState implements SignedStateInfo {
+public class SignedState {
 
     private static final Logger logger = LogManager.getLogger(SignedState.class);
 
@@ -206,21 +203,11 @@ public class SignedState implements SignedStateInfo {
         this.pcesRound = pcesRound;
     }
 
-    public void init(@NonNull PlatformContext platformContext) {
-        state.init(
-                platformContext.getTime(),
-                platformContext.getMetrics(),
-                platformContext.getMerkleCryptography(),
-                () -> {
-                    final ConsensusSnapshot consensusSnapshot = platformStateFacade.consensusSnapshotOf(state);
-                    return consensusSnapshot == null ? PlatformStateAccessor.GENESIS_ROUND : consensusSnapshot.round();
-                });
-    }
-
     /**
-     * {@inheritDoc}
+     * The round of the state.
+     *
+     * @return the round number
      */
-    @Override
     public long getRound() {
         return platformStateFacade.roundOf(state);
     }
@@ -235,9 +222,11 @@ public class SignedState implements SignedStateInfo {
     }
 
     /**
-     * {@inheritDoc}
+     * Return the set of signatures collected so far for the hash of this SignedState. This includes the signature by
+     * self.
+     *
+     * @return the set of signatures
      */
-    @Override
     public @NonNull SigSet getSigSet() {
         return sigSet;
     }
@@ -264,9 +253,10 @@ public class SignedState implements SignedStateInfo {
     }
 
     /**
-     * {@inheritDoc}
+     * Get the roster for this signed state.
+     *
+     * @return the roster
      */
-    @Override
     public @NonNull Roster getRoster() {
         /*
         Ideally the roster would be captured in the constructor but due to the mutable underlying state, the roster
@@ -312,7 +302,7 @@ public class SignedState implements SignedStateInfo {
     }
 
     /**
-     * Reserves the SignedState for use. While reserved, this SignedState will not be deleted.
+     * Reserves the SignedState for use.  While reserved, this SignedState will not be deleted.
      *
      * @param reason a short description of why this SignedState is being reserved. Each location where a SignedState is
      *               reserved should attempt to use a unique reason, as this makes debugging reservation bugs easier.
@@ -459,8 +449,11 @@ public class SignedState implements SignedStateInfo {
      */
     @Override
     public String toString() {
+        // `state.getHash()` would start hashing if the state is not hashed already,
+        // we'd like to avoid that, so let's make sure that we don't do that
+        final String hashString = state.isHashed() ? state.getHash().toString() : "not hashed";
         return "SS(round: %d, sigs: %d/%s, hash: %s)"
-                .formatted(getRound(), signingWeight, RosterUtils.computeTotalWeight(getRoster()), state.getHash());
+                .formatted(getRound(), signingWeight, RosterUtils.computeTotalWeight(getRoster()), hashString);
     }
 
     /**
@@ -542,9 +535,13 @@ public class SignedState implements SignedStateInfo {
     }
 
     /**
-     * {@inheritDoc}
+     * Check if this object contains a complete set of signatures with respect to an address book.
+     * <p>
+     * Note that there is a special edge case during emergency state recovery. A state with a root hash that matches the
+     * current epoch hash is considered to be complete regardless of the signatures it has collected.
+     *
+     * @return does this contain signatures from members with greater than 2/3 of the total weight?
      */
-    @Override
     public boolean isComplete() {
         return recoveryState | signedBy(SUPER_MAJORITY);
     }

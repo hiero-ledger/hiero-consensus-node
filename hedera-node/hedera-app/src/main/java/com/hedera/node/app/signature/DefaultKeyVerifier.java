@@ -37,23 +37,17 @@ public class DefaultKeyVerifier implements AppKeyVerifier {
     private static final Logger logger = LogManager.getLogger(DefaultKeyVerifier.class);
 
     private static final Comparator<Key> KEY_COMPARATOR = new KeyComparator();
-
-    private final int legacyFeeCalcNetworkVpt;
     private final long timeout;
     private final Map<Key, SignatureVerificationFuture> keyVerifications;
 
     /**
      * Creates a {@link DefaultKeyVerifier}
      *
-     * @param legacyFeeCalcNetworkVpt the number of verifications to report for temporary mono-service parity
      * @param config configuration for the node
      * @param keyVerifications A {@link Map} with all data to verify signatures
      */
     public DefaultKeyVerifier(
-            final int legacyFeeCalcNetworkVpt,
-            @NonNull final HederaConfig config,
-            @NonNull final Map<Key, SignatureVerificationFuture> keyVerifications) {
-        this.legacyFeeCalcNetworkVpt = legacyFeeCalcNetworkVpt;
+            @NonNull final HederaConfig config, @NonNull final Map<Key, SignatureVerificationFuture> keyVerifications) {
         this.timeout = requireNonNull(config, "config must not be null").workflowVerificationTimeoutMS();
         this.keyVerifications = requireNonNull(keyVerifications, "keyVerifications must not be null");
     }
@@ -125,8 +119,7 @@ public class DefaultKeyVerifier implements AppKeyVerifier {
 
     @Override
     public int numSignaturesVerified() {
-        // FUTURE - keyVerifications.size(); now this for mono-service differential testing
-        return legacyFeeCalcNetworkVpt;
+        return keyVerifications.size();
     }
 
     @Override
@@ -175,8 +168,8 @@ public class DefaultKeyVerifier implements AppKeyVerifier {
                 final var clampedThreshold = Math.max(1, Math.min(threshold, keys.size()));
                 yield verificationFutureFor(key, keys, keys.size() - clampedThreshold);
             }
-            case CONTRACT_ID, DELEGATABLE_CONTRACT_ID, ECDSA_384, RSA_3072, UNSET -> completedFuture(
-                    failedVerification(key));
+            case CONTRACT_ID, DELEGATABLE_CONTRACT_ID, ECDSA_384, RSA_3072, UNSET ->
+                completedFuture(failedVerification(key));
         };
     }
 

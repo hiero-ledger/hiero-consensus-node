@@ -18,10 +18,8 @@ public final class MerkleInitialize {
     /**
      * Initialize the tree after deserialization.
      *
-     * @param root
-     * 		the tree (or subtree) to initialize
-     * @param deserializationVersions
-     * 		the versions of classes at deserialization
+     * @param root                    the tree (or subtree) to initialize
+     * @param deserializationVersions the versions of classes at deserialization
      * @return the root of the tree, possibly different than original root if the root has been migrated
      */
     public static MerkleNode initializeAndMigrateTreeAfterDeserialization(

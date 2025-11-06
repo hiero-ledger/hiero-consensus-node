@@ -33,15 +33,6 @@ public interface StateChangeListener {
     Set<StateType> stateTypes();
 
     /**
-     * Returns the state ID the listener wants to use for the given service and state key.
-     * @param serviceName the service name
-     * @param stateKey the state key
-     * @return the state ID
-     * @throws IllegalArgumentException if the listener has no id for the given service and state key
-     */
-    int stateIdFor(@NonNull String serviceName, @NonNull String stateKey);
-
-    /**
      * Save the state change when an entry is added in to a map.
      *
      * @param <K> The type of the key

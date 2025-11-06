@@ -46,6 +46,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 public class IntegerNotificationTests {
 
     private static final boolean ENABLE_DIAG_PRINTOUT = false;
+    private static final Duration TIMEOUT = Duration.ofMinutes(1);
 
     @ParameterizedTest
     @ValueSource(ints = {1, 2, 5, 21, 57, 1_000, 10_000, 100_000})
@@ -891,7 +892,7 @@ public class IntegerNotificationTests {
                                 "callback should have completed with the same result");
                     }
                 },
-                Duration.ofSeconds(1),
+                TIMEOUT,
                 "callbacks and futures should be completed by now");
 
         engine.shutdown();

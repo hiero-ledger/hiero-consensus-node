@@ -97,7 +97,13 @@ public class HgcaaLogValidator {
                 List.of("Forcing handoff to construction", "with different target roster"),
                 List.of("HintsSubmissions", "Failed to submit", "(PLATFORM_NOT_ACTIVE)"),
                 List.of("Ignoring invalid partial signature"),
-                List.of("Action stack prematurely empty"));
+                List.of("Action stack prematurely empty"),
+                List.of("Block node", "reported it is behind. Will restart stream at block"),
+                List.of("BlockNodeConnectionManager", "Block stream worker interrupted"),
+                List.of("BlockNodeConnectionManager", "No active connections available for streaming"),
+                List.of("No block nodes available to connect to"),
+                // Not present on OS X
+                List.of("Native library besu blake2bf is not present"));
 
         private int numProblems = 0;
         private int linesSinceInitialProblem = -1;

@@ -26,6 +26,8 @@ import static com.swirlds.platform.util.BootstrapUtils.getNodesToRun;
 import static com.swirlds.platform.util.BootstrapUtils.loadSwirldMains;
 import static com.swirlds.platform.util.BootstrapUtils.setupBrowserWindow;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.util.HapiUtils;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
@@ -36,7 +38,6 @@ import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.config.BasicConfig;
@@ -55,7 +56,6 @@ import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.SystemExitCode;
-import com.swirlds.platform.system.address.AddressBookUtils;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -75,11 +75,12 @@ import org.hiero.consensus.crypto.CryptoConstants;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.roster.RosterRetriever;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
- * The Browser that launches the Platforms that run the apps. This is used by the demo apps to launch the
- * Platforms.
+ * The Browser that launches the Platforms that run the apps. This is used by the demo apps to launch the Platforms.
  * This class will be removed once the demo apps moved to Inversion of Control pattern to build and start platform
  * directly.
  */
@@ -190,6 +191,7 @@ public class Browser {
         final HashgraphGuiSource guiSource;
         Metrics guiMetrics = null;
         if (showUi) {
+            final Roster guiRoster = RosterRetriever.buildRoster(appDefinition.getConfigAddressBook());
             setupBrowserWindow();
             setStateHierarchy(new StateHierarchy(null));
             final InfoApp infoApp = getStateHierarchy().getInfoApp(appDefinition.getApplicationName());
@@ -197,9 +199,9 @@ public class Browser {
             new InfoMember(infoSwirld, "Node" + nodesToRun.getFirst().id());
 
             initNodeSecurity(appDefinition.getConfigAddressBook(), bootstrapConfiguration, Set.copyOf(nodesToRun));
-            guiEventStorage = new GuiEventStorage(bootstrapConfiguration, appDefinition.getConfigAddressBook());
+            guiEventStorage = new GuiEventStorage(bootstrapConfiguration, guiRoster);
 
-            guiSource = new StandardGuiSource(appDefinition.getConfigAddressBook(), guiEventStorage);
+            guiSource = new StandardGuiSource(guiRoster, guiEventStorage);
         } else {
             guiSource = null;
             guiEventStorage = null;
@@ -254,8 +256,7 @@ public class Browser {
                     FileSystemManager.create(configuration),
                     recycleBin,
                     merkleCryptography);
-            // Each platform needs a different temporary state on disk.
-            MerkleDb.resetDefaultInstancePath();
+
             PlatformStateFacade platformStateFacade = new PlatformStateFacade();
             // Create the initial state for the platform
             ConsensusStateEventHandler consensusStateEventHandler = appMain.newConsensusStateEvenHandler();
@@ -263,6 +264,7 @@ public class Browser {
                     recycleBin,
                     appMain.getSemanticVersion(),
                     appMain::newStateRoot,
+                    appMain.stateRootFromVirtualMap(guiMetrics, Time.getCurrent()),
                     appMain.getClass().getName(),
                     appDefinition.getSwirldName(),
                     nodeId,
@@ -272,7 +274,7 @@ public class Browser {
             final ReservedSignedState initialState = reservedState.state();
 
             // Initialize the address book
-            final AddressBook addressBook = initializeAddressBook(
+            initializeAddressBook(
                     nodeId,
                     appMain.getSemanticVersion(),
                     initialState,
@@ -281,9 +283,22 @@ public class Browser {
                     consensusStateEventHandler,
                     platformStateFacade);
 
-            // Build the platform with the given values
             final State state = initialState.get().getState();
-            final long round = platformStateFacade.roundOf(state);
+
+            // If we are upgrading, then we are loading a freeze state and we need to update the latest freeze round
+            // value
+            if (HapiUtils.SEMANTIC_VERSION_COMPARATOR.compare(
+                            appMain.getSemanticVersion(), platformStateFacade.creationSemanticVersionOf(state))
+                    > 0) {
+                final long initialStateRound = platformStateFacade.roundOf(state);
+                platformStateFacade.bulkUpdateOf(state, v -> {
+                    v.setLatestFreezeRound(initialStateRound);
+                });
+            }
+
+            // Build the platform with the given values
+            final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
+
             final PlatformBuilder builder = PlatformBuilder.create(
                     appMain.getClass().getName(),
                     appDefinition.getSwirldName(),
@@ -291,14 +306,15 @@ public class Browser {
                     initialState,
                     consensusStateEventHandler,
                     nodeId,
-                    AddressBookUtils.formatConsensusEventStreamName(addressBook, nodeId),
-                    RosterUtils.buildRosterHistory(state, round),
-                    platformStateFacade);
+                    String.valueOf(nodeId),
+                    rosterHistory,
+                    platformStateFacade,
+                    appMain.stateRootFromVirtualMap(guiMetrics, Time.getCurrent()));
             if (showUi && index == 0) {
                 builder.withPreconsensusEventCallback(guiEventStorage::handlePreconsensusEvent);
                 builder.withConsensusSnapshotOverrideCallback(guiEventStorage::handleSnapshotOverride);
             }
-            builder.withSystemTransactionEncoderCallback(appMain::encodeSystemTransaction);
+            builder.withExecutionLayer(appMain);
 
             // Build platform using the Inversion of Control pattern by injecting all needed
             // dependencies into the PlatformBuilder.

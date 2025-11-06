@@ -3,7 +3,8 @@ package com.hedera.node.app.workflows.handle.dispatch;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
-import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
+import static com.hedera.node.app.service.token.impl.api.TokenServiceApiProvider.TOKEN_SERVICE_API_PROVIDER;
+import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
 import static java.util.Collections.emptySet;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -23,11 +24,15 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
+import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.services.ServiceScopeLookup;
 import com.hedera.node.app.spi.authorization.Authorizer;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
@@ -35,7 +40,6 @@ import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.DispatchOptions.PropagateFeeChargingStrategy;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
-import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
@@ -45,9 +49,8 @@ import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import org.junit.jupiter.api.BeforeEach;
@@ -124,7 +127,7 @@ class ChildDispatchFactoryTest {
     private TransactionChecker transactionChecker;
 
     @Mock
-    private DeduplicationCache deduplicationCache;
+    private AppFeeCharging appFeeCharging;
 
     private ChildDispatchFactory subject;
 
@@ -141,11 +144,12 @@ class ChildDispatchFactoryTest {
                 authorizer,
                 networkInfo,
                 feeManager,
+                appFeeCharging,
                 dispatchProcessor,
                 serviceScopeLookup,
                 exchangeRateManager,
                 transactionChecker,
-                deduplicationCache);
+                Map.of(TokenServiceApi.class, TOKEN_SERVICE_API_PROVIDER));
     }
 
     @Test
@@ -249,7 +253,7 @@ class ChildDispatchFactoryTest {
                                 StreamBuilder.class,
                                 DispatchOptions.StakingRewards.ON,
                                 DispatchOptions.UsePresetTxnId.NO,
-                                NOOP_FEE_CHARGING,
+                                UNIVERSAL_NOOP_FEE_CHARGING,
                                 PropagateFeeChargingStrategy.YES),
                         null));
         assertInstanceOf(UnknownHederaFunctionality.class, exception.getCause());

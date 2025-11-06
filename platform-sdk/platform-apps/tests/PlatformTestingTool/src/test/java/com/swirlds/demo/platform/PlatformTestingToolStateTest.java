@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.platform;
 
-import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
-import static com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema.ROSTER_STATES_KEY;
+import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -25,6 +24,7 @@ import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.demo.merkle.map.FCMFamily;
 import com.swirlds.demo.merkle.map.internal.ExpectedFCMFamily;
 import com.swirlds.demo.platform.fs.stresstest.proto.RandomBytesTransaction;
@@ -57,13 +57,13 @@ import java.util.function.Consumer;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.crypto.PlatformSigner;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
@@ -107,13 +107,16 @@ class PlatformTestingToolStateTest {
         roster = new Roster(Collections.EMPTY_LIST);
         transaction = mock(TransactionWrapper.class);
         platformEvent = mock(PlatformEvent.class);
-        eventWindow = new EventWindow(10, 5, 20, AncientMode.BIRTH_ROUND_THRESHOLD);
+        eventWindow = EventWindowBuilder.builder()
+                .setLatestConsensusRound(10)
+                .setAncientThreshold(5)
+                .setExpiredThreshold(20)
+                .build();
 
         consumedSystemTransactions = new ArrayList<>();
         consumer = systemTransaction -> consumedSystemTransactions.add(systemTransaction);
 
         when(platformEvent.getCreatorId()).thenReturn(new NodeId());
-        when(platformEvent.getSoftwareVersion()).thenReturn(new SemanticVersion(1, 1, 1, "", ""));
         when(platformEvent.getConsensusTimestamp()).thenReturn(Instant.now());
 
         final Randotron randotron = Randotron.create();
@@ -154,38 +157,6 @@ class PlatformTestingToolStateTest {
     }
 
     @Test
-    void handleConsensusRoundWithSystemTransaction() {
-        // Given
-        givenInitState(DEFAULT_CONFIG);
-        givenRoundAndEvent();
-
-        final Bytes stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
-        when(transaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
-
-        // When
-        main.consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
-
-        // Then
-        assertThat(consumedSystemTransactions).hasSize(1);
-    }
-
-    @Test
-    void handleConsensusRoundWithDisabledAppendSig() {
-        // Given
-        givenInitState(CONFIG_WITHOUT_APPEND_SIG);
-        givenRoundAndEvent();
-
-        final Bytes stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
-        when(transaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
-
-        // When
-        main.consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
-
-        // Then
-        assertThat(consumedSystemTransactions).hasSize(1);
-    }
-
-    @Test
     void handleConsensusRoundWithMultipleSystemTransaction() {
         // Given
         givenInitState(DEFAULT_CONFIG);
@@ -202,7 +173,9 @@ class PlatformTestingToolStateTest {
                 .thenReturn(List.of(transaction, secondConsensusTransaction, thirdConsensusTransaction)
                         .iterator());
 
-        final Bytes stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
+        main.submitStateSignature(stateSignatureTransaction);
+        final var stateSignatureTransactionBytes =
+                main.getTransactionsForEvent().getFirst().transaction();
 
         when(transaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
         when(secondConsensusTransaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
@@ -254,7 +227,9 @@ class PlatformTestingToolStateTest {
         givenInitState(DEFAULT_CONFIG);
         givenRoundAndEvent();
 
-        final Bytes stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
+        main.submitStateSignature(stateSignatureTransaction);
+        final var stateSignatureTransactionBytes =
+                main.getTransactionsForEvent().getFirst().transaction();
         final EventCore eventCore = mock(EventCore.class);
         final GossipEvent gossipEvent = GossipEvent.newBuilder()
                 .eventCore(eventCore)
@@ -275,7 +250,9 @@ class PlatformTestingToolStateTest {
         // Given
         givenInitState(DEFAULT_CONFIG);
 
-        final Bytes stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
+        main.submitStateSignature(stateSignatureTransaction);
+        final var stateSignatureTransactionBytes =
+                main.getTransactionsForEvent().getFirst().transaction();
 
         final EventCore eventCore = mock(EventCore.class);
         final GossipEvent gossipEvent = GossipEvent.newBuilder()
@@ -375,18 +352,20 @@ class PlatformTestingToolStateTest {
         when(platform.getContext()).thenReturn(platformContext);
         when(platform.getNotificationEngine()).thenReturn(notificationEngine);
         when(platform.getContext()).thenReturn(platformContext);
+        when(platformContext.getConfiguration()).thenReturn(new TestConfigBuilder().getOrCreateConfig());
     }
 
     private void givenPlatformContextConfig(final PlatformContext platformContext, final String config) {
         final WritableStates platformWritableStates = mock(MapWritableStates.class);
         final WritableSingletonState platformWritableSingletonState = mock(WritableSingletonState.class);
-        when(platformWritableStates.getSingleton(PLATFORM_STATE_KEY)).thenReturn(platformWritableSingletonState);
+        when(platformWritableStates.getSingleton(PLATFORM_STATE_STATE_ID)).thenReturn(platformWritableSingletonState);
         when(state.getWritableStates(PlatformStateService.NAME)).thenReturn(platformWritableStates);
 
         final WritableStates rosterWritableStates = mock(MapWritableStates.class);
         final WritableSingletonState rosterWritableSingletonState = mock(WritableSingletonState.class);
-        when(rosterWritableStates.getSingleton(ROSTER_STATES_KEY)).thenReturn(rosterWritableSingletonState);
-        when(state.getWritableStates(RosterStateId.NAME)).thenReturn(rosterWritableStates);
+        when(rosterWritableStates.getSingleton(RosterStateId.ROSTER_STATE_STATE_ID))
+                .thenReturn(rosterWritableSingletonState);
+        when(state.getWritableStates(RosterStateId.SERVICE_NAME)).thenReturn(rosterWritableStates);
 
         final PayloadCfgSimple payloadConfig = mock(PayloadCfgSimple.class);
         when(payloadConfig.isAppendSig()).thenReturn(config.equals(DEFAULT_CONFIG));

@@ -5,10 +5,9 @@ import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromByteString;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.hapi.utils.forensics.OrderedComparison.statusHistograms;
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.CLASSIC_HAPI_TEST_NETWORK_SIZE;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asDnsServiceEndpoint;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asServiceEndpoint;
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.SigControl.ED25519_ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
@@ -24,6 +23,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.simulatePostUpgradeTransaction;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.allVisibleItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
@@ -31,6 +31,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.given;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.nOps;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludeNoFailuresFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -42,6 +43,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.writeToNodeWorkingD
 import static com.hedera.services.bdd.spec.utilops.grouping.GroupingVerbs.getSystemFiles;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.EventualRecordStreamAssertion.eventuallyAssertingExplicitPassWithReplay;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion.SELECTED_ITEMS_KEY;
+import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion.ALL_TX_IDS;
 import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -59,6 +61,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNAUTHORIZED;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
+import static java.util.stream.Collectors.toSet;
 import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -106,6 +109,7 @@ import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.model.roster.Address;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 /**
  * Asserts the synthetic file creations stipulated by HIP-993 match the file contents returned by the gRPC
@@ -127,6 +131,7 @@ public class SystemFileExportsTest {
                         nodeDetailsExportValidator(grpcCertHashes, gossipCertificates),
                         1,
                         sysFileUpdateTo("files.nodeDetails"))),
+                recordStreamMustIncludeNoFailuresFrom(allVisibleItems(uniqueConsTimesValidator())),
                 given(() -> gossipCertificates.set(generateCertificates(CLASSIC_HAPI_TEST_NETWORK_SIZE))),
                 // This is the genesis transaction
                 cryptoCreate("firstUser"),
@@ -354,6 +359,7 @@ public class SystemFileExportsTest {
     }
 
     @GenesisHapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> syntheticNodeAdminKeysUpdateHappensAtUpgradeBoundary() {
         return hapiTest(
                 recordStreamMustIncludePassFrom(selectedItems(
@@ -404,6 +410,7 @@ public class SystemFileExportsTest {
     }
 
     @GenesisHapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> syntheticFileCreationsMatchQueries() {
         final AtomicReference<Map<FileID, Bytes>> preGenesisContents = new AtomicReference<>();
         return hapiTest(
@@ -459,7 +466,9 @@ public class SystemFileExportsTest {
             final var items = records.get(SELECTED_ITEMS_KEY);
             assertNotNull(items, "No post-upgrade txn found");
             final var targetId = new FileID(
-                    shard, realm, Long.parseLong(spec.startupProperties().get(fileNumProperty)));
+                    spec.shard(),
+                    spec.realm(),
+                    Long.parseLong(spec.startupProperties().get(fileNumProperty)));
             final var updateItem = items.entries().stream()
                     .filter(item -> item.function() == FileUpdate)
                     .filter(item ->
@@ -478,6 +487,16 @@ public class SystemFileExportsTest {
         };
     }
 
+    private static VisibleItemsValidator uniqueConsTimesValidator() {
+        return (spec, records) -> {
+            final var items = records.get(ALL_TX_IDS);
+            final var uniqueConsTimes = items.entries().stream()
+                    .map(RecordStreamEntry::consensusTime)
+                    .collect(toSet());
+            assertEquals(items.size(), uniqueConsTimes.size(), "Expected all entries to have unique consensus times");
+        };
+    }
+
     private static VisibleItemsValidator nodeDetailsExportValidator(
             @NonNull final byte[][] grpcCertHashes,
             @NonNull final AtomicReference<Map<Long, X509Certificate>> gossipCertificates) {
@@ -491,7 +510,9 @@ public class SystemFileExportsTest {
                     .orElseThrow();
             final var synthOp = updateItem.body().getFileUpdate();
             final var nodeDetailsId = new FileID(
-                    shard, realm, Long.parseLong(spec.startupProperties().get("files.nodeDetails")));
+                    spec.shard(),
+                    spec.realm(),
+                    Long.parseLong(spec.startupProperties().get("files.nodeDetails")));
             assertEquals(nodeDetailsId, toPbj(synthOp.getFileID()));
             try {
                 final var updatedAddressBook = NodeAddressBook.PROTOBUF.parse(
@@ -534,7 +555,9 @@ public class SystemFileExportsTest {
             final var items = records.get(SELECTED_ITEMS_KEY);
             assertNotNull(items, "No post-upgrade txn found");
             final var targetId = new FileID(
-                    shard, realm, Long.parseLong(spec.startupProperties().get(fileNumProperty)));
+                    spec.shard(),
+                    spec.realm(),
+                    Long.parseLong(spec.startupProperties().get(fileNumProperty)));
             final var updateItem = items.entries().stream()
                     .filter(item -> item.function() == FileUpdate)
                     .filter(item ->
@@ -544,7 +567,9 @@ public class SystemFileExportsTest {
             assertNotNull(updateItem, "No update for " + fileNumProperty + " found in post-upgrade txn");
             final var synthOp = updateItem.body().getFileUpdate();
             final var addressBookId = new FileID(
-                    shard, realm, Long.parseLong(spec.startupProperties().get(fileNumProperty)));
+                    spec.shard(),
+                    spec.realm(),
+                    Long.parseLong(spec.startupProperties().get(fileNumProperty)));
             assertEquals(addressBookId, toPbj(synthOp.getFileID()));
             try {
                 final var updatedAddressBook = NodeAddressBook.PROTOBUF.parse(
@@ -623,7 +648,7 @@ public class SystemFileExportsTest {
         assertEquals(Map.of(SUCCESS, 1), histogram.get(NodeStakeUpdate));
         final var fileItem = items.entries().stream()
                 .filter(item -> item.function() == FileCreate)
-                .filter(item -> item.createdFileId().equals(new FileID(shard, realm, fileNumb)))
+                .filter(item -> item.createdFileId().equals(new FileID(spec.shard(), spec.realm(), fileNumb)))
                 .findFirst()
                 .orElse(null);
 

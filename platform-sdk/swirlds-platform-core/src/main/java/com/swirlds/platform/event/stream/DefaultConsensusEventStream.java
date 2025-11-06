@@ -216,7 +216,9 @@ public class DefaultConsensusEventStream implements ConsensusEventStream {
                 }
             } else {
                 eventAfterFreezeLogger.warn(
-                        EVENT_STREAM.getMarker(), "Event {} dropped after freezePeriodStarted!", event.getTimestamp());
+                        EVENT_STREAM.getMarker(),
+                        "Event {} dropped after freezePeriodStarted!",
+                        event.getPlatformEvent().getDescriptor());
             }
         });
     }

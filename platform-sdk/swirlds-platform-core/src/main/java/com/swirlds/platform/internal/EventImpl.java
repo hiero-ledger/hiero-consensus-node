@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.Objects;
 import org.hiero.base.Clearable;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
@@ -408,6 +407,25 @@ public class EventImpl implements Clearable {
     }
 
     /**
+     * Get the vote for a specific election index.
+     *
+     * @param electionIndex the index of the election to retrieve the vote for
+     * @return true if it's a YES vote, false if it's a NO vote
+     */
+    public boolean getVote(final int electionIndex) {
+        return votes != null && votes.length > electionIndex && votes[electionIndex];
+    }
+
+    /**
+     * Get the size of the votes array.
+     *
+     * @return the number of elements in the votes array. If the votes array is null, returns 0.
+     */
+    public int getVotesSize() {
+        return votes == null ? 0 : votes.length;
+    }
+
+    /**
      * Set this witness' vote on the witness provided
      *
      * @param witness the witness being voted on
@@ -507,15 +525,6 @@ public class EventImpl implements Clearable {
     }
 
     /**
-     * Get the generation of this event
-     *
-     * @return the generation of this event
-     */
-    public long getGeneration() {
-        return baseEvent.getGeneration();
-    }
-
-    /**
      * Get the non-deterministic generation of this event
      *
      * @return the non-deterministic generation of this event
@@ -531,20 +540,6 @@ public class EventImpl implements Clearable {
      */
     public long getBirthRound() {
         return baseEvent.getBirthRound();
-    }
-
-    /**
-     * Get the age value of this event based on the ancient mode. The age value is either the generation or the birth
-     * round of this event.
-     *
-     * @param ancientMode the ancient mode
-     * @return the age value of this event
-     */
-    public long getAgeValue(@NonNull final AncientMode ancientMode) {
-        return switch (ancientMode) {
-            case GENERATION_THRESHOLD -> getGeneration();
-            case BIRTH_ROUND_THRESHOLD -> getBirthRound();
-        };
     }
 
     /**

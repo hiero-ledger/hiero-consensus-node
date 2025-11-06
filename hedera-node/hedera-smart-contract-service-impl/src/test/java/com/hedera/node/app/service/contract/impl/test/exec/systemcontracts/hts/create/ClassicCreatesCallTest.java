@@ -5,7 +5,6 @@ import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_SUPPLY_KEY;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x16c.CreateTranslator.CREATE_FUNGIBLE_TOKEN_WITH_METADATA;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x16c.CreateTranslator.CREATE_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x16c.CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA;
@@ -17,8 +16,8 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.readableRevertReason;
+import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_ADDRESS;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -343,7 +342,7 @@ public class ClassicCreatesCallTest extends CallTestBase {
 
     @Test
     void requiresNonGasCostToBeProvidedAsValue() {
-        commonGivens(200_000L, 99_999L, true, false);
+        commonGivens(200_000L, 99_999L, true);
         given(recordBuilder.status()).willReturn(SUCCESS);
         given(systemContractOperations.externalizePreemptedDispatch(any(), eq(INSUFFICIENT_TX_FEE), eq(TOKEN_CREATE)))
                 .willReturn(recordBuilder);
@@ -400,10 +399,10 @@ public class ClassicCreatesCallTest extends CallTestBase {
     }
 
     private void commonGivens() {
-        commonGivens(0L, 0L, false, true);
+        commonGivens(0L, 0L, false);
     }
 
-    private void commonGivens(long baseCost, long value, boolean shouldBePreempted, boolean shouldHaveRealmAndShard) {
+    private void commonGivens(long baseCost, long value, boolean shouldBePreempted) {
         given(frame.getValue()).willReturn(Wei.of(value));
         given(gasCalculator.feeCalculatorPriceInTinyBars(any(), any())).willReturn(baseCost);
         stack.push(frame);
@@ -420,10 +419,6 @@ public class ClassicCreatesCallTest extends CallTestBase {
                     .willReturn(recordBuilder);
         }
         given(frame.getBlockValues()).willReturn(blockValues);
-        if (shouldHaveRealmAndShard) {
-            given(frame.getWorldUpdater()).willReturn(updater);
-            given(updater.entityIdFactory()).willReturn(entityIdFactory);
-        }
         given(blockValues.getTimestamp()).willReturn(Timestamp.DEFAULT.seconds());
         subject = new ClassicCreatesCall(
                 gasCalculator, mockEnhancement(), PRETEND_CREATE_TOKEN, verificationStrategy, A_NEW_ACCOUNT_ID);

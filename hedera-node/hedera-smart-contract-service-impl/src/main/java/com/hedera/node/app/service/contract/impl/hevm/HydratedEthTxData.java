@@ -9,7 +9,8 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
-public record HydratedEthTxData(@Nullable EthTxData ethTxData, @NonNull ResponseCodeEnum status) {
+public record HydratedEthTxData(
+        @Nullable EthTxData ethTxData, @NonNull ResponseCodeEnum status, boolean hydratedFromFile) {
     public HydratedEthTxData {
         requireNonNull(status);
         if (status == OK) {
@@ -17,12 +18,12 @@ public record HydratedEthTxData(@Nullable EthTxData ethTxData, @NonNull Response
         }
     }
 
-    public static HydratedEthTxData successFrom(@NonNull final EthTxData ethTxData) {
-        return new HydratedEthTxData(ethTxData, OK);
+    public static HydratedEthTxData successFrom(@NonNull final EthTxData ethTxData, final boolean hydratedFromFile) {
+        return new HydratedEthTxData(ethTxData, OK, hydratedFromFile);
     }
 
     public static HydratedEthTxData failureFrom(@NonNull final ResponseCodeEnum status) {
-        return new HydratedEthTxData(null, status);
+        return new HydratedEthTxData(null, status, false);
     }
 
     public boolean isAvailable() {

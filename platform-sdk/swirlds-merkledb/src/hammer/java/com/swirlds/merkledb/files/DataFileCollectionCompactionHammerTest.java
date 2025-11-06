@@ -82,7 +82,8 @@ class DataFileCollectionCompactionHammerTest {
                                     },
                                     2 * Long.BYTES));
                 }
-                coll.endWriting(index.size() * 2L - 1, index.size() * 2L);
+                coll.updateValidKeyRange(index.size() * 2L - 1, index.size() * 2L);
+                coll.endWriting();
             }
 
             final long start = System.currentTimeMillis();
@@ -148,7 +149,8 @@ class DataFileCollectionCompactionHammerTest {
                                     },
                                     2 * Long.BYTES));
                 }
-                coll.endWriting(index.size() * 2L - 1, index.size() * 2L);
+                coll.updateValidKeyRange(index.size() * 2L - 1, index.size() * 2L);
+                coll.endWriting();
             }
             return null;
         });

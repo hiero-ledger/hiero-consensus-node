@@ -132,7 +132,8 @@ public class GrantApprovalTranslator extends AbstractCallTranslator<HtsCallAttem
                 attempt.enhancement(),
                 attempt.defaultVerificationStrategy(),
                 attempt.senderId(),
-                ConversionUtils.asTokenId((Address) tokenAddress),
+                ConversionUtils.asTokenId(
+                        attempt.enhancement().nativeOperations().entityIdFactory(), (Address) tokenAddress),
                 spender,
                 amount,
                 tokenType);

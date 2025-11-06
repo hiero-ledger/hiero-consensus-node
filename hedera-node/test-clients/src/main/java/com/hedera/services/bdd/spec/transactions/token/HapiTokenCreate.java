@@ -4,10 +4,11 @@ package com.hedera.services.bdd.spec.transactions.token;
 import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsageUtils.TOKEN_OPS_USAGE_UTILS;
 import static com.hedera.node.app.hapi.utils.CommonUtils.extractTransactionBodyUnchecked;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asTokenString;
-import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddress;
+import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
 import static com.hedera.services.bdd.spec.transactions.TxnFactory.defaultExpiryNowFor;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bannerWith;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
+import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.SubType.TOKEN_FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES;
@@ -28,6 +29,7 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.dsl.utils.KeyMetadata;
 import com.hedera.services.bdd.spec.fees.AdapterUtils;
 import com.hedera.services.bdd.spec.keys.KeyRole;
+import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.suites.utils.contracts.precompile.TokenKeyType;
@@ -100,6 +102,7 @@ public class HapiTokenCreate extends HapiTxnOp<HapiTokenCreate> {
     private Optional<Function<HapiSpec, String>> nameFn = Optional.empty();
     private final List<Function<HapiSpec, CustomFee>> feeScheduleSuppliers = new ArrayList<>();
     private Optional<String> metadataKey = Optional.empty();
+    private boolean omitAutoRenewPeriod = false;
 
     @Override
     public HederaFunctionality type() {
@@ -108,6 +111,7 @@ public class HapiTokenCreate extends HapiTxnOp<HapiTokenCreate> {
 
     public HapiTokenCreate(final String token) {
         this.token = token;
+        sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES));
     }
 
     public void setTokenPrefix(final String prefix) {
@@ -265,6 +269,11 @@ public class HapiTokenCreate extends HapiTxnOp<HapiTokenCreate> {
         return this;
     }
 
+    public HapiTokenCreate omitAutoRenewPeriod() {
+        this.omitAutoRenewPeriod = true;
+        return this;
+    }
+
     @Override
     protected HapiTokenCreate self() {
         return this;
@@ -347,11 +356,17 @@ public class HapiTokenCreate extends HapiTxnOp<HapiTokenCreate> {
                             if (autoRenewAccount.isPresent()) {
                                 final var id = TxnUtils.asId(autoRenewAccount.get(), spec);
                                 b.setAutoRenewAccount(id);
-                                final long secs = autoRenewPeriod.orElse(
-                                        spec.setup().defaultAutoRenewPeriod().getSeconds());
-                                b.setAutoRenewPeriod(
-                                        Duration.newBuilder().setSeconds(secs).build());
+                                if (!omitAutoRenewPeriod) {
+                                    final long secs = autoRenewPeriod.orElse(spec.setup()
+                                            .defaultAutoRenewPeriod()
+                                            .getSeconds());
+                                    b.setAutoRenewPeriod(Duration.newBuilder()
+                                            .setSeconds(secs)
+                                            .build());
+                                }
                             }
+                            autoRenewPeriod.ifPresent(p -> b.setAutoRenewPeriod(
+                                    Duration.newBuilder().setSeconds(p).build()));
                             if (autoRenewPeriod.isEmpty()) {
                                 expiry.ifPresentOrElse(
                                         t -> b.setExpiry(Timestamp.newBuilder()

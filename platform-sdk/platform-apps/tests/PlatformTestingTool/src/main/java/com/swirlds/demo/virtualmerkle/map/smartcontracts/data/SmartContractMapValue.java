@@ -68,6 +68,12 @@ public final class SmartContractMapValue implements VirtualValue {
         this.value = Arrays.copyOf(value, getSizeInBytes());
     }
 
+    public SmartContractMapValue(final ReadableSequentialData in) {
+        final int len = in.readInt();
+        value = new byte[len];
+        in.readBytes(value);
+    }
+
     /**
      * Creates an instance with a array of bytes representing the given {@code value}.
      *
@@ -76,6 +82,11 @@ public final class SmartContractMapValue implements VirtualValue {
      */
     public SmartContractMapValue(final long value) {
         this.value = ByteBuffer.allocate(getSizeInBytes()).putLong(value).array();
+    }
+
+    public void writeTo(final WritableSequentialData out) {
+        out.writeInt(value.length);
+        out.writeBytes(value);
     }
 
     /**
@@ -145,7 +156,7 @@ public final class SmartContractMapValue implements VirtualValue {
         return Arrays.hashCode(value);
     }
 
-    static int getSizeInBytes() {
+    public int getSizeInBytes() {
         return 32;
     }
 

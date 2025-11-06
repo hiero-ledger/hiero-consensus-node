@@ -21,7 +21,6 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SignatureMap;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
@@ -41,6 +40,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.validation.ExpiryValidation;
 import java.time.Instant;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -151,6 +151,11 @@ class SolvencyPreCheckTest extends AppTestBase {
             assertThatThrownBy(() -> subject.getPayerAccount(storeFactory, ALICE.accountID()))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND));
+        }
+
+        @AfterEach
+        void tearDown() {
+            state.release();
         }
     }
 
@@ -447,11 +452,13 @@ class SolvencyPreCheckTest extends AppTestBase {
                 .sigMap(SignatureMap.DEFAULT)
                 .build();
         final var signedTransactionBytes = SignedTransaction.PROTOBUF.toBytes(signedTransaction);
-        final var transaction = Transaction.newBuilder()
-                .signedTransactionBytes(signedTransactionBytes)
-                .build();
         return new TransactionInfo(
-                transaction, txBody, SignatureMap.DEFAULT, signedTransactionBytes, functionality, null);
+                signedTransaction,
+                txBody,
+                SignatureMap.DEFAULT,
+                signedTransactionBytes,
+                functionality,
+                signedTransactionBytes);
     }
 
     private static AccountAmount send(AccountID accountID, long amount) {

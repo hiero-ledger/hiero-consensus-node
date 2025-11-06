@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
@@ -23,10 +24,10 @@ import com.swirlds.platform.gossip.sync.protocol.SyncPeerProtocol;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.NetworkProtocolException;
+import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.time.Duration;
-import org.hiero.consensus.gossip.FallenBehindManager;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -40,7 +41,7 @@ import org.mockito.Mockito;
 class SyncPeerProtocolFactoryTests {
     private NodeId peerId;
     private ShadowgraphSynchronizer shadowGraphSynchronizer;
-    private FallenBehindManager fallenBehindManager;
+    private FallenBehindMonitor fallenBehindManager;
     private Duration sleepAfterSync;
     private SyncMetrics syncMetrics;
     private FakeTime time;
@@ -68,7 +69,7 @@ class SyncPeerProtocolFactoryTests {
     void setup() {
         peerId = NodeId.of(1);
         shadowGraphSynchronizer = mock(ShadowgraphSynchronizer.class);
-        fallenBehindManager = mock(FallenBehindManager.class);
+        fallenBehindManager = mock(FallenBehindMonitor.class);
 
         time = new FakeTime();
         platformContext = TestPlatformContextBuilder.create().withTime(time).build();
@@ -216,7 +217,7 @@ class SyncPeerProtocolFactoryTests {
                 sleepAfterSync,
                 syncMetrics,
                 ROSTER_SIZE);
-        syncProtocol.updatePlatformStatus(ACTIVE);
+        syncProtocol.updatePlatformStatus(BEHIND);
         final PeerProtocol peerProtocol = syncProtocol.createPeerInstance(peerId);
 
         assertEquals(2, countAvailablePermits(syncProtocol.getPermitProvider()));
@@ -413,6 +414,7 @@ class SyncPeerProtocolFactoryTests {
         final PeerProtocol peerProtocol = syncProtocol.createPeerInstance(peerId);
 
         assertEquals(2, countAvailablePermits(syncProtocol.getPermitProvider()));
+        syncProtocol.updatePlatformStatus(BEHIND);
         assertFalse(peerProtocol.shouldAccept());
         assertEquals(2, countAvailablePermits(syncProtocol.getPermitProvider()));
     }
@@ -517,7 +519,7 @@ class SyncPeerProtocolFactoryTests {
         final PeerProtocol peerProtocol = syncProtocol.createPeerInstance(peerId);
 
         // mock synchronize to throw a ParallelExecutionException
-        Mockito.when(shadowGraphSynchronizer.synchronize(any(), any()))
+        Mockito.when(shadowGraphSynchronizer.synchronize(any(), any(), anyBoolean()))
                 .thenThrow(new ParallelExecutionException(mock(Throwable.class)));
 
         assertEquals(2, countAvailablePermits(syncProtocol.getPermitProvider()));
@@ -545,7 +547,7 @@ class SyncPeerProtocolFactoryTests {
         final PeerProtocol peerProtocol = syncProtocol.createPeerInstance(peerId);
 
         // mock synchronize to throw a ParallelExecutionException with root cause being an IOException
-        Mockito.when(shadowGraphSynchronizer.synchronize(any(), any()))
+        Mockito.when(shadowGraphSynchronizer.synchronize(any(), any(), anyBoolean()))
                 .thenThrow(new ParallelExecutionException(new IOException()));
 
         assertEquals(2, countAvailablePermits(syncProtocol.getPermitProvider()));
@@ -572,7 +574,8 @@ class SyncPeerProtocolFactoryTests {
         final PeerProtocol peerProtocol = syncProtocol.createPeerInstance(peerId);
 
         // mock synchronize to throw a SyncException
-        Mockito.when(shadowGraphSynchronizer.synchronize(any(), any())).thenThrow(new SyncException(""));
+        Mockito.when(shadowGraphSynchronizer.synchronize(any(), any(), anyBoolean()))
+                .thenThrow(new SyncException(""));
 
         assertEquals(2, countAvailablePermits(syncProtocol.getPermitProvider()));
         peerProtocol.shouldAccept();

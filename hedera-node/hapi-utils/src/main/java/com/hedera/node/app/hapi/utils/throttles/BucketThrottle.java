@@ -80,8 +80,8 @@ public class BucketThrottle {
         this.mtps = mtps;
         validateCapacityForRequested(mtps, burstPeriodMs);
         final long capacity = (mtps * NTPS_PER_MTPS * CAPACITY_UNITS_PER_NANO_TXN) / 1_000 * burstPeriodMs;
-        bucket = new DiscreteLeakyBucket(capacity);
-        if (bucket.totalCapacity() < CAPACITY_UNITS_PER_TXN) {
+        bucket = DiscreteLeakyBucket.ofFixedCapacity(capacity);
+        if (bucket.brimfulCapacity() < CAPACITY_UNITS_PER_TXN) {
             throw new IllegalArgumentException("A throttle with "
                     + mtps
                     + " MTPS and "
@@ -124,13 +124,25 @@ public class BucketThrottle {
             return false;
         }
         final long requiredUnits = numReqs * CAPACITY_UNITS_PER_TXN;
-        if (requiredUnits > bucket.capacityFree()) {
+        if (requiredUnits > bucket.brimfulCapacityFree()) {
             return false;
         }
 
         bucket.useCapacity(requiredUnits);
         lastAllowedUnits += requiredUnits;
         return true;
+    }
+
+    /**
+     * If the bucket has enough capacity to leak the given number of
+     * instantaneous requests, leaks corresponding capacity units.
+     * @param numReqs the number of instantaneous requests to leak
+     */
+    void leakInstantaneous(final int numReqs) {
+        if (productWouldOverflow(numReqs, CAPACITY_UNITS_PER_TXN)) {
+            return;
+        }
+        bucket.leak(numReqs * CAPACITY_UNITS_PER_TXN);
     }
 
     /**
@@ -142,7 +154,7 @@ public class BucketThrottle {
      */
     double percentUsed(final long givenElapsedNanos) {
         final var used = bucket.capacityUsed();
-        return 100.0 * (used - Math.min(used, effectiveLeak(givenElapsedNanos))) / bucket.totalCapacity();
+        return 100.0 * (used - Math.min(used, effectiveLeak(givenElapsedNanos))) / bucket.brimfulCapacity();
     }
 
     /**
@@ -151,11 +163,11 @@ public class BucketThrottle {
      * @return the percent of the bucket that is used
      */
     public double instantaneousPercentUsed() {
-        return 100.0 * bucket.capacityUsed() / bucket.totalCapacity();
+        return 100.0 * bucket.capacityUsed() / bucket.brimfulCapacity();
     }
 
     private long effectiveLeak(final long elapsedNanos) {
-        return productWouldOverflow(elapsedNanos, mtps) ? bucket.totalCapacity() : elapsedNanos * mtps;
+        return productWouldOverflow(elapsedNanos, mtps) ? bucket.brimfulCapacity() : elapsedNanos * mtps;
     }
 
     void resetLastAllowedUse() {

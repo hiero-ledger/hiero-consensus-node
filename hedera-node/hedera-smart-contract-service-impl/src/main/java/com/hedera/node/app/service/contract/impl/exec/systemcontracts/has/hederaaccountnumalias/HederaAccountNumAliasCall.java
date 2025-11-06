@@ -6,7 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.hederaaccountnumalias.HederaAccountNumAliasTranslator.HEDERA_ACCOUNT_NUM_ALIAS;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.accountNumberForEvmReference;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asHeadlongAddress;
@@ -54,9 +54,8 @@ public class HederaAccountNumAliasCall extends AbstractCall {
         if (!account.accountIdOrElse(AccountID.DEFAULT).hasAccountNum()) {
             return gasOnly(fullResultsFor(INVALID_SOLIDITY_ADDRESS, ZERO_ADDRESS), INVALID_SOLIDITY_ADDRESS, true);
         }
-        final var accountAsAddress = asHeadlongAddress(asEvmAddress(
-                enhancement.nativeOperations().entityIdFactory(),
-                account.accountIdOrElse(AccountID.DEFAULT).accountNumOrElse(0L)));
+        final var accountAsAddress = asHeadlongAddress(
+                asEvmAddress(account.accountIdOrElse(AccountID.DEFAULT).accountNumOrElse(0L)));
         return gasOnly(fullResultsFor(SUCCESS, accountAsAddress), SUCCESS, true);
     }
 

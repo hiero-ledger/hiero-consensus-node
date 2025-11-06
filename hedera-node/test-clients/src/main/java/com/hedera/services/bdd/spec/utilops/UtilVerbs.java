@@ -8,13 +8,14 @@ import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubK
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.explicitFromHeadlong;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_LOG;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_NODE_COMMS_LOG;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ensureDir;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
-import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddress;
 import static com.hedera.services.bdd.spec.TargetNetworkType.EMBEDDED_NETWORK;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
+import static com.hedera.services.bdd.spec.keys.SigControl.ED25519_ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
@@ -23,6 +24,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.BYTES_4K;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTransactionID;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.timeUntilNextPeriod;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileAppend;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
@@ -40,7 +42,9 @@ import static com.hedera.services.bdd.spec.utilops.pauses.HapiSpecWaitUntil.unti
 import static com.hedera.services.bdd.spec.utilops.pauses.HapiSpecWaitUntil.untilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.streams.LogContainmentOp.Containment.CONTAINS;
 import static com.hedera.services.bdd.spec.utilops.streams.LogContainmentOp.Containment.DOES_NOT_CONTAIN;
+import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion.ALL_TX_IDS;
 import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
+import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.EXCHANGE_RATE_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.FEE_SCHEDULE;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -51,6 +55,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.STAKING_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.THROTTLE_DEFS;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.isLongZeroAddress;
 import static com.hedera.services.bdd.suites.crypto.CryptoTransferSuite.sdec;
 import static com.hedera.services.bdd.suites.utils.sysfiles.serdes.ThrottleDefsLoader.protoDefsFromResource;
@@ -68,10 +73,19 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CHILD_RECO
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS_BUT_MISSING_EXPECTED_OPERATION;
+import static com.swirlds.base.units.UnitConstants.DAYS_TO_HOURS;
+import static com.swirlds.base.units.UnitConstants.HOURS_TO_MINUTES;
+import static com.swirlds.base.units.UnitConstants.MICROSECONDS_TO_NANOSECONDS;
+import static com.swirlds.base.units.UnitConstants.MILLISECONDS_TO_NANOSECONDS;
+import static com.swirlds.base.units.UnitConstants.MINUTES_TO_SECONDS;
+import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_SECONDS;
+import static com.swirlds.base.units.UnitConstants.SECONDS_TO_NANOSECONDS;
+import static com.swirlds.base.units.UnitConstants.WEEKS_TO_DAYS;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -87,7 +101,6 @@ import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.hedera.MarkerFile;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
-import com.hedera.services.bdd.junit.hedera.embedded.SyntheticVersion;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -143,7 +156,6 @@ import com.hedera.services.bdd.spec.utilops.mod.TxnModification;
 import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecSleep;
 import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecWaitUntil;
 import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecWaitUntilNextBlock;
-import com.hedera.services.bdd.spec.utilops.streams.BlockStreamValidationOp;
 import com.hedera.services.bdd.spec.utilops.streams.LogContainmentOp;
 import com.hedera.services.bdd.spec.utilops.streams.LogContainmentTimeframeOp;
 import com.hedera.services.bdd.spec.utilops.streams.LogValidationOp;
@@ -183,7 +195,9 @@ import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
+import com.swirlds.config.api.converter.ConfigConverter;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -194,6 +208,7 @@ import java.security.PrivateKey;
 import java.text.ParseException;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -219,12 +234,16 @@ import java.util.function.DoubleConsumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.LongConsumer;
+import java.util.function.LongFunction;
 import java.util.function.ObjIntConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 import org.apache.logging.log4j.Logger;
 import org.bouncycastle.jcajce.provider.asymmetric.ec.BCECPrivateKey;
 import org.hiero.base.utility.CommonUtils;
@@ -273,6 +292,90 @@ public class UtilVerbs {
     }
 
     /**
+     * Returns an operation that will either create a new account with the given name, or
+     * look up the account with the given number and ensure it has the desired balance.
+     * <p>
+     * If the account is created, the {@code onCreation} callback will be executed so that
+     * any additional setup can be done (e.g., saving the new account's key to the yahcli
+     * working directory).
+     * @param name the name of the account to create or fund
+     * @param number if the account is expected to exist, its number
+     * @param desiredBalance the desired balance of the named account
+     * @param keyLoader a function that, given an account number, will load its private key
+     * @param onCreation a callback to be executed if the account is created
+     * @return the operation
+     */
+    public static SpecOperation fundOrCreateEd25519Account(
+            @NonNull final String name,
+            @Nullable final Long number,
+            final long desiredBalance,
+            @NonNull final LongFunction<PrivateKey> keyLoader,
+            @NonNull final Consumer<HapiSpec> onCreation) {
+        requireNonNull(onCreation);
+        return doingContextual(spec -> {
+            if (number == null) {
+                final var creation = cryptoCreate(name)
+                        .balance(desiredBalance)
+                        .keyShape(ED25519_ON)
+                        .hasRetryPrecheckFrom(BUSY)
+                        .advertisingCreation();
+                allRunFor(spec, creation);
+                onCreation.accept(spec);
+            } else {
+                final var accountId = spec.accountIdFactory().apply(number);
+                final var idLiteral = asAccountString(accountId);
+                final var lookup = getAccountInfo(idLiteral);
+                allRunFor(spec, lookup);
+                final var info = lookup.getResponse().getCryptoGetInfo().getAccountInfo();
+                final var privateKey = keyLoader.apply(number);
+                if (privateKey instanceof EdDSAPrivateKey edDSAPrivateKey) {
+                    final var publicKey = Key.newBuilder()
+                            .setEd25519(ByteString.copyFrom(edDSAPrivateKey.getAbyte()))
+                            .build();
+                    Assertions.assertEquals(
+                            publicKey,
+                            info.getKey(),
+                            String.format("Account %s had a different key than expected", idLiteral));
+                    spec.registry().saveKey(name, publicKey);
+                    spec.registry().saveAccountId(name, accountId);
+                    spec.keys().incorporate(name, edDSAPrivateKey);
+                    if (info.getBalance() < desiredBalance) {
+                        allRunFor(
+                                spec,
+                                cryptoTransfer(
+                                        tinyBarsFromTo(DEFAULT_PAYER, name, (desiredBalance - info.getBalance()))));
+                    }
+                } else {
+                    Assertions.fail("Account expected to have an Ed25519 key, was " + privateKey.getAlgorithm());
+                }
+            }
+        });
+    }
+
+    /**
+     * Returns an operation that sleeps for the block period of the target network.
+     */
+    public static SpecOperation sleepForBlockPeriod() {
+        return doWithStartupDuration("blockStream.blockPeriod", duration -> sleepForSeconds(duration.getSeconds()));
+    }
+
+    /**
+     * Returns an operation that, when executed, will compute a delegate operation by calling the given factory
+     * with the startup value of the given property on the target network; and execute its delegate.
+     *
+     * @param property the property whose startup value is needed for the delegate operation
+     * @param factory the factory for the delegate operation
+     * @return the operation that will execute the delegate created from the target network's startup value
+     */
+    public static SpecOperation doWithStartupDuration(
+            @NonNull final String property, @NonNull final Function<Duration, SpecOperation> factory) {
+        return doSeveralWithStartupConfig(property, startupValue -> {
+            final var duration = new DurationConverter().convert(startupValue);
+            return new SpecOperation[] {factory.apply(duration)};
+        });
+    }
+
+    /**
      * Returns an operation that, when executed, will compute a delegate operation by calling the given factory
      * with the startup value of the given property on the target network; and execute its delegate.
      *
@@ -283,21 +386,6 @@ public class UtilVerbs {
     public static SpecOperation doWithStartupConfig(
             @NonNull final String property, @NonNull final Function<String, SpecOperation> factory) {
         return doSeveralWithStartupConfig(property, startupValue -> new SpecOperation[] {factory.apply(startupValue)});
-    }
-
-    /**
-     * Returns an operation that, when executed, will compute a delegate operation by calling the given factory
-     * with the startup value of the given property on the target network; and execute its delegate.
-     *
-     * @param factory the factory for the delegate operation
-     * @return the operation that will execute the delegate created from the target network's startup value
-     */
-    public static SpecOperation doWithShardAndRealm(@NonNull final BiFunction<Long, Long, SpecOperation> factory) {
-        return withOpContext((spec, opLog) -> {
-            final long shard = spec.targetNetworkOrThrow().startupProperties().getLong("hedera.shard");
-            final long realm = spec.targetNetworkOrThrow().startupProperties().getLong("hedera.realm");
-            allRunFor(spec, factory.apply(shard, realm));
-        });
     }
 
     /**
@@ -375,15 +463,6 @@ public class UtilVerbs {
     }
 
     /**
-     * Returns an operation that validates the streams of the target network with dynamic validators
-     *
-     * @return the operation that validates the streams
-     */
-    public static BlockStreamValidationOp validateBlockStream() {
-        return new BlockStreamValidationOp();
-    }
-
-    /**
      * Returns an operation that delays for the given time and then validates
      * any of the target network node application logs.
      *
@@ -412,13 +491,41 @@ public class UtilVerbs {
      * application logs do not contain the given pattern.
      *
      * @param selector the selector for the node whose log to validate
-     * @param pattern the pattern that must be present
+     * @param pattern the pattern that must not be present
      * @param delay the delay before validation
      * @return the operation that validates the logs of the target network
      */
     public static LogContainmentOp assertHgcaaLogDoesNotContain(
             @NonNull final NodeSelector selector, @NonNull final String pattern, @NonNull final Duration delay) {
         return new LogContainmentOp(selector, APPLICATION_LOG, DOES_NOT_CONTAIN, pattern, delay);
+    }
+
+    /**
+     * Returns an operation that delays for the given time and then validates that the selected nodes'
+     * block node comms logs contain the given pattern.
+     *
+     * @param selector the selector for the node whose log to validate
+     * @param pattern the pattern that must be present
+     * @param delay the delay before validation
+     * @return the operation that validates the logs of the target network
+     */
+    public static LogContainmentOp assertBlockNodeCommsLogContains(
+            @NonNull final NodeSelector selector, @NonNull final String pattern, @NonNull final Duration delay) {
+        return new LogContainmentOp(selector, BLOCK_NODE_COMMS_LOG, CONTAINS, pattern, delay);
+    }
+
+    /**
+     * Returns an operation that delays for the given time and then validates that the selected nodes'
+     * block node comms logs do not contain the given pattern.
+     *
+     * @param selector the selector for the node whose log to validate
+     * @param pattern the pattern that must not be present
+     * @param delay the delay before validation
+     * @return the operation that validates the logs of the target network
+     */
+    public static LogContainmentOp assertBlockNodeCommsLogDoesNotContain(
+            @NonNull final NodeSelector selector, @NonNull final String pattern, @NonNull final Duration delay) {
+        return new LogContainmentOp(selector, BLOCK_NODE_COMMS_LOG, DOES_NOT_CONTAIN, pattern, delay);
     }
 
     /**
@@ -550,17 +657,16 @@ public class UtilVerbs {
 
     /**
      * Returns a submission strategy that requires an embedded network and given one submits a transaction with
-     * the given synthetic version.
-     *
-     * @param syntheticVersion the synthetic version to use
+     * the given event birth round.
+     * @param eventBirthRound the event birth round to use for the submission
      * @return the submission strategy
      */
-    public static HapiTxnOp.SubmissionStrategy usingVersion(@NonNull final SyntheticVersion syntheticVersion) {
+    public static HapiTxnOp.SubmissionStrategy usingEventBirthRound(long eventBirthRound) {
         return (network, transaction, functionality, target, nodeAccountId) -> {
             if (!(network instanceof EmbeddedNetwork embeddedNetwork)) {
                 throw new IllegalArgumentException("Expected an EmbeddedNetwork");
             }
-            return embeddedNetwork.embeddedHederaOrThrow().submit(transaction, nodeAccountId, syntheticVersion);
+            return embeddedNetwork.embeddedHederaOrThrow().submit(transaction, nodeAccountId, eventBirthRound);
         };
     }
 
@@ -739,7 +845,17 @@ public class UtilVerbs {
      * @return the operation that sleeps until the beginning of the next block stream block
      */
     public static HapiSpecWaitUntilNextBlock waitUntilNextBlock() {
-        return new HapiSpecWaitUntilNextBlock();
+        return waitUntilNextBlocks(1);
+    }
+
+    /**
+     * Returns a {@link HapiSpecOperation} that sleeps until at least the beginning of the next N block stream blocks.
+     *
+     * @param blocksToWait the number of blocks to wait for
+     * @return the operation that sleeps until the beginning of the next N block stream blocks
+     */
+    public static HapiSpecWaitUntilNextBlock waitUntilNextBlocks(final int blocksToWait) {
+        return new HapiSpecWaitUntilNextBlock().waitingForBlocks(blocksToWait);
     }
 
     public static HapiSpecWaitUntil waitUntilJustBeforeNextStakingPeriod(
@@ -868,6 +984,10 @@ public class UtilVerbs {
 
     public static BalanceSnapshot balanceSnapshot(String name, String forAccount) {
         return new BalanceSnapshot(forAccount, name);
+    }
+
+    public static BalanceSnapshot tokenBalanceSnapshot(String token, String name, String forAccount) {
+        return new BalanceSnapshot(forAccount, name).forToken(token);
     }
 
     public static MutateAccountOp mutateAccount(
@@ -1335,11 +1455,10 @@ public class UtilVerbs {
         return ValidContractIdsAssertion::new;
     }
 
-    public static Function<HapiSpec, RecordStreamAssertion> visibleItems(
-            @NonNull final VisibleItemsValidator validator, @NonNull final String... specTxnIds) {
-        requireNonNull(specTxnIds);
+    public static Function<HapiSpec, RecordStreamAssertion> allVisibleItems(
+            @NonNull final VisibleItemsValidator validator) {
         requireNonNull(validator);
-        return spec -> new VisibleItemsAssertion(spec, validator, SkipSynthItems.NO, specTxnIds);
+        return spec -> new VisibleItemsAssertion(spec, validator, SkipSynthItems.NO, ALL_TX_IDS);
     }
 
     public static Function<HapiSpec, RecordStreamAssertion> selectedItems(
@@ -1517,10 +1636,7 @@ public class UtilVerbs {
             long tinyBarMaxNetworkFee,
             long tinyBarMaxServiceFee) {
         return withOpContext((spec, opLog) -> {
-            var shard = spec.startupProperties().getLong("hedera.shard");
-            var realm = spec.startupProperties().getLong("hedera.realm");
-
-            if (!spec.setup().defaultNode().equals(asAccount(String.format("%d.%d.3", shard, realm)))) {
+            if (!spec.setup().defaultNode().equals(asAccount(spec, 3))) {
                 opLog.info("Sleeping to wait for fee reduction...");
                 Thread.sleep(20000);
                 return;
@@ -1906,8 +2022,7 @@ public class UtilVerbs {
                     .sorted(Comparator.comparing(ContractID::getContractNum))
                     .toList();
             final var createdId = createdIds.get(creationNum);
-            final var accDetails = getContractInfo(CommonUtils.hex(
-                            asEvmAddress(createdId.getShardNum(), createdId.getRealmNum(), createdId.getContractNum())))
+            final var accDetails = getContractInfo(CommonUtils.hex(asEvmAddress(createdId.getContractNum())))
                     .logged();
             allRunFor(spec, accDetails);
         });
@@ -1958,6 +2073,16 @@ public class UtilVerbs {
         return validateChargedUsdWithin(txn, expectedUsd, allowedPercentDiff);
     }
 
+    public static CustomSpecAssert validateChargedFee(String txn, long expectedFee) {
+        return assertionsHold((spec, assertLog) -> {
+            final var actualFeeCharged = getChargedFee(spec, txn);
+            assertEquals(
+                    expectedFee,
+                    actualFeeCharged,
+                    String.format("%s fee (%s) is different than expected!", actualFeeCharged, txn));
+        });
+    }
+
     public static CustomSpecAssert validateChargedUsdWithChild(
             String txn, double expectedUsd, double allowedPercentDiff) {
         return assertionsHold((spec, assertLog) -> {
@@ -1983,6 +2108,10 @@ public class UtilVerbs {
                             "%s fee (%s) more than %.2f percent different than expected!",
                             sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
         });
+    }
+
+    public static CustomSpecAssert validateInnerTxnChargedUsd(String txn, String parent, double expectedUsd) {
+        return validateInnerTxnChargedUsd(txn, parent, expectedUsd, 1.00);
     }
 
     public static CustomSpecAssert validateInnerTxnChargedUsd(
@@ -2033,6 +2162,28 @@ public class UtilVerbs {
             String txn, double expectedUsdForGas, double allowedPercentDiff) {
         return assertionsHold((spec, assertLog) -> {
             final var gasCharged = getChargedGas(spec, txn);
+            assertEquals(
+                    expectedUsdForGas,
+                    gasCharged,
+                    (allowedPercentDiff / 100.0) * expectedUsdForGas,
+                    String.format(
+                            "%s gas charge (%s) more than %.2f percent different than expected!",
+                            sdec(expectedUsdForGas, 4), txn, allowedPercentDiff));
+        });
+    }
+
+    /**
+     * Validates that the gas charge for an inner transaction (inside Atomic Batch)
+     * is within the allowedPercentDiff of expected gas in USD.
+     *
+     * @param txn txn to be validated
+     * @param expectedUsdForGas expected gas charge in usd
+     * @param allowedPercentDiff allowed percentage difference
+     */
+    public static CustomSpecAssert validateChargedUsdForGasOnlyForInnerTxn(
+            String txn, String parent, double expectedUsdForGas, double allowedPercentDiff) {
+        return assertionsHold((spec, assertLog) -> {
+            final var gasCharged = getChargedGasForInnerTxn(spec, txn, parent);
             assertEquals(
                     expectedUsdForGas,
                     gasCharged,
@@ -2110,8 +2261,6 @@ public class UtilVerbs {
     }
 
     public static HapiSpecOperation validateRecordTransactionFees(HapiSpec spec, String txn) {
-        var shard = spec.startupProperties().getLong("hedera.shard");
-        var realm = spec.startupProperties().getLong("hedera.realm");
         var fundingAccount = spec.startupProperties().getLong("ledger.fundingAccount");
         var stakingRewardAccount = spec.startupProperties().getLong("accounts.stakingRewardAccount");
         var nodeRewardAccount = spec.startupProperties().getLong("accounts.nodeRewardAccount");
@@ -2119,10 +2268,10 @@ public class UtilVerbs {
         return validateRecordTransactionFees(
                 txn,
                 Set.of(
-                        asAccount(String.format("%s.%s.3", shard, realm)),
-                        asAccount(String.format("%s.%s.%s", shard, realm, fundingAccount)),
-                        asAccount(String.format("%s.%s.%s", shard, realm, stakingRewardAccount)),
-                        asAccount(String.format("%s.%s.%s", shard, realm, nodeRewardAccount))));
+                        asAccount(spec, 3),
+                        asAccount(spec, fundingAccount),
+                        asAccount(spec, stakingRewardAccount),
+                        asAccount(spec, nodeRewardAccount)));
     }
 
     /**
@@ -2380,9 +2529,8 @@ public class UtilVerbs {
             final var items = block.items();
             for (int i = 0, n = items.size(); i < n; i++) {
                 final var item = items.get(i);
-                if (item.hasEventTransaction()) {
-                    final var parts =
-                            TransactionParts.from(item.eventTransactionOrThrow().applicationTransactionOrThrow());
+                if (item.hasSignedTransaction()) {
+                    final var parts = TransactionParts.from(item.signedTransactionOrThrow());
                     if (parts.transactionIdOrThrow().equals(executionTxnId)) {
                         for (int j = i + 1; j < n; j++) {
                             final var followingItem = items.get(j);
@@ -2462,6 +2610,10 @@ public class UtilVerbs {
 
     public static Tuple accountAmount(final AccountID account, final Long amount, final boolean isApproval) {
         return Tuple.of(HapiParserUtil.asHeadlongAddress(asAddress(account)), amount, isApproval);
+    }
+
+    public static Tuple accountAmount(final Address accountAddress, final Long amount, final boolean isApproval) {
+        return Tuple.of(accountAddress, amount, isApproval);
     }
 
     public static Tuple accountAmountAlias(final byte[] alias, final Long amount) {
@@ -2551,7 +2703,7 @@ public class UtilVerbs {
     }
 
     private static Object swapLongZeroToEVMAddresses(HapiSpec spec, Object arg, Address address) {
-        if (isLongZeroAddress(spec.shard(), spec.realm(), explicitFromHeadlong(address))) {
+        if (isLongZeroAddress(explicitFromHeadlong(address))) {
             var contractNum = numberOfLongZero(explicitFromHeadlong(address));
             if (spec.registry().hasEVMAddress(String.valueOf(contractNum))) {
                 return HapiParserUtil.asHeadlongAddress(spec.registry().getEVMAddress(String.valueOf(contractNum)));
@@ -2600,6 +2752,15 @@ public class UtilVerbs {
                 / 100;
     }
 
+    private static long getChargedFee(@NonNull final HapiSpec spec, @NonNull final String txn) {
+        requireNonNull(spec);
+        requireNonNull(txn);
+        var subOp = getTxnRecord(txn).logged();
+        allRunFor(spec, subOp);
+        final var rcd = subOp.getResponseRecord();
+        return rcd.getTransactionFee();
+    }
+
     private static double getChargedUsedForInnerTxn(
             @NonNull final HapiSpec spec, @NonNull final String parent, @NonNull final String txn) {
         requireNonNull(spec);
@@ -2638,6 +2799,31 @@ public class UtilVerbs {
                 / 100;
     }
 
+    /**
+     * Returns the charged gas for an inner transaction (inside Atomic Batch) in USD, assuming a standard cost of
+     * 71 tinybars per gas unit.
+     *
+     * @param spec the spec
+     * @param txn the transaction
+     * @return the charged gas in USD
+     */
+    private static double getChargedGasForInnerTxn(
+            @NonNull final HapiSpec spec, @NonNull final String txn, @NonNull final String parent) {
+        requireNonNull(spec);
+        requireNonNull(txn);
+        var subOp = getTxnRecord(txn).logged();
+        var parentOp = getTxnRecord(parent);
+        allRunFor(spec, subOp, parentOp);
+        final var rcd = subOp.getResponseRecord();
+        final var parentRcd = parentOp.getResponseRecord();
+        final var gasUsed = rcd.getContractCallResult().getGasUsed();
+        return (gasUsed * 71.0)
+                / ONE_HBAR
+                / parentRcd.getReceipt().getExchangeRate().getCurrentRate().getHbarEquiv()
+                * parentRcd.getReceipt().getExchangeRate().getCurrentRate().getCentEquiv()
+                / 100;
+    }
+
     private static double getChargedUsdFromChild(@NonNull final HapiSpec spec, @NonNull final String txn) {
         requireNonNull(spec);
         requireNonNull(txn);
@@ -2657,7 +2843,32 @@ public class UtilVerbs {
     }
 
     /**
-     * Asserts that a sequence of log messages appears in the specified node's log within a timeframe.
+     * Asserts that a sequence of log messages appears in the specified node's block node comms log within a timeframe.
+     *
+     * @param selector the node selector
+     * @param startTimeSupplier supplier for the start time of the timeframe
+     * @param timeframe the duration of the timeframe window to search for messages
+     * @param waitTimeout the duration to wait for messages to appear
+     * @param patterns the sequence of patterns to look for
+     * @return a new LogContainmentTimeframeOp
+     */
+    public static LogContainmentTimeframeOp assertBlockNodeCommsLogContainsTimeframe(
+            @NonNull final NodeSelector selector,
+            @NonNull final Supplier<Instant> startTimeSupplier,
+            @NonNull final Duration timeframe,
+            @NonNull final Duration waitTimeout,
+            @NonNull final String... patterns) {
+        return new LogContainmentTimeframeOp(
+                selector,
+                ExternalPath.BLOCK_NODE_COMMS_LOG,
+                Arrays.asList(patterns),
+                startTimeSupplier,
+                timeframe,
+                waitTimeout);
+    }
+
+    /**
+     * Asserts that a sequence of log messages appears in the specified node's block node comms log within a timeframe.
      *
      * @param selector the node selector
      * @param startTimeSupplier supplier for the start time of the timeframe
@@ -2673,11 +2884,198 @@ public class UtilVerbs {
             @NonNull final Duration waitTimeout,
             @NonNull final String... patterns) {
         return new LogContainmentTimeframeOp(
-                selector,
-                ExternalPath.APPLICATION_LOG,
-                Arrays.asList(patterns),
-                startTimeSupplier,
-                timeframe,
-                waitTimeout);
+                selector, APPLICATION_LOG, Arrays.asList(patterns), startTimeSupplier, timeframe, waitTimeout);
+    }
+
+    public static CustomSpecAssert valueIsInRange(
+            final double value, final double lowerBoundInclusive, final double upperBoundExclusive) {
+        return assertionsHold((spec, opLog) -> {
+            assertTrue(
+                    value >= lowerBoundInclusive && value < upperBoundExclusive,
+                    String.format(
+                            "A value of %s was expected to be in range <%s, %s), but it wasn't.",
+                            value, lowerBoundInclusive, upperBoundExclusive));
+        });
+    }
+
+    public static Double getOpsDurationThrottlePercentUsed(HapiSpec spec) {
+        final var metrics = getOpsDurationThrottlePercentUsedMetrics(spec);
+        assertFalse(metrics.isEmpty(), "No throttle metrics found!");
+        final var latestThrottleMetric = metrics.getLast();
+        return Double.parseDouble(latestThrottleMetric.split(" ")[1]);
+    }
+
+    private static List<String> getOpsDurationThrottlePercentUsedMetrics(final HapiSpec spec) {
+        return spec.prometheusClient()
+                .getOpsDurationThrottlePercentUsedMetrics(spec.targetNetworkOrThrow()
+                        .nodes()
+                        .getFirst()
+                        .metadata()
+                        .prometheusPort());
+    }
+
+    public static final class DurationConverter implements ConfigConverter<Duration> {
+
+        /**
+         * Regular expression for parsing durations. Looks for a number (with our without a decimal) followed by a unit.
+         */
+        private static final Pattern DURATION_REGEX = Pattern.compile("^\\s*(\\d*\\.?\\d*)\\s*([a-zA-Z]+)\\s*$");
+
+        /**
+         * Regular expression for parsing a single number.
+         */
+        private static final Pattern NUMBER_REGEX = Pattern.compile("\\d+");
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public Duration convert(@NonNull final String value) throws IllegalArgumentException {
+            return parseDuration(value);
+        }
+
+        /**
+         * Parse a duration from a string.
+         * <p>
+         * For large durations (i.e. when the number of nanoseconds exceeds {@link Long#MAX_VALUE}), the duration returned
+         * will be rounded unless the duration is written using {@link Duration#toString()}. Rounding process is
+         * deterministic.
+         * <p>
+         * If a string containing a single number is passed in, it will be interpreted as a number of milliseconds.
+         * <p>
+         * This parser currently utilizes a regex which may have superlinear time complexity for arbitrary input. Until that
+         * is addressed, do not use this parser on untrusted strings.
+         *
+         * @param str a string containing a duration
+         * @return a Duration
+         * @throws IllegalArgumentException if there is a problem parsing the string
+         */
+        public static Duration parseDuration(final String str) {
+
+            final Matcher matcher = DURATION_REGEX.matcher(str);
+
+            if (matcher.find()) {
+
+                final double magnitude = Double.parseDouble(matcher.group(1));
+                final String unit = matcher.group(2).trim().toLowerCase();
+
+                final long toNanoseconds;
+
+                switch (unit) {
+                    case "ns":
+                    case "nano":
+                    case "nanos":
+                    case "nanosecond":
+                    case "nanoseconds":
+                    case "nanosec":
+                    case "nanosecs":
+                        toNanoseconds = 1;
+                        break;
+
+                    case "us":
+                    case "micro":
+                    case "micros":
+                    case "microsecond":
+                    case "microseconds":
+                    case "microsec":
+                    case "microsecs":
+                        toNanoseconds = MICROSECONDS_TO_NANOSECONDS;
+                        break;
+
+                    case "ms":
+                    case "milli":
+                    case "millis":
+                    case "millisecond":
+                    case "milliseconds":
+                    case "millisec":
+                    case "millisecs":
+                        toNanoseconds = MILLISECONDS_TO_NANOSECONDS;
+                        break;
+
+                    case "s":
+                    case "second":
+                    case "seconds":
+                    case "sec":
+                    case "secs":
+                        toNanoseconds = SECONDS_TO_NANOSECONDS;
+                        break;
+
+                    case "m":
+                    case "minute":
+                    case "minutes":
+                    case "min":
+                    case "mins":
+                        toNanoseconds = (long) MINUTES_TO_SECONDS * SECONDS_TO_NANOSECONDS;
+                        break;
+
+                    case "h":
+                    case "hour":
+                    case "hours":
+                        toNanoseconds = (long) HOURS_TO_MINUTES * MINUTES_TO_SECONDS * SECONDS_TO_NANOSECONDS;
+                        break;
+
+                    case "d":
+                    case "day":
+                    case "days":
+                        toNanoseconds =
+                                (long) DAYS_TO_HOURS * HOURS_TO_MINUTES * MINUTES_TO_SECONDS * SECONDS_TO_NANOSECONDS;
+                        break;
+
+                    case "w":
+                    case "week":
+                    case "weeks":
+                        toNanoseconds = (long) WEEKS_TO_DAYS
+                                * DAYS_TO_HOURS
+                                * HOURS_TO_MINUTES
+                                * MINUTES_TO_SECONDS
+                                * SECONDS_TO_NANOSECONDS;
+                        break;
+
+                    default:
+                        final Duration duration = attemptDefaultDurationDeserialization(str);
+                        if (duration == null) {
+                            throw new IllegalArgumentException(
+                                    "Invalid duration format, unrecognized unit \"" + unit + "\"");
+                        }
+                        return duration;
+                }
+
+                final double totalNanoseconds = magnitude * toNanoseconds;
+                if (totalNanoseconds > Long.MAX_VALUE) {
+                    // If a long is unable to hold the required nanoseconds then lower returned resolution to seconds.
+                    final double toSeconds = toNanoseconds * NANOSECONDS_TO_SECONDS;
+                    final long seconds = (long) (magnitude * toSeconds);
+                    return Duration.ofSeconds(seconds);
+                }
+
+                return Duration.ofNanos((long) totalNanoseconds);
+
+            } else {
+                final Matcher integerMatcher = NUMBER_REGEX.matcher(str);
+                if (integerMatcher.matches()) {
+                    return Duration.ofMillis(Long.parseLong(str));
+                }
+
+                final Duration duration = attemptDefaultDurationDeserialization(str);
+                if (duration == null) {
+                    throw new IllegalArgumentException("Invalid duration format, unable to parse \"" + str + "\"");
+                }
+                return duration;
+            }
+        }
+
+        /**
+         * Make an attempt to parse a duration using default deserialization.
+         *
+         * @param str the string that is expected to contain a duration
+         * @return a Duration object if one can be parsed, otherwise null;
+         */
+        private static Duration attemptDefaultDurationDeserialization(final String str) {
+            try {
+                return Duration.parse(str);
+            } catch (final DateTimeParseException ignored) {
+                return null;
+            }
+        }
     }
 }

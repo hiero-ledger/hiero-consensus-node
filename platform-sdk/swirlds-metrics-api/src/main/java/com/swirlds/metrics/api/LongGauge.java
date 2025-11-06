@@ -71,6 +71,14 @@ public interface LongGauge extends Metric {
     void set(final long newValue);
 
     /**
+     * Modify the current value by adding passed parameter. Supports negative values which will result in subtraction.
+     *
+     * @param change
+     * 		value change
+     */
+    void add(final long change);
+
+    /**
      * Configuration of a {@link LongGauge}
      */
     final class Config extends MetricConfig<LongGauge, LongGauge.Config> {

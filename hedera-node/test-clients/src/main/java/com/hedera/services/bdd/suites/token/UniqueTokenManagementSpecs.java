@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getReceipt;
@@ -22,6 +24,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.wipeTokenAccoun
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.batchOfSize;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.metadata;
@@ -30,6 +33,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DOES_N
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_STILL_OWNS_NFTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NFT_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_BURN_METADATA;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_MINT_METADATA;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_NFT_SERIAL_NUMBER;
@@ -142,6 +146,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> finiteNftReachesMaxSupplyProperly() {
         return defaultHapiSpec("FiniteNftReachesMaxSupplyProperly")
                 .given(
@@ -231,6 +236,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> burnWorksWhenAccountsAreFrozenByDefault() {
         return defaultHapiSpec("BurnWorksWhenAccountsAreFrozenByDefault")
                 .given(
@@ -251,6 +257,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> burnFailsOnInvalidSerialNumber() {
         return defaultHapiSpec("BurnFailsOnInvalidSerialNumber")
                 .given(
@@ -270,6 +277,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> burnRespectsBurnBatchConstraints() {
         return defaultHapiSpec("BurnRespectsBurnBatchConstraints")
                 .given(
@@ -290,6 +298,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> burnHappyPath() {
         return defaultHapiSpec("BurnHappyPath")
                 .given(
@@ -313,6 +322,50 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
+    final Stream<DynamicTest> mintFailsOnInvalidSupplyKey() {
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(TOKEN_TREASURY),
+                // create valid NFT
+                tokenCreate(NFT)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(0)
+                        .supplyKey(SUPPLY_KEY)
+                        .treasury(TOKEN_TREASURY),
+                // mint with the wrong supply key
+                mintToken(NFT, List.of(metadata("1"), metadata("2")))
+                        .signedBy(GENESIS, GENESIS)
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                // mint with the right supply key
+                mintToken(NFT, List.of(metadata("1"), metadata("2")))
+                        .signedBy(GENESIS, SUPPLY_KEY)
+                        .hasKnownStatus(SUCCESS));
+    }
+
+    @HapiTest
+    @Tag(MATS)
+    final Stream<DynamicTest> burnFailsOnInvalidSupplyKey() {
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(TOKEN_TREASURY),
+                // create valid NFT
+                tokenCreate(NFT)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(0)
+                        .supplyKey(SUPPLY_KEY)
+                        .treasury(TOKEN_TREASURY),
+                mintToken(NFT, List.of(metadata("1"), metadata("2"))),
+                // burn with the wrong supply key
+                burnToken(NFT, List.of(1L, 2L)).signedBy(GENESIS, GENESIS).hasKnownStatus(INVALID_SIGNATURE),
+                // burn with the right supply key
+                burnToken(NFT, List.of(1L, 2L)).signedBy(GENESIS, SUPPLY_KEY).hasKnownStatus(SUCCESS));
+    }
+
+    @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> canOnlyBurnFromTreasury() {
         final var nonTreasury = "anybodyElse";
 
@@ -342,6 +395,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> treasuryBalanceCorrectAfterBurn() {
         return defaultHapiSpec("TreasuryBalanceCorrectAfterBurn")
                 .given(
@@ -371,6 +425,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> mintDistinguishesFeeSubTypes() {
         return defaultHapiSpec("MintDistinguishesFeeSubTypes")
                 .given(
@@ -410,6 +465,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> mintFailsWithTooLongMetadata() {
         return defaultHapiSpec("MintFailsWithTooLongMetadata")
                 .given(
@@ -426,6 +482,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> mintFailsWithInvalidMetadataFromBatch() {
         return defaultHapiSpec("MintFailsWithInvalidMetadataFromBatch")
                 .given(
@@ -443,6 +500,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> mintFailsWithLargeBatchSize() {
         return defaultHapiSpec("MintFailsWithLargeBatchSize")
                 .given(
@@ -459,6 +517,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> mintUniqueTokenHappyPath() {
         return defaultHapiSpec("MintUniqueTokenHappyPath")
                 .given(
@@ -496,6 +555,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> mintTokenWorksWhenAccountsAreFrozenByDefault() {
         return defaultHapiSpec("MintTokenWorksWhenAccountsAreFrozenByDefault")
                 .given(
@@ -520,6 +580,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> mintFailsWithDeletedToken() {
         return defaultHapiSpec("MintFailsWithDeletedToken")
                 .given(
@@ -538,6 +599,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> getTokenNftInfoFailsWithNoNft() {
         return defaultHapiSpec("GetTokenNftInfoFailsWithNoNft")
                 .given(newKeyNamed(SUPPLY_KEY), cryptoCreate(TOKEN_TREASURY))
@@ -556,6 +618,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> getTokenNftInfoWorks() {
         return defaultHapiSpec("GetTokenNftInfoWorks")
                 .given(newKeyNamed(SUPPLY_KEY), cryptoCreate(TOKEN_TREASURY))
@@ -580,6 +643,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> mintUniqueTokenWorksWithRepeatedMetadata() {
         return defaultHapiSpec("MintUniqueTokenWorksWithRepeatedMetadata")
                 .given(
@@ -610,6 +674,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> wipeHappyPath() {
         return defaultHapiSpec("WipeHappyPath")
                 .given(
@@ -642,6 +707,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> wipeRespectsConstraints() {
         return defaultHapiSpec("WipeRespectsConstraints")
                 .given(
@@ -668,6 +734,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest // here
+    @Tag(MATS)
     final Stream<DynamicTest> commonWipeFailsWhenInvokedOnUniqueToken() {
         return defaultHapiSpec("CommonWipeFailsWhenInvokedOnUniqueToken")
                 .given(
@@ -700,6 +767,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest // here
+    @Tag(MATS)
     final Stream<DynamicTest> uniqueWipeFailsWhenInvokedOnFungibleToken() { // invokes unique wipe on fungible tokens
         return defaultHapiSpec("UniqueWipeFailsWhenInvokedOnFungibleToken")
                 .given(
@@ -725,6 +793,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> wipeFailsWithInvalidSerialNumber() {
         return defaultHapiSpec("WipeFailsWithInvalidSerialNumber")
                 .given(
@@ -806,6 +875,7 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> tokenDissociateFailsIfAccountOwnsUniqueTokens() {
         return defaultHapiSpec("tokenDissociateFailsIfAccountOwnsUniqueTokens")
                 .given(

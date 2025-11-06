@@ -14,9 +14,9 @@ import java.util.Objects;
  * @param updatedContractNonces the list of updated contract nonces, ordered by contract number
  */
 public record ContractChangeSummary(List<ContractID> newContractIds, List<ContractNonceInfo> updatedContractNonces) {
-    private static final Comparator<ContractID> CONTRACT_ID_NUM_COMPARATOR =
+    public static final Comparator<ContractID> CONTRACT_ID_NUM_COMPARATOR =
             Comparator.comparingLong(ContractID::contractNumOrThrow);
-    private static final Comparator<ContractNonceInfo> NONCE_INFO_CONTRACT_ID_COMPARATOR =
+    public static final Comparator<ContractNonceInfo> NONCE_INFO_CONTRACT_ID_COMPARATOR =
             Comparator.comparing(ContractNonceInfo::contractIdOrThrow, CONTRACT_ID_NUM_COMPARATOR);
 
     /**

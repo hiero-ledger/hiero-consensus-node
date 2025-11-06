@@ -2,14 +2,22 @@
 package com.hedera.node.app.hints;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
-import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINT_CONSTRUCTION_KEY;
-import static com.hedera.node.app.hints.schemas.V059HintsSchema.HINTS_KEY_SETS_KEY;
-import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINT_CONSTRUCTION_KEY;
-import static com.hedera.node.app.hints.schemas.V059HintsSchema.PREPROCESSING_VOTES_KEY;
-import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_PUBLICATIONS_KEY;
-import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_KEY;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_LABEL;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.HINTS_KEY_SETS_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.HINTS_KEY_SETS_STATE_LABEL;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_LABEL;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.PREPROCESSING_VOTES_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.PREPROCESSING_VOTES_STATE_LABEL;
+import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_PUBLICATIONS_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_PUBLICATIONS_STATE_LABEL;
+import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doCallRealMethod;
@@ -27,12 +35,12 @@ import com.hedera.hapi.node.state.hints.PreprocessingVoteId;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
-import com.hedera.node.app.ids.WritableEntityIdStore;
-import com.hedera.node.app.spi.ids.ReadableEntityCounters;
+import com.hedera.node.app.service.entityid.ReadableEntityCounters;
+import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.spi.ReadableSingletonStateBase;
 import com.swirlds.state.spi.ReadableStates;
-import com.swirlds.state.spi.WritableSingletonStateBase;
+import com.swirlds.state.test.fixtures.FunctionReadableSingletonState;
+import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import java.time.Instant;
@@ -56,13 +64,17 @@ class ReadableHintsStoreTest {
 
     @BeforeEach
     void setUp() {
-        entityCounters = new WritableEntityIdStore(new MapWritableStates(Map.of(
-                ENTITY_ID_STATE_KEY,
-                new WritableSingletonStateBase<>(
-                        ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder().build(), c -> {}),
-                ENTITY_COUNTS_KEY,
-                new WritableSingletonStateBase<>(
-                        ENTITY_COUNTS_KEY,
+        entityCounters = new WritableEntityIdStoreImpl(new MapWritableStates(Map.of(
+                ENTITY_ID_STATE_ID,
+                new FunctionWritableSingletonState<>(
+                        ENTITY_ID_STATE_ID,
+                        ENTITY_ID_STATE_LABEL,
+                        () -> EntityNumber.newBuilder().build(),
+                        c -> {}),
+                ENTITY_COUNTS_STATE_ID,
+                new FunctionWritableSingletonState<>(
+                        ENTITY_COUNTS_STATE_ID,
+                        ENTITY_COUNTS_STATE_LABEL,
                         () -> EntityCounts.newBuilder().numNodes(2).build(),
                         c -> {}))));
     }
@@ -97,14 +109,19 @@ class ReadableHintsStoreTest {
                 .stage(CRSStage.GATHERING_CONTRIBUTIONS)
                 .contributionEndTime(asTimestamp(Instant.ofEpochSecond(1_234_567L)))
                 .build();
-        given(readableStates.getSingleton(CRS_STATE_KEY))
-                .willReturn(new ReadableSingletonStateBase<>(CRS_STATE_KEY, () -> crsState));
-        given(readableStates.getSingleton(NEXT_HINT_CONSTRUCTION_KEY))
-                .willReturn(
-                        new ReadableSingletonStateBase<>(NEXT_HINT_CONSTRUCTION_KEY, () -> HintsConstruction.DEFAULT));
-        given(readableStates.getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY))
-                .willReturn(new ReadableSingletonStateBase<>(
-                        ACTIVE_HINT_CONSTRUCTION_KEY, () -> HintsConstruction.DEFAULT));
+        given(readableStates.getSingleton(CRS_STATE_STATE_ID))
+                .willReturn(new FunctionReadableSingletonState<>(
+                        CRS_STATE_STATE_ID, CRS_STATE_STATE_LABEL, () -> crsState));
+        given(readableStates.getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID))
+                .willReturn(new FunctionReadableSingletonState<>(
+                        NEXT_HINTS_CONSTRUCTION_STATE_ID,
+                        NEXT_HINTS_CONSTRUCTION_STATE_LABEL,
+                        () -> HintsConstruction.DEFAULT));
+        given(readableStates.getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID))
+                .willReturn(new FunctionReadableSingletonState<>(
+                        ACTIVE_HINTS_CONSTRUCTION_STATE_ID,
+                        ACTIVE_HINTS_CONSTRUCTION_STATE_LABEL,
+                        () -> HintsConstruction.DEFAULT));
         subject = new ReadableHintsStoreImpl(readableStates, entityCounters);
 
         assertEquals(crsState, subject.getCrsState());
@@ -116,17 +133,20 @@ class ReadableHintsStoreTest {
                 .newCrs(Bytes.wrap("pub1"))
                 .proof(Bytes.wrap("proof"))
                 .build();
-        final var state = MapReadableKVState.<NodeId, CrsPublicationTransactionBody>builder(CRS_PUBLICATIONS_KEY)
+        final var state = MapReadableKVState.<NodeId, CrsPublicationTransactionBody>builder(
+                        CRS_PUBLICATIONS_STATE_ID, CRS_PUBLICATIONS_STATE_LABEL)
                 .value(NodeId.DEFAULT, publication)
                 .value(NodeId.DEFAULT, publication)
                 .build();
-        given(readableStates.<NodeId, CrsPublicationTransactionBody>get(CRS_PUBLICATIONS_KEY))
+        given(readableStates.<NodeId, CrsPublicationTransactionBody>get(CRS_PUBLICATIONS_STATE_ID))
                 .willReturn(state);
-        given(readableStates.<HintsPartyId, HintsKeySet>get(HINTS_KEY_SETS_KEY))
-                .willReturn(MapReadableKVState.<HintsPartyId, HintsKeySet>builder(HINTS_KEY_SETS_KEY)
+        given(readableStates.<HintsPartyId, HintsKeySet>get(HINTS_KEY_SETS_STATE_ID))
+                .willReturn(MapReadableKVState.<HintsPartyId, HintsKeySet>builder(
+                                HINTS_KEY_SETS_STATE_ID, HINTS_KEY_SETS_STATE_LABEL)
                         .build());
-        given(readableStates.<PreprocessingVoteId, PreprocessingVote>get(PREPROCESSING_VOTES_KEY))
-                .willReturn(MapReadableKVState.<PreprocessingVoteId, PreprocessingVote>builder(PREPROCESSING_VOTES_KEY)
+        given(readableStates.<PreprocessingVoteId, PreprocessingVote>get(PREPROCESSING_VOTES_STATE_ID))
+                .willReturn(MapReadableKVState.<PreprocessingVoteId, PreprocessingVote>builder(
+                                PREPROCESSING_VOTES_STATE_ID, PREPROCESSING_VOTES_STATE_LABEL)
                         .build());
 
         subject = new ReadableHintsStoreImpl(readableStates, entityCounters);

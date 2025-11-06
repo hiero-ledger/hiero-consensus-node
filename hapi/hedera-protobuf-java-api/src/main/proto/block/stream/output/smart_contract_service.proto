@@ -1,13 +1,7 @@
 /**
- * #  Service
+ * # Smart Contract Service
  * Block stream messages that report the results of transactions handled
  * by the `smart contract` service.
- *
- * > REVIEW NOTE
- * >> The use of sidecar records is a bit odd here. We may find it more
- * >> effective to extract the actual changes into proper output messages
- * >> and fields included in the ethereum call output and/or related state
- * >> changes items, and remove the whole sidecar concept going forward.
  *
  * ### Keywords
  * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
@@ -26,7 +20,6 @@ option java_package = "com.hedera.hapi.block.stream.output.protoc";
 option java_multiple_files = true;
 
 import "services/contract_types.proto";
-import "streams/sidecar_file.proto";
 
 /**
  * Block Stream data for a `contractCallMethod` transaction.
@@ -36,24 +29,10 @@ import "streams/sidecar_file.proto";
  */
 message CallContractOutput {
     /**
-     * A list of additional outputs.
-     * <p>
-     * This field MAY record one or more additional outputs and smart
-     * contract state changes produced during the ethereum call
-     * transaction handling.<br/>
-     * This field SHALL NOT be set if the transaction handling did not
-     * produce additional outputs.<br/>
-     * This field is not settled and MAY be removed or modified.
+     * An EVM transaction result. Contains just the information not already
+     * externalized in the matching transaction body.
      */
-    repeated proto.TransactionSidecarRecord sidecars = 1;
-
-    /**
-     * An EVM contract call result.
-     * <p>
-     * This field SHALL contain all of the data produced by the contract
-     * call transaction as well as basic accounting results.
-     */
-    proto.ContractFunctionResult contract_call_result = 2;
+    proto.EvmTransactionResult evm_transaction_result = 1;
 }
 
 /**
@@ -64,24 +43,10 @@ message CallContractOutput {
  */
 message CreateContractOutput {
     /**
-     * A list of additional outputs.
-     * <p>
-     * This field MAY record one or more additional outputs and smart
-     * contract state changes produced during the ethereum call
-     * transaction handling.<br/>
-     * This field SHALL NOT be set if the transaction handling did not
-     * produce additional outputs.<br/>
-     * This field is not settled and MAY be removed or modified.
+     * An EVM transaction result. Contains just the information not already
+     * externalized in the matching transaction body.
      */
-    repeated proto.TransactionSidecarRecord sidecars = 1;
-
-    /**
-     * An EVM contract call result.
-     * <p>
-     * This field SHALL contain all of the data produced by the contract
-     * create transaction as well as basic accounting results.
-     */
-    proto.ContractFunctionResult contract_create_result = 2;
+    proto.EvmTransactionResult evm_transaction_result = 1;
 }
 
 // no evm exec, only modified entity
@@ -125,40 +90,19 @@ message SystemDeleteContractOutput {}
  * the original transaction.
  */
 message EthereumOutput {
-    /**
-     * A list of additional outputs.
-     * <p>
-     * This field MAY record one or more additional outputs and smart
-     * contract state changes produced during the ethereum call
-     * transaction handling.<br/>
-     * This field SHALL NOT be set if the transaction handling did not
-     * produce additional outputs.<br/>
-     * This field is not settled and MAY be removed or modified.
-     */
-    repeated proto.TransactionSidecarRecord sidecars = 1;
-
-    /**
-     * An ethereum hash value.
-     * <p>
-     * This SHALL be a keccak256 hash of the ethereumData.
-     */
-    bytes ethereum_hash = 2;
-
-    oneof eth_result {
+    oneof transaction_result {
         /**
-         * A result for an Ethereum Transaction executed as a call.
-         * <p>
-         * This field SHALL contain all of the data produced by the contract
-         * call transaction as well as basic accounting results.
+         * An EVM transaction result for an Ethereum transaction executed as a
+         * call. Contains just the information not already externalized in the
+         * matching transaction body.
          */
-        proto.ContractFunctionResult ethereum_call_result = 3;
+        proto.EvmTransactionResult evm_call_transaction_result = 1;
 
         /**
-         * A result for an Ethereum Transaction executed as a create.
-         * <p>
-         * This field SHALL contain all of the data produced by the contract
-         * create transaction as well as basic accounting results.
+         * An EVM transaction result for an Ethereum transaction executed as a
+         * create. Contains just the information not already externalized in the
+         * matching transaction body.
          */
-        proto.ContractFunctionResult ethereum_create_result = 4;
+        proto.EvmTransactionResult evm_create_transaction_result = 2;
     }
 }

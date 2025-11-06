@@ -4,7 +4,12 @@ package com.hedera.node.app.hints.impl;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.hints.HintsService.partySizeForRosterNodeCount;
 import static java.util.Objects.requireNonNull;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
@@ -26,7 +31,7 @@ import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.ReadableHintsStore.HintsKeyPublication;
 import com.hedera.node.app.hints.WritableHintsStore;
-import com.hedera.node.app.roster.RosterTransitionWeights;
+import com.hedera.node.app.service.roster.impl.RosterTransitionWeights;
 import com.hedera.node.app.tss.TssKeyPair;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -38,7 +43,6 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalInt;
-import java.util.OptionalLong;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -312,7 +316,8 @@ class HintsControllerImplTest {
 
         given(weights.sourceWeightOf(1L)).willReturn(2L);
         given(weights.sourceWeightThreshold()).willReturn(1L);
-        given(store.setHintsScheme(CONSTRUCTION_WITH_START_TIME.constructionId(), keys, Map.of()))
+        given(store.setHintsScheme(
+                        CONSTRUCTION_WITH_START_TIME.constructionId(), keys, Map.of(), weights.targetNodeWeights()))
                 .willReturn(FINISHED_CONSTRUCTION);
 
         assertTrue(subject.addPreprocessingVote(1L, vote, store));
@@ -335,7 +340,8 @@ class HintsControllerImplTest {
         given(weights.sourceWeightOf(2L)).willReturn(1L);
         final var congruentVote =
                 PreprocessingVote.newBuilder().congruentNodeId(1L).build();
-        given(store.setHintsScheme(CONSTRUCTION_WITH_START_TIME.constructionId(), keys, Map.of()))
+        given(store.setHintsScheme(
+                        CONSTRUCTION_WITH_START_TIME.constructionId(), keys, Map.of(), weights.targetNodeWeights()))
                 .willReturn(FINISHED_CONSTRUCTION);
         assertTrue(subject.addPreprocessingVote(2L, congruentVote, store));
 
@@ -482,7 +488,7 @@ class HintsControllerImplTest {
                 CompletableFuture.completedFuture(new HintsControllerImpl.CRSValidation(INITIAL_CRS, 1)));
         subject.advanceCrsWork(CONSENSUS_NOW, store, true);
 
-        verify(store).moveToNextNode(OptionalLong.of(2L), CONSENSUS_NOW.plus(Duration.ofSeconds(10)));
+        verify(store).moveToNextNode(2L, CONSENSUS_NOW.plus(Duration.ofSeconds(10)));
     }
 
     @Test

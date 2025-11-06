@@ -108,27 +108,27 @@ class AliasUtilsTest {
     }
 
     @Test
-    void isEntityNumAliasReturnsTrueForZeroShardRealm() {
+    void isEntityNumAliasReturnsTrueForLongZero() {
         var entityNumAlias = Bytes.wrap(HexFormat.of().parseHex(TEST_ENTITY_NUM_ALIAS));
-        assertTrue(AliasUtils.isEntityNumAlias(entityNumAlias, TEST_SHARD, TEST_REALM));
+        assertTrue(AliasUtils.isEntityNumAlias(entityNumAlias));
     }
 
     @Test
     void isEntityNumAliasReturnsFalseForNonZeroShard() {
         var nonZeroShardAlias = Bytes.wrap(HexFormat.of().parseHex(TEST_NON_ZERO_SHARD_ALIAS));
-        assertFalse(AliasUtils.isEntityNumAlias(nonZeroShardAlias, TEST_SHARD, TEST_REALM));
+        assertFalse(AliasUtils.isEntityNumAlias(nonZeroShardAlias));
     }
 
     @Test
     void isEntityNumAliasReturnsFalseForNonZeroRealm() {
-        var nonZeroRealmAlias = Bytes.wrap(HexFormat.of().parseHex(TEST_NON_ZERO_REALM_ALIAS));
-        assertFalse(AliasUtils.isEntityNumAlias(nonZeroRealmAlias, TEST_SHARD, TEST_REALM));
+        var nonZeroShardAlias = Bytes.wrap(HexFormat.of().parseHex(TEST_NON_ZERO_REALM_ALIAS));
+        assertFalse(AliasUtils.isEntityNumAlias(nonZeroShardAlias));
     }
 
     @Test
-    void isEntityNumAliasReturnsTrueForMatchingShardRealm() {
-        var entityNumAlias = Bytes.wrap(HexFormat.of().parseHex(TEST_NON_ZERO_SHARD_ALIAS));
-        assertTrue(AliasUtils.isEntityNumAlias(entityNumAlias, 1L, TEST_REALM));
+    void isEntityNumAliasReturnsFalseAliasOfWrongSize() {
+        var nonZeroRealmAlias = Bytes.wrap(HexFormat.of().parseHex(INVALID_ECDSA_KEY));
+        assertFalse(AliasUtils.isEntityNumAlias(nonZeroRealmAlias));
     }
 
     @Test
@@ -165,24 +165,6 @@ class AliasUtilsTest {
     void isSerializedProtoKeyReturnsFalseForEvmAddress() {
         var evmAddress = Bytes.wrap(HexFormat.of().parseHex(SAMPLE_EVM_ADDRESS.substring(2)));
         assertFalse(AliasUtils.isSerializedProtoKey(evmAddress));
-    }
-
-    @Test
-    void extractShardFromAddressAliasReturnsCorrectValue() {
-        var alias = Bytes.wrap(HexFormat.of().parseHex(TEST_NON_ZERO_SHARD_ALIAS));
-        assertEquals(1, AliasUtils.extractShardFromAddressAlias(alias));
-    }
-
-    @Test
-    void extractShardFromAddressAliasReturnsZeroForZeroShard() {
-        var alias = Bytes.wrap(HexFormat.of().parseHex(TEST_ENTITY_NUM_ALIAS));
-        assertEquals(0, AliasUtils.extractShardFromAddressAlias(alias));
-    }
-
-    @Test
-    void extractRealmFromAddressAliasReturnsZeroForZeroRealm() {
-        var alias = Bytes.wrap(HexFormat.of().parseHex(TEST_ENTITY_NUM_ALIAS));
-        assertEquals(0L, AliasUtils.extractRealmFromAddressAlias(alias));
     }
 
     @Test

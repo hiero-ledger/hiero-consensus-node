@@ -4,10 +4,9 @@ package com.hedera.node.app.service.contract.impl.state;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomCallOperation;
-import com.swirlds.state.lifecycle.EntityIdFactory;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.List;
 import java.util.Optional;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.units.bigints.UInt256;
@@ -16,6 +15,7 @@ import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.account.Account;
 import org.hyperledger.besu.evm.account.MutableAccount;
+import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
@@ -204,7 +204,7 @@ public interface EvmFrameState {
      * @return the code hash of the contract
      */
     @NonNull
-    Hash getCodeHash(ContractID contractID);
+    Hash getCodeHash(ContractID contractID, @NonNull final CodeFactory codeFactory);
 
     /**
      * Returns the hash of the redirect bytecode for the token with the given address, which must be a
@@ -352,12 +352,12 @@ public interface EvmFrameState {
     long getIdNumber(@NonNull Address address);
 
     /**
-     * Returns the full list of account-scoped storage changes in the current scope.
+     * Returns a {@link TxStorageUsage} summarizing the storage changes made by the transaction.
      *
      * @return the full list of account-scoped storage changes
      */
     @NonNull
-    List<StorageAccesses> getStorageChanges();
+    TxStorageUsage getTxStorageUsage(boolean includeChangedSlotKeys);
 
     /**
      * Returns the size of the underlying K/V state for contract storage.
@@ -368,12 +368,19 @@ public interface EvmFrameState {
 
     /**
      * Returns the rent factors for the contract with the given id.
-     *
      * @param contractID the contract id
      * @return the rent factors
      */
     @NonNull
-    RentFactors getRentFactorsFor(ContractID contractID);
+    RentFactors getRentFactorsFor(@NonNull ContractID contractID);
+
+    /**
+     * Returns the rent factors for the account with the given id.
+     * @param accountId the account id
+     * @return the rent factors
+     */
+    @NonNull
+    RentFactors getRentFactorsFor(@NonNull AccountID accountId);
 
     /**
      * Returns the entity id factory.

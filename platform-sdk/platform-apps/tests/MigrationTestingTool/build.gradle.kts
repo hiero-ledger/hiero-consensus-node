@@ -5,7 +5,5 @@ application.mainClass = "com.swirlds.demo.migration.MigrationTestingToolMain"
 
 testModuleInfo {
     requires("org.junit.jupiter.api")
-    requires("org.assertj.core")
     requires("org.junit.jupiter.params")
-    requires("org.mockito")
 }

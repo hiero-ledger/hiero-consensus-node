@@ -33,12 +33,10 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
@@ -197,11 +195,8 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
 
     private void initializeInternalConsensus() {
         consensus = new ConsensusImpl(platformContext, new NoOpConsensusMetrics(), roster);
-        linker = new SimpleLinker(platformContext
-                .getConfiguration()
-                .getConfigData(EventConfig.class)
-                .getAncientMode());
-        orphanBuffer = new DefaultOrphanBuffer(platformContext, mock(IntakeEventCounter.class));
+        linker = new SimpleLinker();
+        orphanBuffer = new DefaultOrphanBuffer(platformContext.getMetrics(), mock(IntakeEventCounter.class));
     }
 
     /**
@@ -320,14 +315,6 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
     @NonNull
     public EventSource getSourceByIndex(final int nodeIndex) {
         return sources.get(nodeIndex);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public @NonNull AddressBook getAddressBook() {
-        return RosterUtils.buildAddressBook(roster);
     }
 
     @Override
@@ -462,7 +449,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
             // if we reach consensus, save the snapshot for future use
             consensusSnapshot = consensusRounds.getLast().getSnapshot();
             linker.setNonAncientThreshold(
-                    consensusRounds.getLast().getEventWindow().getAncientThreshold());
+                    consensusRounds.getLast().getEventWindow().ancientThreshold());
         }
     }
 
@@ -500,6 +487,6 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
     @SuppressWarnings("unused") // useful for debugging
     public HashgraphGuiSource createGuiSource() {
         return new StandardGuiSource(
-                getAddressBook(), new GuiEventStorage(consensus, linker, platformContext.getConfiguration()));
+                getRoster(), new GuiEventStorage(consensus, linker, platformContext.getConfiguration()));
     }
 }

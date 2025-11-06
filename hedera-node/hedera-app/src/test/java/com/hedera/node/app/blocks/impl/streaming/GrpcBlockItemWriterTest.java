@@ -18,43 +18,77 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class GrpcBlockItemWriterTest {
 
     @Mock
-    private BlockStreamStateManager blockStreamStateManager;
+    private BlockBufferService blockBufferService;
+
+    @Mock
+    private BlockNodeConnectionManager blockNodeConnectionManager;
 
     @Test
     void testGrpcBlockItemWriterConstructor() {
-        final GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockStreamStateManager);
+        final GrpcBlockItemWriter grpcBlockItemWriter =
+                new GrpcBlockItemWriter(blockBufferService, blockNodeConnectionManager);
         assertThat(grpcBlockItemWriter).isNotNull();
     }
 
     @Test
+    void testOpenBlock() {
+        GrpcBlockItemWriter grpcBlockItemWriter =
+                new GrpcBlockItemWriter(blockBufferService, blockNodeConnectionManager);
+
+        grpcBlockItemWriter.openBlock(0);
+
+        verify(blockBufferService).openBlock(0);
+    }
+
+    @Test
     void testOpenBlockNegativeBlockNumber() {
-        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockStreamStateManager);
+        GrpcBlockItemWriter grpcBlockItemWriter =
+                new GrpcBlockItemWriter(blockBufferService, blockNodeConnectionManager);
 
         assertThatThrownBy(() -> grpcBlockItemWriter.openBlock(-1), "Block number must be non-negative")
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
-    void testWriteItem() {
-        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockStreamStateManager);
+    void testWritePbjItemAndBytes() {
+        GrpcBlockItemWriter grpcBlockItemWriter =
+                new GrpcBlockItemWriter(blockBufferService, blockNodeConnectionManager);
 
         // Create BlockProof as easiest way to build object from BlockStreams
         Bytes bytes = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
         final var proof = BlockItem.newBuilder()
-                .blockProof(BlockProof.newBuilder().blockSignature(bytes).siblingHashes(new ArrayList<>()))
+                .blockProof(BlockProof.newBuilder().siblingHashes(new ArrayList<>()))
+                .build();
+
+        grpcBlockItemWriter.writePbjItemAndBytes(proof, bytes);
+
+        verify(blockBufferService).addItem(0L, proof);
+    }
+
+    @Test
+    void testWritePbjItem() {
+        GrpcBlockItemWriter grpcBlockItemWriter =
+                new GrpcBlockItemWriter(blockBufferService, blockNodeConnectionManager);
+
+        // Create BlockProof as easiest way to build object from BlockStreams
+        Bytes bytes = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
+        final var proof = BlockItem.newBuilder()
+                .blockProof(BlockProof.newBuilder().siblingHashes(new ArrayList<>()))
                 .build();
 
         grpcBlockItemWriter.writePbjItem(proof);
 
-        verify(blockStreamStateManager).addItem(0L, proof);
+        verify(blockBufferService).addItem(0L, proof);
     }
 
     @Test
-    void testCloseBlock() {
-        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockStreamStateManager);
+    void testCompleteBlock() {
+        GrpcBlockItemWriter grpcBlockItemWriter =
+                new GrpcBlockItemWriter(blockBufferService, blockNodeConnectionManager);
 
+        grpcBlockItemWriter.openBlock(0);
         grpcBlockItemWriter.closeCompleteBlock();
 
-        verify(blockStreamStateManager).closeBlock(0L);
+        verify(blockBufferService).closeBlock(0);
     }
 }

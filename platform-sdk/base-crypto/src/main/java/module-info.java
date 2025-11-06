@@ -8,7 +8,8 @@ module org.hiero.base.crypto {
             com.swirlds.platform.core,
             com.swirlds.common.test.fixtures,
             com.swirlds.platform.core.test.fixtures,
-            org.hiero.base.crypto.test.fixtures;
+            org.hiero.base.crypto.test.fixtures,
+            org.hiero.otter.test;
     exports org.hiero.base.crypto.engine to
             com.swirlds.common,
             com.swirlds.common.test.fixtures,
@@ -22,7 +23,7 @@ module org.hiero.base.crypto {
     requires transitive com.swirlds.logging;
     requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.utility;
-    requires transitive lazysodium.java;
+    requires transitive com.goterl.lazysodium;
     requires com.swirlds.base;
     requires com.sun.jna;
     requires org.apache.logging.log4j;

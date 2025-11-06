@@ -14,11 +14,7 @@ import org.junit.jupiter.api.Assertions;
 public class VerifyGetLiveHashNotSupported extends UtilOp {
     @Override
     protected boolean submitOp(HapiSpec spec) throws Throwable {
-        var shard = spec.startupProperties().getLong("hedera.shard");
-        var realm = spec.startupProperties().getLong("hedera.realm");
-
-        CryptoGetLiveHashQuery.Builder op =
-                CryptoGetLiveHashQuery.newBuilder().setAccountID(asAccount(String.format("%d.%d.2", shard, realm)));
+        CryptoGetLiveHashQuery.Builder op = CryptoGetLiveHashQuery.newBuilder().setAccountID(asAccount(spec, 2));
         Query query = Query.newBuilder().setCryptoGetLiveHash(op).build();
         final var response = spec.targetNetworkOrThrow().send(query, CryptoGetLiveHash, targetNodeFor(spec));
         Assertions.assertEquals(

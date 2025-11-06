@@ -63,7 +63,6 @@ public class StateEditorLoad extends StateEditorOperation {
         final MerkleNode subtree;
         try (final MerkleDataInputStream in =
                 new MerkleDataInputStream(new BufferedInputStream(new FileInputStream(fileName.toFile())))) {
-
             subtree = in.readMerkleTree(fileName.getParent(), Integer.MAX_VALUE);
         } catch (final IOException e) {
             throw new UncheckedIOException(e);

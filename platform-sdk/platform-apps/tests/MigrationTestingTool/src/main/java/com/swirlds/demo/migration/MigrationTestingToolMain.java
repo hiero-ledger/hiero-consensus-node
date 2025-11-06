@@ -3,27 +3,29 @@ package com.swirlds.demo.migration;
 
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_SECONDS;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.fcqueue.FCQueueStatistics;
+import com.swirlds.base.time.Time;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.logging.legacy.payload.ApplicationFinishedPayload;
-import com.swirlds.merkle.map.MerkleMapMetrics;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.system.DefaultSwirldMain;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.SignatureException;
+import java.util.List;
+import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.constructable.ClassConstructorPair;
-import org.hiero.base.constructable.ConstructableRegistry;
-import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 
@@ -32,23 +34,14 @@ import org.hiero.consensus.roster.RosterUtils;
  * <p>
  * Command line arguments: Seed(long), TransactionsPerNode(int)
  */
-public class MigrationTestingToolMain implements SwirldMain<MigrationTestingToolState> {
+public class MigrationTestingToolMain extends DefaultSwirldMain<MigrationTestingToolState> {
 
     private static final Logger logger = LogManager.getLogger(MigrationTestingToolMain.class);
 
-    static {
-        try {
-            logger.info(STARTUP.getMarker(), "Registering MigrationTestingToolState with ConstructableRegistry");
-            ConstructableRegistry constructableRegistry = ConstructableRegistry.getInstance();
-            constructableRegistry.registerConstructable(
-                    new ClassConstructorPair(MigrationTestingToolState.class, MigrationTestingToolState::new));
-            registerMerkleStateRootClassIds();
-            logger.info(STARTUP.getMarker(), "MigrationTestingToolState is registered with ConstructableRegistry");
-        } catch (ConstructableRegistryException e) {
-            logger.error(STARTUP.getMarker(), "Failed to register MigrationTestingToolState", e);
-            throw new RuntimeException(e);
-        }
-    }
+    private static final Configuration CONFIGURATION = ConfigurationBuilder.create()
+            .autoDiscoverExtensions()
+            .withSource(new SimpleConfigSource().withValue("merkleDb.initialCapacity", 1000000))
+            .build();
 
     private long seed;
     private int maximumTransactionsPerNode;
@@ -62,7 +55,7 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
     private double toCreate = 0;
     private long lastGenerateTime = System.nanoTime();
 
-    public static final int SOFTWARE_VERSION = 61;
+    public static final int SOFTWARE_VERSION = 65;
     public static final SemanticVersion PREVIOUS_SOFTWARE_VERSION =
             SemanticVersion.newBuilder().major(SOFTWARE_VERSION - 1).build();
     private static final SemanticVersion semanticVersion =
@@ -87,9 +80,6 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
         transPerSecToCreate = parameters.length >= 3 ? Integer.parseInt(parameters[2]) : transPerSecToCreate;
 
         generator = new TransactionGenerator(seed);
-
-        // Initialize application statistics
-        initAppStats();
     }
 
     /**
@@ -127,12 +117,6 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
         }
     }
 
-    private void initAppStats() {
-        // Register Platform data structure statistics
-        FCQueueStatistics.register(platform.getContext().getMetrics());
-        MerkleMapMetrics.register(platform.getContext().getMetrics());
-    }
-
     private void createTransactions() {
         final long now = System.nanoTime();
         final double tps = (double) transPerSecToCreate
@@ -149,7 +133,7 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
 
                 final byte[] transactionData = generator.generateTransaction();
 
-                while (!platform.createTransaction(transactionData)) {
+                while (!getTransactionPool().submitApplicationTransaction(Bytes.wrap(transactionData))) {
                     Thread.sleep(100);
                 }
 
@@ -168,9 +152,23 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
     @NonNull
     @Override
     public MigrationTestingToolState newStateRoot() {
-        final MigrationTestingToolState state = new MigrationTestingToolState();
-        TestingAppStateInitializer.DEFAULT.initStates(state);
+        final MigrationTestingToolState state =
+                new MigrationTestingToolState(CONFIGURATION, new NoOpMetrics(), Time.getCurrent());
+        TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
         return state;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Function<VirtualMap, MigrationTestingToolState> stateRootFromVirtualMap(
+            @NonNull final Metrics metrics, @NonNull final Time time) {
+        return virtualMap -> {
+            final MigrationTestingToolState state = new MigrationTestingToolState(virtualMap, new NoOpMetrics(), time);
+            TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
+            return state;
+        };
     }
 
     @Override
@@ -181,14 +179,18 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
     /**
      * {@inheritDoc}
      */
+    @NonNull
+    @Override
+    public List<Class<? extends Record>> getConfigDataTypes() {
+        return List.of(MigrationTestingToolConfig.class);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
     @Override
     public SemanticVersion getSemanticVersion() {
         return semanticVersion;
-    }
-
-    @Override
-    @NonNull
-    public Bytes encodeSystemTransaction(final @NonNull StateSignatureTransaction transaction) {
-        return StateSignatureTransaction.PROTOBUF.toBytes(transaction);
     }
 }

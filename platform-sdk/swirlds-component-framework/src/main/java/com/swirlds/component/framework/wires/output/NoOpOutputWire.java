@@ -2,6 +2,7 @@
 package com.swirlds.component.framework.wires.output;
 
 import com.swirlds.component.framework.model.TraceableWiringModel;
+import com.swirlds.component.framework.schedulers.ExceptionHandlers;
 import com.swirlds.component.framework.transformers.AdvancedTransformation;
 import com.swirlds.component.framework.wires.SolderType;
 import com.swirlds.component.framework.wires.input.InputWire;
@@ -25,7 +26,7 @@ public class NoOpOutputWire<OUT> extends StandardOutputWire<OUT> {
      * @param name  the name of the output wire
      */
     public NoOpOutputWire(@NonNull final TraceableWiringModel model, @NonNull final String name) {
-        super(model, name);
+        super(model, name, ExceptionHandlers.NOOP_UNCAUGHT_EXCEPTION);
     }
 
     /**

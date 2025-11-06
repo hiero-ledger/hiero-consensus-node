@@ -35,6 +35,7 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.AccountPendingAirdrop;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAirdropStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
@@ -43,6 +44,7 @@ import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableAirdropStore;
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferContextImpl;
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferExecutor;
+import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookCallsFactory;
 import com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator;
 import com.hedera.node.app.service.token.impl.validators.TokenAirdropValidator;
 import com.hedera.node.app.service.token.records.TokenAirdropStreamBuilder;
@@ -82,8 +84,10 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
     @Inject
     public TokenAirdropHandler(
             @NonNull final TokenAirdropValidator validator,
-            @NonNull final CryptoTransferValidator cryptoTransferValidator) {
-        super(cryptoTransferValidator);
+            @NonNull final CryptoTransferValidator cryptoTransferValidator,
+            @NonNull final HookCallsFactory hookCallsFactory,
+            @NonNull final EntityIdFactory entityIdFactory) {
+        super(cryptoTransferValidator, hookCallsFactory, entityIdFactory);
         this.validator = validator;
     }
 
@@ -250,10 +254,11 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
             case ED25519 -> true;
             case RSA_3072 -> false;
             case ECDSA_384 -> false;
-            case THRESHOLD_KEY -> key.thresholdKeyOrThrow().keysOrThrow().keys().stream()
-                            .filter(TokenAirdropHandler::canClaimAirdrop)
-                            .count()
-                    >= key.thresholdKeyOrThrow().threshold();
+            case THRESHOLD_KEY ->
+                key.thresholdKeyOrThrow().keysOrThrow().keys().stream()
+                                .filter(TokenAirdropHandler::canClaimAirdrop)
+                                .count()
+                        >= key.thresholdKeyOrThrow().threshold();
             case KEY_LIST -> key.keyListOrThrow().keys().stream().allMatch(TokenAirdropHandler::canClaimAirdrop);
             case ECDSA_SECP256K1 -> true;
             case DELEGATABLE_CONTRACT_ID -> false;

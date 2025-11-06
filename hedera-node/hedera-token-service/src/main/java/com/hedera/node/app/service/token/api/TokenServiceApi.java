@@ -5,13 +5,15 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.function.LongConsumer;
@@ -39,13 +41,15 @@ public interface TokenServiceApi {
      * @param obtainerId the id of the account to transfer the remaining hbar balance to
      * @param expiryValidator the expiry validator to use
      * @param recordBuilder the record builder to record the transfer in
+     * @param accountNodeRelStore readable store to validate account node relation
      * @throws HandleException if the account could not be deleted for some reason
      */
     void deleteAndTransfer(
             @NonNull AccountID deletedId,
             @NonNull AccountID obtainerId,
             @NonNull ExpiryValidator expiryValidator,
-            @NonNull DeleteCapableTransactionStreamBuilder recordBuilder);
+            @NonNull DeleteCapableTransactionStreamBuilder recordBuilder,
+            @NonNull ReadableAccountNodeRelStore accountNodeRelStore);
 
     /**
      * Validates the creation of a given staking election relative to the given account store, network info,
@@ -157,18 +161,25 @@ public interface TokenServiceApi {
     void updateStorageMetadata(@NonNull ContractID contractID, @NonNull Bytes firstKey, int netChangeInSlotsUsed);
 
     /**
+     * Updates the total lambda storage usage for the given account.
+     * @param accountId the id of the account whose lambda storage slots should be updated
+     * @param netChangeInSlotsUsed the net change in the number of lambda storage slots used by the account
+     */
+    void updateLambdaStorageSlots(@NonNull AccountID accountId, int netChangeInSlotsUsed);
+
+    /**
      * Charges the payer the given network fee, and records that fee in the given record builder.
      *
      * @param payer the id of the account that should be charged
      * @param amount the amount to charge
-     * @param recordBuilder the record builder to record the fees in
+     * @param streamBuilder the record builder to record the fees in
      * @param cb if not null, a callback to receive the fee disbursements
      * @return the total fees charged
      */
     Fees chargeFee(
             @NonNull AccountID payer,
             long amount,
-            @NonNull FeeStreamBuilder recordBuilder,
+            @NonNull StreamBuilder streamBuilder,
             @Nullable ObjLongConsumer<AccountID> cb);
 
     /**

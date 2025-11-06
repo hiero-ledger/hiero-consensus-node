@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hapi;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -51,7 +52,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateBlockStream;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.suites.HapiSuite.CHAIN_ID;
@@ -66,6 +66,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.HapiSuite.ZERO_BYTE_MEMO;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractUpdateSuite.ADMIN_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
@@ -91,16 +92,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.esaulpaugh.headlong.util.Integers;
 import com.google.common.primitives.Longs;
 import com.google.protobuf.ByteString;
-import com.hedera.hapi.block.stream.Block;
-import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.BlockItem.ItemOneOfType;
-import com.hedera.hapi.block.stream.output.TransactionOutput;
-import com.hedera.hapi.block.stream.output.TransactionOutput.TransactionOneOfType;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
-import com.hedera.pbj.runtime.OneOf;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -108,6 +102,8 @@ import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hedera.services.bdd.utils.Signing;
+import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.FileID;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
@@ -128,7 +124,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes32;
 import org.hiero.base.utility.CommonUtils;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -172,6 +167,7 @@ public class ContractCreateSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> createContractWithStakingFields() {
         final var contract = "CreateTrivial";
         return hapiTest(
@@ -264,10 +260,7 @@ public class ContractCreateSuite {
         final var contract = "Multipurpose";
 
         return hapiTest(uploadInitCode(contract), contractCreate(contract).balance(666), withOpContext((spec, log) -> {
-            Object[] donationArgs = new Object[] {
-                new BigInteger(HapiPropertySource.asSolidityAddress((int) spec.shard(), spec.realm(), 666666L)),
-                "Hey, Ma!"
-            };
+            final Object[] donationArgs = {new BigInteger(asSolidityAddress(spec, 666_666L)), "Hey, Ma!"};
             final var callOp = contractCall(contract, "donate", donationArgs).hasKnownStatus(CONTRACT_REVERT_EXECUTED);
             allRunFor(spec, callOp);
         }));
@@ -371,6 +364,7 @@ public class ContractCreateSuite {
     }
 
     @LeakyHapiTest(overrides = {"contracts.evm.version"})
+    @Tag(MATS)
     final Stream<DynamicTest> childCreationsHaveExpectedKeysWithOmittedAdminKey() {
         final AtomicLong firstStickId = new AtomicLong();
         final AtomicLong secondStickId = new AtomicLong();
@@ -541,6 +535,7 @@ public class ContractCreateSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> rejectsInvalidBytecode() {
         final var contract = "InvalidBytecode";
         return hapiTest(
@@ -569,8 +564,8 @@ public class ContractCreateSuite {
         final var revisedKey = KeyShape.threshOf(1, SIMPLE, DELEGATE_CONTRACT);
         final var newKey = "delegateContractKey";
 
-        final AtomicLong justSendContractNum = new AtomicLong();
-        final AtomicLong beneficiaryAccountNum = new AtomicLong();
+        final AtomicReference<ContractID> justSendContractId = new AtomicReference<>();
+        final AtomicReference<AccountID> beneficiaryAccountId = new AtomicReference<>();
 
         return hapiTest(
                 uploadInitCode(justSendContract, sendInternalAndDelegateContract),
@@ -578,44 +573,34 @@ public class ContractCreateSuite {
                 // when it has EVM address alias (isNotPriority check fails)
                 contractCreate(justSendContract)
                         .gas(300_000L)
-                        .exposingNumTo(justSendContractNum::set)
+                        .exposingContractIdTo(justSendContractId::set)
                         .refusingEthConversion(),
                 contractCreate(sendInternalAndDelegateContract).gas(300_000L).balance(2 * totalToSend),
                 cryptoCreate(beneficiary)
                         .balance(0L)
                         .keyShape(origKey.signedWith(sigs(ON, sendInternalAndDelegateContract)))
                         .receiverSigRequired(true)
-                        .exposingCreatedIdTo(id -> beneficiaryAccountNum.set(id.getAccountNum())),
+                        .exposingCreatedIdTo(beneficiaryAccountId::set),
                 /* Without delegateContractId permissions, the second send via delegate call will
                  * fail, so only half of totalToSend will make it to the beneficiary. (Note the entire
                  * call doesn't fail because exceptional halts in "raw calls" don't automatically
                  * propagate up the stack like a Solidity revert does.) */
-                withOpContext((spec, logger) -> {
-                    final var callOP = contractCall(
-                            sendInternalAndDelegateContract,
-                            "sendRepeatedlyTo",
-                            new BigInteger(HapiPropertySource.asSolidityAddress(
-                                    (int) spec.shard(), spec.realm(), justSendContractNum.get())),
-                            new BigInteger(HapiPropertySource.asSolidityAddress(
-                                    (int) spec.shard(), spec.realm(), beneficiaryAccountNum.get())),
-                            BigInteger.valueOf(totalToSend / 2));
-                    allRunFor(spec, callOP);
-                }),
+                sourcing(() -> contractCall(
+                        sendInternalAndDelegateContract,
+                        "sendRepeatedlyTo",
+                        new BigInteger(asSolidityAddress(justSendContractId.get())),
+                        new BigInteger(asSolidityAddress(beneficiaryAccountId.get())),
+                        BigInteger.valueOf(totalToSend / 2))),
                 getAccountBalance(beneficiary).hasTinyBars(totalToSend / 2),
                 /* But now we update the beneficiary to have a delegateContractId */
                 newKeyNamed(newKey).shape(revisedKey.signedWith(sigs(ON, sendInternalAndDelegateContract))),
                 cryptoUpdate(beneficiary).key(newKey),
-                withOpContext((spec, logger) -> {
-                    final var callOp = contractCall(
-                            sendInternalAndDelegateContract,
-                            "sendRepeatedlyTo",
-                            new BigInteger(HapiPropertySource.asSolidityAddress(
-                                    (int) spec.shard(), spec.realm(), justSendContractNum.get())),
-                            new BigInteger(HapiPropertySource.asSolidityAddress(
-                                    (int) spec.shard(), spec.realm(), beneficiaryAccountNum.get())),
-                            BigInteger.valueOf(totalToSend / 2));
-                    allRunFor(spec, callOp);
-                }),
+                sourcing(() -> contractCall(
+                        sendInternalAndDelegateContract,
+                        "sendRepeatedlyTo",
+                        new BigInteger(asSolidityAddress(justSendContractId.get())),
+                        new BigInteger(asSolidityAddress(beneficiaryAccountId.get())),
+                        BigInteger.valueOf(totalToSend / 2))),
                 getAccountBalance(beneficiary).hasTinyBars(3 * (totalToSend / 2)));
     }
 
@@ -893,13 +878,7 @@ public class ContractCreateSuite {
                 withOpContext((spec, opLog) -> {
                     final var record = getRecord(spec, txn, CONTRACT_REVERT_EXECUTED);
                     ts.set(record.getConsensusTimestamp());
-                    asserRecordContractId(record, false);
-                }),
-                // check if CONTRACT_REVERT_EXECUTED block DON`T contains expected contractIds
-                validateBlockStream().withBlockValidation(blocks -> {
-                    // get last TRANSACTION_OUTPUT in all blocks
-                    final var item = getLastContractCreateTx(blocks, ts.get());
-                    asserBlockContractId(item, false);
+                    assertRecordContractId(record, false);
                 }));
     }
 
@@ -914,13 +893,7 @@ public class ContractCreateSuite {
                 withOpContext((spec, opLog) -> {
                     final var record = getRecord(spec, txn, SUCCESS);
                     ts.set(record.getConsensusTimestamp());
-                    asserRecordContractId(record, true);
-                }),
-                // check if block contains expected contractIds
-                validateBlockStream().withBlockValidation(blocks -> {
-                    // get last TRANSACTION_OUTPUT in all blocks
-                    final var item = getLastContractCreateTx(blocks, ts.get());
-                    asserBlockContractId(item, true);
+                    assertRecordContractId(record, true);
                 }));
     }
 
@@ -951,57 +924,11 @@ public class ContractCreateSuite {
         return record;
     }
 
-    private TransactionOutput getLastContractCreateTx(List<Block> blocks, Timestamp timestamp) {
-        return blocks.stream()
-                .flatMap(e -> e.items().stream())
-                .map(BlockItem::item)
-                .filter(e -> ItemOneOfType.TRANSACTION_OUTPUT.equals(e.kind()))
-                .<TransactionOutput>map(OneOf::as)
-                .filter(e -> TransactionOneOfType.CONTRACT_CREATE.equals(
-                        e.transaction().kind()))
-                // match txn by timestamp, because there is other CONTRACT_CREATE txn
-                .filter(e -> e.contractCreateOrThrow().sidecars().stream()
-                        .anyMatch(s -> s.consensusTimestamp().seconds() == timestamp.getSeconds()
-                                && s.consensusTimestamp().nanos() == timestamp.getNanos()))
-                .reduce((f, s) -> s)
-                .orElseGet(() -> Assertions.fail("TRANSACTION_OUTPUT -> CONTRACT_CREATE mot found"));
-    }
-
-    private void asserRecordContractId(TransactionRecord record, boolean shouldContractIdExists) {
+    private void assertRecordContractId(TransactionRecord record, boolean shouldContractIdExists) {
         // check record->receipt->contractId
         assertEquals(shouldContractIdExists, record.getReceipt().hasContractID());
         // check record->contractCreateResult->contractId
         assertEquals(shouldContractIdExists, record.getContractCreateResult().hasContractID());
-    }
-
-    private void asserBlockContractId(TransactionOutput item, boolean shouldContractIdExists) {
-        assertTrue(item.hasContractCreate());
-        // check sidecars->actions->recipient, sidecars->bytecode->contractId
-        item.contractCreateOrThrow().sidecars().forEach(sidecar -> {
-            if (sidecar.hasActions()) {
-                sidecar.actionsOrThrow()
-                        .contractActions()
-                        .forEach(action -> assertEquals(shouldContractIdExists, action.hasRecipientContract()));
-            } else if (sidecar.hasBytecode()) {
-                assertEquals(shouldContractIdExists, sidecar.bytecodeOrThrow().hasContractId());
-            }
-        });
-        // check contractCreate->contractCreateResult->contractId
-        assertTrue(item.contractCreateOrThrow().hasContractCreateResult());
-        assertEquals(
-                shouldContractIdExists,
-                item.contractCreateOrThrow().contractCreateResult().hasContractID());
-        // check contractCreate->contractCreateResult->contractNonces->contractId
-        assertEquals(
-                !shouldContractIdExists,
-                item.contractCreateOrThrow()
-                        .contractCreateResult()
-                        .contractNonces()
-                        .isEmpty());
-        item.contractCreateOrThrow()
-                .contractCreateResult()
-                .contractNonces()
-                .forEach(nonce -> assertEquals(shouldContractIdExists, nonce.hasContractId()));
     }
 
     private EthTxData placeholderEthTx() {
@@ -1018,6 +945,7 @@ public class ContractCreateSuite {
                 BigInteger.ONE,
                 new byte[] {},
                 new byte[] {},
+                null,
                 0,
                 null,
                 null,

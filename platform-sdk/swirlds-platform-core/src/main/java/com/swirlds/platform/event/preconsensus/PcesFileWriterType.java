@@ -17,6 +17,7 @@ public enum PcesFileWriterType {
 
     /**
      * Creates the right instance of the PcesFileWriter for the type represented by this enum
+     *
      * @param path the path to the file to write to
      * @return the writer for writing PCES files
      * @throws IOException in case of error when creating the writer

@@ -168,6 +168,19 @@ public class RandomRosterBuilder {
     }
 
     /**
+     * Convenience method to retrieve the private keys for a node using HAPI NodeId.
+     * This method internally converts the HAPI NodeId to the platform-specific NodeId format.
+     *
+     * @param nodeId the node id
+     * @return the private keys
+     * @see RandomRosterBuilder#getPrivateKeys(NodeId)
+     */
+    @NonNull
+    public KeysAndCerts getPrivateKeys(@NonNull final com.hedera.hapi.platform.state.NodeId nodeId) {
+        return getPrivateKeys(NodeId.of(nodeId.id()));
+    }
+
+    /**
      * Get the private keys for a node. Should only be called after the roster has been built and only if
      * {@link #withRealKeysEnabled(boolean)} was set to true.
      *

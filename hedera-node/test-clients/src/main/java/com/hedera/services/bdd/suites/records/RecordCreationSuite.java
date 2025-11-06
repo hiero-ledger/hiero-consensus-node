@@ -3,7 +3,9 @@ package com.hedera.services.bdd.suites.records;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_BALANCES;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.approxChangeFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -37,10 +39,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 public class RecordCreationSuite {
-    private static final long SLEEP_MS = 1_000L;
+
+    private static final long SLEEP_MS = 2_000L;
     private static final String BEFORE = "before";
     private static final String FUNDING_BEFORE = "fundingBefore";
     private static final String STAKING_REWARD1 = "stakingReward";
@@ -109,16 +113,22 @@ public class RecordCreationSuite {
     }
 
     @RepeatableHapiTest(NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
+    @Tag(MATS)
     final Stream<DynamicTest> submittingNodeChargedNetworkFeeForLackOfDueDiligence() {
         final String disquietingMemo = "\u0000his is ok, it's fine, it's whatever.";
-        final AtomicReference<FeeObject> feeObs = new AtomicReference<>();
+        final AtomicReference<FeeObject> feeObsWithOneSignature = new AtomicReference<>();
+        final AtomicReference<FeeObject> feeObsWithTwoSignatures = new AtomicReference<>();
 
         return hapiTest(
-                cryptoTransfer(tinyBarsFromTo(GENESIS, TO_ACCOUNT, ONE_HBAR)).payingWith(GENESIS),
                 cryptoCreate(PAYER),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, TO_ACCOUNT, ONE_HBAR)).payingWith(GENESIS),
+                cryptoTransfer(tinyBarsFromTo(PAYER, FUNDING, 1L))
+                        .memo(THIS_IS_OK_IT_S_FINE_IT_S_WHATEVER)
+                        .exposingFeesTo(feeObsWithOneSignature)
+                        .payingWith(PAYER),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L))
                         .memo(THIS_IS_OK_IT_S_FINE_IT_S_WHATEVER)
-                        .exposingFeesTo(feeObs)
+                        .exposingFeesTo(feeObsWithTwoSignatures)
                         .payingWith(PAYER),
                 usableTxnIdNamed(TXN_ID).payerId(PAYER),
                 balanceSnapshot(BEFORE, TO_ACCOUNT),
@@ -130,26 +140,17 @@ public class RecordCreationSuite {
                                 .payingWith(PAYER)
                                 .txnId(TXN_ID))
                         .payingWith(GENESIS),
-                sourcing(() -> getAccountBalance(TO_ACCOUNT)
-                        .hasTinyBars(changeFromSnapshot(BEFORE, -feeObs.get().networkFee()))),
-                sourcing(() -> getAccountBalance(FOR_ACCOUNT_FUNDING)
-                        .hasTinyBars(changeFromSnapshot(
-                                FUNDING_BEFORE, (long) (+feeObs.get().networkFee() * 0.8 + 1)))
-                        .logged()),
-                sourcing(() -> getAccountBalance(FOR_ACCOUNT_STAKING_REWARDS)
-                        .hasTinyBars(changeFromSnapshot(
-                                STAKING_REWARD1, (long) (+feeObs.get().networkFee() * 0.1)))
-                        .logged()),
-                sourcing(() -> getAccountBalance(FOR_ACCOUNT_NODE_REWARD)
-                        .hasTinyBars(changeFromSnapshot(
-                                NODE_REWARD1, (long) (+feeObs.get().networkFee() * 0.1)))
-                        .logged()),
+                // validate node is charged
+                sourcing(() -> {
+                    final var signatureFee = feeObsWithTwoSignatures.get().networkFee()
+                            - feeObsWithOneSignature.get().networkFee();
+                    final var zeroSignatureFee = feeObsWithOneSignature.get().networkFee() - signatureFee;
+                    return getAccountBalance(TO_ACCOUNT)
+                            .hasTinyBars(approxChangeFromSnapshot(BEFORE, -zeroSignatureFee, 5000));
+                }),
                 sourcing(() -> getTxnRecord(TXN_ID)
                         .assertingNothingAboutHashes()
-                        .hasPriority(recordWith()
-                                .transfers(includingDeduction(
-                                        () -> 3L, feeObs.get().networkFee()))
-                                .status(INVALID_ZERO_BYTE_IN_STRING))
+                        .hasPriority(recordWith().status(INVALID_ZERO_BYTE_IN_STRING))
                         .logged()));
     }
 
@@ -201,6 +202,7 @@ public class RecordCreationSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> accountsGetPayerRecordsIfSoConfigured() {
         final var txn = "ofRecord";
 

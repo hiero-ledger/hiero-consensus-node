@@ -10,12 +10,11 @@ import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
-import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
 import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.ServicesInjectionModule;
 import com.hedera.node.app.spi.AppContext;
-import com.hedera.node.app.spi.throttle.Throttle;
+import com.hedera.node.app.spi.throttle.ScheduleThrottle;
 import com.hedera.node.app.state.HederaStateInjectionModule;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.throttle.ThrottleServiceModule;
@@ -31,7 +30,6 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import dagger.BindsInstance;
 import dagger.Component;
-import java.util.function.Consumer;
 import javax.inject.Singleton;
 
 /**
@@ -55,9 +53,6 @@ public interface ExecutorComponent {
     interface Builder {
         @BindsInstance
         Builder fileServiceImpl(FileServiceImpl fileService);
-
-        @BindsInstance
-        Builder scheduleService(ScheduleService scheduleService);
 
         @BindsInstance
         Builder contractServiceImpl(ContractServiceImpl contractService);
@@ -87,7 +82,7 @@ public interface ExecutorComponent {
         Builder metrics(Metrics metrics);
 
         @BindsInstance
-        Builder throttleFactory(Throttle.Factory throttleFactory);
+        Builder throttleFactory(ScheduleThrottle.Factory throttleFactory);
 
         @BindsInstance
         Builder appContext(AppContext appContext);
@@ -95,7 +90,7 @@ public interface ExecutorComponent {
         ExecutorComponent build();
     }
 
-    Consumer<State> initializer();
+    FacilityInitModule.FacilityInitializer initializer();
 
     AppFeeCharging appFeeCharging();
 

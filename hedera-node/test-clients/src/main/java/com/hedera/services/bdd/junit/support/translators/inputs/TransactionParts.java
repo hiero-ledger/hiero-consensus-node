@@ -35,28 +35,56 @@ public record TransactionParts(
 
     /**
      * Constructs a {@link TransactionParts} from a serialized {@link Transaction}.
-     * @param serializedTransaction the serialized transaction to convert
+     * @param serializedSignedTx the serialized transaction to convert
      * @return the constructed parts
      * @throws IllegalArgumentException if the transaction is invalid
      */
-    public static TransactionParts from(@NonNull final Bytes serializedTransaction) {
+    public static TransactionParts from(@NonNull final Bytes serializedSignedTx) {
         try {
-            final var transaction = Transaction.PROTOBUF.parse(serializedTransaction);
-            final var bodyBytes = bodyBytesOf(transaction);
-            final var body = TransactionBody.PROTOBUF.parse(bodyBytes);
-            return new TransactionParts(transaction, body, functionOf(body));
+            final var signedTx = SignedTransaction.PROTOBUF.parse(serializedSignedTx);
+            final Transaction wrapper;
+            if (signedTx.useSerializedTxMessageHashAlgorithm()) {
+                wrapper = Transaction.newBuilder()
+                        .bodyBytes(signedTx.bodyBytes())
+                        .sigMap(signedTx.sigMap())
+                        .build();
+            } else {
+                wrapper = Transaction.newBuilder()
+                        .signedTransactionBytes(serializedSignedTx)
+                        .build();
+            }
+            final var body = TransactionBody.PROTOBUF.parse(signedTx.bodyBytes());
+            return new TransactionParts(wrapper, body, functionOf(body));
         } catch (ParseException | UnknownHederaFunctionality e) {
             // Fail immediately with invalid transactions that should not be in any production record stream
             throw new IllegalArgumentException(e);
         }
     }
 
-    private static Bytes bodyBytesOf(final Transaction txn) throws ParseException {
-        if (txn.signedTransactionBytes().length() > 0) {
-            final var signedTxn = SignedTransaction.PROTOBUF.parse(txn.signedTransactionBytes());
-            return signedTxn.bodyBytes();
-        } else {
-            return txn.bodyBytes();
+    /**
+     * Constructs a {@link TransactionParts} from a serialized {@link Transaction}.
+     * @param signedTx the signed transaction to convert
+     * @return the constructed parts
+     * @throws IllegalArgumentException if the transaction is invalid
+     */
+    public static TransactionParts from(@NonNull final SignedTransaction signedTx) {
+        try {
+            final Transaction wrapper;
+            if (signedTx.useSerializedTxMessageHashAlgorithm()) {
+                wrapper = Transaction.newBuilder()
+                        .bodyBytes(signedTx.bodyBytes())
+                        .sigMap(signedTx.sigMap())
+                        .build();
+            } else {
+                wrapper = Transaction.newBuilder()
+                        .signedTransactionBytes(SignedTransaction.PROTOBUF.toBytes(signedTx))
+                        .build();
+            }
+            final var body = TransactionBody.PROTOBUF.parse(signedTx.bodyBytes());
+            return new TransactionParts(wrapper, body, functionOf(body));
+        } catch (ParseException | UnknownHederaFunctionality e) {
+            // Fail immediately with invalid transactions that should not be in any production record stream
+            throw new IllegalArgumentException(e);
         }
     }
 }

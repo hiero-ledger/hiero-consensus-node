@@ -4,16 +4,12 @@ package com.hedera.services.bdd.suites.integration;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.hapi.util.HapiUtils.ACCOUNT_ID_COMPARATOR;
-import static com.hedera.node.app.roster.schemas.V0540RosterSchema.ROSTER_KEY;
-import static com.hedera.node.app.roster.schemas.V0540RosterSchema.ROSTER_STATES_KEY;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MANIPULATES_EVENT_VERSION;
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.CLASSIC_HAPI_TEST_NETWORK_SIZE;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
-import static com.hedera.services.bdd.junit.hedera.embedded.SyntheticVersion.PAST;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.CLASSIC_NODE_NAMES;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classicFeeCollectorIdFor;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
@@ -41,7 +37,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.prepareUpgrade;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.updateSpecialFile;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usingVersion;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usingEventBirthRound;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlock;
 import static com.hedera.services.bdd.spec.utilops.upgrade.BuildUpgradeZipOp.FAKE_UPGRADE_ZIP_LOC;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -54,9 +50,12 @@ import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.FAKE_
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgradeFileAppendsPerBurst;
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgradeFileHashAt;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
+import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_ID;
+import static org.hiero.consensus.roster.RosterStateId.ROSTER_STATE_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.block.stream.BlockItem;
@@ -68,14 +67,12 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
-import com.hedera.node.app.roster.RosterService;
+import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.GenesisHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
-import com.hedera.services.bdd.junit.hedera.embedded.SyntheticVersion;
 import com.hedera.services.bdd.spec.dsl.annotations.NonFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
@@ -132,7 +129,7 @@ public class ConcurrentIntegrationTests {
                 getAccountInfo("hollowAccount").isNotHollow());
     }
 
-    @LeakyHapiTest(overrides = {"ledger.nftTransfers.maxLen"})
+    @HapiTest
     final Stream<DynamicTest> chargedFeesReplayedAfterBatchFailure(
             @NonFungibleToken(numPreMints = 10) SpecNonFungibleToken nftOne,
             @NonFungibleToken(numPreMints = 10) SpecNonFungibleToken nftTwo) {
@@ -190,7 +187,8 @@ public class ConcurrentIntegrationTests {
                                                         "operator",
                                                         nftTwo.treasury().name()))
                                         .batchKey("operator")
-                                        .payingWith("operator"))
+                                        .payingWith("operator")
+                                        .hasKnownStatus(BATCH_SIZE_LIMIT_EXCEEDED))
                         .signedByPayerAnd("operator")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 getAccountRecords("operator").exposingTo(records -> {
@@ -214,8 +212,8 @@ public class ConcurrentIntegrationTests {
                 blockStreamMustIncludePassFrom(spec -> blockWithResultOf(BUSY)),
                 cryptoCreate("somebody").balance(0L),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, "somebody", ONE_HBAR))
-                        .setNode(asEntityString(4))
-                        .withSubmissionStrategy(usingVersion(PAST))
+                        .setNode(4)
+                        .withSubmissionStrategy(usingEventBirthRound(-1))
                         .hasKnownStatus(com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY),
                 getAccountBalance("somebody").hasTinyBars(0L),
                 // Trigger block closure to ensure block is closed
@@ -227,9 +225,9 @@ public class ConcurrentIntegrationTests {
     final Stream<DynamicTest> completelySkipsTransactionFromUnknownNode() {
         return hapiTest(
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, ONE_HBAR))
-                        .setNode(asEntityString(666))
+                        .setNode(666)
                         .via("toBeSkipped")
-                        .withSubmissionStrategy(usingVersion(SyntheticVersion.PRESENT))
+                        .withSubmissionStrategy(usingEventBirthRound(55L))
                         .hasAnyStatusAtAll(),
                 getTxnRecord("toBeSkipped").hasAnswerOnlyPrecheck(RECORD_NOT_FOUND));
     }
@@ -261,9 +259,8 @@ public class ConcurrentIntegrationTests {
         final AtomicReference<ProtoBytes> candidateRosterHash = new AtomicReference<>();
         return hapiTest(
                 // Add a node to the candidate roster
-                nodeCreate("node4")
+                nodeCreate("node4", classicFeeCollectorIdFor(4))
                         .adminKey(DEFAULT_PAYER)
-                        .accountNum(classicFeeCollectorIdFor(4))
                         .description(CLASSIC_NODE_NAMES[4])
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 mutateNode("4", node -> node.weight(123)),
@@ -289,11 +286,11 @@ public class ConcurrentIntegrationTests {
                 // Verify the candidate roster is set as part of handling the PREPARE_UPGRADE
                 viewSingleton(
                         RosterService.NAME,
-                        ROSTER_STATES_KEY,
+                        ROSTER_STATE_STATE_ID,
                         (RosterState rosterState) ->
                                 candidateRosterHash.set(new ProtoBytes(rosterState.candidateRosterHash()))),
-                sourcing(() ->
-                        viewMappedValue(RosterService.NAME, ROSTER_KEY, candidateRosterHash.get(), (Roster roster) -> {
+                sourcing(() -> viewMappedValue(
+                        RosterService.NAME, ROSTERS_STATE_ID, candidateRosterHash.get(), (Roster roster) -> {
                             final var entries = roster.rosterEntries();
                             assertEquals(
                                     CLASSIC_HAPI_TEST_NETWORK_SIZE + 1,

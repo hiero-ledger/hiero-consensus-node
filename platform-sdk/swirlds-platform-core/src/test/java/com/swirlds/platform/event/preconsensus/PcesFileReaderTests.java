@@ -4,8 +4,6 @@ package com.swirlds.platform.event.preconsensus;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertIteratorEquality;
 import static com.swirlds.platform.event.preconsensus.PcesFileManager.NO_LOWER_BOUND;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
-import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -28,15 +26,11 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.Stream;
-import org.hiero.consensus.model.event.AncientMode;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 
 @DisplayName("PcesFileReader Tests")
 class PcesFileReaderTests {
@@ -70,24 +64,15 @@ class PcesFileReaderTests {
         FileUtils.deleteDirectory(fileSystemDirectory);
     }
 
-    static Stream<Arguments> ancientModes() {
-        return Stream.of(Arguments.of(GENERATION_THRESHOLD), Arguments.of(BIRTH_ROUND_THRESHOLD));
-    }
-
-    @ParameterizedTest
-    @MethodSource("ancientModes")
+    @Test
     @DisplayName("Read Files In Order Test")
-    void readFilesInOrderTest(@NonNull final AncientMode ancientMode) throws IOException {
-        final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
+    void readFilesInOrderTest() throws IOException {
+        final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(random, fileDirectory)
                 .build()
                 .generate();
-
+        final PlatformContext context = TestPlatformContexts.context(dataDir, fileSystemDirectory);
         final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
-                TestPlatformContexts.context(ancientMode, dataDir, fileSystemDirectory),
-                fileDirectory,
-                0,
-                false,
-                ancientMode);
+                context.getConfiguration(), context.getRecycleBin(), fileDirectory, 0, false);
 
         final List<PcesFile> expectedFiles = pcesFilesGeneratorResult.files();
         assertIteratorEquality(expectedFiles.iterator(), fileTracker.getFileIterator(NO_LOWER_BOUND, 0));
@@ -101,58 +86,51 @@ class PcesFileReaderTests {
                 expectedFiles.iterator(), fileTracker.getFileIterator(pcesFilesGeneratorResult.nonExistentValue(), 0));
     }
 
-    @ParameterizedTest
-    @MethodSource("ancientModes")
+    @Test
     @DisplayName("Read Files In Order With Gap allowed Test")
-    void readFilesInOrderGapTest(@NonNull final AncientMode ancientMode) throws IOException {
-        final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
+    void readFilesInOrderGapTest() throws IOException {
+        final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(random, fileDirectory)
                 .introduceGapHalfway()
                 .build()
                 .generate();
         final List<PcesFile> expectedFiles = pcesFilesGeneratorResult.files();
 
-        final PlatformContext platformContext =
-                TestPlatformContexts.context(true, ancientMode, dataDir, fileSystemDirectory);
+        final PlatformContext context = TestPlatformContexts.context(true, dataDir, fileSystemDirectory);
 
-        final PcesFileTracker fileTracker =
-                PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, true, ancientMode);
+        final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
+                context.getConfiguration(), context.getRecycleBin(), fileDirectory, 0, true);
         // Gaps are allowed. We should see all files except for the one that was skipped.
         assertIteratorEquality(expectedFiles.iterator(), fileTracker.getFileIterator(NO_LOWER_BOUND, 0));
     }
 
-    @ParameterizedTest
-    @MethodSource("ancientModes")
+    @Test
     @DisplayName("Read Files In Order Gap Not allowed Test")
-    void readFilesInOrderGapsNotAllowedTest(@NonNull final AncientMode ancientMode) throws IOException {
-        PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
+    void readFilesInOrderGapsNotAllowedTest() throws IOException {
+        PcesTestFilesGenerator.Builder.create(random, fileDirectory)
                 .introduceGapHalfway()
                 .build()
                 .generate();
 
-        final PlatformContext platformContext =
-                TestPlatformContexts.context(false, ancientMode, dataDir, fileSystemDirectory);
+        final PlatformContext platformContext = TestPlatformContexts.context(false, dataDir, fileSystemDirectory);
 
         // Gaps are not allowed.
         assertThrows(
                 IllegalStateException.class,
-                () -> PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, false, ancientMode));
+                () -> PcesFileReader.readFilesFromDisk(
+                        platformContext.getConfiguration(), platformContext.getRecycleBin(), fileDirectory, 0, false));
     }
 
-    @ParameterizedTest
-    @MethodSource("ancientModes")
+    @Test
     @DisplayName("Read Files From Middle Test")
-    void readFilesFromMiddleTest(@NonNull final AncientMode ancientMode) throws IOException {
-        final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
+    void readFilesFromMiddleTest() throws IOException {
+        final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(random, fileDirectory)
                 .build()
                 .generate();
         final List<PcesFile> expectedFiles = pcesFilesGeneratorResult.files();
 
+        final PlatformContext context = TestPlatformContexts.context(dataDir, fileSystemDirectory);
         final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
-                TestPlatformContexts.context(ancientMode, dataDir, fileSystemDirectory),
-                fileDirectory,
-                0,
-                false,
-                ancientMode);
+                context.getConfiguration(), context.getRecycleBin(), fileDirectory, 0, false);
 
         // For this test, we want to iterate over files so that we are guaranteed to observe every event
         // with an ancient indicator greater than or equal to the target threshold. Choose an ancient indicator
@@ -192,23 +170,19 @@ class PcesFileReaderTests {
      * high probability. Not a scenario we are likely to encounter in production, but it's a tricky edge case we need to
      * handle elegantly.
      */
-    @ParameterizedTest
-    @MethodSource("ancientModes")
+    @Test
     @DisplayName("Read Files From Middle Repeating Boundaries Test")
-    void readFilesFromMiddleRepeatingBoundariesTest(@NonNull final AncientMode ancientMode) throws IOException {
-        final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
+    void readFilesFromMiddleRepeatingBoundariesTest() throws IOException {
+        final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(random, fileDirectory)
                 // Advance the bounds only 10% of the time
                 .withAdvanceBoundsStrategy(i -> random.nextLong() < 0.1)
                 .build()
                 .generate();
         final List<PcesFile> expectedFiles = pcesFilesGeneratorResult.files();
 
+        final PlatformContext context = TestPlatformContexts.context(dataDir, fileSystemDirectory);
         final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
-                TestPlatformContexts.context(ancientMode, dataDir, fileSystemDirectory),
-                fileDirectory,
-                0,
-                false,
-                ancientMode);
+                context.getConfiguration(), context.getRecycleBin(), fileDirectory, 0, false);
 
         // For this test, we want to iterate over files so that we are guaranteed to observe every event
         // with an ancient indicator greater than or equal to the target. Choose an ancient indicator that falls
@@ -243,21 +217,17 @@ class PcesFileReaderTests {
         assertIteratorEquality(remainingFiles.iterator(), iteratedFiles.iterator());
     }
 
-    @ParameterizedTest
-    @MethodSource("ancientModes")
+    @Test
     @DisplayName("Read Files From High ancient indicator Test")
-    void readFilesFromHighAncientIdentifierTest(@NonNull final AncientMode ancientMode) throws IOException {
-        final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
+    void readFilesFromHighAncientIdentifierTest() throws IOException {
+        final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(random, fileDirectory)
                 .build()
                 .generate();
         final List<PcesFile> expectedFiles = pcesFilesGeneratorResult.files();
 
+        final PlatformContext context = TestPlatformContexts.context(dataDir, fileSystemDirectory);
         final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
-                TestPlatformContexts.context(ancientMode, dataDir, fileSystemDirectory),
-                fileDirectory,
-                0,
-                false,
-                ancientMode);
+                context.getConfiguration(), context.getRecycleBin(), fileDirectory, 0, false);
 
         // Request an ancient indicator higher than all files in the data store
         final long targetAncientIdentifier = expectedFiles.getLast().getUpperBound() + 1;
@@ -266,57 +236,58 @@ class PcesFileReaderTests {
         assertFalse(iterator.hasNext());
     }
 
-    @ParameterizedTest
-    @MethodSource("ancientModes")
+    @Test
     @DisplayName("Read Files From Empty Stream Test")
-    void readFilesFromEmptyStreamTest(@NonNull final AncientMode ancientMode) {
+    void readFilesFromEmptyStreamTest() {
+        final PlatformContext context = TestPlatformContexts.context(dataDir, fileSystemDirectory);
         assertThrows(
                 NoSuchFileException.class,
                 () -> PcesFileReader.readFilesFromDisk(
-                        TestPlatformContexts.context(ancientMode, dataDir, fileSystemDirectory),
-                        fileDirectory,
-                        0,
-                        false,
-                        ancientMode));
+                        context.getConfiguration(), context.getRecycleBin(), fileDirectory, 0, false));
     }
 
     /**
-     *  Given that allowing gaps or discontinuities in the origin block of the PcesFile is likely to either lead to ISSes or, more likely, cause
-     *  events to be added to the hashgraph without their parents being added,
-     * the aim of the test is asserting that readFilesFromDisk is able to detect gaps or discontinuities exist in the existing PcesFiles.
+     * Given that allowing gaps or discontinuities in the origin block of the PcesFile is likely to either lead to ISSes
+     * or, more likely, cause events to be added to the hashgraph without their parents being added, the aim of the test
+     * is asserting that readFilesFromDisk is able to detect gaps or discontinuities exist in the existing PcesFiles.
      * </br>
-     * This test, generates a list of files PcesFiles and places a discontinuity in the origin block randomly in the list.
-     * The sequence numbers are intentionally picked close to wrapping around the 3 digit to 4 digit, to cause the files not to line up
-     * alphabetically, and test the code support for that.
-     * The scenarios under test are:
-     *  * readFilesFromDisk is asked to read at the discontinuity origin block
-     *  * readFilesFromDisk is asked to read after the discontinuity origin block
-     *  * readFilesFromDisk is asked to read before the discontinuity origin block
-     *  * readFilesFromDisk is asked to read a non-existent origin block
+     * This test, generates a list of files PcesFiles and places a discontinuity in the origin block randomly in the
+     * list. The sequence numbers are intentionally picked close to wrapping around the 3 digit to 4 digit, to cause the
+     * files not to line up alphabetically, and test the code support for that. The scenarios under test are: *
+     * readFilesFromDisk is asked to read at the discontinuity origin block * readFilesFromDisk is asked to read after
+     * the discontinuity origin block * readFilesFromDisk is asked to read before the discontinuity origin block *
+     * readFilesFromDisk is asked to read a non-existent origin block
      */
-    @ParameterizedTest
-    @MethodSource("ancientModes")
+    @Test
     @DisplayName("Start And First File Discontinuity In Middle Test")
-    void startAtFirstFileDiscontinuityInMiddleTest(@NonNull final AncientMode ancientMode) throws IOException {
-        final var pcesFilesGenerator = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
+    void startAtFirstFileDiscontinuityInMiddleTest() throws IOException {
+        final var pcesFilesGenerator = PcesTestFilesGenerator.Builder.create(random, fileDirectory)
                 .discontinue()
                 .withOriginRange(ORIGIN_RANGE)
                 .build()
                 .generate();
 
         final PlatformContext platformContext =
-                TestPlatformContexts.context(false, ancientMode, recycleBinPath, dataDir, fileSystemDirectory);
+                TestPlatformContexts.context(false, recycleBinPath, dataDir, fileSystemDirectory);
         // Scenario 1: choose an origin that lands on the resultingUnbrokenOrigin exactly.
         final PcesFileTracker fileTracker1 = PcesFileReader.readFilesFromDisk(
-                platformContext, fileDirectory, pcesFilesGenerator.resultingUnbrokenOrigin(), false, ancientMode);
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                pcesFilesGenerator.resultingUnbrokenOrigin(),
+                false);
         assertIteratorEquality(
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker1.getFileIterator(NO_LOWER_BOUND, pcesFilesGenerator.resultingUnbrokenOrigin()));
 
         // Scenario 2: choose an origin that lands after the resultingUnbrokenOrigin.
         final long startingRound2 = pcesFilesGenerator.pointAfterUnbrokenOrigin();
-        final PcesFileTracker fileTracker2 =
-                PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound2, false, ancientMode);
+        final PcesFileTracker fileTracker2 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound2,
+                false);
         assertIteratorEquality(
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker2.getFileIterator(NO_LOWER_BOUND, startingRound2));
@@ -325,8 +296,12 @@ class PcesFileReaderTests {
         // the files
         // after the origin to be deleted.
         final long startingRound3 = pcesFilesGenerator.pointBeforeUnbrokenOrigin();
-        final PcesFileTracker fileTracker3 =
-                PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound3, false, ancientMode);
+        final PcesFileTracker fileTracker3 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound3,
+                false);
 
         assertIteratorEquality(
                 pcesFilesGenerator.filesBeforeDiscontinuity().iterator(),
@@ -339,8 +314,12 @@ class PcesFileReaderTests {
         // remaining
         // files to be deleted.
         final long startingRound4 = ORIGIN_RANGE.start() - 1;
-        final PcesFileTracker fileTracker4 =
-                PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound4, false, ancientMode);
+        final PcesFileTracker fileTracker4 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound4,
+                false);
 
         assertIteratorEquality(
                 Collections.emptyIterator(), fileTracker4.getFileIterator(NO_LOWER_BOUND, startingRound4));
@@ -352,11 +331,10 @@ class PcesFileReaderTests {
      * In this test, a discontinuity is placed in the middle of the stream. We begin iterating at a file that comes
      * before the discontinuity, but it isn't the first file in the stream.
      */
-    @ParameterizedTest
-    @MethodSource("ancientModes")
+    @Test
     @DisplayName("Start At Middle File Discontinuity In Middle Test")
-    void startAtMiddleFileDiscontinuityInMiddleTest(@NonNull final AncientMode ancientMode) throws IOException {
-        final var pcesFilesGenerator = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
+    void startAtMiddleFileDiscontinuityInMiddleTest() throws IOException {
+        final var pcesFilesGenerator = PcesTestFilesGenerator.Builder.create(random, fileDirectory)
                 .skipAtStart()
                 .discontinue()
                 .withOriginRange(ORIGIN_RANGE)
@@ -369,20 +347,28 @@ class PcesFileReaderTests {
         final long startAncientIdentifier = expectedFiles.getFirst().getUpperBound();
 
         final PlatformContext platformContext =
-                TestPlatformContexts.context(false, ancientMode, recycleBinPath, dataDir, fileSystemDirectory);
+                TestPlatformContexts.context(false, recycleBinPath, dataDir, fileSystemDirectory);
 
         // Scenario 1: choose an origin that lands on the resultingUnbrokenOrigin exactly.
         final long startingRound1 = pcesFilesGenerator.resultingUnbrokenOrigin();
-        final PcesFileTracker fileTracker1 =
-                PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound1, false, ancientMode);
+        final PcesFileTracker fileTracker1 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound1,
+                false);
         assertIteratorEquality(
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker1.getFileIterator(startAncientIdentifier, startingRound1));
 
         // Scenario 2: choose an origin that lands after the resultingUnbrokenOrigin.
         final long startingRound2 = pcesFilesGenerator.pointAfterUnbrokenOrigin();
-        final PcesFileTracker fileTracker2 =
-                PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound2, false, ancientMode);
+        final PcesFileTracker fileTracker2 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound2,
+                false);
         assertIteratorEquality(
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker2.getFileIterator(startAncientIdentifier, startingRound2));
@@ -391,8 +377,12 @@ class PcesFileReaderTests {
         // the files
         // after the origin to be deleted.
         final long startingRound3 = pcesFilesGenerator.pointBeforeUnbrokenOrigin();
-        final PcesFileTracker fileTracker3 =
-                PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound3, false, ancientMode);
+        final PcesFileTracker fileTracker3 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound3,
+                false);
         assertIteratorEquality(
                 pcesFilesGenerator.filesBeforeDiscontinuity().iterator(),
                 fileTracker3.getFileIterator(startAncientIdentifier, startingRound3));
@@ -403,8 +393,12 @@ class PcesFileReaderTests {
         // remaining
         // files to be deleted.
         final long startingRound4 = ORIGIN_RANGE.start() - 1;
-        final PcesFileTracker fileTracker4 =
-                PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound4, false, ancientMode);
+        final PcesFileTracker fileTracker4 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound4,
+                false);
         assertIteratorEquality(
                 Collections.emptyIterator(), fileTracker4.getFileIterator(startAncientIdentifier, startingRound4));
 
@@ -414,11 +408,10 @@ class PcesFileReaderTests {
     /**
      * In this test, a discontinuity is placed in the middle of the stream, and we begin iterating on that exact file.
      */
-    @ParameterizedTest
-    @MethodSource("ancientModes")
+    @Test
     @DisplayName("Start At Middle File Discontinuity In Middle Test")
-    void startAtDiscontinuityInMiddleTest(@NonNull final AncientMode ancientMode) throws IOException {
-        final var pcesFilesGenerator = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
+    void startAtDiscontinuityInMiddleTest() throws IOException {
+        final var pcesFilesGenerator = PcesTestFilesGenerator.Builder.create(random, fileDirectory)
                 .discontinue()
                 .withOriginRange(ORIGIN_RANGE)
                 .build()
@@ -430,19 +423,27 @@ class PcesFileReaderTests {
                 pcesFilesGenerator.filesAfterDiscontinuity().getFirst().getUpperBound();
 
         final PlatformContext platformContext =
-                TestPlatformContexts.context(false, ancientMode, recycleBinPath, dataDir, fileSystemDirectory);
+                TestPlatformContexts.context(false, recycleBinPath, dataDir, fileSystemDirectory);
         // Scenario 1: choose an origin that lands on the resultingUnbrokenOrigin exactly.
         final long startingRound1 = pcesFilesGenerator.resultingUnbrokenOrigin();
-        final PcesFileTracker fileTracker1 =
-                PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound1, false, ancientMode);
+        final PcesFileTracker fileTracker1 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound1,
+                false);
         assertIteratorEquality(
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker1.getFileIterator(startAncientIdentifier, startingRound1));
 
         // Scenario 2: choose an origin that lands after the resultingUnbrokenOrigin.
         final long startingRound2 = pcesFilesGenerator.pointAfterUnbrokenOrigin();
-        final PcesFileTracker fileTracker2 =
-                PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound2, false, ancientMode);
+        final PcesFileTracker fileTracker2 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound2,
+                false);
         assertIteratorEquality(
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker2.getFileIterator(startAncientIdentifier, startingRound2));
@@ -451,8 +452,12 @@ class PcesFileReaderTests {
         // the files
         // after the origin to be deleted.
         final long startingRound3 = pcesFilesGenerator.pointBeforeUnbrokenOrigin();
-        final PcesFileTracker fileTracker3 =
-                PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound3, false, ancientMode);
+        final PcesFileTracker fileTracker3 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound3,
+                false);
         // There is no files with a compatible origin and events with ancient indicators in the span we
         // want.
         assertIteratorEquality(
@@ -465,8 +470,12 @@ class PcesFileReaderTests {
         // remaining
         // files to be deleted.
         final long startingRound4 = ORIGIN_RANGE.start() - 1;
-        final PcesFileTracker fileTracker4 =
-                PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound4, false, ancientMode);
+        final PcesFileTracker fileTracker4 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound4,
+                false);
         assertIteratorEquality(
                 Collections.emptyIterator(), fileTracker4.getFileIterator(startAncientIdentifier, startingRound4));
 
@@ -476,12 +485,11 @@ class PcesFileReaderTests {
     /**
      * In this test, a discontinuity is placed in the middle of the stream, and we begin iterating after that file.
      */
-    @ParameterizedTest
-    @MethodSource("ancientModes")
+    @Test
     @DisplayName("Start After Discontinuity In Middle Test")
-    void startAfterDiscontinuityInMiddleTest(@NonNull final AncientMode ancientMode) throws IOException {
+    void startAfterDiscontinuityInMiddleTest() throws IOException {
 
-        final var pcesFilesGenerator = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
+        final var pcesFilesGenerator = PcesTestFilesGenerator.Builder.create(random, fileDirectory)
                 .discontinue()
                 .withOriginRange(ORIGIN_RANGE)
                 .build()
@@ -492,20 +500,28 @@ class PcesFileReaderTests {
                 pcesFilesGenerator.filesAfterDiscontinuity().getFirst().getUpperBound();
 
         final PlatformContext platformContext =
-                TestPlatformContexts.context(false, ancientMode, recycleBinPath, dataDir, fileSystemDirectory);
+                TestPlatformContexts.context(false, recycleBinPath, dataDir, fileSystemDirectory);
 
         // Scenario 1: choose an origin that lands on the resultingUnbrokenOrigin exactly.
         final long startingRound1 = pcesFilesGenerator.resultingUnbrokenOrigin();
-        final PcesFileTracker fileTracker1 =
-                PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound1, false, ancientMode);
+        final PcesFileTracker fileTracker1 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound1,
+                false);
         assertIteratorEquality(
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker1.getFileIterator(startAncientBoundary, startingRound1));
 
         // Scenario 2: choose an origin that lands after the resultingUnbrokenOrigin.
         final long startingRound2 = pcesFilesGenerator.pointAfterUnbrokenOrigin();
-        final PcesFileTracker fileTracker2 =
-                PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound2, false, ancientMode);
+        final PcesFileTracker fileTracker2 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound2,
+                false);
         assertIteratorEquality(
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker2.getFileIterator(startAncientBoundary, startingRound2));
@@ -514,8 +530,12 @@ class PcesFileReaderTests {
         // the files
         // after the origin to be deleted.
         final long startingRound3 = pcesFilesGenerator.pointBeforeUnbrokenOrigin();
-        final PcesFileTracker fileTracker3 =
-                PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound3, false, ancientMode);
+        final PcesFileTracker fileTracker3 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound3,
+                false);
         assertIteratorEquality(
                 Collections.emptyIterator(), fileTracker3.getFileIterator(startAncientBoundary, startingRound3));
 
@@ -526,50 +546,21 @@ class PcesFileReaderTests {
         // remaining
         // files to be deleted.
         final long startingRound4 = ORIGIN_RANGE.start() - 1;
-        final PcesFileTracker fileTracker4 =
-                PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound4, false, ancientMode);
+        final PcesFileTracker fileTracker4 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound4,
+                false);
         assertIteratorEquality(
                 Collections.emptyIterator(), fileTracker4.getFileIterator(startAncientBoundary, startingRound4));
 
         validateRecycledFiles(List.of(), expectedFiles, this.recycleBinPath);
     }
 
-    @Test
-    void readFilesOfBothTypesTest() throws IOException {
-        final var generationPcesFilesGenerator = PcesTestFilesGenerator.Builder.create(
-                        GENERATION_THRESHOLD, random, fileDirectory)
-                .build()
-                .generate();
-        final var birthroundPcesFilesGenerator = PcesTestFilesGenerator.Builder.create(
-                        BIRTH_ROUND_THRESHOLD, random, fileDirectory)
-                .build()
-                .generate();
-
-        final List<PcesFile> generationFiles = generationPcesFilesGenerator.files();
-
-        // Phase 2: write files using birth rounds
-        final List<PcesFile> birthRoundFiles = birthroundPcesFilesGenerator.files();
-        final PcesFileTracker generationFileTracker = PcesFileReader.readFilesFromDisk(
-                TestPlatformContexts.context(GENERATION_THRESHOLD, dataDir, fileSystemDirectory),
-                fileDirectory,
-                0,
-                false,
-                GENERATION_THRESHOLD);
-
-        final PcesFileTracker birthRoundFileTracker = PcesFileReader.readFilesFromDisk(
-                TestPlatformContexts.context(BIRTH_ROUND_THRESHOLD, dataDir, fileSystemDirectory),
-                fileDirectory,
-                0,
-                false,
-                BIRTH_ROUND_THRESHOLD);
-
-        assertIteratorEquality(generationFiles.iterator(), generationFileTracker.getFileIterator(NO_LOWER_BOUND, 0));
-        assertIteratorEquality(birthRoundFiles.iterator(), birthRoundFileTracker.getFileIterator(NO_LOWER_BOUND, 0));
-    }
-
     /**
-     * When fixing an origin, invalid files are moved to a "recycle bin" directory.
-     * This method validates that behavior.
+     * When fixing an origin, invalid files are moved to a "recycle bin" directory. This method validates that
+     * behavior.
      */
     static void validateRecycledFiles(
             @NonNull final List<PcesFile> filesThatShouldBePresent,

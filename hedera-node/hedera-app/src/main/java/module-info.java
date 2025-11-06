@@ -6,8 +6,10 @@ module com.hedera.node.app {
     requires transitive com.hedera.node.app.service.addressbook.impl;
     requires transitive com.hedera.node.app.service.consensus.impl;
     requires transitive com.hedera.node.app.service.contract.impl;
+    requires transitive com.hedera.node.app.service.entityid;
     requires transitive com.hedera.node.app.service.file.impl;
     requires transitive com.hedera.node.app.service.network.admin.impl;
+    requires transitive com.hedera.node.app.service.roster.impl;
     requires transitive com.hedera.node.app.service.schedule.impl;
     requires transitive com.hedera.node.app.service.schedule;
     requires transitive com.hedera.node.app.service.token.impl;
@@ -16,6 +18,7 @@ module com.hedera.node.app {
     requires transitive com.hedera.node.app.spi;
     requires transitive com.hedera.node.config;
     requires transitive com.hedera.node.hapi;
+    requires transitive com.hedera.pbj.grpc.client.helidon;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.common;
@@ -24,6 +27,7 @@ module com.hedera.node.app {
     requires transitive com.swirlds.platform.core;
     requires transitive com.swirlds.state.api;
     requires transitive com.swirlds.state.impl;
+    requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.model;
@@ -32,7 +36,7 @@ module com.hedera.node.app {
     requires transitive io.grpc.stub;
     requires transitive io.grpc;
     requires transitive io.helidon.grpc.core;
-    requires transitive io.helidon.webclient.grpc;
+    requires transitive io.helidon.webclient.api;
     requires transitive javax.inject;
     requires transitive org.apache.logging.log4j;
     requires transitive org.hyperledger.besu.datatypes;
@@ -41,24 +45,24 @@ module com.hedera.node.app {
     requires com.hedera.node.app.service.addressbook;
     requires com.hedera.node.app.service.consensus;
     requires com.hedera.node.app.service.contract;
+    requires com.hedera.node.app.service.entityid.impl;
     requires com.hedera.node.app.service.file;
     requires com.hedera.node.app.service.network.admin;
+    requires com.hedera.node.app.service.roster;
     requires com.hedera.node.app.service.util;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
-    requires com.swirlds.merkle;
-    requires com.swirlds.merkledb;
-    requires com.swirlds.virtualmap;
     requires org.hiero.base.concurrent;
     requires com.github.benmanes.caffeine;
     requires com.google.common;
     requires io.grpc.netty;
     requires io.helidon.common.tls;
-    requires io.helidon.webclient.api;
+    requires io.helidon.webclient.grpc;
     requires io.netty.handler;
     requires io.netty.transport.classes.epoll;
     requires io.netty.transport;
     requires org.apache.commons.lang3;
+    requires org.json;
     requires static transitive com.github.spotbugs.annotations;
     requires static com.google.auto.service;
     requires static java.compiler;
@@ -70,7 +74,8 @@ module com.hedera.node.app {
     exports com.hedera.node.app.workflows;
     exports com.hedera.node.app.state.merkle to
             com.hedera.node.app.test.fixtures,
-            com.hedera.node.test.clients;
+            com.hedera.node.test.clients,
+            com.hedera.state.validator;
     exports com.hedera.node.app.workflows.dispatcher;
     exports com.hedera.node.app.workflows.standalone;
     exports com.hedera.node.app.config;
@@ -99,7 +104,6 @@ module com.hedera.node.app {
     exports com.hedera.node.app.workflows.handle.throttle;
     exports com.hedera.node.app.workflows.handle.dispatch;
     exports com.hedera.node.app.workflows.handle.cache;
-    exports com.hedera.node.app.ids;
     exports com.hedera.node.app.state.recordcache;
     exports com.hedera.node.app.records;
     exports com.hedera.node.app.blocks;
@@ -108,7 +112,6 @@ module com.hedera.node.app {
     exports com.hedera.node.app.blocks.impl;
     exports com.hedera.node.app.blocks.impl.streaming;
     exports com.hedera.node.app.workflows.handle.metric;
-    exports com.hedera.node.app.roster;
     exports com.hedera.node.app.tss;
     exports com.hedera.node.app.workflows.handle.stack;
     exports com.hedera.node.app.fees.congestion;
@@ -122,8 +125,7 @@ module com.hedera.node.app {
     exports com.hedera.node.app.grpc.impl.netty;
     exports com.hedera.node.app.tss.schemas;
     exports com.hedera.node.app.blocks.schemas;
-    exports com.hedera.node.app.roster.schemas;
-    exports com.hedera.node.app.ids.schemas;
+    exports com.hedera.node.app.records.schemas;
     exports com.hedera.node.app.hints.schemas;
 
     provides com.swirlds.config.api.ConfigurationExtension with

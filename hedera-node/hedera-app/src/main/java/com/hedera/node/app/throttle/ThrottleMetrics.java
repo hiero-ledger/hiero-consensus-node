@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.node.app.hapi.utils.throttles.CongestibleThrottle;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
 import com.hedera.node.app.hapi.utils.throttles.LeakyBucketDeterministicThrottle;
+import com.hedera.node.app.hapi.utils.throttles.OpsDurationDeterministicThrottle;
 import com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType;
 import com.hedera.node.config.data.StatsConfig;
 import com.swirlds.config.api.Configuration;
@@ -14,6 +15,7 @@ import com.swirlds.metrics.api.DoubleGauge.Config;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
@@ -28,6 +30,7 @@ public class ThrottleMetrics {
 
     private static final String GAS_THROTTLE_ID = "<GAS>";
     private static final String BYTES_THROTTLE_ID = "<GAS>";
+    private static final String OPS_DURATION_ID = "<OPS_DURATION>";
 
     private final Metrics metrics;
     private final String nameTemplate;
@@ -35,6 +38,7 @@ public class ThrottleMetrics {
     private final Function<StatsConfig, List<String>> throttlesToSampleSupplier;
     private List<MetricPair> liveMetricPairs = List.of();
     private MetricPair gasThrottleMetricPair;
+    private MetricPair opsDurationThrottleMetricPair;
 
     /**
      * Constructs a {@link ThrottleMetrics} instance.
@@ -68,10 +72,15 @@ public class ThrottleMetrics {
                 .map(this::setupLiveMetricPair)
                 .toList();
 
+        // If there is a configured throttle to sample, that doesn't have a corresponding
+        // DeterministicThrottle live metric created (not sure when would that be the case?) we add it
+        // as an "inert" metric, that never changes.
+        // Unless it's a GAS or OPS_DURATION throttle - we don't include those.
+        final var throttlesExcludedFromInertMetrics = Set.of(GAS_THROTTLE_ID, OPS_DURATION_ID);
         final var throttleNames =
                 throttles.stream().map(DeterministicThrottle::name).collect(Collectors.toSet());
         throttlesToSample.stream()
-                .filter(name -> !throttleNames.contains(name) && !GAS_THROTTLE_ID.equals(name))
+                .filter(name -> !throttleNames.contains(name) && !throttlesExcludedFromInertMetrics.contains(name))
                 .forEach(this::setupInertMetric);
     }
 
@@ -104,6 +113,15 @@ public class ThrottleMetrics {
                 throttlesToSample.contains(BYTES_THROTTLE_ID) ? setupLiveMetricPair(bytesThrottle) : null;
     }
 
+    public void setupOpsDurationMetric(
+            @NonNull final OpsDurationDeterministicThrottle opsDurationThrottle,
+            @NonNull final Configuration configuration) {
+        final var statsConfig = configuration.getConfigData(StatsConfig.class);
+        final var throttlesToSample = throttlesToSampleSupplier.apply(statsConfig);
+        opsDurationThrottleMetricPair =
+                throttlesToSample.contains(OPS_DURATION_ID) ? setupLiveMetricPair(opsDurationThrottle) : null;
+    }
+
     /**
      * Updates all metrics for the given throttles.
      */
@@ -113,6 +131,11 @@ public class ThrottleMetrics {
         }
         if (gasThrottleMetricPair != null) {
             gasThrottleMetricPair.gauge().set(gasThrottleMetricPair.throttle().instantaneousPercentUsed());
+        }
+        if (opsDurationThrottleMetricPair != null) {
+            opsDurationThrottleMetricPair
+                    .gauge()
+                    .set(opsDurationThrottleMetricPair.throttle().instantaneousPercentUsed());
         }
     }
 

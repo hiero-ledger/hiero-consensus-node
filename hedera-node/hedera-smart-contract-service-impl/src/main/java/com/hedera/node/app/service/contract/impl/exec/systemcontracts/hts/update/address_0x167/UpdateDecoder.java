@@ -6,7 +6,6 @@ import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateCommonDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateExpiryTranslator;
@@ -75,7 +74,7 @@ public class UpdateDecoder extends UpdateCommonDecoder {
     public TransactionBody decodeTokenUpdateExpiryV1(@NonNull final HtsCallAttempt attempt) {
         final var call = UpdateExpiryTranslator.UPDATE_TOKEN_EXPIRY_INFO_V1.decodeCall(
                 attempt.input().toArrayUnsafe());
-        return decodeTokenUpdateExpiry(call, attempt.addressIdConverter());
+        return decodeTokenUpdateExpiry(call, attempt);
     }
 
     /**
@@ -87,7 +86,7 @@ public class UpdateDecoder extends UpdateCommonDecoder {
     public TransactionBody decodeTokenUpdateExpiryV2(@NonNull final HtsCallAttempt attempt) {
         final var call = UpdateExpiryTranslator.UPDATE_TOKEN_EXPIRY_INFO_V2.decodeCall(
                 attempt.input().toArrayUnsafe());
-        return decodeTokenUpdateExpiry(call, attempt.addressIdConverter());
+        return decodeTokenUpdateExpiry(call, attempt);
     }
 
     @Override
@@ -96,14 +95,14 @@ public class UpdateDecoder extends UpdateCommonDecoder {
                 attempt.input().toArrayUnsafe());
     }
 
-    private TransactionBody decodeTokenUpdateExpiry(
-            @NonNull final Tuple call, @NonNull final AddressIdConverter addressIdConverter) {
+    private TransactionBody decodeTokenUpdateExpiry(@NonNull final Tuple call, @NonNull final HtsCallAttempt attempt) {
         final var tokenId = (Address) call.get(TOKEN_ADDRESS);
         final var expiryTuple = (Tuple) call.get(EXPIRY);
         final var txnBodyBuilder = TokenUpdateTransactionBody.newBuilder();
 
-        txnBodyBuilder.token(ConversionUtils.asTokenId(tokenId));
-        final var tokenExpiry = decodeTokenExpiry(expiryTuple, addressIdConverter);
+        txnBodyBuilder.token(
+                ConversionUtils.asTokenId(attempt.nativeOperations().entityIdFactory(), tokenId));
+        final var tokenExpiry = decodeTokenExpiry(expiryTuple, attempt.addressIdConverter());
 
         if (tokenExpiry.second() != 0) {
             txnBodyBuilder.expiry(

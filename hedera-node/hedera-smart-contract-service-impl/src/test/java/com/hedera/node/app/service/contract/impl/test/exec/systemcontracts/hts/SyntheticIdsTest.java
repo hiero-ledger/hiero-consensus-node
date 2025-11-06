@@ -7,8 +7,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadlongAddress;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.realm;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.shard;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -61,7 +59,7 @@ class SyntheticIdsTest {
     void returnsAliasIdIfMissingLongZeroCredit() {
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var expectedId = AccountID.newBuilder()
-                .alias(Bytes.wrap(asEvmAddress(shard, realm, A_NEW_ACCOUNT_ID.accountNumOrThrow())))
+                .alias(Bytes.wrap(asEvmAddress(A_NEW_ACCOUNT_ID.accountNumOrThrow())))
                 .build();
         final var missingLongZeroAddress = asHeadlongAddress(A_NEW_ACCOUNT_ID.accountNumOrThrow());
         final var subject = implicitSubject.converterFor(nativeOperations);
@@ -74,7 +72,7 @@ class SyntheticIdsTest {
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var expectedId = AccountID.newBuilder()
-                .alias(Bytes.wrap(asEvmAddress(shard, realm, A_NEW_ACCOUNT_ID.accountNumOrThrow())))
+                .alias(Bytes.wrap(asEvmAddress(A_NEW_ACCOUNT_ID.accountNumOrThrow())))
                 .build();
         final var missingLongZeroAddress = asHeadlongAddress(A_NEW_ACCOUNT_ID.accountNumOrThrow());
         final var subject = implicitSubject.converterFor(nativeOperations);
@@ -84,9 +82,8 @@ class SyntheticIdsTest {
 
     @Test
     void returnsLazyCreateToZeroAddressIfLongZeroCreditWithNonCanonicalReference() {
-        final var expectedId = AccountID.newBuilder()
-                .alias(Bytes.wrap(asEvmAddress(shard, realm, 0L)))
-                .build();
+        final var expectedId =
+                AccountID.newBuilder().alias(Bytes.wrap(asEvmAddress(0L))).build();
         given(nativeOperations.getAccount(any(AccountID.class))).willReturn(ALIASED_SOMEBODY);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var nonCanonicalLongZeroAddress = asHeadlongAddress(A_NEW_ACCOUNT_ID.accountNumOrThrow());

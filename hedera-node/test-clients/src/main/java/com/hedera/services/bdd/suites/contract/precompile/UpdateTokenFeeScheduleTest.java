@@ -2,9 +2,8 @@
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.FEE_SCHEDULE_KEY;
@@ -198,6 +197,7 @@ public class UpdateTokenFeeScheduleTest {
     @HapiTest
     @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("non fungible token with royalty fee ℏ fallback")
+    @Tag(MATS)
     public Stream<DynamicTest> updateNonFungibleTokenWithRoyaltyFeeHbarFallback() {
         return hapiTest(
                 updateTokenFeeSchedules.call(
@@ -229,6 +229,7 @@ public class UpdateTokenFeeScheduleTest {
 
     @HapiTest
     @DisplayName("fungible token with n fixed ℏ fee")
+    @Tag(MATS)
     public Stream<DynamicTest> updateFungibleTokenWithNHbarFixedFee() {
         return hapiTest(
                 updateTokenFeeSchedules.call("updateFungibleFixedHbarFees", fungibleToken, 3, 10L, feeCollector),
@@ -406,7 +407,7 @@ public class UpdateTokenFeeScheduleTest {
     @HapiTest
     @DisplayName("update token fees with invalid fee collector")
     public Stream<DynamicTest> updateFeesWithInvalidFeeCollector() {
-        final var invalidFeeCollector = asHeadlongAddress(asEvmAddress(shard, realm, 0L));
+        final var invalidFeeCollector = asHeadlongAddress(asEvmAddress(0L));
         return hapiTest(
                 updateTokenFeeSchedules
                         .call("updateFungibleFixedHbarFee", fungibleToken, 10L, invalidFeeCollector)
@@ -420,7 +421,7 @@ public class UpdateTokenFeeScheduleTest {
     @HapiTest
     @DisplayName("update token fees with invalid token denominator")
     public Stream<DynamicTest> updateFeesWithInvalidToken() {
-        final var invalidTokenAddress = asHeadlongAddress(asEvmAddress(shard, realm, 1912312313L));
+        final var invalidTokenAddress = asHeadlongAddress(asEvmAddress(1912312313L));
         return hapiTest(
                 updateTokenFeeSchedules
                         .call("updateFungibleFixedHtsFee", fungibleToken, invalidTokenAddress, 10L, feeCollector)

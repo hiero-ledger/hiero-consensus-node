@@ -7,16 +7,17 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.merkle.map.MerkleMap;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.state.lifecycle.HapiUtils;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Iterator;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
@@ -24,7 +25,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
@@ -35,9 +35,15 @@ import org.hiero.consensus.model.transaction.Transaction;
  */
 public class MigrationTestToolConsensusStateEventHandler
         implements ConsensusStateEventHandler<MigrationTestingToolState> {
+
     private static final Logger logger = LogManager.getLogger(MigrationTestToolConsensusStateEventHandler.class);
 
-    public NodeId selfId;
+    /**
+     * Offset added to the round's consensus timestamp when scheduling a freeze.
+     */
+    public static final Duration FREEZE_TIME_OFFSET = Duration.ofSeconds(10);
+
+    private MigrationTestingToolConfig configData;
 
     @Override
     public void onStateInitialized(
@@ -45,24 +51,12 @@ public class MigrationTestToolConsensusStateEventHandler
             @NonNull final Platform platform,
             @NonNull final InitTrigger trigger,
             @Nullable final SemanticVersion previousVersion) {
-        final MerkleMap<AccountID, MapValue> merkleMap = state.getMerkleMap();
-        if (merkleMap != null) {
-            logger.info(STARTUP.getMarker(), "MerkleMap initialized with {} values", merkleMap.size());
-        }
-        final VirtualMap<?, ?> virtualMap = state.getVirtualMap();
-        if (virtualMap != null) {
-            logger.info(STARTUP.getMarker(), "VirtualMap initialized with {} values", virtualMap.size());
-        }
-        selfId = platform.getSelfId();
-
         if (trigger == InitTrigger.GENESIS) {
             logger.warn(STARTUP.getMarker(), "InitTrigger was {} when expecting RESTART or RECONNECT", trigger);
-            selfId = platform.getSelfId();
         }
 
-        final SemanticVersion staticPrevVersion = PREVIOUS_SOFTWARE_VERSION;
         if (previousVersion == null
-                || HapiUtils.SEMANTIC_VERSION_COMPARATOR.compare(previousVersion, staticPrevVersion) != 0) {
+                || HapiUtils.SEMANTIC_VERSION_COMPARATOR.compare(previousVersion, PREVIOUS_SOFTWARE_VERSION) != 0) {
             logger.warn(
                     STARTUP.getMarker(),
                     "previousSoftwareVersion was {} when expecting it to be {}",
@@ -70,10 +64,7 @@ public class MigrationTestToolConsensusStateEventHandler
                     PREVIOUS_SOFTWARE_VERSION);
         }
 
-        if (trigger == InitTrigger.GENESIS) {
-            logger.info(STARTUP.getMarker(), "Doing genesis initialization");
-            state.genesisInit();
-        }
+        configData = platform.getContext().getConfiguration().getConfigData(MigrationTestingToolConfig.class);
     }
 
     @Override
@@ -82,8 +73,22 @@ public class MigrationTestToolConsensusStateEventHandler
             @NonNull MigrationTestingToolState state,
             @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
         state.throwIfImmutable();
-        for (final Iterator<ConsensusEvent> eventIt = round.iterator(); eventIt.hasNext(); ) {
-            final ConsensusEvent event = eventIt.next();
+
+        // After enough rounds, we set the state to be a freeze state
+        if (configData.applyFreezeTimeInRound() > 0 && round.getRoundNum() == configData.applyFreezeTimeInRound()) {
+            final Instant freezeTime = round.getConsensusTimestamp().plus(FREEZE_TIME_OFFSET);
+            logger.info(
+                    STARTUP.getMarker(),
+                    "Setting freeze time to {} seconds after:{}. Value:{}",
+                    FREEZE_TIME_OFFSET.getSeconds(),
+                    round.getConsensusTimestamp(),
+                    freezeTime);
+            PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE.bulkUpdateOf(state, v -> {
+                v.setFreezeTime(freezeTime);
+            });
+        }
+
+        for (final ConsensusEvent event : round) {
             for (final Iterator<ConsensusTransaction> transIt = event.consensusTransactionIterator();
                     transIt.hasNext(); ) {
                 final ConsensusTransaction trans = transIt.next();
@@ -94,7 +99,7 @@ public class MigrationTestToolConsensusStateEventHandler
 
                 final MigrationTestingToolTransaction mTrans =
                         TransactionUtils.parseTransaction(trans.getApplicationTransaction());
-                mTrans.applyTo(state);
+                mTrans.applyToState(state);
             }
         }
     }
@@ -139,7 +144,7 @@ public class MigrationTestToolConsensusStateEventHandler
             final var stateSignatureTransaction =
                     StateSignatureTransaction.PROTOBUF.parse(transaction.getApplicationTransaction());
             stateSignatureTransactionCallback.accept(new ScopedSystemTransaction<>(
-                    event.getCreatorId(), event.getSoftwareVersion(), stateSignatureTransaction));
+                    event.getCreatorId(), event.getBirthRound(), stateSignatureTransaction));
         } catch (final ParseException e) {
             logger.error("Failed to parse StateSignatureTransaction", e);
         }

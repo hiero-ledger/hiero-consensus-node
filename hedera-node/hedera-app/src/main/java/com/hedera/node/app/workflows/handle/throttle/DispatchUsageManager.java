@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.throttle;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.populateEthTxData;
@@ -14,20 +16,23 @@ import static com.hedera.node.app.throttle.ThrottleAccumulator.canAutoAssociate;
 import static com.hedera.node.app.throttle.ThrottleAccumulator.canAutoCreate;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.EvmHookCall;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HookCall;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
+import com.hedera.hapi.node.hooks.HookExecution;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.node.app.throttle.NetworkUtilizationManager;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.config.data.ContractsConfig;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.EnumSet;
 import java.util.Set;
@@ -37,7 +42,7 @@ import javax.inject.Singleton;
 @Singleton
 public class DispatchUsageManager {
     public static final Set<HederaFunctionality> CONTRACT_OPERATIONS =
-            EnumSet.of(HederaFunctionality.CONTRACT_CREATE, HederaFunctionality.CONTRACT_CALL, ETHEREUM_TRANSACTION);
+            EnumSet.of(CONTRACT_CREATE, CONTRACT_CALL, ETHEREUM_TRANSACTION, HOOK_DISPATCH);
 
     private final NetworkInfo networkInfo;
     private final OpWorkflowMetrics opWorkflowMetrics;
@@ -194,6 +199,15 @@ public class DispatchUsageManager {
             final var rawEthTxn = txnBody.ethereumTransactionOrElse(EthereumTransactionBody.DEFAULT);
             final var ethTxData = populateEthTxData(rawEthTxn.ethereumData().toByteArray());
             return ethTxData != null ? ethTxData.gasLimit() : 0L;
+        } else if (function == HOOK_DISPATCH) {
+            // For hook dispatch, we consider the gas limit of the first contract call in the hook dispatch
+            // transaction body. This is a simplification and may need to be revisited if we want to be more
+            // precise.
+            return txnBody.hookDispatchOrThrow()
+                    .executionOrElse(HookExecution.DEFAULT)
+                    .callOrElse(HookCall.DEFAULT)
+                    .evmHookCallOrElse(EvmHookCall.DEFAULT)
+                    .gasLimit();
         } else {
             return txnBody.contractCallOrElse(ContractCallTransactionBody.DEFAULT)
                     .gas();
