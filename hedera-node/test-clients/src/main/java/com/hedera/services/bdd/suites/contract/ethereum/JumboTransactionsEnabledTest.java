@@ -119,6 +119,21 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                 ));
     }
 
+    // Prefix example for 6kb:
+    // 0x424cb7f8000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000018
+    // prefixZeros = 62
+    // prefixNonZeros = 6
+    // Prefix example for 127kb:
+    // 0x424cb7f80000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000001fc
+    // prefixZeros = 61
+    // prefixNonZeros = 7
+    private static int expectedGasCalculator(int prefixZeros, int prefixNonZeros, int txnSize) {
+        final var payloadLength = prefixZeros + prefixNonZeros + txnSize;
+        final var zeros = prefixZeros + txnSize; // transaction consists from zeros
+        // minimumGasUsed according to https://eips.ethereum.org/EIPS/eip-7623
+        return 21_000 + (zeros + (payloadLength - zeros) * 4) * 10;
+    }
+
     @HapiTest
     @DisplayName("Jumbo transaction should pass")
     @Tag(MATS)
@@ -145,40 +160,28 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                         .signingWith(SECP_256K1_SOURCE_KEY)
                         .markAsJumboTxn()
                         .type(EthTxData.EthTransactionType.EIP1559)
-                        .gasLimit(1_000_000L)
+                        .gasLimit(1_500_000L)
                         // gRPC request terminated immediately
                         .orUnavailableStatus(),
 
                 // send jumbo payload to jumbo endpoint and assert the used gas
                 jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, jumboPayload)
                         .gasLimit(800000)
-                        .exposingGasTo((s, gasUsed) -> assertEquals(63_742, gasUsed)),
+                        .exposingGasTo((s, gasUsed) ->
+                                assertEquals(expectedGasCalculator(62, 6, jumboPayload.length), gasUsed)),
                 jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, halfJumboPayload)
                         .gasLimit(500000)
-                        .exposingGasTo((s, gasUsed) -> assertEquals(43_262, gasUsed)),
+                        .exposingGasTo((s, gasUsed) ->
+                                assertEquals(expectedGasCalculator(62, 6, halfJumboPayload.length), gasUsed)),
                 jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, thirdJumboPayload)
                         .gasLimit(300000)
-                        .exposingGasTo((s, gasUsed) -> assertEquals(35_070, gasUsed)));
+                        .exposingGasTo((s, gasUsed) ->
+                                assertEquals(expectedGasCalculator(62, 6, thirdJumboPayload.length), gasUsed)));
     }
 
     @Nested
     @DisplayName("Jumbo Ethereum Transactions Positive Tests")
     class JumboEthereumTransactionsPositiveTests {
-
-        // Prefix example for 6kb:
-        // 0x424cb7f8000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000018
-        // prefixZeros = 62
-        // prefixNonZeros = 6
-        // Prefix example for 127kb:
-        // 0x424cb7f80000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000001fc
-        // prefixZeros = 61
-        // prefixNonZeros = 7
-        private static int expectedGasCalculator(int prefixZeros, int prefixNonZeros, int txnSize) {
-            final var payloadLength = prefixZeros + prefixNonZeros + txnSize;
-            final var zeros = prefixZeros + txnSize; // transaction consists from zeros
-            // minimumGasUsed according to https://eips.ethereum.org/EIPS/eip-7623
-            return 21_000 + (zeros + (payloadLength - zeros) * 4) * 10;
-        }
 
         private final Stream<TestCombinationWithGas> positiveBoundariesTestCases = Stream.of(
                 new TestCombinationWithGas(
@@ -353,7 +356,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                             // endpoint
                             .withOverriddenHederaFunctionality(HederaFunctionality.TokenAirdrop)
                             .type(EthTxData.EthTransactionType.EIP1559)
-                            .gasLimit(1_500_000L)
+                            .gasLimit(1_000_000L)
                             .orUnavailableStatus(),
                     ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, moreThenSixKbPayload)
                             .markAsJumboTxn()
@@ -361,7 +364,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                             // endpoint
                             .withOverriddenHederaFunctionality(HederaFunctionality.TokenAirdrop)
                             .type(EthTxData.EthTransactionType.EIP1559)
-                            .gasLimit(1_500_000L)
+                            .gasLimit(1_000_000L)
                             .orUnavailableStatus(),
                     ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, limitPayload)
                             .markAsJumboTxn()
@@ -457,7 +460,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                             .type(type)
                             .payingWith(RELAYER)
                             .signingWith(SECP_256K1_SOURCE_KEY)
-                            .gasLimit(1_000_000L)
+                            .gasLimit(1_500_000L)
                             .hasPrecheck(TRANSACTION_OVERSIZE),
                     getAccountBalance(RELAYER)
                             .exposingBalanceTo(newBalance -> assertTrue(
@@ -490,17 +493,17 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                     ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload)
                             .markAsJumboTxn()
                             .type(EthTxData.EthTransactionType.EIP1559)
-                            .gasLimit(1_000_000L),
+                            .gasLimit(1_500_000L),
                     sleepFor(1000),
                     ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload)
                             .markAsJumboTxn()
                             .type(EthTxData.EthTransactionType.EIP1559)
-                            .gasLimit(1_000_000L),
+                            .gasLimit(1_500_000L),
                     sleepFor(1000),
                     ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload)
                             .markAsJumboTxn()
                             .type(EthTxData.EthTransactionType.EIP1559)
-                            .gasLimit(1_000_000L));
+                            .gasLimit(1_500_000L));
         }
 
         @HapiTest
