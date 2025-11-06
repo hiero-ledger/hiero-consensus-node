@@ -122,7 +122,8 @@ public abstract class AbstractSimpleFeeCalculator implements SimpleFeeCalculator
         // Extract primitive counts (no allocations)
         final long signatures = calculatorState != null ? calculatorState.numTxnSignatures() : 0;
         final long bytes = TransactionBody.PROTOBUF.toBytes(txnBody).length();
-        final long keys = countKeys(txnBody.cryptoCreateAccountOrThrow().key());
+        final var key = txnBody.cryptoCreateAccountOrThrow().key();
+        final long keys = key != null ? countKeys(key) : 0;
 
         final var result = new FeeResult();
 
