@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 public class ToLongOrDoubleFunctionTest {
 
     @Test
-    public void testDoubleFunctionGetters() {
+    void testDoubleFunctionGetters() {
         ToDoubleFunction<Object> doubleFunction = obj -> 42.5;
         ToLongOrDoubleFunction<Object> wrapper = new ToLongOrDoubleFunction<>(doubleFunction);
 
@@ -24,7 +24,7 @@ public class ToLongOrDoubleFunctionTest {
     }
 
     @Test
-    public void testLongFunctionGetters() {
+    void testLongFunctionGetters() {
         ToLongFunction<Object> longFunction = obj -> 37L;
         ToLongOrDoubleFunction<Object> wrapper = new ToLongOrDoubleFunction<Object>(longFunction);
 
@@ -37,28 +37,28 @@ public class ToLongOrDoubleFunctionTest {
     }
 
     @Test
-    public void testNullDoubleFunctionThrows() {
+    void testNullDoubleFunctionThrows() {
         assertThatThrownBy(() -> new ToLongOrDoubleFunction<>((ToDoubleFunction<?>) null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("valueConverter cannot be null");
     }
 
     @Test
-    public void testNullLongSupplierThrows() {
+    void testNullLongSupplierThrows() {
         assertThatThrownBy(() -> new ToLongOrDoubleFunction<>((ToLongFunction<?>) null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("valueConverter cannot be null");
     }
 
     @Test
-    public void testDoubleConverterWithNullInput() {
+    void testDoubleConverterWithNullInput() {
         ToDoubleFunction<String> doubleFunction = Double::parseDouble;
         ToLongOrDoubleFunction<String> wrapper = new ToLongOrDoubleFunction<>(doubleFunction);
         assertThat(wrapper.getDoubleValueConverter().applyAsDouble(null)).isNaN();
     }
 
     @Test
-    public void testLongConverterWithNullInput() {
+    void testLongConverterWithNullInput() {
         ToLongFunction<String> longFunction = Long::parseLong;
         ToLongOrDoubleFunction<String> wrapper = new ToLongOrDoubleFunction<>(longFunction);
         assertThat(wrapper.getLongValueConverter().applyAsLong(null)).isEqualTo(0L);

@@ -12,14 +12,14 @@ import org.junit.jupiter.api.Test;
 public class AtomicReferenceGaugeDataPointTest {
 
     @Test
-    public void testNullInitializer() {
+    void testNullInitializer() {
         assertThatThrownBy(() -> new AtomicReferenceGaugeDataPoint<>(null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("initializer must not be null");
     }
 
     @Test
-    public void testDataPointNonNullInitialValue() {
+    void testDataPointNonNullInitialValue() {
         AtomicReferenceGaugeDataPoint<String> dataPoint = new AtomicReferenceGaugeDataPoint<>(() -> "initial");
 
         assertThat(dataPoint.get()).isEqualTo("initial");
@@ -35,7 +35,7 @@ public class AtomicReferenceGaugeDataPointTest {
     }
 
     @Test
-    public void testConcurrentUpdates() throws InterruptedException {
+    void testConcurrentUpdates() throws InterruptedException {
         AtomicReferenceGaugeDataPoint<String> dataPoint = new AtomicReferenceGaugeDataPoint<>(() -> null);
 
         final String[] threadValues = {"value1", "value2", "value3", "value4", "value5"};

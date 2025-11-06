@@ -20,7 +20,7 @@ public class AppendArrayTest {
     class SingleThread {
 
         @Test
-        public void testEmpty() {
+        void testEmpty() {
             AppendArray<String> array = new AppendArray<>(2);
 
             assertThat(array.size()).isEqualTo(0);
@@ -31,7 +31,7 @@ public class AppendArrayTest {
         }
 
         @Test
-        public void testReadWithoutReadyToRead() {
+        void testReadWithoutReadyToRead() {
             AppendArray<Integer> array = new AppendArray<>(2);
             array.add(1);
 
@@ -40,7 +40,7 @@ public class AppendArrayTest {
         }
 
         @Test
-        public void testReadAfterReadyToRead() {
+        void testReadAfterReadyToRead() {
             AppendArray<String> array = new AppendArray<>(2);
             array.add("one");
 
@@ -52,7 +52,7 @@ public class AppendArrayTest {
         }
 
         @Test
-        public void testResize() {
+        void testResize() {
             AppendArray<String> array = new AppendArray<>(2);
             array.add("one");
             array.add("two");
@@ -69,7 +69,7 @@ public class AppendArrayTest {
         }
 
         @Test
-        public void testSubsequentReadsWithoutReadyToRead() {
+        void testSubsequentReadsWithoutReadyToRead() {
             AppendArray<String> array = new AppendArray<>(10);
             array.add("one");
             array.add("two");
@@ -85,7 +85,7 @@ public class AppendArrayTest {
         }
 
         @Test
-        public void testSubsequentReadsWithReadyToRead() {
+        void testSubsequentReadsWithReadyToRead() {
             AppendArray<String> array = new AppendArray<>(10);
             array.add("one");
             array.add("two");
@@ -101,13 +101,31 @@ public class AppendArrayTest {
             assertThat(array.get(1)).isEqualTo("two");
             assertThat(array.get(2)).isEqualTo("three");
         }
+
+        @Test
+        void testIterator() {
+            AppendArray<String> array = new AppendArray<>(2);
+            array.add("one");
+            array.add("two");
+            array.add("three");
+
+            array.readyToRead();
+
+            String[] expected = {"one", "two", "three"};
+            int index = 0;
+            for (String value : array) {
+                assertThat(value).isEqualTo(expected[index]);
+                index++;
+            }
+            assertThat(index).isEqualTo(expected.length);
+        }
     }
 
     @Nested
     class MultiThreaded {
 
         @Test
-        public void testSubsequentReadsWithoutReadyToRead() throws InterruptedException {
+        void testSubsequentReadsWithoutReadyToRead() throws InterruptedException {
             final AppendArray<String> array = new AppendArray<>(10);
             final AtomicBoolean readThreadDone = new AtomicBoolean(false);
 
@@ -145,7 +163,7 @@ public class AppendArrayTest {
         }
 
         @Test
-        public void testConcurrentAddsAndSingleRead() throws InterruptedException {
+        void testConcurrentAddsAndSingleRead() throws InterruptedException {
             final int threadCount = 10;
             final int itemsPerThread = 10000;
             final AppendArray<Integer> array = new AppendArray<>(10);

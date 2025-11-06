@@ -13,7 +13,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 public class DoubleAdderCounterDataPointTest {
 
     @Test
-    public void testNullInitializerThrows() {
+    void testNullInitializerThrows() {
         assertThatThrownBy(() -> new DoubleAdderCounterDataPoint(null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("initializer must not be null");
@@ -21,14 +21,14 @@ public class DoubleAdderCounterDataPointTest {
 
     @ParameterizedTest
     @ValueSource(doubles = {-1.0, -10.0, -100.0, Double.NEGATIVE_INFINITY})
-    public void testNegativeInitializerThrows(double initValue) {
+    void testNegativeInitializerThrows(double initValue) {
         assertThatThrownBy(() -> new DoubleAdderCounterDataPoint(() -> initValue))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Increment value must be non-negative");
     }
 
     @Test
-    public void testDataPointWithZeroInitialValue() {
+    void testDataPointWithZeroInitialValue() {
         DoubleAdderCounterDataPoint dataPoint = new DoubleAdderCounterDataPoint();
 
         assertThat(dataPoint.getAsDouble()).isEqualTo(0.0);
@@ -51,7 +51,7 @@ public class DoubleAdderCounterDataPointTest {
     }
 
     @Test
-    public void testDataPointWithNonZeroInitialValue() {
+    void testDataPointWithNonZeroInitialValue() {
         DoubleAdderCounterDataPoint dataPoint = new DoubleAdderCounterDataPoint(() -> 3.5);
 
         assertThat(dataPoint.getAsDouble()).isEqualTo(3.5);
@@ -75,13 +75,13 @@ public class DoubleAdderCounterDataPointTest {
 
     @ParameterizedTest
     @ValueSource(doubles = {-1.0, -10.0, -100.0, Double.NEGATIVE_INFINITY})
-    public void testIncrementNegativeValueThrows(double negativeValue) {
+    void testIncrementNegativeValueThrows(double negativeValue) {
         DoubleAdderCounterDataPoint dataPoint = new DoubleAdderCounterDataPoint();
         assertThatThrownBy(() -> dataPoint.increment(negativeValue)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
-    public void testConcurrentIncrements() throws InterruptedException {
+    void testConcurrentIncrements() throws InterruptedException {
         int threadCount = 10;
         int incrementsPerThread = 10000;
         DoubleAdderCounterDataPoint dataPoint = new DoubleAdderCounterDataPoint();

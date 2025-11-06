@@ -13,7 +13,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 public class MetricKeyTest {
 
     @Test
-    public void testGetters() {
+    void testGetters() {
         MetricKey<LongCounter> key = MetricKey.of("requests", LongCounter.class);
 
         assertThat(key.name()).isEqualTo("requests");
@@ -21,7 +21,7 @@ public class MetricKeyTest {
     }
 
     @Test
-    public void testEqualsAndHashCode() {
+    void testEqualsAndHashCode() {
         MetricKey<LongCounter> key1 = MetricKey.of("requests", LongCounter.class);
         MetricKey<LongCounter> key2 = MetricKey.of("requests", LongCounter.class);
 
@@ -30,7 +30,7 @@ public class MetricKeyTest {
     }
 
     @Test
-    public void testNotEqualsWithDifferentName() {
+    void testNotEqualsWithDifferentName() {
         MetricKey<LongCounter> key1 = MetricKey.of("requests", LongCounter.class);
         MetricKey<LongCounter> key2 = MetricKey.of("errors", LongCounter.class);
 
@@ -39,7 +39,7 @@ public class MetricKeyTest {
     }
 
     @Test
-    public void testNotEqualsWithDifferentType() {
+    void testNotEqualsWithDifferentType() {
         MetricKey<DoubleCounter> key1 = MetricKey.of("metric", DoubleCounter.class);
         MetricKey<LongCounter> key2 = MetricKey.of("metric", LongCounter.class);
 
@@ -48,7 +48,7 @@ public class MetricKeyTest {
     }
 
     @Test
-    public void testWithCategory() {
+    void testWithCategory() {
         MetricKey<LongCounter> key = MetricKey.of("requests", LongCounter.class);
         MetricKey<LongCounter> categorizedKey = key.withCategory("http");
 
@@ -57,7 +57,7 @@ public class MetricKeyTest {
     }
 
     @Test
-    public void testWithCategoryImmutability() {
+    void testWithCategoryImmutability() {
         MetricKey<LongCounter> key = MetricKey.of("requests", LongCounter.class);
         MetricKey<LongCounter> categorizedKey = key.withCategory("http");
 
@@ -67,7 +67,7 @@ public class MetricKeyTest {
     }
 
     @Test
-    public void testMultipleCategories() {
+    void testMultipleCategories() {
         MetricKey<LongCounter> key =
                 MetricKey.of("requests", LongCounter.class).withCategory("api").withCategory("http");
 
@@ -75,51 +75,51 @@ public class MetricKeyTest {
     }
 
     @Test
-    public void testNullNameThrows() {
+    void testNullNameThrows() {
         assertThatThrownBy(() -> MetricKey.of(null, LongCounter.class)).isInstanceOf(NullPointerException.class);
     }
 
     @Test
-    public void testNullTypeThrows() {
+    void testNullTypeThrows() {
         assertThatThrownBy(() -> MetricKey.of("metric", null)).isInstanceOf(NullPointerException.class);
     }
 
     @ParameterizedTest
     @MethodSource("org.hiero.metrics.TestUtils#invalidNames")
-    public void testInvalidNameCharactersThrows(String invalidName) {
+    void testInvalidNameCharactersThrows(String invalidName) {
         assertThatThrownBy(() -> MetricKey.of(invalidName, LongCounter.class))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @ParameterizedTest
     @MethodSource("org.hiero.metrics.TestUtils#invalidNames")
-    public void testInvalidCategoryCharactersThrows(String invalidCategory) {
+    void testInvalidCategoryCharactersThrows(String invalidCategory) {
         MetricKey<LongCounter> key = MetricKey.of("requests", LongCounter.class);
 
         assertThatThrownBy(() -> key.withCategory(invalidCategory)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
-    public void testToString() {
+    void testToString() {
         MetricKey<LongCounter> key = MetricKey.of("requests", LongCounter.class);
 
         assertThat(key.toString()).contains("requests").contains("LongCounter");
     }
 
     @Test
-    public void testEqualsWithSameInstance() {
+    void testEqualsWithSameInstance() {
         MetricKey<LongCounter> key = MetricKey.of("requests", LongCounter.class);
         assertThat(key).isEqualTo(key);
     }
 
     @Test
-    public void testNotEqualsWithNull() {
+    void testNotEqualsWithNull() {
         MetricKey<LongCounter> key = MetricKey.of("requests", LongCounter.class);
         assertThat(key).isNotEqualTo(null);
     }
 
     @Test
-    public void testNotEqualsWithDifferentClass() {
+    void testNotEqualsWithDifferentClass() {
         MetricKey<LongCounter> key = MetricKey.of("requests", LongCounter.class);
         assertThat(key).isNotEqualTo("requests");
     }

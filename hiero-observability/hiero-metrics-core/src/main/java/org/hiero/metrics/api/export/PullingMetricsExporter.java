@@ -14,7 +14,7 @@ import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
  *
  * @see PushingMetricsExporter
  */
-public interface PullingMetricsExporter extends MetricsExporter {
+public non-sealed interface PullingMetricsExporter extends MetricsExporter {
 
     /**
      * Initialize the exporter with a supplier of {@link MetricsSnapshot}.

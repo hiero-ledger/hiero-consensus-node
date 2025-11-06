@@ -13,7 +13,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 public class AtomicLongCounterDataPointTest {
 
     @Test
-    public void testNullInitializerThrows() {
+    void testNullInitializerThrows() {
         assertThatThrownBy(() -> new AtomicLongCounterDataPoint(null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("initializer must not be null");
@@ -21,14 +21,14 @@ public class AtomicLongCounterDataPointTest {
 
     @ParameterizedTest
     @ValueSource(longs = {-1L, -10L, -100L, Long.MIN_VALUE})
-    public void testNegativeInitializerThrows(long initValue) {
+    void testNegativeInitializerThrows(long initValue) {
         assertThatThrownBy(() -> new AtomicLongCounterDataPoint(() -> initValue))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Increment value must be non-negative");
     }
 
     @Test
-    public void testDataPointWithZeroInitialValue() {
+    void testDataPointWithZeroInitialValue() {
         AtomicLongCounterDataPoint dataPoint = new AtomicLongCounterDataPoint();
 
         assertThat(dataPoint.getAsLong()).isEqualTo(0L);
@@ -51,7 +51,7 @@ public class AtomicLongCounterDataPointTest {
     }
 
     @Test
-    public void testDataPointWithNonZeroInitialValue() {
+    void testDataPointWithNonZeroInitialValue() {
         AtomicLongCounterDataPoint dataPoint = new AtomicLongCounterDataPoint(() -> 5L);
 
         assertThat(dataPoint.getAsLong()).isEqualTo(5L);
@@ -75,13 +75,13 @@ public class AtomicLongCounterDataPointTest {
 
     @ParameterizedTest
     @ValueSource(longs = {-1L, -10L, -100L, Long.MIN_VALUE})
-    public void testIncrementNegativeValueThrows(long negativeValue) {
+    void testIncrementNegativeValueThrows(long negativeValue) {
         AtomicLongCounterDataPoint dataPoint = new AtomicLongCounterDataPoint();
         assertThatThrownBy(() -> dataPoint.increment(negativeValue)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
-    public void testConcurrentIncrements() throws InterruptedException {
+    void testConcurrentIncrements() throws InterruptedException {
         int threadCount = 10;
         int incrementsPerThread = 1000;
         AtomicLongCounterDataPoint dataPoint = new AtomicLongCounterDataPoint();

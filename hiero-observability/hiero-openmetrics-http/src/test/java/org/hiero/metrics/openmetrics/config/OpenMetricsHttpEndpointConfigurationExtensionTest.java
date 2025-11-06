@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 public class OpenMetricsHttpEndpointConfigurationExtensionTest {
 
     @Test
-    public void configTypes() {
+    void configTypes() {
         OpenMetricsHttpEndpointConfigurationExtension extension = new OpenMetricsHttpEndpointConfigurationExtension();
 
         assertThat(extension.getConfigDataTypes().size()).isEqualTo(1);

@@ -12,21 +12,21 @@ import org.junit.jupiter.api.Test;
 public class LongAccumulatorGaugeDataPointTest {
 
     @Test
-    public void testNullInitializer() {
+    void testNullInitializer() {
         assertThatThrownBy(() -> new LongAccumulatorGaugeDataPoint(StatUtils.LONG_SUM, null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("initializer must not be null");
     }
 
     @Test
-    public void testNullOperator() {
+    void testNullOperator() {
         assertThatThrownBy(() -> new LongAccumulatorGaugeDataPoint(null, StatUtils.LONG_INIT))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("operator must not be null");
     }
 
     @Test
-    public void testDataPointWithMinOperatorAndDefaultInitializer() {
+    void testDataPointWithMinOperatorAndDefaultInitializer() {
         LongAccumulatorGaugeDataPoint dataPoint =
                 new LongAccumulatorGaugeDataPoint(StatUtils.LONG_MIN, StatUtils.LONG_INIT);
 
@@ -46,7 +46,7 @@ public class LongAccumulatorGaugeDataPointTest {
     }
 
     @Test
-    public void testDataPointWithMaxOperatorAndCustomInitializer() {
+    void testDataPointWithMaxOperatorAndCustomInitializer() {
         LongAccumulatorGaugeDataPoint dataPoint = new LongAccumulatorGaugeDataPoint(StatUtils.LONG_MAX, () -> -1L);
 
         assertThat(dataPoint.getAsLong()).isEqualTo(-1L);
@@ -65,7 +65,7 @@ public class LongAccumulatorGaugeDataPointTest {
     }
 
     @Test
-    public void testConcurrentUpdates() throws InterruptedException {
+    void testConcurrentUpdates() throws InterruptedException {
         LongAccumulatorGaugeDataPoint dataPoint =
                 new LongAccumulatorGaugeDataPoint(StatUtils.LONG_MAX, StatUtils.LONG_INIT);
 

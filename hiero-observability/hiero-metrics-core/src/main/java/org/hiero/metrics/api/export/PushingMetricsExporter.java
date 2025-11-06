@@ -12,7 +12,7 @@ import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
  *
  * @see PullingMetricsExporter
  */
-public interface PushingMetricsExporter extends MetricsExporter {
+public non-sealed interface PushingMetricsExporter extends MetricsExporter {
 
     /**
      * Export the given metrics snapshot to the destination.

@@ -12,21 +12,21 @@ import org.junit.jupiter.api.Test;
 public class DoubleAccumulatorGaugeDataPointTest {
 
     @Test
-    public void testNullInitializer() {
+    void testNullInitializer() {
         assertThatThrownBy(() -> new DoubleAccumulatorGaugeDataPoint(StatUtils.DOUBLE_SUM, null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("initializer must not be null");
     }
 
     @Test
-    public void testNullOperator() {
+    void testNullOperator() {
         assertThatThrownBy(() -> new DoubleAccumulatorGaugeDataPoint(null, StatUtils.DOUBLE_INIT))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("operator must not be null");
     }
 
     @Test
-    public void testDataPointWithMinOperatorAndDefaultInitializer() {
+    void testDataPointWithMinOperatorAndDefaultInitializer() {
         DoubleAccumulatorGaugeDataPoint dataPoint =
                 new DoubleAccumulatorGaugeDataPoint(StatUtils.DOUBLE_MIN, StatUtils.DOUBLE_INIT);
 
@@ -46,7 +46,7 @@ public class DoubleAccumulatorGaugeDataPointTest {
     }
 
     @Test
-    public void testDataPointWithMaxOperatorAndCustomInitializer() {
+    void testDataPointWithMaxOperatorAndCustomInitializer() {
         DoubleAccumulatorGaugeDataPoint dataPoint =
                 new DoubleAccumulatorGaugeDataPoint(StatUtils.DOUBLE_MAX, () -> -1.0);
 
@@ -66,7 +66,7 @@ public class DoubleAccumulatorGaugeDataPointTest {
     }
 
     @Test
-    public void testConcurrentUpdates() throws InterruptedException {
+    void testConcurrentUpdates() throws InterruptedException {
         DoubleAccumulatorGaugeDataPoint dataPoint =
                 new DoubleAccumulatorGaugeDataPoint(StatUtils.DOUBLE_MAX, StatUtils.DOUBLE_INIT);
 

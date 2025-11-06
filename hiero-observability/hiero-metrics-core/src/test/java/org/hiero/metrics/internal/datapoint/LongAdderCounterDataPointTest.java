@@ -14,7 +14,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 public class LongAdderCounterDataPointTest {
 
     @Test
-    public void testNullInitializerThrows() {
+    void testNullInitializerThrows() {
         assertThatThrownBy(() -> new LongAdderCounterDataPoint(null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("initializer must not be null");
@@ -22,14 +22,14 @@ public class LongAdderCounterDataPointTest {
 
     @ParameterizedTest
     @ValueSource(longs = {-1L, -10L, -10L, Long.MIN_VALUE})
-    public void testNegativeInitializerThrows(long initValue) {
+    void testNegativeInitializerThrows(long initValue) {
         assertThatThrownBy(() -> new LongAdderCounterDataPoint(() -> initValue))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Increment value must be non-negative");
     }
 
     @Test
-    public void testDataPointWithZeroInitialValue() {
+    void testDataPointWithZeroInitialValue() {
         LongAdderCounterDataPoint dataPoint = new LongAdderCounterDataPoint(StatUtils.LONG_INIT);
 
         assertThat(dataPoint.getAsLong()).isEqualTo(0L);
@@ -52,7 +52,7 @@ public class LongAdderCounterDataPointTest {
     }
 
     @Test
-    public void testDataPointWithNonZeroInitialValue() {
+    void testDataPointWithNonZeroInitialValue() {
         LongAdderCounterDataPoint dataPoint = new LongAdderCounterDataPoint(() -> 3L);
 
         assertThat(dataPoint.getAsLong()).isEqualTo(3L);
@@ -76,13 +76,13 @@ public class LongAdderCounterDataPointTest {
 
     @ParameterizedTest
     @ValueSource(longs = {-1L, -10L, -100L, Long.MIN_VALUE})
-    public void testIncrementNegativeValueThrows(long negativeValue) {
+    void testIncrementNegativeValueThrows(long negativeValue) {
         LongAdderCounterDataPoint dataPoint = new LongAdderCounterDataPoint(StatUtils.LONG_INIT);
         assertThatThrownBy(() -> dataPoint.increment(negativeValue)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
-    public void testConcurrentIncrements() throws InterruptedException {
+    void testConcurrentIncrements() throws InterruptedException {
         int threadCount = 10;
         int incrementsPerThread = 10000;
         LongAdderCounterDataPoint dataPoint = new LongAdderCounterDataPoint(StatUtils.LONG_INIT);

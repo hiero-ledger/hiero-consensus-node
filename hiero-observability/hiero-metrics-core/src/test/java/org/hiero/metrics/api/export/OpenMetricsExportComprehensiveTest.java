@@ -29,7 +29,7 @@ import org.junit.jupiter.api.TestMethodOrder;
 public class OpenMetricsExportComprehensiveTest {
 
     @Test
-    public void testEmptyMetrics() throws IOException {
+    void testEmptyMetrics() throws IOException {
         TestExporterContext context = new TestExporterContext(OpenMetricsSnapshotsWriter.DEFAULT);
         context.exportAndVerify("""
                 # EOF
@@ -59,7 +59,7 @@ public class OpenMetricsExportComprehensiveTest {
 
         @Test
         @Order(1)
-        public void testInitWithoutObservation() throws IOException {
+        void testInitWithoutObservation() throws IOException {
             onlyName = BooleanGauge.builder("only_name").register(context.getRegistry());
             nameAndCategory = BooleanGauge.builder(
                             BooleanGauge.key("name_category").withCategory("bool"))
@@ -106,7 +106,7 @@ public class OpenMetricsExportComprehensiveTest {
 
         @Test
         @Order(2)
-        public void testObserve1() throws IOException {
+        void testObserve1() throws IOException {
             onlyName.getOrCreateNotLabeled().setTrue();
             onlyName.getOrCreateNotLabeled().setFalse(); // back to false
 
@@ -161,7 +161,7 @@ public class OpenMetricsExportComprehensiveTest {
 
         @Test
         @Order(3)
-        public void testObserve2() throws IOException {
+        void testObserve2() throws IOException {
             onlyName.getOrCreateNotLabeled().setTrue(); // changes to true
 
             nameAndCategory.getOrCreateNotLabeled().setTrue(); // changes to true
@@ -223,7 +223,7 @@ public class OpenMetricsExportComprehensiveTest {
 
         @Test
         @Order(4)
-        public void testNoChangesWithoutObservation() throws IOException {
+        void testNoChangesWithoutObservation() throws IOException {
             context.exportAndVerify(
                     """
                 # TYPE only_name gauge
@@ -275,7 +275,7 @@ public class OpenMetricsExportComprehensiveTest {
 
         @Test
         @Order(1)
-        public void testInitWithoutObservation() throws IOException {
+        void testInitWithoutObservation() throws IOException {
             onlyName = DoubleCounter.builder("only_name").register(context.getRegistry());
             nameAndCategory = DoubleCounter.builder(
                             DoubleCounter.key("name_category").withCategory("cnt"))
@@ -322,7 +322,7 @@ public class OpenMetricsExportComprehensiveTest {
 
         @Test
         @Order(2)
-        public void testObserve1() throws IOException {
+        void testObserve1() throws IOException {
             onlyName.getOrCreateNotLabeled().increment(0.0); // stays 0
 
             nameAndCategory.getOrCreateNotLabeled().increment(); // +1, changes to 1
@@ -377,7 +377,7 @@ public class OpenMetricsExportComprehensiveTest {
 
         @Test
         @Order(3)
-        public void testObserve2() throws IOException {
+        void testObserve2() throws IOException {
             onlyName.getOrCreateNotLabeled().increment(0.001); // changes to 0.001
 
             nameAndCategory.getOrCreateNotLabeled().increment(0.001); // changes to 1.001
@@ -436,7 +436,7 @@ public class OpenMetricsExportComprehensiveTest {
 
         @Test
         @Order(4)
-        public void testNoChangesWithoutObservation() throws IOException {
+        void testNoChangesWithoutObservation() throws IOException {
             context.exportAndVerify(
                     """
                  # TYPE only_name counter
@@ -487,7 +487,7 @@ public class OpenMetricsExportComprehensiveTest {
 
         @Test
         @Order(1)
-        public void testInitWithoutObservation() throws IOException {
+        void testInitWithoutObservation() throws IOException {
             onlyName = LongCounter.builder("only_name").register(context.getRegistry());
             nameAndCategory = LongCounter.builder(
                             LongCounter.key("name_category").withCategory("cnt"))
@@ -533,7 +533,7 @@ public class OpenMetricsExportComprehensiveTest {
 
         @Test
         @Order(2)
-        public void testObserve1() throws IOException {
+        void testObserve1() throws IOException {
             onlyName.getOrCreateNotLabeled().increment(0); // stays 0
 
             nameAndCategory.getOrCreateNotLabeled().increment(); // +1, changes to 1
@@ -586,7 +586,7 @@ public class OpenMetricsExportComprehensiveTest {
 
         @Test
         @Order(3)
-        public void testObserve2() throws IOException {
+        void testObserve2() throws IOException {
             onlyName.getOrCreateNotLabeled().increment(); // changes to 1
 
             nameAndCategory.getOrCreateNotLabeled().increment(3); // changes to 4
@@ -645,7 +645,7 @@ public class OpenMetricsExportComprehensiveTest {
 
         @Test
         @Order(4)
-        public void testNoChangesWithoutObservation() throws IOException {
+        void testNoChangesWithoutObservation() throws IOException {
             context.exportAndVerify(
                     """
                 # TYPE only_name counter
@@ -696,7 +696,7 @@ public class OpenMetricsExportComprehensiveTest {
 
         @Test
         @Order(1)
-        public void testInitWithoutObservation() throws IOException {
+        void testInitWithoutObservation() throws IOException {
             onlyName = DoubleGauge.builder("only_name").register(context.getRegistry());
             nameAndDescriptionMaxReset = DoubleGauge.builder(
                             DoubleGauge.key("name_description").withCategory("max_reset"))
@@ -754,7 +754,7 @@ public class OpenMetricsExportComprehensiveTest {
 
         @Test
         @Order(2)
-        public void testObserve1() throws IOException {
+        void testObserve1() throws IOException {
             onlyName.getOrCreateNotLabeled().update(0.0);
             onlyName.getOrCreateNotLabeled().update(0.0); // stays 0.0
 
@@ -818,7 +818,7 @@ public class OpenMetricsExportComprehensiveTest {
 
         @Test
         @Order(2)
-        public void testObserve2() throws IOException {
+        void testObserve2() throws IOException {
             onlyName.getOrCreateNotLabeled().update(1.1);
             onlyName.getOrCreateNotLabeled().update(Double.NEGATIVE_INFINITY);
 
@@ -889,7 +889,7 @@ public class OpenMetricsExportComprehensiveTest {
 
         @Test
         @Order(4)
-        public void testChangesWithoutObservation() throws IOException {
+        void testChangesWithoutObservation() throws IOException {
             // all aggregations expected to be reset where applicable
             context.exportAndVerify(
                     """
@@ -942,7 +942,7 @@ public class OpenMetricsExportComprehensiveTest {
 
         @Test
         @Order(1)
-        public void testInitWithoutObservation() throws IOException {
+        void testInitWithoutObservation() throws IOException {
             onlyName = StatelessMetric.builder("only_name").register(context.getRegistry()); // no data points yet
             StatelessMetric.builder(StatelessMetric.key("name_category").withCategory("cnt"))
                     .registerDataPoint(() -> 1.0)
@@ -995,7 +995,7 @@ public class OpenMetricsExportComprehensiveTest {
 
         @Test
         @Order(2)
-        public void testObserve1() throws IOException {
+        void testObserve1() throws IOException {
             onlyName.registerDataPoint(new LongOrDoubleSupplier(() -> 1.1));
 
             nameDescriptionAndUnitContainer.set(1.89);
@@ -1041,7 +1041,7 @@ public class OpenMetricsExportComprehensiveTest {
 
         @Test
         @Order(3)
-        public void testObserve2() throws IOException {
+        void testObserve2() throws IOException {
             nameDescriptionAndUnitContainer.set(-1.99); // becomes -1.99
 
             dynamicLabelContainer1.set(0.01);
@@ -1080,7 +1080,7 @@ public class OpenMetricsExportComprehensiveTest {
 
         @Test
         @Order(4)
-        public void testNoChangeWithoutObservation() throws IOException {
+        void testNoChangeWithoutObservation() throws IOException {
             context.exportAndVerify(
                     """
                     # TYPE only_name gauge
@@ -1111,7 +1111,7 @@ public class OpenMetricsExportComprehensiveTest {
     }
 
     @Test
-    public void demo() throws InterruptedException {
+    void demo() throws InterruptedException {
         MetricRegistry registry = MetricsFacade.createRegistry(new Label("env", "test"));
         MetricsExportManager snapshotManager =
                 MetricsFacade.createExportManager(new ConsoleMetricsExporter(OpenMetricsSnapshotsWriter.DEFAULT), 1);

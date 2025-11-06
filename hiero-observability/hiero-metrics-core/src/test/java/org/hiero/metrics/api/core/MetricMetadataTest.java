@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 public class MetricMetadataTest {
 
     @Test
-    public void testConstructorWithAllNonNullParameters() {
+    void testConstructorWithAllNonNullParameters() {
         MetricMetadata metadata =
                 new MetricMetadata(MetricType.COUNTER, "test.metric", "Test description", "milliseconds");
 
@@ -20,7 +20,7 @@ public class MetricMetadataTest {
     }
 
     @Test
-    public void testConstructorWithNullDescription() {
+    void testConstructorWithNullDescription() {
         MetricMetadata metadata = new MetricMetadata(MetricType.GAUGE, "test.metric", null, "bytes");
 
         assertThat(metadata.description()).isNotNull();
@@ -28,7 +28,7 @@ public class MetricMetadataTest {
     }
 
     @Test
-    public void testConstructorWithNullUnit() {
+    void testConstructorWithNullUnit() {
         MetricMetadata metadata = new MetricMetadata(MetricType.COUNTER, "test.metric", "Test description", null);
 
         assertThat(metadata.unit()).isNotNull();
@@ -36,7 +36,7 @@ public class MetricMetadataTest {
     }
 
     @Test
-    public void testConstructorWithNullDescriptionAndUnit() {
+    void testConstructorWithNullDescriptionAndUnit() {
         MetricMetadata metadata = new MetricMetadata(MetricType.COUNTER, "test.metric", null, null);
 
         assertThat(metadata.description()).isNotNull();
@@ -47,32 +47,32 @@ public class MetricMetadataTest {
     }
 
     @Test
-    public void testNullMetricTypeThrowsException() {
+    void testNullMetricTypeThrowsException() {
         assertThatThrownBy(() -> new MetricMetadata(null, "test.metric", "description", "unit"))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("metric type must not be null");
     }
 
     @Test
-    public void testNullNameThrowsException() {
+    void testNullNameThrowsException() {
         assertThatThrownBy(() -> new MetricMetadata(MetricType.COUNTER, null, "description", "unit"))
                 .isInstanceOf(NullPointerException.class);
     }
 
     @Test
-    public void testBlankNameThrowsException() {
+    void testBlankNameThrowsException() {
         assertThatThrownBy(() -> new MetricMetadata(MetricType.COUNTER, "", "description", "unit"))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
-    public void testWhitespaceNameThrowsException() {
+    void testWhitespaceNameThrowsException() {
         assertThatThrownBy(() -> new MetricMetadata(MetricType.COUNTER, "   ", "description", "unit"))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
-    public void testRecordEquality() {
+    void testRecordEquality() {
         MetricMetadata metadata1 = new MetricMetadata(MetricType.COUNTER, "test.metric", "desc", "unit");
         MetricMetadata metadata2 = new MetricMetadata(MetricType.COUNTER, "test.metric", "desc", "unit");
 
@@ -81,7 +81,7 @@ public class MetricMetadataTest {
     }
 
     @Test
-    public void testRecordInequality() {
+    void testRecordInequality() {
         MetricMetadata metadata1 = new MetricMetadata(MetricType.COUNTER, "test.metric", "desc", "unit");
         MetricMetadata metadata2 = new MetricMetadata(MetricType.GAUGE, "test.metric", "desc", "unit");
 
