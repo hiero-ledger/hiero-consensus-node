@@ -166,7 +166,7 @@ public class OtterTestExtension
                 .filter(t -> t.equals(TestEnvironment.class))
                 .map(t -> {
                     // Retrieve the pre-created output directory
-                    Path outputDir = (Path)
+                    final Path outputDir = (Path)
                             extensionContext.getStore(EXTENSION_NAMESPACE).get("outputDirectory");
 
                     if (outputDir == null) {
@@ -183,7 +183,7 @@ public class OtterTestExtension
                     final String testName = extensionContext.getDisplayName().replaceAll("[^a-zA-Z0-9_\\-\\[\\]]", "_");
                     final String testId = Path.of(className, testName).toString(); // get correct directory separator
 
-                    OtterLifecycle lifecycle = new OtterLifecycle(testId, testEnvironment);
+                    final OtterLifecycle lifecycle = new OtterLifecycle(testId, testEnvironment);
                     extensionContext.getStore(EXTENSION_NAMESPACE).put("otterLifecycle", lifecycle);
 
                     return testEnvironment;
@@ -198,7 +198,7 @@ public class OtterTestExtension
      */
     @Override
     public void preDestroyTestInstance(@NonNull final ExtensionContext extensionContext) {
-        OtterLifecycle lifecycle =
+        final OtterLifecycle lifecycle =
                 (OtterLifecycle) extensionContext.getStore(EXTENSION_NAMESPACE).remove("otterLifecycle");
 
         if (lifecycle != null) {
@@ -343,11 +343,11 @@ public class OtterTestExtension
         final long randomSeed = turtleSpecs.map(TurtleSpecs::randomSeed).orElse(0L);
 
         // Generate test-specific output directory
-        String className =
+        final String className =
                 extensionContext.getTestClass().map(Class::getSimpleName).orElse("Unknown-Class");
-        String testName = extensionContext.getDisplayName().replaceAll("[^a-zA-Z0-9_\\-]", "_") + "_"
+        final String testName = extensionContext.getDisplayName().replaceAll("[^a-zA-Z0-9_\\-]", "_") + "_"
                 + System.currentTimeMillis();
-        Path outputDir = Path.of("build", "aggregateTestTurtle", className, testName);
+        final Path outputDir = Path.of("build", "aggregateTestTurtle", className, testName);
 
         return new TurtleTestEnvironment(randomSeed, randomNodeIds, outputDir);
     }
