@@ -151,9 +151,7 @@ public class IterableStorageManager {
             final var slotsChanged = writableEvmHookStore.updateStorage(hookId, updates);
             if (slotsChanged != 0) {
                 final var entityId = hookId.entityIdOrThrow();
-                enhancement
-                        .operations()
-                        .updateLambdaStorageSlots(entityId.accountIdOrThrow(), slotsChanged, entityId.hasContractId());
+                enhancement.operations().updateLambdaStorageSlots(entityId.accountIdOrThrow(), slotsChanged, false);
             }
         }
     }
