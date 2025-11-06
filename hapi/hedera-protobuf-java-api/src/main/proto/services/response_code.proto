@@ -1772,6 +1772,11 @@ enum ResponseCodeEnum {
     INVALID_SERIALIZED_TX_MESSAGE_HASH_ALGORITHM = 401;
 
     /**
+     * A LambdaSStore referenced an entity number but with the wrong entity type.
+     */
+    WRONG_HOOK_ENTITY_TYPE = 499;
+
+    /**
      * An EVM hook execution was throttled due to high network gas utilization.
      */
     EVM_HOOK_GAS_THROTTLED = 500;

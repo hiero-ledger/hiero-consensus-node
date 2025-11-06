@@ -47,7 +47,6 @@ class IterableStorageManagerTest {
             ContractID.newBuilder().contractNum(1L).build();
     private final ContractID CONTRACT_2 =
             ContractID.newBuilder().contractNum(2L).build();
-    private final AccountID ACCOUNT_ID_1 = AccountID.newBuilder().accountNum(1L).build();
     private final AccountID ACCOUNT_ID_2 = AccountID.newBuilder().accountNum(2L).build();
     private final Bytes BYTES_1 = tuweniToPbjBytes(UInt256.ONE);
     private final Bytes BYTES_2 = tuweniToPbjBytes(UInt256.valueOf(2L));
@@ -140,7 +139,7 @@ class IterableStorageManagerTest {
     void updatedHookStorageNumberOfSlots() {
         final var hookEntity = HookId.newBuilder()
                 .hookId(1L)
-                .entityId(HookEntityId.newBuilder().contractId(CONTRACT_2).build())
+                .entityId(HookEntityId.newBuilder().accountId(ACCOUNT_ID_2).build())
                 .build();
         final var slotKey = new LambdaSlotKey(hookEntity, BYTES_1);
 
@@ -163,7 +162,7 @@ class IterableStorageManagerTest {
                                         .value(Bytes.EMPTY)
                                         .build())
                                 .build()));
-        verify(hederaOperations).updateLambdaStorageSlots(ACCOUNT_ID_2, -1);
+        verify(hederaOperations).updateLambdaStorageSlots(ACCOUNT_ID_2, -1, false);
         verifyNoMoreInteractions(hederaOperations);
     }
 

@@ -304,10 +304,11 @@ public class HandleHederaOperations implements HederaOperations {
      * {@inheritDoc}
      */
     @Override
-    public void updateLambdaStorageSlots(@NonNull final AccountID accountId, int netChangeInSlotsUsed) {
+    public void updateLambdaStorageSlots(
+            @NonNull final AccountID accountId, final int netChangeInSlotsUsed, final boolean requiresContract) {
         requireNonNull(accountId);
         final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
-        tokenServiceApi.updateLambdaStorageSlots(accountId, netChangeInSlotsUsed);
+        tokenServiceApi.updateLambdaStorageSlots(accountId, netChangeInSlotsUsed, false);
     }
 
     /**

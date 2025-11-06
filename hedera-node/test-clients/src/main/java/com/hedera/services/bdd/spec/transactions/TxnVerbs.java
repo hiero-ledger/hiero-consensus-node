@@ -845,4 +845,8 @@ public class TxnVerbs {
     public static HapiLambdaSStore accountLambdaSStore(@NonNull final String account, final long hookId) {
         return new HapiLambdaSStore(HookEntityId.EntityIdOneOfType.ACCOUNT_ID, account, hookId);
     }
+
+    public static HapiLambdaSStore contractLambdaSStore(@NonNull final String contract, final long hookId) {
+        return new HapiLambdaSStore(HookEntityId.EntityIdOneOfType.CONTRACT_ID, contract, hookId);
+    }
 }

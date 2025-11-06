@@ -109,7 +109,7 @@ public class HookUtils {
      * @param hookEntityId the HookEntityId
      * @return the owner AccountID
      */
-    public static AccountID getHookOwnerId(final @NonNull HookEntityId hookEntityId) {
+    public static AccountID getHookOwnerId(@NonNull final HookEntityId hookEntityId) {
         return requireNonNull(hookEntityId).hasAccountId()
                 ? hookEntityId.accountIdOrThrow()
                 : asAccountId(hookEntityId.contractIdOrThrow());
@@ -120,7 +120,8 @@ public class HookUtils {
      * @param contractID the ContractID to convert
      * @return the corresponding AccountID
      */
-    private static AccountID asAccountId(final ContractID contractID) {
+    public static AccountID asAccountId(@NonNull final ContractID contractID) {
+        requireNonNull(contractID);
         return AccountID.newBuilder()
                 .shardNum(contractID.shardNum())
                 .realmNum(contractID.realmNum())
