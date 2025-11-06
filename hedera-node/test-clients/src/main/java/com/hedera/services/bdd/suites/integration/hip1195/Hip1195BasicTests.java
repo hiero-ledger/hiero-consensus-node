@@ -1102,62 +1102,62 @@ public class Hip1195BasicTests {
         return hapiTest(
                 // First accounts whose lists were constructed purely via cryptoCreate
                 cryptoCreate("zeroHooksToStart"),
-                assertAccountHookIdList("zeroHooksToStart", List.of()),
+                assertHookIdList("zeroHooksToStart", List.of()),
                 cryptoCreate("oneHookToStartZ").withHooks(accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
-                assertAccountHookIdList("oneHookToStartZ", List.of(0L)),
+                assertHookIdList("oneHookToStartZ", List.of(0L)),
                 cryptoCreate("oneHookToStartNZ").withHooks(accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name())),
-                assertAccountHookIdList("oneHookToStartNZ", List.of(-1L)),
+                assertHookIdList("oneHookToStartNZ", List.of(-1L)),
                 cryptoCreate("twoHooksToStartZNZ")
                         .withHooks(
                                 accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name())),
-                assertAccountHookIdList("twoHooksToStartZNZ", List.of(0L, -1L)),
+                assertHookIdList("twoHooksToStartZNZ", List.of(0L, -1L)),
                 cryptoCreate("twoHooksToStartNZZ")
                         .withHooks(
                                 accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
-                assertAccountHookIdList("twoHooksToStartNZZ", List.of(-1L, 0L)),
+                assertHookIdList("twoHooksToStartNZZ", List.of(-1L, 0L)),
                 cryptoCreate("threeHooksToStartZNZNZ")
                         .withHooks(
                                 accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(1L, TRUE_ALLOWANCE_HOOK.name())),
-                assertAccountHookIdList("threeHooksToStartZNZNZ", List.of(0L, -1L, 1L)),
+                assertHookIdList("threeHooksToStartZNZNZ", List.of(0L, -1L, 1L)),
                 cryptoCreate("threeHooksToStartNZZNZ")
                         .withHooks(
                                 accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(1L, TRUE_ALLOWANCE_HOOK.name())),
-                assertAccountHookIdList("threeHooksToStartNZZNZ", List.of(-1L, 0L, 1L)),
+                assertHookIdList("threeHooksToStartNZZNZ", List.of(-1L, 0L, 1L)),
                 cryptoCreate("threeHooksToStartNZNZZ")
                         .withHooks(
                                 accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(1L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
-                assertAccountHookIdList("threeHooksToStartNZNZZ", List.of(-1L, 1L, 0L)),
+                assertHookIdList("threeHooksToStartNZNZZ", List.of(-1L, 1L, 0L)),
                 // Now accounts with lists manipulated via cryptoUpdate
                 cryptoUpdate("zeroHooksToStart").withHook(accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
-                assertAccountHookIdList("zeroHooksToStart", List.of(0L)),
+                assertHookIdList("zeroHooksToStart", List.of(0L)),
                 cryptoUpdate("zeroHooksToStart").removingHook(0L),
-                assertAccountHookIdList("zeroHooksToStart", List.of()),
+                assertHookIdList("zeroHooksToStart", List.of()),
                 cryptoUpdate("oneHookToStartZ")
                         .removingHook(0L)
                         .withHook(accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
-                assertAccountHookIdList("oneHookToStartZ", List.of(0L)),
+                assertHookIdList("oneHookToStartZ", List.of(0L)),
                 cryptoUpdate("oneHookToStartNZ").withHook(accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
-                assertAccountHookIdList("oneHookToStartNZ", List.of(0L, -1L)),
+                assertHookIdList("oneHookToStartNZ", List.of(0L, -1L)),
                 cryptoUpdate("twoHooksToStartZNZ")
                         .removingHook(-1L)
                         .withHook(accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name())),
-                assertAccountHookIdList("twoHooksToStartZNZ", List.of(-1L, 0L)),
+                assertHookIdList("twoHooksToStartZNZ", List.of(-1L, 0L)),
                 cryptoUpdate("twoHooksToStartNZZ").withHook(accountAllowanceHook(-2L, TRUE_ALLOWANCE_HOOK.name())),
-                assertAccountHookIdList("twoHooksToStartNZZ", List.of(-2L, -1L, 0L)),
+                assertHookIdList("twoHooksToStartNZZ", List.of(-2L, -1L, 0L)),
                 cryptoUpdate("threeHooksToStartZNZNZ").removingHook(-1L),
-                assertAccountHookIdList("threeHooksToStartZNZNZ", List.of(0L, 1L)),
+                assertHookIdList("threeHooksToStartZNZNZ", List.of(0L, 1L)),
                 cryptoUpdate("threeHooksToStartNZZNZ").removingHooks(1L, 0L, -1L),
-                assertAccountHookIdList("threeHooksToStartNZZNZ", List.of()),
+                assertHookIdList("threeHooksToStartNZZNZ", List.of()),
                 cryptoUpdate("threeHooksToStartNZNZZ").withHook(accountAllowanceHook(2L, TRUE_ALLOWANCE_HOOK.name())),
-                assertAccountHookIdList("threeHooksToStartNZNZZ", List.of(2L, -1L, 1L, 0L)),
+                assertHookIdList("threeHooksToStartNZNZZ", List.of(2L, -1L, 1L, 0L)),
                 // Confirm there were no warning logs about hook list management
                 assertHgcaaLogDoesNotContain(NodeSelector.byNodeId(0), "WritableEvmHookStore", Duration.ofSeconds(1)));
     }
@@ -1170,80 +1170,69 @@ public class Hip1195BasicTests {
         return hapiTest(
                 // First accounts whose lists were constructed purely via contractCreate
                 createDefaultContract("zeroHooksToStart"),
-                assertContractHookIdList("zeroHooksToStart", List.of()),
+                assertHookIdList("zeroHooksToStart", List.of()),
                 createDefaultContract("oneHookToStartZ")
                         .withHooks(accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
-                assertContractHookIdList("oneHookToStartZ", List.of(0L)),
+                assertHookIdList("oneHookToStartZ", List.of(0L)),
                 createDefaultContract("oneHookToStartNZ")
                         .withHooks(accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name())),
-                assertContractHookIdList("oneHookToStartNZ", List.of(-1L)),
+                assertHookIdList("oneHookToStartNZ", List.of(-1L)),
                 createDefaultContract("twoHooksToStartZNZ")
                         .withHooks(
                                 accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name())),
-                assertContractHookIdList("twoHooksToStartZNZ", List.of(0L, -1L)),
+                assertHookIdList("twoHooksToStartZNZ", List.of(0L, -1L)),
                 createDefaultContract("twoHooksToStartNZZ")
                         .withHooks(
                                 accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
-                assertContractHookIdList("twoHooksToStartNZZ", List.of(-1L, 0L)),
+                assertHookIdList("twoHooksToStartNZZ", List.of(-1L, 0L)),
                 createDefaultContract("threeHooksToStartZNZNZ")
                         .withHooks(
                                 accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(1L, TRUE_ALLOWANCE_HOOK.name())),
-                assertContractHookIdList("threeHooksToStartZNZNZ", List.of(0L, -1L, 1L)),
+                assertHookIdList("threeHooksToStartZNZNZ", List.of(0L, -1L, 1L)),
                 createDefaultContract("threeHooksToStartNZZNZ")
                         .withHooks(
                                 accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(1L, TRUE_ALLOWANCE_HOOK.name())),
-                assertContractHookIdList("threeHooksToStartNZZNZ", List.of(-1L, 0L, 1L)),
+                assertHookIdList("threeHooksToStartNZZNZ", List.of(-1L, 0L, 1L)),
                 createDefaultContract("threeHooksToStartNZNZZ")
                         .withHooks(
                                 accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(1L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
-                assertContractHookIdList("threeHooksToStartNZNZZ", List.of(-1L, 1L, 0L)),
+                assertHookIdList("threeHooksToStartNZNZZ", List.of(-1L, 1L, 0L)),
                 // Now accounts with lists manipulated via cryptoUpdate
                 contractUpdate("zeroHooksToStart").withHook(accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
-                assertContractHookIdList("zeroHooksToStart", List.of(0L)),
+                assertHookIdList("zeroHooksToStart", List.of(0L)),
                 contractUpdate("zeroHooksToStart").removingHook(0L),
-                assertContractHookIdList("zeroHooksToStart", List.of()),
+                assertHookIdList("zeroHooksToStart", List.of()),
                 contractUpdate("oneHookToStartZ")
                         .removingHook(0L)
                         .withHook(accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
-                assertContractHookIdList("oneHookToStartZ", List.of(0L)),
+                assertHookIdList("oneHookToStartZ", List.of(0L)),
                 contractUpdate("oneHookToStartNZ").withHook(accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
-                assertContractHookIdList("oneHookToStartNZ", List.of(0L, -1L)),
+                assertHookIdList("oneHookToStartNZ", List.of(0L, -1L)),
                 contractUpdate("twoHooksToStartZNZ")
                         .removingHook(-1L)
                         .withHook(accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name())),
-                assertContractHookIdList("twoHooksToStartZNZ", List.of(-1L, 0L)),
+                assertHookIdList("twoHooksToStartZNZ", List.of(-1L, 0L)),
                 contractUpdate("twoHooksToStartNZZ").withHook(accountAllowanceHook(-2L, TRUE_ALLOWANCE_HOOK.name())),
-                assertContractHookIdList("twoHooksToStartNZZ", List.of(-2L, -1L, 0L)),
+                assertHookIdList("twoHooksToStartNZZ", List.of(-2L, -1L, 0L)),
                 contractUpdate("threeHooksToStartZNZNZ").removingHook(-1L),
-                assertContractHookIdList("threeHooksToStartZNZNZ", List.of(0L, 1L)),
+                assertHookIdList("threeHooksToStartZNZNZ", List.of(0L, 1L)),
                 contractUpdate("threeHooksToStartNZZNZ").removingHooks(1L, 0L, -1L),
-                assertContractHookIdList("threeHooksToStartNZZNZ", List.of()),
+                assertHookIdList("threeHooksToStartNZZNZ", List.of()),
                 contractUpdate("threeHooksToStartNZNZZ").withHook(accountAllowanceHook(2L, TRUE_ALLOWANCE_HOOK.name())),
-                assertContractHookIdList("threeHooksToStartNZNZZ", List.of(2L, -1L, 1L, 0L)),
+                assertHookIdList("threeHooksToStartNZNZZ", List.of(2L, -1L, 1L, 0L)),
                 // Confirm there were no warning logs about hook list management
                 assertHgcaaLogDoesNotContain(NodeSelector.byNodeId(0), "WritableEvmHookStore", Duration.ofSeconds(1)));
     }
 
-    private SpecOperation assertContractHookIdList(
-            @NonNull final String account, @NonNull final List<Long> expectedHookIds) {
-        return assertHookIdList(account, expectedHookIds, true);
-    }
-
-    private SpecOperation assertAccountHookIdList(
-            @NonNull final String account, @NonNull final List<Long> expectedHookIds) {
-        return assertHookIdList(account, expectedHookIds, false);
-    }
-
-    private SpecOperation assertHookIdList(
-            @NonNull final String account, @NonNull final List<Long> expectedHookIds, final boolean isContract) {
+    private SpecOperation assertHookIdList(@NonNull final String account, @NonNull final List<Long> expectedHookIds) {
         return blockingOrder(
                 viewAccount(account, a -> {
                     if (expectedHookIds.isEmpty()) {
@@ -1260,14 +1249,9 @@ public class Hip1195BasicTests {
                     }
                     return EmbeddedVerbs.<HookId, EvmHookState>viewKVState(
                             ContractService.NAME, EVM_HOOK_STATES_STATE_ID, state -> {
-                                final var hookEntityId = isContract
-                                        ? HookEntityId.newBuilder()
-                                                .contractId(
-                                                        toPbj(spec.registry().getContractId(account)))
-                                                .build()
-                                        : HookEntityId.newBuilder()
-                                                .accountId(toPbj(spec.registry().getAccountID(account)))
-                                                .build();
+                                final var hookEntityId = HookEntityId.newBuilder()
+                                        .accountId(toPbj(spec.registry().getAccountID(account)))
+                                        .build();
                                 for (int i = 0, n = expectedHookIds.size(); i < n; i++) {
                                     final var hookId = idWith(hookEntityId, requireNonNull(expectedHookIds.get(i)));
                                     final var evmHookState = state.get(hookId);

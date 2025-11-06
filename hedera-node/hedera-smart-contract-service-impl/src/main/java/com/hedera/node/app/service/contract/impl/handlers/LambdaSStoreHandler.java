@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.handlers;
 
-import static com.hedera.hapi.node.base.HookEntityId.EntityIdOneOfType.ACCOUNT_ID;
+import static com.hedera.hapi.node.base.HookEntityId.EntityIdOneOfType.UNSET;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_LAMBDA_STORAGE_UPDATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_IS_NOT_A_LAMBDA;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_NOT_FOUND;
@@ -10,11 +10,14 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.LAMBDA_STORAGE_UPDATE_B
 import static com.hedera.hapi.node.base.ResponseCodeEnum.LAMBDA_STORAGE_UPDATE_BYTES_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOO_MANY_LAMBDA_STORAGE_UPDATES;
 import static com.hedera.hapi.node.state.hooks.EvmHookType.LAMBDA;
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.getHookOwnerId;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.minimalRepresentationOf;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.HookEntityId;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ThresholdKey;
@@ -53,7 +56,7 @@ public class LambdaSStoreHandler implements TransactionHandler {
         final var hookId = op.hookIdOrThrow();
         validateTruePreCheck(hookId.hasEntityId(), INVALID_HOOK_ID);
         final var ownerType = hookId.entityIdOrThrow().entityId().kind();
-        validateTruePreCheck(ownerType == ACCOUNT_ID, INVALID_HOOK_ID);
+        validateTruePreCheck(ownerType != UNSET, INVALID_HOOK_ID);
         for (final var update : op.storageUpdates()) {
             if (update.hasStorageSlot()) {
                 validateSlot(update.storageSlotOrThrow());
@@ -74,10 +77,14 @@ public class LambdaSStoreHandler implements TransactionHandler {
         requireNonNull(context);
         final var op = context.body().lambdaSstoreOrThrow();
         final var store = context.createStore(ReadableEvmHookStore.class);
-        final var hook = store.getEvmHook(op.hookIdOrThrow());
+        // Translation at HAPI boundary from contract to account owner id for internal simplicity
+        final var hookId = effectiveHookId(op.hookIdOrThrow());
+        final var hook = store.getEvmHook(hookId);
+        // Since we only create hooks using numeric ids, this implies hookEntityId is of that form (no alias)
         validateTruePreCheck(hook != null, HOOK_NOT_FOUND);
         validateTruePreCheck(hook.type() == LAMBDA, HOOK_IS_NOT_A_LAMBDA);
-        final var ownerAccountId = hook.hookIdOrThrow().entityIdOrThrow().accountIdOrThrow();
+        // (FUTURE) As non-account entities acquire hooks, switch on more cases here
+        final var ownerAccountId = hookId.entityIdOrThrow().accountIdOrThrow();
         if (hook.hasAdminKey()) {
             // Storage for a lambda with an admin key can be managed by either the creator or the admin
             context.requireKeyOrThrow(
@@ -101,12 +108,25 @@ public class LambdaSStoreHandler implements TransactionHandler {
         final var storageUpdates = op.storageUpdates();
         final var config = context.configuration().getConfigData(HooksConfig.class);
         validateTrue(storageUpdates.size() <= config.maxLambdaSStoreUpdates(), TOO_MANY_LAMBDA_STORAGE_UPDATES);
-        final int delta = lambdaStore.updateStorage(op.hookIdOrThrow(), op.storageUpdates());
-        if (delta != 0) {
-            final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
-            final var ownerAccountId = op.hookIdOrThrow().entityIdOrThrow().accountIdOrThrow();
-            tokenServiceApi.updateLambdaStorageSlots(ownerAccountId, delta);
-        }
+        final var hookId = effectiveHookId(op.hookIdOrThrow());
+        // We translate both contract and account hooks to account entity id at HAPI boundary for simplicity
+        final int delta = lambdaStore.updateStorage(hookId, op.storageUpdates());
+        // (FUTURE) As non-account entities acquire hooks, switch on more cases here
+        final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
+        tokenServiceApi.updateLambdaStorageSlots(
+                hookId.entityIdOrThrow().accountIdOrThrow(),
+                delta,
+                op.hookIdOrThrow().entityIdOrThrow().hasContractId());
+    }
+
+    private HookId effectiveHookId(@NonNull final HookId hookId) {
+        final var entityId = hookId.entityIdOrThrow();
+        return entityId.hasContractId()
+                ? HookId.newBuilder()
+                        .entityId(HookEntityId.newBuilder().accountId(getHookOwnerId(entityId)))
+                        .hookId(hookId.hookId())
+                        .build()
+                : hookId;
     }
 
     private void validateSlot(@NonNull final LambdaStorageSlot slot) throws PreCheckException {

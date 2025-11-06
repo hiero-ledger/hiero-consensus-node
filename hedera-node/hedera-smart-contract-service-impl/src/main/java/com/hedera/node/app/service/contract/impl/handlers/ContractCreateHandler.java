@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.handlers;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.asAccountId;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCreate;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookCreations;
 import static com.hedera.node.app.service.token.HookDispatchUtils.validateHookDuplicates;
@@ -134,7 +135,7 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
         if (!op.hookCreationDetails().isEmpty()) {
             final var accountStore = context.storeFactory().readableStore(ReadableAccountStore.class);
             final var hookEntityId =
-                    HookEntityId.newBuilder().contractId(ownerId).build();
+                    HookEntityId.newBuilder().accountId(asAccountId(ownerId)).build();
             final var deltaSlots = dispatchHookCreations(context, op.hookCreationDetails(), null, hookEntityId);
             final var created = requireNonNull(accountStore.getContractById(ownerId));
             final var updated = created.copyBuilder()

@@ -158,13 +158,9 @@ public class ContractUpdateHandler implements TransactionHandler {
             @NonNull final ContractUpdateTransactionBody op,
             @NonNull final Account.Builder builder,
             @NonNull final Account originalAccount) {
-        final var accountId = originalAccount.accountIdOrThrow();
+        // We persist both account and storage hooks with AccountID entity type internally
         final var hookEntityId = HookEntityId.newBuilder()
-                .contractId(ContractID.newBuilder()
-                        .shardNum(accountId.shardNum())
-                        .realmNum(accountId.realmNum())
-                        .contractNum(accountId.accountNumOrThrow())
-                        .build())
+                .accountId(originalAccount.accountIdOrThrow())
                 .build();
         Long headAfterDeletes = originalAccount.numberHooksInUse() == 0 ? null : originalAccount.firstHookId();
         if (!op.hookIdsToDelete().isEmpty()) {

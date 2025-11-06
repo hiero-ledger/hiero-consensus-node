@@ -186,13 +186,15 @@ public interface HederaOperations {
      * @param netChangeInSlotsUsed      the net change in the number of storage slots used by the contract
      */
     void updateStorageMetadata(ContractID contractID, @NonNull Bytes firstKey, int netChangeInSlotsUsed);
+
     /**
      * Updates the storage slots used for the given account.
      *
-     * @param accountId          the id of the account
+     * @param accountId the id of the account
      * @param netChangeInSlotsUsed the net change in the number of storage slots used by the account
+     * @param requiresContract if true, the account must be a contract
      */
-    void updateLambdaStorageSlots(@NonNull AccountID accountId, int netChangeInSlotsUsed);
+    void updateLambdaStorageSlots(@NonNull AccountID accountId, int netChangeInSlotsUsed, boolean requiresContract);
 
     /**
      * Creates a new contract with the given entity number and EVM address; and also "links" the alias
