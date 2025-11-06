@@ -1,29 +1,28 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.calculator;
 
-import static java.util.Objects.requireNonNull;
-
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.node.app.service.token.impl.handlers.SimpleTxContextImpl;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.fees.AbstractSimpleFeeCalculator;
-import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.app.spi.fees.CalculatorState;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.FeeSchedule;
+
+import static java.util.Objects.requireNonNull;
 
 /** Calculates CryptoDelete fees. Per HIP-1261, only uses SIGNATURES extra. */
 public class CryptoDeleteFeeCalculator extends AbstractSimpleFeeCalculator {
 
+    public CryptoDeleteFeeCalculator(@NonNull final FeeSchedule feeSchedule) {
+        super(feeSchedule);
+    }
+
     @Override
     @NonNull
-    public FeeResult calculateTxFee(@NonNull final FeeContext feeContext) {
-        requireNonNull(feeContext, "feeContext");
-        final var txContext = SimpleTxContextImpl.from(feeContext);
-
-        // Build usage mapper - fluent API makes fee structure explicit
-        final var usageMapper =
-                usageBuilder().withSignatures(txContext.numTxnSignatures()).build();
-
-        // Use base class template method for standard fee calculation
-        return calculateStandardTxFee(HederaFunctionality.CRYPTO_DELETE, usageMapper, txContext);
+    public FeeResult calculateTxFee(@NonNull TransactionBody txBody, @Nullable final CalculatorState calculatorState) {
+        requireNonNull(txBody, "feeContext");
+        return calculateStandardTxFee(HederaFunctionality.CRYPTO_DELETE, txBody, calculatorState);
     }
 }
