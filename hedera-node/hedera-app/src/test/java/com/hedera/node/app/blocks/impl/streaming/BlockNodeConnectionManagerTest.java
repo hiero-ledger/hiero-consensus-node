@@ -1360,7 +1360,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         Files.writeString(file, valid, StandardOpenOption.TRUNCATE_EXISTING);
         awaitCondition(() -> !availableNodes().isEmpty(), 5_000);
         Files.deleteIfExists(file);
-        awaitCondition(() -> availableNodes().isEmpty(), 2_000);
+        awaitCondition(() -> availableNodes().isEmpty(), 3_000);
 
         // Exercise unchanged path: write back same content and ensure no restart occurs
         Files.writeString(

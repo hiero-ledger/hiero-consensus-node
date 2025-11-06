@@ -6,7 +6,6 @@ import static org.hiero.otter.fixtures.internal.helpers.Utils.createConfiguratio
 
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.config.PathsConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -45,7 +44,6 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
             @NonNull final OverrideProperties overrideProperties) {
         this.lifecycleSupplier = requireNonNull(lifecycleSupplier, "lifecycleSupplier must not be null");
         this.overrideProperties.apply(overrideProperties);
-        this.overrideProperties.withConfigValue(PathsConfig_.WRITE_PLATFORM_MARKER_FILES, "true");
     }
 
     /**
