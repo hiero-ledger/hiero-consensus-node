@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl;
 
+import static com.swirlds.metrics.api.FloatFormats.FORMAT_DECIMAL_3;
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.ATTEMPTING_CREATION;
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.IDLE;
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.NO_ELIGIBLE_PARENTS;
@@ -11,6 +12,7 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.metrics.extensions.PhaseTimer;
 import com.swirlds.common.metrics.extensions.PhaseTimerBuilder;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.DoubleGauge;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -19,6 +21,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.base.crypto.BytesSigner;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.FutureEventBufferingOption;
@@ -30,9 +33,11 @@ import org.hiero.consensus.event.creator.impl.rules.MaximumRateRule;
 import org.hiero.consensus.event.creator.impl.rules.PlatformHealthRule;
 import org.hiero.consensus.event.creator.impl.rules.PlatformStatusRule;
 import org.hiero.consensus.event.creator.impl.rules.QuiescenceRule;
+import org.hiero.consensus.event.creator.impl.rules.SyncLagCalculator;
 import org.hiero.consensus.event.creator.impl.rules.SyncLagRule;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -76,6 +81,9 @@ public class DefaultEventCreator implements EventCreatorModule {
 
     private PlatformStatusRule platformStatusRule;
 
+    private @NonNull DoubleGauge syncLagBehind;
+    private SyncLagCalculator syncLagCalculator;
+
     /**
      * Default constructor required by service loader.
      * {@link #initialize(Configuration, Metrics, Time, SecureRandom, BytesSigner, Roster, NodeId,
@@ -100,7 +108,7 @@ public class DefaultEventCreator implements EventCreatorModule {
 
         final EventCreator eventCreator = new TipsetEventCreator(
                 configuration, metrics, time, random, signer, roster, selfId, transactionSupplier);
-        this.initialize(configuration, metrics, time, signatureTransactionCheck, eventCreator);
+        this.initialize(configuration, metrics, time, signatureTransactionCheck, eventCreator, roster, selfId);
     }
 
     /**
@@ -111,18 +119,22 @@ public class DefaultEventCreator implements EventCreatorModule {
      * @param time                      provides the time source for the event creator
      * @param signatureTransactionCheck checks for pending signature transactions
      * @param eventCreator              creates events
+     * @param roster                    current roster
+     * @param selfId                    id of current node
      */
     public void initialize(
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
             @NonNull final SignatureTransactionCheck signatureTransactionCheck,
-            @NonNull final EventCreator eventCreator) {
+            @NonNull final EventCreator eventCreator,
+            final Roster roster,
+            final NodeId selfId) {
         if (creator != null || eventCreationRules != null || phase != null || futureEventBuffer != null) {
             throw new IllegalStateException("EventCreationManager already initialized");
         }
         this.creator = Objects.requireNonNull(eventCreator);
-
+        this.syncLagCalculator = new SyncLagCalculator(selfId, roster);
         final EventCreationConfig config = configuration.getConfigData(EventCreationConfig.class);
 
         platformStatusRule = new PlatformStatusRule(signatureTransactionCheck);
@@ -143,6 +155,10 @@ public class DefaultEventCreator implements EventCreatorModule {
                 .setInitialPhase(IDLE)
                 .setMetricsNamePrefix("eventCreation")
                 .build();
+
+        syncLagBehind = metrics.getOrCreate(new DoubleGauge.Config(Metrics.PLATFORM_CATEGORY, "sync_round_lag")
+                .withDescription("How many rounds on average are we lagging behind peers")
+                .withFormat(FORMAT_DECIMAL_3));
     }
 
     /**
@@ -230,12 +246,11 @@ public class DefaultEventCreator implements EventCreatorModule {
         unhealthyDuration = Objects.requireNonNull(duration);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public void reportSyncRoundLag(@NonNull final Double lag) {
-        syncRoundLag = Objects.requireNonNull(lag);
+    public void reportSyncProgress(@NonNull final SyncProgress syncProgress) {
+        final long diff = syncProgress.peerWindow().getPendingConsensusRound()
+                - syncProgress.localWindow().getPendingConsensusRound();
+        syncLagCalculator.reportSyncLag(syncProgress.peerId(), diff);
     }
 
     /**
@@ -254,6 +269,8 @@ public class DefaultEventCreator implements EventCreatorModule {
      * syncs
      */
     public double getSyncRoundLag() {
-        return syncRoundLag;
+        final double clampedMedianLag = syncLagCalculator.getSyncRoundLag();
+        syncLagBehind.set(clampedMedianLag);
+        return clampedMedianLag;
     }
 }
