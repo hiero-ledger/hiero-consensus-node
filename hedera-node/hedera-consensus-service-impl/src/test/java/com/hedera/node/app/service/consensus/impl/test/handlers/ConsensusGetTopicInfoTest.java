@@ -6,6 +6,7 @@ import static com.hedera.node.app.service.consensus.impl.schemas.V0490ConsensusS
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -145,7 +146,7 @@ class ConsensusGetTopicInfoTest extends ConsensusTestBase {
     }
 
     @Test
-    @DisplayName("deleted topic is not valid")
+    @DisplayName("deleted topic is valid")
     void validatesQueryIfDeletedTopic() throws Throwable {
         givenValidTopic(autoRenewId, true);
         readableTopicState = readableTopicState();
@@ -156,9 +157,7 @@ class ConsensusGetTopicInfoTest extends ConsensusTestBase {
         when(context.query()).thenReturn(query);
         when(context.createStore(ReadableTopicStore.class)).thenReturn(readableStore);
 
-        assertThatThrownBy(() -> subject.validate(context))
-                .isInstanceOf(PreCheckException.class)
-                .has(responseCode(ResponseCodeEnum.INVALID_TOPIC_ID));
+        assertDoesNotThrow(() -> subject.validate(context));
     }
 
     @Test
@@ -218,6 +217,7 @@ class ConsensusGetTopicInfoTest extends ConsensusTestBase {
                 .ledgerId(new BytesConverter().convert("0x03"))
                 .feeScheduleKey(feeScheduleKey)
                 .feeExemptKeyList(key, anotherKey)
+                .deleted(false)
                 .customFees(customFees)
                 .build();
     }
