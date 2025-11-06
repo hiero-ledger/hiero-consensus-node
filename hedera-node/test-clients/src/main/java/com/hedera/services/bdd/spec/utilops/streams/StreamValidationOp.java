@@ -310,10 +310,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                     out = new BufferedOutputStream(out, 1024 * 1024);
                     out = new GZIPOutputStream(out, 1024 * 256);
                     out = new BufferedOutputStream(out, 1024 * 1024 * 4);
-                    final var bytes = com.hedera.hapi.block.stream.Block.PROTOBUF
-                            .toBytes(block)
-                            .toByteArray();
-                    out.write(bytes);
+                    Block.PROTOBUF.write(block, new com.hedera.pbj.runtime.io.stream.WritableStreamingData(out));
                 } catch (final IOException e) {
                     throw new UncheckedIOException(e);
                 } finally {
