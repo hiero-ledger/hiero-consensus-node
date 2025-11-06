@@ -55,7 +55,7 @@ import org.openjdk.jmh.infra.Blackhole;
 @State(Scope.Benchmark)
 @Fork(value = 1)
 @Warmup(iterations = 1, time = 2)
-@Measurement(iterations = 2, time = 2)
+@Measurement(iterations = 2, time = 3)
 public class EventCreatorNetworkBenchmark {
 
     /** The number of nodes in the simulated network. */
@@ -151,6 +151,21 @@ public class EventCreatorNetworkBenchmark {
     @BenchmarkMode(Mode.Throughput)
     @OutputTimeUnit(TimeUnit.SECONDS)
     public void networkEventCreation(final Blackhole bh) {
+/*
+Results from a run on a 2020 M1 MacBook Pro:
+
+Benchmark                                          (numNodes)  (seed)   (signingType)   Mode  Cnt      Score   Error  Units
+EventCreatorNetworkBenchmark.networkEventCreation           4       0          RSA_BC  thrpt    2    339.674          ops/s
+EventCreatorNetworkBenchmark.networkEventCreation           4       0         RSA_JDK  thrpt    2    354.803          ops/s
+EventCreatorNetworkBenchmark.networkEventCreation           4       0          EC_JDK  thrpt    2   1218.762          ops/s
+EventCreatorNetworkBenchmark.networkEventCreation           4       0  ED25519_SODIUM  thrpt    2  52464.443          ops/s
+EventCreatorNetworkBenchmark.networkEventCreation           4       0     ED25519_SUN  thrpt    2   2166.134          ops/s
+EventCreatorNetworkBenchmark.networkEventCreation           8       0          RSA_BC  thrpt    2    342.977          ops/s
+EventCreatorNetworkBenchmark.networkEventCreation           8       0         RSA_JDK  thrpt    2    355.044          ops/s
+EventCreatorNetworkBenchmark.networkEventCreation           8       0          EC_JDK  thrpt    2   1216.903          ops/s
+EventCreatorNetworkBenchmark.networkEventCreation           8       0  ED25519_SODIUM  thrpt    2  45992.627          ops/s
+EventCreatorNetworkBenchmark.networkEventCreation           8       0     ED25519_SUN  thrpt    2   2153.820          ops/s
+*/
         PlatformEvent newEvent = null;
         for (final DefaultEventCreator creator : eventCreators) {
             final PlatformEvent event = creator.maybeCreateEvent();

@@ -18,7 +18,7 @@ public enum SigningImplementation {
      */
     RSA_JDK(RSA, "SunRsaSign"),
     /**
-     * ECDSA implementation using Bouncy Castle as the security provider.
+     * ECDSA implementation using the default JDK security provider.
      */
     EC_JDK(SigningSchema.EC, "SunEC"),
     /**
