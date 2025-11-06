@@ -15,6 +15,7 @@ import com.hedera.node.app.service.token.impl.validators.TokenSupplyChangeOpsVal
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.NetworkFee;
@@ -25,6 +26,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.List;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
@@ -42,6 +45,8 @@ import static org.mockito.Mockito.mock;
 public class TokenServicesFeeTests {
     private static final long TOKEN_CREATE_BASE_FEE = 15;
     private static final long TOKEN_MINT_BASE_FEE = 20;
+    private static final long COMMON_TOKEN_FEE = 5;
+    private static final long UNIQUE_TOKEN_FEE = 10;
 
     @Mock
     private EntityIdFactory entityIdFactory;
@@ -96,28 +101,29 @@ public class TokenServicesFeeTests {
         final var feeContext = createMockFeeContext(txBody2,1);
         final var result = mintHandler.calculateFeeResult(feeContext);
         assertNotNull(result);
-        assertEquals(TOKEN_MINT_BASE_FEE, result.total());
+        assertEquals(TOKEN_MINT_BASE_FEE + COMMON_TOKEN_FEE*10, result.total());
     }
 
-//    @Test
-//    void mintUniqueToken() {
-//        final var txBody2 = TransactionBody.newBuilder().tokenMint(
-//                TokenMintTransactionBody.newBuilder()
-//                        .token(uniqueToken)
-//                        .amount(10)
-//                        .build()).build();
-//        final var feeContext = createMockFeeContext(txBody2,1);
-//        final var result = createHandler.calculateFeeResult(feeContext);
-//        assertNotNull(result);
-//        assertEquals(TOKEN_MINT_BASE_FEE, result.total());
-//    }
+    @Test
+    void mintUniqueToken() {
+        final var uniqueToken = TokenID.newBuilder().tokenNum(1234).build();
+        final var mintBody = TransactionBody.newBuilder()
+                .tokenMint(
+                        TokenMintTransactionBody.newBuilder()
+                                .token(uniqueToken)
+                                .metadata(List.of(Bytes.wrap("Bart Simpson")))
+                                .build()).build();
+        final var feeContext = createMockFeeContext(mintBody,1);
+        final var result = mintHandler.calculateFeeResult(feeContext);
+        assertNotNull(result);
+        assertEquals(TOKEN_MINT_BASE_FEE + UNIQUE_TOKEN_FEE, result.total());
+    }
+
     /*
         // TODO
         create FT with custom fees
         create NFT with custom fees
-        mint an common token
-        mint an NFT token
-        mint 10 NTF tokens
+        mint 10 NTF tokens??
         burn an NFT
         grant and revoke KYC
         freeze and unfreeze NFT
@@ -153,14 +159,20 @@ public class TokenServicesFeeTests {
                         makeExtraDef(Extra.BYTES, 1),
                         makeExtraDef(Extra.KEYS, 2),
                         makeExtraDef(Extra.SIGNATURES, 3),
-                        makeExtraDef(Extra.CUSTOM_FEE, 500))
+                        makeExtraDef(Extra.STANDARD_FUNGIBLE_TOKENS,COMMON_TOKEN_FEE),
+                        makeExtraDef(Extra.STANDARD_NON_FUNGIBLE_TOKENS,UNIQUE_TOKEN_FEE),
+                        makeExtraDef(Extra.CUSTOM_FEE, 500)
+                )
                 .network(NetworkFee.DEFAULT.copyBuilder().multiplier(2).build())
                                     .services(makeService(
                                             "Token",
                                             makeServiceFee(TOKEN_CREATE, TOKEN_CREATE_BASE_FEE,
                                                     makeExtraIncluded(Extra.KEYS,   1)),
                                             makeServiceFee(TOKEN_MINT, TOKEN_MINT_BASE_FEE,
-                                                    makeExtraIncluded(Extra.KEYS, 1))
+                                                    makeExtraIncluded(Extra.KEYS, 1),
+                                                    makeExtraIncluded(Extra.STANDARD_FUNGIBLE_TOKENS,0),
+                                                    makeExtraIncluded(Extra.STANDARD_NON_FUNGIBLE_TOKENS,0)
+                                            )
                                     ))
 
                 .build();
