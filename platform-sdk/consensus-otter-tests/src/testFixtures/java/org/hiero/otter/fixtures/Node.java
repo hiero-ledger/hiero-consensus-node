@@ -303,7 +303,7 @@ public interface Node {
 
     /**
      * Starts Java Flight Recorder (JFR) profiling on this node with default settings.
-     * Uses 1ms sampling rate and enables CPU and allocation profiling by default.
+     * Uses 10 ms sampling rate and enables CPU and allocation profiling by default.
      * The profiler runs in the background until {@link #stopProfiling} is called.
      * <p>
      * <b>Warning:</b> Please keep in mind that Otter tests run in an artificial environment. Results obtained from
