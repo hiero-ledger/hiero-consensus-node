@@ -13,7 +13,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 public class OpenMetricsHttpEndpointConfigTest {
 
     @Test
-    public void defaultValues() {
+    void defaultValues() {
         OpenMetricsHttpEndpointConfig endpointConfig =
                 configBuilder().build().getConfigData(OpenMetricsHttpEndpointConfig.class);
 
@@ -35,7 +35,7 @@ public class OpenMetricsHttpEndpointConfigTest {
     }
 
     @Test
-    public void nonDefaultValues() {
+    void nonDefaultValues() {
         OpenMetricsHttpEndpointConfig endpointConfig = configBuilder()
                 .withValue("metrics.exporter.openmetrics.http.enabled", "false")
                 .withValue("metrics.exporter.openmetrics.http.port", "1234")
@@ -52,7 +52,7 @@ public class OpenMetricsHttpEndpointConfigTest {
 
     @ParameterizedTest
     @ValueSource(ints = {Integer.MIN_VALUE, -1, 0, 80, 1023, 65536, 70000, Integer.MAX_VALUE})
-    public void nonAllowedPorts(int port) {
+    void nonAllowedPorts(int port) {
         assertThatThrownBy(() -> configBuilder()
                         .withValue("metrics.exporter.openmetrics.http.port", String.valueOf(port))
                         .build())
@@ -62,7 +62,7 @@ public class OpenMetricsHttpEndpointConfigTest {
 
     @ParameterizedTest
     @ValueSource(ints = {1024, 1025, 8080, 8888, 9999, 65534, 65535})
-    public void allowedPorts(int port) {
+    void allowedPorts(int port) {
         OpenMetricsHttpEndpointConfig endpointConfig = configBuilder()
                 .withValue("metrics.exporter.openmetrics.http.port", String.valueOf(port))
                 .build()
@@ -75,7 +75,7 @@ public class OpenMetricsHttpEndpointConfigTest {
 
     @ParameterizedTest
     @ValueSource(ints = {Integer.MIN_VALUE, -10, -1, 11, 50, 100, Integer.MAX_VALUE})
-    public void nonAllowedBacklogs(int backlog) {
+    void nonAllowedBacklogs(int backlog) {
         assertThatThrownBy(() -> configBuilder()
                         .withValue("metrics.exporter.openmetrics.http.backlog", String.valueOf(backlog))
                         .build())
@@ -85,7 +85,7 @@ public class OpenMetricsHttpEndpointConfigTest {
 
     @ParameterizedTest
     @ValueSource(ints = {0, 1, 2, 5, 10})
-    public void allowedBacklogs(int backlog) {
+    void allowedBacklogs(int backlog) {
         OpenMetricsHttpEndpointConfig endpointConfig = configBuilder()
                 .withValue("metrics.exporter.openmetrics.http.backlog", String.valueOf(backlog))
                 .build()

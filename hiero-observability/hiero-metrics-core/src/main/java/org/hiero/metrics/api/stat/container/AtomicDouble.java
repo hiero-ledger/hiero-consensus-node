@@ -30,7 +30,7 @@ public final class AtomicDouble implements DoubleSupplier {
      * @throws NullPointerException if the initializer is null
      */
     public AtomicDouble(@NonNull DoubleSupplier initializer) {
-        this.initializer = Objects.requireNonNull(initializer, "Initializer cannot be null");
+        this.initializer = Objects.requireNonNull(initializer, "initializer must not be null");
         container = new AtomicLong(fromDouble(initializer.getAsDouble()));
     }
 
@@ -129,7 +129,7 @@ public final class AtomicDouble implements DoubleSupplier {
      * @return the updated value
      */
     public double accumulateAndGet(double value, LongBinaryOperator operator) {
-        return container.accumulateAndGet(fromDouble(value), operator);
+        return toDouble(container.accumulateAndGet(fromDouble(value), operator));
     }
 
     /**

@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 public class LabelTest {
 
     @Test
-    public void testValidLabel() {
+    void testValidLabel() {
         Label label = new Label("method", "GET");
 
         assertThat(label.name()).isEqualTo("method");
@@ -17,7 +17,7 @@ public class LabelTest {
     }
 
     @Test
-    public void testEqualsAndHashCode() {
+    void testEqualsAndHashCode() {
         Label a = new Label("status", "200");
         Label b = new Label("status", "200");
 
@@ -27,7 +27,7 @@ public class LabelTest {
     }
 
     @Test
-    public void testCompareToOrdering() {
+    void testCompareToOrdering() {
         Label a1 = new Label("a", "1");
         Label a2 = new Label("a", "2");
         Label b1 = new Label("b", "1");
@@ -42,52 +42,52 @@ public class LabelTest {
     }
 
     @Test
-    public void testBlankNameThrows() {
+    void testBlankNameThrows() {
         assertThatThrownBy(() -> new Label("", "value")).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
-    public void testBlankValueThrows() {
+    void testBlankValueThrows() {
         assertThatThrownBy(() -> new Label("name", "")).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
-    public void testInvalidNameCharactersThrows() {
+    void testInvalidNameCharactersThrows() {
         // assume names with invalid characters (e.g. '$') are rejected by MetricUtils.validateNameCharacters
         assertThatThrownBy(() -> new Label("inva$lid", "value")).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
-    public void testNullNameThrows() {
+    void testNullNameThrows() {
         assertThatThrownBy(() -> new Label(null, "value")).isInstanceOf(NullPointerException.class);
     }
 
     @Test
-    public void testNullValueThrows() {
+    void testNullValueThrows() {
         assertThatThrownBy(() -> new Label("name", null)).isInstanceOf(NullPointerException.class);
     }
 
     @Test
-    public void testToString() {
+    void testToString() {
         Label label = new Label("method", "GET");
 
         assertThat(label.toString()).contains("method").contains("GET");
     }
 
     @Test
-    public void testEqualsWithSameInstance() {
+    void testEqualsWithSameInstance() {
         Label label = new Label("method", "GET");
         assertThat(label).isEqualTo(label);
     }
 
     @Test
-    public void testNotEqualsWithNull() {
+    void testNotEqualsWithNull() {
         Label label = new Label("method", "GET");
         assertThat(label).isNotEqualTo(null);
     }
 
     @Test
-    public void testNotEqualsWithDifferentClass() {
+    void testNotEqualsWithDifferentClass() {
         Label label = new Label("method", "GET");
         assertThat(label).isNotEqualTo("requests");
     }

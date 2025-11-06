@@ -18,21 +18,21 @@ public class EnumStateSetDataPointTest {
     }
 
     @Test
-    public void testNullInitialStatesThrows() {
+    void testNullInitialStatesThrows() {
         assertThatThrownBy(() -> new EnumStateSetDataPoint<>(null, TestEnum.class))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("initial states list must not be null");
     }
 
     @Test
-    public void testNullEnumClassThrows() {
+    void testNullEnumClassThrows() {
         assertThatThrownBy(() -> new EnumStateSetDataPoint<TestEnum>(Set.of(), null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("enum class must not be null");
     }
 
     @Test
-    public void testDataPointNoInitialStates() {
+    void testDataPointNoInitialStates() {
         EnumStateSetDataPoint<TestEnum> dataPoint = new EnumStateSetDataPoint<>(Set.of(), TestEnum.class);
 
         assertThat(dataPoint.getStates()).containsExactlyInAnyOrder(TestEnum.A, TestEnum.B, TestEnum.C);
@@ -53,7 +53,7 @@ public class EnumStateSetDataPointTest {
     }
 
     @Test
-    public void testDataPointWithInitialStates() {
+    void testDataPointWithInitialStates() {
         EnumStateSetDataPoint<TestEnum> dataPoint = new EnumStateSetDataPoint<>(Set.of(TestEnum.B), TestEnum.class);
 
         assertThat(dataPoint.getStates()).containsExactlyInAnyOrder(TestEnum.A, TestEnum.B, TestEnum.C);
@@ -74,7 +74,7 @@ public class EnumStateSetDataPointTest {
     }
 
     @Test
-    public void testConcurrentUpdates() throws InterruptedException {
+    void testConcurrentUpdates() throws InterruptedException {
         int threadCount = 10;
         int incrementsPerThread = 10000;
         EnumStateSetDataPoint<TestEnum> dataPoint = new EnumStateSetDataPoint<>(Set.of(), TestEnum.class);

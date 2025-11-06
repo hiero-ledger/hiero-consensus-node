@@ -15,7 +15,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 public class AtomicDoubleGaugeDataPointTest {
 
     @Test
-    public void testNullInitializer() {
+    void testNullInitializer() {
         assertThatThrownBy(() -> new AtomicDoubleGaugeDataPoint(null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("initializer must not be null");
@@ -23,9 +23,10 @@ public class AtomicDoubleGaugeDataPointTest {
 
     @ParameterizedTest
     @ValueSource(doubles = {Double.NEGATIVE_INFINITY, -1.5, 0.0, 1.5, Double.POSITIVE_INFINITY})
-    public void testInitializerSupplier(double initialValue) {
+    void testInitializerSupplier(double initialValue) {
         AtomicDoubleGaugeDataPoint dataPoint = new AtomicDoubleGaugeDataPoint(() -> initialValue);
 
+        assertThat(dataPoint.getInitValue()).isEqualTo(initialValue);
         assertThat(dataPoint.getAsDouble()).isEqualTo(initialValue);
 
         dataPoint.update(42.5);
@@ -40,7 +41,7 @@ public class AtomicDoubleGaugeDataPointTest {
     }
 
     @Test
-    public void testConcurrentUpdates() throws InterruptedException {
+    void testConcurrentUpdates() throws InterruptedException {
         AtomicDoubleGaugeDataPoint dataPoint = new AtomicDoubleGaugeDataPoint(StatUtils.DOUBLE_INIT);
 
         final Double[] threadValues = {

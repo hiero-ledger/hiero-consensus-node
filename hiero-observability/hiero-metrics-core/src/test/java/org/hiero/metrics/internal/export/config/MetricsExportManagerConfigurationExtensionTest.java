@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 public class MetricsExportManagerConfigurationExtensionTest {
 
     @Test
-    public void configTypes() {
+    void testConfigTypes() {
         MetricsExportManagerConfigurationExtension extension = new MetricsExportManagerConfigurationExtension();
 
         assertThat(extension.getConfigDataTypes().size()).isEqualTo(1);

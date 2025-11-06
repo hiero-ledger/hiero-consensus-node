@@ -15,7 +15,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 public class AtomicLongGaugeDataPointTest {
 
     @Test
-    public void testNullInitializer() {
+    void testNullInitializer() {
         assertThatThrownBy(() -> new AtomicLongGaugeDataPoint(null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("initializer must not be null");
@@ -23,9 +23,10 @@ public class AtomicLongGaugeDataPointTest {
 
     @ParameterizedTest
     @ValueSource(longs = {Long.MIN_VALUE, -1L, 0L, 1L, Long.MAX_VALUE})
-    public void testInitializerSupplier(long initialValue) {
+    void testInitializerSupplier(long initialValue) {
         AtomicLongGaugeDataPoint dataPoint = new AtomicLongGaugeDataPoint(() -> initialValue);
 
+        assertThat(dataPoint.getInitValue()).isEqualTo(initialValue);
         assertThat(dataPoint.getAsLong()).isEqualTo(initialValue);
 
         dataPoint.update(42L);
@@ -40,7 +41,7 @@ public class AtomicLongGaugeDataPointTest {
     }
 
     @Test
-    public void testConcurrentUpdates() throws InterruptedException {
+    void testConcurrentUpdates() throws InterruptedException {
         AtomicLongGaugeDataPoint dataPoint = new AtomicLongGaugeDataPoint(StatUtils.LONG_INIT);
 
         final Long[] threadValues = {Long.MIN_VALUE, -100L, -14L, 0L, 14L, 100L, Long.MAX_VALUE};

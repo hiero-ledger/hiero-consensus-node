@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.metrics.api.stat.container;
 
-import static org.hiero.metrics.api.stat.StatUtils.INT_LAST;
 import static org.hiero.metrics.api.stat.StatUtils.INT_SUM;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.IntBinaryOperator;
@@ -24,7 +25,10 @@ public final class AtomicIntPair {
      * @param rightOperator the method that will be used to calculate the new value for the right integer when
      *                         {@link #accumulate(int, int)} is called
      */
-    public AtomicIntPair(final IntBinaryOperator leftOperator, final IntBinaryOperator rightOperator) {
+    public AtomicIntPair(@NonNull IntBinaryOperator leftOperator, @NonNull IntBinaryOperator rightOperator) {
+        Objects.requireNonNull(leftOperator, "leftOperator must not be null");
+        Objects.requireNonNull(rightOperator, "rightOperator must not be null");
+
         operator = (current, supplied) -> {
             final int left = leftOperator.applyAsInt(extractLeftInt(current), extractLeftInt(supplied));
             final int right = rightOperator.applyAsInt(extractRightInt(current), extractRightInt(supplied));
@@ -35,10 +39,6 @@ public final class AtomicIntPair {
 
     public static AtomicIntPair createAccumulatingSum() {
         return new AtomicIntPair(INT_SUM, INT_SUM);
-    }
-
-    public static AtomicIntPair createKeepLatest() {
-        return new AtomicIntPair(INT_LAST, INT_LAST);
     }
 
     /**

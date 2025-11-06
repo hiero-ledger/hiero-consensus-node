@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 public class AtomicBooleanGaugeDataPointTest {
 
     @Test
-    public void testWithDefaultInitializer() {
+    void testWithDefaultInitializer() {
         AtomicBooleanGaugeDataPoint gauge = new AtomicBooleanGaugeDataPoint();
 
         assertThat(gauge.getAsBoolean()).isFalse();
@@ -27,7 +27,7 @@ public class AtomicBooleanGaugeDataPointTest {
     }
 
     @Test
-    public void testWithCustomInitializer() {
+    void testWithCustomInitializer() {
         AtomicBooleanGaugeDataPoint gauge = new AtomicBooleanGaugeDataPoint(() -> true);
 
         assertThat(gauge.getAsBoolean()).isTrue();

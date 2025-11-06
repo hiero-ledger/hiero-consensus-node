@@ -25,7 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 public class MetricsFacadeTest {
 
     @Test
-    public void disabledExportManagerWhileExportersAvailable() {
+    void disabledExportManagerWhileExportersAvailable() {
         Configuration configuration = configBuilder()
                 .withValue("metrics.export.manager.enabled", "false")
                 .build();
@@ -42,13 +42,13 @@ public class MetricsFacadeTest {
     }
 
     @Test
-    public void enabledExportManagerWhileNoExporters() {
+    void enabledExportManagerWhileNoExporters() {
         Configuration configuration = configBuilder().build();
         testWithMockExporters(configuration, this::verifyNoOp);
     }
 
     @Test
-    public void singleEmptyExportFactory() {
+    void singleEmptyExportFactory() {
         Configuration configuration = configBuilder().build();
 
         final MetricsExporterFactory exporterFactory = Mockito.mock(MetricsExporterFactory.class);
@@ -89,7 +89,7 @@ public class MetricsFacadeTest {
     }
 
     @FunctionalInterface
-    public interface Verifier<T> {
+    interface Verifier<T> {
         void verify(T t) throws Exception;
     }
 }

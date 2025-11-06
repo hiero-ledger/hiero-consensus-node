@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 public class LongOrDoubleSupplierTest {
 
     @Test
-    public void testDoubleSupplierGetters() {
+    void testDoubleSupplierGetters() {
         DoubleSupplier doubleSupplier = () -> 42.5;
         LongOrDoubleSupplier wrapper = new LongOrDoubleSupplier(doubleSupplier);
 
@@ -25,7 +25,7 @@ public class LongOrDoubleSupplierTest {
     }
 
     @Test
-    public void testLongSupplierGetters() {
+    void testLongSupplierGetters() {
         LongSupplier longSupplier = () -> 37L;
         LongOrDoubleSupplier wrapper = new LongOrDoubleSupplier(longSupplier);
 
@@ -39,14 +39,14 @@ public class LongOrDoubleSupplierTest {
     }
 
     @Test
-    public void testNullDoubleSupplierThrows() {
+    void testNullDoubleSupplierThrows() {
         assertThatThrownBy(() -> new LongOrDoubleSupplier((DoubleSupplier) null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("valueSupplier cannot be null");
     }
 
     @Test
-    public void testNullLongSupplierThrows() {
+    void testNullLongSupplierThrows() {
         assertThatThrownBy(() -> new LongOrDoubleSupplier((LongSupplier) null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("valueSupplier cannot be null");

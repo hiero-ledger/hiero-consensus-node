@@ -15,7 +15,7 @@ public class MetricsExportManagerConfigTest {
     private static final String TEST_EXPORTER = "testExporter";
 
     @Test
-    public void defaultValues() {
+    void testDefaultValues() {
         MetricsExportManagerConfig endpointConfig =
                 configBuilder().build().getConfigData(MetricsExportManagerConfig.class);
 
@@ -33,7 +33,7 @@ public class MetricsExportManagerConfigTest {
     }
 
     @Test
-    public void emptyExporters() {
+    void testEmptyExporters() {
         MetricsExportManagerConfig endpointConfig = configBuilder()
                 .withValue("metrics.export.manager.disabledExporters", "")
                 .withValue("metrics.export.manager.enabledExporters", "")
@@ -50,7 +50,7 @@ public class MetricsExportManagerConfigTest {
     }
 
     @Test
-    public void nonDefaultValues() {
+    void testNonDefaultValues() {
         MetricsExportManagerConfig endpointConfig = configBuilder()
                 .withValue("metrics.export.manager.enabled", "false")
                 .withValue("metrics.export.manager.disabledExporters", "exp1,exp2")
@@ -73,7 +73,7 @@ public class MetricsExportManagerConfigTest {
 
     @ParameterizedTest
     @MethodSource("enabledExporterSource")
-    public void enabledExporter(String enabled, String enabledExporters, String disabledExporters) {
+    void testEnabledExporter(String enabled, String enabledExporters, String disabledExporters) {
         ConfigurationBuilder configBuilder = configBuilder().withValue("metrics.export.manager.enabled", enabled);
 
         if (enabledExporters != null) {
@@ -93,7 +93,7 @@ public class MetricsExportManagerConfigTest {
 
     @ParameterizedTest
     @MethodSource("disabledExporterSource")
-    public void disabledExporter(String enabled, String enabledExporters, String disabledExporters) {
+    void testDisabledExporter(String enabled, String enabledExporters, String disabledExporters) {
         ConfigurationBuilder configBuilder = configBuilder().withValue("metrics.export.manager.enabled", enabled);
 
         if (enabledExporters != null) {
