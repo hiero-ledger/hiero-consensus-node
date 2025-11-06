@@ -21,7 +21,7 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterAssertions;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.integration.BaseIntegrationTest;
+import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -36,7 +36,7 @@ import org.junit.jupiter.params.provider.ValueSource;
  *     <li>The build/turtle folder structure contains only node directories</li>
  * </ul>
  */
-final class TurtleHashstreamLogTest extends BaseIntegrationTest {
+final class TurtleHashstreamLogTest {
 
     /**
      * List of markers that commonly appear during normal Turtle node operation, but should not be present in the
@@ -57,7 +57,7 @@ final class TurtleHashstreamLogTest extends BaseIntegrationTest {
     @ParameterizedTest
     @ValueSource(ints = {1, 4})
     void testBasicHashstreamLogFunctionality(final int numNodes) throws IOException {
-        final TestEnvironment env = createTurtleEnvironment();
+        final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();

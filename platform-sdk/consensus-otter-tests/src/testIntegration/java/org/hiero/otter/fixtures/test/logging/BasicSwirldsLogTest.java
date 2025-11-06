@@ -24,7 +24,8 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.integration.BaseIntegrationTest;
+import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
+import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
 
@@ -41,7 +42,7 @@ import org.junit.jupiter.api.TestFactory;
  *
  * <p>Note: Per-node log routing is guaranteed by container isolation, so no explicit routing test is needed.
  */
-final class BasicSwirldsLogTest extends BaseIntegrationTest {
+final class BasicSwirldsLogTest {
 
     /**
      * List of markers that commonly appear during normal Container node operation.
@@ -60,14 +61,13 @@ final class BasicSwirldsLogTest extends BaseIntegrationTest {
     Stream<DynamicTest> testBasicSwirldsLogFunctionality() {
         return Stream.of(
                 DynamicTest.dynamicTest(
-                        "1_turtle", () -> testBasicSwirldsLogFunctionalityImpl(1, this::createTurtleEnvironment)),
+                        "1_turtle", () -> testBasicSwirldsLogFunctionalityImpl(1, TurtleTestEnvironment::new)),
                 DynamicTest.dynamicTest(
-                        "4_turtle", () -> testBasicSwirldsLogFunctionalityImpl(4, this::createTurtleEnvironment)),
+                        "4_turtle", () -> testBasicSwirldsLogFunctionalityImpl(4, TurtleTestEnvironment::new)),
                 DynamicTest.dynamicTest(
-                        "1_container", () -> testBasicSwirldsLogFunctionalityImpl(1, this::createContainerEnvironment)),
+                        "1_container", () -> testBasicSwirldsLogFunctionalityImpl(1, ContainerTestEnvironment::new)),
                 DynamicTest.dynamicTest(
-                        "4_container",
-                        () -> testBasicSwirldsLogFunctionalityImpl(4, this::createContainerEnvironment)));
+                        "4_container", () -> testBasicSwirldsLogFunctionalityImpl(4, ContainerTestEnvironment::new)));
     }
 
     /**

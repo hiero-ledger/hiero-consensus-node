@@ -14,9 +14,10 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.integration.BaseIntegrationTest;
+import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
+import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
@@ -24,7 +25,7 @@ import org.junit.jupiter.api.TestFactory;
 /**
  * Tests for the node isolation functionality in the Network interface.
  */
-class NetworkIsolationTest extends BaseIntegrationTest {
+class NetworkIsolationTest {
 
     /**
      * Provides different test environments for parameterized tests.
@@ -34,9 +35,10 @@ class NetworkIsolationTest extends BaseIntegrationTest {
     @TestFactory
     Stream<DynamicTest> testIsolateAndRejoinSingleNode() {
         return Stream.of(
-                DynamicTest.dynamicTest("Turtle", () -> testIsolateAndRejoinSingleNodeImpl(createTurtleEnvironment())),
                 DynamicTest.dynamicTest(
-                        "Container", () -> testIsolateAndRejoinSingleNodeImpl(createContainerEnvironment())));
+                        "Turtle", () -> testIsolateAndRejoinSingleNodeImpl(new TurtleTestEnvironment())),
+                DynamicTest.dynamicTest(
+                        "Container", () -> testIsolateAndRejoinSingleNodeImpl(new ContainerTestEnvironment())));
     }
 
     /**
@@ -159,7 +161,7 @@ class NetworkIsolationTest extends BaseIntegrationTest {
      */
     @Test
     void testIsolateMultipleNodesSequentially() {
-        final TestEnvironment env = createTurtleEnvironment();
+        final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -211,7 +213,7 @@ class NetworkIsolationTest extends BaseIntegrationTest {
      */
     @Test
     void testIsolateAlreadyPartitionedNode() {
-        final TestEnvironment env = createTurtleEnvironment();
+        final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -260,7 +262,7 @@ class NetworkIsolationTest extends BaseIntegrationTest {
      */
     @Test
     void testRejoinNonIsolatedNode() {
-        final TestEnvironment env = createTurtleEnvironment();
+        final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -292,7 +294,7 @@ class NetworkIsolationTest extends BaseIntegrationTest {
      */
     @Test
     void testIsolateAndRejoinMultipleNodes() {
-        final TestEnvironment env = createTurtleEnvironment();
+        final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -362,7 +364,7 @@ class NetworkIsolationTest extends BaseIntegrationTest {
      */
     @Test
     void testRestoreConnectivityWithIsolatedNodes() {
-        final TestEnvironment env = createTurtleEnvironment();
+        final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -413,7 +415,7 @@ class NetworkIsolationTest extends BaseIntegrationTest {
      */
     @Test
     void testIsolationAndPartitionInteraction() {
-        final TestEnvironment env = createTurtleEnvironment();
+        final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();

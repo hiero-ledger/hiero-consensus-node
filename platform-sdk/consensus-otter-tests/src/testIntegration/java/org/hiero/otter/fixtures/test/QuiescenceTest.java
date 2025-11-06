@@ -12,11 +12,12 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.integration.BaseIntegrationTest;
+import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
+import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
 
-class QuiescenceTest extends BaseIntegrationTest {
+class QuiescenceTest {
 
     /**
      * Provides a stream of test environments for the parameterized tests.
@@ -26,8 +27,8 @@ class QuiescenceTest extends BaseIntegrationTest {
     @TestFactory
     Stream<DynamicTest> testQuiescence() {
         return Stream.of(
-                DynamicTest.dynamicTest("Turtle", () -> testQuiescenceImpl(createTurtleEnvironment())),
-                DynamicTest.dynamicTest("Container", () -> testQuiescenceImpl(createContainerEnvironment())));
+                DynamicTest.dynamicTest("Turtle", () -> testQuiescenceImpl(new TurtleTestEnvironment())),
+                DynamicTest.dynamicTest("Container", () -> testQuiescenceImpl(new ContainerTestEnvironment())));
     }
 
     /**

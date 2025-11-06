@@ -21,10 +21,11 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterAssertions;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.integration.BaseIntegrationTest;
+import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
+import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
 
@@ -39,7 +40,7 @@ import org.junit.jupiter.api.TestFactory;
  *     <li>Each node's logs are correctly tracked separately</li>
  * </ul>
  */
-class InMemoryLogTest extends BaseIntegrationTest {
+class InMemoryLogTest {
 
     /**
      * List of markers that commonly appear during normal Turtle node operation.
@@ -56,13 +57,13 @@ class InMemoryLogTest extends BaseIntegrationTest {
     Stream<DynamicTest> testBasicInMemoryLogging() {
         return Stream.of(
                 DynamicTest.dynamicTest(
-                        "Turtle_1Node", () -> testBasicInMemoryLoggingImpl(1, this::createTurtleEnvironment)),
+                        "Turtle_1Node", () -> testBasicInMemoryLoggingImpl(1, TurtleTestEnvironment::new)),
                 DynamicTest.dynamicTest(
-                        "Turtle_4Node", () -> testBasicInMemoryLoggingImpl(4, this::createTurtleEnvironment)),
+                        "Turtle_4Node", () -> testBasicInMemoryLoggingImpl(4, TurtleTestEnvironment::new)),
                 DynamicTest.dynamicTest(
-                        "Container_1Node", () -> testBasicInMemoryLoggingImpl(1, this::createContainerEnvironment)),
+                        "Container_1Node", () -> testBasicInMemoryLoggingImpl(1, ContainerTestEnvironment::new)),
                 DynamicTest.dynamicTest(
-                        "Container_4Node", () -> testBasicInMemoryLoggingImpl(4, this::createContainerEnvironment)));
+                        "Container_4Node", () -> testBasicInMemoryLoggingImpl(4, ContainerTestEnvironment::new)));
     }
 
     /**
@@ -166,8 +167,8 @@ class InMemoryLogTest extends BaseIntegrationTest {
      */
     Stream<DynamicTest> testPerNodeLogTracking() {
         return Stream.of(
-                DynamicTest.dynamicTest("Turtle", () -> testPerNodeLogTrackingImpl(createTurtleEnvironment())),
-                DynamicTest.dynamicTest("Container", () -> testPerNodeLogTrackingImpl(createContainerEnvironment())));
+                DynamicTest.dynamicTest("Turtle", () -> testPerNodeLogTrackingImpl(new TurtleTestEnvironment())),
+                DynamicTest.dynamicTest("Container", () -> testPerNodeLogTrackingImpl(new ContainerTestEnvironment())));
     }
 
     /**
@@ -232,8 +233,8 @@ class InMemoryLogTest extends BaseIntegrationTest {
     @TestFactory
     Stream<DynamicTest> testNetworkLogResults() {
         return Stream.of(
-                DynamicTest.dynamicTest("Turtle", () -> testNetworkLogResultsImpl(createTurtleEnvironment())),
-                DynamicTest.dynamicTest("Container", () -> testNetworkLogResultsImpl(createContainerEnvironment())));
+                DynamicTest.dynamicTest("Turtle", () -> testNetworkLogResultsImpl(new TurtleTestEnvironment())),
+                DynamicTest.dynamicTest("Container", () -> testNetworkLogResultsImpl(new ContainerTestEnvironment())));
     }
 
     /**
@@ -284,9 +285,9 @@ class InMemoryLogTest extends BaseIntegrationTest {
      */
     Stream<DynamicTest> testLogsAddedContinuously() {
         return Stream.of(
-                DynamicTest.dynamicTest("Turtle", () -> testLogsAddedContinuouslyImpl(createTurtleEnvironment())),
+                DynamicTest.dynamicTest("Turtle", () -> testLogsAddedContinuouslyImpl(new TurtleTestEnvironment())),
                 DynamicTest.dynamicTest(
-                        "Container", () -> testLogsAddedContinuouslyImpl(createContainerEnvironment())));
+                        "Container", () -> testLogsAddedContinuouslyImpl(new ContainerTestEnvironment())));
     }
 
     /**

@@ -8,21 +8,20 @@ import com.swirlds.common.test.fixtures.WeightGenerators;
 import java.util.List;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
-import org.hiero.otter.fixtures.integration.BaseIntegrationTest;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.Test;
 
 /**
  * Tests for node weight functionality in the Network and Node interfaces.
  */
-class NodeWeightTest extends BaseIntegrationTest {
+class NodeWeightTest {
 
     /**
      * Test that individual node weights can be set before the network starts.
      */
     @Test
     void testSetIndividualNodeWeightsBeforeNetworkStarts() {
-        final TurtleTestEnvironment env = createTurtleEnvironment();
+        final TurtleTestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
 
@@ -65,7 +64,7 @@ class NodeWeightTest extends BaseIntegrationTest {
      */
     @Test
     void testCannotSetNodeWeightWhileRunning() {
-        final TurtleTestEnvironment env = createTurtleEnvironment();
+        final TurtleTestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
 
@@ -93,7 +92,7 @@ class NodeWeightTest extends BaseIntegrationTest {
      */
     @Test
     void testNetworkNodeWeightSetsAllNodes() {
-        final TurtleTestEnvironment env = createTurtleEnvironment();
+        final TurtleTestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
 
@@ -127,7 +126,7 @@ class NodeWeightTest extends BaseIntegrationTest {
      */
     @Test
     void testNodeWeightThrowsWhenWeightIsZero() {
-        final TurtleTestEnvironment env = createTurtleEnvironment();
+        final TurtleTestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
             network.addNodes(2);
@@ -146,7 +145,7 @@ class NodeWeightTest extends BaseIntegrationTest {
      */
     @Test
     void testNodeWeightThrowsWhenWeightIsNegative() {
-        final TurtleTestEnvironment env = createTurtleEnvironment();
+        final TurtleTestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
             network.addNodes(2);
@@ -165,7 +164,7 @@ class NodeWeightTest extends BaseIntegrationTest {
      */
     @Test
     void testNodeWeightCanBeZero() {
-        final TurtleTestEnvironment env = createTurtleEnvironment();
+        final TurtleTestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
             final List<Node> nodes = network.addNodes(1);
@@ -186,7 +185,7 @@ class NodeWeightTest extends BaseIntegrationTest {
      */
     @Test
     void testNodeWeightThrowsForNegative() {
-        final TurtleTestEnvironment env = createTurtleEnvironment();
+        final TurtleTestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
             final List<Node> nodes = network.addNodes(1);
@@ -206,7 +205,7 @@ class NodeWeightTest extends BaseIntegrationTest {
      */
     @Test
     void testNodeWeightCanBeUpdatedMultipleTimes() {
-        final TurtleTestEnvironment env = createTurtleEnvironment();
+        final TurtleTestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
             final List<Node> nodes = network.addNodes(1);
@@ -235,7 +234,7 @@ class NodeWeightTest extends BaseIntegrationTest {
      */
     @Test
     void testExplicitWeightsTakePrecedenceOverGenerator() {
-        final TurtleTestEnvironment env = createTurtleEnvironment();
+        final TurtleTestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
 
@@ -266,7 +265,7 @@ class NodeWeightTest extends BaseIntegrationTest {
      */
     @Test
     void testWeightGeneratorUsedWhenNoExplicitWeights() {
-        final TurtleTestEnvironment env = createTurtleEnvironment();
+        final TurtleTestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
 
@@ -299,7 +298,7 @@ class NodeWeightTest extends BaseIntegrationTest {
      */
     @Test
     void testMixedExplicitAndGeneratedWeights() {
-        final TurtleTestEnvironment env = createTurtleEnvironment();
+        final TurtleTestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
 

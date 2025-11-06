@@ -12,7 +12,7 @@ import org.hiero.otter.fixtures.TestEnvironment;
  * @param testId      the unique identifier for the test
  * @param environment the test environment to manage
  */
-public record Lifecycle(@NonNull String testId, @NonNull TestEnvironment environment) {
+public record OtterLifecycle(@NonNull String testId, @NonNull TestEnvironment environment) {
     /**
      * Creates a new Lifecycle instance.
      *
@@ -20,7 +20,7 @@ public record Lifecycle(@NonNull String testId, @NonNull TestEnvironment environ
      * @param environment the test environment to manage
      * @throws NullPointerException if any of the parameters are null
      */
-    public Lifecycle {
+    public OtterLifecycle {
         requireNonNull(testId, "testId must not be null");
         requireNonNull(environment, "environment must not be null");
     }

@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.junit;
 
 import static java.util.Objects.requireNonNull;
+import static org.apache.commons.lang3.StringUtils.capitalize;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -130,9 +131,13 @@ public class OtterTestExtension
         // Generate unique test name for output directory
         String className = context.getTestClass().map(Class::getSimpleName).orElse("Unknown-Class");
         String testName =
-                context.getDisplayName().replaceAll("[^a-zA-Z0-9_\\-]", "_") + "_" + System.currentTimeMillis();
+                context.getDisplayName().replaceAll("[^a-zA-Z0-9_\\-\\[\\]]", "_") + "_" + System.currentTimeMillis();
 
-        Path outputDir = Path.of("build", "aggregateTestContainer", className, testName);
+        // Determine environment type for directory structure
+        final Environment environment = readEnvironmentFromSystemProperty();
+        final String envType = (environment == Environment.CONTAINER) ? "container" : "turtle";
+
+        Path outputDir = Path.of("build", "aggregateTest" + capitalize(envType), className, testName);
 
         // Store the output directory in the extension context for later use
         context.getStore(EXTENSION_NAMESPACE).put("outputDirectory", outputDir);
@@ -160,19 +165,28 @@ public class OtterTestExtension
                 .map(Parameter::getType)
                 .filter(t -> t.equals(TestEnvironment.class))
                 .map(t -> {
-                    // Generate test-specific output directory
-                    String className = extensionContext
+                    // Retrieve the pre-created output directory
+                    Path outputDir = (Path)
+                            extensionContext.getStore(EXTENSION_NAMESPACE).get("outputDirectory");
+
+                    if (outputDir == null) {
+                        throw new ParameterResolutionException("Output directory not initialized");
+                    }
+
+                    TestEnvironment testEnvironment = createTestEnvironment(extensionContext, outputDir);
+
+                    // Create the Otter Lifecycle with the correct environment
+                    final String className = extensionContext
                             .getTestClass()
                             .map(Class::getSimpleName)
-                            .orElse("Unknown-Class");
-                    final String testName = extensionContext.getDisplayName().replaceAll("[^a-zA-Z0-9_\\-\\[\\]]", "_")
-                            + "_" + System.currentTimeMillis();
-                    final Path outputDir = Path.of("build", "aggregateTestContainer", className, testName);
+                            .orElse("Unknown");
+                    final String testName = extensionContext.getDisplayName().replaceAll("[^a-zA-Z0-9_\\-\\[\\]]", "_");
+                    final String testId = Path.of(className, testName).toString(); // get correct directory separator
 
-                    // store for potential cleanup
-                    extensionContext.getStore(EXTENSION_NAMESPACE).put("outputDirectory", outputDir);
+                    OtterLifecycle lifecycle = new OtterLifecycle(testId, testEnvironment);
+                    extensionContext.getStore(EXTENSION_NAMESPACE).put("otterLifecycle", lifecycle);
 
-                    return createTestEnvironment(extensionContext, outputDir);
+                    return testEnvironment;
                 })
                 .orElseThrow(() -> new ParameterResolutionException("Could not resolve Parameter"));
     }
@@ -184,10 +198,11 @@ public class OtterTestExtension
      */
     @Override
     public void preDestroyTestInstance(@NonNull final ExtensionContext extensionContext) {
-        final TestEnvironment testEnvironment =
-                (TestEnvironment) extensionContext.getStore(EXTENSION_NAMESPACE).remove(ENVIRONMENT_KEY);
-        if (testEnvironment != null) {
-            testEnvironment.destroy();
+        OtterLifecycle lifecycle =
+                (OtterLifecycle) extensionContext.getStore(EXTENSION_NAMESPACE).remove("otterLifecycle");
+
+        if (lifecycle != null) {
+            lifecycle.environment().destroy();
         }
     }
 

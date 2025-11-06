@@ -14,7 +14,7 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.integration.BaseIntegrationTest;
+import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Test;
  *     <li>The build/turtle folder structure contains only node directories</li>
  * </ul>
  */
-final class TurtleSwirdsLogTest extends BaseIntegrationTest {
+final class TurtleSwirdsLogTest {
 
     private static final String LOG_DIR = "node-%d/output/";
     private static final String LOG_FILENAME = "swirlds.log";
@@ -41,7 +41,7 @@ final class TurtleSwirdsLogTest extends BaseIntegrationTest {
      */
     @Test
     void testPerNodeLogRouting() throws IOException {
-        final TestEnvironment env = createTurtleEnvironment();
+        final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();

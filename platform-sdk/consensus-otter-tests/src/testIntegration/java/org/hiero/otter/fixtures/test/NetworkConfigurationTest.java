@@ -12,8 +12,9 @@ import java.util.stream.Stream;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
-import org.hiero.otter.fixtures.integration.BaseIntegrationTest;
+import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.hiero.otter.fixtures.internal.AbstractNode;
+import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
@@ -22,7 +23,7 @@ import org.junit.jupiter.api.TestFactory;
  * Tests for the NetworkConfiguration functionality that enables setting network properties before nodes are added and
  * propagating them to nodes as they are created.
  */
-final class NetworkConfigurationTest extends BaseIntegrationTest {
+final class NetworkConfigurationTest {
 
     /**
      * Provide dynamic test environments for parameterized tests.
@@ -31,10 +32,10 @@ final class NetworkConfigurationTest extends BaseIntegrationTest {
     Stream<DynamicTest> testNetworkConfigurationBeforeNodesAreAdded() {
         return Stream.of(
                 DynamicTest.dynamicTest(
-                        "Turtle", () -> testNetworkConfigurationBeforeNodesAreAddedImpl(createTurtleEnvironment())),
+                        "Turtle", () -> testNetworkConfigurationBeforeNodesAreAddedImpl(new TurtleTestEnvironment())),
                 DynamicTest.dynamicTest(
                         "Container",
-                        () -> testNetworkConfigurationBeforeNodesAreAddedImpl(createContainerEnvironment())));
+                        () -> testNetworkConfigurationBeforeNodesAreAddedImpl(new ContainerTestEnvironment())));
     }
 
     /**
@@ -92,7 +93,7 @@ final class NetworkConfigurationTest extends BaseIntegrationTest {
      */
     @Test
     void testIncrementalNodeAdditionInheritsProperties() {
-        final TestEnvironment env = createTurtleEnvironment();
+        final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
 
@@ -126,7 +127,7 @@ final class NetworkConfigurationTest extends BaseIntegrationTest {
      */
     @Test
     void testNodeLevelOverridesOfNetworkProperties() {
-        final TestEnvironment env = createTurtleEnvironment();
+        final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
 
@@ -202,7 +203,7 @@ final class NetworkConfigurationTest extends BaseIntegrationTest {
      */
     @Test
     void testNetworkPropertyChangesPropagatesToExistingNodes() {
-        final TestEnvironment env = createTurtleEnvironment();
+        final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
 
@@ -249,7 +250,7 @@ final class NetworkConfigurationTest extends BaseIntegrationTest {
      */
     @Test
     void testInvalidWeightValuesThrowErrors() {
-        final TestEnvironment env = createTurtleEnvironment();
+        final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
 
@@ -292,7 +293,7 @@ final class NetworkConfigurationTest extends BaseIntegrationTest {
      */
     @Test
     void testNetworkConfigurationThrowExceptionWhenNetworkIsRunning() {
-        final TestEnvironment env = createTurtleEnvironment();
+        final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
 

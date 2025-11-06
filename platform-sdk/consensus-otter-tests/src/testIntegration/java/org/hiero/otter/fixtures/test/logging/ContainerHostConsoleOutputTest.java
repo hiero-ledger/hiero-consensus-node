@@ -14,14 +14,14 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.integration.BaseIntegrationTest;
+import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.junit.jupiter.api.Test;
 
 /**
  * Tests to verify console output in the Container-based test environment. This test validates the output on
  * the host machine that runs the test, not the output inside the containers.
  */
-class ContainerHostConsoleOutputTest extends BaseIntegrationTest {
+class ContainerHostConsoleOutputTest {
 
     /**
      * Test basic console output capturing and log message verification.
@@ -42,7 +42,7 @@ class ContainerHostConsoleOutputTest extends BaseIntegrationTest {
             final LoggerContext context = (LoggerContext) LogManager.getContext(false);
             context.reconfigure();
 
-            final TestEnvironment env = createContainerEnvironment();
+            final TestEnvironment env = new ContainerTestEnvironment();
             try {
                 final Network network = env.network();
                 final TimeManager timeManager = env.timeManager();

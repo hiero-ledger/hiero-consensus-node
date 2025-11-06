@@ -15,8 +15,9 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.integration.BaseIntegrationTest;
+import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
+import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.hiero.otter.fixtures.util.TimeoutException;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
@@ -29,7 +30,7 @@ import org.junit.jupiter.api.TestFactory;
  * <p>This test class validates the behavior of individual nodes being started and killed,
  * verifying platform status transitions and network behavior when nodes are added or removed.
  */
-class NodeLifecycleTest extends BaseIntegrationTest {
+class NodeLifecycleTest {
 
     /**
      * Provides a stream of test environments for the parameterized tests.
@@ -39,9 +40,9 @@ class NodeLifecycleTest extends BaseIntegrationTest {
     @TestFactory
     Stream<DynamicTest> testKillAndRestartSingleNode() {
         return Stream.of(
-                DynamicTest.dynamicTest("Turtle", () -> testKillAndRestartSingleNodeImpl(createTurtleEnvironment())),
+                DynamicTest.dynamicTest("Turtle", () -> testKillAndRestartSingleNodeImpl(new TurtleTestEnvironment())),
                 DynamicTest.dynamicTest(
-                        "Container", () -> testKillAndRestartSingleNodeImpl(createContainerEnvironment())));
+                        "Container", () -> testKillAndRestartSingleNodeImpl(new ContainerTestEnvironment())));
     }
 
     /**
@@ -137,7 +138,7 @@ class NodeLifecycleTest extends BaseIntegrationTest {
      */
     @Test
     void testStartAlreadyStartedNodeFails() {
-        final TestEnvironment env = createTurtleEnvironment();
+        final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
 
@@ -162,7 +163,7 @@ class NodeLifecycleTest extends BaseIntegrationTest {
      */
     @Test
     void testKillNotRunningNodeIsNoOp() {
-        final TestEnvironment env = createTurtleEnvironment();
+        final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
 
@@ -198,7 +199,7 @@ class NodeLifecycleTest extends BaseIntegrationTest {
      */
     @Test
     void testKillAllNodes() {
-        final TestEnvironment env = createTurtleEnvironment();
+        final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
 
@@ -227,7 +228,7 @@ class NodeLifecycleTest extends BaseIntegrationTest {
      */
     @Test
     void testKillAndRestartNodeWithCustomTimeout() {
-        final TestEnvironment env = createTurtleEnvironment();
+        final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -262,7 +263,7 @@ class NodeLifecycleTest extends BaseIntegrationTest {
     @Test
     @Disabled("Can be enabled once https://github.com/hiero-ledger/hiero-consensus-node/issues/21658 is fixed")
     void testTimeoutAreObservedInContainerEnvironment() {
-        final TestEnvironment env = createContainerEnvironment();
+        final TestEnvironment env = new ContainerTestEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();

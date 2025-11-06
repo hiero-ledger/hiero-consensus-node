@@ -14,10 +14,10 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.integration.BaseIntegrationTest;
+import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.Test;
 
-class TurtleConsoleOutputTest extends BaseIntegrationTest {
+class TurtleConsoleOutputTest {
 
     /**
      * Tests that console output from the Turtle test environment contains expected log messages.
@@ -38,7 +38,7 @@ class TurtleConsoleOutputTest extends BaseIntegrationTest {
             final LoggerContext context = (LoggerContext) LogManager.getContext(false);
             context.reconfigure();
 
-            final TestEnvironment env = createTurtleEnvironment();
+            final TestEnvironment env = new TurtleTestEnvironment();
             try {
                 final Network network = env.network();
                 final TimeManager timeManager = env.timeManager();
