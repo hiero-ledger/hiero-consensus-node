@@ -71,9 +71,9 @@ class SystemContractOpsDurationMetricTest {
         final double total =
                 subject.getSystemContractOpsDuration(SC1, ADDR1).accumulator().get();
         // Then
-        assertThat(average).isCloseTo(avg, within(5.0)); // (100 + 200) / 2
-        assertThat(count).isEqualTo(cycles * 2); // Two durations recorded
-        assertThat(total).isEqualTo(cycles * 2 * avg); // 100 + 200
+        assertThat(average).isCloseTo(avg, within(5.0));
+        assertThat(count).isEqualTo(cycles * 2);
+        assertThat(total).isEqualTo(cycles * 2 * avg);
     }
 
     @Test
@@ -94,9 +94,9 @@ class SystemContractOpsDurationMetricTest {
         // When
         generateMetric(subject, SC1, ADDR1, cycles1, avg1);
         generateMetric(subject, SC2, ADDR2, cycles2, avg2);
-        // Then
         final var metric1 = subject.getSystemContractOpsDuration(SC1, ADDR1);
         final var metric2 = subject.getSystemContractOpsDuration(SC2, ADDR2);
+        // Then
         assertThat(metric1.average().get()).isCloseTo(avg1, within(5.0));
         assertThat(metric1.counter().get()).isEqualTo(cycles1 * 2);
         assertThat(metric1.accumulator().get()).isEqualTo(cycles1 * 2 * avg1);
