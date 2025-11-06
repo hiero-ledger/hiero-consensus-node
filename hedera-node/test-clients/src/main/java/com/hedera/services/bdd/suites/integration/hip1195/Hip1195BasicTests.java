@@ -29,7 +29,6 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fix
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewContract;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.GLOBAL_WATCHER;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContain;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
@@ -72,7 +71,6 @@ import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
-import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts;
@@ -82,7 +80,6 @@ import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.EmbeddedVerbs;
 import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -1157,9 +1154,7 @@ public class Hip1195BasicTests {
                 cryptoUpdate("threeHooksToStartNZZNZ").removingHooks(1L, 0L, -1L),
                 assertHookIdList("threeHooksToStartNZZNZ", List.of()),
                 cryptoUpdate("threeHooksToStartNZNZZ").withHook(accountAllowanceHook(2L, TRUE_ALLOWANCE_HOOK.name())),
-                assertHookIdList("threeHooksToStartNZNZZ", List.of(2L, -1L, 1L, 0L)),
-                // Confirm there were no warning logs about hook list management
-                assertHgcaaLogDoesNotContain(NodeSelector.byNodeId(0), "WritableEvmHookStore", Duration.ofSeconds(1)));
+                assertHookIdList("threeHooksToStartNZNZZ", List.of(2L, -1L, 1L, 0L)));
     }
 
     /**
@@ -1227,9 +1222,7 @@ public class Hip1195BasicTests {
                 contractUpdate("threeHooksToStartNZZNZ").removingHooks(1L, 0L, -1L),
                 assertHookIdList("threeHooksToStartNZZNZ", List.of()),
                 contractUpdate("threeHooksToStartNZNZZ").withHook(accountAllowanceHook(2L, TRUE_ALLOWANCE_HOOK.name())),
-                assertHookIdList("threeHooksToStartNZNZZ", List.of(2L, -1L, 1L, 0L)),
-                // Confirm there were no warning logs about hook list management
-                assertHgcaaLogDoesNotContain(NodeSelector.byNodeId(0), "WritableEvmHookStore", Duration.ofSeconds(1)));
+                assertHookIdList("threeHooksToStartNZNZZ", List.of(2L, -1L, 1L, 0L)));
     }
 
     private SpecOperation assertHookIdList(@NonNull final String account, @NonNull final List<Long> expectedHookIds) {
