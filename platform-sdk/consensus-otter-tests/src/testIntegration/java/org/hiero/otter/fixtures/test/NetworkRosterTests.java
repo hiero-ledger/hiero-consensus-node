@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures;
+package org.hiero.otter.fixtures.test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -13,6 +13,8 @@ import java.security.SecureRandom;
 import java.security.cert.CertificateEncodingException;
 import java.util.List;
 import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.otter.fixtures.Network;
+import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.Test;
 
