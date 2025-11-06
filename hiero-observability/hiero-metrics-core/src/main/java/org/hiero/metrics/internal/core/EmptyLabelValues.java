@@ -5,7 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 
 public final class EmptyLabelValues extends LabelValues {
 
-    public static final EmptyLabelValues INSTANCE = new EmptyLabelValues();
+    static final EmptyLabelValues INSTANCE = new EmptyLabelValues();
 
     private EmptyLabelValues() {}
 

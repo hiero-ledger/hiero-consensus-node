@@ -48,7 +48,7 @@ public class MetricsFacadeTest {
     }
 
     @Test
-    public void singleEmptyExportFactory() throws Exception {
+    public void singleEmptyExportFactory() {
         Configuration configuration = configBuilder().build();
 
         final MetricsExporterFactory exporterFactory = Mockito.mock(MetricsExporterFactory.class);

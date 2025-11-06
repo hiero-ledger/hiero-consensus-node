@@ -39,11 +39,12 @@ public interface ArrayAccessor<T> extends Iterable<T> {
     default Iterator<T> iterator() {
         return new Iterator<>() {
 
+            private final int size = size(); // fix the size at the start of iteration
             private int index = 0;
 
             @Override
             public boolean hasNext() {
-                return index < size();
+                return index < size;
             }
 
             @Override
