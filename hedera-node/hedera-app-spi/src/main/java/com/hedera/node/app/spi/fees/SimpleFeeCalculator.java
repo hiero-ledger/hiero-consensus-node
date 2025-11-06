@@ -17,112 +17,18 @@
 
 package com.hedera.node.app.spi.fees;
 
-import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.TokenID;
-import com.hedera.hapi.node.state.token.Account;
-import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.transaction.Query;
-import com.swirlds.config.api.Configuration;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Optional;
-import java.util.OptionalInt;
 import org.hiero.hapi.fees.FeeResult;
 
 /** Calculates transaction and query fees. Null context = approximate, non-null = exact using state. */
 public interface SimpleFeeCalculator {
 
-    /** Provides state access for exact fee calculation. */
-    interface TxContext {
-        /**
-         * Returns the number of cryptographic signature verifications required for this transaction.
-         * Used to calculate fees based on signature complexity.
-         *
-         * <p>This typically corresponds to the number of signature pairs in the transaction's
-         * signature map ({@code txInfo.signatureMap().sigPair().size()}), provided by the
-         * underlying {@link FeeContext}.
-         *
-         * @return the number of signature verifications required
-         */
-        int cryptoVerificationsRequired();
-
-        /**
-         * Retrieves the account with the given ID from state.
-         *
-         * @param accountId the account ID to retrieve
-         * @return an Optional containing the account if found, empty otherwise
-         */
-        @NonNull
-        Optional<Account> getAccount(@NonNull AccountID accountId);
-
-        /**
-         * Checks if a token has custom fees defined.
-         *
-         * @param tokenId the token ID to check
-         * @return true if the token has custom fees, false otherwise
-         */
-        boolean tokenHasCustomFees(@NonNull TokenID tokenId);
-
-        /**
-         * Returns the number of custom fees defined for a token.
-         *
-         * @param tokenId the token ID to check
-         * @return an OptionalInt containing the count if the token exists, empty otherwise
-         */
-        @NonNull
-        OptionalInt customFeeCount(@NonNull TokenID tokenId);
-
-        /**
-         * Retrieves the token with the given ID from state.
-         *
-         * @param tokenId the token ID to retrieve
-         * @return an Optional containing the token if found, empty otherwise
-         */
-        @NonNull
-        Optional<Token> getToken(@NonNull TokenID tokenId);
-
-        /**
-         * Checks if a token association exists between an account and a token.
-         *
-         * @param accountId the account ID
-         * @param tokenId the token ID
-         * @return true if the account has an association with the token, false otherwise
-         */
-        boolean existsTokenRelation(@NonNull AccountID accountId, @NonNull TokenID tokenId);
-
-        /**
-         * Returns the network configuration.
-         *
-         * @return the configuration object
-         */
-        @NonNull
-        Configuration configuration();
-
-        /**
-         * Returns the number of signatures attached to this transaction.
-         * Used to calculate SIGNATURES extra fees per HIP-1261.
-         *
-         * @return the number of transaction signatures
-         */
-        int numTxnSignatures();
-
-        /**
-         * Returns the fee calculator factory for accessing fee schedules.
-         *
-         * @return the fee calculator factory
-         */
-        @NonNull
-        FeeCalculatorFactory feeCalculatorFactory();
-    }
-
-    /** Provides state access for exact query fee calculation. */
-    interface QueryContext {
-        int cryptoVerificationsRequired();
-    }
+    @NonNull
+    FeeResult calculateTxFee(@NonNull TransactionBody txnBody, @NonNull CalculatorState calculatorState);
 
     @NonNull
-    FeeResult calculateTxFee(@NonNull FeeContext feeContext);
-
-    @NonNull
-    FeeResult calculateQueryFee(@NonNull Query query, @Nullable QueryContext context);
+    FeeResult calculateQueryFee(@NonNull Query query, @Nullable CalculatorState calculatorState);
 }

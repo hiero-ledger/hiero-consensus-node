@@ -47,8 +47,8 @@ class CryptoDeleteFeeCalculatorTest {
 
     @BeforeEach
     void setUp() {
-        calculator = new CryptoDeleteFeeCalculator();
         testSchedule = createTestFeeSchedule();
+        calculator = new CryptoDeleteFeeCalculator(testSchedule);
 
         // Set up standard mocks with lenient to avoid unnecessary stubbings warnings
         lenient().when(txContext.feeCalculatorFactory()).thenReturn(feeCalculatorFactory);
