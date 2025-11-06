@@ -167,7 +167,6 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
         if (previousMutableState != null) {
             previousMutableState.throwIfDestroyed();
             previousMutableState.release();
-            previousMutableState.release();
         }
         // Do not increment the reference count because the stateToCopy provided already has a reference count of at
         // least
