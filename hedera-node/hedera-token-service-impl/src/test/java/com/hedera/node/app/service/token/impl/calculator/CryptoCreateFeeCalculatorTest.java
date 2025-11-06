@@ -9,11 +9,7 @@ import static org.mockito.Mockito.lenient;
 import com.hedera.hapi.node.base.*;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.fees.AbstractSimpleFeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
+import com.hedera.node.app.spi.fees.CalculatorState;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import org.hiero.hapi.support.fees.*;
@@ -33,30 +29,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class CryptoCreateFeeCalculatorTest {
 
     @Mock
-    private SimpleFeeCalculator.TxContext txContext;
-
-    @Mock
-    private FeeCalculatorFactory feeCalculatorFactory;
-
-    @Mock
-    private FeeCalculator feeCalculator;
-
-    @Mock
-    private FeeContext feeContext;
+    private CalculatorState calculatorState;
 
     private CryptoCreateFeeCalculator calculator;
     private org.hiero.hapi.support.fees.FeeSchedule testSchedule;
 
     @BeforeEach
     void setUp() {
-        calculator = new CryptoCreateFeeCalculator();
         testSchedule = createTestFeeSchedule();
-
-        // Set up standard mocks with lenient to avoid unnecessary stubbings warnings
-        lenient().when(txContext.feeCalculatorFactory()).thenReturn(feeCalculatorFactory);
-        lenient().when(feeCalculatorFactory.feeCalculator(any())).thenReturn(feeCalculator);
-        lenient().when(feeCalculator.getSimpleFeesSchedule()).thenReturn(testSchedule);
-        lenient().when(feeContext.feeCalculatorFactory()).thenReturn(feeCalculatorFactory);
+        calculator = new CryptoCreateFeeCalculator(testSchedule);
     }
 
     @Nested
@@ -66,14 +47,12 @@ class CryptoCreateFeeCalculatorTest {
         @DisplayName("calculateTxFee with no key")
         void calculateTxFeeWithNoKey() {
             // Given
+            lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
             final var op = CryptoCreateTransactionBody.newBuilder().build();
-            final var body =
-                    TransactionBody.newBuilder().cryptoCreateAccount(op).build();
-            lenient().when(feeContext.body()).thenReturn(body);
-            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
+            final var body = TransactionBody.newBuilder().cryptoCreateAccount(op).build();
 
             // When
-            final var result = calculator.calculateTxFee(feeContext);
+            final var result = calculator.calculateTxFee(body, calculatorState);
 
             // Then: node=1, service=22 (1-1 sigs * 1=0), network=1*2=2
             assertThat(result).isNotNull();
@@ -86,15 +65,13 @@ class CryptoCreateFeeCalculatorTest {
         @DisplayName("calculateTxFee with simple ED25519 key")
         void calculateTxFeeWithSimpleKey() {
             // Given
-            lenient().when(feeContext.numTxnSignatures()).thenReturn(2);
+            lenient().when(calculatorState.numTxnSignatures()).thenReturn(2);
             final var key = Key.newBuilder().ed25519(Bytes.wrap(new byte[32])).build();
             final var op = CryptoCreateTransactionBody.newBuilder().key(key).build();
-            final var body =
-                    TransactionBody.newBuilder().cryptoCreateAccount(op).build();
-            lenient().when(feeContext.body()).thenReturn(body);
+            final var body = TransactionBody.newBuilder().cryptoCreateAccount(op).build();
 
             // When
-            final var result = calculator.calculateTxFee(feeContext);
+            final var result = calculator.calculateTxFee(body, calculatorState);
 
             // Then: node=1, service=22 + (2-1)*1 + 1*1 = 24, network=2
             assertThat(result.node).isEqualTo(1L);
@@ -106,7 +83,7 @@ class CryptoCreateFeeCalculatorTest {
         @DisplayName("calculateTxFee with KeyList containing multiple keys")
         void calculateTxFeeWithKeyList() {
             // Given
-            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
+            lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
             final var keyList = KeyList.newBuilder()
                     .keys(
                             Key.newBuilder().ed25519(Bytes.wrap(new byte[32])).build(),
@@ -117,12 +94,10 @@ class CryptoCreateFeeCalculatorTest {
                     .build();
             final var key = Key.newBuilder().keyList(keyList).build();
             final var op = CryptoCreateTransactionBody.newBuilder().key(key).build();
-            final var body =
-                    TransactionBody.newBuilder().cryptoCreateAccount(op).build();
-            lenient().when(feeContext.body()).thenReturn(body);
+            final var body = TransactionBody.newBuilder().cryptoCreateAccount(op).build();
 
             // When
-            final var result = calculator.calculateTxFee(feeContext);
+            final var result = calculator.calculateTxFee(body, calculatorState);
 
             // Then: service=22 + 0 (sigs) + 3*1 (keys) = 25
             assertThat(result.service).isEqualTo(25L);
@@ -132,7 +107,7 @@ class CryptoCreateFeeCalculatorTest {
         @DisplayName("calculateTxFee with ThresholdKey")
         void calculateTxFeeWithThresholdKey() {
             // Given
-            lenient().when(feeContext.numTxnSignatures()).thenReturn(3);
+            lenient().when(calculatorState.numTxnSignatures()).thenReturn(3);
             final var thresholdKey = ThresholdKey.newBuilder()
                     .threshold(2)
                     .keys(KeyList.newBuilder()
@@ -150,12 +125,10 @@ class CryptoCreateFeeCalculatorTest {
                     .build();
             final var key = Key.newBuilder().thresholdKey(thresholdKey).build();
             final var op = CryptoCreateTransactionBody.newBuilder().key(key).build();
-            final var body =
-                    TransactionBody.newBuilder().cryptoCreateAccount(op).build();
-            lenient().when(feeContext.body()).thenReturn(body);
+            final var body = TransactionBody.newBuilder().cryptoCreateAccount(op).build();
 
             // When
-            final var result = calculator.calculateTxFee(feeContext);
+            final var result = calculator.calculateTxFee(body, calculatorState);
 
             // Then: service=22 + (3-1)*1 + 3*1 = 27
             assertThat(result.service).isEqualTo(27L);

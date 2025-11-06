@@ -9,10 +9,7 @@ import static org.mockito.Mockito.lenient;
 import com.hedera.hapi.node.base.*;
 import com.hedera.hapi.node.token.CryptoDeleteTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
+import com.hedera.node.app.spi.fees.CalculatorState;
 import java.util.List;
 import org.hiero.hapi.support.fees.*;
 import org.hiero.hapi.support.fees.FeeSchedule;
@@ -31,16 +28,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class CryptoDeleteFeeCalculatorTest {
 
     @Mock
-    private SimpleFeeCalculator.TxContext txContext;
-
-    @Mock
-    private FeeCalculatorFactory feeCalculatorFactory;
-
-    @Mock
-    private FeeCalculator feeCalculator;
-
-    @Mock
-    private FeeContext feeContext;
+    private CalculatorState calculatorState;
 
     private CryptoDeleteFeeCalculator calculator;
     private FeeSchedule testSchedule;
@@ -49,12 +37,6 @@ class CryptoDeleteFeeCalculatorTest {
     void setUp() {
         testSchedule = createTestFeeSchedule();
         calculator = new CryptoDeleteFeeCalculator(testSchedule);
-
-        // Set up standard mocks with lenient to avoid unnecessary stubbings warnings
-        lenient().when(txContext.feeCalculatorFactory()).thenReturn(feeCalculatorFactory);
-        lenient().when(feeCalculatorFactory.feeCalculator(any())).thenReturn(feeCalculator);
-        lenient().when(feeCalculator.getSimpleFeesSchedule()).thenReturn(testSchedule);
-        lenient().when(feeContext.feeCalculatorFactory()).thenReturn(feeCalculatorFactory);
     }
 
     @Nested
@@ -64,16 +46,15 @@ class CryptoDeleteFeeCalculatorTest {
         @DisplayName("calculateTxFee with basic delete operation")
         void calculateTxFeeBasicDelete() {
             // Given
-            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
+            lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
             final var op = CryptoDeleteTransactionBody.newBuilder()
                     .deleteAccountID(AccountID.newBuilder().accountNum(1001).build())
                     .transferAccountID(AccountID.newBuilder().accountNum(1002).build())
                     .build();
             final var body = TransactionBody.newBuilder().cryptoDelete(op).build();
-            lenient().when(feeContext.body()).thenReturn(body);
 
             // When
-            final var result = calculator.calculateTxFee(feeContext);
+            final var result = calculator.calculateTxFee(body, calculatorState);
 
             // Then: node=1, service=7 (1-1 sigs=0), network=1*2=2
             assertThat(result).isNotNull();
@@ -86,15 +67,14 @@ class CryptoDeleteFeeCalculatorTest {
         @DisplayName("calculateTxFee with zero signatures")
         void calculateTxFeeWithZeroSignatures() {
             // Given
-            lenient().when(feeContext.numTxnSignatures()).thenReturn(0);
+            lenient().when(calculatorState.numTxnSignatures()).thenReturn(0);
             final var op = CryptoDeleteTransactionBody.newBuilder()
                     .deleteAccountID(AccountID.newBuilder().accountNum(1001).build())
                     .build();
             final var body = TransactionBody.newBuilder().cryptoDelete(op).build();
-            lenient().when(feeContext.body()).thenReturn(body);
 
             // When
-            final var result = calculator.calculateTxFee(feeContext);
+            final var result = calculator.calculateTxFee(body, calculatorState);
 
             // Then: base service fee only (0-1 gives negative, so 0 overage)
             assertThat(result.service).isEqualTo(7L);
@@ -104,15 +84,14 @@ class CryptoDeleteFeeCalculatorTest {
         @DisplayName("calculateTxFee with multiple signatures")
         void calculateTxFeeWithMultipleSignatures() {
             // Given
-            lenient().when(feeContext.numTxnSignatures()).thenReturn(5);
+            lenient().when(calculatorState.numTxnSignatures()).thenReturn(5);
             final var op = CryptoDeleteTransactionBody.newBuilder()
                     .deleteAccountID(AccountID.newBuilder().accountNum(1001).build())
                     .build();
             final var body = TransactionBody.newBuilder().cryptoDelete(op).build();
-            lenient().when(feeContext.body()).thenReturn(body);
 
             // When
-            final var result = calculator.calculateTxFee(feeContext);
+            final var result = calculator.calculateTxFee(body, calculatorState);
 
             // Then: service=7 + (5-1)*1 = 11
             assertThat(result.service).isEqualTo(11L);
