@@ -23,7 +23,8 @@ public class RandomUtil {
      */
     public static Duration randomGaussianDuration(
             @NonNull final Randotron randotron, @NonNull final Duration mean, @NonNull final Duration stdDev) {
-        final long jitterSeconds = Math.max(-mean.getSeconds() + 1, (long) (randotron.nextGaussian() * stdDev.getSeconds()));
+        final long jitterSeconds =
+                Math.max(-mean.getSeconds() + 1, (long) (randotron.nextGaussian() * stdDev.getSeconds()));
         return mean.plusSeconds(jitterSeconds);
     }
 
