@@ -25,11 +25,13 @@ import java.util.concurrent.TimeUnit;
 import org.hiero.base.crypto.BytesSigner;
 import org.hiero.consensus.crypto.SigningFactory;
 import org.hiero.consensus.crypto.SigningImplementation;
+import java.util.function.Function;
 import org.hiero.consensus.event.creator.EventCreationConfig;
 import org.hiero.consensus.event.creator.EventCreationConfig_;
 import org.hiero.consensus.event.creator.impl.DefaultEventCreator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -75,6 +77,9 @@ public class EventCreatorNetworkBenchmark {
     /** The roster defining the network. */
     private Roster roster;
 
+    /** Keys and certificates for each node in the network. */
+    private Function<NodeId, KeysAndCerts> nodeKeysAndCerts;
+
     /** Total number of events created in the current iteration. */
     private int eventsCreatedInIteration;
 
@@ -95,6 +100,7 @@ public class EventCreatorNetworkBenchmark {
                 .withWeightGenerator(WeightGenerators.BALANCED)
                 .withRealKeysEnabled(true);
         roster = rosterBuilder.build();
+        nodeKeysAndCerts = rosterBuilder::getPrivateKeys;
         eventWindowUpdateInterval = Math.round(numNodes * Math.log(numNodes));
     }
 
@@ -115,6 +121,7 @@ public class EventCreatorNetworkBenchmark {
         // Create an event creator for each node
         for (final RosterEntry entry : roster.rosterEntries()) {
             final NodeId nodeId = NodeId.of(entry.nodeId());
+            final KeysAndCerts keysAndCerts = nodeKeysAndCerts.apply(nodeId);
             final SecureRandom nodeRandom = new SecureRandom();
             nodeRandom.setSeed(nodeId.id());
             final KeyPair keyPair = SigningFactory.generateKeyPair(signingType.getSigningSchema(), nodeRandom);

@@ -64,6 +64,7 @@ public interface FeeContext {
 
     /**
      * Returns the number of signatures provided for the transaction.
+     * This is typically the size of the signature map ({@code txInfo.signatureMap().sigPair().size()}).
      * <p>NOTE: this property should not be used for queries</p>
      * @return the number of signatures
      */
