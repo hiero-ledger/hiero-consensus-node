@@ -1054,7 +1054,7 @@ public class BaseTranslator {
 
     private static Account findContractOrThrow(
             @NonNull final ContractID contractId, @NonNull final List<StateChange> stateChanges) {
-        return stateChanges.stream()
+        final var temp = stateChanges.stream()
                 .filter(change -> change.stateId() == STATE_ID_ACCOUNTS.protoOrdinal())
                 .filter(StateChange::hasMapUpdate)
                 .map(StateChange::mapUpdateOrThrow)
@@ -1068,8 +1068,8 @@ public class BaseTranslator {
                             && contractId.realmNum() == accountId.realmNum()
                             && contractId.contractNumOrThrow().longValue() == accountId.accountNumOrThrow();
                 })
-                .findFirst()
-                .orElseThrow();
+                .findFirst();
+        return temp.orElseThrow();
     }
 
     private static Optional<Account> findAccount(
