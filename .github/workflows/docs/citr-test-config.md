@@ -63,7 +63,7 @@ There are several test suites that are run in the CITR environment, each with it
 
 ### Workflows
 
-- XTS is triggered by the [ZXCron: [CITR] Extended Test Suite.yaml](/.github/workflows/zxcron-extended-test-suite.yaml) workflow.
+- XTS is triggered by the [ZXCron: [CITR] Extended Test Suite](/.github/workflows/zxcron-extended-test-suite.yaml) workflow.
 - XTS Dry Run is triggered manually via the [ZXF: [CITR] XTS Dry Run](/.github/workflows/zxf-dry-run-extended-test-suite.yaml) workflow.
 
 ### Included Tests
