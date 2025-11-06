@@ -107,6 +107,7 @@ class AtomicEvm46ValidationSuite {
     private static final String INNER_TXN = "innerTx";
     private static final Long INTRINSIC_GAS_COST = 21000L;
     private static final Long GAS_LIMIT_FOR_CALL = 26000L;
+    // TODO Glib: fix EXTRA_GAS_FOR_FUNCTION_SELECTOR
     private static final Long EXTRA_GAS_FOR_FUNCTION_SELECTOR = 64L;
     private static final Long NOT_ENOUGH_GAS_LIMIT_FOR_CREATION = 500_000L;
     private static final Long ENOUGH_GAS_LIMIT_FOR_CREATION = 900_000L;
