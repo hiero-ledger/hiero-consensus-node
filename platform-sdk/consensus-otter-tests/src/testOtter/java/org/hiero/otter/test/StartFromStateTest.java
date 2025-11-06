@@ -22,6 +22,7 @@ import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.internal.DetRandomProvider;
@@ -32,6 +33,7 @@ import org.hiero.otter.fixtures.OtterSpecs;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -65,10 +67,8 @@ public class StartFromStateTest {
         // Setup simulation
         network.addNodes(numberOfNodes);
         network.savedStateDirectory(Path.of("previous-version-state"));
-        // Bump version, because the saved state version is currently the same. This will get removed once we have a new
-        // release
         network.version(
-                currentVersion.copyBuilder().minor(currentVersion.minor() + 1).build());
+                currentVersion.copyBuilder().minor(currentVersion.minor()).build());
 
         // Setup continuous assertions
         assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
@@ -77,7 +77,16 @@ public class StartFromStateTest {
                 .haveConsistentRounds();
         assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
 
+        final AtomicBoolean upgradeDetectedLogMsgFound = network.nodes().getFirst()
+                .newLogResult()
+                .onNextMatch(logEntry -> logEntry.message().contains(OtterApp.UPGRADE_DETECTED_LOG_PAYLOAD));
+
         network.start();
+
+        timeManager.waitForCondition(
+                upgradeDetectedLogMsgFound::get,
+                Duration.ofMinutes(2),
+                "Could not find the log message indicating a upgraded happened");
 
         final Map<NodeId, Long> lastRoundByNodeAtStart = network.newConsensusResults().results().stream()
                 .collect(Collectors.toMap(SingleNodeConsensusResult::nodeId, SingleNodeConsensusResult::lastRoundNum));
@@ -91,7 +100,7 @@ public class StartFromStateTest {
 
         // Validations
         // Verify that all nodes made progress
-        network.newConsensusResults().results().stream().forEach(result -> assertThat(result.lastRoundNum())
+        network.newConsensusResults().results().forEach(result -> assertThat(result.lastRoundNum())
                 .isGreaterThan(lastRoundByNodeAtStart.get(result.nodeId())));
         assertThat(network.newPlatformStatusResults())
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));

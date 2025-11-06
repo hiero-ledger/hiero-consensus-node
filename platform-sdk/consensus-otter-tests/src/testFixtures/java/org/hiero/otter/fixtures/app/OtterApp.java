@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -40,7 +43,9 @@ import org.hiero.otter.fixtures.app.state.OtterStateInitializer;
 @SuppressWarnings("removal")
 public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
 
-    private static final Logger log = LogManager.getLogger();
+    public static final String UPGRADE_DETECTED_LOG_PAYLOAD = "OtterAppUpgradeDetectedPayload";
+
+    private static final Logger log = LogManager.getLogger("OtterApp");
 
     private static final long BOTTLENECK_STEP_MILLIS = 500L;
 
@@ -226,6 +231,15 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
             @NonNull final Platform platform,
             @NonNull final InitTrigger trigger,
             @Nullable final SemanticVersion previousVersion) {
+        if (previousVersion != null) {
+            final int compare = SEMANTIC_VERSION_COMPARATOR.compare(previousVersion, version);
+            if (compare > 0) {
+                log.error(EXCEPTION.getMarker(), "Previous version is greater than current version");
+            } else if (compare < 0) {
+                log.info(STARTUP.getMarker(), "[{}] Previous version is older than current version. Executing upgrade.", UPGRADE_DETECTED_LOG_PAYLOAD);
+            }
+        }
+
         final Configuration configuration = platform.getContext().getConfiguration();
         if (state.getReadableStates(ConsistencyService.NAME).isEmpty()) {
             OtterStateInitializer.initOtterAppState(state, version, appServices);
