@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures;
+package org.hiero.otter.fixtures.test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -10,6 +10,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
 import java.util.stream.Stream;
+import org.hiero.otter.fixtures.Network;
+import org.hiero.otter.fixtures.Node;
+import org.hiero.otter.fixtures.TestEnvironment;
+import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
