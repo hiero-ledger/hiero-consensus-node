@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Set;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.internal.helpers.Utils;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology;
@@ -280,6 +281,22 @@ public interface Network extends Configurable<Network> {
      * {@code FREEZE_COMPLETE} state. The default can be overridden by calling {@link #withTimeout(Duration)}.
      */
     void freeze();
+
+    /**
+     * Submits a single transaction to the first active node found in the network.
+     *
+     * @param transaction the transaction to submit
+     */
+    default void submitTransaction(@NonNull final OtterTransaction transaction) {
+        submitTransactions(List.of(transaction));
+    }
+
+    /**
+     * Submits the transactions to the first active node found in the network.
+     *
+     * @param transactions the transactions to submit
+     */
+    void submitTransactions(@NonNull List<OtterTransaction> transactions);
 
     /**
      * Triggers a catastrophic ISS. All nodes in the network will calculate different hashes for an upcoming round.
