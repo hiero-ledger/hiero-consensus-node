@@ -13,8 +13,6 @@ import java.nio.file.Path;
  * <li>Creating a mutable copy of the state, while making the current mutable state immutable.</li>
  * </ul>
  *
- * An implementation of this class must be thread-safe.
- *
  */
 public interface StateLifecycleManager {
 

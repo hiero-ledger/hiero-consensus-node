@@ -22,7 +22,17 @@ import java.util.function.Function;
 
 /**
  * This class is responsible for maintaining references to the mutable state and the latest immutable state.
- * It also updates these references upon request. This implementation is thread-safe.
+ * It also updates these references upon request.
+ * This implementation is NOT thread-safe. However, it provides the following guarantees:
+ * <ul>
+ * <li>After {@link #initState(MerkleNodeState, boolean)}, calls to {@link #getMutableState()} and {@link #getLatestImmutableState()} will always return
+ * non-null values.</li>
+ * <li>After {@link #copyMutableState()}, the updated mutable state will be visible and available to all threads via {@link #getMutableState()}, and
+ * the updated latest immutable state will be visible and available to all threads via {@link #getLatestImmutableState()}.</li>
+ * </ul>
+ *
+ * <b>Important:</b> {@link #initState(MerkleNodeState, boolean)} and {@link #copyMutableState()} are NOT supposed to be called from multiple threads.
+ * They only provide the happens-before guarantees that are described above.
  */
 public class StateLifecycleManagerImpl implements StateLifecycleManager {
 
@@ -84,7 +94,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
     /**
      * {@inheritDoc}
      */
-    public synchronized void initState(@NonNull final MerkleNodeState state, final boolean onStartup) {
+    public void initState(@NonNull final MerkleNodeState state, final boolean onStartup) {
         requireNonNull(state);
 
         state.throwIfDestroyed("state must not be destroyed");
@@ -128,7 +138,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
      */
     @Override
     @NonNull
-    public synchronized MerkleNodeState copyMutableState() {
+    public MerkleNodeState copyMutableState() {
         final MerkleNodeState state = stateRef.get();
         copyAndUpdateStateRefs(state);
         return stateRef.get();
@@ -156,6 +166,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
         final MerkleNodeState previousMutableState = stateRef.get();
         if (previousMutableState != null) {
             previousMutableState.throwIfDestroyed();
+            previousMutableState.release();
             previousMutableState.release();
         }
         // Do not increment the reference count because the stateToCopy provided already has a reference count of at

@@ -271,7 +271,7 @@ class StateFileManagerTests {
                     .build();
             final ReservedSignedState reservedSignedState = signedState.reserve("initialTestReservation");
 
-            initLifecycleManagerAndMakeStateImmutable(reservedSignedState.get());
+            initLifecycleManagerAndMakeStateImmutable(reservedSignedState.get(), round != firstRound);
             controller.markSavedState(new StateWithHashComplexity(reservedSignedState, 1));
             hashState(signedState);
 
@@ -382,7 +382,7 @@ class StateFileManagerTests {
                 .resolve("node" + SELF_ID + "_round" + fatalRound);
         final SignedState fatalState =
                 new RandomSignedStateGenerator(random).setRound(fatalRound).build();
-        initLifecycleManagerAndMakeStateImmutable(fatalState);
+        initLifecycleManagerAndMakeStateImmutable(fatalState, true);
         hashState(fatalState);
         fatalState.markAsStateToSave(FATAL_ERROR);
         manager.dumpStateTask(StateDumpRequest.create(fatalState.reserve("test")));
@@ -395,7 +395,7 @@ class StateFileManagerTests {
                     new RandomSignedStateGenerator(random).setRound(round).build();
             issState.markAsStateToSave(PERIODIC_SNAPSHOT);
             states.add(signedState);
-            initLifecycleManagerAndMakeStateImmutable(signedState);
+            initLifecycleManagerAndMakeStateImmutable(signedState, true);
             hashState(signedState);
             manager.saveStateTask(signedState.reserve("test"));
 
@@ -430,6 +430,15 @@ class StateFileManagerTests {
     }
 
     void initLifecycleManagerAndMakeStateImmutable(SignedState state) {
+        initLifecycleManagerAndMakeStateImmutable(state, false);
+    }
+
+    void initLifecycleManagerAndMakeStateImmutable(SignedState state, boolean createNewStateLifecycleManager) {
+        if (createNewStateLifecycleManager) {
+            stateLifecycleManager =
+                    new StateLifecycleManagerImpl(context.getMetrics(), context.getTime(), TestVirtualMapState::new);
+        }
+
         stateLifecycleManager.initState(state.getState(), false);
         stateLifecycleManager.getMutableState().release();
     }
