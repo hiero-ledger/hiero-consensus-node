@@ -22,8 +22,6 @@ import org.hiero.otter.fixtures.OtterAssertions;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.integration.BaseIntegrationTest;
-import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
-import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.junit.jupiter.api.DynamicTest;

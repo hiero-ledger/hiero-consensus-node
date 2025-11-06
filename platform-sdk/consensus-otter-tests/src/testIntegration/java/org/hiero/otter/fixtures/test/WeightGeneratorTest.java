@@ -8,8 +8,6 @@ import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import java.util.List;
 import org.hiero.otter.fixtures.integration.BaseIntegrationTest;
-import org.hiero.otter.fixtures.Network;
-import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.Test;
 

@@ -13,9 +13,9 @@ import java.security.SecureRandom;
 import java.security.cert.CertificateEncodingException;
 import java.util.List;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.otter.fixtures.integration.BaseIntegrationTest;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
+import org.hiero.otter.fixtures.integration.BaseIntegrationTest;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.Test;
 
