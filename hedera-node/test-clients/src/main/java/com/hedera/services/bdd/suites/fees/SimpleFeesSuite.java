@@ -69,6 +69,7 @@ public class SimpleFeesSuite {
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of("fees.simpleFeesEnabled", "true"));
     }
+
     public static Stream<DynamicTest> runBeforeAfter(@NonNull final SpecOperation... ops) {
         List<SpecOperation> opsList = new ArrayList<>();
         opsList.add(overriding("fees.simpleFeesEnabled", "false"));
