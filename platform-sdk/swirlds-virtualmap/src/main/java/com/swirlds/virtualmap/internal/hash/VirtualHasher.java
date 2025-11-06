@@ -406,11 +406,10 @@ public final class VirtualHasher {
             try {
                 rootTask.join();
             } catch (final Exception e) {
-                if (shutdown.get()) {
-                    return null;
+                if (!shutdown.get()) {
+                    logger.error(EXCEPTION.getMarker(), "Failed to wait for all hashing tasks", e);
+                    throw e;
                 }
-                logger.error(EXCEPTION.getMarker(), "Failed to wait for all hashing tasks", e);
-                throw e;
             }
         }
 
