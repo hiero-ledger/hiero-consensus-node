@@ -141,7 +141,9 @@ class SerializationTest extends MerkleTestBase {
 
                 if (vm.size() > 1) {
                     vm.enableFlush();
-                    vm.release();
+                    if (vm.getReservationCount() > 0) {
+                        vm.release();
+                    }
                     vm.waitUntilFlushed();
                 }
             } catch (IllegalAccessException | NoSuchFieldException | InterruptedException e) {
@@ -218,17 +220,17 @@ class SerializationTest extends MerkleTestBase {
      * After it gets saved to disk again, and then loaded back in, it results in ClassCastException due to incorrect classId.
      */
     @Test
-    void dualReadAndWrite() throws IOException, ConstructableRegistryException {
+    void dualReadAndWrite() throws IOException {
         final Schema<SemanticVersion> schemaV1 = createV1Schema();
         final StateLifecycleManager stateLifecycleManager = createStateLifecycleManager(schemaV1);
         final MerkleNodeState originalTree = stateLifecycleManager.getMutableState();
 
         MerkleNodeState copy = stateLifecycleManager.copyMutableState(); // make a copy to make VM flushable
 
-        forceFlush(originalTree.getReadableStates(FIRST_SERVICE).get(FRUIT_STATE_ID));
         stateLifecycleManager
                 .copyMutableState()
                 .release(); // make a fast copy because we can only write to disk an immutable copy
+        forceFlush(originalTree.getReadableStates(FIRST_SERVICE).get(FRUIT_STATE_ID));
         copy.getRoot().getHash();
         final byte[] serializedBytes = writeTree(copy.getRoot(), dir);
 
