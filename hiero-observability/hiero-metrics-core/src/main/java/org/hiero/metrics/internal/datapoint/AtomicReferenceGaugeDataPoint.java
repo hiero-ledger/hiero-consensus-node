@@ -11,12 +11,8 @@ public final class AtomicReferenceGaugeDataPoint<T> implements GaugeDataPoint<T>
     private final Supplier<T> initializer;
     private volatile T value;
 
-    public AtomicReferenceGaugeDataPoint() {
-        this(() -> null);
-    }
-
     public AtomicReferenceGaugeDataPoint(@NonNull Supplier<T> initializer) {
-        this.initializer = Objects.requireNonNull(initializer, "initializer cannot be null");
+        this.initializer = Objects.requireNonNull(initializer, "initializer must not be null");
         reset();
     }
 

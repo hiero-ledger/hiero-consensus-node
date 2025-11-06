@@ -4,7 +4,6 @@ package org.hiero.metrics.internal.datapoint;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import org.hiero.metrics.api.datapoint.StateSetDataPoint;
@@ -13,19 +12,15 @@ public final class EnumStateSetDataPoint<E extends Enum<E>> implements StateSetD
 
     private static final VarHandle ARR_HANDLER = MethodHandles.arrayElementVarHandle(boolean[].class);
 
-    private final List<E> initialStates;
+    private final Set<E> initialStates;
     private final Set<E> statesSet;
     private final boolean[] states;
 
-    public EnumStateSetDataPoint(@NonNull Class<E> enumClass) {
-        this(List.of(), enumClass);
-    }
-
-    public EnumStateSetDataPoint(@NonNull List<E> initialStates, @NonNull Class<E> enumClass) {
+    public EnumStateSetDataPoint(@NonNull Set<E> initialStates, @NonNull Class<E> enumClass) {
         Objects.requireNonNull(initialStates, "initial states list must not be null");
         Objects.requireNonNull(enumClass, "enum class must not be null");
 
-        this.initialStates = List.copyOf(initialStates);
+        this.initialStates = Set.copyOf(initialStates);
         statesSet = Set.of(enumClass.getEnumConstants());
         states = new boolean[statesSet.size()];
 

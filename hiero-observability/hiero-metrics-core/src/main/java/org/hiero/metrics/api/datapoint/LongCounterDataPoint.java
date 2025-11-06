@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.metrics.api.datapoint;
 
-import java.util.function.DoubleSupplier;
 import java.util.function.LongSupplier;
 
 /**
@@ -11,7 +10,7 @@ import java.util.function.LongSupplier;
  * <p>
  * <b>All operations are thread-safe and atomic.</b>
  */
-public interface LongCounterDataPoint extends LongSupplier, DoubleSupplier, DataPoint {
+public interface LongCounterDataPoint extends LongSupplier, DataPoint {
 
     /**
      * Increments the counter by the specified value.
@@ -26,10 +25,5 @@ public interface LongCounterDataPoint extends LongSupplier, DoubleSupplier, Data
      */
     default void increment() {
         increment(1);
-    }
-
-    @Override
-    default double getAsDouble() {
-        return getAsLong();
     }
 }

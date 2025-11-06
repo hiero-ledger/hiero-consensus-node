@@ -10,14 +10,13 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 public class LabelNamesAndValuesTest {
 
-    @Test
-    public void testEmpty() {
+    @ParameterizedTest
+    @ValueSource(ints = {-1, 0, 1})
+    public void testEmpty(int index) {
         LabelNamesAndValues labelNamesAndValues = new LabelNamesAndValues();
 
         assertThat(labelNamesAndValues.size()).isEqualTo(0);
-        assertThatThrownBy(() -> labelNamesAndValues.get(0)).isInstanceOf(IndexOutOfBoundsException.class);
-        assertThatThrownBy(() -> labelNamesAndValues.get(1)).isInstanceOf(IndexOutOfBoundsException.class);
-        assertThatThrownBy(() -> labelNamesAndValues.get(-1)).isInstanceOf(IndexOutOfBoundsException.class);
+        assertThatThrownBy(() -> labelNamesAndValues.get(index)).isInstanceOf(IndexOutOfBoundsException.class);
     }
 
     @Test

@@ -41,7 +41,8 @@ public abstract class AbstractCachingMetricsSnapshotsWriter<M extends BaseMetric
         M metricExportData = metricCache.computeIfAbsent(metricSnapshot, this::buildMetricExportData);
 
         beforeMetricWrite(metricExportData, output);
-        for (int i = 0; i < metricSnapshot.size(); i++) {
+        int size = metricSnapshot.size();
+        for (int i = 0; i < size; i++) {
             DataPointSnapshot dataPointSnapshot = metricSnapshot.get(i);
             ByteArrayTemplate dataPointExportTemplate =
                     metricExportData.getOrCreateDatapointExportTemplate(dataPointSnapshot);

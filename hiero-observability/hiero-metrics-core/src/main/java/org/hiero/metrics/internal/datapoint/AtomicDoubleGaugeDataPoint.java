@@ -16,10 +16,6 @@ public class AtomicDoubleGaugeDataPoint implements DoubleGaugeDataPoint {
         container = new AtomicDouble(initializer);
     }
 
-    public AtomicDoubleGaugeDataPoint(double initialValue) {
-        container = new AtomicDouble(initialValue);
-    }
-
     @Override
     public double getInitValue() {
         return container.getInitValue();

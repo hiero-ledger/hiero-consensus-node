@@ -14,7 +14,10 @@ public final class UpdatableMetricRegistrySnapshot implements ArrayAccessor<Metr
             new AppendArray<>(64);
 
     public void updateSnapshot() {
-        snapshots.readyToRead(UpdatableMetricSnapshot::updateSnapshot);
+        int size = snapshots.readyToRead();
+        for (int i = 0; i < size; i++) {
+            snapshots.get(i).updateSnapshot();
+        }
     }
 
     public void add(SnapshotableMetric<? extends DataPointSnapshot> snapshotableMetric) {

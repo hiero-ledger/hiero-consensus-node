@@ -2,8 +2,8 @@
 package org.hiero.metrics.api;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.MetricType;
 import org.hiero.metrics.api.core.StatefulMetric;
@@ -19,7 +19,7 @@ import org.hiero.metrics.internal.datapoint.EnumStateSetDataPoint;
  *
  * @param <E> the enum type of the states in the set
  */
-public interface StateSet<E extends Enum<E>> extends StatefulMetric<List<E>, StateSetDataPoint<E>> {
+public interface StateSet<E extends Enum<E>> extends StatefulMetric<Set<E>, StateSetDataPoint<E>> {
 
     /**
      * Create a metric key for a {@link StateSet} with the given name. <br>
@@ -70,12 +70,12 @@ public interface StateSet<E extends Enum<E>> extends StatefulMetric<List<E>, Sta
      * @param <E> the type of the states in the set
      */
     final class Builder<E extends Enum<E>>
-            extends StatefulMetric.Builder<List<E>, StateSetDataPoint<E>, Builder<E>, StateSet<E>> {
+            extends StatefulMetric.Builder<Set<E>, StateSetDataPoint<E>, Builder<E>, StateSet<E>> {
 
         private final Class<E> enumClass;
 
         private Builder(@NonNull MetricKey<StateSet<E>> key, @NonNull Class<E> enumClass) {
-            super(MetricType.STATE_SET, key, List.of(), init -> new EnumStateSetDataPoint<>(init, enumClass));
+            super(MetricType.STATE_SET, key, Set.of(), init -> new EnumStateSetDataPoint<>(init, enumClass));
             this.enumClass = enumClass;
         }
 
