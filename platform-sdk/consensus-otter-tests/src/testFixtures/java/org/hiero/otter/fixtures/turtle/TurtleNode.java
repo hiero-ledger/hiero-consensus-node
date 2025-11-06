@@ -523,8 +523,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     }
 
     private void handlePlatformStatusChange(@NonNull final PlatformStatus platformStatus) {
-        logToConsole(
-                () -> log.info("Received platform status change from node {}: {}", selfId, platformStatus));
+        logToConsole(() -> log.info("Received platform status change from node {}: {}", selfId, platformStatus));
         this.platformStatus = requireNonNull(platformStatus);
         resultsCollector.addPlatformStatus(platformStatus);
     }
