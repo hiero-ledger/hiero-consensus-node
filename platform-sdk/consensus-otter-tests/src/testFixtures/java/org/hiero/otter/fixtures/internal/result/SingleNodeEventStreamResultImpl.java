@@ -79,6 +79,9 @@ public class SingleNodeEventStreamResultImpl implements SingleNodeEventStreamRes
     @Override
     @NonNull
     public List<Path> eventStreamFiles() {
+        if (!Files.exists(eventStreamDir)) {
+            return List.of();
+        }
         try (final Stream<Path> stream = Files.find(eventStreamDir, 1, SIGNED_EVENT_STREAM_FILE_FILTER)) {
             return stream.sorted().toList();
         } catch (final IOException e) {
@@ -92,6 +95,9 @@ public class SingleNodeEventStreamResultImpl implements SingleNodeEventStreamRes
     @Override
     @NonNull
     public List<Path> signatureFiles() {
+        if (!Files.exists(eventStreamDir)) {
+            return List.of();
+        }
         try (final Stream<Path> stream = Files.find(eventStreamDir, 1, SIGNATURE_FILE_FILTER)) {
             return stream.sorted().toList();
         } catch (final IOException e) {
@@ -101,6 +107,9 @@ public class SingleNodeEventStreamResultImpl implements SingleNodeEventStreamRes
 
     @Override
     public boolean hasAnyEventStreamFile() {
+        if (!Files.exists(eventStreamDir)) {
+            return false;
+        }
         try (final Stream<Path> stream = Files.find(eventStreamDir, 1, ANY_EVENT_FILE_FILTER)) {
             return stream.findAny().isPresent();
         } catch (final IOException e) {

@@ -327,8 +327,8 @@ public class OtterTestExtension
         }
 
         return envProperty.equalsIgnoreCase("container")
-                ? new ContainerTestEnvironment(true, outputDir)
-                : new TurtleTestEnvironment(0L, true, outputDir);
+                ? createContainerTestEnvironment(extensionContext, outputDir)
+                : createTurtleTestEnvironment(extensionContext, outputDir);
     }
 
     /**

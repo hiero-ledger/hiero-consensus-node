@@ -116,10 +116,13 @@ public class ReconnectTest {
         timeManager.waitForCondition(nodeToReconnect::isActive, Duration.ofSeconds(120L));
 
         // Allow some additional time to ensure we have at least one event stream file after reconnect
-        timeManager.waitForCondition(
-                () -> nodeToReconnect.newEventStreamResult().eventStreamFiles().size()
-                        > numEventStreamFilesBeforeReconnect,
-                Duration.ofSeconds(120L));
+        // Only wait if event stream files are accessible (e.g., in turtle tests, not container tests)
+        if (nodeToReconnect.newEventStreamResult().hasAnyEventStreamFile() || numEventStreamFilesBeforeReconnect > 0) {
+            timeManager.waitForCondition(
+                    () -> nodeToReconnect.newEventStreamResult().eventStreamFiles().size()
+                            > numEventStreamFilesBeforeReconnect,
+                    Duration.ofSeconds(120L));
+        }
 
         // Validations
         assertThat(nodeToReconnect.newReconnectResult()).hasExactSuccessfulReconnects(1);
