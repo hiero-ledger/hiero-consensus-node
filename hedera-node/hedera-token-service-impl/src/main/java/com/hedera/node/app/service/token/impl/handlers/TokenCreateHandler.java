@@ -461,10 +461,6 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
     public @NonNull FeeResult calculateFeeResult(@NonNull FeeContext feeContext) {
         requireNonNull(feeContext);
         final var body = feeContext.body();
-//        final var hasCustomFees =
-//                !body.tokenCreationOrThrow().customFees().isEmpty();
-        final var hasCustomFees = false;
-//        final var subType = hasCustomFees ? SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES : SubType.DEFAULT;
         final var subType = SubType.DEFAULT;
         final var entity = FeeModelRegistry.lookupModel(HederaFunctionality.TOKEN_CREATE);
         var op = body.tokenCreationOrThrow();
@@ -481,7 +477,7 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
         if (op.tokenType() == TokenType.NON_FUNGIBLE_UNIQUE) {
             params.put(Extra.STANDARD_NON_FUNGIBLE_TOKENS, 1L);
         }
-        params.put(Extra.CUSTOM_FEE, hasCustomFees ? 1L : 0L);
+        params.put(Extra.CUSTOM_FEE, 0L);
         return entity.computeFee(
                 params, feeContext.feeCalculatorFactory().feeCalculator(subType).getSimpleFeesSchedule());
     }
