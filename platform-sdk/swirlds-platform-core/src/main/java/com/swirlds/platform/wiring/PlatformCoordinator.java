@@ -46,7 +46,8 @@ import org.hiero.consensus.roster.RosterUtils;
  *
  * @param components
  */
-public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNull ApplicationCallbacks callbacks) implements StatusActionSubmitter {
+public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNull ApplicationCallbacks callbacks)
+        implements StatusActionSubmitter {
 
     /**
      * Constructor

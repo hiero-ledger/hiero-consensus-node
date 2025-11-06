@@ -166,8 +166,7 @@ public record PlatformComponents(
      * @param model                the wiring model
      */
     public static PlatformComponents create(
-            @NonNull final PlatformContext platformContext,
-            @NonNull final WiringModel model) {
+            @NonNull final PlatformContext platformContext, @NonNull final WiringModel model) {
 
         Objects.requireNonNull(platformContext);
         Objects.requireNonNull(model);
