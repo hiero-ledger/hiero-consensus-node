@@ -141,7 +141,7 @@ import "block/stream/output/block_footer.proto";
  */
 message BlockItem {
     // Reserved for future items that require separate handling for block hash purposes.
-    reserved 14,15,16,17,18,19,20;
+    reserved 13,14,15,16,17,18,20;
 
     oneof item {
         /**
@@ -264,7 +264,7 @@ message BlockItem {
         /**
          * A block item intentionally redacted from the stream.
          */
-        RedactedItem redacted_item = 13;
+        RedactedItem redacted_item = 19;
     }
 }
 
