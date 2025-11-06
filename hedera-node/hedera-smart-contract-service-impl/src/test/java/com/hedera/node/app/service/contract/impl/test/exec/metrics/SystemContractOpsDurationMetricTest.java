@@ -10,11 +10,9 @@ import com.swirlds.common.metrics.config.MetricsConfig;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
 import com.swirlds.common.metrics.platform.MetricKeyRegistry;
 import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
-
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
-
-import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,8 +49,7 @@ class SystemContractOpsDurationMetricTest {
             @NonNull final String systemContractName,
             @NonNull final String systemContractAddress,
             final int cycles,
-            final long avg
-    ) {
+            final long avg) {
         for (int i = 0; i < cycles; i++) {
             final long shift = ThreadLocalRandom.current().nextLong(avg);
             subject.recordOperationDuration(systemContractName, systemContractAddress, avg + shift);
