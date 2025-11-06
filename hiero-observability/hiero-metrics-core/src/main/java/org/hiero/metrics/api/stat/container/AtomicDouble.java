@@ -151,7 +151,7 @@ public final class AtomicDouble implements DoubleSupplier {
      * to the double values represented by the long inputs and returns the result
      */
     public static LongBinaryOperator convertBinaryOperator(@NonNull DoubleBinaryOperator operator) {
-        Objects.requireNonNull(operator, "Operator cannot be null");
+        Objects.requireNonNull(operator, "operator must not be null");
         return (prev, cur) -> fromDouble(operator.applyAsDouble(toDouble(prev), toDouble(cur)));
     }
 

@@ -18,7 +18,7 @@ public final class AtomicLongCounterDataPoint extends AbstractLongCounterDataPoi
 
     public AtomicLongCounterDataPoint(@NonNull LongSupplier initializer) {
         this.initializer = Objects.requireNonNull(initializer, "initializer must not be null");
-        reset();
+        increment(initializer.getAsLong());
     }
 
     @Override

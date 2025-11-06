@@ -58,6 +58,9 @@ public final class UpdatableMetricSnapshot<D, S extends DataPointSnapshot> imple
     }
 
     public void updateSnapshot() {
-        dataPointHolders.readyToRead(snapshotUpdater);
+        int size = dataPointHolders.readyToRead();
+        for (int i = 0; i < size; i++) {
+            snapshotUpdater.accept(dataPointHolders.get(i));
+        }
     }
 }

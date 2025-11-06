@@ -5,7 +5,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.DoubleSupplier;
 import java.util.function.LongBinaryOperator;
-import org.hiero.metrics.api.stat.StatUtils;
 import org.hiero.metrics.api.stat.container.AtomicDouble;
 
 public final class DoubleAccumulatorGaugeDataPoint extends AtomicDoubleGaugeDataPoint {
@@ -16,10 +15,6 @@ public final class DoubleAccumulatorGaugeDataPoint extends AtomicDoubleGaugeData
             @NonNull DoubleBinaryOperator operator, @NonNull DoubleSupplier initializer) {
         super(initializer);
         this.operator = AtomicDouble.convertBinaryOperator(operator);
-    }
-
-    public DoubleAccumulatorGaugeDataPoint(DoubleBinaryOperator operator, double initialValue) {
-        this(operator, StatUtils.asInitializer(initialValue));
     }
 
     @Override
