@@ -121,6 +121,7 @@ public class BaseTranslator {
     private final long realm;
     private final Map<Long, Long> nonces = new HashMap<>();
     private final Map<AccountID, Address> evmAddresses = new HashMap<>();
+    private final Map<Bytes, AccountID> aliases = new HashMap<>();
     private final Map<TokenID, Long> totalSupplies = new HashMap<>();
     private final Map<TokenID, TokenType> tokenTypes = new HashMap<>();
     private final Map<TransactionID, ScheduleID> scheduleRefs = new HashMap<>();
@@ -1018,6 +1019,13 @@ public class BaseTranslator {
                     highestPutSerialNos
                             .computeIfAbsent(tokenId, ignore -> new LinkedList<>())
                             .add(nftId.serialNumber());
+                } else if (key.hasProtoBytesKey()) {
+                    final var keyBytes = key.protoBytesKeyOrThrow();
+                    final var value = mapUpdate.valueOrThrow();
+                    if (value.hasAccountIdValue()) {
+                        final var accountId = value.accountIdValueOrThrow();
+                        aliases.put(keyBytes, accountId);
+                    }
                 }
             }
         });
@@ -1054,7 +1062,7 @@ public class BaseTranslator {
 
     private static Account findContractOrThrow(
             @NonNull final ContractID contractId, @NonNull final List<StateChange> stateChanges) {
-        return stateChanges.stream()
+        final var temp = stateChanges.stream()
                 .filter(change -> change.stateId() == STATE_ID_ACCOUNTS.protoOrdinal())
                 .filter(StateChange::hasMapUpdate)
                 .map(StateChange::mapUpdateOrThrow)
@@ -1068,8 +1076,8 @@ public class BaseTranslator {
                             && contractId.realmNum() == accountId.realmNum()
                             && contractId.contractNumOrThrow().longValue() == accountId.accountNumOrThrow();
                 })
-                .findFirst()
-                .orElseThrow();
+                .findFirst();
+        return temp.orElseThrow();
     }
 
     private static Optional<Account> findAccount(
@@ -1196,5 +1204,9 @@ public class BaseTranslator {
                     .build();
         }
         return Optional.ofNullable(result);
+    }
+
+    public Map<Bytes, AccountID> getAliases() {
+        return aliases;
     }
 }
