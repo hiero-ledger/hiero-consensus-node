@@ -198,7 +198,7 @@ tasks.register<Test>("testSubprocess") {
             .joinToString("|")
     useJUnitPlatform {
         includeTags(
-            if (ciTagExpression.isBlank()) "none()|!(EMBEDDED|REPEATABLE|ISS)"
+            if (ciTagExpression.isBlank()) "none()|!(EMBEDDED|REPEATABLE)"
             // We don't want to run typical stream or log validation for ISS or BLOCK_NODE
             // cases
             else if (ciTagExpression.contains("ISS") || ciTagExpression.contains("BLOCK_NODE"))

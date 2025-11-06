@@ -47,6 +47,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOU
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
@@ -65,6 +66,8 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
@@ -980,10 +983,7 @@ public class UpdateNodeAccountTest {
                             .hasKnownStatus(INVALID_NODE_ID),
                     viewNode(
                             "testNode",
-                            node -> assertNotEquals(
-                                    newAccountId.get(),
-                                    node.accountId().accountNum(),
-                                    "Node accountId should not be updated")));
+                            Assertions::assertNull));
         }
 
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)

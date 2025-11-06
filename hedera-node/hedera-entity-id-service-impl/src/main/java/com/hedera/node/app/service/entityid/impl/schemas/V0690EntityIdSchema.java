@@ -23,9 +23,7 @@ import java.util.Set;
 public class V0690EntityIdSchema extends Schema<SemanticVersion> {
 
     private static final SemanticVersion VERSION =
-            SemanticVersion.newBuilder().major(0).minor(69).patch(0).build();
-
-    private static final int NODES_STATE_ID = StateKey.KeyOneOfType.ADDRESSBOOKSERVICE_I_NODES.protoOrdinal();
+            SemanticVersion.newBuilder().major(0).minor(68).patch(0).build();
 
     public static final String HIGHEST_NODE_ID_KEY = "HIGHEST_NODE_ID";
     public static final int HIGHEST_NODE_ID_STATE_ID = SingletonType.ENTITYIDSERVICE_I_HIGHEST_NODE_ID.protoOrdinal();
