@@ -24,6 +24,7 @@ testing {
                     "integration.output.dir",
                     layout.buildDirectory.dir("aggregateTestIntegration").get().asFile.absolutePath,
                 )
+                systemProperty("otter.env", System.getProperty("otter.env", "turtle"))
             }
         }
     }
