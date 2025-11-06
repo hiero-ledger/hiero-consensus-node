@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.logging;
+package org.hiero.otter.fixtures.test.logging;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.hiero.otter.fixtures.logging.LogMessageParser.extractLogLevel;
-import static org.hiero.otter.fixtures.logging.LogMessageParser.isLogMessage;
+import static org.hiero.otter.fixtures.test.logging.LogMessageParser.extractLogLevel;
+import static org.hiero.otter.fixtures.test.logging.LogMessageParser.isLogMessage;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;

@@ -48,8 +48,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(BLOCK_NODE)
 @OrderedInIsolation
 public class BlockNodeSuite {
-
-    private static final int BLOCK_TTL_MINUTES = 2;
     private static final int BLOCK_PERIOD_SECONDS = 2;
 
     @HapiTest
@@ -496,10 +494,16 @@ public class BlockNodeSuite {
                         blockNodeIds = {0, 1},
                         blockNodePriorities = {0, 1},
                         applicationPropertiesOverrides = {
-                            "blockStream.buffer.blockTtl", "1m",
-                            "blockNode.forcedSwitchRescheduleDelay", "30s",
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
+                            "blockStream.buffer.maxBlocks",
+                            "30",
+                            "blockStream.blockPeriod",
+                            BLOCK_PERIOD_SECONDS + "s",
+                            "blockStream.streamMode",
+                            "BLOCKS",
+                            "blockStream.writerMode",
+                            "FILE_AND_GRPC",
+                            "blockNode.forcedSwitchRescheduleDelay",
+                            "30s"
                         })
             })
     @Order(6)
@@ -657,7 +661,7 @@ public class BlockNodeSuite {
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BLOCKS",
                             "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.buffer.blockTtl", BLOCK_TTL_MINUTES + "m",
+                            "blockStream.buffer.maxBlocks", "60",
                             "blockStream.buffer.isBufferPersistenceEnabled", "true",
                             "blockStream.blockPeriod", BLOCK_PERIOD_SECONDS + "s",
                             "blockNode.streamResetPeriod", "20s",
@@ -675,10 +679,9 @@ public class BlockNodeSuite {
         7. Wait for the blocks to be acked and the consensus node recovers
          */
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
-        final Duration blockTtl = Duration.ofMinutes(BLOCK_TTL_MINUTES);
-        final Duration blockPeriod = Duration.ofSeconds(BLOCK_PERIOD_SECONDS);
-        final int maxBufferSize = (int) blockTtl.dividedBy(blockPeriod);
+        final int maxBufferSize = 60;
         final int halfBufferSize = Math.max(1, maxBufferSize / 2);
+        final Duration duration = Duration.ofSeconds(maxBufferSize * BLOCK_PERIOD_SECONDS);
 
         return hapiTest(
                 // create some blocks to establish a baseline
@@ -692,8 +695,8 @@ public class BlockNodeSuite {
                         spec -> assertBlockNodeCommsLogContainsTimeframe(
                                 byNodeId(0),
                                 timeRef::get,
-                                blockTtl,
-                                blockTtl,
+                                duration,
+                                duration,
                                 "Attempting to forcefully switch block node connections due to increasing block buffer saturation")),
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 // restart the consensus node
