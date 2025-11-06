@@ -1,18 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.fees;
-
-import com.google.protobuf.ByteString;
-import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.spec.SpecOperation;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.stream.Stream;
 
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -31,6 +18,19 @@ import static com.hedera.services.bdd.suites.fees.SimpleFeesSuite.ucents_to_USD;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+
+import com.google.protobuf.ByteString;
+import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.spec.SpecOperation;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
@@ -51,7 +51,7 @@ public class TokenSimpleServiceFeesSuite {
         List<SpecOperation> opsList = new ArrayList<>();
         opsList.add(overriding("fees.simpleFeesEnabled", "false"));
         opsList.add(withOpContext((spec, op) -> {
-           System.out.println("old fees");
+            System.out.println("old fees");
         }));
         opsList.addAll(provider.provide());
         opsList.add(overriding("fees.simpleFeesEnabled", "true"));
@@ -78,12 +78,9 @@ public class TokenSimpleServiceFeesSuite {
                         .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
                         .logged()
                         .hasKnownStatus(SUCCESS)
-                        .via("create-token-txn")
-                ,
+                        .via("create-token-txn"),
                 // actual for current fees is ~900_000 even though the spec says 1.0
-                validateChargedUsdWithin("create-token-txn", ucents_to_USD(100_000),15)
-            )
-        );
+                validateChargedUsdWithin("create-token-txn", ucents_to_USD(100_000), 15)));
     }
 
     @HapiTest
@@ -105,17 +102,15 @@ public class TokenSimpleServiceFeesSuite {
                         .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
                         .logged()
                         .hasKnownStatus(SUCCESS)
-                        .via("create-token-txn")
-                ,
-                validateChargedUsdWithin("create-token-txn", ucents_to_USD(100000),10)
-            )
-        );
+                        .via("create-token-txn"),
+                validateChargedUsdWithin("create-token-txn", ucents_to_USD(100000), 10)));
     }
 
     @HapiTest
     @DisplayName("compare mint common token")
     final Stream<DynamicTest> compareMintCommonToken() {
-        return compare(() -> Arrays.asList(newKeyNamed(SUPPLY_KEY),
+        return compare(() -> Arrays.asList(
+                newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
                 cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
                 tokenCreate(FUNGIBLE_TOKEN)
@@ -158,8 +153,7 @@ public class TokenSimpleServiceFeesSuite {
                         .fee(ONE_HUNDRED_HBARS)
                         .hasKnownStatus(SUCCESS)
                         .via("fungible-mint-txn"),
-                validateChargedUsdWithin("fungible-mint-txn", ucents_to_USD(100),15)
-            ));
+                validateChargedUsdWithin("fungible-mint-txn", ucents_to_USD(100), 15)));
     }
 
     @HapiTest
@@ -185,8 +179,6 @@ public class TokenSimpleServiceFeesSuite {
                         .fee(ONE_HUNDRED_HBARS)
                         .hasKnownStatus(SUCCESS)
                         .via("non-fungible-mint-txn"),
-                validateChargedUsdWithin("non-fungible-mint-txn", ucents_to_USD(2000),15)
-            )
-        );
+                validateChargedUsdWithin("non-fungible-mint-txn", ucents_to_USD(2000), 15)));
     }
 }
