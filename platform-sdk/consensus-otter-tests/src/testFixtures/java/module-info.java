@@ -67,8 +67,11 @@ module org.hiero.otter.fixtures {
     exports org.hiero.otter.fixtures.turtle.gossip;
     exports org.hiero.otter.fixtures.internal.result;
     exports org.hiero.otter.fixtures.app.services.consistency;
+    exports org.hiero.otter.fixtures.integration;
 
     opens org.hiero.otter.fixtures.container.network to
             com.fasterxml.jackson.databind;
-    exports org.hiero.otter.fixtures.integration;
+    opens org.hiero.otter.fixtures.integration to
+            org.junit.platform.commons;
+
 }
