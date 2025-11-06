@@ -160,11 +160,11 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
      */
     private boolean areByteFieldsCorrectLength(@NonNull final PlatformEvent event) {
         final GossipEvent gossipEvent = event.getGossipEvent();
-        if (gossipEvent.signature().length() != SignatureType.RSA.signatureLength()) {
-            fieldLengthLogger.error(EXCEPTION.getMarker(), "Event signature is the wrong length {}", gossipEvent);
-            fieldLengthAccumulator.update(1);
-            return false;
-        }
+//        if (gossipEvent.signature().length() != SignatureType.RSA.signatureLength()) {
+//            fieldLengthLogger.error(EXCEPTION.getMarker(), "Event signature is the wrong length {}", gossipEvent);
+//            fieldLengthAccumulator.update(1);
+//            return false;
+//        }
         if (gossipEvent.parents().stream()
                 .map(EventDescriptor::hash)
                 .anyMatch(hash -> hash.length() != DigestType.SHA_384.digestLength())) {

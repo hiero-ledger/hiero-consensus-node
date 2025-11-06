@@ -11,8 +11,14 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
+import com.swirlds.platform.crypto.KeyGeneratingException;
+import com.swirlds.platform.crypto.KeysAndCertsGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
+import java.security.SecureRandom;
 import java.time.Duration;
+import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
@@ -29,12 +35,22 @@ public class HappyPathTest {
      * @param env the test environment for this test
      */
     @OtterTest
-    void testHappyPath(@NonNull final TestEnvironment env) {
+    void testHappyPath(@NonNull final TestEnvironment env) throws NoSuchAlgorithmException {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
         // Setup simulation
         network.addNodes(4);
+
+        // Override the keys and certs for each node
+        final SecureRandom secureRandom = SecureRandom.getInstanceStrong();
+        network.nodes().forEach(node -> {
+            try {
+                node.keysAndCerts(KeysAndCertsGenerator.generate(node.selfId(), SigningSchema.ED25519, secureRandom, secureRandom));
+            } catch (final NoSuchAlgorithmException | NoSuchProviderException | KeyGeneratingException e) {
+                throw new RuntimeException(e);
+            }
+        });
 
         // Setup continuous assertions
         assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();

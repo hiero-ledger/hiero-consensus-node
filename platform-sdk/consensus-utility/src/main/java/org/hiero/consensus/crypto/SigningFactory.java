@@ -30,7 +30,8 @@ public final class SigningFactory {
     private static final Map<String, SigningImplementation> defaultImplementations = Map.of(
             SigningSchema.RSA.getKeyType(), SigningImplementation.RSA_BC,
             SigningSchema.EC.getKeyType(), SigningImplementation.EC_JDK,
-            SigningSchema.ED25519.getKeyType(), ED25519_SODIUM);
+            SigningSchema.ED25519.getKeyType(), ED25519_SODIUM,
+            "EdDSA", ED25519_SODIUM);
 
     /**
      * Generates a new key pair for the specified signing schema.
@@ -86,17 +87,17 @@ public final class SigningFactory {
     /**
      * Creates a verifier for the specified key pair using the default implementation for the key type.
      *
-     * @param keyPair the key pair to use for verification
+     * @param publicKey the key to use for verification
      * @return the verifier
      */
-    public static @NonNull BytesSignatureVerifier createVerifier(@NonNull final KeyPair keyPair) {
+    public static @NonNull BytesSignatureVerifier createVerifier(@NonNull final PublicKey publicKey) {
         final SigningImplementation implementation =
-                defaultImplementations.get(keyPair.getPublic().getAlgorithm());
+                defaultImplementations.get(publicKey.getAlgorithm());
         if (implementation == null) {
             throw new IllegalArgumentException(
-                    "No implementation for key type: " + keyPair.getPublic().getAlgorithm());
+                    "No implementation for key type: " + publicKey.getAlgorithm());
         }
-        return createVerifier(implementation, keyPair.getPublic());
+        return createVerifier(implementation, publicKey);
     }
 
     /**

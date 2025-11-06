@@ -5,6 +5,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.PublicKey;
 import org.hiero.base.crypto.BytesSignatureVerifier;
+import org.hiero.consensus.crypto.SigningSchema;
 
 /**
  * A {@link BytesSignatureVerifier} implementation that uses libsodium to verify signatures using the Ed25519
@@ -19,8 +20,8 @@ public class SodiumVerifier implements BytesSignatureVerifier {
      * @param publicKey the Ed25519 PublicKey to use for signature verification
      */
     public SodiumVerifier(@NonNull final PublicKey publicKey) {
-        if (!publicKey.getAlgorithm().equals("EdDSA")) {
-            throw new IllegalArgumentException("SodiumVerifier only supports EdDSA keys");
+        if (!publicKey.getAlgorithm().equals("EdDSA") && !publicKey.getAlgorithm().equals("Ed25519")) {
+            throw new IllegalArgumentException("SodiumVerifier only supports Ed25519 keys, got: " + publicKey.getAlgorithm());
         }
         final byte[] encoded = publicKey.getEncoded();
         this.publicKey = new byte[32];
