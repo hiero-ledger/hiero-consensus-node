@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.logging;
+package org.hiero.otter.fixtures.test.logging;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.hiero.otter.fixtures.logging.LoggingTestUtils.LOG_LEVELS_APPEARING_IN_NORMAL_OPERATION;
-import static org.hiero.otter.fixtures.logging.LoggingTestUtils.MARKERS_APPEARING_IN_NORMAL_OPERATION;
-import static org.hiero.otter.fixtures.logging.LoggingTestUtils.awaitFile;
+import static org.hiero.otter.fixtures.test.logging.LoggingTestUtils.LOG_LEVELS_APPEARING_IN_NORMAL_OPERATION;
+import static org.hiero.otter.fixtures.test.logging.LoggingTestUtils.MARKERS_APPEARING_IN_NORMAL_OPERATION;
+import static org.hiero.otter.fixtures.test.logging.LoggingTestUtils.awaitFile;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -24,6 +24,7 @@ import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.container.ContainerNode;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
+import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.junit.jupiter.api.Test;
 

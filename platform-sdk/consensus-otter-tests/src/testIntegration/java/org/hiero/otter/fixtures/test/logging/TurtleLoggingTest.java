@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.logging;
+package org.hiero.otter.fixtures.test.logging;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.hiero.otter.fixtures.logging.LoggingTestUtils.LOG_LEVELS_APPEARING_IN_NORMAL_OPERATION;
-import static org.hiero.otter.fixtures.logging.LoggingTestUtils.MARKERS_APPEARING_IN_NORMAL_OPERATION;
-import static org.hiero.otter.fixtures.logging.LoggingTestUtils.awaitFile;
-import static org.hiero.otter.fixtures.logging.LoggingTestUtils.lineHasLogLevels;
+import static org.hiero.otter.fixtures.test.logging.LoggingTestUtils.LOG_LEVELS_APPEARING_IN_NORMAL_OPERATION;
+import static org.hiero.otter.fixtures.test.logging.LoggingTestUtils.MARKERS_APPEARING_IN_NORMAL_OPERATION;
+import static org.hiero.otter.fixtures.test.logging.LoggingTestUtils.awaitFile;
+import static org.hiero.otter.fixtures.test.logging.LoggingTestUtils.lineHasLogLevels;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -23,6 +23,7 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -42,6 +43,7 @@ class TurtleLoggingTest {
      */
     @ParameterizedTest
     @ValueSource(ints = {1, 4})
+    @SuppressWarnings("resource")
     void testTurtleLogging(final int numNodes) throws IOException {
         // Capture console output
         final SystemOutCapturer capturer = new SystemOutCapturer();
