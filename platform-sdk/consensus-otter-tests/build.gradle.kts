@@ -17,7 +17,15 @@ testing {
     }
 
     suites.named<JvmTestSuite>("testIntegration") {
-        targets.configureEach { testTask { dependsOn(":consensus-otter-docker-app:assemble") } }
+        targets.configureEach {
+            testTask {
+                dependsOn(":consensus-otter-docker-app:assemble")
+                systemProperty(
+                    "integration.output.dir",
+                    layout.buildDirectory.dir("aggregateTestIntegration").get().asFile.absolutePath,
+                )
+            }
+        }
     }
 
     suites.register<JvmTestSuite>("testOtter") {
