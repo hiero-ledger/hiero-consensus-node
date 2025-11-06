@@ -165,9 +165,9 @@ public class OtterTestExtension
                             .getTestClass()
                             .map(Class::getSimpleName)
                             .orElse("Unknown-Class");
-                    String testName = extensionContext.getDisplayName().replaceAll("[^a-zA-Z0-9_\\-]", "_") + "_"
-                            + System.currentTimeMillis();
-                    Path outputDir = Path.of("build", "aggregateTestContainer", className, testName);
+                    final String testName = extensionContext.getDisplayName().replaceAll("[^a-zA-Z0-9_\\-\\[\\]]", "_")
+                            + "_" + System.currentTimeMillis();
+                    final Path outputDir = Path.of("build", "aggregateTestContainer", className, testName);
 
                     // store for potential cleanup
                     extensionContext.getStore(EXTENSION_NAMESPACE).put("outputDirectory", outputDir);

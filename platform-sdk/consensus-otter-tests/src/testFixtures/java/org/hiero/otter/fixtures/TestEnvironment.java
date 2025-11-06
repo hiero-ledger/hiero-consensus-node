@@ -47,7 +47,7 @@ public interface TestEnvironment {
 
     /**
      * Get the root output directory for this test environment.
-     * @return
+     * @return the output directory
      */
     @NonNull
     Path outputDirectory();

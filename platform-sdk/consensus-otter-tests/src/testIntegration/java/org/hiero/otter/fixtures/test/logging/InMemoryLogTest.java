@@ -299,6 +299,8 @@ class InMemoryLogTest extends BaseIntegrationTest {
      * <li>Logs are available right after startup without waiting for node shutdown</li>
      * <li>Multiple calls to newLogResult() return consistent, accumulated log data</li>
      * </ul>
+     *
+     * This test implements the logic for verifying continuous log addition.
      */
     void testLogsAddedContinuouslyImpl(@NonNull final TestEnvironment env) {
         try {
