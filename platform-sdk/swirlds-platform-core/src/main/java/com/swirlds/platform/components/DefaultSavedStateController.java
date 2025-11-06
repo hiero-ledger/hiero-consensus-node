@@ -35,7 +35,7 @@ public class DefaultSavedStateController implements SavedStateController {
     /**
      * Constructor
      *
-     * @param platformContext       the platform context*
+     * @param platformContext the platform context
      */
     public DefaultSavedStateController(@NonNull final PlatformContext platformContext) {
         this.stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);

@@ -302,9 +302,4 @@ public class FakeState implements MerkleNodeState {
     public void initializeState(@NonNull final StateMetadata<?, ?> md) {
         // do nothing
     }
-
-    @Override
-    public long getRound() {
-        return 0;
-    }
 }

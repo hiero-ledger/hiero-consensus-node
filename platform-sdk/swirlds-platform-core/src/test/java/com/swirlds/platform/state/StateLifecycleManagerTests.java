@@ -169,6 +169,26 @@ class StateLifecycleManagerTests {
         assertThrows(MutabilityException.class, () -> stateLifecycleManager.initState(immutable, false));
     }
 
+    @Test
+    @DisplayName("getMutableState() throws if not initialized")
+    void getMutableStateThrowsIfNotInitialized() {
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().build();
+        final StateLifecycleManager uninitialized = new StateLifecycleManagerImpl(
+                platformContext.getMetrics(), platformContext.getTime(), TestVirtualMapState::new);
+        assertThrows(IllegalStateException.class, uninitialized::getMutableState);
+    }
+
+    @Test
+    @DisplayName("getLatestImmutableState() throws if not initialized")
+    void getLatestImmutableStateThrowsIfNotInitialized() {
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().build();
+        final StateLifecycleManager uninitialized = new StateLifecycleManagerImpl(
+                platformContext.getMetrics(), platformContext.getTime(), TestVirtualMapState::new);
+        assertThrows(IllegalStateException.class, uninitialized::getLatestImmutableState);
+    }
+
     private static MerkleNodeState newState(PlatformStateFacade platformStateFacade) {
         final String virtualMapLabel =
                 StateLifecycleManagerTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();

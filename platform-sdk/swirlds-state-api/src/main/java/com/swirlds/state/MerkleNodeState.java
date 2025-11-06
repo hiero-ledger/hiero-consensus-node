@@ -24,13 +24,6 @@ public interface MerkleNodeState extends State {
     }
 
     /**
-     * Retrieves the round number associated with this state.
-     *
-     * @return a round number of the state.
-     */
-    long getRound();
-
-    /**
      * {@inheritDoc}
      */
     @NonNull

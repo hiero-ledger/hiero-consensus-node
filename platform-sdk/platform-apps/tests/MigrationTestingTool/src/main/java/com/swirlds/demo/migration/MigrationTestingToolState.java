@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.migration;
 
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
-
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -15,12 +13,12 @@ public class MigrationTestingToolState extends VirtualMapState<MigrationTestingT
 
     public MigrationTestingToolState(
             @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
-        super(configuration, metrics, time);
+        super(configuration, metrics);
     }
 
     public MigrationTestingToolState(
             @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
-        super(virtualMap, metrics, time);
+        super(virtualMap, metrics);
     }
 
     private MigrationTestingToolState(final MigrationTestingToolState that) {
@@ -30,13 +28,5 @@ public class MigrationTestingToolState extends VirtualMapState<MigrationTestingT
     @Override
     protected MigrationTestingToolState copyingConstructor() {
         return new MigrationTestingToolState(this);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getRound() {
-        return DEFAULT_PLATFORM_STATE_FACADE.roundOf(this);
     }
 }

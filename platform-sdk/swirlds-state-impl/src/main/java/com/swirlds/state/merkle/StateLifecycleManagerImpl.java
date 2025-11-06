@@ -14,7 +14,6 @@ import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
@@ -23,7 +22,7 @@ import java.util.function.Function;
 
 /**
  * This class is responsible for maintaining references to the mutable state and the latest immutable state.
- * It also updates these references upon state signing. This implementation is thread-safe.
+ * It also updates these references upon request. This implementation is thread-safe.
  */
 public class StateLifecycleManagerImpl implements StateLifecycleManager {
 
@@ -67,6 +66,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
      *
      * @param metrics the metrics object to gather state metrics
      * @param time the time object
+     * @param stateSupplier a factory object to create an instance of a class implementing {@link MerkleNodeState} from a {@link VirtualMap}
      */
     public StateLifecycleManagerImpl(
             @NonNull final Metrics metrics,
@@ -82,9 +82,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
     }
 
     /**
-     * Set the initial State. This method should only be on a startup of after a reconnect.
-     *
-     * @param state the initial state
+     * {@inheritDoc}
      */
     public synchronized void initState(@NonNull final MerkleNodeState state, final boolean onStartup) {
         requireNonNull(state);
@@ -99,17 +97,35 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
         copyAndUpdateStateRefs(state);
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
     @Override
     public MerkleNodeState getMutableState() {
-        return stateRef.get();
+        final MerkleNodeState mutableState = stateRef.get();
+        if (mutableState == null) {
+            throw new IllegalStateException("StateLifecycleManager has not been initialized.");
+        }
+        return mutableState;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    @Nullable
+    @NonNull
     public MerkleNodeState getLatestImmutableState() {
-        return latestImmutableStateRef.get();
+        final MerkleNodeState latestImmutableState = latestImmutableStateRef.get();
+        if (latestImmutableState == null) {
+            throw new IllegalStateException("StateLifecycleManager has not been initialized.");
+        }
+        return latestImmutableState;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     @NonNull
     public synchronized MerkleNodeState copyMutableState() {
@@ -131,13 +147,15 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
         stateMetrics.stateCopyMicros((copyEnd - copyStart) * NANOSECONDS_TO_MICROSECONDS);
         // releasing previous immutable previousMutableState
         final State previousImmutableState = latestImmutableStateRef.get();
-        if (previousImmutableState != null && !previousImmutableState.isDestroyed()) {
+        if (previousImmutableState != null) {
+            previousImmutableState.throwIfDestroyed();
             previousImmutableState.release();
         }
         stateToCopy.getRoot().reserve();
         latestImmutableStateRef.set(stateToCopy);
         final MerkleNodeState previousMutableState = stateRef.get();
-        if (previousMutableState != null && !previousMutableState.isDestroyed()) {
+        if (previousMutableState != null) {
+            previousMutableState.throwIfDestroyed();
             previousMutableState.release();
         }
         // Do not increment the reference count because the stateToCopy provided already has a reference count of at
@@ -154,7 +172,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
         state.throwIfMutable();
         state.throwIfDestroyed();
         final long startTime = time.currentTimeMillis();
-        MerkleTreeSnapshotWriter.createSnapshot(state.getRoot(), targetPath, state.getRound());
+        MerkleTreeSnapshotWriter.createSnapshot(state.getRoot(), targetPath, state.toString());
         snapshotMetrics.updateWriteStateToDiskTimeMetric(time.currentTimeMillis() - startTime);
     }
 

@@ -27,13 +27,18 @@ public interface StateLifecycleManager {
 
     /**
      * Get the mutable state. Consecutive calls to this method may return different instances,
-     * if this method is not called on the one and the only thread that is calling {@link #copyMutableState}
+     * if this method is not called on the one and the only thread that is calling {@link #copyMutableState}.
+     * If a parallel thread calls {@link #copyMutableState}, the returned object will become immutable and
+     * on the subsequent call of {@link #copyMutableState} it will be destroyed.
+     *
+     * @return the mutable state.
      */
     MerkleNodeState getMutableState();
 
     /**
      * Get the latest immutable state. Consecutive calls to this method may return different instances,
      * if this method is not called on the one and the only thread that is calling {@link #copyMutableState}
+     * If a parallel thread calls {@link #copyMutableState}, the returned object will become destroyed.
      * @return the latest immutable state.
      */
     MerkleNodeState getLatestImmutableState();

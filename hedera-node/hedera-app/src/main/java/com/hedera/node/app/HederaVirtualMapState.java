@@ -43,7 +43,7 @@ public class HederaVirtualMapState extends VirtualMapState<HederaVirtualMapState
      */
     public HederaVirtualMapState(
             @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
-        super(configuration, metrics, time);
+        super(configuration, metrics);
     }
 
     /**
@@ -55,7 +55,7 @@ public class HederaVirtualMapState extends VirtualMapState<HederaVirtualMapState
      */
     public HederaVirtualMapState(
             @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
-        super(virtualMap, metrics, time);
+        super(virtualMap, metrics);
     }
 
     protected HederaVirtualMapState(@NonNull final HederaVirtualMapState from) {
@@ -68,14 +68,6 @@ public class HederaVirtualMapState extends VirtualMapState<HederaVirtualMapState
     @Override
     protected HederaVirtualMapState copyingConstructor() {
         return new HederaVirtualMapState(this);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getRound() {
-        return DEFAULT_PLATFORM_STATE_FACADE.roundOf(this);
     }
 
     @Override
@@ -137,5 +129,10 @@ public class HederaVirtualMapState extends VirtualMapState<HederaVirtualMapState
         rootJson.put("Queues (Queue States)", queues);
 
         return rootJson.toString();
+    }
+
+    @Override
+    public String toString() {
+        return "HederaVirtualMapState[round=%d]".formatted(DEFAULT_PLATFORM_STATE_FACADE.roundOf(this));
     }
 }

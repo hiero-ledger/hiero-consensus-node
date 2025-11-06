@@ -16,7 +16,6 @@ import static org.hiero.base.crypto.Cryptography.NULL_HASH;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.base.time.Time;
 import com.swirlds.common.Reservable;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.config.api.Configuration;
@@ -100,6 +99,9 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
 
     private final Metrics metrics;
 
+    /**
+     * The state storage
+     */
     protected VirtualMap virtualMap;
 
     /**
@@ -113,10 +115,8 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
      *
      * @param configuration the platform configuration instance to use when creating the new instance of state
      * @param metrics       the platform metric instance to use when creating the new instance of state
-     * @param time          the time instance to use when creating the new instance of state
      */
-    public VirtualMapState(
-            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
+    public VirtualMapState(@NonNull final Configuration configuration, @NonNull final Metrics metrics) {
         requireNonNull(configuration);
         this.metrics = requireNonNull(metrics);
         final MerkleDbDataSourceBuilder dsBuilder;
@@ -133,10 +133,8 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
      *
      * @param virtualMap the virtual map with pre-registered metrics
      * @param metrics    the platform metric instance to use when creating the new instance of state
-     * @param time       the time instance to use when creating the new instance of state
      */
-    public VirtualMapState(
-            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
+    public VirtualMapState(@NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics) {
         this.virtualMap = requireNonNull(virtualMap);
         this.metrics = requireNonNull(metrics);
     }
@@ -164,8 +162,6 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
      * @return a copy of the instance
      */
     protected abstract T copyingConstructor();
-
-    // State interface implementation
 
     /**
      * {@inheritDoc}
