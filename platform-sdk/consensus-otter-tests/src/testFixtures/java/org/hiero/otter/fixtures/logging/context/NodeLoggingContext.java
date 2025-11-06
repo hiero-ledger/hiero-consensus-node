@@ -118,7 +118,7 @@ public final class NodeLoggingContext {
      *
      * @param runnable the runnable to execute
      */
-    public static void bypassCurrentLoggingContext(@NonNull final Runnable runnable) {
+    public static void logToConsole(@NonNull final Runnable runnable) {
         final String previousNodeId = ThreadContext.get(NODE_ID_KEY);
         try {
             ThreadContext.remove(NODE_ID_KEY);
