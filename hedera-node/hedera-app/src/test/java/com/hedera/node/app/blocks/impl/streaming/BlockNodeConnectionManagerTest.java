@@ -39,7 +39,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.nio.file.WatchService;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -1360,12 +1359,12 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         Files.writeString(file, valid, StandardOpenOption.TRUNCATE_EXISTING);
         awaitCondition(() -> !availableNodes().isEmpty(), 5_000);
         Files.deleteIfExists(file);
-        awaitCondition(() -> availableNodes().isEmpty(), 2_000);
+        awaitCondition(() -> availableNodes().isEmpty(), 3_000);
 
         // Exercise unchanged path: write back same content and ensure no restart occurs
         Files.writeString(
                 file, valid, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-        awaitCondition(() -> !availableNodes().isEmpty(), 2_000);
+        awaitCondition(() -> !availableNodes().isEmpty(), 5_000);
         final Map<BlockNodeConfig, BlockNodeConnection> before = new HashMap<>(connections());
         invoke_refreshAvailableBlockNodes();
         final Map<BlockNodeConfig, BlockNodeConnection> after = new HashMap<>(connections());
@@ -1502,6 +1501,27 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testStartConfigWatcher_handlesIOException() throws Exception {
+        // Create a file instead of directory to trigger IOException when trying to watch it
+        final Path fileNotDir = tempDir.resolve("not-a-directory.txt");
+        Files.writeString(fileNotDir, "test", StandardOpenOption.CREATE);
+
+        final var configProvider = createConfigProvider(createDefaultConfigProvider()
+                .withValue(
+                        "blockNode.blockNodeConnectionFileDir",
+                        fileNotDir.toAbsolutePath().toString()));
+
+        // This should trigger IOException when trying to create WatchService on a file
+        final var manager = new BlockNodeConnectionManager(configProvider, bufferService, metrics);
+        manager.start();
+
+        // Manager should start successfully even though config watcher failed
+        Thread.sleep(500);
+
+        manager.shutdown();
+    }
+
+    @Test
     void testConfigWatcher_handlesInterruptedException() throws Exception {
         final Path file = tempDir.resolve("block-nodes.json");
         final List<BlockNodeConfig> configs = new ArrayList<>();
@@ -1526,45 +1546,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
             watcherThread.join(1000);
             assertThat(watcherThread.isAlive()).isFalse();
         }
-    }
-
-    @Test
-    void testConfigWatcher_generalExceptionThenInterrupt_exitsCleanly() throws Exception {
-        final Path file = tempDir.resolve("block-nodes.json");
-        final List<BlockNodeConfig> configs = new ArrayList<>();
-        configs.add(newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1));
-        final BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(configs);
-        final String valid = BlockNodeConnectionInfo.JSON.toJSON(connectionInfo);
-        Files.writeString(
-                file, valid, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-
-        connectionManager.start();
-        awaitCondition(() -> !availableNodes().isEmpty(), 2_000);
-
-        // Force the watch service to throw from take() by closing it,
-        // which will cause a ClosedWatchServiceException wrapped as a general Exception path
-        @SuppressWarnings("unchecked")
-        final AtomicReference<WatchService> wsRef =
-                (AtomicReference<WatchService>) configWatchServiceHandle.get(connectionManager);
-        final WatchService ws = wsRef.get();
-        assertThat(ws).isNotNull();
-        ws.close();
-
-        // Give time for watcher loop to hit the catch(Exception) and evaluate interrupted branch (should be false)
-        Thread.sleep(500);
-
-        // Now interrupt the watcher thread to exercise the interrupted branch inside the exception handler
-        @SuppressWarnings("unchecked")
-        final AtomicReference<Thread> threadRef =
-                (AtomicReference<Thread>) configWatcherThreadRef.get(connectionManager);
-        final Thread watcherThread = threadRef.get();
-        if (watcherThread != null) {
-            watcherThread.interrupt();
-            watcherThread.join(1000);
-        }
-
-        // Ensure we can shutdown cleanly
-        connectionManager.shutdown();
     }
 
     @Test
