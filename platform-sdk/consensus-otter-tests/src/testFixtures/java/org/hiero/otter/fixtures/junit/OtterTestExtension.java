@@ -321,7 +321,7 @@ public class OtterTestExtension
         }
         final TestEnvironment testEnvironment = environment == Environment.CONTAINER
                 ? createContainerTestEnvironment(extensionContext, outputDir)
-                : createTurtleTestEnvironment(extensionContext);
+                : createTurtleTestEnvironment(extensionContext, outputDir);
         extensionContext.getStore(EXTENSION_NAMESPACE).put(ENVIRONMENT_KEY, testEnvironment);
         return testEnvironment;
     }
@@ -334,7 +334,8 @@ public class OtterTestExtension
      * @return a new {@link TurtleTestEnvironment} instance
      */
     @NonNull
-    private TestEnvironment createTurtleTestEnvironment(@NonNull final ExtensionContext extensionContext) {
+    private TestEnvironment createTurtleTestEnvironment(
+            @NonNull final ExtensionContext extensionContext, @NonNull final Path outputDir) {
         final Optional<OtterSpecs> otterSpecs =
                 AnnotationSupport.findAnnotation(extensionContext.getElement(), OtterSpecs.class);
         final boolean randomNodeIds = otterSpecs.map(OtterSpecs::randomNodeIds).orElse(true);
@@ -342,13 +343,6 @@ public class OtterTestExtension
         final Optional<TurtleSpecs> turtleSpecs =
                 AnnotationSupport.findAnnotation(extensionContext.getElement(), TurtleSpecs.class);
         final long randomSeed = turtleSpecs.map(TurtleSpecs::randomSeed).orElse(0L);
-
-        // Generate test-specific output directory
-        final String className =
-                extensionContext.getTestClass().map(Class::getSimpleName).orElse("Unknown-Class");
-        final String testName = extensionContext.getDisplayName().replaceAll("[^a-zA-Z0-9_\\-]", "_") + "_"
-                + System.currentTimeMillis();
-        final Path outputDir = Path.of("build", "aggregateTestTurtle", className, testName);
 
         return new TurtleTestEnvironment(randomSeed, randomNodeIds, outputDir);
     }
