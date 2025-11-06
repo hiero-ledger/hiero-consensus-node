@@ -514,9 +514,8 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
     @NonNull
     @Override
     public FeeResult calculateFeeResult(@NonNull final FeeContext feeContext) {
-        final var feeSchedule = feeContext.feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .getSimpleFeesSchedule();
+        final var feeSchedule =
+                feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT).getSimpleFeesSchedule();
         return new CryptoCreateFeeCalculator(feeSchedule).calculateTxFee(feeContext.body(), feeContext);
     }
 

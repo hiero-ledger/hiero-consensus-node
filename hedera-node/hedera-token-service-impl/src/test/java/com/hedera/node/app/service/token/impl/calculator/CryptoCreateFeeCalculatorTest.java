@@ -3,7 +3,6 @@ package com.hedera.node.app.service.token.impl.calculator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.hapi.fees.FeeScheduleUtils.*;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 
 import com.hedera.hapi.node.base.*;
@@ -49,7 +48,8 @@ class CryptoCreateFeeCalculatorTest {
             // Given
             lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
             final var op = CryptoCreateTransactionBody.newBuilder().build();
-            final var body = TransactionBody.newBuilder().cryptoCreateAccount(op).build();
+            final var body =
+                    TransactionBody.newBuilder().cryptoCreateAccount(op).build();
 
             // When
             final var result = calculator.calculateTxFee(body, calculatorState);
@@ -68,7 +68,8 @@ class CryptoCreateFeeCalculatorTest {
             lenient().when(calculatorState.numTxnSignatures()).thenReturn(2);
             final var key = Key.newBuilder().ed25519(Bytes.wrap(new byte[32])).build();
             final var op = CryptoCreateTransactionBody.newBuilder().key(key).build();
-            final var body = TransactionBody.newBuilder().cryptoCreateAccount(op).build();
+            final var body =
+                    TransactionBody.newBuilder().cryptoCreateAccount(op).build();
 
             // When
             final var result = calculator.calculateTxFee(body, calculatorState);
@@ -94,7 +95,8 @@ class CryptoCreateFeeCalculatorTest {
                     .build();
             final var key = Key.newBuilder().keyList(keyList).build();
             final var op = CryptoCreateTransactionBody.newBuilder().key(key).build();
-            final var body = TransactionBody.newBuilder().cryptoCreateAccount(op).build();
+            final var body =
+                    TransactionBody.newBuilder().cryptoCreateAccount(op).build();
 
             // When
             final var result = calculator.calculateTxFee(body, calculatorState);
@@ -125,7 +127,8 @@ class CryptoCreateFeeCalculatorTest {
                     .build();
             final var key = Key.newBuilder().thresholdKey(thresholdKey).build();
             final var op = CryptoCreateTransactionBody.newBuilder().key(key).build();
-            final var body = TransactionBody.newBuilder().cryptoCreateAccount(op).build();
+            final var body =
+                    TransactionBody.newBuilder().cryptoCreateAccount(op).build();
 
             // When
             final var result = calculator.calculateTxFee(body, calculatorState);

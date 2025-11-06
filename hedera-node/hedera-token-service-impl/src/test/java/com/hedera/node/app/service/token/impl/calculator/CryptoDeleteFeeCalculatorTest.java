@@ -3,7 +3,6 @@ package com.hedera.node.app.service.token.impl.calculator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.hapi.fees.FeeScheduleUtils.*;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 
 import com.hedera.hapi.node.base.*;
