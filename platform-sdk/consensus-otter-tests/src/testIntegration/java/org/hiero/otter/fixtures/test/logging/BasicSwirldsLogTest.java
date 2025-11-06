@@ -55,7 +55,7 @@ final class BasicSwirldsLogTest {
     private static final String LOG_FILENAME = "swirlds.log";
 
     /**
-     * Create the testBasicSwirldsLogging test environments
+     * Create the testBasicSwirldsLogging test environments.
      */
     @TestFactory
     Stream<DynamicTest> testBasicSwirldsLogFunctionality() {

@@ -121,23 +121,24 @@ public class OtterTestExtension
     /**
      * Sets up the output directory for the test before each test execution.
      *
-     * @param context
-     * @throws Exception
+     * @param context the current extension context; never {@code null}
+     * @throws Exception if an error occurs during setup
      */
     @Override
     public void beforeEach(@NonNull final ExtensionContext context) throws Exception {
         requireNonNull(context, "context must not be null");
 
         // Generate unique test name for output directory
-        String className = context.getTestClass().map(Class::getSimpleName).orElse("Unknown-Class");
-        String testName =
+        final String className =
+                context.getTestClass().map(Class::getSimpleName).orElse("Unknown-Class");
+        final String testName =
                 context.getDisplayName().replaceAll("[^a-zA-Z0-9_\\-\\[\\]]", "_") + "_" + System.currentTimeMillis();
 
         // Determine environment type for directory structure
         final Environment environment = readEnvironmentFromSystemProperty();
         final String envType = (environment == Environment.CONTAINER) ? "container" : "turtle";
 
-        Path outputDir = Path.of("build", "aggregateTest" + capitalize(envType), className, testName);
+        final Path outputDir = Path.of("build", "aggregateTest" + capitalize(envType), className, testName);
 
         // Store the output directory in the extension context for later use
         context.getStore(EXTENSION_NAMESPACE).put("outputDirectory", outputDir);
@@ -173,7 +174,7 @@ public class OtterTestExtension
                         throw new ParameterResolutionException("Output directory not initialized");
                     }
 
-                    TestEnvironment testEnvironment = createTestEnvironment(extensionContext, outputDir);
+                    final TestEnvironment testEnvironment = createTestEnvironment(extensionContext, outputDir);
 
                     // Create the Otter Lifecycle with the correct environment
                     final String className = extensionContext
