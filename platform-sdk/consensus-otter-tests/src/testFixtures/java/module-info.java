@@ -73,5 +73,4 @@ module org.hiero.otter.fixtures {
             com.fasterxml.jackson.databind;
     opens org.hiero.otter.fixtures.integration to
             org.junit.platform.commons;
-
 }
