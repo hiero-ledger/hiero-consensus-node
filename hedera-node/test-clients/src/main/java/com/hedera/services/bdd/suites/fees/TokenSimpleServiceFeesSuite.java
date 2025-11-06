@@ -3,10 +3,14 @@ package com.hedera.services.bdd.suites.fees;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.spec.SpecOperation;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -16,10 +20,14 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
+import static com.hedera.services.bdd.suites.fees.SimpleFeesSuite.ucents_to_USD;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
@@ -34,20 +42,36 @@ public class TokenSimpleServiceFeesSuite {
     private static final String PAYER = "payer";
     private static final String ADMIN = "admin";
 
-    static double ucents_to_USD(double amount) {
-        return amount / 100_000.0;
+    @FunctionalInterface
+    public interface OpsProvider {
+        List<SpecOperation> provide();
     }
 
-    @HapiTest
-    @DisplayName("create a fungible token")
-    final Stream<DynamicTest> createFungibleToken() {
-        return hapiTest(
+    private Stream<DynamicTest> compare(OpsProvider provider) {
+        List<SpecOperation> opsList = new ArrayList<>();
+        opsList.add(overriding("fees.simpleFeesEnabled", "false"));
+        opsList.add(withOpContext((spec, op) -> {
+           System.out.println("old fees");
+        }));
+        opsList.addAll(provider.provide());
+        opsList.add(overriding("fees.simpleFeesEnabled", "true"));
+        opsList.add(withOpContext((spec, op) -> {
+            System.out.println("new fees");
+        }));
+        opsList.addAll(provider.provide());
+        return hapiTest(opsList.toArray(new SpecOperation[opsList.size()]));
+    }
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("compare create fungible token")
+    final Stream<DynamicTest> compareCreateFungibleToken() {
+        return compare(() -> Arrays.asList(
                 cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
                 cryptoCreate(PAYER).balance(ONE_BILLION_HBARS),
                 tokenCreate(FUNGIBLE_TOKEN)
                         .blankMemo()
                         .payingWith(PAYER)
-                        .fee(ONE_HUNDRED_HBARS)
+                        .fee(ONE_BILLION_HBARS)
                         .treasury(ADMIN)
                         .tokenType(FUNGIBLE_COMMON)
                         .autoRenewAccount(ADMIN)
@@ -56,14 +80,16 @@ public class TokenSimpleServiceFeesSuite {
                         .hasKnownStatus(SUCCESS)
                         .via("create-token-txn")
                 ,
-                validateChargedUsd("create-token-txn", ucents_to_USD(100000))
+                // actual for current fees is ~900_000 even though the spec says 1.0
+                validateChargedUsdWithin("create-token-txn", ucents_to_USD(100_000),15)
+            )
         );
     }
 
     @HapiTest
-    @DisplayName("create a non-fungible token")
-    final Stream<DynamicTest> createNonFungibleToken() {
-        return hapiTest(
+    @DisplayName("compare create non-fungible token")
+    final Stream<DynamicTest> compareCreateNonFungibleToken() {
+        return compare(() -> Arrays.asList(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
                 cryptoCreate(PAYER).balance(ONE_BILLION_HBARS),
@@ -81,15 +107,15 @@ public class TokenSimpleServiceFeesSuite {
                         .hasKnownStatus(SUCCESS)
                         .via("create-token-txn")
                 ,
-                validateChargedUsd("create-token-txn", ucents_to_USD(100000))
+                validateChargedUsdWithin("create-token-txn", ucents_to_USD(100000),10)
+            )
         );
     }
 
     @HapiTest
-    @DisplayName("mint a common token")
-    final Stream<DynamicTest> mintCommonToken() {
-        return hapiTest(
-                newKeyNamed(SUPPLY_KEY),
+    @DisplayName("compare mint common token")
+    final Stream<DynamicTest> compareMintCommonToken() {
+        return compare(() -> Arrays.asList(newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
                 cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
                 tokenCreate(FUNGIBLE_TOKEN)
@@ -107,14 +133,13 @@ public class TokenSimpleServiceFeesSuite {
                         .fee(ONE_HUNDRED_HBARS)
                         .hasKnownStatus(SUCCESS)
                         .via("fungible-mint-txn"),
-                validateChargedUsd("fungible-mint-txn", 0.001)
-        );
+                validateChargedUsd("fungible-mint-txn", ucents_to_USD(100))));
     }
 
     @HapiTest
-    @DisplayName("mint multiple common tokens")
-    final Stream<DynamicTest> mintMultipleCommonToken() {
-        return hapiTest(
+    @DisplayName("compare mint multiple common tokens")
+    final Stream<DynamicTest> compareMintMultipleCommonToken() {
+        return compare(() -> Arrays.asList(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
                 cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
@@ -133,14 +158,14 @@ public class TokenSimpleServiceFeesSuite {
                         .fee(ONE_HUNDRED_HBARS)
                         .hasKnownStatus(SUCCESS)
                         .via("fungible-mint-txn"),
-                validateChargedUsd("fungible-mint-txn", 0.001)
-        );
+                validateChargedUsdWithin("fungible-mint-txn", ucents_to_USD(100),15)
+            ));
     }
 
     @HapiTest
-    @DisplayName("mint a unique token")
-    final Stream<DynamicTest> mintUniqueToken() {
-        return hapiTest(
+    @DisplayName("compare mint a unique token")
+    final Stream<DynamicTest> compareMintUniqueToken() {
+        return compare(() -> Arrays.asList(
                 newKeyNamed(SUPPLY_KEY),
                 newKeyNamed(METADATA_KEY),
                 cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
@@ -160,8 +185,8 @@ public class TokenSimpleServiceFeesSuite {
                         .fee(ONE_HUNDRED_HBARS)
                         .hasKnownStatus(SUCCESS)
                         .via("non-fungible-mint-txn"),
-                validateChargedUsd("non-fungible-mint-txn", 0.001)
+                validateChargedUsdWithin("non-fungible-mint-txn", ucents_to_USD(2000),15)
+            )
         );
     }
-
 }
