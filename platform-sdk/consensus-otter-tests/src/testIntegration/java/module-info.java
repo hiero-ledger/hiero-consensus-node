@@ -6,6 +6,7 @@ open module org.hiero.otter.fixtures.test {
     requires awaitility;
     requires org.apache.logging.log4j;
     requires org.assertj.core;
+    requires org.junit.jupiter.api;
     requires org.junit.jupiter.params;
     requires static com.github.spotbugs.annotations;
 }

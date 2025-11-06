@@ -15,12 +15,15 @@ import java.util.List;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
+import org.hiero.otter.fixtures.junit.IntegrationTestExtension;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 /**
  * Tests for verifying that the network roster correctly incorporates node parameters into the network roster.
  */
+@ExtendWith(IntegrationTestExtension.class)
 public class NetworkRosterTests {
     /**
      * Tests that when nodes are created with overridden keys and certificates, the network roster correctly reflects

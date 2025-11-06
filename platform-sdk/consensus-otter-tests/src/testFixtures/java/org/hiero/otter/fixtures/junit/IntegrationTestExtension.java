@@ -2,9 +2,12 @@
 package org.hiero.otter.fixtures.junit;
 
 import static java.util.Objects.requireNonNull;
+import static org.apache.commons.lang3.StringUtils.capitalize;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 import java.lang.reflect.Parameter;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 import org.hiero.otter.fixtures.TestEnvironment;
@@ -44,10 +47,28 @@ public class IntegrationTestExtension implements TestInstancePreDestroyCallback,
         final String testName =
                 context.getDisplayName().replaceAll("[^a-zA-Z0-9_\\-\\[\\]]", "_") + "_" + System.currentTimeMillis();
 
-        // Reuse the same system property as OtterTestExtension
         final String envProperty = System.getProperty(SYSTEM_PROPERTY_OTTER_ENV, "turtle");
-        final String envType = envProperty.equals("container") ? "Container" : "Turtle";
-        final Path outputDir = Path.of("build", "aggregateTestIntegration", className, testName, envType);
+        boolean isIntegrationTest = envProperty.equalsIgnoreCase("integration");
+
+        // Build the outputDirectory path
+        final Path outputDir;
+        if (isIntegrationTest) {
+            // For integration tests, use the new directory structure
+            String baseDir = System.getProperty(
+                    "integration.output.dir",
+                    Path.of("build", "aggregateTestIntegration").toString());
+            outputDir = Path.of(baseDir, className, testName);
+        } else {
+            // For container/turtle tests, use appropriate aggregate test directory.
+            outputDir = Path.of("build", "aggregateTest" + capitalize(envProperty), className, testName);
+        }
+
+        // Ensure the output directory exists
+        try {
+            Files.createDirectories(outputDir);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to create output directory: " + outputDir, e);
+        }
 
         context.getStore(EXTENSION_NAMESPACE).put("outputDirectory", outputDir);
     }

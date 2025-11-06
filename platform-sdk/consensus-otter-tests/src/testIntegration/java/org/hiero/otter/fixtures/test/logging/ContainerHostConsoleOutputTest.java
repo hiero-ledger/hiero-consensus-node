@@ -15,12 +15,15 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
+import org.hiero.otter.fixtures.junit.IntegrationTestExtension;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 /**
  * Tests to verify console output in the Container-based test environment. This test validates the output on
  * the host machine that runs the test, not the output inside the containers.
  */
+@ExtendWith(IntegrationTestExtension.class)
 class ContainerHostConsoleOutputTest {
 
     /**

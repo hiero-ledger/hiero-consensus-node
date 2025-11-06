@@ -16,6 +16,7 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
+import org.hiero.otter.fixtures.junit.IntegrationTestExtension;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.hiero.otter.fixtures.util.TimeoutException;
@@ -23,6 +24,7 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 /**
  * Comprehensive tests for Node lifecycle operations (start and kill).
@@ -30,6 +32,7 @@ import org.junit.jupiter.api.TestFactory;
  * <p>This test class validates the behavior of individual nodes being started and killed,
  * verifying platform status transitions and network behavior when nodes are added or removed.
  */
+@ExtendWith(IntegrationTestExtension.class)
 class NodeLifecycleTest {
 
     /**

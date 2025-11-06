@@ -14,15 +14,18 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.hiero.otter.fixtures.internal.AbstractNode;
+import org.hiero.otter.fixtures.junit.IntegrationTestExtension;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 /**
  * Tests for the NetworkConfiguration functionality that enables setting network properties before nodes are added and
  * propagating them to nodes as they are created.
  */
+@ExtendWith(IntegrationTestExtension.class)
 final class NetworkConfigurationTest {
 
     /**

@@ -14,9 +14,12 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.junit.IntegrationTestExtension;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(IntegrationTestExtension.class)
 class TurtleConsoleOutputTest {
 
     /**

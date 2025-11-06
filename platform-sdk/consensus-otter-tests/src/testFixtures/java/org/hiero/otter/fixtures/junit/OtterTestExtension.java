@@ -6,8 +6,10 @@ import static org.apache.commons.lang3.StringUtils.capitalize;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
@@ -313,17 +315,20 @@ public class OtterTestExtension
     @NonNull
     private TestEnvironment createTestEnvironment(
             @NonNull final ExtensionContext extensionContext, @NonNull final Path outputDir) {
-        Environment environment = readEnvironmentFromSystemProperty();
-        if (environment == null) {
-            final List<Capability> requiredCapabilities = getRequiredCapabilitiesFromTest(extensionContext);
-            environment =
-                    TurtleTestEnvironment.supports(requiredCapabilities) ? Environment.TURTLE : Environment.CONTAINER;
+        requireNonNull(outputDir, "outputDir must not be null");
+
+        final String envProperty = System.getProperty(SYSTEM_PROPERTY_OTTER_ENV, "turtle");
+
+        // Ensure the output directory exists
+        try {
+            Files.createDirectories(outputDir);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to create output directory: " + outputDir, e);
         }
-        final TestEnvironment testEnvironment = environment == Environment.CONTAINER
-                ? createContainerTestEnvironment(extensionContext, outputDir)
-                : createTurtleTestEnvironment(extensionContext, outputDir);
-        extensionContext.getStore(EXTENSION_NAMESPACE).put(ENVIRONMENT_KEY, testEnvironment);
-        return testEnvironment;
+
+        return envProperty.equalsIgnoreCase("container")
+                ? new ContainerTestEnvironment(true, outputDir)
+                : new TurtleTestEnvironment(0L, true, outputDir);
     }
 
     /**

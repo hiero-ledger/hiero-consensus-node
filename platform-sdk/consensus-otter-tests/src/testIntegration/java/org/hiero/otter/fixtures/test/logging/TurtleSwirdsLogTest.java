@@ -14,8 +14,10 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.junit.IntegrationTestExtension;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 /**
  * Comprehensive integration tests for swirlds.log content in the Turtle environment.
@@ -28,6 +30,7 @@ import org.junit.jupiter.api.Test;
  *     <li>The build/turtle folder structure contains only node directories</li>
  * </ul>
  */
+@ExtendWith(IntegrationTestExtension.class)
 final class TurtleSwirdsLogTest {
 
     private static final String LOG_DIR = "node-%d/output/";

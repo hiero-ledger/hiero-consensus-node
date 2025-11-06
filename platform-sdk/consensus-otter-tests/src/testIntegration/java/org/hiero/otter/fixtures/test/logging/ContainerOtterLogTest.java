@@ -17,6 +17,8 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
+import org.hiero.otter.fixtures.junit.IntegrationTestExtension;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -25,6 +27,7 @@ import org.junit.jupiter.params.provider.ValueSource;
  *
  * <p>Note: Per-node log routing is guaranteed by container isolation, so no explicit routing test is needed.
  */
+@ExtendWith(IntegrationTestExtension.class)
 final class ContainerOtterLogTest {
 
     private static final String LOG_DIR = "node-%d/output/";

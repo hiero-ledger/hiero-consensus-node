@@ -6,10 +6,13 @@ import static java.util.Objects.requireNonNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.hiero.otter.fixtures.junit.IntegrationTestExtension;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 /**
  * Utility class for parsing log messages.
  */
+@ExtendWith(IntegrationTestExtension.class)
 public class LogMessageParser {
 
     /**

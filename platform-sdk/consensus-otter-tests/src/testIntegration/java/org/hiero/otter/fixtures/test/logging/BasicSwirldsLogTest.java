@@ -25,9 +25,11 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
+import org.hiero.otter.fixtures.junit.IntegrationTestExtension;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 /**
  * Comprehensive integration tests for swirlds.log content in all environments.
@@ -42,6 +44,7 @@ import org.junit.jupiter.api.TestFactory;
  *
  * <p>Note: Per-node log routing is guaranteed by container isolation, so no explicit routing test is needed.
  */
+@ExtendWith(IntegrationTestExtension.class)
 final class BasicSwirldsLogTest {
 
     /**

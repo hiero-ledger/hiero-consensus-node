@@ -22,12 +22,14 @@ import org.hiero.otter.fixtures.OtterAssertions;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
+import org.hiero.otter.fixtures.junit.IntegrationTestExtension;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 /**
  * Comprehensive integration tests for in-memory logger content in the Turtle environment.
@@ -40,6 +42,7 @@ import org.junit.jupiter.api.TestFactory;
  *     <li>Each node's logs are correctly tracked separately</li>
  * </ul>
  */
+@ExtendWith(IntegrationTestExtension.class)
 class InMemoryLogTest {
 
     /**

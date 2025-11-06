@@ -21,7 +21,9 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterAssertions;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.junit.IntegrationTestExtension;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -36,6 +38,7 @@ import org.junit.jupiter.params.provider.ValueSource;
  *     <li>The build/turtle folder structure contains only node directories</li>
  * </ul>
  */
+@ExtendWith(IntegrationTestExtension.class)
 final class TurtleHashstreamLogTest {
 
     /**

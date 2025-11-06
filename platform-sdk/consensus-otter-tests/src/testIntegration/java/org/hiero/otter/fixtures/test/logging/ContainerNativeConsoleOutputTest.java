@@ -10,6 +10,8 @@ import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.container.ContainerNode;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
+import org.hiero.otter.fixtures.junit.IntegrationTestExtension;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -17,6 +19,7 @@ import org.junit.jupiter.params.provider.ValueSource;
  * Test to validate that both the control process (DockerMain) and consensus node (ConsensusNodeMain)
  * print their output to the console when running in containers.
  */
+@ExtendWith(IntegrationTestExtension.class)
 class ContainerNativeConsoleOutputTest {
 
     /**
