@@ -150,14 +150,12 @@ public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOpera
                         prepend(finalizedArgs, "-o", outputPath.toAbsolutePath().toString());
             }
 
-            // Capture stderr if callback is provided - write errors to both file and console
+            // Capture stderr if callback is provided
             final var originalErr = System.err;
             if (stderrCb != null) {
                 errPath = Files.createTempFile(TxnUtils.randomUppercase(8), ".err");
                 try (final var fileWriter = new PrintWriter(Files.newBufferedWriter(errPath), true)) {
                     // Create a PrintWriter that writes to both file and original System.err
-                    // Immediate flush to console
-
                     try (PrintWriter errorPrintWriter = new PrintWriter(
                             new Writer() {
                                 @Override
@@ -203,7 +201,6 @@ public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOpera
             // Restore original error stream
             commandLine.setErr(originalErrStream);
 
-            // Always clean up temporary files
             if (outputPath != null) {
                 try {
                     Files.deleteIfExists(outputPath);

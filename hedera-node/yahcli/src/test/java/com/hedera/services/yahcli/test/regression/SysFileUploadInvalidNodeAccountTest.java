@@ -36,8 +36,6 @@ public class SysFileUploadInvalidNodeAccountTest {
         return hapiTest(
                 withOpContext((spec, opLog) -> {
                     // Attempt to upload software-zip with invalid node account 0
-                    // The network typically has nodes with accounts 3, 4, 5, etc., not 0
-                    // Validation should catch this and provide a clear error message
                     final var operation = yahcliSysFiles("upload", "-s", UPDATE_FILE_LOCATION, "software-zip")
                             .withNodeAccount("0")
                             .payingWith("2")
