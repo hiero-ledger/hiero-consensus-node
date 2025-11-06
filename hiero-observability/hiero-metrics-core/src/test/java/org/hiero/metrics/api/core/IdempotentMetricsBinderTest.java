@@ -18,12 +18,12 @@ public class IdempotentMetricsBinderTest {
     private MetricRegistry registry;
 
     @BeforeEach
-    public void setUp() {
+    void setUp() {
         registry = MetricsFacade.createRegistry();
     }
 
     @Test
-    public void testBindOnlyCalledOnceSingleThread() {
+    void testBindOnlyCalledOnceSingleThread() {
         AtomicInteger bindCount = new AtomicInteger(0);
 
         IdempotentMetricsBinder binder = new IdempotentMetricsBinder() {
@@ -41,7 +41,7 @@ public class IdempotentMetricsBinderTest {
     }
 
     @Test
-    public void testIsMetricsBoundReturnsFalseInitially() {
+    void testIsMetricsBoundReturnsFalseInitially() {
         IdempotentMetricsBinder binder = new IdempotentMetricsBinder() {
             @Override
             protected void bindMetricsNonIdempotent(@NonNull MetricRegistry registry) {
@@ -53,7 +53,7 @@ public class IdempotentMetricsBinderTest {
     }
 
     @Test
-    public void testIsMetricsBoundReturnsTrueAfterBinding() {
+    void testIsMetricsBoundReturnsTrueAfterBinding() {
         IdempotentMetricsBinder binder = new IdempotentMetricsBinder() {
             @Override
             protected void bindMetricsNonIdempotent(@NonNull MetricRegistry registry) {
@@ -67,7 +67,7 @@ public class IdempotentMetricsBinderTest {
     }
 
     @Test
-    public void testNullRegistryThrowsException() {
+    void testNullRegistryThrowsException() {
         IdempotentMetricsBinder binder = new IdempotentMetricsBinder() {
             @Override
             protected void bindMetricsNonIdempotent(@NonNull MetricRegistry registry) {
@@ -81,7 +81,7 @@ public class IdempotentMetricsBinderTest {
     }
 
     @Test
-    public void testRegistryPassedToBindMethod() {
+    void testRegistryPassedToBindMethod() {
         MetricRegistry[] capturedRegistry = new MetricRegistry[1];
 
         IdempotentMetricsBinder binder = new IdempotentMetricsBinder() {
@@ -97,7 +97,7 @@ public class IdempotentMetricsBinderTest {
     }
 
     @Test
-    public void testThreadSafetyMultipleConcurrentBinds() throws InterruptedException {
+    void testThreadSafetyMultipleConcurrentBinds() throws InterruptedException {
         AtomicInteger bindCount = new AtomicInteger(0);
         int threadCount = 10;
         CountDownLatch startLatch = new CountDownLatch(1);

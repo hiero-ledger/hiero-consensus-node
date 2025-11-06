@@ -12,7 +12,7 @@ public class LabelNamesAndValuesTest {
 
     @ParameterizedTest
     @ValueSource(ints = {-1, 0, 1})
-    public void testEmpty(int index) {
+    void testEmpty(int index) {
         LabelNamesAndValues labelNamesAndValues = new LabelNamesAndValues();
 
         assertThat(labelNamesAndValues.size()).isEqualTo(0);
@@ -20,7 +20,7 @@ public class LabelNamesAndValuesTest {
     }
 
     @Test
-    public void testSingleValue() {
+    void testSingleValue() {
         LabelNamesAndValues labelNamesAndValues = new LabelNamesAndValues("name", "value");
 
         assertThat(labelNamesAndValues.size()).isEqualTo(1);
@@ -30,7 +30,7 @@ public class LabelNamesAndValuesTest {
     }
 
     @Test
-    public void testTwoValues() {
+    void testTwoValues() {
         LabelNamesAndValues labelNamesAndValues = new LabelNamesAndValues("name", "value", "1", "2");
 
         assertThat(labelNamesAndValues.size()).isEqualTo(2);
@@ -42,7 +42,7 @@ public class LabelNamesAndValuesTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"", "name1,value1", "name1,name1", "1,2,3,4", "1,2,3,4,5,6,7,8,9,10"})
-    public void testEqualsAndHashCodeIsSame(String namesAndValuesString) {
+    void testEqualsAndHashCodeIsSame(String namesAndValuesString) {
         String[] namesAndValues = namesAndValuesString.split(",");
 
         LabelNamesAndValues instance1 = new LabelNamesAndValues(namesAndValues);

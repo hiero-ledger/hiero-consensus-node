@@ -11,7 +11,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 public class EmptyLabelValuesTest {
 
     @Test
-    public void testSingleton() {
+    void testSingleton() {
         LabelValues instance1 = LabelValues.empty();
         EmptyLabelValues instance2 = EmptyLabelValues.INSTANCE;
 
@@ -25,13 +25,13 @@ public class EmptyLabelValuesTest {
     }
 
     @Test
-    public void testSize() {
+    void testSize() {
         assertThat(EmptyLabelValues.INSTANCE.size()).isEqualTo(0);
     }
 
     @ParameterizedTest
     @ValueSource(ints = {-1, 0, 1})
-    public void testGetThrowsIndexOutOfBoundsException(int index) {
+    void testGetThrowsIndexOutOfBoundsException(int index) {
         assertThatThrownBy(() -> EmptyLabelValues.INSTANCE.get(index))
                 .isInstanceOf(IndexOutOfBoundsException.class)
                 .hasMessage("Label values is empty");

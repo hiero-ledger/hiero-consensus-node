@@ -74,7 +74,7 @@ public class OpenMetricsHttpEndpointTest {
 
     @Nested
     @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-    public class RealMetricsTest extends BaseTest {
+    class RealMetricsTest extends BaseTest {
 
         private static final MetricKey<LongCounter> NO_LABELS_COUNTER = LongCounter.key("no_labels_counter");
         private static final MetricKey<LongCounter> LABELED_COUNTER = LongCounter.key("labeled_counter");
@@ -85,7 +85,7 @@ public class OpenMetricsHttpEndpointTest {
         private static MetricRegistry registry;
 
         @BeforeAll
-        public static void setUpAll() throws IOException {
+        static void setUpAll() throws IOException {
             registry = MetricsFacade.createRegistry();
 
             globalInit(endpoint -> {
@@ -95,19 +95,19 @@ public class OpenMetricsHttpEndpointTest {
         }
 
         @AfterAll
-        public static void tearDownAll() throws IOException {
+        static void tearDownAll() throws IOException {
             shutdown();
         }
 
         @Test
         @Order(1)
-        public void noMetricsRegistered() {
+        void noMetricsRegistered() {
             callAndVerify("# EOF\n");
         }
 
         @Test
         @Order(2)
-        public void metricsRegisteredButNoObservations() {
+        void metricsRegisteredButNoObservations() {
             registry.register(LongCounter.builder(NO_LABELS_COUNTER)
                     .withUnit(Unit.BYTE_UNIT)
                     .withDescription("No labels counter"));
@@ -130,7 +130,7 @@ public class OpenMetricsHttpEndpointTest {
 
         @Test
         @Order(3)
-        public void metricsObserved() {
+        void metricsObserved() {
             registry.getMetric(NO_LABELS_COUNTER).getOrCreateNotLabeled().increment(10L);
             registry.getMetric(LABELED_COUNTER)
                     .getOrCreateLabeled(METHOD_LABEL, "GET", PATH_LABEL, "/api/resource")
@@ -167,33 +167,33 @@ public class OpenMetricsHttpEndpointTest {
 
     @Nested
     @ExtendWith(MockitoExtension.class)
-    public class MockMetricsTest extends BaseTest {
+    class MockMetricsTest extends BaseTest {
 
         @Mock
         private Supplier<Optional<MetricsSnapshot>> snapshotSupplier;
 
         @BeforeAll
-        public static void setUpAll() throws IOException {
+        static void setUpAll() throws IOException {
             globalInit(null);
         }
 
         @AfterAll
-        public static void tearDownAll() throws IOException {
+        static void tearDownAll() throws IOException {
             shutdown();
         }
 
         @BeforeEach
-        public void setUp() {
+        void setUp() {
             testInit(endpoint -> endpoint.init(snapshotSupplier));
         }
 
         @AfterEach
-        public void afterEach() {
+        void afterEach() {
             verifyNoMoreInteractions(snapshotSupplier);
         }
 
         @Test
-        public void noSnapshots() {
+        void noSnapshots() {
             when(snapshotSupplier.get()).thenReturn(Optional.empty());
             HttpResponse<String> response = callMetrics(false);
             assertThat(response.statusCode()).isEqualTo(204);
@@ -203,7 +203,7 @@ public class OpenMetricsHttpEndpointTest {
         }
 
         @Test
-        public void exceptionSnapshotting() {
+        void exceptionSnapshotting() {
             when(snapshotSupplier.get()).thenThrow(new RuntimeException());
             HttpResponse<String> response = callMetrics(false);
             assertThat(response.statusCode()).isEqualTo(500);
@@ -211,7 +211,7 @@ public class OpenMetricsHttpEndpointTest {
         }
 
         @Test
-        public void concurrentRequest() throws ExecutionException, InterruptedException {
+        void concurrentRequest() throws ExecutionException, InterruptedException {
             final CountDownLatch firstRequestStarted = new CountDownLatch(1);
             final CountDownLatch secondRequestFinished = new CountDownLatch(1);
 

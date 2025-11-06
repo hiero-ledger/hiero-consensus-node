@@ -38,7 +38,7 @@ public class MetricRegistryImplTest {
     class Exceptions {
 
         @Test
-        public void testDuplicateGlobalLabelName() {
+        void testDuplicateGlobalLabelName() {
             Label label1 = new Label("env", "test");
             Label label2 = new Label("env", "production");
 
@@ -48,7 +48,7 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testUnmodifiableEmptyGlobalLabels() {
+        void testUnmodifiableEmptyGlobalLabels() {
             MetricRegistryImpl registry = new MetricRegistryImpl();
 
             assertThatThrownBy(() -> registry.globalLabels().add(new Label("key", "value")))
@@ -57,7 +57,7 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testUnmodifiableGlobalLabels() {
+        void testUnmodifiableGlobalLabels() {
             MetricRegistryImpl registry = new MetricRegistryImpl(new Label("a", "1"), new Label("b", "2"));
             List<Label> globalLabels = registry.globalLabels();
 
@@ -70,7 +70,7 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testRegisterMetricWithBuilderAndLabelMatchingGlobalLabel() {
+        void testRegisterMetricWithBuilderAndLabelMatchingGlobalLabel() {
             Label label1 = new Label("env", "test");
             Label label2 = new Label("region", "us-west-2");
             MetricRegistryImpl registry = new MetricRegistryImpl(label1, label2);
@@ -82,7 +82,7 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testRegisterMetricWithProviderAndLabelMatchingGlobalLabel() {
+        void testRegisterMetricWithProviderAndLabelMatchingGlobalLabel() {
             Label label1 = new Label("env", "test");
             Label label2 = new Label("region", "us-west-2");
             MetricRegistryImpl registry = new MetricRegistryImpl(label1, label2);
@@ -94,7 +94,7 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testUnmodifiableEmptyMetricsView() {
+        void testUnmodifiableEmptyMetricsView() {
             MetricRegistryImpl registry = new MetricRegistryImpl();
 
             assertThatThrownBy(() -> registry.metrics().add(mock(Metric.class)))
@@ -103,7 +103,7 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testUnmodifiableMetricsView() {
+        void testUnmodifiableMetricsView() {
             MetricRegistryImpl registry = new MetricRegistryImpl();
             registry.register(LongCounter.builder("test_counter"));
             Collection<Metric> metrics = registry.metrics();
@@ -119,7 +119,7 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testRegisterMetricsWithNullProviderThrows() {
+        void testRegisterMetricsWithNullProviderThrows() {
             MetricRegistryImpl registry = new MetricRegistryImpl();
 
             assertThatThrownBy(() -> registry.registerMetrics(null))
@@ -128,7 +128,7 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testRegisterMetricsWithProviderNullMetricsThrows() {
+        void testRegisterMetricsWithProviderNullMetricsThrows() {
             MetricRegistryImpl registry = new MetricRegistryImpl();
 
             assertThatThrownBy(() -> registry.registerMetrics(() -> null))
@@ -137,7 +137,7 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testRegisterNullBuilderThrows() {
+        void testRegisterNullBuilderThrows() {
             MetricRegistryImpl registry = new MetricRegistryImpl();
 
             assertThatThrownBy(() -> registry.register(null))
@@ -146,7 +146,7 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testRegisterDuplicateMetricWithBuilderThrows() {
+        void testRegisterDuplicateMetricWithBuilderThrows() {
             MetricRegistryImpl registry = new MetricRegistryImpl();
             registry.register(LongCounter.builder(DUPLICATE_NAME));
 
@@ -156,7 +156,7 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testRegisterDuplicateMetricsWithSingleProviderThrows() {
+        void testRegisterDuplicateMetricsWithSingleProviderThrows() {
             MetricRegistryImpl registry = new MetricRegistryImpl();
 
             MetricsRegistrationProvider metricsProvider =
@@ -168,7 +168,7 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testRegisterDuplicateMetricsWithMultipleProvidersThrows() {
+        void testRegisterDuplicateMetricsWithMultipleProvidersThrows() {
             MetricRegistryImpl registry = new MetricRegistryImpl();
             registry.registerMetrics(
                     () -> List.of(LongCounter.builder(DUPLICATE_NAME), LongCounter.builder("metric1")));
@@ -180,7 +180,7 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testRegisterDuplicateMetricsWithProviderAndBuilderThrows() {
+        void testRegisterDuplicateMetricsWithProviderAndBuilderThrows() {
             MetricRegistryImpl registry = new MetricRegistryImpl();
             registry.registerMetrics(() -> List.of(LongCounter.builder(DUPLICATE_NAME), LongCounter.builder("other")));
 
@@ -190,7 +190,7 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testRegisterDuplicateMetricsWithBuilderAndProviderThrows() {
+        void testRegisterDuplicateMetricsWithBuilderAndProviderThrows() {
             MetricRegistryImpl registry = new MetricRegistryImpl();
             registry.register(LongCounter.builder(DUPLICATE_NAME));
 
@@ -201,7 +201,7 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testFindMetricWithNullKeyThrows() {
+        void testFindMetricWithNullKeyThrows() {
             MetricRegistryImpl registry = new MetricRegistryImpl();
 
             assertThatThrownBy(() -> registry.findMetric(null))
@@ -210,7 +210,7 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testGetMetricWithNullKeyThrows() {
+        void testGetMetricWithNullKeyThrows() {
             MetricRegistryImpl registry = new MetricRegistryImpl();
 
             assertThatThrownBy(() -> registry.getMetric(null))
@@ -219,7 +219,7 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testGetMetricFromEmptyRegistryThrows() {
+        void testGetMetricFromEmptyRegistryThrows() {
             MetricRegistryImpl registry = new MetricRegistryImpl();
 
             assertThatThrownBy(() -> registry.getMetric(LongCounter.key("unknown_metric")))
@@ -228,7 +228,7 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testGetMetricWithWrongNameThrows() {
+        void testGetMetricWithWrongNameThrows() {
             MetricRegistryImpl registry = new MetricRegistryImpl();
             String name = "test_metric";
             registry.register(LongCounter.builder(name));
@@ -239,7 +239,7 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testGetMetricWithWrongTypeThrows() {
+        void testGetMetricWithWrongTypeThrows() {
             MetricRegistryImpl registry = new MetricRegistryImpl();
             String name = "test_metric";
             registry.register(LongCounter.builder(name));
@@ -251,7 +251,7 @@ public class MetricRegistryImplTest {
 
         @ParameterizedTest
         @ValueSource(ints = {-1, 0, 1})
-        public void testAccessSnapshotOfEmptyRegistryThrows(int index) {
+        void testAccessSnapshotOfEmptyRegistryThrows(int index) {
             MetricRegistryImpl registry = new MetricRegistryImpl();
 
             UpdatableMetricRegistrySnapshot snapshot = registry.snapshot();
@@ -263,13 +263,13 @@ public class MetricRegistryImplTest {
     class SingleThread {
 
         @Test
-        public void testGlobalLabelsEmpty() {
+        void testGlobalLabelsEmpty() {
             MetricRegistryImpl registry = new MetricRegistryImpl();
             assertThat(registry.globalLabels()).isEmpty();
         }
 
         @Test
-        public void testGlobalLabelsNotEmpty() {
+        void testGlobalLabelsNotEmpty() {
             Label label1 = new Label("env", "test");
             Label label2 = new Label("region", "us-west-2");
             MetricRegistryImpl registry = new MetricRegistryImpl(label1, label2);
@@ -278,13 +278,13 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testMetricsViewEmpty() {
+        void testMetricsViewEmpty() {
             MetricRegistryImpl registry = new MetricRegistryImpl();
             assertThat(registry.metrics()).isEmpty();
         }
 
         @Test
-        public void testMetricsViewNonEmptyAfterRegisterBuilders() {
+        void testMetricsViewNonEmptyAfterRegisterBuilders() {
             MetricRegistryImpl registry = new MetricRegistryImpl();
 
             LongCounter counter1 = registry.register(LongCounter.builder("counter1"));
@@ -294,7 +294,7 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testMetricsViewNonEmptyAfterRegisterProviders() {
+        void testMetricsViewNonEmptyAfterRegisterProviders() {
             MetricRegistryImpl registry = new MetricRegistryImpl();
 
             registry.registerMetrics(() -> List.of(LongCounter.builder("counter1")));
@@ -306,7 +306,7 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testMetricsViewNonEmptyAfterRegisterProvidersAndBuilders() {
+        void testMetricsViewNonEmptyAfterRegisterProvidersAndBuilders() {
             MetricRegistryImpl registry = new MetricRegistryImpl();
 
             registry.register(LongCounter.builder("counter1"));
@@ -319,7 +319,7 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testMetricsViewEmptyAfterEmptyRegistrationProvider() {
+        void testMetricsViewEmptyAfterEmptyRegistrationProvider() {
             MetricRegistryImpl registry = new MetricRegistryImpl();
             registry.registerMetrics(List::of);
 
@@ -327,7 +327,7 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testMetricFoundWithBuilderRegistration() {
+        void testMetricFoundWithBuilderRegistration() {
             MetricRegistryImpl registry = new MetricRegistryImpl();
             String metricName = "test_metric";
 
@@ -340,7 +340,7 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testMetricFoundWithProviderRegistration() {
+        void testMetricFoundWithProviderRegistration() {
             MetricRegistryImpl registry = new MetricRegistryImpl();
             String metricName = "test_metric";
 
@@ -352,7 +352,7 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testFindMetricWithWrongName() {
+        void testFindMetricWithWrongName() {
             MetricRegistryImpl registry = new MetricRegistryImpl();
             String name = "test_metric";
             registry.register(LongCounter.builder(name));
@@ -361,7 +361,7 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testFindMetricWithWrongType() {
+        void testFindMetricWithWrongType() {
             MetricRegistryImpl registry = new MetricRegistryImpl();
             String name = "test_metric";
             registry.register(LongCounter.builder(name));
@@ -370,7 +370,7 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testMetricLabelsAreTheSameWithoutGlobalLabels() {
+        void testMetricLabelsAreTheSameWithoutGlobalLabels() {
             MetricRegistryImpl registry = new MetricRegistryImpl();
             Label label = new Label("key", "value");
 
@@ -383,7 +383,7 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testGlobalLabelsAddedToMetrics() {
+        void testGlobalLabelsAddedToMetrics() {
             Label globsLabel = new Label("env", "test");
             Label label1 = new Label("a", "value1");
             Label label2 = new Label("z", "value2");
@@ -399,7 +399,7 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testSnapshotIsConsistent() {
+        void testSnapshotIsConsistent() {
             MetricRegistryImpl registry = new MetricRegistryImpl();
 
             UpdatableMetricRegistrySnapshot snapshot1 = registry.snapshot();
@@ -409,13 +409,29 @@ public class MetricRegistryImplTest {
         }
 
         @Test
-        public void testSnapshotIsEmptyWithNoMetrics() {
+        void testSnapshotIsEmptyWithNoMetrics() {
             MetricRegistryImpl registry = new MetricRegistryImpl();
 
             UpdatableMetricRegistrySnapshot snapshot = registry.snapshot();
 
             assertThat(snapshot.size()).isEqualTo(0);
             assertThat(snapshot.iterator().hasNext()).isFalse();
+        }
+
+        @Test
+        void testReset() {
+            MetricRegistryImpl registry = new MetricRegistryImpl();
+
+            LongCounter counter = registry.register(LongCounter.builder("counter"));
+            LongGauge gauge = registry.register(LongGauge.builder("gauge"));
+
+            counter.getOrCreateNotLabeled().increment(100L);
+            gauge.getOrCreateNotLabeled().update(200L);
+
+            registry.reset();
+
+            assertThat(counter.getOrCreateNotLabeled().getAsLong()).isEqualTo(0L);
+            assertThat(gauge.getOrCreateNotLabeled().getAsLong()).isEqualTo(0L);
         }
     }
 
@@ -424,7 +440,7 @@ public class MetricRegistryImplTest {
 
         @ParameterizedTest(name = "{0}")
         @MethodSource("metricRegistrations")
-        public void testMetricsViewIsConsistent(String name, BiConsumer<MetricRegistry, Integer> metricRegistration)
+        void testMetricsViewIsConsistent(String name, BiConsumer<MetricRegistry, Integer> metricRegistration)
                 throws InterruptedException {
             MetricRegistryImpl registry = new MetricRegistryImpl();
 
