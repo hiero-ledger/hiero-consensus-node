@@ -41,6 +41,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 import java.util.Random;
 import java.util.function.Consumer;
@@ -371,7 +372,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * {@inheritDoc}
      */
     @Override
-    public void submitTransaction(@NonNull final OtterTransaction transaction) {
+    public void submitTransactions(@NonNull final List<OtterTransaction> transactions) {
         try (final LoggingContextScope ignored = installNodeContext()) {
             throwIsNotInLifecycle(RUNNING, "Cannot submit transaction when the network is not running.");
             assert executionLayer != null; // executionLayer must be initialized if lifeCycle is STARTED
@@ -381,7 +382,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                 return;
             }
 
-            executionLayer.submitApplicationTransaction(transaction.toByteArray());
+            transactions.forEach(tx -> executionLayer.submitApplicationTransaction(tx.toByteArray()));
         }
     }
 

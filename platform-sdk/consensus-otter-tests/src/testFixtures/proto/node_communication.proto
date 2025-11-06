@@ -177,13 +177,13 @@ message EventMessage {
 // Wrapper for a transaction submission request.
 message TransactionRequest {
   // Serialized transaction data.
-  bytes payload = 1;
+  repeated bytes payload = 1;
 }
 
 // Response to a transaction submission request.
 message TransactionRequestAnswer {
-  // indicator if the platform accepted the transaction
-  bool result = 1;
+  // The number of transactions that failed submission to the node
+  uint32 numFailed = 1;
 }
 
 // Request to set the synthetic bottleneck.
