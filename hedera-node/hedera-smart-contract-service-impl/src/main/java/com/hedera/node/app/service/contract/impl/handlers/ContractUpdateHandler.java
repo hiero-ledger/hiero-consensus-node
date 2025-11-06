@@ -24,6 +24,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.contract.ContractUpdateTransactionBody;
@@ -157,20 +158,24 @@ public class ContractUpdateHandler implements TransactionHandler {
             @NonNull final ContractUpdateTransactionBody op,
             @NonNull final Account.Builder builder,
             @NonNull final Account originalAccount) {
-        long headAfterDeletes = originalAccount.firstHookId();
-        // Dispatch all the hooks to delete
+        // We persist both account and storage hooks with AccountID entity type internally
+        final var hookEntityId = HookEntityId.newBuilder()
+                .accountId(originalAccount.accountIdOrThrow())
+                .build();
+        Long headAfterDeletes = originalAccount.numberHooksInUse() == 0 ? null : originalAccount.firstHookId();
         if (!op.hookIdsToDelete().isEmpty()) {
-            HookDispatchUtils.dispatchHookDeletions(
-                    context, op.hookIdsToDelete(), headAfterDeletes, originalAccount.accountIdOrThrow());
+            headAfterDeletes = HookDispatchUtils.dispatchHookDeletions(
+                    context, op.hookIdsToDelete(), headAfterDeletes, hookEntityId);
         }
         if (!op.hookCreationDetails().isEmpty()) {
             final var numSlotsUpdated = HookDispatchUtils.dispatchHookCreations(
-                    context, op.hookCreationDetails(), headAfterDeletes, originalAccount.accountId());
+                    context, op.hookCreationDetails(), headAfterDeletes, hookEntityId);
             builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
             final var currentSlots = originalAccount.numberLambdaStorageSlots() + numSlotsUpdated;
             builder.numberLambdaStorageSlots(currentSlots);
         } else if (!op.hookIdsToDelete().isEmpty()) {
-            builder.firstHookId(headAfterDeletes);
+            // If numberLambdaStorageSlots == 0 after deletions, then first hook id is meaningless but set to 0
+            builder.firstHookId(headAfterDeletes == null ? 0 : headAfterDeletes);
         }
         if (!op.hookCreationDetails().isEmpty() || !op.hookIdsToDelete().isEmpty()) {
             final var current = originalAccount.numberHooksInUse();
