@@ -381,10 +381,7 @@ public class PlatformComponentBuilder {
     @NonNull
     public OrphanBuffer buildOrphanBuffer() {
         if (orphanBuffer == null) {
-            orphanBuffer = new DefaultOrphanBuffer(
-                    blocks.platformContext().getConfiguration(),
-                    blocks.platformContext().getMetrics(),
-                    blocks.intakeEventCounter());
+            orphanBuffer = new DefaultOrphanBuffer(blocks.platformContext().getMetrics(), blocks.intakeEventCounter());
         }
         return orphanBuffer;
     }
@@ -442,7 +439,7 @@ public class PlatformComponentBuilder {
                 blocks.platformContext().getMetrics(),
                 blocks.platformContext().getTime(),
                 blocks.secureRandomSupplier().get(),
-                blocks.keysAndCerts(),
+                new PlatformSigner(blocks.keysAndCerts()),
                 blocks.rosterHistory().getCurrentRoster(),
                 blocks.selfId(),
                 blocks.execution(),

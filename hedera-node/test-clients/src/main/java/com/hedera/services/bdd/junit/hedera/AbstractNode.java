@@ -24,7 +24,7 @@ public abstract class AbstractNode implements HederaNode {
     private static final String HGCAA_LOG = "hgcaa.log";
     private static final String SWIRLDS_LOG = "swirlds.log";
     private static final String LOG4J2_XML = "log4j2.xml";
-    private static final String BLOCK_NODE_COMMS_LOG = "blocknode-comms.log";
+    private static final String BLOCK_NODE_COMMS_LOG = "block-node-comms.log";
 
     protected NodeMetadata metadata;
 
