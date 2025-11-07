@@ -17,6 +17,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.utility.Threshold;
+import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.reconnect.FallenBehindStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -62,7 +63,6 @@ import org.hiero.otter.fixtures.internal.network.GeoMeshTopologyImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeConsensusResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeEventStreamResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeLogResultsImpl;
-import org.hiero.otter.fixtures.internal.result.MultipleNodeMarkerFileResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodePcesResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodePlatformStatusResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeReconnectResultsImpl;
@@ -74,13 +74,11 @@ import org.hiero.otter.fixtures.network.utils.LatencyRange;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeEventStreamResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
-import org.hiero.otter.fixtures.result.MultipleNodeMarkerFileResults;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
-import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
@@ -127,6 +125,8 @@ public abstract class AbstractNetwork implements Network {
     private final Topology topology;
     private final boolean useRandomNodeIds;
 
+    protected final NetworkConfiguration networkConfiguration;
+
     protected Lifecycle lifecycle = Lifecycle.INIT;
 
     protected WeightGenerator weightGenerator = WeightGenerators.REAL_NETWORK_GAUSSIAN;
@@ -142,6 +142,7 @@ public abstract class AbstractNetwork implements Network {
         this.random = requireNonNull(random);
         this.topology = new GeoMeshTopologyImpl(random, this::createNodes, this::createInstrumentedNode);
         this.useRandomNodeIds = useRandomNodeIds;
+        this.networkConfiguration = new NetworkConfiguration();
     }
 
     /**
@@ -168,9 +169,6 @@ public abstract class AbstractNetwork implements Network {
      */
     @NonNull
     protected abstract TransactionGenerator transactionGenerator();
-
-    @NonNull
-    protected abstract NodeProperties nodeProperties();
 
     /**
      * {@inheritDoc}
@@ -199,7 +197,7 @@ public abstract class AbstractNetwork implements Network {
         if (weight <= 0) {
             throw new IllegalArgumentException("Weight must be positive");
         }
-        nodeProperties().weight(weight);
+        networkConfiguration.weight(weight);
         nodes().forEach(n -> n.weight(weight));
     }
 
@@ -229,11 +227,7 @@ public abstract class AbstractNetwork implements Network {
             final List<NodeId> nodeIds =
                     IntStream.range(0, count).mapToObj(i -> getNextNodeId()).toList();
             return CryptoStatic.generateKeysAndCerts(nodeIds, null).entrySet().stream()
-                    .map(e -> {
-                        final Node node = doCreateNode(e.getKey(), e.getValue());
-                        ((AbstractNode) node).applyNodeProperties(nodeProperties());
-                        return node;
-                    })
+                    .map(e -> doCreateNode(e.getKey(), e.getValue()))
                     .toList();
         } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
             throw new RuntimeException("Exception while generating KeysAndCerts", e);
@@ -259,9 +253,7 @@ public abstract class AbstractNetwork implements Network {
             final NodeId nodeId = getNextNodeId();
             final KeysAndCerts keysAndCerts =
                     CryptoStatic.generateKeysAndCerts(List.of(nodeId), null).get(nodeId);
-            final InstrumentedNode node = doCreateInstrumentedNode(nodeId, keysAndCerts);
-            ((AbstractNode) node).applyNodeProperties(nodeProperties());
-            return node;
+            return doCreateInstrumentedNode(nodeId, keysAndCerts);
         } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
             throw new RuntimeException("Exception while generating KeysAndCerts", e);
         }
@@ -604,17 +596,15 @@ public abstract class AbstractNetwork implements Network {
     }
 
     /**
-     * Submits the transaction to the first active node found in the network.
-     *
-     * @param transaction the transaction to submit
+     * {@inheritDoc}
      */
-    private void submitTransaction(@NonNull final OtterTransaction transaction) {
+    public void submitTransactions(@NonNull final List<OtterTransaction> transactions) {
         nodes().stream()
                 .filter(Node::isActive)
                 .findFirst()
                 .map(node -> (AbstractNode) node)
                 .orElseThrow(() -> new AssertionError("No active node found to send transaction to."))
-                .submitTransaction(transaction);
+                .submitTransactions(transactions);
     }
 
     /**
@@ -624,8 +614,8 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     public Network withConfigValue(@NonNull final String key, @NonNull final String value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
-        nodeProperties().configuration().set(key, value);
-        nodes().forEach(node -> node.configuration().set(key, value));
+        networkConfiguration.withConfigValue(key, value);
+        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
 
@@ -635,8 +625,8 @@ public abstract class AbstractNetwork implements Network {
     @Override
     public @NotNull Network withConfigValue(@NotNull final String key, @NotNull final Duration value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
-        nodeProperties().configuration().set(key, value);
-        nodes().forEach(node -> node.configuration().set(key, value));
+        networkConfiguration.withConfigValue(key, value);
+        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
 
@@ -647,8 +637,8 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     public Network withConfigValue(@NonNull final String key, final int value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
-        nodeProperties().configuration().set(key, value);
-        nodes().forEach(node -> node.configuration().set(key, value));
+        networkConfiguration.withConfigValue(key, value);
+        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
 
@@ -659,8 +649,8 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     public Network withConfigValue(@NonNull final String key, final long value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
-        nodeProperties().configuration().set(key, value);
-        nodes().forEach(node -> node.configuration().set(key, value));
+        networkConfiguration.withConfigValue(key, value);
+        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
 
@@ -671,8 +661,8 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     public Network withConfigValue(@NonNull final String key, @NonNull final Path value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
-        nodeProperties().configuration().set(key, value);
-        nodes().forEach(node -> node.configuration().set(key, value));
+        networkConfiguration.withConfigValue(key, value);
+        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
 
@@ -683,8 +673,53 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     public Network withConfigValue(@NonNull final String key, final boolean value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
-        nodeProperties().configuration().set(key, value);
-        nodes().forEach(node -> node.configuration().set(key, value));
+        networkConfiguration.withConfigValue(key, value);
+        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NotNull Network withConfigValue(@NotNull final String key, final double value) {
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
+        networkConfiguration.withConfigValue(key, value);
+        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NotNull Network withConfigValue(@NotNull final String key, @NotNull final Enum<?> value) {
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
+        networkConfiguration.withConfigValue(key, value);
+        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NotNull Network withConfigValue(@NotNull final String key, final List<String> values) {
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
+        networkConfiguration.withConfigValue(key, values);
+        nodes().forEach(node -> node.configuration().withConfigValue(key, values));
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NotNull Network withConfigValue(
+            @NotNull final String key, @NotNull final TaskSchedulerConfiguration value) {
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
+        networkConfiguration.withConfigValue(key, value);
+        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
 
@@ -718,7 +753,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     public void version(@NonNull final SemanticVersion version) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Cannot set version while the network is running");
-        nodeProperties().version(version);
+        networkConfiguration.version(version);
         nodes().forEach(node -> node.version(version));
     }
 
@@ -784,17 +819,6 @@ public abstract class AbstractNetwork implements Network {
         final List<SingleNodePcesResult> results =
                 nodes().stream().map(Node::newPcesResult).toList();
         return new MultipleNodePcesResultsImpl(results);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public MultipleNodeMarkerFileResults newMarkerFileResults() {
-        final List<SingleNodeMarkerFileResult> results =
-                nodes().stream().map(Node::newMarkerFileResult).toList();
-        return new MultipleNodeMarkerFileResultsImpl(results);
     }
 
     /**
@@ -874,7 +898,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     public void savedStateDirectory(@NonNull final Path savedStateDirectory) {
         final Path resolvedPath = OtterSavedStateUtils.findSaveState(requireNonNull(savedStateDirectory));
-        nodeProperties().savedStateDirectory(resolvedPath);
+        networkConfiguration.savedStateDirectory(resolvedPath);
         nodes().forEach(node -> node.startFromSavedState(resolvedPath));
     }
 

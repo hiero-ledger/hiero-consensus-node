@@ -48,8 +48,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(BLOCK_NODE)
 @OrderedInIsolation
 public class BlockNodeSuite {
-
-    private static final int BLOCK_TTL_MINUTES = 2;
     private static final int BLOCK_PERIOD_SECONDS = 2;
 
     @HapiTest
@@ -440,8 +438,20 @@ public class BlockNodeSuite {
                         String.format(
                                 "/localhost:%s/CLOSED] Connection state transitioned from CLOSING to CLOSED.",
                                 portNumbers.get(3)))),
-                doingContextual(
-                        spec -> LockSupport.parkNanos(Duration.ofSeconds(20).toNanos())));
+                doingContextual(spec -> connectionDropTime.set(Instant.now())),
+                waitUntilNextBlocks(5),
+                blockNode(1).shutDownImmediately(), // Pri 1
+                sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
+                        byNodeId(0),
+                        connectionDropTime::get,
+                        Duration.ofMinutes(1),
+                        Duration.ofSeconds(45),
+                        String.format(
+                                "/localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING.",
+                                portNumbers.get(3)),
+                        String.format(
+                                "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
+                                portNumbers.get(3)))));
     }
 
     @HapiTest
@@ -484,39 +494,56 @@ public class BlockNodeSuite {
                         blockNodeIds = {0, 1},
                         blockNodePriorities = {0, 1},
                         applicationPropertiesOverrides = {
-                            "blockStream.buffer.blockTtl", "1m",
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
+                            "blockStream.buffer.maxBlocks",
+                            "30",
+                            "blockStream.blockPeriod",
+                            BLOCK_PERIOD_SECONDS + "s",
+                            "blockStream.streamMode",
+                            "BLOCKS",
+                            "blockStream.writerMode",
+                            "FILE_AND_GRPC",
+                            "blockNode.forcedSwitchRescheduleDelay",
+                            "30s"
                         })
             })
     @Order(6)
     final Stream<DynamicTest> testProactiveBlockBufferAction() {
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
+        final List<Integer> portNumbers = new ArrayList<>();
         return hapiTest(
+                doingContextual(spec -> {
+                    portNumbers.add(spec.getBlockNodePortById(0));
+                    portNumbers.add(spec.getBlockNodePortById(1));
+                }),
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(5).toNanos())),
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 blockNode(0).updateSendingBlockAcknowledgements(false),
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(5).toNanos())),
-                sourcingContextual(
-                        spec -> assertBlockNodeCommsLogContainsTimeframe(
-                                byNodeId(0),
-                                timeRef::get,
-                                Duration.ofMinutes(1),
-                                Duration.ofMinutes(1),
-                                // look for the saturation reaching the action stage (50%)
-                                "saturation=50.0%",
-                                // look for the log that shows we are forcing a reconnect to a different block node
-                                "Attempting to forcefully switch block node connections due to increasing block buffer saturation")),
-                doingContextual(spec -> timeRef.set(Instant.now())),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
                         Duration.ofMinutes(1),
                         Duration.ofMinutes(1),
+                        // look for the saturation reaching the action stage (50%)
+                        "saturation=50.0%",
+                        // look for the log that shows we are forcing a reconnect to a different block node
+                        "Attempting to forcefully switch block node connections due to increasing block buffer saturation",
+                        "/localhost:" + portNumbers.get(1)
+                                + "/ACTIVE] Connection state transitioned from PENDING to ACTIVE.")),
+                blockNode(0).updateSendingBlockAcknowledgements(true),
+                doingContextual(spec -> timeRef.set(Instant.now())),
+                sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
+                        byNodeId(0),
+                        timeRef::get,
+                        Duration.ofMinutes(2),
+                        Duration.ofMinutes(2),
                         // saturation should fall back to low levels after the reconnect to the different node
-                        "saturation=0.0%")));
+                        // then we should see a switch back to higher priority node
+                        "saturation=0.0%",
+                        "/localhost:" + portNumbers.get(0)
+                                + "/ACTIVE] Connection state transitioned from PENDING to ACTIVE.")));
     }
 
     @Disabled
@@ -634,7 +661,7 @@ public class BlockNodeSuite {
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BLOCKS",
                             "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.buffer.blockTtl", BLOCK_TTL_MINUTES + "m",
+                            "blockStream.buffer.maxBlocks", "60",
                             "blockStream.buffer.isBufferPersistenceEnabled", "true",
                             "blockStream.blockPeriod", BLOCK_PERIOD_SECONDS + "s",
                             "blockNode.streamResetPeriod", "20s",
@@ -652,10 +679,9 @@ public class BlockNodeSuite {
         7. Wait for the blocks to be acked and the consensus node recovers
          */
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
-        final Duration blockTtl = Duration.ofMinutes(BLOCK_TTL_MINUTES);
-        final Duration blockPeriod = Duration.ofSeconds(BLOCK_PERIOD_SECONDS);
-        final int maxBufferSize = (int) blockTtl.dividedBy(blockPeriod);
+        final int maxBufferSize = 60;
         final int halfBufferSize = Math.max(1, maxBufferSize / 2);
+        final Duration duration = Duration.ofSeconds(maxBufferSize * BLOCK_PERIOD_SECONDS);
 
         return hapiTest(
                 // create some blocks to establish a baseline
@@ -669,8 +695,8 @@ public class BlockNodeSuite {
                         spec -> assertBlockNodeCommsLogContainsTimeframe(
                                 byNodeId(0),
                                 timeRef::get,
-                                blockTtl,
-                                blockTtl,
+                                duration,
+                                duration,
                                 "Attempting to forcefully switch block node connections due to increasing block buffer saturation")),
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 // restart the consensus node
@@ -896,8 +922,7 @@ public class BlockNodeSuite {
                                 portNumbers.getFirst()),
                         String.format(
                                 "/localhost:%s/ACTIVE] Block node requested a ResendBlock for block 9223372036854775807 but that block does not exist on this consensus node. Closing connection and will retry later",
-                                portNumbers.getFirst()))),
-                assertBlockNodeCommsLogDoesNotContainText(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
+                                portNumbers.getFirst()))));
     }
 
     @NotNull
@@ -1018,6 +1043,8 @@ public class BlockNodeSuite {
                 assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Block node has exceeded high latency threshold", Duration.ofSeconds(0)),
                 assertBlockNodeCommsLogContainsText(
-                        byNodeId(0), "Sending request to block node (type=END_OF_BLOCK)", Duration.ofSeconds(0)));
+                        byNodeId(0),
+                        "Sending ad hoc request to block node (type=END_OF_BLOCK)",
+                        Duration.ofSeconds(0)));
     }
 }

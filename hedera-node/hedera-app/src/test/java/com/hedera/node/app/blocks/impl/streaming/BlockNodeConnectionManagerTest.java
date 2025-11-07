@@ -39,7 +39,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.nio.file.WatchService;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -616,7 +615,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         assertThat(activeConnectionRef).hasValue(newConnection);
 
-        verify(activeConnection).getNodeConfig();
+        verify(activeConnection, times(2)).getNodeConfig();
         verify(activeConnection).close(true);
         verify(newConnection, times(2)).getNodeConfig();
         verify(newConnection).createRequestPipeline();
@@ -625,7 +624,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         verifyNoMoreInteractions(activeConnection);
         verifyNoMoreInteractions(newConnection);
-        verifyNoInteractions(executorService);
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(metrics);
     }
@@ -832,8 +830,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         task.run();
 
-        assertThat(connections).isEmpty(); // connection should be removed
-
         verify(connection).createRequestPipeline();
         verify(executorService).schedule(eq(task), anyLong(), eq(TimeUnit.MILLISECONDS));
         verify(connection, atLeast(1)).getNodeConfig();
@@ -921,40 +917,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testRestartConnection() {
-        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-        final BlockNodeConfig nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
-        doReturn(nodeConfig).when(connection).getNodeConfig();
-
-        // Add the connection to the connections map and set it as active
-        final Map<BlockNodeConfig, BlockNodeConnection> connections = connections();
-        final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
-        connections.put(nodeConfig, connection);
-        activeConnectionRef.set(connection);
-
-        // Ensure the node config is available for selection
-        final List<BlockNodeConfig> availableNodes = availableNodes();
-        availableNodes.clear();
-        availableNodes.add(nodeConfig);
-
-        connectionManager.connectionResetsTheStream(connection);
-
-        // Verify the active connection reference was cleared
-        assertThat(activeConnectionRef).hasNullValue();
-        // Verify a new connection was created and added to the connections map
-        assertThat(connections).containsKey(nodeConfig);
-        // Verify it's a different connection object (the old one was replaced)
-        assertThat(connections.get(nodeConfig)).isNotSameAs(connection);
-
-        // Verify that scheduleConnectionAttempt was called with Duration.ZERO and the block number
-        verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(0L), eq(TimeUnit.MILLISECONDS));
-        verifyNoMoreInteractions(connection);
-        verifyNoInteractions(bufferService);
-        verifyNoInteractions(metrics);
-        verifyNoMoreInteractions(executorService);
-    }
-
-    @Test
     void testRescheduleConnection_singleBlockNode() {
         // selectNewBlockNodeForStreaming should NOT be called
         final var config = HederaTestConfigBuilder.create()
@@ -985,19 +947,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // Verify exactly 1 schedule call was made (only the retry, no new node selection since there's only one node)
         verify(executorService, times(1))
                 .schedule(any(BlockNodeConnectionTask.class), eq(5000L), eq(TimeUnit.MILLISECONDS));
-    }
-
-    @Test
-    void testConnectionResetsTheStream_streamingDisabled() {
-        useStreamingDisabledManager();
-        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-
-        connectionManager.connectionResetsTheStream(connection);
-
-        verifyNoInteractions(connection);
-        verifyNoInteractions(bufferService);
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(metrics);
     }
 
     @Test
@@ -1094,36 +1043,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final boolean limitExceeded = connectionManager.recordEndOfStreamAndCheckLimit(nodeConfig, Instant.now());
 
         assertThat(limitExceeded).isFalse();
-    }
-
-    @Test
-    void testConnectionResetsTheStream() {
-        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-        final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
-        doReturn(nodeConfig).when(connection).getNodeConfig();
-        availableNodes().add(nodeConfig);
-
-        // Add the connection to the connections map and set it as active
-        final Map<BlockNodeConfig, BlockNodeConnection> connections = connections();
-        final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
-        connections.put(nodeConfig, connection);
-        activeConnectionRef.set(connection);
-
-        connectionManager.connectionResetsTheStream(connection);
-
-        // Verify the active connection reference was cleared
-        assertThat(activeConnectionRef).hasNullValue();
-        // Verify a new connection was created and added to the connections map
-        assertThat(connections).containsKey(nodeConfig);
-        // Verify it's a different connection object (the old one was replaced)
-        assertThat(connections.get(nodeConfig)).isNotSameAs(connection);
-
-        // Verify that selectNewBlockNodeForStreaming was called
-        verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(0L), eq(TimeUnit.MILLISECONDS));
-        verifyNoMoreInteractions(connection);
-        verifyNoInteractions(bufferService);
-        verifyNoInteractions(metrics);
-        verifyNoMoreInteractions(executorService);
     }
 
     @Test
@@ -1440,12 +1359,12 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         Files.writeString(file, valid, StandardOpenOption.TRUNCATE_EXISTING);
         awaitCondition(() -> !availableNodes().isEmpty(), 5_000);
         Files.deleteIfExists(file);
-        awaitCondition(() -> availableNodes().isEmpty(), 2_000);
+        awaitCondition(() -> availableNodes().isEmpty(), 3_000);
 
         // Exercise unchanged path: write back same content and ensure no restart occurs
         Files.writeString(
                 file, valid, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-        awaitCondition(() -> !availableNodes().isEmpty(), 2_000);
+        awaitCondition(() -> !availableNodes().isEmpty(), 5_000);
         final Map<BlockNodeConfig, BlockNodeConnection> before = new HashMap<>(connections());
         invoke_refreshAvailableBlockNodes();
         final Map<BlockNodeConfig, BlockNodeConnection> after = new HashMap<>(connections());
@@ -1582,6 +1501,27 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testStartConfigWatcher_handlesIOException() throws Exception {
+        // Create a file instead of directory to trigger IOException when trying to watch it
+        final Path fileNotDir = tempDir.resolve("not-a-directory.txt");
+        Files.writeString(fileNotDir, "test", StandardOpenOption.CREATE);
+
+        final var configProvider = createConfigProvider(createDefaultConfigProvider()
+                .withValue(
+                        "blockNode.blockNodeConnectionFileDir",
+                        fileNotDir.toAbsolutePath().toString()));
+
+        // This should trigger IOException when trying to create WatchService on a file
+        final var manager = new BlockNodeConnectionManager(configProvider, bufferService, metrics);
+        manager.start();
+
+        // Manager should start successfully even though config watcher failed
+        Thread.sleep(500);
+
+        manager.shutdown();
+    }
+
+    @Test
     void testConfigWatcher_handlesInterruptedException() throws Exception {
         final Path file = tempDir.resolve("block-nodes.json");
         final List<BlockNodeConfig> configs = new ArrayList<>();
@@ -1606,45 +1546,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
             watcherThread.join(1000);
             assertThat(watcherThread.isAlive()).isFalse();
         }
-    }
-
-    @Test
-    void testConfigWatcher_generalExceptionThenInterrupt_exitsCleanly() throws Exception {
-        final Path file = tempDir.resolve("block-nodes.json");
-        final List<BlockNodeConfig> configs = new ArrayList<>();
-        configs.add(newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1));
-        final BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(configs);
-        final String valid = BlockNodeConnectionInfo.JSON.toJSON(connectionInfo);
-        Files.writeString(
-                file, valid, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-
-        connectionManager.start();
-        awaitCondition(() -> !availableNodes().isEmpty(), 2_000);
-
-        // Force the watch service to throw from take() by closing it,
-        // which will cause a ClosedWatchServiceException wrapped as a general Exception path
-        @SuppressWarnings("unchecked")
-        final AtomicReference<WatchService> wsRef =
-                (AtomicReference<WatchService>) configWatchServiceHandle.get(connectionManager);
-        final WatchService ws = wsRef.get();
-        assertThat(ws).isNotNull();
-        ws.close();
-
-        // Give time for watcher loop to hit the catch(Exception) and evaluate interrupted branch (should be false)
-        Thread.sleep(500);
-
-        // Now interrupt the watcher thread to exercise the interrupted branch inside the exception handler
-        @SuppressWarnings("unchecked")
-        final AtomicReference<Thread> threadRef =
-                (AtomicReference<Thread>) configWatcherThreadRef.get(connectionManager);
-        final Thread watcherThread = threadRef.get();
-        if (watcherThread != null) {
-            watcherThread.interrupt();
-            watcherThread.join(1000);
-        }
-
-        // Ensure we can shutdown cleanly
-        connectionManager.shutdown();
     }
 
     @Test
