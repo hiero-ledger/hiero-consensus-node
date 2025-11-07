@@ -73,7 +73,10 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
      * @param configuration the configuration to use to create the app and its services
      * @param version the software version to set in the state
      */
-    public OtterApp(@NonNull final NodeId selfId, @NonNull final Configuration configuration, @NonNull final SemanticVersion version) {
+    public OtterApp(
+            @NonNull final NodeId selfId,
+            @NonNull final Configuration configuration,
+            @NonNull final SemanticVersion version) {
         this.version = requireNonNull(version);
 
         final OtterAppConfig appConfig = configuration.getConfigData(OtterAppConfig.class);

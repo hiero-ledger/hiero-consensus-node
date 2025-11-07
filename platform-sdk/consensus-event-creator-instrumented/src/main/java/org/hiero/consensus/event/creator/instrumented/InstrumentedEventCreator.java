@@ -14,12 +14,12 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.BytesSigner;
 import org.hiero.base.eventbus.EventBus;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.creator.impl.DefaultEventCreator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -58,7 +58,7 @@ public class InstrumentedEventCreator implements EventCreatorModule {
             @NonNull final Metrics metrics,
             @NonNull final Time time,
             @NonNull final SecureRandom random,
-            @NonNull final KeysAndCerts keysAndCerts,
+            @NonNull final BytesSigner signer,
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
             @NonNull final EventTransactionSupplier transactionSupplier,
@@ -68,7 +68,7 @@ public class InstrumentedEventCreator implements EventCreatorModule {
                 metrics,
                 time,
                 random,
-                keysAndCerts,
+                signer,
                 roster,
                 selfId,
                 transactionSupplier,

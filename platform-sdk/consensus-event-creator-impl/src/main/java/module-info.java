@@ -13,13 +13,12 @@ module org.hiero.consensus.event.creator.impl {
     requires transitive com.swirlds.common;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
+    requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.event.creator;
     requires transitive org.hiero.consensus.model;
     requires com.hedera.pbj.runtime;
-    requires com.swirlds.component.framework;
     requires com.swirlds.logging;
-    requires org.hiero.base.crypto;
     requires org.hiero.consensus.utility;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;

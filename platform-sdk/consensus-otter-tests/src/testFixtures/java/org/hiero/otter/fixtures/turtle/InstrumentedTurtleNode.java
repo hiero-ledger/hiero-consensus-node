@@ -29,12 +29,13 @@ public class InstrumentedTurtleNode extends TurtleNode implements InstrumentedNo
      * Constructor for the {@link InstrumentedTurtleNode} class.
      *
      * @param randotron the random number generator
-     * @param time the time provider
+     * @param timeManager the time manager for the node
      * @param selfId the node ID of the node
      * @param keysAndCerts the keys and certificates of the node
      * @param network the simulated network
      * @param logging the logging instance for the node
      * @param outputDirectory the output directory for the node
+     * @param networkConfiguration the network configuration
      */
     public InstrumentedTurtleNode(
             @NonNull final Randotron randotron,
@@ -46,7 +47,7 @@ public class InstrumentedTurtleNode extends TurtleNode implements InstrumentedNo
             @NonNull final Path outputDirectory,
             @NonNull final NetworkConfiguration networkConfiguration) {
         super(randotron, timeManager, selfId, keysAndCerts, network, logging, outputDirectory, networkConfiguration);
-        configuration().set(ModuleConfig_.EVENT_CREATOR_MODULE, INSTRUMENTED_EVENT_CREATOR);
+        this.configuration().withConfigValue(ModuleConfig_.EVENT_CREATOR_MODULE, INSTRUMENTED_EVENT_CREATOR);
     }
 
     /**

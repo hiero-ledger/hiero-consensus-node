@@ -59,13 +59,13 @@ module org.hiero.otter.fixtures {
             org.hiero.consensus.otter.docker.app;
     exports org.hiero.otter.fixtures.network.utils;
     exports org.hiero.otter.fixtures.app.state;
-    exports org.hiero.otter.fixtures.container;
-    exports org.hiero.otter.fixtures.internal;
-    exports org.hiero.otter.fixtures.internal.network;
-    exports org.hiero.otter.fixtures.turtle;
-    exports org.hiero.otter.fixtures.turtle.logging;
-    exports org.hiero.otter.fixtures.turtle.gossip;
-    exports org.hiero.otter.fixtures.internal.result;
+    exports org.hiero.otter.fixtures.container to
+            org.hiero.otter.fixtures.test;
+    exports org.hiero.otter.fixtures.internal to
+            org.hiero.otter.fixtures.test;
+    exports org.hiero.otter.fixtures.turtle to
+            org.hiero.otter.fixtures.test,
+            org.hiero.otter.test;
     exports org.hiero.otter.fixtures.app.services.consistency;
 
     opens org.hiero.otter.fixtures.container.network to

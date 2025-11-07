@@ -42,7 +42,7 @@ public class InstrumentedContainerNode extends ContainerNode implements Instrume
             @NonNull final Path outputDirectory,
             @NonNull final NetworkConfiguration networkConfiguration) {
         super(selfId, timeManager, keysAndCerts, network, dockerImage, outputDirectory, networkConfiguration);
-        configuration().set(ModuleConfig_.EVENT_CREATOR_MODULE, INSTRUMENTED_EVENT_CREATOR);
+        configuration().withConfigValue(ModuleConfig_.EVENT_CREATOR_MODULE, INSTRUMENTED_EVENT_CREATOR);
     }
 
     /**
