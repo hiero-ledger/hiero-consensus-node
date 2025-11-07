@@ -1608,8 +1608,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
                 .createClient(any(WebClient.class), any(PbjGrpcClientConfig.class), any(RequestOptions.class));
 
         final int maxBytes = configuredMax;
-        final BlockNodeProtocolConfig cfgWithMax =
-                new BlockNodeProtocolConfig(nodeConfig.blockNodeConfig(), null, null, maxBytes);
+        final BlockNodeProtocolConfig cfgWithMax = new BlockNodeProtocolConfig(nodeConfig.blockNodeConfig(), maxBytes);
 
         connection = new BlockNodeConnection(
                 configProvider,

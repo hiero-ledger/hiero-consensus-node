@@ -22,7 +22,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import io.helidon.common.tls.Tls;
 import io.helidon.webclient.api.WebClient;
 import io.helidon.webclient.grpc.GrpcClientProtocolConfig;
-import io.helidon.webclient.http2.Http2ClientProtocolConfig;
 import io.helidon.webclient.spi.ProtocolConfig;
 import java.io.UncheckedIOException;
 import java.time.Duration;
@@ -302,20 +301,14 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         final PbjGrpcClientConfig grpcConfig =
                 new PbjGrpcClientConfig(timeoutDuration, tls, Optional.of(""), "application/grpc");
 
-        GrpcClientProtocolConfig extractedGrpcConfig = blockNodeProtocolConfig.grpcClientProtocolConfig();
-        final GrpcClientProtocolConfig grpcProtocolConfig = (extractedGrpcConfig != null)
-                ? extractedGrpcConfig
-                : GrpcClientProtocolConfig.builder()
-                        .abortPollTimeExpired(false)
-                        .pollWaitTime(timeoutDuration)
-                        .build();
+        final GrpcClientProtocolConfig grpcProtocolConfig = GrpcClientProtocolConfig.builder()
+                .abortPollTimeExpired(false)
+                .pollWaitTime(timeoutDuration)
+                .build();
 
         final List<ProtocolConfig> protocolConfigs = new ArrayList<>();
         protocolConfigs.add(grpcProtocolConfig);
-        Http2ClientProtocolConfig http2ClientProtocolConfig = blockNodeProtocolConfig.http2ClientProtocolConfig();
-        if (http2ClientProtocolConfig != null) {
-            protocolConfigs.add(http2ClientProtocolConfig);
-        }
+        // No additional HTTP/2 protocol config is applied.
 
         final WebClient webClient = WebClient.builder()
                 .baseUri("http://" + blockNodeProtocolConfig.blockNodeConfig().address() + ":"
