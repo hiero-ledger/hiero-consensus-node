@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.fees;
 
 public interface CalculatorState {

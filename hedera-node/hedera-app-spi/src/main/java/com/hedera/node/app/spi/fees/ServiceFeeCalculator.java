@@ -28,15 +28,36 @@ import org.hiero.hapi.support.fees.FeeSchedule;
 
 /** Calculates transaction and query fees. Null context = approximate, non-null = exact using state. */
 public interface ServiceFeeCalculator {
-
+    /**
+     * Accumulated service fees as a side effect into the given fee result. This will be implemented by every
+     * single handler's fee calculator.
+     *
+     * @param txnBody the transaction body
+     * @param calculatorState the calculator state
+     * @param feeResult the fee result
+     * @param feeSchedule the fee schedule
+     */
     void accumulateServiceFee(
             @NonNull TransactionBody txnBody,
             @Nullable CalculatorState calculatorState,
             @NonNull FeeResult feeResult,
             @NonNull FeeSchedule feeSchedule);
-
+    /**
+     * Returns the transaction type this calculator is for.
+     * @return the transaction type
+     */
     TransactionBody.DataOneOfType getTransactionType();
 
+    /**
+     * Adds an extra fee to the result.
+     *
+     * @param result the fee result
+     * @param feeType "Node" or "Service"
+     * @param extra the extra fee
+     * @param feeSchedule the fee schedule
+     * @param amount the amount of the extra fee
+     */
+    // TODO: Why do we need a String feeType here?
     default void addExtraFee(
             @NonNull final FeeResult result,
             @NonNull final String feeType,

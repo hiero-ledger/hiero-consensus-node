@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.hapi.fees.apis.common;
 
-import static org.hiero.hapi.fees.FeeScheduleUtils.lookupExtraFee;
-
 import com.hedera.hapi.node.base.HederaFunctionality;
 import java.security.InvalidParameterException;
 import java.util.Map;
@@ -11,6 +9,8 @@ import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.ExtraFeeReference;
 import org.hiero.hapi.support.fees.FeeSchedule;
+
+import static org.hiero.hapi.fees.FeeScheduleUtils.lookupExtraFee;
 
 public abstract class AbstractBaseFeeModel implements FeeModel {
     private final HederaFunctionality api;
@@ -41,7 +41,7 @@ public abstract class AbstractBaseFeeModel implements FeeModel {
             }
             int included = ref.includedCount();
             long used = (long) params.get(ref.name());
-            long extraFee = lookupExtraFee(feeSchedule, ref).fee();
+            long extraFee = lookupExtraFee(feeSchedule, ref.name()).fee();
             if (used > included) {
                 final long overage = used - included;
                 result.addNodeFee("Node Overage of " + ref.name().name(), overage, overage * extraFee);
