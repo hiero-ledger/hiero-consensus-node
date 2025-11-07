@@ -10,6 +10,7 @@ import java.security.NoSuchProviderException;
 import java.security.Signature;
 import java.security.SignatureException;
 import java.util.Objects;
+import org.hiero.base.crypto.BytesSigner;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.SignatureType;
@@ -20,7 +21,7 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 /**
  * An instance capable of signing data with the platforms private signing key. This class is not thread safe.
  */
-public class PlatformSigner implements Signer {
+public class PlatformSigner implements Signer, BytesSigner {
     private final Signature signature;
 
     /**
@@ -80,8 +81,13 @@ public class PlatformSigner implements Signer {
      * @return the signature as immutable bytes
      */
     public @NonNull Bytes signImmutable(@NonNull final Hash hash) {
+        return sign(hash.getBytes());
+    }
+
+    @Override
+    public @NonNull Bytes sign(@NonNull final Bytes data) {
         try {
-            hash.getBytes().updateSignature(signature);
+            data.updateSignature(signature);
             return Bytes.wrap(signature.sign());
         } catch (final SignatureException e) {
             // this can only occur if this signature object is not initialized properly, which we ensure is done in the
