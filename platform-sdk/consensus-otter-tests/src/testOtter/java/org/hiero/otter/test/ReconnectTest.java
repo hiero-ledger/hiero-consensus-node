@@ -119,7 +119,10 @@ public class ReconnectTest {
         // Only wait if event stream files are accessible (e.g., in turtle tests, not container tests)
         if (nodeToReconnect.newEventStreamResult().hasAnyEventStreamFile() || numEventStreamFilesBeforeReconnect > 0) {
             timeManager.waitForCondition(
-                    () -> nodeToReconnect.newEventStreamResult().eventStreamFiles().size()
+                    () -> nodeToReconnect
+                                    .newEventStreamResult()
+                                    .eventStreamFiles()
+                                    .size()
                             > numEventStreamFilesBeforeReconnect,
                     Duration.ofSeconds(120L));
         }
