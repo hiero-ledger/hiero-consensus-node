@@ -116,9 +116,9 @@ public class BlockNodeSuite {
                 waitUntilNextBlocks(5).withBackgroundTraffic(true),
                 // Update block-nodes.json to have an invalid entry
                 doingContextual((spec) -> {
-                    List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
+                    final List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
                     blockNodes.add(new com.hedera.node.internal.network.BlockNodeConfig("26dsfg2364", 1234, 0, null));
-                    BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
+                    final BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
                     try {
                         // Write the config to this consensus node's block-nodes.json
                         final Path configPath = spec.getNetworkNodes()

@@ -242,7 +242,7 @@ public class BlockNodeConnectionManager {
 
             final byte[] jsonConfig = Files.readAllBytes(configPath);
             final BlockNodeConnectionInfo protoConfig = BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(jsonConfig));
-            for (BlockNodeConfig nodeConfig : protoConfig.nodes()) {
+            for (final BlockNodeConfig nodeConfig : protoConfig.nodes()) {
                 nodes.add(new BlockNodeProtocolConfig(nodeConfig, nodeConfig.maxMessageSizeBytes()));
             }
         } catch (final IOException | ParseException e) {
