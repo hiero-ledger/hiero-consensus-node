@@ -406,7 +406,7 @@ public class ConfigManager {
                             .map(String::valueOf)
                             .collect(Collectors.joining(", "));
                     fail(String.format(
-                            "Node account '%s' does not exist in network '%s'. " + "Available node accounts: %s",
+                            "Node account '%s' does not exist in network '%s'. Available node accounts: %s",
                             normalizedNodeAccount,
                             targetName,
                             availableAccounts.isEmpty() ? "(none)" : availableAccounts));

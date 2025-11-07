@@ -2,7 +2,7 @@
 package com.hedera.services.yahcli.test.regression;
 
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.yahcli.test.YahcliTestBase.REGRESSION;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliSysFiles;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -34,7 +34,7 @@ public class SysFileUploadInvalidNodeAccountTest {
     final Stream<DynamicTest> sysfileUploadWithInvalidNodeAccountFailsGracefully() {
         final var stderrRef = new AtomicReference<>("");
         return hapiTest(
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     // Attempt to upload software-zip with invalid node account 0
                     final var operation = yahcliSysFiles("upload", "-s", UPDATE_FILE_LOCATION, "software-zip")
                             .withNodeAccount("0")
@@ -44,17 +44,14 @@ public class SysFileUploadInvalidNodeAccountTest {
 
                     operation.execFor(spec);
                 }),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var stderr = stderrRef.get();
 
-                    final var hasValidationError = stderr != null
-                            && !stderr.isEmpty()
-                            && (stderr.contains("Node account '0' does not exist in network")
-                                    && stderr.contains("Available node accounts:"));
-
                     assertTrue(
-                            hasValidationError,
-                            "Expected validation error message about node account not existing in stderr.");
+                            stderr.contains("Node account '0' does not exist in network")
+                                    && stderr.contains("Available node accounts:"),
+                            "Expected validation error message about node account not existing in stderr, but got "
+                                    + stderr);
                 }));
     }
 }
