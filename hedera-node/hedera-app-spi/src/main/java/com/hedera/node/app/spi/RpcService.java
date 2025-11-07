@@ -20,6 +20,11 @@ public interface RpcService extends Service {
     @NonNull
     Set<RpcServiceDefinition> rpcDefinitions();
 
+    /**
+     * Returns all the handlers fee calculators for this service.
+     *
+     * @return The set of fee calculators.
+     */
     default Set<ServiceFeeCalculator> serviceFeeCalculators() {
         return Set.of();
     }

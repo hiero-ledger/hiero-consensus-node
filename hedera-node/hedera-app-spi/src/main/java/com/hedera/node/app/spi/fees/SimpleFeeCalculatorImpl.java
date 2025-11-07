@@ -62,7 +62,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
 
             if (used > ref.includedCount()) {
                 final long overage = used - ref.includedCount();
-                final long unitFee = lookupExtraFee(feeSchedule, ref).fee();
+                final long unitFee = lookupExtraFee(feeSchedule, ref.name()).fee();
                 final long cost = overage * unitFee;
 
                 if ("Node".equals(feeType)) {
