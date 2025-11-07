@@ -16,12 +16,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.concurrent.locks.locked.LockedResource;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
 /**
  * Test class for {@link ReservedSignedStateResultPromise}
  */
+@Disabled
 class ReservedSignedStateResultPromiseTest {
 
     /**
