@@ -22,6 +22,8 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import io.helidon.common.tls.Tls;
 import io.helidon.webclient.api.WebClient;
 import io.helidon.webclient.grpc.GrpcClientProtocolConfig;
+import io.helidon.webclient.http2.Http2ClientProtocolConfig;
+import io.helidon.webclient.spi.ProtocolConfig;
 import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.time.Instant;
@@ -71,8 +73,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
     private static final Logger logger = LogManager.getLogger(BlockNodeConnection.class);
     /**
-     * PBJ has a deserialization hard limit of 2 MB. Any request we send to the block node MUST BE less than or equal
-     * to 2 MB. If a request exceeds this, it will fail to deserialize.
+     * The default max bytes per PublishStreamRequest.
      */
     private static final int MAX_BYTES_PER_REQUEST = 2_097_152;
 
@@ -92,7 +93,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     /**
      * The configuration specific to the block node this connection is for.
      */
-    private final BlockNodeConfig blockNodeConfig;
+    private final BlockNodeProtocolConfig blockNodeProtocolConfig;
     /**
      * The "parent" connection manager that manages the lifecycle of this connection.
      */
@@ -219,7 +220,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     public BlockNodeConnection(
             @NonNull final ConfigProvider configProvider,
-            @NonNull final BlockNodeConfig nodeConfig,
+            @NonNull final BlockNodeProtocolConfig nodeConfig,
             @NonNull final BlockNodeConnectionManager blockNodeConnectionManager,
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final BlockStreamMetrics blockStreamMetrics,
@@ -228,7 +229,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             @Nullable final Long initialBlockToStream,
             @NonNull final BlockNodeClientFactory clientFactory) {
         this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
-        this.blockNodeConfig = requireNonNull(nodeConfig, "nodeConfig must not be null");
+        this.blockNodeProtocolConfig = requireNonNull(nodeConfig, "nodeConfig must not be null");
         this.blockNodeConnectionManager =
                 requireNonNull(blockNodeConnectionManager, "blockNodeConnectionManager must not be null");
         this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
@@ -301,20 +302,33 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         final PbjGrpcClientConfig grpcConfig =
                 new PbjGrpcClientConfig(timeoutDuration, tls, Optional.of(""), "application/grpc");
 
-        final WebClient webClient = WebClient.builder()
-                .baseUri("http://" + blockNodeConfig.address() + ":" + blockNodeConfig.port())
-                .tls(tls)
-                .protocolConfigs(List.of(GrpcClientProtocolConfig.builder()
+        GrpcClientProtocolConfig extractedGrpcConfig = blockNodeProtocolConfig.grpcClientProtocolConfig();
+        final GrpcClientProtocolConfig grpcProtocolConfig = (extractedGrpcConfig != null)
+                ? extractedGrpcConfig
+                : GrpcClientProtocolConfig.builder()
                         .abortPollTimeExpired(false)
                         .pollWaitTime(timeoutDuration)
-                        .build()))
+                        .build();
+
+        final List<ProtocolConfig> protocolConfigs = new ArrayList<>();
+        protocolConfigs.add(grpcProtocolConfig);
+        Http2ClientProtocolConfig http2ClientProtocolConfig = blockNodeProtocolConfig.http2ClientProtocolConfig();
+        if (http2ClientProtocolConfig != null) {
+            protocolConfigs.add(http2ClientProtocolConfig);
+        }
+
+        final WebClient webClient = WebClient.builder()
+                .baseUri("http://" + blockNodeProtocolConfig.blockNodeConfig().address() + ":"
+                        + blockNodeProtocolConfig.blockNodeConfig().port())
+                .tls(tls)
+                .protocolConfigs(protocolConfigs)
                 .connectTimeout(timeoutDuration)
                 .build();
         if (logger.isDebugEnabled()) {
             logger.debug(
                     "Created BlockStreamPublishServiceClient for {}:{}.",
-                    blockNodeConfig.address(),
-                    blockNodeConfig.port());
+                    blockNodeProtocolConfig.blockNodeConfig().address(),
+                    blockNodeProtocolConfig.blockNodeConfig().port());
         }
         return clientFactory.createClient(webClient, grpcConfig, OPTIONS);
     }
@@ -466,7 +480,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         // Evaluate latency and high-latency QoS via the connection manager
         final var result = blockNodeConnectionManager.recordBlockAckAndCheckLatency(
-                blockNodeConfig, acknowledgedBlockNumber, Instant.now());
+                blockNodeProtocolConfig.blockNodeConfig(), acknowledgedBlockNumber, Instant.now());
         if (result.shouldSwitch() && !blockNodeConnectionManager.isOnlyOneBlockNodeConfigured()) {
             if (logger.isInfoEnabled()) {
                 logger.info(
@@ -529,13 +543,14 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         // Check if we've exceeded the EndOfStream rate limit
         // Record the EndOfStream event and check if the rate limit has been exceeded.
         // The connection manager maintains persistent stats for each node across connections.
-        if (blockNodeConnectionManager.recordEndOfStreamAndCheckLimit(blockNodeConfig, Instant.now())) {
+        if (blockNodeConnectionManager.recordEndOfStreamAndCheckLimit(
+                blockNodeProtocolConfig.blockNodeConfig(), Instant.now())) {
             if (logger.isInfoEnabled()) {
                 logger.info(
                         "{} Block node has exceeded the allowed number of EndOfStream responses "
                                 + "(received={}, permitted={}, timeWindow={}). Reconnection scheduled for {}.",
                         this,
-                        blockNodeConnectionManager.getEndOfStreamCount(blockNodeConfig),
+                        blockNodeConnectionManager.getEndOfStreamCount(blockNodeProtocolConfig.blockNodeConfig()),
                         blockNodeConnectionManager.getMaxEndOfStreamsAllowed(),
                         blockNodeConnectionManager.getEndOfStreamTimeframe(),
                         blockNodeConnectionManager.getEndOfStreamScheduleDelay());
@@ -776,7 +791,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                             final BlockProof blockProof = item.blockProof();
                             if (blockProof != null) {
                                 blockNodeConnectionManager.recordBlockProofSent(
-                                        blockNodeConfig, blockProof.block(), Instant.now());
+                                        blockNodeProtocolConfig.blockNodeConfig(), blockProof.block(), Instant.now());
                             }
                         }
                     }
@@ -897,7 +912,15 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * @return the block node configuration
      */
     public BlockNodeConfig getNodeConfig() {
-        return blockNodeConfig;
+        return blockNodeProtocolConfig.blockNodeConfig();
+    }
+
+    /**
+     * Returns the block node connection configuration for this connection.
+     * @return the block node connection configuration
+     */
+    public BlockNodeProtocolConfig getBlockNodeConnectionConfig() {
+        return blockNodeProtocolConfig;
     }
 
     @Override
@@ -1009,8 +1032,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
     @Override
     public String toString() {
-        return "[" + connectionId + "/" + blockNodeConfig.address() + ":" + blockNodeConfig.port() + "/"
-                + getConnectionState() + "]";
+        return "[" + connectionId + "/"
+                + blockNodeProtocolConfig.blockNodeConfig().address() + ":"
+                + blockNodeProtocolConfig.blockNodeConfig().port() + "/" + getConnectionState() + "]";
     }
 
     @Override
@@ -1019,12 +1043,13 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             return false;
         }
         final BlockNodeConnection that = (BlockNodeConnection) o;
-        return Objects.equals(connectionId, that.connectionId) && Objects.equals(blockNodeConfig, that.blockNodeConfig);
+        return Objects.equals(connectionId, that.connectionId)
+                && Objects.equals(blockNodeProtocolConfig, that.blockNodeProtocolConfig);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(blockNodeConfig, connectionId);
+        return Objects.hash(blockNodeProtocolConfig, connectionId);
     }
 
     /**
@@ -1052,7 +1077,16 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         private int itemIndex = 0;
         private BlockState block;
         private long lastSendTimeMillis = -1;
+        private int maxBytesPerRequest = 0;
         private final AtomicInteger requestCtr = new AtomicInteger(1);
+
+        public ConnectionWorkerLoopTask() {
+            if (blockNodeProtocolConfig.maxMessageSizeBytes() != null) {
+                this.maxBytesPerRequest = blockNodeProtocolConfig.maxMessageSizeBytes();
+            } else {
+                this.maxBytesPerRequest = MAX_BYTES_PER_REQUEST;
+            }
+        }
 
         @Override
         public void run() {
@@ -1103,7 +1137,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 final int itemSize = item.protobufSize() + 5; // add an extra 5 bytes to account for potential overhead
                 final long newRequestBytes = pendingRequestBytes + itemSize;
 
-                if (newRequestBytes > MAX_BYTES_PER_REQUEST) {
+                if (newRequestBytes > maxBytesPerRequest) {
                     // Adding this item to the request would exceed the max size per request
                     if (!pendingRequestItems.isEmpty()) {
                         // Try to send the pending request
@@ -1122,7 +1156,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                                 block.blockNumber(),
                                 itemIndex,
                                 newRequestBytes,
-                                MAX_BYTES_PER_REQUEST);
+                                maxBytesPerRequest);
                         endTheStreamWith(EndStream.Code.ERROR);
                         break;
                     }
