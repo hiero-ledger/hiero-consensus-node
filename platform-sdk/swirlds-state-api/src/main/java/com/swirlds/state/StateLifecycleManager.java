@@ -27,7 +27,8 @@ public interface StateLifecycleManager {
      * Get the mutable state. Consecutive calls to this method may return different instances,
      * if this method is not called on the one and the only thread that is calling {@link #copyMutableState}.
      * If a parallel thread calls {@link #copyMutableState}, the returned object will become immutable and
-     * on the subsequent call of {@link #copyMutableState} it will be destroyed and, therefore, not usable in some contexts.
+     * on the subsequent call of {@link #copyMutableState} it will be destroyed (unless it was explicitly reserved outside of this class)
+     * and, therefore, not usable in some contexts.
      *
      * @return the mutable state.
      */
@@ -36,7 +37,8 @@ public interface StateLifecycleManager {
     /**
      * Get the latest immutable state. Consecutive calls to this method may return different instances
      * if this method is not called on the one and only thread that is calling {@link #copyMutableState}.
-     * If a parallel thread calls {@link #copyMutableState}, the returned object will become destroyed and, therefore, not usable in some contexts.
+     * If a parallel thread calls {@link #copyMutableState}, the returned object will become destroyed (unless it was explicitly reserved outside of this class)
+     * and, therefore, not usable in some contexts.
      * <br>
      * If a durable long-term reference to the immutable state returned by this method is required, it is the
      * responsibility of the caller to ensure a reference is maintained to prevent its garbage collection. Also,

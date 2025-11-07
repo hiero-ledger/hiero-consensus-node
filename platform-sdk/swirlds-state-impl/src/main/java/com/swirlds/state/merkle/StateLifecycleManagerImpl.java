@@ -2,6 +2,7 @@
 package com.swirlds.state.merkle;
 
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_MICROSECONDS;
+import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.time.Time;
@@ -19,6 +20,8 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * This class is responsible for maintaining references to the mutable state and the latest immutable state.
@@ -35,6 +38,8 @@ import java.util.function.Function;
  * They only provide the happens-before guarantees that are described above.
  */
 public class StateLifecycleManagerImpl implements StateLifecycleManager {
+
+    private static final Logger log = LogManager.getLogger(StateLifecycleManagerImpl.class);
 
     /**
      * Metrics for the state object
@@ -158,15 +163,23 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
         // releasing previous immutable previousMutableState
         final State previousImmutableState = latestImmutableStateRef.get();
         if (previousImmutableState != null) {
-            previousImmutableState.throwIfDestroyed();
-            previousImmutableState.release();
+            assert !previousImmutableState.isDestroyed();
+            if (previousImmutableState.isDestroyed()) {
+                log.error(EXCEPTION.getMarker(), "previousImmutableState is in destroyed state");
+            } else {
+                previousImmutableState.release();
+            }
         }
         stateToCopy.getRoot().reserve();
         latestImmutableStateRef.set(stateToCopy);
         final MerkleNodeState previousMutableState = stateRef.get();
         if (previousMutableState != null) {
-            previousMutableState.throwIfDestroyed();
-            previousMutableState.release();
+            assert !previousMutableState.isDestroyed();
+            if (previousMutableState.isDestroyed()) {
+                log.error(EXCEPTION.getMarker(), "previousImmutableState is in destroyed state");
+            } else {
+                previousMutableState.release();
+            }
         }
         // Do not increment the reference count because the stateToCopy provided already has a reference count of at
         // least
