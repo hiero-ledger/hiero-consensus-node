@@ -23,7 +23,6 @@ import org.hiero.base.crypto.internal.DetRandomProvider;
 import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.model.roster.SerializableX509Certificate;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
@@ -55,11 +54,11 @@ class SerializableX509CertificateTests {
         // create self-signed certificate using X500 name
         final String name = "CN=Carol";
         // RSA cert is self-signed
-        final X509Certificate rsaCert =
-                CryptoStatic.generateCertificate(name, rsaKeyPair, name, rsaKeyPair, secureRandom, schema.getSigningAlgorithm());
+        final X509Certificate rsaCert = CryptoStatic.generateCertificate(
+                name, rsaKeyPair, name, rsaKeyPair, secureRandom, schema.getSigningAlgorithm());
         // EC cert is signed by RSA key
-        final X509Certificate ecCert =
-                CryptoStatic.generateCertificate(name, ecKeyPair, name, rsaKeyPair, secureRandom, schema.getSigningAlgorithm());
+        final X509Certificate ecCert = CryptoStatic.generateCertificate(
+                name, ecKeyPair, name, rsaKeyPair, secureRandom, schema.getSigningAlgorithm());
 
         final SerializableX509Certificate rsaOriginal = new SerializableX509Certificate(rsaCert);
         SerializableX509Certificate rsaCopy = roundTripSerializeDeserialize(rsaOriginal);

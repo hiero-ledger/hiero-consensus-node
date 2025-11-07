@@ -145,8 +145,8 @@ class NetworkPeerIdentifierTest {
         final KeyPair rsaKeyPair1 = rsaKeyGen.generateKeyPair();
 
         final String name = "CN=Bob";
-        final X509Certificate rsaCert =
-                CryptoStatic.generateCertificate(name, rsaKeyPair1, name, rsaKeyPair1, secureRandom, SigningSchema.RSA.getSigningAlgorithm());
+        final X509Certificate rsaCert = CryptoStatic.generateCertificate(
+                name, rsaKeyPair1, name, rsaKeyPair1, secureRandom, SigningSchema.RSA.getSigningAlgorithm());
         final Certificate[] certificates = new Certificate[] {rsaCert};
 
         final PeerInfo matchedPeer =

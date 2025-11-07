@@ -27,9 +27,8 @@ public final class SigningFactory {
     /**
      * The default implementations to use for each schema.
      */
-    private static final Map<SigningSchema, SigningImplementation> defaultImplementations = Map.of(
-            SigningSchema.RSA, SigningImplementation.RSA_BC,
-            SigningSchema.ED25519, ED25519_SODIUM);
+    private static final Map<SigningSchema, SigningImplementation> defaultImplementations =
+            Map.of(SigningSchema.RSA, SigningImplementation.RSA_BC, SigningSchema.ED25519, ED25519_SODIUM);
 
     /**
      * Generates a new key pair for the specified signing schema.
@@ -89,11 +88,9 @@ public final class SigningFactory {
      * @return the verifier
      */
     public static @NonNull BytesSignatureVerifier createVerifier(@NonNull final PublicKey publicKey) {
-        final SigningImplementation implementation =
-                defaultImplementations.get(SigningSchema.fromKeyType(publicKey));
+        final SigningImplementation implementation = defaultImplementations.get(SigningSchema.fromKeyType(publicKey));
         if (implementation == null) {
-            throw new IllegalArgumentException(
-                    "No implementation for key type: " + publicKey.getAlgorithm());
+            throw new IllegalArgumentException("No implementation for key type: " + publicKey.getAlgorithm());
         }
         return createVerifier(implementation, publicKey);
     }

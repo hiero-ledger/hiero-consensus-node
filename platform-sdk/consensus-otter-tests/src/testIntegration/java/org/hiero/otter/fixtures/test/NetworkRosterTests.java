@@ -18,7 +18,6 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
@@ -45,8 +44,10 @@ public class NetworkRosterTests {
 
             // Override the keys and certs for each node
             final SecureRandom secureRandom = SecureRandom.getInstanceStrong();
-            final KeysAndCerts kac0 = KeysAndCertsGenerator.generate(node0.selfId(), schema, secureRandom, secureRandom);
-            final KeysAndCerts kac1 = KeysAndCertsGenerator.generate(node0.selfId(), schema, secureRandom, secureRandom);
+            final KeysAndCerts kac0 =
+                    KeysAndCertsGenerator.generate(node0.selfId(), schema, secureRandom, secureRandom);
+            final KeysAndCerts kac1 =
+                    KeysAndCertsGenerator.generate(node0.selfId(), schema, secureRandom, secureRandom);
             node0.keysAndCerts(kac0);
             node1.keysAndCerts(kac1);
 

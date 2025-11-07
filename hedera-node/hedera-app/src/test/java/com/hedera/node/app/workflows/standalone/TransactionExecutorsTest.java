@@ -605,7 +605,8 @@ public class TransactionExecutorsTest {
             final KeyPair rsaKeyPair1 = rsaKeyGen.generateKeyPair();
 
             final String name = "CN=Bob";
-            return CryptoStatic.generateCertificate(name, rsaKeyPair1, name, rsaKeyPair1, secureRandom, "SHA384withRSA");
+            return CryptoStatic.generateCertificate(
+                    name, rsaKeyPair1, name, rsaKeyPair1, secureRandom, "SHA384withRSA");
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

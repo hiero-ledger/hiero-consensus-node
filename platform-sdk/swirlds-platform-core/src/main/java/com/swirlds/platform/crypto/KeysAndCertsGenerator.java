@@ -188,10 +188,10 @@ public class KeysAndCertsGenerator {
 
         // create the 2 certs (java.security.cert.Certificate)
         // both are signed by sigKeyPair, so sigCert is self-signed
-        final X509Certificate sigCert =
-                CryptoStatic.generateCertificate(dnS, sigKeyPair, dnS, sigKeyPair, sigDetRandom, schema.getSigningAlgorithm());
-        final X509Certificate agrCert =
-                CryptoStatic.generateCertificate(dnA, agrKeyPair, dnS, sigKeyPair, agrDetRandom, schema.getSigningAlgorithm());
+        final X509Certificate sigCert = CryptoStatic.generateCertificate(
+                dnS, sigKeyPair, dnS, sigKeyPair, sigDetRandom, schema.getSigningAlgorithm());
+        final X509Certificate agrCert = CryptoStatic.generateCertificate(
+                dnA, agrKeyPair, dnS, sigKeyPair, agrDetRandom, schema.getSigningAlgorithm());
         return new KeysAndCerts(sigKeyPair, agrKeyPair, sigCert, agrCert);
     }
 

@@ -49,8 +49,8 @@ public class SigningSchemaTest {
         final SecureRandom secureRandom = SecureRandom.getInstanceStrong();
         network.nodes().forEach(node -> {
             try {
-                node.keysAndCerts(
-                        KeysAndCertsGenerator.generate(node.selfId(), SigningSchema.ED25519, secureRandom, secureRandom));
+                node.keysAndCerts(KeysAndCertsGenerator.generate(
+                        node.selfId(), SigningSchema.ED25519, secureRandom, secureRandom));
             } catch (final NoSuchAlgorithmException | NoSuchProviderException | KeyGeneratingException e) {
                 throw new RuntimeException(e);
             }

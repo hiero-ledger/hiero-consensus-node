@@ -5,7 +5,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.PublicKey;
 import org.hiero.base.crypto.BytesSignatureVerifier;
-import org.hiero.consensus.crypto.SigningSchema;
 
 /**
  * A {@link BytesSignatureVerifier} implementation that uses libsodium to verify signatures using the Ed25519

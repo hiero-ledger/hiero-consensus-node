@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.InvalidKeyException;
 import java.security.KeyPair;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -35,8 +34,6 @@ import java.security.NoSuchProviderException;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
-import java.security.Signature;
-import java.security.SignatureException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
@@ -216,8 +213,8 @@ public final class CryptoStatic {
                     new X500Principal(distinguishedName), // subject
                     pair.getPublic()); // subject public key
 
-            JcaContentSignerBuilder signerBuilder = new JcaContentSignerBuilder(signatureAlgorithm)
-                    .setProvider(BouncyCastleProvider.PROVIDER_NAME);
+            JcaContentSignerBuilder signerBuilder =
+                    new JcaContentSignerBuilder(signatureAlgorithm).setProvider(BouncyCastleProvider.PROVIDER_NAME);
             return new JcaX509CertificateConverter()
                     .setProvider(BouncyCastleProvider.PROVIDER_NAME)
                     .getCertificate(v3CertBldr.build(signerBuilder.build(caPair.getPrivate())));

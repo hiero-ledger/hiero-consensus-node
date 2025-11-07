@@ -128,7 +128,8 @@ public class StartFromStateTest {
         final SecureRandom secureRandom = DetRandomProvider.getDetRandom();
         secureRandom.setSeed(new byte[] {1, 2, 3});
         for (final Node node : network.nodes()) {
-            node.keysAndCerts(KeysAndCertsGenerator.generate(node.selfId(), SigningSchema.RSA, secureRandom, secureRandom));
+            node.keysAndCerts(
+                    KeysAndCertsGenerator.generate(node.selfId(), SigningSchema.RSA, secureRandom, secureRandom));
         }
 
         // Setup continuous assertions
