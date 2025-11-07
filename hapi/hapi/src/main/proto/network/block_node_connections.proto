@@ -67,14 +67,6 @@ message BlockNodeConfig {
     google.protobuf.UInt32Value maxMessageSizeBytes = 4;
 }
 
-
-/**
- * Optional HTTP/2 client protocol configuration for a specific block node connection.
- * If present, these values SHALL be used to configure the HTTP/2 protocol for the WebClient connecting
- * to the corresponding block node.
- */
-// HTTP/2 and gRPC protocol-specific configurations were removed.
-
 /**
  * Overall connection configuration for block nodes.<br/>
  *
@@ -90,4 +82,3 @@ message BlockNodeConnectionInfo {
      */
     repeated BlockNodeConfig nodes = 1;
 }
-
