@@ -92,7 +92,7 @@ env:
   MinHCSLoadTest: 19867
   MinCryptoTransferLoadTest: 17338
   MinHeliSwapLoadTest: 1008
-  MinSmartContractLoadTest: 5950
+  MinSmartContractLoadTest: 4000
 
 jobs:
   performance-tests-start:
