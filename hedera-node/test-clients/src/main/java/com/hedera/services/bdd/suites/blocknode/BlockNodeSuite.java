@@ -196,10 +196,10 @@ public class BlockNodeSuite {
                 doingContextual((spec) -> {
                     // Create a new block-nodes.json file at runtime with localhost and the correct port
                     final var node0Port = spec.getBlockNodePortById(0);
-                    List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
+                    final List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
                     blockNodes.add(
                             new com.hedera.node.internal.network.BlockNodeConfig("localhost", node0Port, 0, null));
-                    BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
+                    final BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
                     try {
                         // Write the config to this consensus node's block-nodes.json
                         final Path configPath = spec.getNetworkNodes()
