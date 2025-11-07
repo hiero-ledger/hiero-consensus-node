@@ -474,14 +474,6 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      * {@inheritDoc}
      */
     @Override
-    public void startProfiling(@NonNull final String outputFilename, @NonNull final ProfilerEvent... events) {
-        profiler.startProfiling(outputFilename, null, events);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void startProfiling(
             @NonNull final String outputFilename,
             @NonNull final Duration samplingInterval,

@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -26,7 +25,6 @@ public class ContainerProfiler {
     private static final Logger log = LogManager.getLogger();
 
     private static final ProfilerEvent[] DEFAULT_PROFILER_EVENTS = {ProfilerEvent.CPU, ProfilerEvent.ALLOCATION};
-    private static final Duration DEFAULT_SAMPLING_INTERVAL = Duration.ofMillis(10);
 
     /** The NodeId of the node being profiled. */
     private final NodeId selfId;
@@ -74,13 +72,13 @@ public class ContainerProfiler {
      */
     public void startProfiling(
             @NonNull final String outputFilename,
-            @Nullable final Duration samplingInterval,
+            @NonNull final Duration samplingInterval,
             @NonNull final ProfilerEvent... profilerEvents) {
         if (profilingOutputFilename != null) {
             throw new IllegalStateException("Profiling was already started.");
         }
         this.profilingOutputFilename = requireNonNull(outputFilename);
-        this.samplingInterval = samplingInterval == null ? DEFAULT_SAMPLING_INTERVAL : samplingInterval;
+        this.samplingInterval = requireNonNull(samplingInterval);
         this.profilerEvents = profilerEvents.length == 0 ? DEFAULT_PROFILER_EVENTS : profilerEvents;
 
         try {

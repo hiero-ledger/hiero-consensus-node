@@ -317,7 +317,9 @@ public interface Node {
      *               If empty, defaults to CPU and ALLOCATION profiling.
      * @throws UnsupportedOperationException if profiling is not supported in this environment
      */
-    void startProfiling(@NonNull String outputFile, @NonNull ProfilerEvent... events);
+    default void startProfiling(@NonNull final String outputFile, @NonNull final ProfilerEvent... events) {
+        startProfiling(outputFile, Duration.ofMillis(10L), events);
+    }
 
     /**
      * Starts Java Flight Recorder (JFR) profiling on this node with custom settings.
