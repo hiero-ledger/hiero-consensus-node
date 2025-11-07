@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
-import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -106,7 +105,6 @@ public class CryptoCreateSuite {
     }
 
     @HapiTest
-    @Tag(ADHOC)
     public Stream<DynamicTest> cantCreateTwoAccountsWithSameAlias() {
         final String ecKey = "ecKey";
         final String key1 = "key1";

@@ -44,15 +44,11 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -60,7 +56,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -1164,9 +1159,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      * @param runnable the code to run
      */
     private void runWithSnapshotExecutor(
-            final CountDownLatch countDownLatch,
-            final String taskName,
-            final Callable<Object> runnable) {
+            final CountDownLatch countDownLatch, final String taskName, final Callable<Object> runnable) {
         snapshotExecutor.submit(() -> {
             final long START = System.currentTimeMillis();
             try {
@@ -1193,9 +1186,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      * Write all hashes to hashStore
      */
     private void writeHashes(
-            final long maxValidPath,
-            @NonNull final Stream<VirtualHashChunk> dirtyHashes,
-            final boolean useCache)
+            final long maxValidPath, @NonNull final Stream<VirtualHashChunk> dirtyHashes, final boolean useCache)
             throws IOException {
         if (maxValidPath < 0) {
             // Empty store
