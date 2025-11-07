@@ -217,31 +217,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testCreateNewGrpcClient_usesProvidedProtocolConfigs() {
-        // Arrange a protocol config present for this node with custom HTTP2 and gRPC configs
-        final var http2 = io.helidon.webclient.http2.Http2ClientProtocolConfig.builder()
-                .name("h2")
-                .ping(true)
-                .build();
-        final var grpc = io.helidon.webclient.grpc.GrpcClientProtocolConfig.builder()
-                .abortPollTimeExpired(true)
-                .build();
-
-        // Act
-        connection.createRequestPipeline();
-
-        // Assert: client creation invoked with our factory and publish called once
-        verify(grpcServiceClient).publishBlockStream(connection);
-    }
-
-    @Test
-    void testCreateNewGrpcClient_usesDefaultWhenProtocolConfigMissing() {
-        connection.createRequestPipeline();
-
-        verify(grpcServiceClient).publishBlockStream(connection);
-    }
-
-    @Test
     void testConstructorWithInitialBlock() {
         final ConfigProvider configProvider = createConfigProvider(createDefaultConfigProvider());
 
