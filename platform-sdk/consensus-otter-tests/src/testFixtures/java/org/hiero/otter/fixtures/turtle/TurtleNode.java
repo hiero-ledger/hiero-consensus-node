@@ -10,6 +10,7 @@ import static org.assertj.core.api.Assertions.fail;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
+import static org.hiero.otter.fixtures.logging.context.NodeLoggingContext.logToConsole;
 import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
@@ -165,6 +166,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         try (final LoggingContextScope ignored = installNodeContext()) {
             throwIfInLifecycle(RUNNING, "Node has already been started.");
             throwIfInLifecycle(DESTROYED, "Node has already been destroyed.");
+
+            logToConsole(() -> log.info("Starting node {}...", selfId));
 
             // Log the startup message using the same STARTUP marker and message as production nodes
             // Uses a platform logger to ensure it routes through per-node appenders
@@ -505,6 +508,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * method is idempotent and can be called multiple times without any side effects.
      */
     void destroy() {
+        logToConsole(() -> log.info("Destroying node {}...", selfId));
+
         killImmediately();
 
         try (final LoggingContextScope ignored = installNodeContext()) {
@@ -519,6 +524,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     }
 
     private void handlePlatformStatusChange(@NonNull final PlatformStatus platformStatus) {
+        logToConsole(() -> log.info("Received platform status change from node {}: {}", selfId, platformStatus));
         this.platformStatus = requireNonNull(platformStatus);
         resultsCollector.addPlatformStatus(platformStatus);
     }
