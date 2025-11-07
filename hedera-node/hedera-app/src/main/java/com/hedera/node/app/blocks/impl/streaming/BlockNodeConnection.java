@@ -22,7 +22,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import io.helidon.common.tls.Tls;
 import io.helidon.webclient.api.WebClient;
 import io.helidon.webclient.grpc.GrpcClientProtocolConfig;
-import io.helidon.webclient.spi.ProtocolConfig;
 import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.time.Instant;
@@ -301,20 +300,14 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         final PbjGrpcClientConfig grpcConfig =
                 new PbjGrpcClientConfig(timeoutDuration, tls, Optional.of(""), "application/grpc");
 
-        final GrpcClientProtocolConfig grpcProtocolConfig = GrpcClientProtocolConfig.builder()
-                .abortPollTimeExpired(false)
-                .pollWaitTime(timeoutDuration)
-                .build();
-
-        final List<ProtocolConfig> protocolConfigs = new ArrayList<>();
-        protocolConfigs.add(grpcProtocolConfig);
-        // No additional HTTP/2 protocol config is applied.
-
         final WebClient webClient = WebClient.builder()
                 .baseUri("http://" + blockNodeProtocolConfig.blockNodeConfig().address() + ":"
                         + blockNodeProtocolConfig.blockNodeConfig().port())
                 .tls(tls)
-                .protocolConfigs(protocolConfigs)
+                .protocolConfigs(List.of(GrpcClientProtocolConfig.builder()
+                        .abortPollTimeExpired(false)
+                        .pollWaitTime(timeoutDuration)
+                        .build()))
                 .connectTimeout(timeoutDuration)
                 .build();
         if (logger.isDebugEnabled()) {
