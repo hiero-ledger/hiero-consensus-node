@@ -80,7 +80,11 @@ public class DefaultEventCreator implements EventCreatorModule {
 
     private PlatformStatusRule platformStatusRule;
 
-    private @NonNull DoubleGauge syncLagBehind;
+    private DoubleGauge syncLagBehind;
+
+    /**
+     * Utility class for computing median lag for sync.
+     */
     private SyncLagCalculator syncLagCalculator;
 
     /**

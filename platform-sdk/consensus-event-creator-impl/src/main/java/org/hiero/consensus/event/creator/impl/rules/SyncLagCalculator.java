@@ -13,6 +13,10 @@ import org.hiero.consensus.model.node.NodeId;
 // utility class to hold weight and lag in a map value
 record WeightAndLag(long weight, long lag) {}
 
+/**
+ * Utility class for calculating median lag compared to the current round reported by peers. Median is computed based on
+ * the weights of the nodes.
+ */
 public class SyncLagCalculator {
 
     /**
