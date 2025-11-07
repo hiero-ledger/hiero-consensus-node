@@ -18,8 +18,6 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import io.helidon.webclient.grpc.GrpcClientProtocolConfig;
-import io.helidon.webclient.http2.Http2ClientProtocolConfig;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URI;
@@ -33,7 +31,6 @@ import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -246,11 +243,7 @@ public class BlockNodeConnectionManager {
             final BlockNodeConnectionInfo protoConfig = BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(jsonConfig));
             List<BlockNodeProtocolConfig> nodes = new ArrayList<>();
             for (BlockNodeConfig nodeConfig : protoConfig.nodes()) {
-                nodes.add(new BlockNodeProtocolConfig(
-                        nodeConfig,
-                        extractOptionalHttp2ClientProtocolConfig(nodeConfig),
-                        extractOptionalGrpcClientProtocolConfig(nodeConfig),
-                        nodeConfig.maxMessageSizeBytes()));
+                nodes.add(new BlockNodeProtocolConfig(nodeConfig, null, null, nodeConfig.maxMessageSizeBytes()));
             }
             return nodes;
         } catch (final IOException | ParseException e) {
@@ -262,95 +255,7 @@ public class BlockNodeConnectionManager {
         }
     }
 
-    private Http2ClientProtocolConfig extractOptionalHttp2ClientProtocolConfig(BlockNodeConfig config) {
-        if (config.hasHttp2ClientProtocolConfig()) {
-            final com.hedera.node.internal.network.Http2ClientProtocolConfig protocolConfig =
-                    config.http2ClientProtocolConfig();
-            final Http2ClientProtocolConfig.Builder builder = Http2ClientProtocolConfig.builder();
-            if (protocolConfig != null) {
-                if (protocolConfig.flowControlBlockTimeout() != null) {
-                    try {
-                        final Duration flowControlBlockTimeout =
-                                Duration.parse(protocolConfig.flowControlBlockTimeout());
-                        builder.flowControlBlockTimeout(flowControlBlockTimeout);
-                    } catch (DateTimeParseException e) {
-                        logger.warn(
-                                "Unable to parse Http2ClientProtocolConfig flowControlBlockTimeout: {}",
-                                protocolConfig.flowControlBlockTimeout());
-                    }
-                }
-                if (protocolConfig.initialWindowSize() != null) {
-                    builder.initialWindowSize(protocolConfig.initialWindowSize());
-                }
-                if (protocolConfig.maxFrameSize() != null) {
-                    builder.maxFrameSize(protocolConfig.maxFrameSize());
-                }
-                if (protocolConfig.maxHeaderListSize() != null) {
-                    builder.maxHeaderListSize(protocolConfig.maxHeaderListSize());
-                }
-                if (protocolConfig.name() != null) {
-                    builder.name(protocolConfig.name());
-                }
-                if (protocolConfig.ping() != null) {
-                    builder.ping(protocolConfig.ping());
-                }
-                if (protocolConfig.pingTimeout() != null) {
-                    try {
-                        final Duration pingTimeout = Duration.parse(protocolConfig.pingTimeout());
-                        builder.pingTimeout(pingTimeout);
-                    } catch (DateTimeParseException e) {
-                        logger.warn(
-                                "Unable to parse Http2ClientProtocolConfig pingTimeout: {}",
-                                protocolConfig.pingTimeout());
-                    }
-                }
-                if (protocolConfig.priorKnowledge() != null) {
-                    builder.priorKnowledge(protocolConfig.priorKnowledge());
-                }
-            }
-            return builder.build();
-        }
-        return null;
-    }
-
-    private GrpcClientProtocolConfig extractOptionalGrpcClientProtocolConfig(BlockNodeConfig config) {
-        if (config.hasGrpcClientProtocolConfig()) {
-            final com.hedera.node.internal.network.GrpcClientProtocolConfig protocolConfig =
-                    config.grpcClientProtocolConfig();
-            final GrpcClientProtocolConfig.Builder builder = GrpcClientProtocolConfig.builder();
-            if (protocolConfig != null) {
-                if (protocolConfig.abortPollTimeExpired() != null) {
-                    builder.abortPollTimeExpired(protocolConfig.abortPollTimeExpired());
-                }
-                if (protocolConfig.heartbeatPeriod() != null) {
-                    try {
-                        builder.heartbeatPeriod(Duration.parse(protocolConfig.heartbeatPeriod()));
-                    } catch (DateTimeParseException e) {
-                        logger.warn(
-                                "Unable to parse GrpcClientProtocolConfig heartbeatPeriod: {}",
-                                protocolConfig.heartbeatPeriod());
-                    }
-                }
-                if (protocolConfig.initBufferSize() != null) {
-                    builder.initBufferSize(protocolConfig.initBufferSize());
-                }
-                if (protocolConfig.name() != null) {
-                    builder.name(protocolConfig.name());
-                }
-                if (protocolConfig.pollWaitTime() != null) {
-                    try {
-                        builder.pollWaitTime(Duration.parse(protocolConfig.pollWaitTime()));
-                    } catch (DateTimeParseException e) {
-                        logger.warn(
-                                "Unable to parse GrpcClientProtocolConfig pollWaitTime: {}",
-                                protocolConfig.pollWaitTime());
-                    }
-                }
-            }
-            return builder.build();
-        }
-        return null;
-    }
+    // Protocol-specific configs have been removed from the proto for now; only maxMessageSizeBytes is honored.
 
     /**
      * Checks if there is only one block node configured.

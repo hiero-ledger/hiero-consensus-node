@@ -61,22 +61,10 @@ message BlockNodeConfig {
     int32 priority = 3;
 
     /**
-     * Optional HTTP/2 client protocol configuration for this block node connection.
-     * If present, these settings SHALL override defaults when creating the WebClient.
-     */
-    Http2ClientProtocolConfig http2ClientProtocolConfig = 4;
-
-    /**
-     * Optional Grpc client protocol configuration for this block node connection.
-     * If present, these settings SHALL override defaults when creating the WebClient.
-     */
-    GrpcClientProtocolConfig grpcClientProtocolConfig = 5;
-
-    /**
      * Optional maximum message size in bytes that the client will send to the block node.
      * If present, this value SHALL override the default maximum message size.
      */
-    google.protobuf.UInt32Value maxMessageSizeBytes = 6;
+    google.protobuf.UInt32Value maxMessageSizeBytes = 4;
 }
 
 

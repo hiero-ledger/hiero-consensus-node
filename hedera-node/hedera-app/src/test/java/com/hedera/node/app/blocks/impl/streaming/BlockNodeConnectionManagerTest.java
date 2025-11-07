@@ -80,7 +80,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private static final MethodHandle refreshAvailableBlockNodesHandle;
     private static final MethodHandle extractBlockNodesConfigurationsHandle;
     private static final MethodHandle scheduleConnectionAttemptHandle;
-    private static final MethodHandle extractOptionalGrpcClientProtocolConfigHandle;
 
     public static final String PBJ_UNIT_TEST_HOST = "pbj-unit-test-host";
 
@@ -134,11 +133,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                     boolean.class);
             scheduleConnectionAttempt.setAccessible(true);
             scheduleConnectionAttemptHandle = lookup.unreflect(scheduleConnectionAttempt);
-
-            final Method extractOptionalGrpcClientProtocolConfig = BlockNodeConnectionManager.class.getDeclaredMethod(
-                    "extractOptionalGrpcClientProtocolConfig", BlockNodeConfig.class);
-            extractOptionalGrpcClientProtocolConfig.setAccessible(true);
-            extractOptionalGrpcClientProtocolConfigHandle = lookup.unreflect(extractOptionalGrpcClientProtocolConfig);
         } catch (final Exception e) {
             throw new RuntimeException(e);
         }
@@ -1022,7 +1016,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final Map<BlockNodeProtocolConfig, BlockNodeConnection> connections = connections();
         final List<BlockNodeProtocolConfig> availableNodes = availableNodes();
 
-        final BlockNodeConfig newConnectionConfig = new BlockNodeConfig("::1", 50211, 1, null, null, null);
+        final BlockNodeConfig newConnectionConfig = BlockNodeConfig.newBuilder()
+                .address("::1")
+                .port(50211)
+                .priority(1)
+                .build();
         final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
         doReturn(newConnectionConfig).when(newConnection).getNodeConfig();
 
@@ -1043,8 +1041,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final Map<BlockNodeProtocolConfig, BlockNodeConnection> connections = connections();
         final List<BlockNodeProtocolConfig> availableNodes = availableNodes();
 
-        final BlockNodeConfig newConnectionConfig =
-                new BlockNodeConfig("invalid.hostname.for.test", 50211, 1, null, null, null);
+        final BlockNodeConfig newConnectionConfig = BlockNodeConfig.newBuilder()
+                .address("invalid.hostname.for.test")
+                .port(50211)
+                .priority(1)
+                .build();
         final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
         doReturn(newConnectionConfig).when(newConnection).getNodeConfig();
 
@@ -1110,21 +1111,21 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     void testPriorityBasedSelection_multiplePriority0Nodes_randomSelection() {
         // Setup: Create multiple nodes with priority 0 and some with lower priorities
         final List<BlockNodeConfig> blockNodes = List.of(
-                new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 0, null, null, null), // Priority 0
-                new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8081, 0, null, null, null), // Priority 0
-                new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8082, 0, null, null, null), // Priority 0
-                new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8083, 0, null, null, null), // Priority 0
-                new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8084, 0, null, null, null), // Priority 0
-                new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8085, 0, null, null, null), // Priority 0
-                new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8086, 0, null, null, null), // Priority 0
-                new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8087, 0, null, null, null), // Priority 0
-                new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8088, 0, null, null, null), // Priority 0
-                new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8089, 0, null, null, null), // Priority 0
-                new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8090, 1, null, null, null), // Priority 1
-                new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8091, 2, null, null, null), // Priority 2
-                new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8092, 2, null, null, null), // Priority 2
-                new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8093, 3, null, null, null), // Priority 3
-                new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8094, 3, null, null, null) // Priority 3
+                newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 0), // Priority 0
+                newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8081, 0), // Priority 0
+                newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8082, 0), // Priority 0
+                newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8083, 0), // Priority 0
+                newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8084, 0), // Priority 0
+                newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8085, 0), // Priority 0
+                newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8086, 0), // Priority 0
+                newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8087, 0), // Priority 0
+                newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8088, 0), // Priority 0
+                newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8089, 0), // Priority 0
+                newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8090, 1), // Priority 1
+                newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8091, 2), // Priority 2
+                newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8092, 2), // Priority 2
+                newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8093, 3), // Priority 3
+                newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8094, 3) // Priority 3
                 );
 
         // Track which priority 0 nodes get selected over multiple runs
@@ -1169,9 +1170,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     void testPriorityBasedSelection_onlyLowerPriorityNodesAvailable() {
         // Setup: All priority 0 nodes are unavailable, only lower priority nodes available
         final List<BlockNodeConfig> blockNodes = List.of(
-                new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1, null, null, null), // Priority 1
-                new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8081, 2, null, null, null), // Priority 2
-                new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8082, 3, null, null, null) // Priority 3
+                newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1), // Priority 1
+                newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8081, 2), // Priority 2
+                newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8082, 3) // Priority 3
                 );
 
         createConnectionManager(blockNodes);
@@ -1195,11 +1196,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     void testPriorityBasedSelection_mixedPrioritiesWithSomeUnavailable() {
         // Setup: Mix of priorities where some priority 0 nodes are already connected
         final List<BlockNodeConfig> allBlockNodes = List.of(
-                new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 0, null, null, null), // Priority 0 - will be unavailable
-                new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8081, 0, null, null, null), // Priority 0 - available
-                new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8082, 0, null, null, null), // Priority 0 - available
-                new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8083, 1, null, null, null), // Priority 1
-                new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8084, 2, null, null, null) // Priority 2
+                newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 0), // Priority 0 - will be unavailable
+                newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8081, 0), // Priority 0 - available
+                newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8082, 0), // Priority 0 - available
+                newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8083, 1), // Priority 1
+                newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8084, 2) // Priority 2
                 );
 
         createConnectionManager(allBlockNodes);
@@ -1233,11 +1234,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     void testPriorityBasedSelection_allPriority0NodesUnavailable() {
         // Setup: All priority 0 nodes are connected, lower priority nodes available
         final List<BlockNodeConfig> allBlockNodes = List.of(
-                new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 0, null, null, null), // Priority 0 - unavailable
-                new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8081, 0, null, null, null), // Priority 0 - unavailable
-                new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8082, 1, null, null, null), // Priority 1 - available
-                new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8083, 1, null, null, null), // Priority 1 - available
-                new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8084, 2, null, null, null) // Priority 2 - available
+                newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 0), // Priority 0 - unavailable
+                newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8081, 0), // Priority 0 - unavailable
+                newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8082, 1), // Priority 1 - available
+                newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8083, 1), // Priority 1 - available
+                newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8084, 2) // Priority 2 - available
                 );
 
         createConnectionManager(allBlockNodes);
@@ -1451,23 +1452,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 + "      \"address\": \"localhost\",\n"
                 + "      \"port\": 50051,\n"
                 + "      \"priority\": 1,\n"
-                + "      \"http2ClientProtocolConfig\": {\n"
-                + "        \"flowControlBlockTimeout\": \"PT1S\",\n"
-                + "        \"initialWindowSize\": 12345,\n"
-                + "        \"maxFrameSize\": 16384,\n"
-                + "        \"maxHeaderListSize\": \"-1\",\n"
-                + "        \"name\": \"h2\",\n"
-                + "        \"ping\": true,\n"
-                + "        \"pingTimeout\": \"PT0.5S\",\n"
-                + "        \"priorKnowledge\": false\n"
-                + "      },\n"
-                + "      \"grpcClientProtocolConfig\": {\n"
-                + "        \"abortPollTimeExpired\": false,\n"
-                + "        \"heartbeatPeriod\": \"PT0S\",\n"
-                + "        \"initBufferSize\": 1024,\n"
-                + "        \"name\": \"grpc\",\n"
-                + "        \"pollWaitTime\": \"PT10S\"\n"
-                + "      },\n"
                 + "      \"maxMessageSizeBytes\": 1500000\n"
                 + "    }\n"
                 + "  ]\n"
@@ -1480,86 +1464,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(configs).hasSize(1);
 
         final BlockNodeProtocolConfig protocol = configs.getFirst();
-        assertThat(protocol.http2ClientProtocolConfig()).isNotNull();
-        assertThat(protocol.grpcClientProtocolConfig()).isNotNull();
+        assertThat(protocol.http2ClientProtocolConfig()).isNull();
+        assertThat(protocol.grpcClientProtocolConfig()).isNull();
         assertThat(protocol.maxMessageSizeBytes()).isEqualTo(1_500_000);
-    }
-
-    @Test
-    void testExtractOptionalGrpcClientProtocolConfig_noConfigReturnsNull() throws Throwable {
-        final BlockNodeConfig node = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 50051, 1);
-        final Object result = extractOptionalGrpcClientProtocolConfigHandle.invoke(connectionManager, node);
-        assertThat(result).isNull();
-    }
-
-    @Test
-    void testExtractOptionalGrpcClientProtocolConfig_withValidValues() throws Throwable {
-        final String json = "{\n"
-                + "  \"nodes\": [\n"
-                + "    {\n"
-                + "      \"address\": \"localhost\",\n"
-                + "      \"port\": 50051,\n"
-                + "      \"priority\": 1,\n"
-                + "      \"grpcClientProtocolConfig\": {\n"
-                + "        \"abortPollTimeExpired\": true,\n"
-                + "        \"heartbeatPeriod\": \"PT5S\",\n"
-                + "        \"initBufferSize\": 2048,\n"
-                + "        \"name\": \"grpc\",\n"
-                + "        \"pollWaitTime\": \"PT2S\"\n"
-                + "      }\n"
-                + "    }\n"
-                + "  ]\n"
-                + "}";
-
-        final BlockNodeConnectionInfo info =
-                BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(json.getBytes(StandardCharsets.UTF_8)));
-        final BlockNodeConfig node = info.nodes().getFirst();
-
-        final Object obj = extractOptionalGrpcClientProtocolConfigHandle.invoke(connectionManager, node);
-        assertThat(obj).isInstanceOf(io.helidon.webclient.grpc.GrpcClientProtocolConfig.class);
-        final io.helidon.webclient.grpc.GrpcClientProtocolConfig cfg =
-                (io.helidon.webclient.grpc.GrpcClientProtocolConfig) obj;
-
-        assertThat(cfg.abortPollTimeExpired()).isTrue();
-        assertThat(cfg.heartbeatPeriod()).isEqualTo(Duration.parse("PT5S"));
-        assertThat(cfg.initBufferSize()).isEqualTo(2048);
-        assertThat(cfg.name()).isEqualTo("grpc");
-        assertThat(cfg.pollWaitTime()).isEqualTo(Duration.parse("PT2S"));
-    }
-
-    @Test
-    void testExtractOptionalGrpcClientProtocolConfig_invalidDurations_doNotThrow() throws Throwable {
-        final String json = "{\n"
-                + "  \"nodes\": [\n"
-                + "    {\n"
-                + "      \"address\": \"localhost\",\n"
-                + "      \"port\": 50052,\n"
-                + "      \"priority\": 1,\n"
-                + "      \"grpcClientProtocolConfig\": {\n"
-                + "        \"abortPollTimeExpired\": false,\n"
-                + "        \"heartbeatPeriod\": \"not-a-duration\",\n"
-                + "        \"initBufferSize\": 4096,\n"
-                + "        \"name\": \"g\",\n"
-                + "        \"pollWaitTime\": \"also-bad\"\n"
-                + "      }\n"
-                + "    }\n"
-                + "  ]\n"
-                + "}";
-
-        final BlockNodeConnectionInfo info =
-                BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(json.getBytes(StandardCharsets.UTF_8)));
-        final BlockNodeConfig node = info.nodes().getFirst();
-
-        final Object obj = extractOptionalGrpcClientProtocolConfigHandle.invoke(connectionManager, node);
-        assertThat(obj).isInstanceOf(io.helidon.webclient.grpc.GrpcClientProtocolConfig.class);
-        final io.helidon.webclient.grpc.GrpcClientProtocolConfig cfg =
-                (io.helidon.webclient.grpc.GrpcClientProtocolConfig) obj;
-
-        // Non-duration fields should still be applied; invalid durations are ignored internally
-        assertThat(cfg.abortPollTimeExpired()).isFalse();
-        assertThat(cfg.initBufferSize()).isEqualTo(4096);
-        assertThat(cfg.name()).isEqualTo("g");
-        // Do not assert heartbeatPeriod/pollWaitTime values; branch exercised by invalid inputs
     }
 
     @Test
@@ -2028,7 +1935,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final byte[] jsonConfig = Files.readAllBytes(dirPath);
         final BlockNodeConnectionInfo protoConfig = BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(jsonConfig));
         assertThat(protoConfig).isNotNull();
-        assertThat(protoConfig.nodes().getFirst().hasHttp2ClientProtocolConfig())
-                .isTrue();
+        assertThat(protoConfig.nodes().getFirst().maxMessageSizeBytes()).isNotNull();
     }
 }
