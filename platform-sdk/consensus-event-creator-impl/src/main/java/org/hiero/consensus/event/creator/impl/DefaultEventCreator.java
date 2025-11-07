@@ -20,7 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.base.annotations.DefaultImplementation;
-import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.base.crypto.BytesSigner;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.FutureEventBufferingOption;
 import org.hiero.consensus.event.creator.EventCreationConfig;
@@ -35,7 +35,6 @@ import org.hiero.consensus.event.creator.impl.rules.SyncLagRule;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -81,7 +80,7 @@ public class DefaultEventCreator implements EventCreatorModule {
 
     /**
      * Default constructor required by service loader.
-     * {@link #initialize(Configuration, Metrics, Time, SecureRandom, KeysAndCerts, Roster, NodeId,
+     * {@link #initialize(Configuration, Metrics, Time, SecureRandom, BytesSigner, Roster, NodeId,
      * EventTransactionSupplier, SignatureTransactionCheck)} must be called before use.
      */
     public DefaultEventCreator() {}
@@ -92,7 +91,7 @@ public class DefaultEventCreator implements EventCreatorModule {
             @NonNull final Metrics metrics,
             @NonNull final Time time,
             @NonNull final SecureRandom random,
-            @NonNull final KeysAndCerts keysAndCerts,
+            @NonNull final BytesSigner signer,
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
             @NonNull final EventTransactionSupplier transactionSupplier,
@@ -102,14 +101,7 @@ public class DefaultEventCreator implements EventCreatorModule {
         }
 
         final EventCreator eventCreator = new TipsetEventCreator(
-                configuration,
-                metrics,
-                time,
-                random,
-                data -> new PlatformSigner(keysAndCerts).sign(data),
-                roster,
-                selfId,
-                transactionSupplier);
+                configuration, metrics, time, random, signer, roster, selfId, transactionSupplier);
         this.initialize(configuration, metrics, time, signatureTransactionCheck, eventCreator);
     }
 

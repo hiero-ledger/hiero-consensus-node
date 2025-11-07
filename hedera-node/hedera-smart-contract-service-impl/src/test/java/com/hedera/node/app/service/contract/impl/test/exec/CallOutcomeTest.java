@@ -54,7 +54,7 @@ class CallOutcomeTest {
                 null,
                 null,
                 null);
-        abortedCall.addCallDetailsTo(contractCallRecordBuilder, context);
+        abortedCall.addCallDetailsTo(contractCallRecordBuilder, context, entityIdFactory);
         verify(contractCallRecordBuilder).contractCallResult(any());
     }
 
@@ -70,7 +70,7 @@ class CallOutcomeTest {
                 null,
                 null,
                 null,
-                SUCCESS_RESULT.asEvmTxResultOf(null, null),
+                SUCCESS_RESULT.asEvmTxResultOf(null, null, null),
                 SUCCESS_RESULT.signerNonce(),
                 Bytes.EMPTY,
                 null);
@@ -88,7 +88,7 @@ class CallOutcomeTest {
                 null,
                 null,
                 null,
-                SUCCESS_RESULT.asEvmTxResultOf(null, null),
+                SUCCESS_RESULT.asEvmTxResultOf(null, null, null),
                 SUCCESS_RESULT.signerNonce(),
                 null,
                 null);
@@ -106,7 +106,7 @@ class CallOutcomeTest {
                 null,
                 null,
                 null,
-                SUCCESS_RESULT.asEvmTxResultOf(null, null),
+                SUCCESS_RESULT.asEvmTxResultOf(null, null, null),
                 SUCCESS_RESULT.signerNonce(),
                 null,
                 null);

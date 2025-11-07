@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.InstrumentedNode;
+import org.hiero.otter.fixtures.internal.NetworkConfiguration;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContextScope;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
@@ -42,8 +43,9 @@ public class InstrumentedTurtleNode extends TurtleNode implements InstrumentedNo
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final SimulatedNetwork network,
             @NonNull final TurtleLogging logging,
-            @NonNull final Path outputDirectory) {
-        super(randotron, timeManager, selfId, keysAndCerts, network, logging, outputDirectory);
+            @NonNull final Path outputDirectory,
+            @NonNull final NetworkConfiguration networkConfiguration) {
+        super(randotron, timeManager, selfId, keysAndCerts, network, logging, outputDirectory, networkConfiguration);
         configuration().set(ModuleConfig_.EVENT_CREATOR_MODULE, INSTRUMENTED_EVENT_CREATOR);
     }
 

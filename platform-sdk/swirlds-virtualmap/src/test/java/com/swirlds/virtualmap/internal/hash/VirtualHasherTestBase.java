@@ -109,7 +109,7 @@ public class VirtualHasherTestBase extends VirtualTestBase {
 
         // This has to match VirtualHasher
         md.reset();
-        md.update((byte) 0x02);
+        md.update(rightHash == null ? (byte) 0x01 : (byte) 0x02);
         leftHash.getBytes().writeTo(md);
         if (rightHash != null) {
             rightHash.getBytes().writeTo(md);

@@ -49,7 +49,6 @@ public class ContainerNetwork extends AbstractNetwork {
 
     private ToxiproxyContainer toxiproxyContainer;
     private NetworkBehavior networkBehavior;
-    private boolean restartNodesOnSelfShutdown;
 
     /**
      * Constructor for {@link ContainerNetwork}.
@@ -109,8 +108,8 @@ public class ContainerNetwork extends AbstractNetwork {
     @NonNull
     protected ContainerNode doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
-        final ContainerNode node =
-                new ContainerNode(nodeId, timeManager, keysAndCerts, network, dockerImage, outputDir);
+        final ContainerNode node = new ContainerNode(
+                nodeId, timeManager, keysAndCerts, network, dockerImage, outputDir, networkConfiguration);
         timeManager.addTimeTickReceiver(node);
         return node;
     }
@@ -124,7 +123,7 @@ public class ContainerNetwork extends AbstractNetwork {
             @NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         final InstrumentedContainerNode node = new InstrumentedContainerNode(
-                nodeId, timeManager, keysAndCerts, network, instrumentedDockerImage, outputDir);
+                nodeId, timeManager, keysAndCerts, network, instrumentedDockerImage, outputDir, networkConfiguration);
         timeManager.addTimeTickReceiver(node);
         return node;
     }

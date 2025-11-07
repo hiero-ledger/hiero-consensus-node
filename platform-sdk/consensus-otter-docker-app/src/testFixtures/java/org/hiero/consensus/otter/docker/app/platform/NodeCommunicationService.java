@@ -7,6 +7,7 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.internal.helpers.Utils.createConfiguration;
 
+import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -161,9 +162,6 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
 
         consensusNodeManager.registerConsensusRoundListener(
                 rounds -> dispatcher.enqueue(EventMessageFactory.fromConsensusRounds(rounds)));
-
-        consensusNodeManager.registerMarkerFileListener(
-                markerFiles -> dispatcher.enqueue(EventMessageFactory.fromMarkerFiles(markerFiles)));
     }
 
     /**
@@ -215,10 +213,15 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
         }
 
         wrapWithErrorHandling(responseObserver, () -> {
-            final boolean result =
-                    consensusNodeManager.submitTransaction(request.getPayload().toByteArray());
-            responseObserver.onNext(
-                    TransactionRequestAnswer.newBuilder().setResult(result).build());
+            int numFailed = 0;
+            for (final ByteString payload : request.getPayloadList()) {
+                if (!consensusNodeManager.submitTransaction(payload.toByteArray())) {
+                    numFailed++;
+                }
+            }
+            responseObserver.onNext(TransactionRequestAnswer.newBuilder()
+                    .setNumFailed(numFailed)
+                    .build());
             responseObserver.onCompleted();
         });
     }

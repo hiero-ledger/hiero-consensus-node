@@ -10,7 +10,7 @@ import java.util.Objects;
  * A simple linked-list of "mutations" for a bucket.
  *     The key.
  */
-class BucketMutation {
+final class BucketMutation {
 
     private final Bytes keyBytes;
     private final int keyHashCode;
@@ -93,38 +93,23 @@ class BucketMutation {
         return size;
     }
 
-    // For testing purposes
+    Bytes getKeyBytes() {
+        return keyBytes;
+    }
+
+    int getKeyHashCode() {
+        return keyHashCode;
+    }
+
     long getValue() {
         return value;
     }
 
-    // For testing purposes
     long getOldValue() {
         return oldValue;
     }
 
-    // For testing purposes
     BucketMutation getNext() {
         return next;
-    }
-
-    /**
-     * Visit each mutation in the list, starting from this mutation.
-     * @param consumer
-     * 		The callback. Cannot be null.
-     */
-    void forEachKeyValue(MutationCallback consumer) {
-        BucketMutation mutation = this;
-        while (mutation != null) {
-            consumer.accept(mutation.keyBytes, mutation.keyHashCode, mutation.oldValue, mutation.value);
-            mutation = mutation.next;
-        }
-    }
-
-    /**
-     * A simple callback for {@link BucketMutation#forEachKeyValue(MutationCallback)}.
-     */
-    interface MutationCallback {
-        void accept(final Bytes keyBytes, final int keyHashCode, final long oldValue, final long value);
     }
 }

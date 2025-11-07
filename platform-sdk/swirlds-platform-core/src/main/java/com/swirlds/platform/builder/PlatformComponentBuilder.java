@@ -386,10 +386,7 @@ public class PlatformComponentBuilder {
     @NonNull
     public OrphanBuffer buildOrphanBuffer() {
         if (orphanBuffer == null) {
-            orphanBuffer = new DefaultOrphanBuffer(
-                    blocks.platformContext().getConfiguration(),
-                    blocks.platformContext().getMetrics(),
-                    blocks.intakeEventCounter());
+            orphanBuffer = new DefaultOrphanBuffer(blocks.platformContext().getMetrics(), blocks.intakeEventCounter());
         }
         return orphanBuffer;
     }
@@ -454,7 +451,7 @@ public class PlatformComponentBuilder {
                 blocks.platformContext().getMetrics(),
                 blocks.platformContext().getTime(),
                 blocks.secureRandomSupplier().get(),
-                blocks.keysAndCerts(),
+                new PlatformSigner(blocks.keysAndCerts()),
                 blocks.rosterHistory().getCurrentRoster(),
                 blocks.selfId(),
                 blocks.execution(),
@@ -818,12 +815,11 @@ public class PlatformComponentBuilder {
                     blocks.appVersion(),
                     blocks.swirldStateManager(),
                     () -> blocks.getLatestCompleteStateReference().get().get(),
-                    x -> blocks.statusActionSubmitterReference().get().submitStatusAction(x),
-                    state -> blocks.loadReconnectStateReference().get().accept(state),
-                    () -> blocks.clearAllPipelinesForReconnectReference().get().run(),
                     blocks.intakeEventCounter(),
                     blocks.platformStateFacade(),
-                    blocks.createStateFromVirtualMap());
+                    blocks.createStateFromVirtualMap(),
+                    blocks.fallenBehindMonitor(),
+                    blocks.reservedSignedStateResultPromise());
         }
         return gossip;
     }
@@ -1058,7 +1054,9 @@ public class PlatformComponentBuilder {
                     blocks.swirldStateManager(),
                     blocks.statusActionSubmitterReference().get(),
                     blocks.appVersion(),
-                    blocks.platformStateFacade());
+                    blocks.platformStateFacade(),
+                    blocks.consensusStateEventHandler(),
+                    blocks.selfId());
         }
         return transactionHandler;
     }
