@@ -73,9 +73,9 @@ public class BlockStreamEventBuilder {
     }
 
     /**
-     * Events included in the event hash have a nonce of zero and is not a scheduled transaction. Other transactions
-     * (e.g. synthetic transactions) have a non-zero nonce and must not be included in the event to calculate
-     * the correct event hash.
+     * Transactions included in the event hash have a nonce of zero and are not scheduled transactions. Other
+     * transactions (e.g. synthetic transactions) have a non-zero nonce and must not be included in the event to
+     * calculate the correct event hash.
      *
      * @param transactionBytes the signed transaction bytes to check
      * @return true if the transaction should be included in the event, false otherwise
@@ -299,7 +299,7 @@ public class BlockStreamEventBuilder {
                     break;
 
                 default:
-                    // Unknown parent reference type, skip
+                    fail("Unknown parent reference kind: %s", parentRef.parent().kind());
                     break;
             }
         }

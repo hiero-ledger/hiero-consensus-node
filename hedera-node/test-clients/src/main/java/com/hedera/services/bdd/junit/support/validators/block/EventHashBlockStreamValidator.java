@@ -30,7 +30,8 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
     private static final Logger logger = LogManager.getLogger();
 
     /**
-     * A main method to run a standalone validation of the block stream against the record stream in this project.
+     * A main method to run a standalone validation of the block stream files produced by HAPI tests in their default
+     * location.
      *
      * @param args unused
      * @throws IOException if there is an error reading the block or record streams
