@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.blocks.BlockStreamManager.ZERO_BLOCK_HASH;
+import static com.hedera.node.app.quiescence.QuiescenceUtils.isRelevantTransaction;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.nodeSignedTxWith;
 import static com.hedera.node.app.util.HederaAsciiArt.HEDERA;
