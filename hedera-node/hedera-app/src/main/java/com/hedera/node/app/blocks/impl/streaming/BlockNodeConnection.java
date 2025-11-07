@@ -1063,10 +1063,13 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         private int itemIndex = 0;
         private BlockState block;
         private long lastSendTimeMillis = -1;
-        private int maxBytesPerRequest = 0;
+        private final int maxBytesPerRequest;
         private final AtomicInteger requestCtr = new AtomicInteger(1);
 
-        public ConnectionWorkerLoopTask() {
+        /**
+         * Constructor for the worker loop task.
+         */
+        ConnectionWorkerLoopTask() {
             if (blockNodeProtocolConfig.maxMessageSizeBytes() != null) {
                 this.maxBytesPerRequest = blockNodeProtocolConfig.maxMessageSizeBytes();
             } else {

@@ -204,7 +204,7 @@ public class BlockNodeConnectionManager {
     private String blockNodeConnectionFileDir() {
         return configProvider
                 .getConfiguration()
-                .getConfigData(com.hedera.node.config.data.BlockNodeConnectionConfig.class)
+                .getConfigData(BlockNodeConnectionConfig.class)
                 .blockNodeConnectionFileDir();
     }
 
@@ -214,14 +214,14 @@ public class BlockNodeConnectionManager {
     private Duration expBackoffTimeframeReset() {
         return configProvider
                 .getConfiguration()
-                .getConfigData(com.hedera.node.config.data.BlockNodeConnectionConfig.class)
+                .getConfigData(BlockNodeConnectionConfig.class)
                 .protocolExpBackoffTimeframeReset();
     }
 
     private Duration maxBackoffDelay() {
         return configProvider
                 .getConfiguration()
-                .getConfigData(com.hedera.node.config.data.BlockNodeConnectionConfig.class)
+                .getConfigData(BlockNodeConnectionConfig.class)
                 .maxBackoffDelay();
     }
 
@@ -233,6 +233,7 @@ public class BlockNodeConnectionManager {
      */
     private List<BlockNodeProtocolConfig> extractBlockNodesConfigurations(@NonNull final String blockNodeConfigPath) {
         final Path configPath = Paths.get(blockNodeConfigPath, BLOCK_NODES_FILE_NAME);
+        final List<BlockNodeProtocolConfig> nodes = new ArrayList<>();
         try {
             if (!Files.exists(configPath)) {
                 logger.info("Block node configuration file does not exist: {}", configPath);
@@ -241,18 +242,16 @@ public class BlockNodeConnectionManager {
 
             final byte[] jsonConfig = Files.readAllBytes(configPath);
             final BlockNodeConnectionInfo protoConfig = BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(jsonConfig));
-            List<BlockNodeProtocolConfig> nodes = new ArrayList<>();
             for (BlockNodeConfig nodeConfig : protoConfig.nodes()) {
                 nodes.add(new BlockNodeProtocolConfig(nodeConfig, nodeConfig.maxMessageSizeBytes()));
             }
-            return nodes;
         } catch (final IOException | ParseException e) {
             logger.info(
                     "Failed to read or parse block node configuration from {}. Continuing without block node connections.",
                     configPath,
                     e);
-            return List.of();
         }
+        return nodes;
     }
 
     // Protocol-specific configs have been removed from the proto for now; only maxMessageSizeBytes is honored.
@@ -396,10 +395,10 @@ public class BlockNodeConnectionManager {
     private void closeAllConnections() {
         logger.debug("Stopping block node connections");
         // Close all connections
-        final Iterator<Map.Entry<BlockNodeProtocolConfig, BlockNodeConnection>> it =
+        final Iterator<Map.Entry<BlockNodeProtocolConfig, BlockNodeConnection>> iterator =
                 connections.entrySet().iterator();
-        while (it.hasNext()) {
-            final Map.Entry<BlockNodeProtocolConfig, BlockNodeConnection> entry = it.next();
+        while (iterator.hasNext()) {
+            final Map.Entry<BlockNodeProtocolConfig, BlockNodeConnection> entry = iterator.next();
             final BlockNodeConnection connection = entry.getValue();
             try {
                 connection.close(true);
@@ -409,7 +408,7 @@ public class BlockNodeConnectionManager {
                         connection,
                         e);
             }
-            it.remove();
+            iterator.remove();
         }
     }
 
@@ -493,8 +492,8 @@ public class BlockNodeConnectionManager {
         }
 
         final SortedMap<Integer, List<BlockNodeProtocolConfig>> priorityGroups = snapshot.stream()
-                .collect(Collectors.groupingBy(
-                        config -> config.blockNodeConfig().priority(), TreeMap::new, Collectors.toList()));
+                .collect(
+                        Collectors.groupingBy(config -> config.blockNodeConfig().priority(), TreeMap::new, toList()));
 
         BlockNodeProtocolConfig selectedNode = null;
 
@@ -895,7 +894,7 @@ public class BlockNodeConnectionManager {
     public Duration getEndOfStreamScheduleDelay() {
         return configProvider
                 .getConfiguration()
-                .getConfigData(com.hedera.node.config.data.BlockNodeConnectionConfig.class)
+                .getConfigData(BlockNodeConnectionConfig.class)
                 .endOfStreamScheduleDelay();
     }
 
@@ -907,7 +906,7 @@ public class BlockNodeConnectionManager {
     public Duration getEndOfStreamTimeframe() {
         return configProvider
                 .getConfiguration()
-                .getConfigData(com.hedera.node.config.data.BlockNodeConnectionConfig.class)
+                .getConfigData(BlockNodeConnectionConfig.class)
                 .endOfStreamTimeFrame();
     }
 
@@ -926,7 +925,7 @@ public class BlockNodeConnectionManager {
     public int getMaxEndOfStreamsAllowed() {
         return configProvider
                 .getConfiguration()
-                .getConfigData(com.hedera.node.config.data.BlockNodeConnectionConfig.class)
+                .getConfigData(BlockNodeConnectionConfig.class)
                 .maxEndOfStreamsAllowed();
     }
 
@@ -948,14 +947,14 @@ public class BlockNodeConnectionManager {
     private Duration getHighLatencyThreshold() {
         return configProvider
                 .getConfiguration()
-                .getConfigData(com.hedera.node.config.data.BlockNodeConnectionConfig.class)
+                .getConfigData(BlockNodeConnectionConfig.class)
                 .highLatencyThreshold();
     }
 
     private int getHighLatencyEventsBeforeSwitching() {
         return configProvider
                 .getConfiguration()
-                .getConfigData(com.hedera.node.config.data.BlockNodeConnectionConfig.class)
+                .getConfigData(BlockNodeConnectionConfig.class)
                 .highLatencyEventsBeforeSwitching();
     }
 
