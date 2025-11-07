@@ -60,6 +60,15 @@ public class FeeScheduleUtils {
         return null;
     }
 
+    public static ExtraFeeDefinition lookupExtraFee(FeeSchedule feeSchedule, Extra ref) {
+        for (ExtraFeeDefinition def : feeSchedule.extras()) {
+            if (def.name().equals(ref)) {
+                return def;
+            }
+        }
+        return null;
+    }
+
     /** Lookup a service fee */
     public static ServiceFeeDefinition lookupServiceFee(FeeSchedule feeSchedule, HederaFunctionality api) {
         for (ServiceFeeSchedule service : feeSchedule.services()) {

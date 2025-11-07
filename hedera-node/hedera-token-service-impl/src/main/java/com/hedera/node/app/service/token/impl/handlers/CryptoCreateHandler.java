@@ -61,7 +61,6 @@ import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
-import com.hedera.node.app.service.token.impl.calculator.CryptoCreateFeeCalculator;
 import com.hedera.node.app.service.token.impl.validators.CryptoCreateValidator;
 import com.hedera.node.app.service.token.impl.validators.StakingValidator;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
@@ -85,7 +84,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import org.hiero.hapi.fees.FeeResult;
 
 /**
  * This class contains all workflow-related functionality regarding {@link HederaFunctionality#CRYPTO_CREATE}. A
@@ -509,15 +507,6 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
             return fee.calculate().plus(lazyCreationFee);
         }
         return fee.calculate();
-    }
-
-    @NonNull
-    @Override
-    public FeeResult calculateFeeResult(@NonNull final FeeContext feeContext) {
-        final var feeSchedule = feeContext.feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .getSimpleFeesSchedule();
-        return new CryptoCreateFeeCalculator(feeSchedule).calculateTxFee(feeContext.body(), feeContext);
     }
 
     private boolean isSystemFile(final long entityNum) {

@@ -18,6 +18,7 @@ import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
+import com.hedera.node.app.service.token.impl.TokenServiceImpl;
 import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.AppContextImpl;
 import com.hedera.node.app.signature.AppSignatureVerifier;
@@ -299,6 +300,7 @@ public enum TransactionExecutors {
                 .disableThrottles(disableThrottles)
                 .bootstrapConfigProviderImpl(bootstrapConfigProvider)
                 .fileServiceImpl(fileService)
+                .tokenServiceImpl(new TokenServiceImpl(appContext))
                 .contractServiceImpl(contractService)
                 .utilServiceImpl(utilService)
                 .scheduleServiceImpl(scheduleService)
