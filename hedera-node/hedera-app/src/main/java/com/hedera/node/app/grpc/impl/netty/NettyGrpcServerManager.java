@@ -15,6 +15,7 @@ import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.app.workflows.query.annotations.OperatorQueries;
 import com.hedera.node.app.workflows.query.annotations.UserQueries;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.GovernanceTransactionsConfig;
 import com.hedera.node.config.data.GrpcConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
@@ -438,10 +439,21 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
                         .maxTxnSize()
                 : maxTxnSize;
 
+        final var isGovTxnEnabled = configProvider
+                .getConfiguration()
+                .getConfigData(GovernanceTransactionsConfig.class)
+                .isEnabled();
+
+        final int maxTxBytes = isGovTxnEnabled
+                ? configProvider
+                        .getConfiguration()
+                        .getConfigData(GovernanceTransactionsConfig.class)
+                        .maxTxnSize()
+                : maxTxnSize;
         // set buffer capacity to be big enough to hold the largest transaction
         final var bufferCapacity = isJumboEnabled ? jumboMaxTxnSize + 1 : maxTxnSize + 1;
         // set capacity and max transaction size for both normal and jumbo transactions
-        final var dataBufferMarshaller = new DataBufferMarshaller(bufferCapacity, maxTxnSize);
+        final var dataBufferMarshaller = new DataBufferMarshaller(bufferCapacity, maxTxBytes);
         final var jumboBufferMarshaller = new DataBufferMarshaller(bufferCapacity, jumboMaxTxnSize);
         return rpcServiceDefinitions
                 .get()

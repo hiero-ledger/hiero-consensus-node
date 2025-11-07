@@ -36,6 +36,8 @@ import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.workflows.prehandle.DueDiligenceException;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.config.data.GovernanceTransactionsConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.pbj.runtime.Codec;
@@ -88,6 +90,8 @@ public class TransactionChecker {
 
     private final HederaConfig hederaConfig;
     private final JumboTransactionsConfig jumboTransactionsConfig;
+    private final AccountsConfig accountsConfig;
+    private final GovernanceTransactionsConfig governanceTransactionsConfig;
 
     // TODO We need to incorporate the check for "TRANSACTION_TOO_MANY_LAYERS". "maxProtoMessageDepth" is a property
     //  passed to StructuralPrecheck used for this purpose. We will need to add this to PBJ as an argument to the
@@ -109,6 +113,9 @@ public class TransactionChecker {
 
         hederaConfig = configProvider.getConfiguration().getConfigData(HederaConfig.class);
         jumboTransactionsConfig = configProvider.getConfiguration().getConfigData(JumboTransactionsConfig.class);
+        accountsConfig = configProvider.getConfiguration().getConfigData(AccountsConfig.class);
+        governanceTransactionsConfig =
+                configProvider.getConfiguration().getConfigData(GovernanceTransactionsConfig.class);
     }
 
     /**
@@ -362,15 +369,54 @@ public class TransactionChecker {
         }
     }
 
-    public void checkJumboTransactionBody(TransactionInfo txInfo) throws PreCheckException {
-        final var jumboTxnEnabled = jumboTransactionsConfig.isEnabled();
+    public void checkTransactionSize(TransactionInfo txInfo) throws PreCheckException {
+        final int txSize = txInfo.signedTx().protobufSize();
+        final HederaFunctionality functionality = txInfo.functionality();
+        final boolean isJumboTxnEnabled = jumboTransactionsConfig.isEnabled();
         final var allowedJumboHederaFunctionalities = jumboTransactionsConfig.allowedHederaFunctionalities();
+        final boolean isGovernanceTxnEnabled = governanceTransactionsConfig.isEnabled();
+        boolean exceedsLimit;
 
-        if (jumboTxnEnabled
-                && txInfo.signedTx().protobufSize() > hederaConfig.transactionMaxBytes()
-                && !allowedJumboHederaFunctionalities.contains(fromPbj(txInfo.functionality()))
-                && !NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(txInfo.functionality())) {
+        // If neither jumbo nor governance features are enabled, use basic validation
+        if (!isJumboTxnEnabled && !isGovernanceTxnEnabled) {
+            // Allow NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB to exceed the standard limit
+            exceedsLimit = txSize > hederaConfig.transactionMaxBytes()
+                    && !NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(functionality);
+        }
+        // For jumbo enabled and governance disabled, only ETHEREUM_TRANSACTION can exceed standard limits
+        else if (isJumboTxnEnabled && !isGovernanceTxnEnabled) {
+            exceedsLimit = !allowedJumboHederaFunctionalities.contains(fromPbj(txInfo.functionality()))
+                    && txSize > hederaConfig.transactionMaxBytes()
+                    && !NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(functionality);
+        }
+        // For governance transactions enabled, allow transactions through for final validation
+        // (since payer-based limits are applied in checkTransactionSizeLimitBasedOnPayer)
+        // Only reject extremely oversized transactions that exceed governance limits
+        else {
+            exceedsLimit = txSize > governanceTransactionsConfig.maxTxnSize();
+        }
+
+        if (exceedsLimit) {
             throw new PreCheckException(TRANSACTION_OVERSIZE);
+        }
+    }
+
+    public void checkTransactionSizeLimitBasedOnPayer(
+            @NonNull final TransactionInfo txInfo, @NonNull final com.hedera.hapi.node.base.AccountID payerAccountId)
+            throws PreCheckException {
+
+        if (governanceTransactionsConfig.isEnabled()) {
+            // Check if the payer is privileged (treasury or systemAdmin)
+            final boolean isPrivilegedPayer = accountsConfig.isSuperuser(payerAccountId);
+            final int maxAllowedSize =
+                    isPrivilegedPayer ? governanceTransactionsConfig.maxTxnSize() : hederaConfig.transactionMaxBytes();
+            if (txInfo.signedTx().protobufSize() > maxAllowedSize) {
+                // Log or increment metrics for rejected oversized transactions from non-privileged payers
+                if (!isPrivilegedPayer) {
+                    // workflowMetrics.incrementThrottled(txInfo.functionality());
+                }
+                throw new PreCheckException(TRANSACTION_OVERSIZE);
+            }
         }
     }
 

@@ -76,15 +76,33 @@ if (buffer.length() > maxSize) {
 - Inside the `TransactionChecker.checkParsed` method, validate the size limit and the functionality of the transaction.
 
 ```java
-void checkJumboTransactionBody(TransactionInfo txInfo) throws PreCheckException {
-    final var jumboTxnEnabled = jumboTransactionsConfig.isEnabled();
-    final var allowedJumboHederaFunctionalities = jumboTransactionsConfig.allowedHederaFunctionalities();
+void checkTransactionSize(TransactionInfo txInfo) throws PreCheckException {
+    final int txSize = txInfo.signedTx().protobufSize();
+        final HederaFunctionality functionality = txInfo.functionality();
+        final boolean isJumboTxnEnabled = jumboTransactionsConfig.isEnabled();
+        final boolean isGovernanceTxnEnabled = governanceTransactionsConfig.isEnabled();
+        boolean exceedsLimit = false;
 
-    if (jumboTxnEnabled
-            && txInfo.serializedTransaction().length() > hederaConfig.transactionMaxBytes()
-            && !allowedJumboHederaFunctionalities.contains(fromPbj(txInfo.functionality()))) {
-        throw new PreCheckException(TRANSACTION_OVERSIZE);
-    }
+        if (!isJumboTxnEnabled && !isGovernanceTxnEnabled) {
+            exceedsLimit = txSize > hederaConfig.transactionMaxBytes()
+                    && !NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(functionality);
+        }
+
+        if (isJumboTxnEnabled) {
+            exceedsLimit = (functionality == HederaFunctionality.ETHEREUM_TRANSACTION
+                            && txSize > jumboTransactionsConfig.maxTxnSize())
+                    || (functionality != HederaFunctionality.ETHEREUM_TRANSACTION
+                            && txSize > hederaConfig.transactionMaxBytes()
+                            && !NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(functionality));
+        }
+
+        if (isGovernanceTxnEnabled) {
+            exceedsLimit = txSize > governanceTransactionsConfig.maxTxnSize();
+        }
+
+        if (exceedsLimit) {
+            throw new PreCheckException(TRANSACTION_OVERSIZE);
+        }
 }
 ```
 

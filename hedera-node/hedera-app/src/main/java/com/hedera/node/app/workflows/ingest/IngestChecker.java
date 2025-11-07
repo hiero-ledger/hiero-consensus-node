@@ -269,8 +269,8 @@ public final class IngestChecker {
             result.setTxnInfo(txInfo);
         }
 
-        // check jumbo size after parsing
-        transactionChecker.checkJumboTransactionBody(txInfo);
+        // check jumbo size after parsing (preliminary validation before payer is known)
+        transactionChecker.checkTransactionSize(txInfo);
         final var txBody = txInfo.txBody();
         final var functionality = txInfo.functionality();
 
@@ -308,6 +308,16 @@ public final class IngestChecker {
         // 5. Get payer account
         final var storeFactory = new ReadableStoreFactory(state);
         final var payer = solvencyPreCheck.getPayerAccount(storeFactory, txInfo.payerID());
+        final var payerAccountId = payer.accountId();
+
+        // is this needed?
+        if (payerAccountId == null) {
+            throw new PreCheckException(UNAUTHORIZED);
+        }
+
+        // 5a. Check transaction size limits based on the payer account
+        transactionChecker.checkTransactionSizeLimitBasedOnPayer(txInfo, payerAccountId);
+
         final var payerKey = payer.key();
         // There should, absolutely, be a key for this account. If there isn't, then something is wrong in
         // state. So we will log this with a warning. We will also have to do something about the fact that

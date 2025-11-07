@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
@@ -45,6 +46,7 @@ import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
+import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.Codec;
@@ -66,7 +68,7 @@ import org.mockito.MockedStatic;
 
 final class TransactionCheckerTest extends AppTestBase {
     private static final int MAX_TX_SIZE = 1024 * 6;
-    private static final int MAX_JUMBO_TX_SIZE = 1024 * 130;
+    private static final int MAX_LARGE_TX_SIZE = 1024 * 130;
     private static final long MAX_DURATION = 120L;
     private static final long MIN_DURATION = 10L;
     private static final int MIN_VALIDITY_BUFFER = 2;
@@ -361,7 +363,7 @@ final class TransactionCheckerTest extends AppTestBase {
 
             // assert that even if we are sending a transaction with more than 6KB,
             // it will not fail with TRANSACTION_OVERSIZE
-            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE + 1), MAX_JUMBO_TX_SIZE))
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE + 1), MAX_LARGE_TX_SIZE))
                     .isInstanceOf(PreCheckException.class)
                     .isNot(responseCode(TRANSACTION_OVERSIZE));
         }
@@ -402,7 +404,7 @@ final class TransactionCheckerTest extends AppTestBase {
             when(transactionBodyMock.ethereumTransaction()).thenReturn(mockEthTransactionBody);
             when(mockEthTransactionBody.ethereumData()).thenReturn(Bytes.wrap(new byte[maxJumboEthereumCallDataSize]));
 
-            assertDoesNotThrow(() -> checker.checkJumboTransactionBody(txInfo));
+            assertDoesNotThrow(() -> checker.checkTransactionSize(txInfo));
         }
 
         @Test
@@ -424,7 +426,7 @@ final class TransactionCheckerTest extends AppTestBase {
                             .build()); // 7 KB
             when(txInfo.functionality()).thenReturn(HederaFunctionality.TOKEN_MINT);
 
-            assertThrows(PreCheckException.class, () -> checker.checkJumboTransactionBody(txInfo));
+            assertThrows(PreCheckException.class, () -> checker.checkTransactionSize(txInfo));
         }
     }
 
@@ -956,6 +958,110 @@ final class TransactionCheckerTest extends AppTestBase {
                             .isInstanceOf(PreCheckException.class)
                             .hasFieldOrPropertyWithValue("responseCode", INVALID_TRANSACTION_BODY);
                 }
+            }
+        }
+
+        @Nested
+        @DisplayName("Governance Transaction Size Limit Tests")
+        class GovernanceTransactionSizeLimitTests {
+            // Required test scenarios for governance transactions
+            @Test
+            void oversizedTransactionWithNonPrivilegedPayerFails() throws PreCheckException {
+                // Given governance transactions enabled, non-privileged payer, transaction > 6KB (not exempt)
+                props = () -> new VersionedConfigImpl(
+                        HederaTestConfigBuilder.create()
+                                .withValue("governanceTransactions.isEnabled", true)
+                                .withValue("governanceTransactions.maxTxnSize", MAX_LARGE_TX_SIZE) // 130 KB
+                                .withValue("hedera.transaction.maxBytes", MAX_TX_SIZE) // 6 KB
+                                .getOrCreateConfig(),
+                        1);
+
+                checker = new TransactionChecker(props, metrics);
+                final var txInfo = mock(TransactionInfo.class);
+                when(txInfo.signedTx())
+                        .thenReturn(SignedTransaction.newBuilder()
+                                .bodyBytes(Bytes.wrap(new byte[1024 * 7])) // 7 KB transaction
+                                .build());
+                when(txInfo.functionality()).thenReturn(CRYPTO_TRANSFER); // Not exempt from size limits
+
+                final var nonPrivilegedAccountId = AccountID.newBuilder()
+                        .accountNum(1000) // Non-privileged account
+                        .build();
+
+                // When checking transaction size before the payer is known, it passes early validation
+                checker.checkTransactionSize(txInfo);
+
+                // When checking transaction size limit based on payer, it fails for non-privileged payer
+                assertThatThrownBy(() -> checker.checkTransactionSizeLimitBasedOnPayer(txInfo, nonPrivilegedAccountId))
+                        .isInstanceOf(PreCheckException.class)
+                        .has(responseCode(TRANSACTION_OVERSIZE));
+            }
+
+            @Test
+            void largeTransactionWithPrivilegedPayerPasses() throws PreCheckException {
+                // Given governance transactions enabled, privileged payer (treasury), transaction 6-130KB
+                props = () -> new VersionedConfigImpl(
+                        HederaTestConfigBuilder.create()
+                                .withValue("governanceTransactions.isEnabled", true)
+                                .withValue("governanceTransactions.maxTxnSize", MAX_LARGE_TX_SIZE) // 130 KB
+                                .withValue("hedera.transaction.maxBytes", MAX_TX_SIZE) // 6 KB
+                                .getOrCreateConfig(),
+                        1);
+
+                checker = new TransactionChecker(props, metrics);
+                final var txInfo = mock(TransactionInfo.class);
+                when(txInfo.signedTx())
+                        .thenReturn(SignedTransaction.newBuilder()
+                                .bodyBytes(Bytes.wrap(new byte[1024 * 100])) // 100 KB transaction
+                                .build());
+                when(txInfo.functionality()).thenReturn(CRYPTO_TRANSFER);
+
+                final long treasuryAccountNum = props.getConfiguration()
+                        .getConfigData(AccountsConfig.class)
+                        .treasury();
+
+                final var privilegedAccountId = AccountID.newBuilder()
+                        .accountNum(treasuryAccountNum) // Treasury account (privileged)
+                        .build();
+
+                // When checking transaction size before the payer is known, it passes early validation
+                checker.checkTransactionSize(txInfo);
+
+                // When checking transaction size limit based on payer, it passes for privileged payer
+                assertDoesNotThrow(() -> checker.checkTransactionSizeLimitBasedOnPayer(txInfo, privilegedAccountId));
+            }
+
+            @Test
+            void oversizedTransactionWithPrivilegedPayerFails() throws PreCheckException {
+                // Given governance transactions enabled, privileged payer, transaction > 130KB
+                props = () -> new VersionedConfigImpl(
+                        HederaTestConfigBuilder.create()
+                                .withValue("governanceTransactions.isEnabled", true)
+                                .withValue("governanceTransactions.maxTxnSize", MAX_LARGE_TX_SIZE) // 130 KB
+                                .withValue("hedera.transaction.maxBytes", MAX_TX_SIZE) // 6 KB
+                                .getOrCreateConfig(),
+                        1);
+
+                checker = new TransactionChecker(props, metrics);
+                final var txInfo = mock(TransactionInfo.class);
+                when(txInfo.signedTx())
+                        .thenReturn(SignedTransaction.newBuilder()
+                                .bodyBytes(Bytes.wrap(new byte[1024 * 131])) // 131 KB transaction
+                                .build());
+                when(txInfo.functionality()).thenReturn(CRYPTO_TRANSFER);
+
+                final long systemAdminAccountNum = props.getConfiguration()
+                        .getConfigData(AccountsConfig.class)
+                        .systemAdmin();
+
+                final var privilegedAccountId = AccountID.newBuilder()
+                        .accountNum(systemAdminAccountNum) // SystemAdmin account (privileged)
+                        .build();
+
+                // When checking transaction size even before the payer is known, it fails early validation
+                assertThatThrownBy(() -> checker.checkTransactionSize(txInfo))
+                        .isInstanceOf(PreCheckException.class)
+                        .has(responseCode(TRANSACTION_OVERSIZE));
             }
         }
     }
