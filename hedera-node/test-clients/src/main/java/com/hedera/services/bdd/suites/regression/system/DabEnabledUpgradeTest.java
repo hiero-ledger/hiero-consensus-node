@@ -264,8 +264,9 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
         @BeforeAll
         static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
             testLifecycle.overrideInClass(Map.of(
-                    // Note that deleted nodes still count against the max number of nodes
-                    "nodes.maxNumber", "7",
+                    // Starting with version 0.69.0, deleted nodes are fully removed from state
+                    // and no longer contribute to the max node count.
+                    "nodes.maxNumber", "5",
                     "nodes.updateAccountIdAllowed", "true"));
             // Do a combination of node creates, deletes, and updates with a disallowed create in the middle;
             // all the successful edits here are before issuing PREPARE_UPGRADE and should be reflected in the
