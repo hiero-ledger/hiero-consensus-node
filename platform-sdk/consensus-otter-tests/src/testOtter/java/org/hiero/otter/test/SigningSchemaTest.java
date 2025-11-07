@@ -19,7 +19,6 @@ import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.time.Duration;
 import org.hiero.consensus.crypto.SigningSchema;
-import org.hiero.consensus.event.creator.EventCreationConfig_;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
@@ -42,8 +41,6 @@ public class SigningSchemaTest {
 
         // Setup simulation
         network.addNodes(4);
-        network.withConfigValue(EventCreationConfig_.CREATION_ATTEMPT_RATE, 1000);
-        network.withConfigValue(EventCreationConfig_.MAX_CREATION_RATE, 10000);
 
         // Override the keys and certs for each node
         final SecureRandom secureRandom = SecureRandom.getInstanceStrong();
