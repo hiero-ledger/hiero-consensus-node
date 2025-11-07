@@ -35,7 +35,6 @@ import com.swirlds.platform.event.validation.EventSignatureValidator;
 import com.swirlds.platform.event.validation.InternalEventValidator;
 import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
-import com.swirlds.platform.publisher.PlatformPublisher;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.HashLogger;
 import com.swirlds.platform.state.iss.IssDetector;
@@ -90,14 +89,14 @@ class PlatformWiringTests {
         final WiringModel model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
-        final PlatformComponents platformComponents =
-                PlatformComponents.create(platformContext, model, applicationCallbacks);
-        PlatformWiring.wire(platformContext, mock(ExecutionLayer.class), platformComponents);
+        final PlatformComponents platformComponents = PlatformComponents.create(platformContext, model);
+        PlatformWiring.wire(
+                platformContext, mock(ExecutionLayer.class), platformComponents, ApplicationCallbacks.EMPTY);
 
         final PlatformComponentBuilder componentBuilder =
                 new PlatformComponentBuilder(createBuildingBlocks(platformContext));
 
-        final PlatformCoordinator coordinator = new PlatformCoordinator(platformComponents);
+        final PlatformCoordinator coordinator = new PlatformCoordinator(platformComponents, ApplicationCallbacks.EMPTY);
         componentBuilder
                 .withEventHasher(mock(EventHasher.class))
                 .withInternalEventValidator(mock(InternalEventValidator.class))
@@ -160,8 +159,7 @@ class PlatformWiringTests {
                 mock(SignedStateNexus.class),
                 mock(LatestCompleteStateNexus.class),
                 mock(SavedStateController.class),
-                mock(AppNotifier.class),
-                mock(PlatformPublisher.class));
+                mock(AppNotifier.class));
 
         coordinator.start();
         assertFalse(model.checkForUnboundInputWires());
