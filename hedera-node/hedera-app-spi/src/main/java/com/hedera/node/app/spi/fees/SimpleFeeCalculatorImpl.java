@@ -2,21 +2,18 @@
 package com.hedera.node.app.spi.fees;
 
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupExtraFee;
-import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 
-import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import org.hiero.hapi.fees.FeeModelRegistry;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.hiero.hapi.fees.FeeResult;
-import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.ExtraFeeReference;
 import org.hiero.hapi.support.fees.FeeSchedule;
-import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
 /**
  * Base class for simple fee calculators. Provides reusable utility methods for common fee
@@ -25,24 +22,15 @@ import org.hiero.hapi.support.fees.ServiceFeeDefinition;
  * <p>Subclasses implement {@link SimpleFeeCalculator} directly and can use the static utility
  * methods provided here to avoid code duplication.
  */
-public abstract class AbstractSimpleFeeCalculator implements SimpleFeeCalculator {
+public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
 
-    private final FeeSchedule feeSchedule;
+    protected final FeeSchedule feeSchedule;
+    private final Map<TransactionBody.DataOneOfType, ServiceFeeCalculator> serviceFeeCalculators;
 
-    protected AbstractSimpleFeeCalculator(FeeSchedule feeSchedule) {
+    public SimpleFeeCalculatorImpl(FeeSchedule feeSchedule, Set<ServiceFeeCalculator> serviceFeeCalculators) {
         this.feeSchedule = feeSchedule;
-    }
-
-    protected FeeResult calculateStandardTxFee(
-            @NonNull final HederaFunctionality functionality,
-            @NonNull final TransactionBody txnBody,
-            @Nullable final CalculatorState calculatorState) {
-        // Get fee schedule
-        return switch (functionality) {
-            case CRYPTO_DELETE -> calculateFeesForCryptoDelete(txnBody, calculatorState);
-            case CRYPTO_CREATE -> calculateFeesForCryptoCreate(txnBody, calculatorState);
-            default -> throw new UnsupportedOperationException("Unknown functionality: " + functionality);
-        };
+        this.serviceFeeCalculators = serviceFeeCalculators.stream()
+                .collect(Collectors.toMap(ServiceFeeCalculator::getTransactionType, c -> c));
     }
 
     /**
@@ -56,7 +44,7 @@ public abstract class AbstractSimpleFeeCalculator implements SimpleFeeCalculator
      * @param bytes the transaction size in bytes
      * @param keys the number of keys
      */
-    protected void addExtraFees(
+    private void addExtraFees(
             @NonNull final FeeResult result,
             @NonNull final String feeType,
             @NonNull final Iterable<ExtraFeeReference> extras,
@@ -64,12 +52,13 @@ public abstract class AbstractSimpleFeeCalculator implements SimpleFeeCalculator
             final long bytes,
             final long keys) {
         for (final ExtraFeeReference ref : extras) {
-            final long used = switch (ref.name()) {
-                case SIGNATURES -> signatures;
-                case BYTES -> bytes;
-                case KEYS -> keys;
-                default -> 0; // Ignore extras not applicable to this transaction
-            };
+            final long used =
+                    switch (ref.name()) {
+                        case SIGNATURES -> signatures;
+                        case BYTES -> bytes;
+                        case KEYS -> keys;
+                        default -> 0; // Ignore extras not applicable to this transaction
+                    };
 
             if (used > ref.includedCount()) {
                 final long overage = used - ref.includedCount();
@@ -93,7 +82,8 @@ public abstract class AbstractSimpleFeeCalculator implements SimpleFeeCalculator
      * @param calculatorState the calculator state containing signature count
      * @return the calculated fee result
      */
-    private FeeResult calculateFeesForCryptoDelete(
+    @Override
+    public FeeResult calculateTxFee(
             @NonNull final TransactionBody txnBody, @Nullable final CalculatorState calculatorState) {
         // Extract primitive counts (no allocations)
         final long signatures = calculatorState != null ? calculatorState.numTxnSignatures() : 0;
@@ -109,37 +99,9 @@ public abstract class AbstractSimpleFeeCalculator implements SimpleFeeCalculator
         final int multiplier = feeSchedule.network().multiplier();
         result.addNetworkFee("Total Network fee", multiplier, result.node * multiplier);
 
-        // Add service base + extras
-        final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_DELETE);
-        result.addServiceFee("Base Fee for " + HederaFunctionality.CRYPTO_DELETE, 1, serviceDef.baseFee());
-        addExtraFees(result, "Service", serviceDef.extras(), signatures, bytes, 0);
-
-        return result;
-    }
-
-    private FeeResult calculateFeesForCryptoCreate(
-            @NonNull final TransactionBody txnBody, @Nullable final CalculatorState calculatorState) {
-        // Extract primitive counts (no allocations)
-        final long signatures = calculatorState != null ? calculatorState.numTxnSignatures() : 0;
-        final long bytes = TransactionBody.PROTOBUF.toBytes(txnBody).length();
-        final var key = txnBody.cryptoCreateAccountOrThrow().key();
-        final long keys = key != null ? countKeys(key) : 0;
-
-        final var result = new FeeResult();
-
-        // Add node base + extras
-        result.addNodeFee("Node base fee", 1, feeSchedule.node().baseFee());
-        addExtraFees(result, "Node", feeSchedule.node().extras(), signatures, bytes, keys);
-
-        // Add network fee
-        final int multiplier = feeSchedule.network().multiplier();
-        result.addNetworkFee("Total Network fee", multiplier, result.node * multiplier);
-
-        // Add service base + extras
-        final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_CREATE);
-        result.addServiceFee("Base Fee for " + HederaFunctionality.CRYPTO_CREATE, 1, serviceDef.baseFee());
-        addExtraFees(result, "Service", serviceDef.extras(), signatures, bytes, keys);
-
+        final var serviceFeeCalculator =
+                serviceFeeCalculators.get(txnBody.data().kind());
+        serviceFeeCalculator.accumulateServiceFee(txnBody, calculatorState, result, feeSchedule);
         return result;
     }
 
@@ -150,33 +112,19 @@ public abstract class AbstractSimpleFeeCalculator implements SimpleFeeCalculator
      * @param key The key structure to count
      * @return The total number of simple keys (ED25519, ECDSA_SECP256K1, ECDSA_384)
      */
-    protected static long countKeys(@NonNull final Key key) {
+    public static long countKeys(@NonNull final Key key) {
         return switch (key.key().kind()) {
             case ED25519, ECDSA_SECP256K1, ECDSA_384 -> 1L;
             case THRESHOLD_KEY ->
                 key.thresholdKeyOrThrow().keys().keys().stream()
-                        .mapToLong(AbstractSimpleFeeCalculator::countKeys)
+                        .mapToLong(SimpleFeeCalculatorImpl::countKeys)
                         .sum();
             case KEY_LIST ->
                 key.keyListOrThrow().keys().stream()
-                        .mapToLong(AbstractSimpleFeeCalculator::countKeys)
+                        .mapToLong(SimpleFeeCalculatorImpl::countKeys)
                         .sum();
             default -> 0L;
         };
-    }
-
-    /**
-     * Default implementation for transaction fee calculation.
-     *
-     * @param calculatorState calculator state
-     * @return Never returns normally
-     * @throws UnsupportedOperationException always
-     */
-    @Override
-    @NonNull
-    public FeeResult calculateTxFee(@NonNull TransactionBody txnBody, @Nullable CalculatorState calculatorState) {
-        throw new UnsupportedOperationException(
-                "Txn fee calculation not supported for " + getClass().getSimpleName());
     }
 
     /**

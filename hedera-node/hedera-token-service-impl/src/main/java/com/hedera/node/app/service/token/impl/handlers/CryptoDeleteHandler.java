@@ -14,7 +14,6 @@ import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.CryptoFeeBuilder;
 import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
-import com.hedera.node.app.service.token.impl.calculator.CryptoDeleteFeeCalculator;
 import com.hedera.node.app.service.token.records.CryptoDeleteStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
@@ -26,7 +25,6 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import org.hiero.hapi.fees.FeeResult;
 
 /**
  * This class contains all workflow-related functionality regarding {@link
@@ -94,14 +92,5 @@ public class CryptoDeleteHandler implements TransactionHandler {
                 .feeCalculator(SubType.DEFAULT)
                 .legacyCalculate(sigValueObj ->
                         usageEstimator.getCryptoDeleteTxFeeMatrices(CommonPbjConverters.fromPbj(body), sigValueObj));
-    }
-
-    @NonNull
-    @Override
-    public FeeResult calculateFeeResult(@NonNull final FeeContext feeContext) {
-        final var feeSchedule = feeContext.feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .getSimpleFeesSchedule();
-        return new CryptoDeleteFeeCalculator(feeSchedule).calculateTxFee(feeContext.body(), feeContext);
     }
 }
