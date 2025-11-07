@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URL;
+import java.nio.file.ClosedWatchServiceException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -599,7 +600,7 @@ public class BlockNodeConnectionManager {
                                         }
                                     }
                                 }
-                            } catch (final InterruptedException e) {
+                            } catch (final InterruptedException | ClosedWatchServiceException e) {
                                 break;
                             } catch (Exception e) {
                                 logger.info("Exception in config watcher loop.", e);
