@@ -18,7 +18,9 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.time.Duration;
+import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.crypto.SigningSchema;
+import org.hiero.consensus.event.creator.EventCreationConfig_;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
@@ -41,16 +43,18 @@ public class HappyPathTest {
 
         // Setup simulation
         network.addNodes(4);
+        network.withConfigValue(EventCreationConfig_.CREATION_ATTEMPT_RATE, 1000);
+        network.withConfigValue(EventCreationConfig_.MAX_CREATION_RATE, 10000);
 
         // Override the keys and certs for each node
         final SecureRandom secureRandom = SecureRandom.getInstanceStrong();
-        network.nodes().forEach(node -> {
-            try {
-                node.keysAndCerts(KeysAndCertsGenerator.generate(node.selfId(), SigningSchema.ED25519, secureRandom, secureRandom));
-            } catch (final NoSuchAlgorithmException | NoSuchProviderException | KeyGeneratingException e) {
-                throw new RuntimeException(e);
-            }
-        });
+//        network.nodes().forEach(node -> {
+//            try {
+//                node.keysAndCerts(KeysAndCertsGenerator.generate(node.selfId(), SigningSchema.ED25519, secureRandom, secureRandom));
+//            } catch (final NoSuchAlgorithmException | NoSuchProviderException | KeyGeneratingException e) {
+//                throw new RuntimeException(e);
+//            }
+//        });
 
         // Setup continuous assertions
         assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
@@ -65,7 +69,7 @@ public class HappyPathTest {
         network.start();
 
         // Wait for 5 seconds
-        timeManager.waitFor(Duration.ofSeconds(5L));
+        timeManager.waitFor(Duration.ofSeconds(60L));
 
         // Validations
         assertThat(network.newPlatformStatusResults())
