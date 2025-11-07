@@ -21,9 +21,11 @@ import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.eventbus.EventBus;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
@@ -47,9 +49,14 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
     public static final String APP_NAME = "OtterApp";
     public static final String SWIRLD_NAME = "123";
 
+    private static final String PING = "ping";
+
     private final SemanticVersion version;
     private final List<OtterService> allServices;
     private final List<OtterService> appServices;
+
+    /** The event bus to use for publishing events. */
+    private final EventBus eventBus;
 
     /**
      * The number of milliseconds to sleep per handled consensus round. Sleeping for long enough over a period of time
@@ -66,7 +73,10 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
      * @param configuration the configuration to use to create the app and its services
      * @param version the software version to set in the state
      */
-    public OtterApp(@NonNull final Configuration configuration, @NonNull final SemanticVersion version) {
+    public OtterApp(
+            @NonNull final NodeId selfId,
+            @NonNull final Configuration configuration,
+            @NonNull final SemanticVersion version) {
         this.version = requireNonNull(version);
 
         final OtterAppConfig appConfig = configuration.getConfigData(OtterAppConfig.class);
@@ -75,6 +85,8 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
         this.allServices = Stream.concat(
                         appServices.stream(), Stream.of(new PlatformStateService(), new RosterService()))
                 .toList();
+
+        this.eventBus = EventBus.getInstance(selfId);
     }
 
     @NonNull
@@ -262,6 +274,15 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
      */
     public void updateSyntheticBottleneck(final long millisToSleepPerRound) {
         this.syntheticBottleneckMillis.set(millisToSleepPerRound);
+    }
+
+    /**
+     * Handles a ping message by publishing it to the event bus.
+     *
+     * @param message the ping message
+     */
+    public void handlePing(@NonNull final String message) {
+        eventBus.publish(PING, message);
     }
 
     public void destroy() {

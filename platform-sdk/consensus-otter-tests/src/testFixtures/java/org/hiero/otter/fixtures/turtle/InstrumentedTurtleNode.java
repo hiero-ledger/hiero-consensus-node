@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
+import static org.hiero.otter.fixtures.internal.InstrumentedClasses.INSTRUMENTED_EVENT_CREATOR;
+
 import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.platform.config.ModuleConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import org.apache.logging.log4j.LogManager;
@@ -10,6 +14,7 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.internal.NetworkConfiguration;
+import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContextScope;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 
@@ -24,12 +29,13 @@ public class InstrumentedTurtleNode extends TurtleNode implements InstrumentedNo
      * Constructor for the {@link InstrumentedTurtleNode} class.
      *
      * @param randotron the random number generator
-     * @param time the time provider
+     * @param timeManager the time manager for the node
      * @param selfId the node ID of the node
      * @param keysAndCerts the keys and certificates of the node
      * @param network the simulated network
      * @param logging the logging instance for the node
      * @param outputDirectory the output directory for the node
+     * @param networkConfiguration the network configuration
      */
     public InstrumentedTurtleNode(
             @NonNull final Randotron randotron,
@@ -41,6 +47,7 @@ public class InstrumentedTurtleNode extends TurtleNode implements InstrumentedNo
             @NonNull final Path outputDirectory,
             @NonNull final NetworkConfiguration networkConfiguration) {
         super(randotron, timeManager, selfId, keysAndCerts, network, logging, outputDirectory, networkConfiguration);
+        this.configuration().withConfigValue(ModuleConfig_.EVENT_CREATOR_MODULE, INSTRUMENTED_EVENT_CREATOR);
     }
 
     /**
@@ -48,6 +55,11 @@ public class InstrumentedTurtleNode extends TurtleNode implements InstrumentedNo
      */
     @Override
     public void ping(@NonNull final String message) {
-        log.warn("Pinging is not implemented yet.");
+        try (final LoggingContextScope ignored = installNodeContext()) {
+            throwIsNotInLifecycle(RUNNING, "Cannot ping a node that is not running");
+            log.info("Sending ping '{}' to node {}", message, selfId);
+            assert otterApp != null;
+            otterApp.handlePing(message);
+        }
     }
 }

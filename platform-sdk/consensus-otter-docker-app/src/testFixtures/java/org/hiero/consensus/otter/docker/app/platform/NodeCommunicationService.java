@@ -31,6 +31,7 @@ import org.hiero.otter.fixtures.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
 import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc.NodeCommunicationServiceImplBase;
+import org.hiero.otter.fixtures.container.proto.PingRequest;
 import org.hiero.otter.fixtures.container.proto.QuiescenceRequest;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
 import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
@@ -109,6 +110,7 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
     @Override
     public synchronized void start(
             @NonNull final StartRequest request, @NonNull final StreamObserver<EventMessage> responseObserver) {
+        setupLoggingStreamingEventDispatcher(responseObserver);
         log.info(STARTUP.getMarker(), "Received start request: {}", request);
 
         if (isInvalidRequest(request, responseObserver)) {
@@ -129,32 +131,37 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
         consensusNodeManager = new ConsensusNodeManager(
                 selfId, platformConfig, genesisRoster, version, keysAndCerts, backgroundExecutor);
 
-        setupStreamingEventDispatcher(responseObserver);
+        setupStreamingEventDispatcher();
 
         consensusNodeManager.start();
     }
 
     /**
-     * Sets up all the streaming event dispatchers for the platform.
+     * Sets up the logging streaming event dispatcher for the platform.
      *
      * @param responseObserver the observer to register for streaming events
      */
-    private void setupStreamingEventDispatcher(@NonNull final StreamObserver<EventMessage> responseObserver) {
+    private void setupLoggingStreamingEventDispatcher(@NonNull final StreamObserver<EventMessage> responseObserver) {
         dispatcher = new OutboundDispatcher(dispatchExecutor, responseObserver);
 
         // Capture the dispatcher in a final variable so the lambda remains valid
         final OutboundDispatcher currentDispatcher = dispatcher;
 
+        InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
+            dispatcher.enqueue(EventMessageFactory.fromStructuredLog(logEntry));
+            return currentDispatcher.isCancelled() ? SubscriberAction.UNSUBSCRIBE : SubscriberAction.CONTINUE;
+        });
+    }
+
+    /**
+     * Sets up all the streaming event dispatchers for the platform.
+     */
+    private void setupStreamingEventDispatcher() {
         consensusNodeManager.registerPlatformStatusChangeListener(
                 notification -> dispatcher.enqueue(EventMessageFactory.fromPlatformStatusChange(notification)));
 
         consensusNodeManager.registerConsensusRoundListener(
                 rounds -> dispatcher.enqueue(EventMessageFactory.fromConsensusRounds(rounds)));
-
-        InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
-            dispatcher.enqueue(EventMessageFactory.fromStructuredLog(logEntry));
-            return currentDispatcher.isCancelled() ? SubscriberAction.UNSUBSCRIBE : SubscriberAction.CONTINUE;
-        });
     }
 
     /**
@@ -263,6 +270,30 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
                     };
 
             consensusNodeManager.sendQuiescenceCommand(command);
+            responseObserver.onNext(Empty.getDefaultInstance());
+            responseObserver.onCompleted();
+        });
+    }
+
+    /**
+     * Handles a ping request from the test framework.
+     *
+     * <p>The ping message is sent to the event bus and will be logged by all instrumented components.
+     * This can be used to verify the instrumentation is working.
+     *
+     * @param request the ping request
+     * @param responseObserver the observer to send the response to
+     */
+    @Override
+    public void ping(final PingRequest request, final StreamObserver<Empty> responseObserver) {
+        log.info("Received ping request: {}", request);
+        if (consensusNodeManager == null) {
+            setPlatformNotStartedResponse(responseObserver);
+            return;
+        }
+
+        wrapWithErrorHandling(responseObserver, () -> {
+            consensusNodeManager.handlePing(request.getMessage());
             responseObserver.onNext(Empty.getDefaultInstance());
             responseObserver.onCompleted();
         });

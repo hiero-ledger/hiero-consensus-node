@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
+import static org.hiero.otter.fixtures.internal.InstrumentedClasses.INSTRUMENTED_EVENT_CREATOR;
+
+import com.swirlds.platform.config.ModuleConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import org.apache.logging.log4j.LogManager;
@@ -9,6 +13,7 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.container.proto.PingRequest;
 import org.hiero.otter.fixtures.internal.NetworkConfiguration;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
@@ -37,13 +42,18 @@ public class InstrumentedContainerNode extends ContainerNode implements Instrume
             @NonNull final Path outputDirectory,
             @NonNull final NetworkConfiguration networkConfiguration) {
         super(selfId, timeManager, keysAndCerts, network, dockerImage, outputDirectory, networkConfiguration);
+        configuration().withConfigValue(ModuleConfig_.EVENT_CREATOR_MODULE, INSTRUMENTED_EVENT_CREATOR);
     }
 
     /**
      * {@inheritDoc}
      */
+    @SuppressWarnings("ResultOfMethodCallIgnored")
     @Override
     public void ping(@NonNull final String message) {
-        log.warn("Pinging is not implemented yet.");
+        throwIsNotInLifecycle(RUNNING, "Cannot ping a node that is not running");
+        log.info("Sending ping '{}' to node {}", message, selfId);
+        final PingRequest request = PingRequest.newBuilder().setMessage(message).build();
+        nodeCommBlockingStub.ping(request);
     }
 }

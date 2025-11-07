@@ -19,6 +19,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.base.annotations.DefaultImplementation;
 import org.hiero.base.crypto.BytesSigner;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.FutureEventBufferingOption;
@@ -43,6 +44,7 @@ import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
 /**
  * Default implementation of the {@link EventCreatorModule}.
  */
+@DefaultImplementation
 public class DefaultEventCreator implements EventCreatorModule {
 
     /**

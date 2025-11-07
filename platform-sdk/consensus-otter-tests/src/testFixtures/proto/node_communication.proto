@@ -204,6 +204,12 @@ message QuiescenceRequest {
   QuiescenceCommand command = 1;
 }
 
+// Simple ping request message.
+message PingRequest {
+  // The ping message
+  string message = 1;
+}
+
 
 // Service definition for communicating with the consensus node.
 service NodeCommunicationService {
@@ -220,4 +226,7 @@ service NodeCommunicationService {
 
   // RPC to control quiescence of the node.
   rpc QuiescenceCommandUpdate(QuiescenceRequest) returns (google.protobuf.Empty);
+
+  // Simple ping method to check connectivity.
+  rpc Ping(PingRequest) returns (google.protobuf.Empty);
 }

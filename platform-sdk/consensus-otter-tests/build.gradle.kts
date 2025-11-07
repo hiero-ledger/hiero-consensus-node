@@ -31,6 +31,8 @@ testing {
     }
 }
 
+testFixturesModuleInfo { runtimeOnly("org.hiero.consensus.event.creator.instrumented") }
+
 testModuleInfo {
     requires("com.swirlds.base")
     requires("com.swirlds.base.test.fixtures")
@@ -44,6 +46,7 @@ testModuleInfo {
     requires("org.junit.jupiter.params")
     requires("org.mockito")
     requiresStatic("com.github.spotbugs.annotations")
+    exportsTo("com.swirlds.config.impl")
 }
 
 testIntegrationModuleInfo { //
