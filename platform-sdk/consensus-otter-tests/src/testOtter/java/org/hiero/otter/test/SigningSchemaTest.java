@@ -25,12 +25,12 @@ import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 
 /**
- * The simplest sanity test for the Otter framework.
+ * Tests alternative signing schemas for nodes in a network.
  */
 public class SigningSchemaTest {
 
     /**
-     * Simple test that runs a network with 4 nodes for some time and does some basic validations.
+     * Simple test that runs a network with 4 nodes with basic validations, but the nodes use ED25519 for signing.
      *
      * @param env the test environment for this test
      */
