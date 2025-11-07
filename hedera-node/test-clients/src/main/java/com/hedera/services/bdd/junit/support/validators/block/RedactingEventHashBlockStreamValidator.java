@@ -25,7 +25,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.HashingOutputStream;
-import org.junit.jupiter.api.io.TempDir;
 
 /**
  * A BlockStreamValidator implementation that redacts transaction content by replacing transaction data with their
@@ -45,9 +44,6 @@ import org.junit.jupiter.api.io.TempDir;
 public class RedactingEventHashBlockStreamValidator implements BlockStreamValidator {
     private static final Logger logger = LogManager.getLogger();
 
-    @TempDir
-    private static Path tmpDir;
-
     private final Path outputDirectory;
 
     /**
@@ -64,7 +60,7 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
         @NonNull
         public BlockStreamValidator create(@NonNull final HapiSpec spec) {
             // Create output directory based on spec working directory
-            final Path outputDir = tmpDir.resolve("redacted-blocks").resolve(spec.getName());
+            final Path outputDir = Path.of(".", "redacted-blocks", spec.getName());
             return new RedactingEventHashBlockStreamValidator(outputDir);
         }
     };
