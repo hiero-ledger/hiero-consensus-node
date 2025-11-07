@@ -20,20 +20,22 @@ import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.Random;
 import org.hiero.base.crypto.internal.DetRandomProvider;
+import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.model.roster.SerializableX509Certificate;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 class SerializableX509CertificateTests {
 
-    @Test
     @DisplayName("SerializableX509Certificate serialize and deserialize")
-    void serializeDeserialize()
+    @ParameterizedTest
+    @EnumSource(SigningSchema.class)
+    void serializeDeserialize(@NonNull final SigningSchema schema)
             throws NoSuchAlgorithmException, NoSuchProviderException, IOException, KeyGeneratingException,
                     InvalidKeyException, SignatureException, CertificateEncodingException {
 
-        final String rsaKeyType = "RSA";
-        final int rsaKeySize = 3072;
         final String ecKeyType = "EC";
         final int ecKeySize = 384;
 
@@ -42,8 +44,8 @@ class SerializableX509CertificateTests {
         secureRandom.setSeed(nonSecureRandom.nextLong());
 
         // Render key pairs.
-        KeyPairGenerator rsaKeyGen = KeyPairGenerator.getInstance(rsaKeyType);
-        rsaKeyGen.initialize(rsaKeySize, secureRandom);
+        KeyPairGenerator rsaKeyGen = KeyPairGenerator.getInstance(schema.getKeyType());
+        rsaKeyGen.initialize(schema.getKeySizeBits(), secureRandom);
         final KeyPair rsaKeyPair = rsaKeyGen.generateKeyPair();
 
         KeyPairGenerator ecKeyGen = KeyPairGenerator.getInstance(ecKeyType);
@@ -54,10 +56,10 @@ class SerializableX509CertificateTests {
         final String name = "CN=Carol";
         // RSA cert is self-signed
         final X509Certificate rsaCert =
-                CryptoStatic.generateCertificate(name, rsaKeyPair, name, rsaKeyPair, secureRandom);
+                CryptoStatic.generateCertificate(name, rsaKeyPair, name, rsaKeyPair, secureRandom, schema.getSigningAlgorithm());
         // EC cert is signed by RSA key
         final X509Certificate ecCert =
-                CryptoStatic.generateCertificate(name, ecKeyPair, name, rsaKeyPair, secureRandom);
+                CryptoStatic.generateCertificate(name, ecKeyPair, name, rsaKeyPair, secureRandom, schema.getSigningAlgorithm());
 
         final SerializableX509Certificate rsaOriginal = new SerializableX509Certificate(rsaCert);
         SerializableX509Certificate rsaCopy = roundTripSerializeDeserialize(rsaOriginal);
@@ -65,7 +67,7 @@ class SerializableX509CertificateTests {
         SerializableX509Certificate ecCopy = roundTripSerializeDeserialize(ecOriginal);
 
         // RSA verify signing with the public key that was deserialized.
-        verifySigning(rsaCopy, rsaKeyType, name.getBytes(), rsaKeyPair);
+        verifySigning(rsaCopy, schema.getKeyType(), name.getBytes(), rsaKeyPair);
         verifySigning(ecCopy, ecKeyType, name.getBytes(), ecKeyPair);
     }
 

@@ -93,7 +93,8 @@ public class KeysAndCertsGenerator {
                     agreementKeyPair,
                     signingCert.getSubjectX500Principal().getName(),
                     signingKeyPair,
-                    SecureRandom.getInstanceStrong());
+                    SecureRandom.getInstanceStrong(),
+                    CryptoConstants.SIG_TYPE2);
             // add agreement certificate to public stores for later retrieval.
             publicStores.setCertificate(KeyCertPurpose.AGREEMENT, agreementCert, nodeId);
         }
@@ -148,7 +149,7 @@ public class KeysAndCertsGenerator {
         agrDetRandom.setSeed(memberId);
         agrDetRandom.setSeed(AGR_SEED);
 
-        final KeysAndCerts keysAndCerts = generate(nodeId, sigDetRandom, agrDetRandom);
+        final KeysAndCerts keysAndCerts = generate(nodeId, SigningSchema.RSA, sigDetRandom, agrDetRandom);
 
         // add to the trust store (which have references stored here and in the caller)
         publicStores.setCertificate(KeyCertPurpose.SIGNING, keysAndCerts.sigCert(), nodeId);
@@ -157,20 +158,12 @@ public class KeysAndCertsGenerator {
         return keysAndCerts;
     }
 
-    @NonNull
-    public static KeysAndCerts generate(
-            @NonNull final NodeId nodeId,
-            @NonNull final SecureRandom sigDetRandom,
-            @NonNull final SecureRandom agrDetRandom)
-            throws NoSuchAlgorithmException, NoSuchProviderException, KeyGeneratingException {
-        return generate(nodeId, SigningSchema.RSA, sigDetRandom, agrDetRandom);
-    }
-
     /**
      * Generated keys using the supplied randomness and creates certificates with those keys. The signing key pair is
      * used to sign both certs.
      *
      * @param nodeId       the node ID used for the certificate distinguished names
+     * @param schema       the signing schema to use for the signing key pair
      * @param sigDetRandom the source of randomness for generating the signing key pair
      * @param agrDetRandom the source of randomness for generating the agreement key pair
      * @return the generated keys and certs
