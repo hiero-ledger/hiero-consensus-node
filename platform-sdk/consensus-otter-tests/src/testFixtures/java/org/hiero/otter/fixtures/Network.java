@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Set;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.internal.helpers.Utils;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology;
@@ -23,7 +24,6 @@ import org.hiero.otter.fixtures.network.utils.LatencyRange;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeEventStreamResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
-import org.hiero.otter.fixtures.result.MultipleNodeMarkerFileResults;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
@@ -283,6 +283,22 @@ public interface Network extends Configurable<Network> {
     void freeze();
 
     /**
+     * Submits a single transaction to the first active node found in the network.
+     *
+     * @param transaction the transaction to submit
+     */
+    default void submitTransaction(@NonNull final OtterTransaction transaction) {
+        submitTransactions(List.of(transaction));
+    }
+
+    /**
+     * Submits the transactions to the first active node found in the network.
+     *
+     * @param transactions the transactions to submit
+     */
+    void submitTransactions(@NonNull List<OtterTransaction> transactions);
+
+    /**
      * Triggers a catastrophic ISS. All nodes in the network will calculate different hashes for an upcoming round.
      */
     void triggerCatastrophicIss();
@@ -366,14 +382,6 @@ public interface Network extends Configurable<Network> {
      */
     @NonNull
     MultipleNodeReconnectResults newReconnectResults();
-
-    /**
-     * Creates a new result with all marker file results of all nodes that are currently in the network.
-     *
-     * @return the marker file results of the nodes
-     */
-    @NonNull
-    MultipleNodeMarkerFileResults newMarkerFileResults();
 
     /**
      * Creates a new result with event streams from all nodes that are currently in the network.
