@@ -254,8 +254,6 @@ public class BlockNodeConnectionManager {
         return nodes;
     }
 
-    // Protocol-specific configs have been removed from the proto for now; only maxMessageSizeBytes is honored.
-
     /**
      * Checks if there is only one block node configured.
      * @return whether there is only one block node configured
