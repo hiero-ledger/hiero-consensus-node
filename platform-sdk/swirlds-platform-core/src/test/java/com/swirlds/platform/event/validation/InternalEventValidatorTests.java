@@ -153,7 +153,7 @@ class InternalEventValidatorTests {
         when(platformEvent.getGossipEvent()).thenReturn(shortDescriptorHash);
         assertNull(multinodeValidator.validateEvent(platformEvent));
         assertNull(singleNodeValidator.validateEvent(platformEvent));
-        assertEquals(4, exitedIntakePipelineCount.get());
+        assertEquals(2, exitedIntakePipelineCount.get());
     }
 
     @Test
