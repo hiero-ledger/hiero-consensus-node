@@ -7,6 +7,7 @@ import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
+import org.junit.jupiter.api.Disabled;
 
 /**
  * A test that runs chaos experiments on a network of nodes.
@@ -14,6 +15,7 @@ import org.hiero.otter.fixtures.TestEnvironment;
 public class ChaosTest {
 
     @OtterTest(requires = Capability.RECONNECT)
+    @Disabled("This test should only be run manually to verify stability under chaos conditions.")
     void chaosTest(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         network.addNodes(4);
