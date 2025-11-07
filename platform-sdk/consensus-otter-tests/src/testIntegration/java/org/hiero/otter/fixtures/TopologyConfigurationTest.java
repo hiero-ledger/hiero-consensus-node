@@ -10,7 +10,7 @@ import java.time.Duration;
 import org.assertj.core.data.Percentage;
 import org.hiero.otter.fixtures.network.MeshTopologyConfiguration;
 import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
-import org.hiero.otter.fixtures.network.utils.GeographicLatencyConfiguration;
+import org.hiero.otter.fixtures.network.utils.GeoMeshTopologyConfiguration;
 import org.hiero.otter.fixtures.network.utils.LatencyRange;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -92,13 +92,13 @@ class TopologyConfigurationTest {
     }
 
     @Test
-    @DisplayName("GeographicLatencyConfiguration can be customized")
-    void testGeographicLatencyConfigurationCustomization() {
+    @DisplayName("GeoMeshTopologyConfiguration can be customized")
+    void testGeoMeshTopologyConfigurationCustomization() {
         final LatencyRange customRange =
                 LatencyRange.of(Duration.ofMillis(10), Duration.ofMillis(40), Percentage.withPercentage(8));
 
-        final GeographicLatencyConfiguration config =
-                GeographicLatencyConfiguration.DEFAULT.withSameRegionLatency(customRange);
+        final GeoMeshTopologyConfiguration config =
+                GeoMeshTopologyConfiguration.DEFAULT.withSameRegionLatency(customRange);
 
         assertEquals(customRange, config.sameRegion(), "Same region latency should be updated to custom range");
     }

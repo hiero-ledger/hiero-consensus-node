@@ -18,7 +18,7 @@ import java.util.function.Supplier;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.network.GeoMeshTopology;
-import org.hiero.otter.fixtures.network.utils.GeographicLatencyConfiguration;
+import org.hiero.otter.fixtures.network.utils.GeoMeshTopologyConfiguration;
 import org.hiero.otter.fixtures.network.utils.LatencyRange;
 
 /**
@@ -33,7 +33,7 @@ public class GeoMeshTopologyImpl implements GeoMeshTopology {
     private final Supplier<InstrumentedNode> instrumentedNodeFactory;
     private final Random random;
 
-    private GeographicLatencyConfiguration configuration = GeographicLatencyConfiguration.DEFAULT;
+    private GeoMeshTopologyConfiguration configuration = GeoMeshTopologyConfiguration.DEFAULT;
 
     /**
      * Constructor for the {@link GeoMeshTopologyImpl} class.
@@ -170,7 +170,7 @@ public class GeoMeshTopologyImpl implements GeoMeshTopology {
      * {@inheritDoc}
      */
     @Override
-    public void setGeographicLatencyConfiguration(@NonNull final GeographicLatencyConfiguration configuration) {
+    public void setGeographicLatencyConfiguration(@NonNull final GeoMeshTopologyConfiguration configuration) {
         this.configuration = requireNonNull(configuration);
     }
 

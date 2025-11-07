@@ -21,7 +21,7 @@ import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology;
 import org.hiero.otter.fixtures.network.TopologyConfiguration;
 import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
-import org.hiero.otter.fixtures.network.utils.GeographicLatencyConfiguration;
+import org.hiero.otter.fixtures.network.utils.GeoMeshTopologyConfiguration;
 import org.hiero.otter.fixtures.network.utils.LatencyRange;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeEventStreamResults;
@@ -68,7 +68,7 @@ public interface Network extends Configurable<Network> {
      * <ul>
      *   <li>{@link MeshTopologyConfiguration} - for uniform mesh topology with specified latency, jitter, and
      *       bandwidth</li>
-     *   <li>{@link GeographicLatencyConfiguration} - for realistic geographic latency simulation</li>
+     *   <li>{@link GeoMeshTopologyConfiguration} - for realistic geographic latency simulation</li>
      * </ul>
      *
      * <p>If this method is not called, a default geographic mesh topology configuration is used.
