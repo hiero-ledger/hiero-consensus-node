@@ -1777,6 +1777,11 @@ enum ResponseCodeEnum {
     INVALID_HOOK_TYPE_FOR_EXTENSION_POINT = 402;
 
     /**
+     * A LambdaSStore referenced a valid entity number but with the wrong entity type.
+     */
+    WRONG_HOOK_ENTITY_TYPE = 499;
+
+    /**
      * An EVM hook execution was throttled due to high network gas utilization.
      */
     EVM_HOOK_GAS_THROTTLED = 500;

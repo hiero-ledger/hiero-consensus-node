@@ -19,7 +19,7 @@ enum HookExtensionPoint {
    */
   ACCOUNT_ALLOWANCE_HOOK = 0;
   /**
-   * Used to control token minting/burning via a hook installed on a token.
+   * Used to customize a token's supply management auth policy.
    */
   MINT_CONTROL_HOOK = 1;
 }
@@ -70,10 +70,9 @@ message HookCreationDetails {
     LambdaEvmHook lambda_evm_hook = 3;
 
     /**
-     * An EVM hook created from the same specification as a lambda, but without
-     * the ability to interact with external contracts at runtime.
+     * A lambda EVM hook restricted to a single frame.
      */
-    LambdaEvmHook inline_evm_hook = 5;
+    LambdaEvmHook inline_lambda_evm_hook = 5;
   }
 
   /**

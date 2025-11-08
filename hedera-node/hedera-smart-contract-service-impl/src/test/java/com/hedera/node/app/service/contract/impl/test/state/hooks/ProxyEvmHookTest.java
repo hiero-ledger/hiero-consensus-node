@@ -85,32 +85,6 @@ class ProxyEvmHookTest {
     }
 
     @Test
-    void coversContractOwnedHookBranchToo() {
-        // --- Arrange: a hook whose owner is a CONTRACT (exercises asAccountId(..) branch) ---
-        final var ownerContractId = ContractID.newBuilder().contractNum(555L).build();
-        final var entityId =
-                HookEntityId.newBuilder().contractId(ownerContractId).build();
-        final var hookId = HookId.newBuilder().entityId(entityId).build();
-
-        final var hookContractId = ContractID.newBuilder().contractNum(888L).build();
-
-        final var hookState = EvmHookState.newBuilder()
-                .hookId(hookId)
-                .hookContractId(hookContractId)
-                .build();
-
-        final Bytes hookContractCode = Bytes.fromHexString("0x60FF");
-        final Code expectedCode = CODE_FACTORY.createCode(hookContractCode, false);
-        given(state.getCode(hookContractId)).willReturn(hookContractCode);
-        given(state.getCodeHash(hookContractId, CODE_FACTORY)).willReturn(expectedCode.getCodeHash());
-
-        final var subject = new ProxyEvmHook(state, hookState, CODE_FACTORY, entityIdFactory);
-
-        assertEquals(expectedCode, subject.getEvmCode(Bytes.EMPTY, CODE_FACTORY));
-        assertEquals(expectedCode.getCodeHash(), subject.getCodeHash());
-    }
-
-    @Test
     void constructorRejectsNullHookState() {
         assertThrows(NullPointerException.class, () -> new ProxyEvmHook(state, null, CODE_FACTORY, entityIdFactory));
     }

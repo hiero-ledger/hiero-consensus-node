@@ -439,7 +439,7 @@ public class PlatformComponentBuilder {
                 blocks.platformContext().getMetrics(),
                 blocks.platformContext().getTime(),
                 blocks.secureRandomSupplier().get(),
-                blocks.keysAndCerts(),
+                new PlatformSigner(blocks.keysAndCerts()),
                 blocks.rosterHistory().getCurrentRoster(),
                 blocks.selfId(),
                 blocks.execution(),

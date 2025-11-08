@@ -34,6 +34,7 @@ import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -329,22 +330,21 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      * {@inheritDoc}
      */
     @Override
-    public void submitTransaction(@NonNull final OtterTransaction transaction) {
+    public void submitTransactions(@NonNull final List<OtterTransaction> transactions) {
         throwIfInLifecycle(INIT, "Node has not been started yet.");
         throwIfInLifecycle(SHUTDOWN, "Node has been shut down.");
         throwIfInLifecycle(DESTROYED, "Node has been destroyed.");
 
         try {
-            final TransactionRequest request = TransactionRequest.newBuilder()
-                    .setPayload(transaction.toByteString())
-                    .build();
-
-            final TransactionRequestAnswer answer = nodeCommBlockingStub.submitTransaction(request);
-            if (!answer.getResult()) {
-                fail("Failed to submit transaction for node %d.".formatted(selfId.id()));
+            final TransactionRequest.Builder builder = TransactionRequest.newBuilder();
+            transactions.forEach(t -> builder.addPayload(t.toByteString()));
+            final TransactionRequestAnswer answer = nodeCommBlockingStub.submitTransaction(builder.build());
+            if (answer.getNumFailed() > 0) {
+                fail("%d out of %d transaction(s) failed to submit for node %d."
+                        .formatted(answer.getNumFailed(), transactions.size(), selfId.id()));
             }
         } catch (final Exception e) {
-            fail("Failed to submit transaction to node %d".formatted(selfId.id()), e);
+            fail("Failed to submit transaction(s) to node %d".formatted(selfId.id()), e);
         }
     }
 
@@ -372,8 +372,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     }
 
     /**
-     * Gets the container instance for this node. This allows direct access to the underlying
-     * Testcontainers container for operations like retrieving console logs.
+     * Gets the container instance for this node. This allows direct access to the underlying Testcontainers container
+     * for operations like retrieving console logs.
      *
      * @return the container instance
      */
