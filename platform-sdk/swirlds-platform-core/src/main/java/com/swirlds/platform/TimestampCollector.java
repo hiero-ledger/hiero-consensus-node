@@ -7,9 +7,11 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.node.NodeId;
 
 public class TimestampCollector {
 
@@ -33,13 +35,20 @@ public class TimestampCollector {
         CONSENSUS_REACHED
     }
 
-    public static final int GAP = 100;
+    public static final int GAP = 10;
     private static final int MAX_ELEMENTS = 1000;
-    private static final Duration WARMUP = Duration.ofMinutes(1L);
+    private static final Duration WARMUP = Duration.ofMinutes(0L);
     private static final long THRESHOLD_NANOS = System.nanoTime() + WARMUP.toNanos();
 
     private static final AtomicLong COUNTER = new AtomicLong();
     private static final long[][] timestamps = new long[MAX_ELEMENTS][Position.values().length];
+
+    private static final AtomicBoolean done = new AtomicBoolean(false);
+    private static volatile long selfId;
+
+    public static void setSelfId(@NonNull final NodeId selfId) {
+        TimestampCollector.selfId = selfId.id();
+    }
 
     public static int register() {
         final long now = System.nanoTime();
@@ -57,6 +66,9 @@ public class TimestampCollector {
 
     public static void timestamp(@NonNull final Position position, final int index) {
         if (index >= MAX_ELEMENTS) {
+            if (!done.compareAndExchange(false, true) && position == Position.CONSENSUS_REACHED) {
+                store();
+            }
             return;
         }
         final long now = System.nanoTime();
@@ -64,7 +76,7 @@ public class TimestampCollector {
     }
 
     public static void store() {
-        try (final BufferedWriter writer = new BufferedWriter(new FileWriter("timestamps.csv"))) {
+        try (final BufferedWriter writer = new BufferedWriter(new FileWriter("timestamps" + selfId + ".csv"))) {
             final String heading = Stream.of(Position.values()).skip(1L).map(Position::toString).collect(Collectors.joining(","));
             writer.write(heading);
             writer.newLine();

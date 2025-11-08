@@ -10,13 +10,13 @@ import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialSta
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
+import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.TimestampCollector;
@@ -24,6 +24,7 @@ import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.config.PathsConfig;
+import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
@@ -42,10 +43,13 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
@@ -83,6 +87,9 @@ public class ConsensusNodeManager {
     /** The current quiescence command. Volatile because it is read and set by different gRPC messages */
     private volatile QuiescenceCommand quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
 
+    private final PlatformBuildingBlocks blocks;
+    private final PlatformComponents platformComponents;
+
     /**
      * Creates a new instance of {@code ConsensusNodeManager} with the specified parameters. This constructor
      * initializes the platform, sets up all necessary parts for the consensus node.
@@ -106,14 +113,12 @@ public class ConsensusNodeManager {
         BootstrapUtils.setupConstructableRegistry();
         TestingAppStateInitializer.registerConstructablesForStorage(platformConfig);
 
-        final var legacySelfId = org.hiero.consensus.model.node.NodeId.of(selfId.id());
-
         // Immediately initialize the cryptography and merkle cryptography factories
         // to avoid using default behavior instead of that defined in platformConfig
         final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(platformConfig);
 
         setupGlobalMetrics(platformConfig);
-        final Metrics metrics = getMetricsProvider().createPlatformMetrics(legacySelfId);
+        final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
 
         log.info(STARTUP.getMarker(), "Creating node {} with version {}", selfId, version);
@@ -121,7 +126,7 @@ public class ConsensusNodeManager {
         final Time time = Time.getCurrent();
         final FileSystemManager fileSystemManager = FileSystemManager.create(platformConfig);
         final RecycleBin recycleBin = RecycleBin.create(
-                metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, legacySelfId);
+                metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
 
         final PlatformContext platformContext = PlatformContext.create(
                 platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
@@ -135,7 +140,7 @@ public class ConsensusNodeManager {
                         platformConfig, metrics, time, activeRoster, version, otterApp.allServices()),
                 OtterApp.APP_NAME,
                 OtterApp.SWIRLD_NAME,
-                legacySelfId,
+                selfId,
                 platformStateFacade,
                 platformContext,
                 virtualMap -> new OtterAppState(virtualMap, metrics, time));
@@ -155,7 +160,7 @@ public class ConsensusNodeManager {
                         version,
                         initialState,
                         otterApp,
-                        legacySelfId,
+                        selfId,
                         Long.toString(selfId.id()),
                         rosterHistory,
                         platformStateFacade,
@@ -167,10 +172,10 @@ public class ConsensusNodeManager {
 
         // Build the platform component builder
         final PlatformComponentBuilder componentBuilder = builder.buildComponentBuilder();
-        final PlatformBuildingBlocks blocks = componentBuilder.getBuildingBlocks();
+        blocks = componentBuilder.getBuildingBlocks();
 
         // Wiring: Forward consensus rounds to registered listeners
-        final PlatformComponents platformComponents = blocks.platformComponents();
+        platformComponents = blocks.platformComponents();
         platformComponents
                 .consensusEngineWiring()
                 .consensusRoundsOutputWire()
@@ -266,5 +271,14 @@ public class ConsensusNodeManager {
         TimestampCollector.store();
 //        this.quiescenceCommand = command;
 //        platform.quiescenceCommand(command);
+    }
+
+    public IntakeEventCounter intakeEventCounter() {
+        return blocks.intakeEventCounter();
+    }
+
+    public Consumer<PlatformEvent> eventHandler() {
+        final StandardOutputWire<PlatformEvent> eventOutput = (StandardOutputWire<PlatformEvent>) platformComponents.gossipWiring().getEventOutput();
+        return eventOutput::forward;
     }
 }

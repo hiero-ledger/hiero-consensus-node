@@ -3,7 +3,6 @@ package org.hiero.consensus.otter.docker.app;
 
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
 
-import com.hedera.hapi.platform.state.NodeId;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import java.io.File;
@@ -11,6 +10,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.otter.docker.app.logging.DockerLogConfigBuilder;
 import org.hiero.consensus.otter.docker.app.platform.NodeCommunicationService;
 
@@ -44,7 +44,7 @@ public class ConsensusNodeMain {
             throw new IllegalArgumentException("Usage: ConsensusNodeMain <selfId>");
         }
         final long id = Long.parseLong(args[0]);
-        final NodeId selfId = NodeId.newBuilder().id(id).build();
+        final NodeId selfId = NodeId.of(id);
 
         DockerLogConfigBuilder.configure(Path.of(CONTAINER_APP_WORKING_DIR), selfId);
 

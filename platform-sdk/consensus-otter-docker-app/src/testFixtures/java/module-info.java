@@ -20,4 +20,7 @@ module org.hiero.consensus.otter.docker.app {
     requires io.grpc;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
+    requires com.hedera.pbj.runtime;
+    requires org.hiero.base.crypto;
+    requires info.picocli;
 }

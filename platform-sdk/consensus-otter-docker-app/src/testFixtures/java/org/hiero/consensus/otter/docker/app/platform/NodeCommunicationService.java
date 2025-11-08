@@ -10,7 +10,6 @@ import static org.hiero.otter.fixtures.internal.helpers.Utils.createConfiguratio
 import com.google.protobuf.Empty;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.Status;
@@ -23,6 +22,7 @@ import java.util.concurrent.ThreadFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.otter.docker.app.EventMessageFactory;
 import org.hiero.consensus.otter.docker.app.OutboundDispatcher;
@@ -126,7 +126,7 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
         final KeysAndCerts keysAndCerts = KeysAndCertsConverter.fromProto(request.getKeysAndCerts());
 
         consensusNodeManager = new ConsensusNodeManager(
-                selfId, platformConfig, genesisRoster, version, keysAndCerts, backgroundExecutor);
+                NodeId.of(selfId.id()), platformConfig, genesisRoster, version, keysAndCerts, backgroundExecutor);
 
         setupStreamingEventDispatcher(responseObserver);
 
