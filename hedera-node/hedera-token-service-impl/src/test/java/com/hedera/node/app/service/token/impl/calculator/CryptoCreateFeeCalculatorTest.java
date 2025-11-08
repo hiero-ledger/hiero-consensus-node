@@ -50,8 +50,7 @@ class CryptoCreateFeeCalculatorTest {
             // Given
             lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
             final var op = CryptoCreateTransactionBody.newBuilder().build();
-            final var body =
-                    TransactionBody.newBuilder().cryptoCreateAccount(op).build();
+            final var body = TransactionBody.newBuilder().cryptoCreateAccount(op).build();
 
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
@@ -72,8 +71,7 @@ class CryptoCreateFeeCalculatorTest {
             lenient().when(calculatorState.numTxnSignatures()).thenReturn(2);
             final var key = Key.newBuilder().ed25519(Bytes.wrap(new byte[32])).build();
             final var op = CryptoCreateTransactionBody.newBuilder().key(key).build();
-            final var body =
-                    TransactionBody.newBuilder().cryptoCreateAccount(op).build();
+            final var body = TransactionBody.newBuilder().cryptoCreateAccount(op).build();
 
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
@@ -100,8 +98,7 @@ class CryptoCreateFeeCalculatorTest {
                     .build();
             final var key = Key.newBuilder().keyList(keyList).build();
             final var op = CryptoCreateTransactionBody.newBuilder().key(key).build();
-            final var body =
-                    TransactionBody.newBuilder().cryptoCreateAccount(op).build();
+            final var body = TransactionBody.newBuilder().cryptoCreateAccount(op).build();
 
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
@@ -133,8 +130,7 @@ class CryptoCreateFeeCalculatorTest {
                     .build();
             final var key = Key.newBuilder().thresholdKey(thresholdKey).build();
             final var op = CryptoCreateTransactionBody.newBuilder().key(key).build();
-            final var body =
-                    TransactionBody.newBuilder().cryptoCreateAccount(op).build();
+            final var body = TransactionBody.newBuilder().cryptoCreateAccount(op).build();
 
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
@@ -161,7 +157,9 @@ class CryptoCreateFeeCalculatorTest {
                 .services(makeService(
                         "CryptoService",
                         makeServiceFee(
-                                HederaFunctionality.CRYPTO_CREATE, 498500000L, makeExtraIncluded(Extra.SIGNATURES, 1))))
+                                HederaFunctionality.CRYPTO_CREATE,
+                                498500000L,
+                                makeExtraIncluded(Extra.SIGNATURES, 1))))
                 .build();
     }
 }
