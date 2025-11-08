@@ -115,9 +115,7 @@ class CryptoDeleteFeeCalculatorTest {
                 .services(makeService(
                         "CryptoService",
                         makeServiceFee(
-                                HederaFunctionality.CRYPTO_DELETE,
-                                49850000L,
-                                makeExtraIncluded(Extra.SIGNATURES, 1))))
+                                HederaFunctionality.CRYPTO_DELETE, 49850000L, makeExtraIncluded(Extra.SIGNATURES, 1))))
                 .build();
     }
 }
