@@ -1777,6 +1777,12 @@ enum ResponseCodeEnum {
     INVALID_HOOK_TYPE_FOR_EXTENSION_POINT = 402;
 
     /**
+     * A LambdaSStore tried to modify a hook with no available storage key (e.g., a MINT_CONTROL_HOOK
+     * with no admin key created on an immutable token).
+     */
+    HOOK_HAS_NO_STORAGE_KEY = 403;
+
+    /**
      * A LambdaSStore referenced a valid entity number but with the wrong entity type.
      */
     WRONG_HOOK_ENTITY_TYPE = 499;

@@ -87,6 +87,10 @@ enum EvmHookType {
    * A lambda EVM hook.
    */
   LAMBDA = 0;
+  /**
+   * An inline lambda EVM hook.
+   */
+  INLINE_LAMBDA = 1;
 }
 
 /**
