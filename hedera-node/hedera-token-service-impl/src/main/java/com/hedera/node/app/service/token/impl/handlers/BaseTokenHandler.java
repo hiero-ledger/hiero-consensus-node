@@ -11,6 +11,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_REMAINING_AUTOMATIC_
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKENS_PER_ACCOUNT_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_MAX_SUPPLY_REACHED;
+import static com.hedera.hapi.node.hooks.HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK;
+import static com.hedera.hapi.node.hooks.HookExtensionPoint.MINT_CONTROL_HOOK;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
@@ -20,6 +22,7 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenSupplyType;
+import com.hedera.hapi.node.hooks.HookExtensionPoint;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
@@ -56,6 +59,16 @@ public class BaseTokenHandler {
      * The set of all token keys.
      */
     protected static final Set<TokenKey> TOKEN_KEYS = EnumSet.allOf(TokenKey.class);
+
+    /**
+     * All the hooks that can be used with account entities.
+     */
+    protected static final Set<HookExtensionPoint> ACCOUNT_HOOKS = Set.of(ACCOUNT_ALLOWANCE_HOOK);
+
+    /**
+     * All the hooks that can be used with tokens.
+     */
+    protected static final Set<HookExtensionPoint> TOKEN_HOOKS = Set.of(MINT_CONTROL_HOOK);
 
     /**
      * The value for unlimited automatic associations.

@@ -1783,6 +1783,12 @@ enum ResponseCodeEnum {
     HOOK_HAS_NO_STORAGE_KEY = 403;
 
     /**
+     * A transaction tried to create a hook at an extension point that can only be used at most once
+     * per entity; and the extension point was already in use.
+     */
+    EXCLUSIVE_HOOK_ALREADY_IN_USE = 404;
+
+    /**
      * A LambdaSStore referenced a valid entity number but with the wrong entity type.
      */
     WRONG_HOOK_ENTITY_TYPE = 499;

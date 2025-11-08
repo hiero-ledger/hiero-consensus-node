@@ -10,12 +10,12 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.LAMBDA_STORAGE_UPDATE_BYTES_MUST_USE_MINIMAL_REPRESENTATION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.LAMBDA_STORAGE_UPDATE_BYTES_TOO_LONG;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_IMMUTABLE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOO_MANY_LAMBDA_STORAGE_UPDATES;
 import static com.hedera.hapi.node.state.hooks.EvmHookType.INLINE_LAMBDA;
 import static com.hedera.hapi.node.state.hooks.EvmHookType.LAMBDA;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.asAccountId;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.minimalRepresentationOf;
+import static com.hedera.node.app.service.token.HookDispatchUtils.assertPlausibleHookId;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
@@ -30,6 +30,7 @@ import com.hedera.hapi.node.hooks.LambdaMappingEntry;
 import com.hedera.hapi.node.hooks.LambdaStorageSlot;
 import com.hedera.node.app.service.contract.ReadableEvmHookStore;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
+import com.hedera.node.app.service.token.HookDispatchUtils;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -60,9 +61,7 @@ public class LambdaSStoreHandler implements TransactionHandler {
         final var op = context.body().lambdaSstoreOrThrow();
         validateTruePreCheck(op.hasHookId(), INVALID_HOOK_ID);
         final var hookId = op.hookIdOrThrow();
-        validateTruePreCheck(hookId.hasEntityId(), INVALID_HOOK_ID);
-        final var ownerType = hookId.entityIdOrThrow().entityId().kind();
-        validateTruePreCheck(ownerType != UNSET, INVALID_HOOK_ID);
+        assertPlausibleHookId(hookId);
         for (final var update : op.storageUpdates()) {
             if (update.hasStorageSlot()) {
                 validateSlot(update.storageSlotOrThrow());

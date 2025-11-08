@@ -342,7 +342,8 @@ message TokenCreateTransactionBody {
      */
     Key metadata_key = 24;
 
-    // Optional mint control hook for this token, created at token creation.
-    com.hedera.hapi.node.hooks.HookCreation mint_control_hook_creation = 91;
-
+    /**
+     * Optional details of hooks to add immediately after creating this token.
+     */
+    repeated com.hedera.hapi.node.hooks.HookCreationDetails hook_creation_details = 25;
 }

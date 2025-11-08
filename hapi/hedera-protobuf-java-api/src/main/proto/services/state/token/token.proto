@@ -350,7 +350,13 @@ message Token {
      */
     Key metadata_key = 28;
 
-    // The id of the mint control hook attached to this token (if any).
+    /**
+     * If set, the id of the MINT_CONTROL_HOOK that customizes supply auth for this token.
+     */
     google.protobuf.UInt64Value mint_control_hook_id = 90;
 
+    /**
+     * The number of storage slots in use by this token's lambdas.
+     */
+    uint64 number_lambda_storage_slots = 38;
 }

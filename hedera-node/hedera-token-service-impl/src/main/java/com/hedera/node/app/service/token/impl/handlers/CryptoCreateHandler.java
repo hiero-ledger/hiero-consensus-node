@@ -37,7 +37,8 @@ import static com.hedera.node.app.service.token.AliasUtils.isEntityNumAlias;
 import static com.hedera.node.app.service.token.AliasUtils.isKeyAlias;
 import static com.hedera.node.app.service.token.AliasUtils.isOfEvmAddressSize;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookCreations;
-import static com.hedera.node.app.service.token.HookDispatchUtils.validateHookDuplicates;
+import static com.hedera.node.app.service.token.HookDispatchUtils.validateAllHookCreationDetails;
+import static com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler.ACCOUNT_HOOKS;
 import static com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler.UNLIMITED_AUTOMATIC_ASSOCIATIONS;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingUtilities.NOT_REWARDED_SINCE_LAST_STAKING_META_CHANGE;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingUtilities.NO_STAKE_PERIOD_START;
@@ -169,8 +170,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
             }
         }
         validateTruePreCheck(key != null, KEY_NOT_PROVIDED);
-        // since pure evm hooks are being removed, just added validations for lambda evm hooks for now
-        validateHookDuplicates(op.hookCreationDetails());
+        validateAllHookCreationDetails(op.hookCreationDetails(), ACCOUNT_HOOKS);
     }
 
     @Override

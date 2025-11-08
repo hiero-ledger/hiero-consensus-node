@@ -213,7 +213,8 @@ public class TokenHandlerTestBase {
                 Collections.emptyList(),
                 metadata,
                 metadataKey,
-                null);
+                null,
+                0);
     }
 
     protected Token createToken() {

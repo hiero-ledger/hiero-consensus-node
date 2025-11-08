@@ -134,7 +134,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
  */
 @ExtendWith(MockitoExtension.class)
 public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
-    public static final String UNKNOWN_FIELDS = "$unknownFields";
     protected static final Instant originalInstant = Instant.ofEpochSecond(12345678910L);
     protected static final long stakePeriodStart =
             LocalDate.ofInstant(originalInstant, ZONE_UTC).toEpochDay() - 1;
@@ -1075,7 +1074,8 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
                 customFees,
                 metadata,
                 metadataKey,
-                null);
+                null,
+                0);
     }
 
     protected Token givenValidNonFungibleToken(boolean hasKyc) {

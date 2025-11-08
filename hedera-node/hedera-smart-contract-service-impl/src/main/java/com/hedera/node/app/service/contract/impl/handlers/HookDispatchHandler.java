@@ -10,12 +10,13 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_CALL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.node.app.service.contract.impl.utils.HookValidationUtils.validateHook;
+import static com.hedera.node.app.service.token.HookDispatchUtils.validateHookCreationDetails;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HookId;
+import com.hedera.hapi.node.hooks.HookExtensionPoint;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
@@ -39,7 +40,11 @@ import javax.inject.Inject;
 import javax.inject.Provider;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
+import java.util.EnumSet;
+import java.util.Set;
+
 public class HookDispatchHandler extends AbstractContractTransactionHandler implements TransactionHandler {
+    private static final Set<HookExtensionPoint> ANY_EXTENSION_POINT = EnumSet.allOf(HookExtensionPoint.class);
 
     @Inject
     public HookDispatchHandler(
@@ -61,7 +66,7 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
         final var op = context.body().hookDispatchOrThrow();
         validateTruePreCheck(op.hasCreation() || op.hasExecution() || op.hasHookIdToDelete(), INVALID_TRANSACTION_BODY);
         if (op.hasCreation()) {
-            validateHook(op.creationOrThrow().details());
+            validateHookCreationDetails(op.creationOrThrow().detailsOrThrow(), ANY_EXTENSION_POINT);
         } else if (op.hasExecution()) {
             validateTrue(op.executionOrThrow().hasCall(), INVALID_HOOK_CALL);
             validateTrue(op.executionOrThrow().callOrThrow().hasHookId(), INVALID_HOOK_CALL);
