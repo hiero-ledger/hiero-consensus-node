@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app;
 
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static org.hiero.otter.fixtures.app.state.OtterStateInitializer.initOtterAppState;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -23,12 +22,12 @@ public class OtterAppState extends VirtualMapState<OtterAppState> implements Mer
 
     public OtterAppState(
             @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
-        super(configuration, metrics, time);
+        super(configuration, metrics);
     }
 
     public OtterAppState(
             @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
-        super(virtualMap, metrics, time);
+        super(virtualMap, metrics);
     }
 
     /**
@@ -80,20 +79,6 @@ public class OtterAppState extends VirtualMapState<OtterAppState> implements Mer
     @Override
     protected OtterAppState copyingConstructor() {
         return new OtterAppState(this);
-    }
-
-    @Override
-    protected OtterAppState newInstance(
-            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
-        return new OtterAppState(virtualMap, metrics, time);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    protected long getRound() {
-        return DEFAULT_PLATFORM_STATE_FACADE.roundOf(this);
     }
 
     /**
