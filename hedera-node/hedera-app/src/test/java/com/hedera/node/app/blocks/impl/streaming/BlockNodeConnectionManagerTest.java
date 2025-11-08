@@ -17,6 +17,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager.BlockNodeConnectionTask;
@@ -1893,5 +1894,30 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConnectionInfo protoConfig = BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(jsonConfig));
         assertThat(protoConfig).isNotNull();
         assertThat(protoConfig.nodes().getFirst().maxMessageSizeBytes()).isNotNull();
+    }
+
+    @Test
+    void testNotifyConnectionClosed_removesNonActiveConnection() {
+        final BlockNodeConnection conn = mock(BlockNodeConnection.class);
+        final BlockNodeConfig cfg = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 4242, 1);
+        final BlockNodeProtocolConfig proto = new BlockNodeProtocolConfig(cfg, null);
+        when(conn.getBlockNodeConnectionConfig()).thenReturn(proto);
+
+        // Put the connection into the connections map
+        connections().put(proto, conn);
+
+        // Ensure it's not the active connection
+        activeConnection().set(null);
+
+        // Call notifyConnectionClosed
+        connectionManager.notifyConnectionClosed(conn);
+
+        // The connection should be removed from the map
+        assertThat(connections()).doesNotContainKey(proto);
+
+        // No scheduling or other side-effects expected
+        verifyNoInteractions(executorService);
+        verifyNoInteractions(bufferService);
+        verifyNoInteractions(metrics);
     }
 }
