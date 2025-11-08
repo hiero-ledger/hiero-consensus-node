@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.handlers;
 
 import static com.hedera.hapi.node.base.HookEntityId.EntityIdOneOfType.UNSET;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_LAMBDA_STORAGE_UPDATE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_HAS_NO_STORAGE_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_IS_NOT_A_LAMBDA;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ID;
@@ -126,7 +127,7 @@ public class LambdaSStoreHandler implements TransactionHandler {
                 }
             } else {
                 // Hook has no admin key, so only the token admin key can manage storage
-                validateTruePreCheck(token.hasAdminKey(), TOKEN_IS_IMMUTABLE);
+                validateTruePreCheck(token.hasAdminKey(), HOOK_HAS_NO_STORAGE_KEY);
                 context.requireKey(token.adminKeyOrThrow());
             }
         }
