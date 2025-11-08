@@ -16,7 +16,7 @@ import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameState;
-import com.hedera.node.app.service.contract.impl.state.hooks.ProxyEvmHook;
+import com.hedera.node.app.service.contract.impl.state.hooks.ProxyEvmAccountHook;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import org.apache.tuweni.bytes.Bytes;
@@ -29,7 +29,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class ProxyEvmHookTest {
+class ProxyEvmAccountHookTest {
 
     @Mock
     private EvmFrameState state;
@@ -64,7 +64,7 @@ class ProxyEvmHookTest {
                         key))
                 .willReturn(expectedStorageValue);
 
-        final var subject = new ProxyEvmHook(state, hookState, CODE_FACTORY, entityIdFactory);
+        final var subject = new ProxyEvmAccountHook(state, hookState, CODE_FACTORY, entityIdFactory);
 
         final var code = subject.getEvmCode(Bytes.wrap(new byte[] {1, 2, 3, 4}), CODE_FACTORY);
         assertEquals(expectedCode, code);
@@ -86,6 +86,6 @@ class ProxyEvmHookTest {
 
     @Test
     void constructorRejectsNullHookState() {
-        assertThrows(NullPointerException.class, () -> new ProxyEvmHook(state, null, CODE_FACTORY, entityIdFactory));
+        assertThrows(NullPointerException.class, () -> new ProxyEvmAccountHook(state, null, CODE_FACTORY, entityIdFactory));
     }
 }

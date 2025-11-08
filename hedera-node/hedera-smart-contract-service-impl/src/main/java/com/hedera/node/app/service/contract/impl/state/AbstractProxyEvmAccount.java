@@ -36,7 +36,7 @@ public abstract class AbstractProxyEvmAccount extends AbstractMutableEvmAccount 
     protected final AccountID accountID;
     protected final EvmFrameState state;
 
-    protected AbstractProxyEvmAccount(final AccountID accountID, @NonNull final EvmFrameState state) {
+    protected AbstractProxyEvmAccount(@NonNull final AccountID accountID, @NonNull final EvmFrameState state) {
         this.accountID = accountID;
         this.state = state;
     }
