@@ -1080,6 +1080,6 @@ public class BlockNodeConnectionManager {
         activeConnectionRef.compareAndSet(connection, null);
 
         // Remove from connections map
-        connections.remove(connection.getNodeConfig());
+        connections.remove(connection.getBlockNodeConnectionConfig());
     }
 }
