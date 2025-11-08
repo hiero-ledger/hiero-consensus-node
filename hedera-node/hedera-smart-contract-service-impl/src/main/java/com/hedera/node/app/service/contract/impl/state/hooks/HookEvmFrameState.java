@@ -74,7 +74,10 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
     @Override
     public @Nullable MutableAccount getMutableAccount(@NonNull final Address address) {
         if (address.equals(HTS_HOOKS_CONTRACT_ADDRESS)) {
-            return new ProxyEvmAccountHook(this, hook, codeFactory, entityIdFactory);
+            return switch (hook.extensionPoint()) {
+                case ACCOUNT_ALLOWANCE_HOOK -> new ProxyEvmAccountHook(this, hook, codeFactory, entityIdFactory);
+                case MINT_CONTROL_HOOK -> new ProxyEvmTokenHook(this, hook, codeFactory, entityIdFactory);
+            };
         }
         return super.getMutableAccount(address);
     }
