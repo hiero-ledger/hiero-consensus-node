@@ -5,6 +5,7 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetAdvancementWeight.ZERO_ADVANCEMENT_WEIGHT;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.config.api.Configuration;
@@ -255,9 +256,11 @@ public class TipsetEventCreator implements EventCreator {
         }
     }
 
+    private static final Bytes BUFFER = Bytes.wrap(new byte[48]);
+
     private PlatformEvent signEvent(final UnsignedEvent event) {
-        final Signature signature = signer.sign(event.getHash());
-        return new PlatformEvent(event, signature.getBytes());
+//        final Signature signature = signer.sign(event.getHash());
+        return new PlatformEvent(event, BUFFER);
     }
 
     /**

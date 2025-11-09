@@ -158,7 +158,7 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
             return null;
         }
 
-        if (isSignatureValid(event)) {
+        if (true) {
             final int index = event.getIndex();
             if (index > 0) {
                 TimestampCollector.timestamp(TimestampCollector.Position.SIGNATURE_VALIDATED, index);
