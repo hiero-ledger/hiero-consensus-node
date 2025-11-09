@@ -11,6 +11,7 @@ import com.hedera.node.app.spi.RpcService;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.config.VersionedConfigImpl;
+import com.hedera.node.config.data.GovernanceTransactionsConfig;
 import com.hedera.node.config.data.GrpcConfig;
 import com.hedera.node.config.data.GrpcUsageTrackerConfig;
 import com.hedera.node.config.data.HederaConfig;
@@ -93,6 +94,7 @@ public abstract class GrpcTestBase extends TestBase {
     protected NettyGrpcServerManager grpcServer;
 
     private final Configuration configuration = ConfigurationBuilder.create()
+            .withConfigDataType(GovernanceTransactionsConfig.class)
             .withConfigDataType(JumboTransactionsConfig.class)
             .withConfigDataType(MetricsConfig.class)
             .build();
@@ -285,6 +287,7 @@ public abstract class GrpcTestBase extends TestBase {
                 .withConfigDataType(GrpcConfig.class)
                 .withConfigDataType(NettyConfig.class)
                 .withConfigDataType(HederaConfig.class)
+                .withConfigDataType(GovernanceTransactionsConfig.class)
                 .withConfigDataType(JumboTransactionsConfig.class)
                 .withConfigDataType(GrpcUsageTrackerConfig.class)
                 .withSource(testConfig)

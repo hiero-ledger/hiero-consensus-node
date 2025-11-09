@@ -47,6 +47,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.config.data.GovernanceTransactionsConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.Codec;
@@ -330,7 +331,7 @@ final class TransactionCheckerTest extends AppTestBase {
         }
 
         @Test
-        void doesNotPassIfMoreThenMaxJumboSizeWithEnabledJumbo() {
+        void doesNotPassIfMoreThanMaxJumboSizeWithEnabledJumbo() {
             // Enabled jumbo transactions
             props = () -> new VersionedConfigImpl(
                     HederaTestConfigBuilder.create()
@@ -340,7 +341,7 @@ final class TransactionCheckerTest extends AppTestBase {
 
             checker = new TransactionChecker(props, metrics);
 
-            int maxJumboTxnSize = props.getConfiguration()
+            final int maxJumboTxnSize = props.getConfiguration()
                     .getConfigData(JumboTransactionsConfig.class)
                     .maxTxnSize();
 
@@ -351,7 +352,7 @@ final class TransactionCheckerTest extends AppTestBase {
         }
 
         @Test
-        void passedWithMoreThen6KbWithJumboEnabled() {
+        void passedWithMoreThan6KbWithJumboEnabled() {
             // Enabled jumbo transactions
             props = () -> new VersionedConfigImpl(
                     HederaTestConfigBuilder.create()
@@ -361,9 +362,66 @@ final class TransactionCheckerTest extends AppTestBase {
 
             checker = new TransactionChecker(props, metrics);
 
+            final int maxJumboTxnSize = props.getConfiguration()
+                    .getConfigData(JumboTransactionsConfig.class)
+                    .maxTxnSize();
+
             // assert that even if we are sending a transaction with more than 6KB,
             // it will not fail with TRANSACTION_OVERSIZE
             assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE + 1), MAX_LARGE_TX_SIZE))
+                    .isInstanceOf(PreCheckException.class)
+                    .isNot(responseCode(TRANSACTION_OVERSIZE));
+            // assert that even if we are sending a transaction with up to the limit of 13KB,
+            // it will not fail with TRANSACTION_OVERSIZE
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(maxJumboTxnSize), MAX_LARGE_TX_SIZE))
+                    .isInstanceOf(PreCheckException.class)
+                    .isNot(responseCode(TRANSACTION_OVERSIZE));
+        }
+
+        @Test
+        void doesNotPassIfMoreThanMaxGovernanceSizeWithEnabledGovernance() {
+            // Enabled governance transactions
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("governanceTransactions.isEnabled", true)
+                            .getOrCreateConfig(),
+                    1);
+
+            checker = new TransactionChecker(props, metrics);
+
+            final int maxGovernanceTxnSize = props.getConfiguration()
+                    .getConfigData(GovernanceTransactionsConfig.class)
+                    .maxTxnSize();
+
+            // assert that passing more than maxGovernanceTxnSize will fail
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(maxGovernanceTxnSize + 1), maxBytes))
+                    .isInstanceOf(PreCheckException.class)
+                    .is(responseCode(TRANSACTION_OVERSIZE));
+        }
+
+        @Test
+        void passedWithMoreThan6KbWithGovernanceEnabled() {
+            // Enabled governance transactions
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("governanceTransactions.isEnabled", true)
+                            .getOrCreateConfig(),
+                    1);
+
+            checker = new TransactionChecker(props, metrics);
+
+            final int maxGovernanceTxnSize = props.getConfiguration()
+                    .getConfigData(GovernanceTransactionsConfig.class)
+                    .maxTxnSize();
+
+            // assert that even if we are sending a transaction with more than 6KB,
+            // it will not fail with TRANSACTION_OVERSIZE
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE + 1), MAX_LARGE_TX_SIZE))
+                    .isInstanceOf(PreCheckException.class)
+                    .isNot(responseCode(TRANSACTION_OVERSIZE));
+            // assert that even if we are sending a transaction with up to the limit of 13KB,
+            // it will not fail with TRANSACTION_OVERSIZE
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(maxGovernanceTxnSize), MAX_LARGE_TX_SIZE))
                     .isInstanceOf(PreCheckException.class)
                     .isNot(responseCode(TRANSACTION_OVERSIZE));
         }
@@ -408,7 +466,7 @@ final class TransactionCheckerTest extends AppTestBase {
         }
 
         @Test
-        void withEnabledJumboSizeBiggerThenMaxTxnSizeWithNotSupportedFunctionality() {
+        void withEnabledJumboSizeBiggerThanMaxTxnSizeWithNotSupportedFunctionality() {
             props = () -> new VersionedConfigImpl(
                     HederaTestConfigBuilder.create()
                             .withValue("jumboTransactions.isEnabled", true)
@@ -427,6 +485,30 @@ final class TransactionCheckerTest extends AppTestBase {
             when(txInfo.functionality()).thenReturn(HederaFunctionality.TOKEN_MINT);
 
             assertThrows(PreCheckException.class, () -> checker.checkTransactionSize(txInfo));
+        }
+
+        @Test
+        void withEnabledJumboAndGovernanceSizeBiggerThanMaxTxnSizeWithNotSupportedFunctionalityPasses() {
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("governanceTransactions.isEnabled", true)
+                            .withValue("jumboTransactions.isEnabled", true)
+                            .withValue("jumboTransactions.isEnabled", true)
+                            .withValue("jumboTransactions.maxTxnSize", 1024 * 10) // 10 KB
+                            .withValue("hedera.transaction.maxBytes", 1024 * 6) // 6 KB
+                            .getOrCreateConfig(),
+                    1);
+
+            checker = new TransactionChecker(props, metrics);
+
+            TransactionInfo txInfo = mock(TransactionInfo.class);
+            when(txInfo.signedTx())
+                    .thenReturn(SignedTransaction.newBuilder()
+                            .bodyBytes(Bytes.wrap(new byte[1024 * 7]))
+                            .build()); // 7 KB
+            when(txInfo.functionality()).thenReturn(HederaFunctionality.TOKEN_MINT);
+
+            assertDoesNotThrow(() -> checker.checkTransactionSize(txInfo));
         }
     }
 
@@ -1032,7 +1114,7 @@ final class TransactionCheckerTest extends AppTestBase {
             }
 
             @Test
-            void oversizedTransactionWithPrivilegedPayerFails() throws PreCheckException {
+            void oversizedTransactionWithPrivilegedPayerFails() {
                 // Given governance transactions enabled, privileged payer, transaction > 130KB
                 props = () -> new VersionedConfigImpl(
                         HederaTestConfigBuilder.create()
