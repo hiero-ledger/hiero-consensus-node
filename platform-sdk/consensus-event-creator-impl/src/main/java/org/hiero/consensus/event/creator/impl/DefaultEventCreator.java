@@ -131,8 +131,8 @@ public class DefaultEventCreator implements EventCreatorModule {
             @NonNull final Time time,
             @NonNull final SignatureTransactionCheck signatureTransactionCheck,
             @NonNull final EventCreator eventCreator,
-            final Roster roster,
-            final NodeId selfId) {
+            @NonNull final Roster roster,
+            @NonNull final NodeId selfId) {
         if (creator != null || eventCreationRules != null || phase != null || futureEventBuffer != null) {
             throw new IllegalStateException("EventCreationManager already initialized");
         }

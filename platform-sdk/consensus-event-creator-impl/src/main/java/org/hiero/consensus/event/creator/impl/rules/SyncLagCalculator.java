@@ -61,6 +61,12 @@ public class SyncLagCalculator {
                 .sum();
     }
 
+    /**
+     * Update round lag as computed against specific peer
+     *
+     * @param nodeId peer against which lag is reported
+     * @param diff   lag in number of rounds
+     */
     public void reportSyncLag(final NodeId nodeId, final long diff) {
         if (selfId.equals(nodeId)) {
             throw new IllegalArgumentException("Reporting sync lag for self is illegal " + nodeId + " " + diff);
@@ -71,56 +77,42 @@ public class SyncLagCalculator {
         consensusLag.put(nodeId, new WeightAndLag(weightMap.get(nodeId), diff));
     }
 
+    /**
+     * Retrieve median round lag computed from syncs. It is median based on weights, so more important nodes skew the
+     * median into their favor
+     *
+     * @return median of lag (which, in most cases, will be linearly interpolated between two 'middle' nodes)
+     */
     public double getSyncRoundLag() {
         final var lagArray = consensusLag.values().toArray(WeightAndLag[]::new);
         double medianLag;
         if (lagArray.length > 0) {
+            // shut up compiler about the loop exit
             medianLag = lagArray[0].lag();
+            // we need to sort everything based on lags to look for median
             Arrays.sort(lagArray, Comparator.comparing(WeightAndLag::lag));
-            final long correctedTotalWeight = totalWeight - lagArray[0].weight();
+
+            final long correctedTotalWeight = totalWeight;
             long runningWeight = 0;
-            long previousWeight = 0;
-            for (int i = 1; i < lagArray.length; i++) {
+            for (int i = 0; i < lagArray.length; i++) {
                 runningWeight += lagArray[i].weight();
-                if (runningWeight > correctedTotalWeight / 2) {
-                    if (i == lagArray.length - 1) {
-                        medianLag = lagArray[i].lag();
-                    } else {
-                        medianLag = lerp(
-                                previousWeight,
-                                runningWeight,
-                                correctedTotalWeight / 2.0,
-                                lagArray[i - 1].lag(),
-                                lagArray[i].lag());
-                    }
+                if (runningWeight == correctedTotalWeight / 2 && i < lagArray.length - 2) {
+                    // are we exactly on the edge? if yes, take weighted average of two entries
+                    medianLag = (lagArray[i].lag() * lagArray[i].weight()
+                                    + lagArray[i + 1].lag() * lagArray[i + 1].weight())
+                            / ((double) lagArray[i].weight() + lagArray[i + 1].weight());
+                    break;
+                } else if (runningWeight > correctedTotalWeight / 2) {
+                    // have we just crossed the threshold? it must mean current entry is the median
+                    medianLag = lagArray[i].lag();
                     break;
                 }
-                previousWeight = runningWeight;
             }
         } else {
+            // this should never happen normally, but sometimes we test single-node networks in unit tests
             medianLag = 0.0;
         }
 
         return Math.max(medianLag, 0);
-    }
-
-    /**
-     * Linear interpolation between two points. Flat extension if x&lt;x1 or x&gt;x2
-     *
-     * @param x1 left bound
-     * @param x2 right bound
-     * @param x  point where we interpolate
-     * @param y1 value at left bound
-     * @param y2 value at right bound
-     * @return value linearly interpolated between left and right bounds at point x
-     */
-    private double lerp(final double x1, final double x2, final double x, final double y1, final double y2) {
-        if (x <= x1) {
-            return y1;
-        }
-        if (x >= x2) {
-            return y2;
-        }
-        return y1 + (y2 - y1) * (x - x1) / (x2 - x1);
     }
 }
