@@ -241,16 +241,39 @@ message BlockProof {
     repeated MerkleSiblingHash sibling_hashes = 5;
 
     /**
+     * Legacy hinTS verification reference fields retained for backward
+     * compatibility with block proofs produced before direct verification keys
+     * were embedded in the block proof itself. New proofs SHOULD use
+     * `hints_verification_key` instead.
+     */
+    oneof verification_reference {
+        /**
+         * The id of the hinTS scheme this signature verifies under.
+         * (Legacy field retained for backward compatibility.)
+         */
+        uint64 scheme_id = 6 [deprecated = true];
+
+        /**
+         * The explicit hinTS key this signature verifies under; useful when
+         * the verifier can easily check whether a chain-of-trust proof
+         * exists for a key, but does does not have any context of the
+         * latest hinTS schemes published in the block stream.
+         * (Legacy field retained for backward compatibility.)
+         */
+        bytes verification_key = 7 [deprecated = true];
+    }
+
+    /**
      * The hinTS key that this signature verifies under; a stream consumer should
      * only use this key after first checking the chain of trust proof.
      */
-    bytes verification_key = 6;
+    bytes hints_verification_key = 11;
 
     /**
      * Proof the hinTS verification key is in the chain of trust extending
      * from the network's ledger id.
      */
-    ChainOfTrustProof verification_key_proof = 7;
+    ChainOfTrustProof verification_key_proof = 12;
 
     /**
      * The proof contents verifying the block's merkle root hash.<br/>
