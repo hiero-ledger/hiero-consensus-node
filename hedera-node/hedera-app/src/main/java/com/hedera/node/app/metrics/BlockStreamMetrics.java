@@ -37,6 +37,10 @@ public class BlockStreamMetrics {
     private RunningAverageMetric connSend_publishStreamRequestLatency;
     private LongGauge connSend_latestBlockEndOfBlockGauge;
     private LongGauge connSend_streamingBlockNumberGauge;
+    private RunningAverageMetric buffer_blockItemsPerBlock;
+    private RunningAverageMetric buffer_blockItemBytes;
+    private RunningAverageMetric connSend_requestBytes;
+    private RunningAverageMetric connSend_requestBlockItemCount;
     private final Map<PublishStreamRequest.RequestOneOfType, Counter> connSend_counters =
             new EnumMap<>(PublishStreamRequest.RequestOneOfType.class);
     private final Map<PublishStreamRequest.EndStream.Code, Counter> connSend_endStreamCounters =
@@ -140,6 +144,18 @@ public class BlockStreamMetrics {
         final LongGauge.Config newestBlockCfg = newLongGauge(GROUP_BUFFER, "newestBlock")
                 .withDescription("After pruning, the newest block in the buffer");
         buffer_newestBlockGauge = metrics.getOrCreate(newestBlockCfg);
+
+        final RunningAverageMetric.Config blockItemsPerBlockCfg = new RunningAverageMetric.Config(
+                        CATEGORY, GROUP_BUFFER + "_blockItemsPerBlock")
+                .withDescription("The average number of BlockItems per block in the buffer")
+                .withFormat("%,.2f");
+        buffer_blockItemsPerBlock = metrics.getOrCreate(blockItemsPerBlockCfg);
+
+        final RunningAverageMetric.Config blockItemBytesCfg = new RunningAverageMetric.Config(
+                        CATEGORY, GROUP_BUFFER + "_blockItemBytes")
+                .withDescription("The average size in bytes of a BlockItem in the buffer")
+                .withFormat("%,.2f");
+        buffer_blockItemBytes = metrics.getOrCreate(blockItemBytesCfg);
     }
 
     /**
@@ -558,6 +574,18 @@ public class BlockStreamMetrics {
         final LongGauge.Config streamingBlockCfg = newLongGauge(GROUP_CONN_SEND, "streamingBlockNumber")
                 .withDescription("The current block number this connection is streaming");
         connSend_streamingBlockNumberGauge = metrics.getOrCreate(streamingBlockCfg);
+
+        final RunningAverageMetric.Config requestBytesCfg = new RunningAverageMetric.Config(
+                        CATEGORY, GROUP_CONN_SEND + "_requestBytes")
+                .withDescription("The average number of bytes in a PublishStreamRequest")
+                .withFormat("%,.2f");
+        connSend_requestBytes = metrics.getOrCreate(requestBytesCfg);
+
+        final RunningAverageMetric.Config requestBlockItemCountCfg = new RunningAverageMetric.Config(
+                        CATEGORY, GROUP_CONN_SEND + "_requestBlockItemCount")
+                .withDescription("The average number of BlockItems in a PublishStreamRequest")
+                .withFormat("%,.2f");
+        connSend_requestBlockItemCount = metrics.getOrCreate(requestBlockItemCountCfg);
     }
 
     /**
@@ -621,6 +649,38 @@ public class BlockStreamMetrics {
      */
     public void recordStreamingBlockNumber(final long blockNumber) {
         connSend_streamingBlockNumberGauge.set(blockNumber);
+    }
+
+    /**
+     * Record the number of BlockItems contained in a completed block.
+     * @param numBlockItems the number of BlockItems in the block
+     */
+    public void recordBlockItemsPerBlock(final int numBlockItems) {
+        buffer_blockItemsPerBlock.update(numBlockItems);
+    }
+
+    /**
+     * Record the size (in bytes) of a streamed BlockItem.
+     * @param numBytes the size of the BlockItem in bytes
+     */
+    public void recordBlockItemBytes(final long numBytes) {
+        buffer_blockItemBytes.update(numBytes);
+    }
+
+    /**
+     * Record the size (in bytes) of a PublishStreamRequest that was sent.
+     * @param numBytes the size of the request in bytes
+     */
+    public void recordRequestBytes(final long numBytes) {
+        connSend_requestBytes.update(numBytes);
+    }
+
+    /**
+     * Record the number of BlockItems included in a PublishStreamRequest.
+     * @param numBlockItems the number of BlockItems in the request
+     */
+    public void recordRequestBlockItemCount(final int numBlockItems) {
+        connSend_requestBlockItemCount.update(numBlockItems);
     }
 
     // Utilities -------------------------------------------------------------------------------------------------------
