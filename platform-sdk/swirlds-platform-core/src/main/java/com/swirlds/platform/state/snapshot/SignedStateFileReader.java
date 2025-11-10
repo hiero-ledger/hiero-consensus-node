@@ -68,7 +68,7 @@ public final class SignedStateFileReader {
         final DeserializedSignedState returnState;
         final MerkleNode state = MerkleTreeSnapshotReader.readStateFileData(stateDir);
         final File sigSetFile =
-                stateDir.getParent().resolve(SIGNATURE_SET_FILE_NAME).toFile();
+                stateDir.resolve(SIGNATURE_SET_FILE_NAME).toFile();
         final SigSet sigSet = deserializeAndDebugOnFailure(
                 () -> new BufferedInputStream(new FileInputStream(sigSetFile)), (final MerkleDataInputStream in) -> {
                     readAndCheckSigSetFileVersion(in);
