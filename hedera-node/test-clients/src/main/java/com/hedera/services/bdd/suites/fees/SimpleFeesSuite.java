@@ -11,6 +11,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
@@ -22,6 +23,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -258,6 +260,57 @@ public class SimpleFeesSuite {
                     validateChargedUsd("create-topic-admin-txn", ucents_to_USD(1630)),
                     deleteTopic("testTopic").payingWith(PAYER).fee(ONE_HBAR).via("delete-topic-txn"),
                     validateChargedUsd("delete-topic-txn", ucents_to_USD(505 + 315)));
+        }
+    }
+
+    @Nested
+    class CryptoFeesComparison {
+        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+        @DisplayName("compare crypto create plain")
+        final Stream<DynamicTest> cryptoCreatePlainComparison() {
+            return runBeforeAfter(
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS).via("create-payer-txn"),
+                    cryptoCreate("newAccount")
+                            .balance(0L)
+                            .payingWith(PAYER)
+                            .fee(ONE_HBAR)
+                            .via("create-account-txn"),
+                    // node=1, network=2, service=0.00000022 (22 tinycents)
+                    // sigs = 1 (included), keys = 0
+                    validateChargedUsdWithin("create-account-txn", ucents_to_USD(3), 0.01));
+        }
+
+        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+        @DisplayName("compare crypto create with key")
+        final Stream<DynamicTest> cryptoCreateWithKeyComparison() {
+            return runBeforeAfter(
+                    newKeyNamed("accountKey"),
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate("newAccount")
+                            .balance(0L)
+                            .key("accountKey")
+                            .payingWith(PAYER)
+                            .fee(ONE_HBAR)
+                            .via("create-account-key-txn"),
+                    // node=1, network=2, service=0.00000022 + 1.00 (1 key)
+                    // sigs = 1 (included), keys = 1
+                    validateChargedUsdWithin("create-account-key-txn", ucents_to_USD(1003), 0.01));
+        }
+
+        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+        @DisplayName("compare crypto delete plain")
+        final Stream<DynamicTest> cryptoDeletePlainComparison() {
+            return runBeforeAfter(
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate("accountToDelete").balance(ONE_HBAR).payingWith(PAYER),
+                    cryptoDelete("accountToDelete")
+                            .transfer(PAYER)
+                            .payingWith(PAYER)
+                            .fee(ONE_HBAR)
+                            .via("delete-account-txn"),
+                    // node=1, network=2, service=0.00000005 (5 tinycents)
+                    // sigs = 1 (included), keys = 0
+                    validateChargedUsdWithin("delete-account-txn", ucents_to_USD(3), 0.01));
         }
     }
 
