@@ -10,6 +10,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.ExtraFeeReference;
@@ -30,7 +31,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     public SimpleFeeCalculatorImpl(FeeSchedule feeSchedule, Set<ServiceFeeCalculator> serviceFeeCalculators) {
         this.feeSchedule = feeSchedule;
         this.serviceFeeCalculators = serviceFeeCalculators.stream()
-                .collect(Collectors.toMap(ServiceFeeCalculator::getTransactionType, c -> c));
+                .collect(Collectors.toMap(ServiceFeeCalculator::getTransactionType, Function.identity()));
     }
 
     /**
