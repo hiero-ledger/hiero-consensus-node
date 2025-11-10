@@ -36,14 +36,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 //import edu.umd.cs.findbugs.annotations.Nullable;
 //import java.util.HashMap;
 //import java.util.Map;
-//import javax.inject.Inject;
 import javax.inject.Singleton;
-//import org.apache.tuweni.bytes.Bytes;
+
+
 import org.hyperledger.besu.datatypes.Address;
-//import org.hyperledger.besu.datatypes.Wei;
-//import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.code.CodeFactory;
-//import org.hyperledger.besu.evm.code.CodeV0;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
@@ -56,7 +53,7 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  * </ol>
  */
 @Singleton
-public abstract class FrameBuilderBEVM extends FrameBuilder {
+public class FrameBuilderBEVM extends FrameBuilder {
 
     /**
      * Builds the initial {@link MessageFrame} instance for a transaction.

@@ -1,50 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.utils;
-
-//import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
-//import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
-//import static com.hedera.hapi.streams.SidecarType.CONTRACT_ACTION;
-//import static com.hedera.hapi.streams.SidecarType.CONTRACT_BYTECODE;
-//import static com.hedera.hapi.streams.SidecarType.CONTRACT_STATE_CHANGE;
-//import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.ACTION_SIDECARS_VALIDATION_VARIABLE;
-//import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.ACTION_SIDECARS_VARIABLE;
-//import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.BYTECODE_SIDECARS_VARIABLE;
-//import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
-//import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.HAPI_RECORD_BUILDER_CONTEXT_VARIABLE;
-//import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.HOOK_OWNER_ADDRESS;
-//import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.INVALID_ADDRESS_CONTEXT_VARIABLE;
-//import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.OPS_DURATION_COUNTER;
-//import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.PENDING_CREATION_BUILDER_CONTEXT_VARIABLE;
-//import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.PROPAGATED_CALL_FAILURE_CONTEXT_VARIABLE;
-//import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.SYSTEM_CONTRACT_GAS_CALCULATOR_CONTEXT_VARIABLE;
-//import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.TINYBAR_VALUES_CONTEXT_VARIABLE;
-//import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.TRACKER_CONTEXT_VARIABLE;
-//import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
-//import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 //
-//import com.hedera.hapi.node.base.ContractID;
-//import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.utils.TODO;
-//import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
-//import com.hedera.node.config.data.ContractsConfig;
-//import com.hedera.node.config.data.LedgerConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
-//import edu.umd.cs.findbugs.annotations.Nullable;
-//import java.util.HashMap;
-//import java.util.Map;
-//import javax.inject.Inject;
 import javax.inject.Singleton;
-//import org.apache.tuweni.bytes.Bytes;
+
 import org.hyperledger.besu.datatypes.Address;
-//import org.hyperledger.besu.datatypes.Wei;
-//import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.code.CodeFactory;
-//import org.hyperledger.besu.evm.code.CodeV0;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
@@ -60,16 +27,10 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
 public abstract class FrameBuilder {
     static final int MAX_STACK_SIZE = 1024;
 
-    ///**
-    // * Default constructor for injection.
-    // */
-    //@Inject
-    //public FrameBuilder() {
-    //    // Dagger2
-    //}
-
     public static FrameBuilder make() {
-        throw new TODO("static FrameBuilder uses global var to pick between BESU vs BEVM");
+        return System.getenv("UseBonnevilleEVM")==null
+            ? new FrameBuilderBESU()
+            : new FrameBuilderBEVM();
     }
 
 
@@ -89,15 +50,15 @@ public abstract class FrameBuilder {
      * @return the initial frame
      */
     public abstract MessageFrame buildInitialFrameWith(
-            @NonNull final HederaEvmTransaction transaction,
-            @NonNull final HederaWorldUpdater worldUpdater,
-            @NonNull final HederaEvmContext context,
-            @NonNull final Configuration config,
-            @NonNull final OpsDurationCounter opsDurationCounter,
-            @NonNull final FeatureFlags featureFlags,
-            @NonNull final Address from,
-            @NonNull final Address to,
-            final long intrinsicGas,
-            @NonNull final CodeFactory codeFactory);
+            HederaEvmTransaction transaction,
+            HederaWorldUpdater worldUpdater,
+            HederaEvmContext context,
+            Configuration config,
+            OpsDurationCounter opsDurationCounter,
+            FeatureFlags featureFlags,
+            Address from,
+            Address to,
+            long intrinsicGas,
+            CodeFactory codeFactory);
 
 }

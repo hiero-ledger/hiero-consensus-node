@@ -11,7 +11,6 @@ import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
-import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilderBESU;
 import com.hedera.node.app.service.contract.impl.exec.v030.V030Module;
 import com.hedera.node.app.service.contract.impl.exec.v034.V034Module;
 import com.hedera.node.app.service.contract.impl.exec.v038.V038Module;
@@ -119,8 +118,7 @@ public interface ContractServiceModule {
     @Provides
     @Singleton
     static FrameBuilder provideFrameBuilder() {
-        // TODO: Intercept and return FrameBuilderBEVM
-        return new FrameBuilderBESU();
+        return FrameBuilder.make();
     }
 
     /**
@@ -221,4 +219,14 @@ public interface ContractServiceModule {
     @Singleton
     @ServicesVersionKey(VERSION_067)
     TransactionProcessor bindV067Processor(@ServicesV067 @NonNull final TransactionProcessor processor);
+
+    /**
+     * @param processor the transaction processor
+     * @return the bound transaction processor for version X.XX
+     */
+    @Binds
+    @IntoMap
+    @Singleton
+    @ServicesVersionKey(VERSION_XXX)
+    TransactionProcessor bindVXXXProcessor(@ServicesVXXX @NonNull final TransactionProcessor processor);
 }

@@ -72,6 +72,7 @@ local.properties
 
 ### Emacs
 TAGS
+#*
 
 # External tool builders
 .externalToolBuilders/
