@@ -176,7 +176,7 @@ public abstract class BlockNodeCommunicationTestBase {
                 .build();
     }
 
-    protected static BlockNodeConfig newBlockNodeConfig(final int port, final int priority) {
-        return newBlockNodeConfig("localhost", port, priority);
+    protected static BlockNodeProtocolConfig newBlockNodeConfig(final int port, final int priority) {
+        return new BlockNodeProtocolConfig(newBlockNodeConfig("localhost", port, priority), null);
     }
 }
