@@ -71,7 +71,7 @@ public record PlatformSchedulersConfig(
                 TaskSchedulerConfiguration stateSignatureCollector,
         @ConfigProperty(
                         defaultValue =
-                                "SEQUENTIAL_THREAD CAPACITY(100000) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
+                                "SEQUENTIAL_THREAD CAPACITY(10) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
                 TaskSchedulerConfiguration transactionHandler,
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) UNHANDLED_TASK_METRIC")
                 TaskSchedulerConfiguration issDetector,

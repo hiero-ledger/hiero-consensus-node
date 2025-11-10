@@ -7,7 +7,6 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
@@ -50,11 +49,9 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
-import java.util.function.ToLongFunction;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.state.StateSavingResult;
@@ -100,7 +97,6 @@ public record PlatformComponents(
         ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring,
         ComponentWiring<InlinePcesWriter, PlatformEvent> pcesInlineWriterWiring,
         ComponentWiring<BranchReporter, Void> branchReporterWiring) {
-    private static final int LOW_TPS_TARGET_ROUNDS = 20; // Trigger backpressure after N rounds at low TPS
     /**
      * Bind components to the wiring.
      *
@@ -192,8 +188,7 @@ public record PlatformComponents(
                 new ComponentWiring<>(
                         model,
                         TransactionHandler.class,
-                        config.transactionHandler(),
-                        createTransactionHandlerDataCounter(config.transactionHandler())),
+                        config.transactionHandler()),
                 new ComponentWiring<>(model, ConsensusEventStream.class, config.consensusEventStream()),
                 RunningEventHashOverrideWiring.create(model),
                 new ComponentWiring<>(
@@ -220,33 +215,4 @@ public record PlatformComponents(
                 new ComponentWiring<>(model, BranchReporter.class, config.branchReporter()));
     }
 
-    @NonNull
-    private static ToLongFunction<Object> createTransactionHandlerDataCounter(
-            final TaskSchedulerConfiguration schedulerConfiguration) {
-
-        final long capacity = schedulerConfiguration.unhandledTaskCapacity() == null
-                ? 0L
-                : schedulerConfiguration.unhandledTaskCapacity();
-        final double lowTpsPenalty = (double) capacity / LOW_TPS_TARGET_ROUNDS;
-
-        // The following is a trick that assures that at low tps, we can still detect unhealthy status for this
-        // component.
-        // We assume a LOW_TPS_TARGET_ROUNDS value as unhealthy target rounds limit, lowTpsPenalty calculated as:
-        // capacity / LOW_TPS_TARGET_ROUNDS gives us the max weight to assign a low tps round.
-        // lowTpsPenaltyValue value is calculated dividing lowTpsPenalty to the log10 of the number of transactions,
-        // that gives us an increasing denominator that does not increase too fast but still allows the calculated count
-        // to represent a higher value the lower the transactions in a round
-        return data -> {
-            if (data instanceof final ConsensusRound consensusRound) {
-
-                // Inverse penalty: high value at low TPS, low value at high TPS
-                // values of unhandled_task_count metric associated to this component can be misleading at low tps
-                final double lowTpsPenaltyValue =
-                        Math.ceil(lowTpsPenalty / Math.log10(Math.max(consensusRound.getNumAppTransactions(), 10)));
-
-                return (long) Math.max(lowTpsPenaltyValue, consensusRound.getNumAppTransactions());
-            }
-            return 1L;
-        };
-    }
 }
