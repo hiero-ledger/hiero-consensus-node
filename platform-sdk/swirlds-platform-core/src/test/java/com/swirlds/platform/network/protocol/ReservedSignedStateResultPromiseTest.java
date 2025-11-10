@@ -8,52 +8,43 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise.ReservedSignedStateResult;
 import com.swirlds.platform.state.signed.ReservedSignedState;
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.concurrent.locks.locked.LockedResource;
-import org.junit.jupiter.api.Disabled;
+import org.hiero.base.concurrent.test.fixtures.ConsumerWithCompletionControl;
+import org.hiero.base.concurrent.test.fixtures.RunnableCompletionControl;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
 /**
  * Test class for {@link ReservedSignedStateResultPromise}
  */
-@Disabled
 class ReservedSignedStateResultPromiseTest {
-
+    public static final Duration AWAIT_MAX_DURATION = Duration.ofSeconds(10);
     /**
      * Tests that a single provider can successfully provide a resource and a consumer can retrieve it
      */
     @Test
-    @Timeout(5)
     void testSingleProviderAndConsumer() throws InterruptedException {
         final ReservedSignedStateResultPromise promise = new ReservedSignedStateResultPromise();
         final ReservedSignedState mockState = ReservedSignedState.createNullReservation();
         final AtomicReference<ReservedSignedStateResult> consumedState = new AtomicReference<>();
-        final CountDownLatch consumerStarted = new CountDownLatch(1);
-        final CountDownLatch consumerFinished = new CountDownLatch(1);
 
         // Start consumer thread
-        final Thread consumer = new Thread(() -> {
+        final var consumer = RunnableCompletionControl.unblocked(() -> {
             try {
-                consumerStarted.countDown();
                 try (final LockedResource<ReservedSignedStateResult> resource = promise.awaitResolution()) {
                     consumedState.set(resource.getResource());
                 }
-                consumerFinished.countDown();
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         });
         consumer.start();
-
         // Wait for consumer to start waiting
-        consumerStarted.await();
         Thread.sleep(100); // Give consumer time to block
 
         // Acquire permit and provide
@@ -61,7 +52,7 @@ class ReservedSignedStateResultPromiseTest {
         promise.resolveWithValue(mockState);
 
         // Wait for consumer to finish
-        assertTrue(consumerFinished.await(2, TimeUnit.SECONDS), "Consumer should finish");
+        consumer.waitIsFinished(AWAIT_MAX_DURATION);
         assertEquals(
                 mockState, consumedState.get().reservedSignedState(), "Consumer should receive the provided state");
     }
@@ -79,38 +70,27 @@ class ReservedSignedStateResultPromiseTest {
      * Tests that only one provider can acquire the permit
      */
     @Test
-    @Timeout(5)
     void testOnlyOneProviderCanAcquire() throws InterruptedException {
         final ReservedSignedStateResultPromise promise = new ReservedSignedStateResultPromise();
         final ReservedSignedState mockState = ReservedSignedState.createNullReservation();
         final AtomicInteger acquireCount = new AtomicInteger(0);
-        final CountDownLatch consumerReady = new CountDownLatch(1);
-        final CountDownLatch providersStarted = new CountDownLatch(3);
-        final CountDownLatch testComplete = new CountDownLatch(1);
 
         // Start consumer
-        final Thread consumer = new Thread(() -> {
+        final var consumer = RunnableCompletionControl.unblocked(() -> {
             try {
-                consumerReady.countDown();
                 try (final LockedResource<ReservedSignedStateResult> resource = promise.awaitResolution()) {
                     assertNotNull(resource.getResource());
                 }
-                testComplete.countDown();
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         });
         consumer.start();
 
-        // Wait for consumer to start
-        consumerReady.await();
-        Thread.sleep(100); // Give consumer time to block
-
+        final var providers = new ArrayList<RunnableCompletionControl>();
         // Start multiple providers competing for the permit
-        final ExecutorService executor = Executors.newFixedThreadPool(3);
         for (int i = 0; i < 3; i++) {
-            executor.submit(() -> {
-                providersStarted.countDown();
+            providers.add(RunnableCompletionControl.unblocked(() -> {
                 if (promise.acquire()) {
                     acquireCount.incrementAndGet();
                     try {
@@ -119,86 +99,75 @@ class ReservedSignedStateResultPromiseTest {
                         Thread.currentThread().interrupt();
                     }
                 }
-            });
+            }));
         }
-
-        providersStarted.await();
-        assertTrue(testComplete.await(2, TimeUnit.SECONDS), "Test should complete");
+        Thread.sleep(100); // Give consumer time to block
+        providers.parallelStream().forEach(RunnableCompletionControl::start);
+        providers.forEach(c -> c.waitIsFinished(AWAIT_MAX_DURATION));
+        consumer.waitIsFinished(AWAIT_MAX_DURATION);
         assertEquals(1, acquireCount.get(), "Only one provider should successfully acquire the permit");
-
-        executor.shutdown();
-        assertTrue(executor.awaitTermination(2, TimeUnit.SECONDS), "Executor should terminate");
     }
 
     /**
      * Tests that a provider can release the permit if it cannot provide
      */
     @Test
-    @Timeout(5)
     void testReleasePermitAllowsAnotherProviderToAcquire() throws InterruptedException {
         final ReservedSignedStateResultPromise promise = new ReservedSignedStateResultPromise();
         final ReservedSignedState mockState = ReservedSignedState.createNullReservation();
-        final CountDownLatch consumerReady = new CountDownLatch(1);
         final CountDownLatch firstProviderAcquired = new CountDownLatch(1);
         final CountDownLatch firstProviderReleased = new CountDownLatch(1);
-        final CountDownLatch testComplete = new CountDownLatch(1);
-        final AtomicBoolean secondProviderSucceeded = new AtomicBoolean(false);
 
         // Start consumer
-        final Thread consumer = new Thread(() -> {
+        final var consumer = RunnableCompletionControl.unblocked(() -> {
             try {
-                consumerReady.countDown();
                 try (final LockedResource<ReservedSignedStateResult> resource = promise.awaitResolution()) {
                     assertNotNull(resource.getResource());
                 }
-                testComplete.countDown();
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         });
         consumer.start();
 
-        // Wait for consumer to start
-        consumerReady.await();
         Thread.sleep(100); // Give consumer time to block
 
         // First provider acquires and releases
-        final Thread firstProvider = new Thread(() -> {
+        final var firstProvider = RunnableCompletionControl.unblocked(() -> {
             if (promise.acquire()) {
                 firstProviderAcquired.countDown();
                 promise.release();
                 firstProviderReleased.countDown();
             }
         });
-        firstProvider.start();
-
-        firstProviderAcquired.await();
-        firstProviderReleased.await();
 
         // Second provider can now acquire
-        final Thread secondProvider = new Thread(() -> {
+        final var secondProvider = RunnableCompletionControl.unblocked(() -> {
             try {
                 // Give some time for the release to take effect
                 Thread.sleep(50);
                 if (promise.acquire()) {
-                    secondProviderSucceeded.set(true);
                     promise.resolveWithValue(mockState);
                 }
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         });
-        secondProvider.start();
 
-        assertTrue(testComplete.await(2, TimeUnit.SECONDS), "Test should complete");
-        assertTrue(secondProviderSucceeded.get(), "Second provider should successfully acquire after first released");
+        firstProvider.start();
+        firstProviderAcquired.await();
+        secondProvider.start();
+        firstProviderReleased.await();
+
+        firstProvider.waitIsFinished(AWAIT_MAX_DURATION);
+        secondProvider.waitIsFinished(AWAIT_MAX_DURATION);
+        consumer.waitIsFinished(AWAIT_MAX_DURATION);
     }
 
     /**
      * Tests the tryBlock functionality which blocks further permits
      */
     @Test
-    @Timeout(5)
     void testTryBlockPreventsAcquire() throws InterruptedException {
         final ReservedSignedStateResultPromise promise = new ReservedSignedStateResultPromise();
 
@@ -206,22 +175,18 @@ class ReservedSignedStateResultPromiseTest {
         assertTrue(promise.tryBlock(), "Should be able to block the permit");
 
         // Start a consumer
-        final CountDownLatch consumerStarted = new CountDownLatch(1);
-        final Thread consumer = new Thread(() -> {
+        final var consumer = RunnableCompletionControl.unblocked(() -> {
             try {
-                consumerStarted.countDown();
                 promise.awaitResolution();
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         });
-        consumer.start();
-
-        consumerStarted.await();
-        Thread.sleep(100); // Give consumer time to start waiting
+        final var consumerThread = consumer.start();
 
         // Even though consumer is waiting, acquire should fail because permit is blocked
         assertFalse(promise.acquire(), "Should not be able to acquire when permit is blocked");
+        Thread.sleep(100); // Give consumer time to start waiting
 
         // Release the block
         promise.release();
@@ -231,39 +196,35 @@ class ReservedSignedStateResultPromiseTest {
 
         // Clean up
         promise.release();
-        consumer.interrupt();
-        consumer.join(1000);
+        consumerThread.interrupt();
     }
 
     /**
      * Tests multiple sequential provide/consume cycles
      */
     @Test
-    @Timeout(10)
-    void testMultipleSequentialCycles() throws InterruptedException {
+    void testMultipleSequentialCycles() {
         final ReservedSignedStateResultPromise promise = new ReservedSignedStateResultPromise();
         final int numCycles = 5;
         final AtomicInteger consumedCount = new AtomicInteger(0);
-        final CountDownLatch allCyclesComplete = new CountDownLatch(1);
 
         // Consumer thread that consumes multiple resources
-        final Thread consumer = new Thread(() -> {
+        final var consumer = ConsumerWithCompletionControl.<Void>unblocked(ignored -> {
             try {
-                for (int i = 0; i < numCycles; i++) {
-                    try (final LockedResource<ReservedSignedStateResult> resource = promise.awaitResolution()) {
-                        assertNotNull(resource.getResource());
-                        consumedCount.incrementAndGet();
-                    }
+
+                try (final LockedResource<ReservedSignedStateResult> resource = promise.awaitResolution()) {
+                    assertNotNull(resource.getResource());
+                    consumedCount.incrementAndGet();
                 }
-                allCyclesComplete.countDown();
+
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         });
-        consumer.start();
+        consumer.executionControl().unblock();
 
         // Provider thread that provides multiple resources
-        final Thread provider = new Thread(() -> {
+        final var provider = RunnableCompletionControl.unblocked(() -> {
             try {
                 for (int i = 0; i < numCycles; i++) {
                     // Wait until we can acquire
@@ -278,91 +239,70 @@ class ReservedSignedStateResultPromiseTest {
             }
         });
         provider.start();
-
-        assertTrue(allCyclesComplete.await(5, TimeUnit.SECONDS), "All cycles should complete");
+        for (int i = 0; i < numCycles; i++) {
+            consumer.accept(null);
+        }
+        provider.waitIsFinished(AWAIT_MAX_DURATION);
+        consumer.executionControl().await(numCycles, AWAIT_MAX_DURATION);
         assertEquals(numCycles, consumedCount.get(), "All resources should be consumed");
-
-        provider.join(1000);
-        consumer.join(1000);
     }
 
     /**
      * Tests that provide blocks until consumer releases the resource
      */
     @Test
-    @Timeout(5)
     void testResolveWithValueBlocksUntilConsumerReleases() throws InterruptedException {
         final ReservedSignedStateResultPromise promise = new ReservedSignedStateResultPromise();
         final ReservedSignedState mockState = ReservedSignedState.createNullReservation();
-        final AtomicBoolean providerFinished = new AtomicBoolean(false);
-        final CountDownLatch consumerStarted = new CountDownLatch(1);
-        final CountDownLatch providerStarted = new CountDownLatch(1);
         final AtomicReference<LockedResource<ReservedSignedStateResult>> resourceRef = new AtomicReference<>();
 
         // Consumer that holds the resource for a while
-        final Thread consumer = new Thread(() -> {
+        final var consumer = RunnableCompletionControl.unblocked(() -> {
             try {
-                consumerStarted.countDown();
                 final LockedResource<ReservedSignedStateResult> resource = promise.awaitResolution();
                 resourceRef.set(resource);
-
-                // Hold the resource for a bit
-                Thread.sleep(200);
-
-                // Provider should still be blocked at this point
-                assertFalse(providerFinished.get(), "Provider should still be blocked");
-
                 // Release the resource
                 resource.close();
 
                 // Give provider time to finish
                 Thread.sleep(100);
-                assertTrue(providerFinished.get(), "Provider should be finished after consumer releases");
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         });
         consumer.start();
 
-        // Wait for consumer to start
-        consumerStarted.await();
-        Thread.sleep(100); // Give consumer time to block
-
-        // Provider
-        final Thread provider = new Thread(() -> {
+        final var provider = ConsumerWithCompletionControl.<Void>blocked(c -> {
             try {
-                providerStarted.countDown();
                 assertTrue(promise.acquire(), "Should acquire permit");
+                // Hold the resource for a bit
+                Thread.sleep(200);
                 promise.resolveWithValue(mockState); // This will block until consumer releases
-                providerFinished.set(true);
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         });
-        provider.start();
-
-        providerStarted.await();
-
-        consumer.join(2000);
-        provider.join(2000);
+        // Wait for consumer to start
+        Thread.sleep(100); // Give consumer time to block
+        provider.executionControl().unblock();
+        provider.accept(null);
+        consumer.waitIsFinished(AWAIT_MAX_DURATION);
+        provider.executionControl().await(1, AWAIT_MAX_DURATION);
     }
 
     /**
      * Tests concurrent providers competing to provide resources
      */
     @Test
-    @Timeout(15)
-    void testMultipleProvidersCompeting() throws InterruptedException {
+    void testMultipleProvidersCompeting() {
         final ReservedSignedStateResultPromise promise = new ReservedSignedStateResultPromise();
         final int numProviders = 5;
         final int numResources = 10;
         final AtomicInteger providedCount = new AtomicInteger(0);
         final AtomicInteger consumedCount = new AtomicInteger(0);
-        final CountDownLatch allConsumed = new CountDownLatch(1);
-        final CountDownLatch allProvided = new CountDownLatch(numProviders);
 
         // Consumer
-        final Thread consumer = new Thread(() -> {
+        final var consumer = RunnableCompletionControl.unblocked(() -> {
             try {
                 for (int i = 0; i < numResources; i++) {
                     try (final LockedResource<ReservedSignedStateResult> resource = promise.awaitResolution()) {
@@ -370,17 +310,13 @@ class ReservedSignedStateResultPromiseTest {
                         consumedCount.incrementAndGet();
                     }
                 }
-                allConsumed.countDown();
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         });
-        consumer.start();
-
-        // Multiple competing providers
-        final ExecutorService executor = Executors.newFixedThreadPool(numProviders);
+        final var providers = new ArrayList<RunnableCompletionControl>();
         for (int i = 0; i < numProviders; i++) {
-            executor.submit(() -> {
+            providers.add(RunnableCompletionControl.unblocked(() -> {
                 while (providedCount.get() < numResources) {
                     if (promise.acquire()) {
                         if (providedCount.get() < numResources) {
@@ -388,7 +324,6 @@ class ReservedSignedStateResultPromiseTest {
                                 final ReservedSignedState mockState = ReservedSignedState.createNullReservation();
                                 promise.resolveWithValue(mockState);
                                 providedCount.incrementAndGet();
-                                allProvided.countDown();
                             } catch (final InterruptedException e) {
                                 Thread.currentThread().interrupt();
                                 return;
@@ -399,16 +334,15 @@ class ReservedSignedStateResultPromiseTest {
                         }
                     }
                 }
-            });
+            }));
         }
 
-        assertTrue(allProvided.await(5, TimeUnit.SECONDS), "All resources should be provided");
-        assertTrue(allConsumed.await(5, TimeUnit.SECONDS), "All resources should be consumed");
+        consumer.start();
+        providers.forEach(RunnableCompletionControl::start);
+        providers.stream().parallel().forEach(c -> c.waitIsFinished(AWAIT_MAX_DURATION));
+        consumer.waitIsFinished(AWAIT_MAX_DURATION);
         assertEquals(numResources, consumedCount.get(), "Consumer should receive all resources");
         assertEquals(numResources, providedCount.get(), "Exactly numResources should be provided");
-
-        executor.shutdown();
-        assertTrue(executor.awaitTermination(2, TimeUnit.SECONDS), "Executor should terminate");
     }
 
     /**
@@ -420,15 +354,13 @@ class ReservedSignedStateResultPromiseTest {
         final ReservedSignedStateResultPromise promise = new ReservedSignedStateResultPromise();
         final ReservedSignedState nullReservation = ReservedSignedState.createNullReservation();
         final AtomicReference<ReservedSignedStateResult> consumedState = new AtomicReference<>();
-        final CountDownLatch consumerFinished = new CountDownLatch(1);
 
         // Start consumer
-        final Thread consumer = new Thread(() -> {
+        final var consumer = RunnableCompletionControl.unblocked(() -> {
             try {
                 try (final LockedResource<ReservedSignedStateResult> resource = promise.awaitResolution()) {
                     consumedState.set(resource.getResource());
                 }
-                consumerFinished.countDown();
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -440,8 +372,7 @@ class ReservedSignedStateResultPromiseTest {
         // Provide null reservation
         assertTrue(promise.acquire(), "Should acquire permit");
         promise.resolveWithValue(nullReservation);
-
-        assertTrue(consumerFinished.await(2, TimeUnit.SECONDS), "Consumer should finish");
+        consumer.waitIsFinished(AWAIT_MAX_DURATION);
         assertNotNull(consumedState.get(), "Consumer should receive the reservation");
         assertTrue(consumedState.get().reservedSignedState().isNull(), "Reservation should wrap null");
     }
