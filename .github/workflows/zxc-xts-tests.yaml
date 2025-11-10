@@ -2,3 +2,285 @@
 name: "ZXC: Executable XTS Tests"
 on:
   workflow_call:
+    inputs:
+      commit_sha:
+        description: "The commit sha, tag, or branch to check out"
+        type: string
+      branch_name:
+        type: string
+        description: "The branch name, for JRS Panel output"
+      enable-extended-test-suite:
+        type: string
+        description: "Run Extended Test Suite"
+      enable-abbreviated-panel:
+        type: string
+        description: "Run Abbreviated JRS Panel"
+      enable-hedera-node-jrs-panel:
+        type: string
+        description: "Run Hedera Node JRS Panel"
+      enable-sdk-tck-regression-panel:
+        type: string
+        description: "Run SDK TCK Regression Panel"
+      enable-mirror-node-regression-panel:
+        type: string
+        description: "Run Mirror Node Regression Panel"
+      enable-rpc-relay-regression-panel:
+        type: string
+        description: "Run JSON-RPC Relay Regression Panel"
+      enable-block-node-regression-panel:
+        type: string
+        description: "Run Block Node Regression Panel"
+      solo-version:
+        type: string
+        description: "The solo version to use for the regression panels"
+      helm-release-name:
+        type: string
+        description: "The helm release name to use for the mirror node regression panel"
+      solo-ge-0440:
+        type: string
+        description: "Is solo version greater than or equal to 0.44.0"
+      custom-job-label:
+        description: "Custom Job Label"
+        type: string
+        required: false
+    secrets:
+      access-token:
+        description: "Github Access Token"
+        required: false
+      platform-access-token:
+        description: "Platform Github Access Token"
+        required: false
+      regression-access-token:
+        description: "Regression Panel Access Token"
+        required: false
+      gcp-project-number:
+        description: "GCP Project Number"
+        required: false
+      gcp-sa-key-contents:
+        description: "GCP Service Account Key Contents"
+        required: false
+      gradle-cache-username:
+        description: "Gradle Cache Username"
+        required: true
+      gradle-cache-password:
+        description: "Gradle Cache Password"
+        required: true
+      grafana-agent-username:
+        description: "Grafana Agent Username"
+        required: false
+      grafana-agent-password:
+        description: "Grafana Agent Password"
+        required: false
+      jrs-ssh-user-name:
+        description: "JRS SSH User Name"
+        required: false
+      jrs-ssh-key-file:
+        description: "JRS SSH Key File"
+        required: false
+      slack-api-token:
+        description: "Slack API Token"
+        required: false
+      slack-citr-details-token:
+        description: "Slack CITR Detailed Reports Token"
+        required: false
+      slack-tck-report-webhook:
+        description: "Slack TCK Report Webhook"
+        required: false
+
+      snyk-token:
+        required: false
+
+permissions:
+  id-token: write
+  actions: write
+  pull-requests: write
+  statuses: write
+  checks: write
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  xts-timing-sensitive-tests:
+    name: XTS Timing Sensitive Tests
+    if: ${{ inputs.enable-extended-test-suite == 'true' }}
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: "${{ inputs.custom-job-label }} Timing Sensitive"
+      enable-timing-sensitive-tests: true
+      enable-network-log-capture: true
+      ref: ${{ inputs.commit_sha }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  xts-time-consuming-tests:
+    name: XTS Time Consuming Tests
+    if: ${{ inputs.enable-extended-test-suite == 'true' }}
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: "${{ inputs.custom-job-label }} Time Consuming"
+      enable-time-consuming-tests: true
+      enable-network-log-capture: true
+      ref: ${{ inputs.commit_sha }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  xts-hammer-tests:
+    name: XTS Hammer Tests
+    if: ${{ inputs.enable-extended-test-suite == 'true' }}
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: "${{ inputs.custom-job-label }} Hammer Tests"
+      enable-hammer-tests: true
+      enable-network-log-capture: true
+      ref: ${{ inputs.commit_sha }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  xts-hapi-time-consuming-tests:
+    name: XTS HAPI Tests (Time Consuming)
+    if: ${{ inputs.enable-extended-test-suite == 'true' }}
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: "${{ inputs.custom-job-label }} HAPI Time Consuming"
+      enable-hapi-tests-time-consuming: true
+      enable-network-log-capture: true
+      ref: ${{ inputs.commit_sha }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  xts-hapi-block-node-comms-tests:
+    name: XTS HAPI Tests (Block Node Communication)
+    if: ${{ inputs.enable-extended-test-suite == 'true' }}
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: "${{ inputs.custom-job-label }} HAPI Block Node Comms"
+      enable-hapi-tests-bn-communication: true
+      enable-network-log-capture: true
+      ref: ${{ inputs.commit_sha }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  xts-otter-tests:
+    name: XTS Otter Tests
+    if: ${{ inputs.enable-extended-test-suite == 'true' }}
+    uses: ./.github/workflows/zxc-execute-otter-tests.yaml
+    with:
+      custom-job-label: "${{ inputs.custom-job-label }} Otter Tests"
+      enable-full-otter-tests: true
+      enable-network-log-capture: true
+      ref: ${{ inputs.commit_sha }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  abbreviated-panel:
+    name: JRS Panel
+    if: ${{ inputs.enable-abbreviated-panel == 'true' }}
+    uses: ./.github/workflows/zxc-jrs-regression.yaml
+    with:
+      custom-job-name: "${{ inputs.custom-job-label }} Platform SDK"
+      panel-config: "configs/suites/GCP-PRCheck-Abbrev-4N.json"
+      ref: ${{ inputs.commit_sha }}
+      branch-name: ${{ inputs.branch_name }}
+      base-branch-name: ${{ inputs.branch_name }}
+      slack-results-channel: "regression-test"
+      slack-summary-channel: "regression-test"
+      use-branch-for-slack-channel: false
+    secrets:
+      access-token: ${{ secrets.platform-access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      jrs-ssh-user-name: ${{ secrets.jrs-ssh-user-name }}
+      jrs-ssh-key-file: ${{ secrets.jrs-ssh-key-file }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
+      gcp-sa-key-contents: ${{ secrets.gcp-sa-key-contents }}
+      slack-api-token: ${{ secrets.slack-api-token }}
+      grafana-agent-username: ${{ secrets.grafana-agent-username }}
+      grafana-agent-password: ${{ secrets.grafana-agent-password }}
+
+  hedera-node-jrs-panel:
+    name: Hedera Node JRS Panel
+    if: ${{ inputs.enable-hedera-node-jrs-panel == 'true' }}
+    uses: ./.github/workflows/zxc-jrs-regression.yaml
+    with:
+      custom-job-name: "${{ inputs.custom-job-label }} Abbrev Update Test"
+      ref: ${{ inputs.commit_sha }}
+      branch-name: ${{ inputs.branch_name }}
+      hedera-tests-enabled: true
+      use-branch-for-slack-channel: false
+      panel-config: "configs/services/suites/daily/GCP-Daily-Services-Abbrev-DAB-Update-4N-2C.json"
+    secrets:
+      access-token: ${{ secrets.platform-access-token }}
+      jrs-ssh-user-name: ${{ secrets.jrs-ssh-user-name }}
+      jrs-ssh-key-file: ${{ secrets.jrs-ssh-key-file }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
+      gcp-sa-key-contents: ${{ secrets.gcp-sa-key-contents }}
+      slack-api-token: ${{ secrets.slack-api-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      grafana-agent-username: ${{ secrets.grafana-agent-username }}
+      grafana-agent-password: ${{ secrets.grafana-agent-password }}
+
+  sdk-tck-regression-panel:
+    name: SDK TCK Regression Panel
+    if: ${{ inputs.enable-sdk-tck-regression-panel == 'true' }}
+    uses: ./.github/workflows/zxc-tck-regression.yaml
+    with:
+      ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the JRS panel for checkout
+      custom-job-name: "${{ inputs.custom-job-label }} SDK TCK Regression"
+      solo-version: ${{ inputs.solo-version }}
+    secrets:
+      access-token: ${{ secrets.regression-access-token }}
+      slack-tck-report-webhook: ${{ secrets.slack-tck-report-webhook }}
+      slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
+
+  mirror-node-regression-panel:
+    name: Mirror Node Regression Panel
+    if: ${{ inputs.enable-mirror-node-regression-panel == 'true' }}
+    uses: ./.github/workflows/zxc-mirror-node-regression.yaml
+    with:
+      ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the MN panel for checkout
+      custom-job-name: "${{ inputs.custom-job-label }} Mirror Node Regression"
+      solo-version: ${{ inputs.solo-version }}
+      helm-release-name: ${{ inputs.helm-release-name }}
+    secrets:
+      access-token: ${{ secrets.regression-access-token }}
+      slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
+
+  json-rpc-relay-regression-panel:
+    name: JSON-RPC Relay Regression Panel
+    if: ${{ inputs.enable-rpc-relay-regression-panel == 'true' }}
+    uses: ./.github/workflows/zxc-json-rpc-relay-regression.yaml
+    with:
+      ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the RPC Relay panel for checkout
+      custom-job-name: "${{ inputs.custom-job-label }} JSON-RPC Relay Regression"
+      solo-version: ${{ inputs.solo-version }}
+    secrets:
+      access-token: ${{ secrets.regression-access-token }}
+      slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
+
+  block-node-regression-panel:
+    name: Block Node Regression Panel
+    if: ${{ inputs.enable-block-node-regression-panel == 'true' && inputs.solo-ge-0440 == 'true' }}
+    uses: ./.github/workflows/zxc-block-node-regression.yaml
+    with:
+      ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the BN panel for checkout
+      custom-job-name: "${{ inputs.custom-job-label }} Block Node Regression"
+      solo-version: ${{ inputs.solo-version }}
+    secrets:
+      access-token: ${{ secrets.regression-access-token }}
+      slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}

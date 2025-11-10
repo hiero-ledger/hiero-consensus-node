@@ -31,6 +31,7 @@
 | # CICD                                                |                                                                   |                  |                      |
 | zxf-collect-workflow-logs.yaml                        | ZXF: Collect Workflow Run Logs                                    |                  |                      |
 | zxf-dry-run-extended-test-suite.yaml                  | ZXF: [CITR] XTS Dry Run                                           |                  |                      |
+| zxf-dry-run-mats-suite.yaml                           | ZXF: [CITR] MATS Dry Run                                          |                  |                      |
 | zxf-prepare-extended-test-suite.yaml                  | ZXF: [CITR] Prepare Extended Test Suite                           |                  |                      |
 | zxf-single-day-canonical-test.yaml                    | ZXF: [CITR] Single Day Canonical Test (SDCT)                      |                  |                      |
 | zxf-single-day-longevity-test-controller-adhoc.yaml   | ZXF: [CITR] Adhoc - Single Day Longevity Test Controller          |                  |                      |
