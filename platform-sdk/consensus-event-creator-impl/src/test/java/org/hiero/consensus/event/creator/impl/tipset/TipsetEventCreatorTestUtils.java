@@ -37,8 +37,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.stream.IntStream;
+import org.hiero.base.crypto.BytesSigner;
 import org.hiero.consensus.event.creator.impl.EventCreator;
-import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator.HashSigner;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -67,8 +67,9 @@ public class TipsetEventCreatorTestUtils {
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Metrics metrics = new NoOpMetrics();
 
-        final HashSigner signer = mock(HashSigner.class);
-        when(signer.sign(any())).thenAnswer(invocation -> randomSignature(random));
+        final BytesSigner signer = mock(BytesSigner.class);
+        when(signer.sign(any()))
+                .thenAnswer(invocation -> randomSignature(random).getBytes());
 
         // Use SHA1PRNG for deterministic behavior
         final SecureRandom secureRandom;
