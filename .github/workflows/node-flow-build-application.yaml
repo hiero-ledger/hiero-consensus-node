@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 name: "Node: Build Application"
 on:
-  workflow_dispatch:
   push:
     branches:
       - main
