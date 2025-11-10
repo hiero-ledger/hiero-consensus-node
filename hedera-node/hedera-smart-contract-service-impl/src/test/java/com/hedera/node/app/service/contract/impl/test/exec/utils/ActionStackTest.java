@@ -36,6 +36,7 @@ import static org.hyperledger.besu.evm.frame.MessageFrame.State.CODE_SUCCESS;
 import static org.hyperledger.besu.evm.frame.MessageFrame.Type.CONTRACT_CREATION;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -604,6 +605,18 @@ class ActionStackTest {
         assertEquals(STACK_DEPTH, action.callDepth());
         assertEquals(CALLED_CONTRACT_ID, action.recipientContract());
         assertEquals(NON_SYSTEM_CONTRACT_ID, action.callingContract());
+    }
+
+    @Test
+    void testIsEmptyWithEmptyStack() {
+        assertTrue(subject.isEmpty());
+    }
+
+    @Test
+    void testIsEmptyWithNonEmptyStack() {
+        final var wrappedAction = new ActionWrapper(CALL_ACTION);
+        actionsStack.push(wrappedAction);
+        assertFalse(subject.isEmpty());
     }
 
     private void givenResolvableEvmAddress() {
