@@ -321,12 +321,12 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                         .build()))
                 .connectTimeout(timeoutDuration)
                 .build();
-        
-            logger.debug(
-                    "{} Created BlockStreamPublishServiceClient for {}:{}.",
-                            this,
-                    blockNodeProtocolConfig.blockNodeConfig().address(),
-                    blockNodeProtocolConfig.blockNodeConfig().port());
+
+        logger.debug(
+                "{} Created BlockStreamPublishServiceClient for {}:{}.",
+                this,
+                blockNodeProtocolConfig.blockNodeConfig().address(),
+                blockNodeProtocolConfig.blockNodeConfig().port());
         return clientFactory.createClient(webClient, grpcConfig, OPTIONS);
     }
 
