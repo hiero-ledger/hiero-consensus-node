@@ -476,14 +476,5 @@ jobs:
             fi
           done
 
-          # Convert the comma separated failed tests list to a JSON array
-          if [[ -n "$failed_tests" ]]; then
-            # Split by comma and trim whitespace, then convert to JSON array
-            failed_tests_json=$(echo "$failed_tests" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | jq -R . | jq -s .)
-          else
-            # Empty array if no failures
-            failed_tests_json="[]"
-          fi
-
           echo failure-mode="${failure_mode}" >> $GITHUB_OUTPUT
-          echo failed-tests="${failed_tests_json}" >> $GITHUB_OUTPUT
+          echo failed-tests="${failed_tests}" >> $GITHUB_OUTPUT
