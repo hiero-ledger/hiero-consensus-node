@@ -469,6 +469,7 @@ final class TransactionCheckerTest extends AppTestBase {
         void withEnabledJumboSizeBiggerThanMaxTxnSizeWithNotSupportedFunctionality() {
             props = () -> new VersionedConfigImpl(
                     HederaTestConfigBuilder.create()
+                            .withValue("governanceTransactions.isEnabled", false)
                             .withValue("jumboTransactions.isEnabled", true)
                             .withValue("jumboTransactions.maxTxnSize", 1024 * 10) // 10 KB
                             .withValue("hedera.transaction.maxBytes", 1024 * 6) // 6 KB

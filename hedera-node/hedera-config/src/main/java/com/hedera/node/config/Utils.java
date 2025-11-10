@@ -71,6 +71,6 @@ public final class Utils {
                 configuration.getConfigData(GovernanceTransactionsConfig.class).isEnabled();
         final int governanceTxnSize =
                 configuration.getConfigData(GovernanceTransactionsConfig.class).maxTxnSize();
-        return jumboTxnEnabled ? jumboMaxTxnSize : governanceTxnEnabled ? governanceTxnSize : transactionMaxBytes;
+        return governanceTxnEnabled ? governanceTxnSize : jumboTxnEnabled ? jumboMaxTxnSize : transactionMaxBytes;
     }
 }
