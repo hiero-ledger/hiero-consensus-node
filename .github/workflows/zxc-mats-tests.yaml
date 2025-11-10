@@ -84,10 +84,10 @@ on:
     outputs:
       failure-mode:
         description: "Failure Mode"
-        value: ${{ steps.set-failure-mode.outputs.failure-mode }}
+        value: ${{ jobs.set-failure-mode.outputs.failure-mode }}
       failed-tests:
         description: "List of failed Test"
-        value: ${{ steps.set-failure-mode.outputs.failed-tests }}
+        value: ${{ jobs.set-failure-mode.outputs.failed-tests }}
 
 permissions:
   id-token: write
