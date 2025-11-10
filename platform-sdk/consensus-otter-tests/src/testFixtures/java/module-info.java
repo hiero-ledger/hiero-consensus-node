@@ -51,6 +51,7 @@ module org.hiero.otter.fixtures {
     exports org.hiero.otter.fixtures.result;
     exports org.hiero.otter.fixtures.container.proto;
     exports org.hiero.otter.fixtures.app;
+    exports org.hiero.otter.fixtures.chaosbot;
     exports org.hiero.otter.fixtures.logging.internal;
     exports org.hiero.otter.fixtures.internal.helpers to
             org.hiero.consensus.otter.docker.app;
