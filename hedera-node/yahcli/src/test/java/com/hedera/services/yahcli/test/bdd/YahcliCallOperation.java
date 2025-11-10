@@ -10,6 +10,8 @@ import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.yahcli.Yahcli;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
+import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.io.Writer;
 import java.nio.file.Files;
@@ -151,37 +153,8 @@ public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOpera
             }
 
             // Capture stderr if callback is provided
-            final var originalErr = System.err;
             if (stderrCb != null) {
-                errPath = Files.createTempFile(TxnUtils.randomUppercase(8), ".err");
-                try (final var fileWriter = new PrintWriter(Files.newBufferedWriter(errPath), true)) {
-                    // Create a PrintWriter that writes to both file and original System.err
-                    try (PrintWriter errorPrintWriter = new PrintWriter(
-                            new Writer() {
-                                @Override
-                                public void write(char[] cbuf, int off, int len) {
-                                    final var str = new String(cbuf, off, len);
-                                    fileWriter.print(str);
-                                    originalErr.print(str);
-                                    originalErr.flush(); // Immediate flush to console
-                                }
-
-                                @Override
-                                public void flush() {
-                                    fileWriter.flush();
-                                    originalErr.flush();
-                                }
-
-                                @Override
-                                public void close() {
-                                    fileWriter.close();
-                                }
-                            },
-                            true)) {
-                        commandLine.setErr(errorPrintWriter);
-                        executeCommand(commandLine, finalizedArgs);
-                    }
-                }
+                errPath = executeCommandWithStderrCapture(commandLine, finalizedArgs);
             } else {
                 executeCommand(commandLine, finalizedArgs);
             }
@@ -231,6 +204,19 @@ public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOpera
         }
     }
 
+    private Path executeCommandWithStderrCapture(final CommandLine commandLine, final String[] finalizedArgs)
+            throws IOException {
+        final var originalErr = System.err;
+        final Path errPath = Files.createTempFile(TxnUtils.randomUppercase(8), ".err");
+        try (final var fileWriter = new PrintWriter(Files.newBufferedWriter(errPath), true);
+                PrintWriter errorPrintWriter =
+                        new PrintWriter(new StderrCaptureWriter(fileWriter, originalErr), true)) {
+            commandLine.setErr(errorPrintWriter);
+            executeCommand(commandLine, finalizedArgs);
+        }
+        return errPath;
+    }
+
     private boolean workingDirProvidedViaArgs() {
         return argsInclude("-w") || argsInclude("--working-dir");
     }
@@ -246,5 +232,38 @@ public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOpera
             }
         }
         return false;
+    }
+
+    /**
+     * A Writer that captures stderr output to a file while simultaneously writing to the original System.err,
+     * allowing stderr to be captured for inspection while still being visible in the console.
+     */
+    private static class StderrCaptureWriter extends Writer {
+        private final PrintWriter fileWriter;
+        private final PrintStream originalErr;
+
+        StderrCaptureWriter(PrintWriter fileWriter, PrintStream originalErr) {
+            this.fileWriter = requireNonNull(fileWriter);
+            this.originalErr = requireNonNull(originalErr);
+        }
+
+        @Override
+        public void write(char[] cbuf, int off, int len) {
+            final var str = new String(cbuf, off, len);
+            fileWriter.print(str);
+            originalErr.print(str);
+            originalErr.flush(); // Immediate flush to console
+        }
+
+        @Override
+        public void flush() {
+            fileWriter.flush();
+            originalErr.flush();
+        }
+
+        @Override
+        public void close() {
+            fileWriter.close();
+        }
     }
 }
