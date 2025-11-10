@@ -1,0 +1,487 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "ZXC: Executable MATS Tests"
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Git Reference to Test"
+        type: string
+        required: false
+        default: ""
+      enable-unit-tests:
+        description: "Unit Testing Enabled"
+        type: string
+        required: false
+        default: "true"
+      enable-integration-tests:
+        description: "Integration Testing Enabled"
+        type: string
+        required: false
+        default: "true"
+      enable-hapi-tests:
+        description: "HAPI Testing Enabled"
+        type: string
+        required: false
+        default: "true"
+      enable-spotless-check:
+        description: "Spotless Check Enabled"
+        type: string
+        required: false
+        default: "true"
+      enable-otter-tests:
+        description: "Otter Tests Enabled"
+        type: string
+        required: false
+        default: "true"
+      enable-snyk-scan:
+        description: "Snyk Scan Enabled"
+        type: string
+        required: false
+        default: "true"
+      enable-gradle-determinism:
+        description: "Gradle Build Determinism Check Enabled"
+        type: string
+        required: false
+        default: "true"
+      enable-docker-determinism:
+        description: "Docker Build Determinism Check Enabled"
+        type: string
+        required: false
+        default: "true"
+      java-version:
+        description: "Java JDK Version:"
+        type: string
+        required: false
+        default: "21.0.6"
+      java-distribution:
+        description: "Java JDK Distribution:"
+        type: string
+        required: false
+        default: "temurin"
+      custom-job-label:
+        description: "Custom Job Label"
+        type: string
+        required: false
+        default: "MATS Tests"
+    secrets:
+      access-token:
+        description: "Github Access Token"
+        required: false
+      codacy-project-token:
+        description: "Codacy Project Token"
+        required: false
+      codecov-token:
+        description: "Codecov Token"
+        required: false
+      gradle-cache-username:
+        description: "Gradle Cache Username"
+        required: true
+      gradle-cache-password:
+        description: "Gradle Cache Password"
+        required: true
+      snyk-token:
+        required: false
+    outputs:
+      failure-mode:
+        description: "Failure Mode"
+        value: ${{ steps.set-failure-mode.outputs.failure-mode }}
+      failed-tests:
+        description: "List of failed Test"
+        value: ${{ steps.set-failure-mode.outputs.failed-tests }}
+
+permissions:
+  id-token: write
+  actions: read
+  pull-requests: write
+  statuses: write
+  checks: write
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  mats-unit-tests:
+    name: MATS - Unit Tests
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: "${{ inputs.custom-job-label }} Unit Tests"
+      java-version: ${{ inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      enable-unit-tests: ${{ inputs.enable-unit-tests == 'true' }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      codacy-project-token: ${{ secrets.codacy-project-token }}
+      codecov-token: ${{ secrets.codecov-token }}
+
+  mats-integration-tests:
+    name: MATS - Integration Tests
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: "${{ inputs.custom-job-label }} Integration Tests"
+      java-version: ${{ inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      enable-unit-tests: false
+      enable-integration-tests: ${{ inputs.enable-unit-tests == 'true' }}
+      enable-network-log-capture: true
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  mats-hapi-tests-misc:
+    name: MATS - HAPI Tests (Misc)
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: "${{ inputs.custom-job-label }} HAPI Tests (Misc)"
+      enable-unit-tests: false
+      enable-hapi-tests-misc: ${{ inputs.enable-hapi-tests == 'true' }}
+      enable-network-log-capture: true
+      mats-suffix: MATS
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  mats-hapi-tests-misc-records:
+    name: MATS - HAPI Tests (Misc Records)
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: "${{ inputs.custom-job-label }} HAPI Tests (Misc Records)"
+      java-version: ${{ inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      enable-unit-tests: false
+      enable-hapi-tests-misc-records: ${{ inputs.enable-hapi-tests == 'true' }}
+      enable-network-log-capture: true
+      mats-suffix: MATS
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  mats-hapi-tests-crypto:
+    name: MATS - HAPI Tests (Crypto)
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: "${{ inputs.custom-job-label }} HAPI Tests (Crypto)"
+      java-version: ${{ inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      enable-unit-tests: false
+      enable-hapi-tests-crypto: ${{ inputs.enable-hapi-tests == 'true' }}
+      enable-network-log-capture: true
+      mats-suffix: MATS
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  mats-hapi-tests-simplefees:
+    name: MATS - HAPI Tests (Simple Fees)
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: "${{ inputs.custom-job-label }} HAPI Tests (Simple Fees)"
+      java-version: ${{ inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      enable-unit-tests: false
+      enable-hapi-tests-simplefees: ${{ inputs.enable-hapi-tests == 'true' }}
+      enable-network-log-capture: true
+      mats-suffix: MATS
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  mats-hapi-tests-iss:
+    name: MATS - HAPI Tests (ISS)
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: "${{ inputs.custom-job-label }} HAPI Tests (ISS)"
+      java-version: ${{ inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      enable-unit-tests: false
+      enable-hapi-tests-iss: ${{ inputs.enable-hapi-tests == 'true' }}
+      enable-network-log-capture: true
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  mats-hapi-tests-token:
+    name: MATS - HAPI Tests (Token)
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: "${{ inputs.custom-job-label }} HAPI Tests (Token)"
+      java-version: ${{ inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      enable-unit-tests: false
+      enable-hapi-tests-token: ${{ inputs.enable-hapi-tests == 'true' }}
+      enable-network-log-capture: true
+      mats-suffix: MATS
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  mats-hapi-tests-smart-contract:
+    name: MATS - HAPI Tests (Smart Contract)
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: "${{ inputs.custom-job-label }} HAPI Tests (Smart Contract)"
+      java-version: ${{ inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      enable-unit-tests: false
+      enable-hapi-tests-smart-contract: ${{ inputs.enable-hapi-tests == 'true' }}
+      enable-network-log-capture: true
+      mats-suffix: MATS
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  mats-hapi-tests-restart:
+    name: MATS - HAPI Tests (Restart)
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: "${{ inputs.custom-job-label }} HAPI Tests (Restart)"
+      java-version: ${{ inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      enable-unit-tests: false
+      enable-hapi-tests-restart: ${{ inputs.enable-hapi-tests == 'true' }}
+      enable-network-log-capture: true
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  mats-hapi-tests-nd-reconnect:
+    name: MATS - HAPI Tests (Node Death Reconnect)
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: "${{ inputs.custom-job-label }} HAPI Tests (Node Death Reconnect)"
+      java-version: ${{ inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      enable-unit-tests: false
+      enable-hapi-tests-nd-reconnect: ${{ inputs.enable-hapi-tests == 'true' }}
+      enable-network-log-capture: true
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  mats-otter-tests:
+    name: MATS - Otter Tests
+    uses: ./.github/workflows/zxc-execute-otter-tests.yaml
+    with:
+      custom-job-label: "${{ inputs.custom-job-label }} Otter Tests"
+      java-version: ${{ inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      enable-fast-otter-tests: ${{ inputs.enable-otter-tests == 'true' }}
+      enable-network-log-capture: true
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  mats-spotless-check:
+    name: MATS - Spotless Check
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: "${{ inputs.custom-job-label }} Spotless Check"
+      java-version: ${{ inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      enable-unit-tests: false
+      enable-spotless-check: ${{ inputs.enable-spotless-check == 'true' }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      snyk-token: ${{ secrets.snyk-token }}
+
+  mats-snyk-scan:
+    name: MATS - Snyk Scan
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: "${{ inputs.custom-job-label }} Snyk Scan"
+      java-version: ${{ inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      enable-unit-tests: false
+      enable-snyk-scan: ${{ inputs.enable-snyk-scan == 'true' }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      snyk-token: ${{ secrets.snyk-token }}
+
+  mats-gradle-determinism:
+    name: MATS - Gradle Determinism
+    uses: ./.github/workflows/zxc-verify-gradle-build-determinism.yaml
+    if: ${{ inputs.enable-gradle-determinism == 'true' }}
+    with:
+      ref: ${{ inputs.ref }}
+      java-version: ${{ inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+    secrets:
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  mats-docker-determinism:
+    name: MATS - Docker Determinism
+    uses: ./.github/workflows/zxc-verify-docker-build-determinism.yaml
+    if: ${{ inputs.enable-docker-determinism == 'true' }}
+    with:
+      ref: ${{ inputs.ref || '' }}
+      java-version: ${{ inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+    secrets:
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  set-failure-mode:
+    name: Set Failure Mode
+    runs-on: hiero-citr-linux-medium
+    needs:
+      - mats-unit-tests
+      - mats-integration-tests
+      - mats-hapi-tests-misc
+      - mats-hapi-tests-misc-records
+      - mats-hapi-tests-crypto
+      - mats-hapi-tests-simplefees
+      - mats-hapi-tests-iss
+      - mats-hapi-tests-token
+      - mats-hapi-tests-smart-contract
+      - mats-hapi-tests-restart
+      - mats-hapi-tests-nd-reconnect
+      - mats-otter-tests
+      - mats-spotless-check
+      - mats-snyk-scan
+      - mats-gradle-determinism
+      - mats-docker-determinism
+    if: ${{ !cancelled() && always() }} # always run unless cancelled
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
+      - name: Set Failure Mode
+        id: set-failure-mode
+        run: |
+          job_statuses=(
+            ${{ needs.mats-unit-tests.result || 'skipped' }}
+            ${{ needs.mats-integration-tests.result || 'skipped' }}
+            ${{ needs.mats-hapi-tests-misc.result || 'skipped' }}
+            ${{ needs.mats-hapi-tests-misc-records.result || 'skipped' }}
+            ${{ needs.mats-hapi-tests-crypto.result || 'skipped' }}
+            ${{ needs.mats-hapi-tests-simplefees.result || 'skipped' }}
+            ${{ needs.mats-hapi-tests-iss.result || 'skipped' }}
+            ${{ needs.mats-hapi-tests-token.result || 'skipped' }}
+            ${{ needs.mats-hapi-tests-smart-contract.result || 'skipped' }}
+            ${{ needs.mats-hapi-tests-restart.result || 'skipped' }}
+            ${{ needs.mats-hapi-tests-nd-reconnect.result || 'skipped' }}
+            ${{ needs.mats-otter-tests.result || 'skipped' }}
+            ${{ needs.mats-spotless-check.result || 'skipped' }}
+            ${{ needs.mats-snyk-scan.result || 'skipped' }}
+          )
+          job_failure_modes=(
+            ${{ needs.mats-unit-tests.outputs.failure-mode || 'none' }}
+            ${{ needs.mats-integration-tests.outputs.failure-mode || 'none' }}
+            ${{ needs.mats-hapi-tests-misc.outputs.failure-mode || 'none' }}
+            ${{ needs.mats-hapi-tests-misc-records.outputs.failure-mode || 'none' }}
+            ${{ needs.mats-hapi-tests-crypto.outputs.failure-mode || 'none' }}
+            ${{ needs.mats-hapi-tests-simplefees.outputs.failure-mode || 'none' }}
+            ${{ needs.mats-hapi-tests-iss.outputs.failure-mode || 'none' }}
+            ${{ needs.mats-hapi-tests-token.outputs.failure-mode || 'none' }}
+            ${{ needs.mats-hapi-tests-smart-contract.outputs.failure-mode || 'none' }}
+            ${{ needs.mats-hapi-tests-restart.outputs.failure-mode || 'none' }}
+            ${{ needs.mats-hapi-tests-nd-reconnect.outputs.failure-mode || 'none' }}
+            ${{ needs.mats-otter-tests.outputs.failure-mode || 'none' }}
+            ${{ needs.mats-spotless-check.outputs.failure-mode || 'none' }}
+            ${{ needs.mats-snyk-scan.outputs.failure-mode || 'none' }}
+          )
+          job_names=(
+            "mats-unit-tests"
+            "mats-integration-tests"
+            "mats-hapi-tests-misc"
+            "mats-hapi-tests-misc-records"
+            "mats-hapi-tests-crypto"
+            "mats-hapi-tests-simplefees"
+            "mats-hapi-tests-iss"
+            "mats-hapi-tests-token"
+            "mats-hapi-tests-smart-contract"
+            "mats-hapi-tests-restart"
+            "mats-hapi-tests-nd-reconnect"
+            "mats-otter-tests"
+            "mats-spotless-check"
+            "mats-snyk-scan"
+          )
+
+          # Final outputs
+          failure_mode="none"
+          failed_tests=""
+
+          # go through all of the job statuses and check failure mode (none | workflow | general)
+          # if any job failed (failure-mode != none) then set the failure mode for the workflow
+          # to that jobs failure mode.
+          # only set failure mode once
+          # append the failing job to the failed-tests list.
+
+          for job in "${!job_statuses[@]}"; do
+            status=${job_statuses[$job]}
+            mode=${job_failure_modes[$job]}
+            name=${job_names[$job]}
+
+            if [[ "$status" == "failure" ]]; then
+              if [[ "$mode" != "none" && "$failure_mode" == "none" ]]; then
+                failure_mode="$mode"
+              fi
+              if [[ -z "$failed_tests" ]]; then
+                failed_tests="$name"
+              else
+                failed_tests="$failed_tests, $name"
+              fi
+            fi
+          done
+
+          # if any determinism jobs failed, set failure mode to 'general' if not already set to something
+          # other than "none"
+          # Add the failed determinism job to the failed-tests list
+
+          determinism_statuses=(
+            ${{ needs.mats-gradle-determinism.result || 'skipped' }}
+            ${{ needs.mats-docker-determinism.result || 'skipped' }}
+          )
+          determinism_names=(
+            "mats-gradle-determinism"
+            "mats-docker-determinism"
+          )
+
+          for job in "${!determinism_statuses[@]}"; do
+            status=${determinism_statuses[$job]}
+            name=${determinism_names[$job]}
+
+            if [[ "$status" == "failure" ]]; then
+              if [[ "$failure_mode" == "none" ]]; then
+                failure_mode="general"
+              fi
+              if [[ -z "$failed_tests" ]]; then
+                failed_tests="$name"
+              else
+                failed_tests="$failed_tests, $name"
+              fi
+            fi
+          done
+
+          # Convert the comma separated failed tests list to a JSON array
+          if [[ -n "$failed_tests" ]]; then
+            # Split by comma and trim whitespace, then convert to JSON array
+            failed_tests_json=$(echo "$failed_tests" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | jq -R . | jq -s .)
+          else
+            # Empty array if no failures
+            failed_tests_json="[]"
+          fi
+
+          echo failure-mode="${failure_mode}" >> $GITHUB_OUTPUT
+          echo failed-tests="${failed_tests_json}" >> $GITHUB_OUTPUT

@@ -25,6 +25,8 @@
 | node-zxc-build-release-artifact.yaml                  | ZXC: [Node] Deploy Release Artifacts                              |                  |                      |
 | node-zxc-compile-application-code.yaml                | ZXC: [Node] Compile Application Code                              |                  |                      |
 | node-zxc-deploy-preview.yaml                          | ZXC: [Node] Deploy Preview Network Release                        |                  |                      |
+| zxc-xts-tests.yaml                                    | ZXC: Executable XTS Tests                                         |                  |                      |
+| zxc-mats-tests.yaml                                   | ZXC: Executable MATS Tests                                        |                  |                      |
 |                                                       |                                                                   |                  |                      |
 | # CICD                                                |                                                                   |                  |                      |
 | zxf-collect-workflow-logs.yaml                        | ZXF: Collect Workflow Run Logs                                    |                  |                      |
