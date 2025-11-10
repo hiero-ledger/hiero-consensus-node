@@ -36,7 +36,6 @@ import java.util.stream.Stream;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream.Code;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.jetbrains.annotations.NotNull;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
@@ -546,7 +545,6 @@ public class BlockNodeSuite {
                                 + "/ACTIVE] Connection state transitioned from PENDING to ACTIVE.")));
     }
 
-    @Disabled
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
@@ -557,7 +555,7 @@ public class BlockNodeSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.buffer.blockTtl", "30s",
+                            "blockStream.buffer.maxBlocks", "15",
                             "blockStream.streamMode", "BLOCKS",
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
