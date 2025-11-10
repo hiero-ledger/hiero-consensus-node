@@ -23,7 +23,6 @@ package com.hedera.node.app.service.contract.impl.exec.utils;
 //import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 //
 //import com.hedera.hapi.node.base.ContractID;
-//import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
@@ -57,21 +56,7 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  * </ol>
  */
 @Singleton
-public abstract class FrameBuilder {
-    static final int MAX_STACK_SIZE = 1024;
-
-    ///**
-    // * Default constructor for injection.
-    // */
-    //@Inject
-    //public FrameBuilder() {
-    //    // Dagger2
-    //}
-
-    public static FrameBuilder make() {
-        throw new TODO("static FrameBuilder uses global var to pick between BESU vs BEVM");
-    }
-
+public abstract class FrameBuilderBEVM extends FrameBuilder {
 
     /**
      * Builds the initial {@link MessageFrame} instance for a transaction.
@@ -88,7 +73,7 @@ public abstract class FrameBuilder {
      * *                    from raw bytecode.
      * @return the initial frame
      */
-    public abstract MessageFrame buildInitialFrameWith(
+    public MessageFrame buildInitialFrameWith(
             @NonNull final HederaEvmTransaction transaction,
             @NonNull final HederaWorldUpdater worldUpdater,
             @NonNull final HederaEvmContext context,
@@ -98,6 +83,7 @@ public abstract class FrameBuilder {
             @NonNull final Address from,
             @NonNull final Address to,
             final long intrinsicGas,
-            @NonNull final CodeFactory codeFactory);
-
+            @NonNull final CodeFactory codeFactory) {
+      throw new TODO();
+    }
 }

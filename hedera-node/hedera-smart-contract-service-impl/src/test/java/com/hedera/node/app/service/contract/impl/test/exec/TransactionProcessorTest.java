@@ -151,7 +151,7 @@ class TransactionProcessorTest {
 
     @BeforeEach
     void setUp() {
-        subject = new TransactionProcessor(
+        subject = TransactionProcessor.make(
                 frameBuilder,
                 frameRunner,
                 gasCharging,

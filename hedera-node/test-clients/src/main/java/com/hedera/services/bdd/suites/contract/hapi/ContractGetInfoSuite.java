@@ -147,4 +147,13 @@ public class ContractGetInfoSuite {
                     return Optional.empty();
                 }));
     }
+
+    @HapiTest
+    public Stream<DynamicTest> helloWorld() {
+        return hapiTest(
+                uploadInitCode("Multipurpose"),
+                contractCreate("Multipurpose").gas(2_000_000L),
+                contractCall("Multipurpose", "believeIn", 1L)
+                        .gas(32_000L));
+    }
 }

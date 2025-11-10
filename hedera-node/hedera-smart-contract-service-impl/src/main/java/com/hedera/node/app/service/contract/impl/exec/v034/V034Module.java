@@ -12,6 +12,7 @@ import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.FrameRunner;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
+import com.hedera.node.app.service.contract.impl.exec.TransactionProcessorBESU;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomBalanceOperation;
@@ -80,7 +81,7 @@ public interface V034Module {
             @NonNull final CustomGasCharging gasCharging,
             @ServicesV034 @NonNull final FeatureFlags featureFlags,
             @NonNull final CodeFactory codeFactory) {
-        return new TransactionProcessor(
+        return new TransactionProcessorBESU(
                 frameBuilder,
                 frameRunner,
                 gasCharging,
