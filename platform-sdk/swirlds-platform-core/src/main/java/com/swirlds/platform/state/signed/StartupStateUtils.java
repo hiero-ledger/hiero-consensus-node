@@ -5,7 +5,7 @@ import static com.swirlds.common.merkle.utility.MerkleUtils.rehashTree;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.state.signed.ReservedSignedState.createNullReservation;
-import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readStateFile;
+import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -279,8 +279,8 @@ public final class StartupStateUtils {
         final DeserializedSignedState deserializedSignedState;
         final Configuration configuration = platformContext.getConfiguration();
         try {
-            deserializedSignedState = readStateFile(
-                    savedStateFile.stateFile(), createStateFromVirtualMap, platformStateFacade, platformContext);
+            deserializedSignedState = readState(
+                    savedStateFile.getDirectory(), createStateFromVirtualMap, platformStateFacade, platformContext);
         } catch (final IOException e) {
             logger.error(EXCEPTION.getMarker(), "unable to load state file {}", savedStateFile.stateFile(), e);
 

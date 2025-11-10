@@ -207,7 +207,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
     public MerkleNodeState loadSnapshot(@NonNull final Path targetPath) {
         final MerkleNode root;
         try {
-            root = MerkleTreeSnapshotReader.readStateFileData(targetPath).stateRoot();
+            root = MerkleTreeSnapshotReader.readStateFileData(targetPath);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
