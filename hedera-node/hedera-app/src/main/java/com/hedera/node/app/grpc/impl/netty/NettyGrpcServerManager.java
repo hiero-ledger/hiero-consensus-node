@@ -424,36 +424,37 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
             @NonNull final QueryWorkflow queryWorkflow,
             @NonNull final Metrics metrics) {
 
-        final var maxTxnSize = configProvider
+        final int maxTxnSize = configProvider
                 .getConfiguration()
                 .getConfigData(HederaConfig.class)
                 .transactionMaxBytes();
-        final var isJumboEnabled = configProvider
+        final boolean isJumboEnabled = configProvider
                 .getConfiguration()
                 .getConfigData(JumboTransactionsConfig.class)
                 .isEnabled();
-        final var jumboMaxTxnSize = isJumboEnabled
+        final int jumboMaxTxnSize = isJumboEnabled
                 ? configProvider
                         .getConfiguration()
                         .getConfigData(JumboTransactionsConfig.class)
                         .maxTxnSize()
                 : maxTxnSize;
 
-        final var isGovTxnEnabled = configProvider
+        final boolean isGovTxnEnabled = configProvider
                 .getConfiguration()
                 .getConfigData(GovernanceTransactionsConfig.class)
                 .isEnabled();
 
-        final int maxTxBytes = isGovTxnEnabled
+        final int govMaxTxnSize = isGovTxnEnabled
                 ? configProvider
                         .getConfiguration()
                         .getConfigData(GovernanceTransactionsConfig.class)
                         .maxTxnSize()
                 : maxTxnSize;
+
         // set buffer capacity to be big enough to hold the largest transaction
-        final var bufferCapacity = isJumboEnabled ? jumboMaxTxnSize + 1 : maxTxnSize + 1;
+        final int bufferCapacity = Math.max(Math.max(govMaxTxnSize, jumboMaxTxnSize), maxTxnSize) + 1;
         // set capacity and max transaction size for both normal and jumbo transactions
-        final var dataBufferMarshaller = new DataBufferMarshaller(bufferCapacity, maxTxBytes);
+        final var dataBufferMarshaller = new DataBufferMarshaller(bufferCapacity, govMaxTxnSize);
         final var jumboBufferMarshaller = new DataBufferMarshaller(bufferCapacity, jumboMaxTxnSize);
         return rpcServiceDefinitions
                 .get()

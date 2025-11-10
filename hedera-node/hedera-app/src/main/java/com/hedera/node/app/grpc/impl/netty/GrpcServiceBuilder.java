@@ -11,6 +11,7 @@ import com.hedera.node.app.grpc.impl.TransactionMethod;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.GovernanceTransactionsConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
@@ -166,8 +167,13 @@ final class GrpcServiceBuilder {
     @NonNull
     public ServerServiceDefinition build(@NonNull final Metrics metrics, ConfigProvider configProvider) {
         final var jumboTxnConfig = configProvider.getConfiguration().getConfigData(JumboTransactionsConfig.class);
+        final var govTxnConfig = configProvider.getConfiguration().getConfigData(GovernanceTransactionsConfig.class);
+
         final var jumboTxnIsEnabled = jumboTxnConfig.isEnabled();
         final var jumboTxnMaxSize = jumboTxnConfig.maxTxnSize();
+        final var governanceTxnIsEnabled = govTxnConfig.isEnabled();
+        final var governanceTxnMaxSize = govTxnConfig.maxTxnSize();
+
         final var messageMaxSize = configProvider
                 .getConfiguration()
                 .getConfigData(HederaConfig.class)
@@ -184,7 +190,8 @@ final class GrpcServiceBuilder {
                 addMethod(builder, serviceName, methodName, method, jumboMarshaller);
             } else {
                 // add regular transaction methods
-                method = new TransactionMethod(serviceName, methodName, ingestWorkflow, metrics, messageMaxSize);
+                final int transactionMaxSize = governanceTxnIsEnabled ? governanceTxnMaxSize : messageMaxSize;
+                method = new TransactionMethod(serviceName, methodName, ingestWorkflow, metrics, transactionMaxSize);
                 addMethod(builder, serviceName, methodName, method, marshaller);
             }
         });
