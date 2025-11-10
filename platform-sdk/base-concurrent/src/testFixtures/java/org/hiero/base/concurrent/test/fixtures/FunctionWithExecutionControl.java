@@ -63,7 +63,7 @@ public class FunctionWithExecutionControl<V, R> implements Function<V, R> {
      * @param <R>     the type of the return value
      * @return the new {@link ConsumerWithCompletionControl}
      */
-    public static <V, R> FunctionWithExecutionControl<V, R> unBlocked(@NonNull final Function<V, R> handler) {
+    public static <V, R> FunctionWithExecutionControl<V, R> unblocked(@NonNull final Function<V, R> handler) {
         return new FunctionWithExecutionControl<>(handler, Gate.openGate());
     }
 }

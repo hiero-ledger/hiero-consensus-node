@@ -43,6 +43,7 @@ testModuleInfo {
     requires("org.hiero.base.crypto.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.model.test.fixtures")
+    requires("org.hiero.base.concurrent.test.fixtures")
     requires("awaitility")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
