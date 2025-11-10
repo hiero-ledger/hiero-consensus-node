@@ -602,7 +602,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         verify(activeConnection).getNodeConfig();
         verify(newConnection).getNodeConfig();
-        verify(newConnection).close(true);
+        verify(newConnection).close(false);
 
         verifyNoMoreInteractions(activeConnection);
         verifyNoMoreInteractions(newConnection);
@@ -630,7 +630,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(activeConnectionRef).hasValue(newConnection);
 
         verify(activeConnection, times(2)).getNodeConfig();
-        verify(activeConnection).close(true);
+        verify(activeConnection).closeAtBlockBoundary();
         verify(newConnection, times(2)).getNodeConfig();
         verify(newConnection).createRequestPipeline();
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
@@ -661,7 +661,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(activeConnectionRef).hasValue(newConnection);
 
         verify(activeConnection).getNodeConfig();
-        verify(activeConnection).close(true);
+        verify(activeConnection).closeAtBlockBoundary();
         verify(newConnection, times(2)).getNodeConfig();
         verify(newConnection).createRequestPipeline();
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
@@ -721,7 +721,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         doReturn(activeConnectionConfig).when(activeConnection).getNodeConfig();
         doThrow(new RuntimeException("why does this always happen to me"))
                 .when(activeConnection)
-                .close(true);
+                .closeAtBlockBoundary();
         activeConnectionRef.set(activeConnection);
 
         final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
@@ -733,7 +733,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(activeConnectionRef).hasValue(newConnection);
 
         verify(activeConnection).getNodeConfig();
-        verify(activeConnection).close(true);
+        verify(activeConnection).closeAtBlockBoundary();
         verify(newConnection, times(2)).getNodeConfig();
         verify(newConnection).createRequestPipeline();
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
@@ -846,7 +846,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         verify(connection).createRequestPipeline();
         verify(executorService).schedule(eq(task), anyLong(), eq(TimeUnit.MILLISECONDS));
-        verify(connection).close(true);
+        verify(connection).closeAtBlockBoundary();
         verify(metrics).recordConnectionCreateFailure();
 
         verifyNoMoreInteractions(connection);
@@ -1756,7 +1756,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConnection oldActive = mock(BlockNodeConnection.class);
         final BlockNodeConfig oldConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 2);
         doReturn(oldConfig).when(oldActive).getNodeConfig();
-        doThrow(new RuntimeException("Close failed")).when(oldActive).close(true);
+        doThrow(new RuntimeException("Close failed")).when(oldActive).closeAtBlockBoundary();
         activeConnectionRef.set(oldActive);
 
         final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
@@ -1766,7 +1766,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // Should handle exception gracefully
         connectionManager.new BlockNodeConnectionTask(newConnection, Duration.ZERO, false).run();
 
-        verify(oldActive).close(true);
+        verify(oldActive).closeAtBlockBoundary();
         verify(newConnection).createRequestPipeline();
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
         assertThat(activeConnectionRef).hasValue(newConnection);

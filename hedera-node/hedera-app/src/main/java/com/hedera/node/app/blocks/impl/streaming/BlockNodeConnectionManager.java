@@ -260,7 +260,7 @@ public class BlockNodeConnectionManager {
      * @return whether there is only one block node configured
      */
     public boolean isOnlyOneBlockNodeConfigured() {
-        int size;
+        final int size;
         synchronized (availableBlockNodes) {
             size = availableBlockNodes.size();
         }
@@ -358,7 +358,7 @@ public class BlockNodeConnectionManager {
             logger.debug("{} Successfully scheduled reconnection task.", newConnection);
         } catch (final Exception e) {
             logger.error("{} Failed to schedule connection task for block node.", newConnection, e);
-            newConnection.close(true);
+            newConnection.closeAtBlockBoundary();
         }
     }
 
@@ -400,6 +400,8 @@ public class BlockNodeConnectionManager {
             final Map.Entry<BlockNodeProtocolConfig, BlockNodeConnection> entry = iterator.next();
             final BlockNodeConnection connection = entry.getValue();
             try {
+                // This method is invoked during a shutdown of the connection manager, in which case we don't want
+                // to gracefully close connections at block boundaries, so just call close immediately.
                 connection.close(true);
             } catch (final RuntimeException e) {
                 logger.debug(
@@ -745,7 +747,8 @@ public class BlockNodeConnectionManager {
                                 "{} Active connection has equal/higher priority. Ignoring candidate. Active: {}.",
                                 connection,
                                 activeConnection);
-                        connection.close(true);
+                        // This connection was never initialized so we are safe to call close immediately
+                        connection.close(false);
                         return;
                     }
                 }
@@ -771,7 +774,8 @@ public class BlockNodeConnectionManager {
                     // close the old active connection
                     try {
                         logger.debug("{} Closing current active connection {}.", connection, activeConnection);
-                        activeConnection.close(true);
+                        activeConnection.closeAtBlockBoundary();
+
                         // For a forced switch, reschedule the previously active connection to try again later
                         if (force) {
                             try {
@@ -797,7 +801,7 @@ public class BlockNodeConnectionManager {
                     }
                 }
             } catch (final Exception e) {
-                logger.debug("{} Failed to establish connection to block node. Will schedule a retry.", connection);
+                logger.debug("{} Failed to establish connection to block node. Will schedule a retry.", connection, e);
                 blockStreamMetrics.recordConnectionCreateFailure();
                 reschedule();
                 selectNewBlockNodeForStreaming(false);
@@ -848,7 +852,7 @@ public class BlockNodeConnectionManager {
                 logger.info("{} Rescheduled connection attempt (delayMillis={}).", connection, jitteredDelayMs);
             } catch (final Exception e) {
                 logger.error("{} Failed to reschedule connection attempt. Removing from retry map.", connection, e);
-                connection.close(true);
+                connection.closeAtBlockBoundary();
             }
         }
     }

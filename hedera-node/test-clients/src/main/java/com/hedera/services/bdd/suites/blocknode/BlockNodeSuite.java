@@ -433,6 +433,12 @@ public class BlockNodeSuite {
                         String.format(
                                 "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
                                 portNumbers.get(1)),
+                        String.format(
+                                "/localhost:%s/ACTIVE] Connection will be closed at the next block boundary",
+                                portNumbers.get(3)),
+                        String.format(
+                                "/localhost:%s/ACTIVE] Block boundary reached; closing connection (finished sending block)",
+                                portNumbers.get(3)),
                         String.format("/localhost:%s/CLOSING] Closing connection.", portNumbers.get(3)),
                         String.format(
                                 "/localhost:%s/CLOSING] Connection state transitioned from ACTIVE to CLOSING.",
@@ -1043,8 +1049,6 @@ public class BlockNodeSuite {
                 assertBlockNodeCommsLogDoesNotContain(
                         byNodeId(0), "Block node has exceeded high latency threshold", Duration.ofSeconds(0)),
                 assertBlockNodeCommsLogContains(
-                        byNodeId(0),
-                        "Sending ad hoc request to block node (type=END_OF_BLOCK)",
-                        Duration.ofSeconds(0)));
+                        byNodeId(0), "Sending request to block node (type=END_OF_BLOCK)", Duration.ofSeconds(0)));
     }
 }
