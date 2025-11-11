@@ -1385,7 +1385,7 @@ jobs:
             RESULT="failure"
           fi
 
-          if [ "0${{ env.validator_result }}" -ne "${{ env.ValidatorExitCode }}" ]
+          if [[ "0${{ env.validator_result }}" -ne "${{ env.ValidatorExitCode }}" ]]
           then
             echo "Validator exit code ${{ env.validator_result }} is not ${{ env.ValidatorExitCode }}" >> "${GITHUB_STEP_SUMMARY}"
             RESULT="failure"
