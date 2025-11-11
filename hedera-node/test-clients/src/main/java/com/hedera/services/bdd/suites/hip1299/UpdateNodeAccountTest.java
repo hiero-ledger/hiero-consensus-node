@@ -65,7 +65,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
@@ -979,7 +978,12 @@ public class UpdateNodeAccountTest {
                             .accountId(newNodeAccount)
                             .signedByPayerAnd(initialNodeAccount, "adminKey")
                             .hasKnownStatus(INVALID_NODE_ID),
-                    viewNode("testNode", Assertions::assertNull));
+                    viewNode(
+                            "testNode",
+                            node -> assertNotEquals(
+                                    newAccountId.get(),
+                                    node.accountId().accountNum(),
+                                    "Node accountId should not be updated")));
         }
 
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
