@@ -59,7 +59,6 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
     @Override
     public void writePbjItem(@NonNull BlockItem blockItem) {
         requireNonNull(blockItem, "blockItem must not be null");
-        blockBufferService.addItem(blockNumber, blockItem);
     }
 
     /**
@@ -73,7 +72,7 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
     public void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull final Bytes bytes) {
         requireNonNull(item, "item must not be null");
         requireNonNull(bytes, "bytes must not be null");
-        writePbjItem(item);
+        blockBufferService.addItem(blockNumber, item, bytes);
     }
 
     /**

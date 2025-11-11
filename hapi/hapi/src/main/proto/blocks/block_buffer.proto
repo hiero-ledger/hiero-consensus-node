@@ -38,22 +38,27 @@ message BufferedBlock {
   int64 block_number = 1;
 
   /**
+   * The timestamp this block's header was added to the Block.
+   */
+  proto.Timestamp opened_timestamp = 2;
+
+  /**
    * The timestamp this block was closed.
    */
-  proto.Timestamp closed_timestamp = 2;
+  proto.Timestamp closed_timestamp = 3;
 
   /**
    * Flag indicating if this block's proof has been sent to a block node.
    */
-  bool is_proof_sent = 3;
+  bool is_proof_sent = 4;
 
   /**
    * Flag indicating if this block has been acknowledged by a block node.
    */
-  bool is_acknowledged = 4;
+  bool is_acknowledged = 5;
 
   /**
    * The block data.
    */
-  com.hedera.hapi.block.stream.Block block = 5;
+  com.hedera.hapi.block.stream.Block block = 6;
 }

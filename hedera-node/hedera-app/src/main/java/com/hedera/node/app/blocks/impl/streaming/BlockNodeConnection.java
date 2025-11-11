@@ -141,6 +141,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * Tracks the time (ms) when a BlockHeader for a given block number was sent.
      */
     private final ConcurrentHashMap<Long, Long> headerSentAtMsByBlock = new ConcurrentHashMap<>();
+
+    private final ConcurrentHashMap<Long, Long> blockEndSentAtMsByBlock = new ConcurrentHashMap<>();
     /**
      * Reference to the worker thread, once it is initialized.
      */
@@ -731,6 +733,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     blockStreamMetrics.recordRequestSent(request.request().kind());
                 }
 
+                blockStreamMetrics.recordRequestBlockItemCount(
+                        request.blockItems().blockItems().size());
+                blockStreamMetrics.recordRequestBytes(request.protobufSize());
                 return true;
             } catch (final RuntimeException e) {
                 /*

@@ -34,6 +34,7 @@ import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.io.File;
 import java.io.IOException;
@@ -363,7 +364,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         blockBufferService.openBlock(TEST_BLOCK_NUMBER);
 
         // when and then
-        assertThatThrownBy(() -> blockBufferService.addItem(TEST_BLOCK_NUMBER, null))
+        assertThatThrownBy(() -> blockBufferService.addItem(TEST_BLOCK_NUMBER, null, null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("blockItem must not be null");
 
@@ -379,7 +380,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         // when and then
         assertDoesNotThrow(() -> blockBufferService.addItem(
-                TEST_BLOCK_NUMBER, BlockItem.newBuilder().build()));
+                TEST_BLOCK_NUMBER, BlockItem.newBuilder().build(), Bytes.EMPTY));
 
         verifyNoMoreInteractions(blockStreamMetrics);
     }
@@ -842,7 +843,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .blockHeader(BlockHeader.newBuilder().number(10L).build())
                 .build();
 
-        blockBufferService.addItem(10L, item);
+        blockBufferService.addItem(10L, item, Bytes.EMPTY);
 
         assertThat(buffer).isEmpty();
 
@@ -1509,28 +1510,28 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         final long BLOCK_1 = 1L;
         blockBufferService.openBlock(BLOCK_1);
         final List<BlockItem> block1Items = generateBlockItems(10, BLOCK_1, Set.of(1L));
-        block1Items.forEach(item -> blockBufferService.addItem(BLOCK_1, item));
+        block1Items.forEach(item -> blockBufferService.addItem(BLOCK_1, item, Bytes.EMPTY));
         blockBufferService.closeBlock(BLOCK_1);
 
         // Setup block 2
         final long BLOCK_2 = 2L;
         blockBufferService.openBlock(BLOCK_2);
         final List<BlockItem> block2Items = generateBlockItems(35, BLOCK_2, Set.of());
-        block2Items.forEach(item -> blockBufferService.addItem(BLOCK_2, item));
+        block2Items.forEach(item -> blockBufferService.addItem(BLOCK_2, item, Bytes.EMPTY));
         blockBufferService.closeBlock(BLOCK_2);
 
         // Setup block 3
         final long BLOCK_3 = 3L;
         blockBufferService.openBlock(BLOCK_3);
         final List<BlockItem> block3Items = generateBlockItems(38, BLOCK_3, Set.of(2L, 3L, 4L));
-        block3Items.forEach(item -> blockBufferService.addItem(BLOCK_3, item));
+        block3Items.forEach(item -> blockBufferService.addItem(BLOCK_3, item, Bytes.EMPTY));
         blockBufferService.closeBlock(BLOCK_3);
 
         // Setup block 4, don't close it
         final long BLOCK_4 = 4L;
         blockBufferService.openBlock(BLOCK_4);
         final List<BlockItem> block4Items = generateBlockItems(19, BLOCK_4, Set.of(5L, 6L));
-        block4Items.forEach(item -> blockBufferService.addItem(BLOCK_4, item));
+        block4Items.forEach(item -> blockBufferService.addItem(BLOCK_4, item, Bytes.EMPTY));
 
         // request the buffer be persisted
         blockBufferService.persistBuffer();
@@ -1562,7 +1563,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         final long BLOCK_5 = 5L;
         blockBufferService.openBlock(BLOCK_5);
         final List<BlockItem> block5Items = generateBlockItems(12, BLOCK_5, Set.of(7L));
-        block5Items.forEach(item -> blockBufferService.addItem(BLOCK_5, item));
+        block5Items.forEach(item -> blockBufferService.addItem(BLOCK_5, item, Bytes.EMPTY));
         blockBufferService.closeBlock(BLOCK_5);
 
         // attempt to persist the buffer again, this time blocks 1-5 should be persisted since they are all closed
@@ -1604,7 +1605,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         final long BLOCK_1 = 1L;
         blockBufferService.openBlock(BLOCK_1);
         final List<BlockItem> block1Items = generateBlockItems(60, BLOCK_1, Set.of(10L, 11L));
-        block1Items.forEach(item -> blockBufferService.addItem(BLOCK_1, item));
+        block1Items.forEach(item -> blockBufferService.addItem(BLOCK_1, item, Bytes.EMPTY));
         blockBufferService.closeBlock(BLOCK_1);
 
         blockBufferService.persistBuffer();

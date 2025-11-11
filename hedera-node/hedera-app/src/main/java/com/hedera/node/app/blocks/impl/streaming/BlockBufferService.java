@@ -11,6 +11,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockBufferConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.types.StreamMode;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -349,7 +350,7 @@ public class BlockBufferService {
      * @param blockItem the block item to add
      * @throws IllegalStateException if no block is currently open
      */
-    public void addItem(final long blockNumber, @NonNull final BlockItem blockItem) {
+    public void addItem(final long blockNumber, @NonNull final BlockItem blockItem, @NonNull final Bytes bytes) {
         if (!isGrpcStreamingEnabled() || !isStarted.get()) {
             return;
         }
@@ -358,6 +359,7 @@ public class BlockBufferService {
         if (blockState == null || blockState.isClosed()) {
             return;
         }
+        blockStreamMetrics.recordBlockItemBytes(bytes.length());
         blockState.addItem(blockItem);
     }
 
@@ -376,6 +378,7 @@ public class BlockBufferService {
             return;
         }
         blockStreamMetrics.recordBlockClosed();
+        blockStreamMetrics.recordBlockItemsPerBlock(blockState.itemCount());
         blockState.closeBlock();
     }
 

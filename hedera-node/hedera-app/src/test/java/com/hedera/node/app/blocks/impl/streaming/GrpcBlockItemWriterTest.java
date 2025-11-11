@@ -62,7 +62,7 @@ class GrpcBlockItemWriterTest {
 
         grpcBlockItemWriter.writePbjItemAndBytes(proof, bytes);
 
-        verify(blockBufferService).addItem(0L, proof);
+        verify(blockBufferService).addItem(0L, proof, Bytes.EMPTY);
     }
 
     @Test
@@ -78,7 +78,7 @@ class GrpcBlockItemWriterTest {
 
         grpcBlockItemWriter.writePbjItem(proof);
 
-        verify(blockBufferService).addItem(0L, proof);
+        verify(blockBufferService).addItem(0L, proof, Bytes.EMPTY);
     }
 
     @Test

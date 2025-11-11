@@ -36,6 +36,8 @@ public class BlockState {
      */
     private volatile Instant closedTimestamp;
 
+    private volatile Instant openTimestamp;
+
     /**
      * Create a new block state object.
      *
@@ -62,6 +64,9 @@ public class BlockState {
 
         final int index = itemIndex.incrementAndGet();
         blockItems.put(index, item);
+        if (item.hasBlockHeader()) {
+            openTimestamp = Instant.now();
+        }
     }
 
     /**
@@ -110,6 +115,10 @@ public class BlockState {
      */
     public @Nullable BlockItem blockItem(final int index) {
         return blockItems.get(index);
+    }
+
+    public void setOpenTimestamp(@NonNull final Instant timestamp) {
+        this.openTimestamp = requireNonNull(timestamp);
     }
 
     /**

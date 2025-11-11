@@ -70,6 +70,9 @@ public class BlockStreamMetrics {
     private RunningAverageMetric conn_headerProducedToAckLatency;
     private RunningAverageMetric conn_blockEndSentToAckLatency;
     private RunningAverageMetric conn_blockClosedToAckLatency;
+    // Block Header Sent <-> Block End Sent
+    // When pruning blocks, we would need to remove any data associated with the block (only for streamMode BOTH)
+    // Update conn_ackLatencyGauge to be from BlockEnd sent to Ack
 
     // buffer metrics
     private static final long BACK_PRESSURE_ACTIVE = 3;

@@ -17,6 +17,7 @@ import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.io.File;
 import java.io.IOException;
@@ -160,7 +161,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
             // Add some items to each block to make it realistic
             final List<BlockItem> items = generateBlockItems(5, blockNum, Set.of());
             final long finalBlockNum = blockNum;
-            items.forEach(item -> blockBufferService.addItem(finalBlockNum, item));
+            items.forEach(item -> blockBufferService.addItem(finalBlockNum, item, Bytes.EMPTY));
 
             blockBufferService.closeBlock(blockNum);
             createdBlocks.put(blockNum, blockBufferService.getBlockState(blockNum));
@@ -255,7 +256,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
 
             final List<BlockItem> items = generateBlockItems(3, blockNum, Set.of());
             final long finalBlockNum = blockNum;
-            items.forEach(item -> blockBufferService.addItem(finalBlockNum, item));
+            items.forEach(item -> blockBufferService.addItem(finalBlockNum, item, Bytes.EMPTY));
 
             blockBufferService.closeBlock(blockNum);
 
@@ -370,7 +371,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
 
             final List<BlockItem> items = generateBlockItems(4, blockNum, Set.of());
             final long finalBlockNum = blockNum;
-            items.forEach(item -> blockBufferService.addItem(finalBlockNum, item));
+            items.forEach(item -> blockBufferService.addItem(finalBlockNum, item, Bytes.EMPTY));
 
             blockBufferService.closeBlock(blockNum);
         }
