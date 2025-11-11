@@ -894,7 +894,7 @@ jobs:
             HeliSwapLoadTest ${{ needs.longevity-tests-finish.outputs.Heliscore }}\n\
             SmartContractLoadTest ${{ needs.longevity-tests-finish.outputs.Smartscore }}"
 
-          if [ "${{ needs.longevity-tests-finish.outputs.ValidatorStatus }}" == "0" ]
+          if [[ "${{ needs.longevity-tests-finish.outputs.ValidatorStatus }}" == "0" ]]
           then
             Validator="PASSED"
           else
