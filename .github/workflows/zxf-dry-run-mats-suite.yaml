@@ -52,7 +52,6 @@ on:
         type: string
         required: false
         default: "MATS Tests"
-INTENTIONALLY BROKEN
 
 permissions:
   id-token: write
