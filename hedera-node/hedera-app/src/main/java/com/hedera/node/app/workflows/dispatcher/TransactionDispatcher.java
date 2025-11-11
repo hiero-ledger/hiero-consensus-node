@@ -8,7 +8,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.FeeManager;
-import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -138,9 +137,9 @@ public class TransactionDispatcher {
                     CONSENSUS_SUBMIT_MESSAGE,
                     CONSENSUS_UPDATE_TOPIC,
                     CONSENSUS_DELETE_TOPIC,
-                 CRYPTO_DELETE,
-                 CRYPTO_CREATE_ACCOUNT,
-                    TOKEN_AIRDROP,
+                    CRYPTO_DELETE,
+                    CRYPTO_CREATE_ACCOUNT,
+                    //                    TOKEN_AIRDROP,
                     TOKEN_CLAIM_AIRDROP,
                     TOKEN_CANCEL_AIRDROP -> true;
             default -> false;

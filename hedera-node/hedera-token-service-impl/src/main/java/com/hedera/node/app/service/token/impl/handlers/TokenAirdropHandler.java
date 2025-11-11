@@ -18,7 +18,6 @@ import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.c
 import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.separateFungibleTransfers;
 import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.separateNftTransfers;
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferHelper.createAccountAmount;
-import static com.hedera.node.app.spi.fees.util.FeeUtils.feeResultToFees;
 import static com.hedera.node.app.spi.fees.util.FeeUtils.feesToFeeResult;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.lang.Math.toIntExact;
@@ -37,6 +36,7 @@ import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.AccountPendingAirdrop;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.hapi.node.token.TokenAirdropTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAirdropStore;
@@ -65,18 +65,14 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.hapi.fees.FeeModelRegistry;
 import org.hiero.hapi.fees.FeeResult;
-import org.hiero.hapi.support.fees.Extra;
 
 /**
  * This class contains all workflow-related functionality regarding {@link
@@ -85,6 +81,9 @@ import org.hiero.hapi.support.fees.Extra;
 @Singleton
 public class TokenAirdropHandler extends TransferExecutor implements TransactionHandler {
     private static final Logger log = LogManager.getLogger(TokenAirdropHandler.class);
+    public static final TransactionBody PLACEHOLDER_SYNTHETIC_AIRDROP = TransactionBody.newBuilder()
+            .tokenAirdrop(TokenAirdropTransactionBody.newBuilder().build())
+            .build();
     private final TokenAirdropValidator validator;
 
     /**
@@ -523,19 +522,16 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
      */
     private long airdropFee(final HandleContext feeContext) {
         final var context = ((FeeContext) feeContext);
-        final var feeCalculator = context.feeCalculatorFactory().feeCalculator(SubType.DEFAULT);
 
         if (feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
-            Map<Extra, Long> params = new HashMap<>();
-            params.put(Extra.SIGNATURES, (long) context.numTxnSignatures());
-
-            final var feeModel = FeeModelRegistry.lookupModel(HederaFunctionality.TOKEN_AIRDROP);
-            final var feeResult = feeModel.computeFee(params, feeCalculator.getSimpleFeesSchedule());
-            final var fee = feeResultToFees(feeResult, fromPbj(context.activeRate()));
-            return fee.totalFee();
+            return context.dispatchComputeFees(PLACEHOLDER_SYNTHETIC_AIRDROP, context.payer())
+                    .totalFee();
         }
 
-        return feeCalculator.calculate().totalFee();
+        return context.feeCalculatorFactory()
+                .feeCalculator(SubType.DEFAULT)
+                .calculate()
+                .totalFee();
     }
 
     /**

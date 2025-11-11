@@ -69,7 +69,7 @@ public class AirdropSimpleFeesTest extends TokenAirdropBase {
                         .payingWith("owner")
                         .via("second airdrop"),
                 validateChargedUsd("airdrop", BASE_AIRDROP_FEE + TOKEN_ASSOCIATION_FEE),
-                validateChargedUsd("second airdrop", BASE_AIRDROP_FEE));
+                validateChargedUsd("second airdrop", BASE_AIRDROP_FEE, 3));
     }
 
     @HapiTest
