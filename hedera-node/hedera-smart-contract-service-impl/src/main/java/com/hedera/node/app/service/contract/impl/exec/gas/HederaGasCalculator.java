@@ -15,6 +15,6 @@ public interface HederaGasCalculator extends GasCalculator {
      * @param baselineCost     the gas used by access lists and code delegation authorizations
      * @return The gas requirements of the transaction
      */
-    GasRequirements transactionGasRequirements(
+    GasCharges transactionGasRequirements(
             @NonNull final Bytes payload, final boolean isContractCreate, final long baselineCost);
 }

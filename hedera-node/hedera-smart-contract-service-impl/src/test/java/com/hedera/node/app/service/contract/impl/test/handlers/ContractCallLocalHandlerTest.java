@@ -25,7 +25,7 @@ import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextQueryProcessor;
 import com.hedera.node.app.service.contract.impl.exec.QueryComponent;
-import com.hedera.node.app.service.contract.impl.exec.gas.GasRequirements;
+import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCallLocalHandler;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
@@ -146,7 +146,7 @@ class ContractCallLocalHandlerTest {
         given(contractCallLocalQuery.contractID()).willReturn(contractID);
         given(contractCallLocalQuery.functionParameters()).willReturn(Bytes.EMPTY);
         given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), anyLong()))
-                .willReturn(GasRequirements.NONE);
+                .willReturn(GasCharges.NONE);
         given(context.createStore(ReadableAccountStore.class)).willReturn(store);
         given(store.getContractById(contractID)).willReturn(contract);
         givenAllowCallsToNonContractAccountOffConfig();
@@ -186,7 +186,7 @@ class ContractCallLocalHandlerTest {
         given(contractCallLocalQuery.contractID()).willReturn(null);
         given(contractCallLocalQuery.functionParameters()).willReturn(Bytes.EMPTY);
         given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), anyLong()))
-                .willReturn(GasRequirements.NONE);
+                .willReturn(GasCharges.NONE);
         givenDefaultConfig();
 
         // when:
@@ -201,7 +201,7 @@ class ContractCallLocalHandlerTest {
         given(contractCallLocalQuery.contractID()).willReturn(invalidContract);
         given(contractCallLocalQuery.functionParameters()).willReturn(Bytes.EMPTY);
         given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), anyLong()))
-                .willReturn(GasRequirements.NONE);
+                .willReturn(GasCharges.NONE);
         givenDefaultConfig();
 
         // when:
@@ -216,7 +216,7 @@ class ContractCallLocalHandlerTest {
         given(contractCallLocalQuery.contractID()).willReturn(contractID);
         given(contractCallLocalQuery.functionParameters()).willReturn(Bytes.EMPTY);
         given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), anyLong()))
-                .willReturn(GasRequirements.NONE);
+                .willReturn(GasCharges.NONE);
         given(context.createStore(ReadableAccountStore.class)).willReturn(store);
         given(store.getContractById(contractID)).willReturn(null);
         given(context.createStore(ReadableTokenStore.class)).willReturn(tokenStore);
@@ -247,7 +247,7 @@ class ContractCallLocalHandlerTest {
         given(contractCallLocalQuery.contractID()).willReturn(contractID);
         given(contractCallLocalQuery.functionParameters()).willReturn(Bytes.EMPTY);
         given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), anyLong()))
-                .willReturn(GasRequirements.NONE);
+                .willReturn(GasCharges.NONE);
         given(context.createStore(ReadableAccountStore.class)).willReturn(store);
         given(store.getContractById(contractID)).willReturn(contract);
         givenAllowCallsToNonContractAccountOffConfig();

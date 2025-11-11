@@ -138,7 +138,7 @@ public class TransactionProcessor {
                 featureFlags,
                 parties.sender().getAddress(),
                 parties.receiverAddress(),
-                gasCharges.gasRequirement().intrinsicGas(),
+                gasCharges.intrinsicGas(),
                 codeFactory);
 
         // Compute the result of running the frame to completion
@@ -149,7 +149,7 @@ public class TransactionProcessor {
                 tracer,
                 messageCall,
                 contractCreation,
-                gasCharges.gasRequirement());
+                gasCharges);
 
         // Maybe refund some of the charged fees before committing if not a hook dispatch
         // Note that for hook dispatch, gas is charged during cryptoTransfer and will not be refunded once

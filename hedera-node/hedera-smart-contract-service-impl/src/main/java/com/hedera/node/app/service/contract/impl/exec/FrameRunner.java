@@ -19,7 +19,7 @@ import static org.hyperledger.besu.evm.frame.MessageFrame.State.EXCEPTIONAL_HALT
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
-import com.hedera.node.app.service.contract.impl.exec.gas.GasRequirements;
+import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
@@ -27,8 +27,10 @@ import com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
 import javax.inject.Inject;
 import javax.inject.Singleton;
+
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -64,7 +66,7 @@ public class FrameRunner {
      * @param tracer           the tracer to use
      * @param messageCall      the message call processor to use
      * @param contractCreation the contract creation processor to use
-     * @param gasRequirements  the gas requirements of the transaction
+     * @param gasCharges       the gas charges of the transaction
      * @return the result of the transaction
      */
     public HederaEvmTransactionResult runToCompletion(
@@ -74,7 +76,7 @@ public class FrameRunner {
             @NonNull final ActionSidecarContentTracer tracer,
             @NonNull final CustomMessageCallProcessor messageCall,
             @NonNull final ContractCreationProcessor contractCreation,
-            @NonNull final GasRequirements gasRequirements) {
+            @NonNull final GasCharges gasCharges) {
         requireNonNull(frame);
         requireNonNull(tracer);
         requireNonNull(senderId);
@@ -95,7 +97,7 @@ public class FrameRunner {
         tracer.sanitizeTracedActions(frame);
 
         // And return the result, success or failure
-        final var gasUsed = effectiveGasUsed(gasLimit, frame, gasRequirements);
+        final var gasUsed = effectiveGasUsed(gasLimit, frame, gasCharges);
         if (frame.getState() == COMPLETED_SUCCESS) {
             return successFrom(
                     gasUsed,
@@ -161,7 +163,7 @@ public class FrameRunner {
     }
 
     private long effectiveGasUsed(
-            final long gasLimit, @NonNull final MessageFrame frame, @NonNull final GasRequirements gasRequirements) {
+            final long gasLimit, @NonNull final MessageFrame frame, @NonNull final GasCharges gasCharges) {
         final var nominalGasUsed = gasLimit - frame.getRemainingGas();
 
         // A gas refund limit as defined in EIP-3529
@@ -176,8 +178,8 @@ public class FrameRunner {
         // 2. we can calculate `gasUsedAfterRefund` just after `execution_gas_used` will be calculated and refund will
         // be applied
         // 3. if `gasUsedAfterRefund < minimumGasUsed` we should charge `minimumGasUsed` instead.
-        if (gasUsedAfterRefund < gasRequirements.minimumGasUsed()) {
-            gasUsedAfterRefund = gasRequirements.minimumGasUsed();
+        if (gasUsedAfterRefund < gasCharges.minimumGasUsed()) {
+            gasUsedAfterRefund = gasCharges.minimumGasUsed();
         }
 
         // Hedera-specific restriction: the transaction can't use less gas than a certain percentage of gasLimit

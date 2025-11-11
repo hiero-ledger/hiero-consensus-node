@@ -26,7 +26,6 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
-import com.hedera.node.app.service.contract.impl.exec.gas.GasRequirements;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
@@ -97,7 +96,7 @@ class CustomGasChargingTest {
         final var chargingResult = subject.chargeForGas(sender, relayer, context, worldUpdater, wellKnownHapiCall());
         assertEquals(0, chargingResult.relayerAllowanceUsed());
         assertEquals(TestHelpers.INTRINSIC_GAS, chargingResult.intrinsicGas());
-        assertEquals(TestHelpers.INTRINSIC_GAS, chargingResult.gasRequirement().minimumGasUsed());
+        assertEquals(TestHelpers.INTRINSIC_GAS, chargingResult.minimumGasUsed());
     }
 
     @Test
@@ -419,11 +418,11 @@ class CustomGasChargingTest {
 
     private void givenWellKnownIntrinsicGasCost(boolean isCreation) {
         given(gasCalculator.transactionGasRequirements(any(), eq(isCreation), anyLong()))
-                .willReturn(TestHelpers.GAS_REQUIREMENTS);
+                .willReturn(TestHelpers.NO_ALLOWANCE_CHARGING_RESULT);
     }
 
     private void givenExcessiveIntrinsicGasCost(boolean isCreation) {
         given(gasCalculator.transactionGasRequirements(any(), eq(isCreation), anyLong()))
-                .willReturn(GasRequirements.of(100_000_000L));
+                .willReturn(TestHelpers.gasChargesFromIntrinsicGas(100_000_000L));
     }
 }

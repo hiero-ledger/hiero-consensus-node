@@ -21,7 +21,7 @@ import static org.mockito.Mockito.doAnswer;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.node.app.service.contract.impl.exec.FrameRunner;
-import com.hedera.node.app.service.contract.impl.exec.gas.GasRequirements;
+import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
@@ -107,7 +107,7 @@ class FrameRunnerTest {
         given(frame.getGasRefund()).willReturn(nominalRefund);
 
         final var result = subject.runToCompletion(
-                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, GAS_REQUIREMENTS);
+                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, CHARGING_RESULT);
 
         inOrder.verify(tracer).traceOriginAction(frame);
         inOrder.verify(contractCreationProcessor).process(frame, tracer);
@@ -135,7 +135,7 @@ class FrameRunnerTest {
         given(entityIdFactory.newContractId(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
                 .willReturn(contractId);
         final var result = subject.runToCompletion(
-                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, GAS_REQUIREMENTS);
+                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, CHARGING_RESULT);
 
         inOrder.verify(tracer).traceOriginAction(frame);
         assertEquals(EXPECTED_GAS_USED_NO_REFUNDS, result.gasUsed());
@@ -160,7 +160,7 @@ class FrameRunnerTest {
                 .willReturn(contractId);
 
         final var result = subject.runToCompletion(
-                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, GAS_REQUIREMENTS);
+                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, CHARGING_RESULT);
 
         inOrder.verify(tracer).traceOriginAction(frame);
         inOrder.verify(contractCreationProcessor).process(frame, tracer);
@@ -185,7 +185,7 @@ class FrameRunnerTest {
                 .willReturn(contractId);
 
         final var result = subject.runToCompletion(
-                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, GAS_REQUIREMENTS);
+                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, CHARGING_RESULT);
 
         inOrder.verify(tracer).traceOriginAction(frame);
         inOrder.verify(contractCreationProcessor).process(frame, tracer);
@@ -210,7 +210,7 @@ class FrameRunnerTest {
                 .willReturn(contractId);
 
         final var result = subject.runToCompletion(
-                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, GAS_REQUIREMENTS);
+                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, CHARGING_RESULT);
 
         inOrder.verify(tracer).traceOriginAction(frame);
         inOrder.verify(contractCreationProcessor).process(frame, tracer);
@@ -235,7 +235,7 @@ class FrameRunnerTest {
                 .willReturn(contractId);
 
         final var result = subject.runToCompletion(
-                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, GAS_REQUIREMENTS);
+                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, CHARGING_RESULT);
 
         inOrder.verify(tracer).traceOriginAction(frame);
         inOrder.verify(contractCreationProcessor).process(frame, tracer);
@@ -265,7 +265,7 @@ class FrameRunnerTest {
                 tracer,
                 messageCallProcessor,
                 contractCreationProcessor,
-                new GasRequirements(INTRINSIC_GAS, minimumGasUsed));
+                new GasCharges(INTRINSIC_GAS, minimumGasUsed, 0L));
 
         assertEquals(minimumGasUsed, result.gasUsed());
 

@@ -39,13 +39,13 @@ public class HederaGasCalculatorImpl extends PragueGasCalculator implements Hede
     }
 
     @Override
-    public GasRequirements transactionGasRequirements(
+    public GasCharges transactionGasRequirements(
             @NonNull final Bytes payload, final boolean isContractCreate, final long baselineCost) {
         int zeros = payloadZeroBytes(payload);
         final long intrinsicGas = transactionIntrinsicGas(payload, zeros, isContractCreate, baselineCost);
         // gasUsed described at https://eips.ethereum.org/EIPS/eip-7623
         final long floorGas = transactionFloorCost(payload, zeros);
-        return new GasRequirements(intrinsicGas, Math.max(intrinsicGas, floorGas));
+        return new GasCharges(intrinsicGas, Math.max(intrinsicGas, floorGas), 0L);
     }
 
     protected int payloadZeroBytes(@NonNull final Bytes payload) {
