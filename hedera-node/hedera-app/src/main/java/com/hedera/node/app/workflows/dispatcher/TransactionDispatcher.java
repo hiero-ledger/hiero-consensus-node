@@ -140,6 +140,8 @@ public class TransactionDispatcher {
                     CONSENSUS_SUBMIT_MESSAGE,
                     CONSENSUS_UPDATE_TOPIC,
                     CONSENSUS_DELETE_TOPIC,
+                    // TODO: add base fee for SCHEDULE_CREATE_CONTRACT_CALL
+                    SCHEDULE_CREATE,
                     CRYPTO_DELETE,
                     CRYPTO_CREATE_ACCOUNT -> true;
             default -> false;

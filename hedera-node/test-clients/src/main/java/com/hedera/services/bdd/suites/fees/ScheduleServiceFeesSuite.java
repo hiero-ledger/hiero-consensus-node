@@ -18,6 +18,7 @@ import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.handleAnyRepeat
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.OTHER_PAYER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.PAYING_SENDER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.RECEIVER;
@@ -67,6 +68,7 @@ public class ScheduleServiceFeesSuite {
                                         .memo("")
                                         .fee(ONE_HBAR))
                         .payingWith(OTHER_PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .via("canonicalCreation")
                         .alsoSigningWith(PAYING_SENDER)
                         .adminKey(OTHER_PAYER),
@@ -79,6 +81,7 @@ public class ScheduleServiceFeesSuite {
                                 cryptoTransfer(tinyBarsFromTo(PAYING_SENDER, RECEIVER, 1L))
                                         .memo("")
                                         .fee(ONE_HBAR))
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYING_SENDER)
                         .adminKey(PAYING_SENDER),
                 scheduleDelete("tbd").via("canonicalDeletion").payingWith(PAYING_SENDER),
@@ -89,6 +92,7 @@ public class ScheduleServiceFeesSuite {
                                         .memo("")
                                         .fee(ONE_HBAR))
                         .payingWith(OTHER_PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .via("canonicalContractCall")
                         .adminKey(OTHER_PAYER),
                 getScheduleInfo(SCHEDULE_NAME)
