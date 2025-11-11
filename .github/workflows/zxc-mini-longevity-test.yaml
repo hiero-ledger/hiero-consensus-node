@@ -920,14 +920,14 @@ jobs:
             CryptoTransferLoadTest ${{ needs.longevity-tests-start.outputs.Cryptoscore }} ${{ env.MinCryptoTransferLoadTest }}\n\
             SmartContractLoadTest ${{ needs.longevity-tests-start.outputs.Smartscore }} ${{ env.MinSmartContractLoadTest }}"
 
-          if [ "${{ needs.longevity-tests-start.outputs.ReconnectStatus }}" == "0" ]
+          if [[ "${{ needs.longevity-tests-start.outputs.ReconnectStatus }}" == "0" ]]
           then
             Reconnect="PASSED"
           else
             Reconnect="FAILED"
           fi
 
-          if [ "${{ needs.longevity-tests-start.outputs.ValidatorStatus }}" == "0" ]
+          if [[ "${{ needs.longevity-tests-start.outputs.ValidatorStatus }}" == "0" ]]
           then
             Validator="PASSED"
           else
