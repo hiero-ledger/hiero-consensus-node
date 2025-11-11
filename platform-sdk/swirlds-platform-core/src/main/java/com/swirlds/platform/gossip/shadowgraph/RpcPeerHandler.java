@@ -214,8 +214,6 @@ public class RpcPeerHandler implements GossipRpcReceiver {
     public void cleanup() {
         clearInternalState();
         state.peerStillSendingEvents = false;
-        sharedShadowgraphSynchronizer.deregisterPeerHandler(this);
-        this.syncMetrics.reportSyncPhase(peerId, SyncPhase.OUTSIDE_OF_RPC);
     }
 
     // HANDLE INCOMING MESSAGES - all done on dispatch thread

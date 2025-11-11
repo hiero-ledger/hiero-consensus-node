@@ -31,16 +31,11 @@ public class ProtocolNegotiatorThread implements InterruptableRunnable {
     private final RateLimiter socketExceptionRateLimiter;
 
     /**
-     * @param connectionManager
-     * 		supplies network connections
-     * @param sleepMillis
-     *         the number of milliseconds to sleep if a negotiation fails
-     * @param handshakeProtocols
-     * 		the list of protocols to execute when a new connection is established
-     * @param protocols
-     * 		the protocols to negotiate and run
-     * @param time
-     *      the Time object
+     * @param connectionManager  supplies network connections
+     * @param sleepMillis        the number of milliseconds to sleep if a negotiation fails
+     * @param handshakeProtocols the list of protocols to execute when a new connection is established
+     * @param protocols          the protocols to negotiate and run
+     * @param time               the Time object
      */
     public ProtocolNegotiatorThread(
             final ConnectionManager connectionManager,
@@ -71,8 +66,6 @@ public class ProtocolNegotiatorThread implements InterruptableRunnable {
             }
         } catch (final RuntimeException | IOException | NetworkProtocolException | NegotiationException e) {
             NetworkUtils.handleNetworkException(e, currentConn, socketExceptionRateLimiter);
-        } finally {
-            protocols.cleanup();
         }
     }
 }

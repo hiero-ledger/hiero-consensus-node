@@ -48,6 +48,9 @@ import com.swirlds.platform.system.state.notifications.NewRecoveredStateListener
 import com.swirlds.platform.system.state.notifications.NewRecoveredStateNotification;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -57,6 +60,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.CompareTo;
@@ -155,6 +159,9 @@ public final class EventRecoveryWorkflow {
                         .apply(v),
                 platformStateFacade,
                 platformContext);
+        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+                platformContext.getMetrics(), platformContext.getTime(), (Function<VirtualMap, MerkleNodeState>)
+                        hederaApp.stateRootFromVirtualMap(platformContext.getMetrics(), platformContext.getTime()));
         try (final ReservedSignedState initialState = deserializedSignedState.reservedSignedState()) {
             HederaUtils.updateStateHash(hederaApp, deserializedSignedState);
 
@@ -196,7 +203,8 @@ public final class EventRecoveryWorkflow {
                     selfId,
                     resultingStateDirectory,
                     recoveredState.state().get(),
-                    platformStateFacade);
+                    platformStateFacade,
+                    stateLifecycleManager);
             final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
             updateEmergencyRecoveryFile(
                     stateConfig, resultingStateDirectory, initialState.get().getConsensusTimestamp());
