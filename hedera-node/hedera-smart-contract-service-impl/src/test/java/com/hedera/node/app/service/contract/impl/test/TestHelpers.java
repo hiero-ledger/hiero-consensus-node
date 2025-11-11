@@ -540,7 +540,8 @@ public class TestHelpers {
             List.of(LogTopic.of(pbjToTuweniBytes(TestHelpers.OTHER_TOPIC))));
     public static final List<Log> BESU_LOGS = List.of(BESU_LOG, SECOND_BESU_LOG);
 
-    public static final GasCharges CHARGING_RESULT = new GasCharges(INTRINSIC_GAS, INTRINSIC_GAS,MAX_GAS_ALLOWANCE / 2);
+    public static final GasCharges CHARGING_RESULT =
+            new GasCharges(INTRINSIC_GAS, INTRINSIC_GAS, MAX_GAS_ALLOWANCE / 2);
     public static final GasCharges NO_ALLOWANCE_CHARGING_RESULT = new GasCharges(INTRINSIC_GAS, INTRINSIC_GAS, 0);
     public static final GasCharges BASE_COST_CHARGING_RESULT =
             new GasCharges(HederaGasCalculatorImpl.TX_BASE_COST, HederaGasCalculatorImpl.TX_BASE_COST, 0);

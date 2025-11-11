@@ -522,7 +522,7 @@ class TransactionProcessorTest {
                         featureFlags,
                         EIP_1014_ADDRESS,
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
-                NO_ALLOWANCE_CHARGING_RESULT.intrinsicGas(),
+                        NO_ALLOWANCE_CHARGING_RESULT.intrinsicGas(),
                         CODE_FACTORY))
                 .willReturn(initialFrame);
         given(frameRunner.runToCompletion(
@@ -532,7 +532,7 @@ class TransactionProcessorTest {
                         tracer,
                         messageCallProcessor,
                         contractCreationProcessor,
-                NO_ALLOWANCE_CHARGING_RESULT))
+                        NO_ALLOWANCE_CHARGING_RESULT))
                 .willReturn(SUCCESS_RESULT);
         given(initialFrame.getSelfDestructs()).willReturn(Set.of(NON_SYSTEM_LONG_ZERO_ADDRESS));
 
