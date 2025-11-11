@@ -108,6 +108,13 @@ public class BlockState {
     }
 
     /**
+     * @return the timestamp of when block was opened, else null if the block has not been opened
+     */
+    public @Nullable Instant openTimestamp() {
+        return openTimestamp;
+    }
+
+    /**
      * Retrieve a single block item by its index (insertion order).
      *
      * @param index the index of the block item to retrieve
@@ -115,10 +122,6 @@ public class BlockState {
      */
     public @Nullable BlockItem blockItem(final int index) {
         return blockItems.get(index);
-    }
-
-    public void setOpenTimestamp(@NonNull final Instant timestamp) {
-        this.openTimestamp = requireNonNull(timestamp);
     }
 
     /**

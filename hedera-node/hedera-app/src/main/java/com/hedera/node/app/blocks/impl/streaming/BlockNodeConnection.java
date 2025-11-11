@@ -141,7 +141,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * Tracks the time (ms) when a BlockHeader for a given block number was sent.
      */
     private final ConcurrentHashMap<Long, Long> headerSentAtMsByBlock = new ConcurrentHashMap<>();
-
+    /**
+     * Tracks the time (ms) when a BlockEnd for a given block number was sent.
+     */
     private final ConcurrentHashMap<Long, Long> blockEndSentAtMsByBlock = new ConcurrentHashMap<>();
     /**
      * Reference to the worker thread, once it is initialized.
@@ -429,16 +431,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         logger.debug("{} BlockAcknowledgement received for block {}.", this, acknowledgedBlockNumber);
         acknowledgeBlocks(acknowledgedBlockNumber, true);
 
-        // Record header->ack latency for all headers sent at or before the acknowledged block
-        final long nowMs = System.currentTimeMillis();
-        headerSentAtMsByBlock.forEach((blockNum, sentAtMs) -> {
-            if (blockNum <= acknowledgedBlockNumber) {
-                if (headerSentAtMsByBlock.remove(blockNum, sentAtMs)) {
-                    final long latencyMs = nowMs - sentAtMs;
-                    blockStreamMetrics.recordHeaderSentAckLatency(latencyMs);
-                }
-            }
-        });
+        updateAcknowledgementMetrics(acknowledgedBlockNumber);
 
         // Evaluate latency and high-latency QoS via the connection manager
         final var result = blockNodeConnectionManager.recordBlockAckAndCheckLatency(
@@ -454,6 +447,26 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         }
     }
 
+    private void updateAcknowledgementMetrics(long acknowledgedBlockNumber) {
+        final long nowMs = System.currentTimeMillis();
+        headerSentAtMsByBlock.forEach((blockNum, sentAtMs) -> {
+            if (blockNum <= acknowledgedBlockNumber) {
+                if (headerSentAtMsByBlock.remove(blockNum, sentAtMs)) {
+                    final long latencyMs = nowMs - sentAtMs;
+                    blockStreamMetrics.recordHeaderSentAckLatency(latencyMs);
+                }
+            }
+        });
+        blockEndSentAtMsByBlock.forEach((blockNum, sentAtMs) -> {
+            if (blockNum <= acknowledgedBlockNumber) {
+                if (headerSentAtMsByBlock.remove(blockNum, sentAtMs)) {
+                    final long latencyMs = nowMs - sentAtMs;
+                    blockStreamMetrics.recordBlockEndSentToAckLatency(latencyMs);
+                }
+            }
+        });
+    }
+
     /**
      * Acknowledges the blocks up to the specified block number.
      * @param acknowledgedBlockNumber the block number that has been known to be persisted and verified by the block node
@@ -463,6 +476,22 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         final long currentBlockStreaming = streamingBlockNumber.get();
         final long currentBlockProducing = blockBufferService.getLastBlockNumberProduced();
+
+        // Record latencies for all acknowledged blocks
+        final long nowMs = System.currentTimeMillis();
+        long highestAckedBlock = blockBufferService.getHighestAckedBlockNumber();
+        long startingBlock = highestAckedBlock == -1 ? acknowledgedBlockNumber : highestAckedBlock;
+        for (long blkNum = startingBlock + 1; blkNum <= acknowledgedBlockNumber; blkNum++) {
+            BlockState blockState = blockBufferService.getBlockState(blkNum);
+            if (blockState != null && blockState.openTimestamp() != null) {
+                long headerProducedToAckMs = nowMs - blockState.openTimestamp().toEpochMilli();
+                blockStreamMetrics.recordHeaderProducedToAckLatency(headerProducedToAckMs);
+            }
+            if (blockState != null && blockState.closedTimestamp() != null) {
+                long blockClosedToAckMs = nowMs - blockState.closedTimestamp().toEpochMilli();
+                blockStreamMetrics.recordBlockClosedToAckLatency(blockClosedToAckMs);
+            }
+        }
 
         // Update the last verified block by the current connection
         blockBufferService.setLatestAcknowledgedBlock(acknowledgedBlockNumber);
@@ -1076,6 +1105,12 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 try {
                     if (sendRequest(endOfBlock)) {
                         blockStreamMetrics.recordLatestBlockEndOfBlockSent(block.blockNumber());
+                        blockEndSentAtMsByBlock.put(block.blockNumber(), System.currentTimeMillis());
+                        Long sentMs = headerSentAtMsByBlock.get(block.blockNumber());
+                        if (sentMs != null) {
+                            long latencyMs = System.currentTimeMillis() - sentMs;
+                            blockStreamMetrics.recordHeaderSentToBlockEndSentLatency(latencyMs);
+                        }
                     }
                 } catch (RuntimeException e) {
                     logger.warn("{} Error sending EndOfBlock request", BlockNodeConnection.this, e);
