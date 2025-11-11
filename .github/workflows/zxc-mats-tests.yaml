@@ -106,6 +106,7 @@ jobs:
     name: MATS - Unit Tests
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
+      ref: ${{ inputs.ref || '' }}
       custom-job-label: "${{ inputs.custom-job-label }} Unit Tests"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
@@ -121,6 +122,7 @@ jobs:
     name: MATS - Integration Tests
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
+      ref: ${{ inputs.ref || '' }}
       custom-job-label: "${{ inputs.custom-job-label }} Integration Tests"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
@@ -136,6 +138,7 @@ jobs:
     name: MATS - HAPI Tests (Misc)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
+      ref: ${{ inputs.ref || '' }}
       custom-job-label: "${{ inputs.custom-job-label }} HAPI Tests (Misc)"
       enable-unit-tests: false
       enable-hapi-tests-misc: ${{ inputs.enable-hapi-tests == 'true' }}
@@ -150,6 +153,7 @@ jobs:
     name: MATS - HAPI Tests (Misc Records)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
+      ref: ${{ inputs.ref || '' }}
       custom-job-label: "${{ inputs.custom-job-label }} HAPI Tests (Misc Records)"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
@@ -166,6 +170,7 @@ jobs:
     name: MATS - HAPI Tests (Crypto)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
+      ref: ${{ inputs.ref || '' }}
       custom-job-label: "${{ inputs.custom-job-label }} HAPI Tests (Crypto)"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
@@ -182,6 +187,7 @@ jobs:
     name: MATS - HAPI Tests (Simple Fees)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
+      ref: ${{ inputs.ref || '' }}
       custom-job-label: "${{ inputs.custom-job-label }} HAPI Tests (Simple Fees)"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
@@ -198,6 +204,7 @@ jobs:
     name: MATS - HAPI Tests (ISS)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
+      ref: ${{ inputs.ref || '' }}
       custom-job-label: "${{ inputs.custom-job-label }} HAPI Tests (ISS)"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
@@ -213,6 +220,7 @@ jobs:
     name: MATS - HAPI Tests (Token)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
+      ref: ${{ inputs.ref || '' }}
       custom-job-label: "${{ inputs.custom-job-label }} HAPI Tests (Token)"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
@@ -229,6 +237,7 @@ jobs:
     name: MATS - HAPI Tests (Smart Contract)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
+      ref: ${{ inputs.ref || '' }}
       custom-job-label: "${{ inputs.custom-job-label }} HAPI Tests (Smart Contract)"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
@@ -245,6 +254,7 @@ jobs:
     name: MATS - HAPI Tests (Restart)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
+      ref: ${{ inputs.ref || '' }}
       custom-job-label: "${{ inputs.custom-job-label }} HAPI Tests (Restart)"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
@@ -260,6 +270,7 @@ jobs:
     name: MATS - HAPI Tests (Node Death Reconnect)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
+      ref: ${{ inputs.ref || '' }}
       custom-job-label: "${{ inputs.custom-job-label }} HAPI Tests (Node Death Reconnect)"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
@@ -275,6 +286,7 @@ jobs:
     name: MATS - Otter Tests
     uses: ./.github/workflows/zxc-execute-otter-tests.yaml
     with:
+      ref: ${{ inputs.ref || '' }}
       custom-job-label: "${{ inputs.custom-job-label }} Otter Tests"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
@@ -289,6 +301,7 @@ jobs:
     name: MATS - Spotless Check
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
+      ref: ${{ inputs.ref || '' }}
       custom-job-label: "${{ inputs.custom-job-label }} Spotless Check"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
@@ -304,6 +317,7 @@ jobs:
     name: MATS - Snyk Scan
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
+      ref: ${{ inputs.ref || '' }}
       custom-job-label: "${{ inputs.custom-job-label }} Snyk Scan"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
@@ -320,7 +334,7 @@ jobs:
     uses: ./.github/workflows/zxc-verify-gradle-build-determinism.yaml
     if: ${{ inputs.enable-gradle-determinism == 'true' }}
     with:
-      ref: ${{ inputs.ref }}
+      ref: ${{ inputs.ref || '' }}
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       custom-label: "${{ inputs.custom-job-label }} Gradle Determinism"
