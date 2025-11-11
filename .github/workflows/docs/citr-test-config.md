@@ -87,13 +87,14 @@ There are several test suites that are run in the CITR environment, each with it
 
 ### Environment
 
-- SDCT runs on the **performance** (**perf1**) network that has a Mirronode setup, hosted on GCP and various external server providers (**Latitude**, **OVH**, **AWS**, etc.).
+- SDCT runs on the **performance** (**perf1**) network that has a Mirrornode setup, hosted on GCP and various external server providers (**Latitude**, **OVH**, **AWS**, etc.).
 - SDCT is expected to complete around 20 hours after the test suite starts.
 - SDCT supports artifacts built from any PR, tag, or branch.
 
 ### Workflows
 
-- SDCT is triggered by the [ZXF: [CITR] Single Day Canonical Test (SDCT)](https://www.notion.so/.github/workflows/zxf-single-day-canonical-test.yaml) workflow (the workflow is currently being updated with a fast-fail enhancement).
+- SDCT is triggered by the [ZXF: [CITR] Single Day Canonical Test (SDCT)](https://www.notion.so/.github/workflows/zxf-single-day-canonical-test.yaml) workflow
+  - The workflow is currently being updated with a fast-fail enhancement
 
 ### Included Tests
 
