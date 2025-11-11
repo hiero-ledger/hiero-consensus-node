@@ -189,7 +189,7 @@ jobs:
           fi
 
           # Populate the SDLT tag name and message
-          if [ "$RESULT" == "success" ]; then
+          if [[ "$RESULT" == "success" ]]; then
             TAG_NAME="sdlt-pass-${BUILD_NUM}"
             MSG="Mini Longevity Test passed for build-${BUILD_NUM}"
           elif [ "$RESULT" == "failure" ]; then
