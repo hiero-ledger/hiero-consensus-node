@@ -10,7 +10,7 @@ There are several test suites that are run in the CITR environment, each with it
 |-------------|-------------------------------|----------------------------------------------------------------------------------------|-----------|
 | MATS        | Minimal Acceptable Test Suite | Basic checks against main branch when changes are made                                 | X         |
 | XTS         | Extended Test Suite           | More comprehensive tests run on a scheduled basis                                      | X         |
-| SDCT        | Single Day Canonical Tests    | More comprehensive tests that focus on load, throughput, etc                           | X         |
+| SDCT        | Single Day Canonical Tests    | More comprehensive tests that focus on load, throughput and E2E latency                | X         |
 | SDLT        | Single Day Longevity Tests    | Longevity tests to ensure stability over extended periods                              | X         |
 | SDPT        | Single Day Performance Tests  | Performance-focused tests to evaluate system responsiveness                            | X         |
 | MDLT        | Multi Day Longevity Tests     | Extended longevity tests over multiple days                                            |           |
@@ -85,6 +85,33 @@ There are several test suites that are run in the CITR environment, each with it
 
 ## SDCT
 
+### Environment
+
+- SDCT runs on the **performance** (**perf1**) network that has a Mirrornode setup, hosted on GCP and various external server providers (**Latitude**, **OVH**, **AWS**, etc.).
+- SDCT is expected to complete around 20 hours after the test suite starts.
+- SDCT supports artifacts built from any PR, tag, or branch.
+
+### Workflows
+
+- SDCT is triggered by the [ZXF: [CITR] Single Day Canonical Test (SDCT)](https://www.notion.so/.github/workflows/zxf-single-day-canonical-test.yaml) workflow
+  - The workflow is currently being updated with a fast-fail enhancement
+
+### Included Tests
+
+These tests run sequentially with a Mirrornode setup to measure E2E latency performance.
+
+|                       Test                        | TPS |
+|---------------------------------------------------|-----|
+| Idle load                                         | 10  |
+| Crypto Transfer                                   | 200 |
+| Mixed Tx Types                                    | 2K  |
+| Mixed Tx Types with Smartcontract                 | 10K |
+| Crypto Transfer                                   | 10K |
+| HCS                                               | 10K |
+| HTS                                               | 10K |
+| Mixed Tx Types(1/2 HCS and Crypto/HTS rest)       | 10K |
+| Mixed Tx Types(equal weight among HCS/Crypto/HTS) | 10K |
+
 ## SDLT
 
 ## SDPT
@@ -92,3 +119,28 @@ There are several test suites that are run in the CITR environment, each with it
 ## MDLT
 
 ## Shortgevity
+
+### Environment
+
+- Shortgevity runs on the **performance** (**perf1**) network, which is hosted on **GCP** and various external server hosting providers (**Latitude**, **OVH**, **AWS**, etc.).
+- Shortgevity runs range from 6–8 hours to 3 days, depending on the size of the change set being tested and the potential impact on performance.
+- Shortgevity supports artifacts built from any PR, tag, or branch.
+
+### Workflows
+
+- Shortgevity runs manually because it operates on an ad hoc basis and is limited by the availability of the shared **performance** network resource.
+
+### Included Tests
+
+All tests are run in parallel with adjustable total TPS. Currently runs at PROD supported 10.5K.
+
+|                Test Type                |                     Ratio                      |
+|-----------------------------------------|------------------------------------------------|
+| Crypto                                  | %30~                                           |
+| HCS                                     | %30~                                           |
+| HTS                                     | %10~                                           |
+| NFT                                     | %30~                                           |
+| Smartcontract                           | ~350(including Uniswaps/ERCs)                  |
+| K/V pairs                               | 200M                                           |
+| Best effort coverage of Hedera Tx Types | < 100 TPS                                      |
+| Re-connects                             | At most 2 nodes in re-connect at the same time |
