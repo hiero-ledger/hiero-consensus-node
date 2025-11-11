@@ -15,19 +15,19 @@
   },
 
   "extras": [
-    { "name":  "SIGNATURES",                     "fee": 60000000 },
-    { "name":  "BYTES",                          "fee": 300 },
-    { "name":  "KEYS",                           "fee": 2200000 },
-    { "name":  "TOKEN_TYPES",                    "fee": 3 },
-    { "name":  "NFT_SERIALS",                    "fee": 1 },
-    { "name":  "ACCOUNTS",                       "fee": 3 },
-    { "name":  "STANDARD_FUNGIBLE_TOKENS",       "fee": 3 },
-    { "name":  "STANDARD_NON_FUNGIBLE_TOKENS",   "fee": 3 },
-    { "name":  "CUSTOM_FEE_FUNGIBLE_TOKENS",     "fee": 3 },
-    { "name":  "CUSTOM_FEE_NON_FUNGIBLE_TOKENS", "fee": 3 },
-    { "name":  "CREATED_AUTO_ASSOCIATIONS",      "fee": 3 },
-    { "name":  "CREATED_ACCOUNTS",               "fee": 3 },
-    { "name":  "CUSTOM_FEE",                     "fee": 1 },
+    { "name":  "SIGNATURES",                     "fee": 1000000 },
+    { "name":  "BYTES",                          "fee": 110 },
+    { "name":  "KEYS",                           "fee": 100000000 },
+    { "name":  "TOKEN_TYPES",                    "fee": 0 },
+    { "name":  "NFT_SERIALS",                    "fee": 8900000 },
+    { "name":  "ACCOUNTS",                       "fee": 0 },
+    { "name":  "STANDARD_FUNGIBLE_TOKENS",       "fee": 9000000 },
+    { "name":  "STANDARD_NON_FUNGIBLE_TOKENS",   "fee": 100000 },
+    { "name":  "CUSTOM_FEE_FUNGIBLE_TOKENS",     "fee": 19000000 },
+    { "name":  "CUSTOM_FEE_NON_FUNGIBLE_TOKENS", "fee": 10100000 },
+    { "name":  "CREATED_AUTO_ASSOCIATIONS",      "fee": 0 },
+    { "name":  "CREATED_ACCOUNTS",               "fee": 0 },
+    { "name":  "CUSTOM_FEE",                     "fee": 0 },
     { "name":  "GAS",                            "fee": 1 },
     { "name":  "ALLOWANCES",                     "fee": 2000 },
     { "name":  "AIRDROPS",                       "fee": 8800 }
@@ -38,7 +38,7 @@
       "schedule": [
         {
           "name": "CryptoCreate",
-          "baseFee": 22,
+          "baseFee": 498500000,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1 }
           ]
@@ -49,6 +49,13 @@
           "extras": [
             {  "name": "SIGNATURES", "includedCount": 1 },
             {  "name": "KEYS",       "includedCount": 1 }
+          ]
+        },
+        {
+          "name": "CryptoDelete",
+          "baseFee": 49850000,
+          "extras": [
+            { "name": "SIGNATURES", "includedCount": 1 }
           ]
         },
         {

@@ -102,13 +102,4 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
                 fallenBehindMonitor);
         return rpcPeerHandler;
     }
-
-    /**
-     * Called when given handler is being destroyed due to connection collapsing or other similar event.
-     *
-     * @param rpcPeerHandler handler which should be removed from internal structures
-     */
-    public void deregisterPeerHandler(final RpcPeerHandler rpcPeerHandler) {
-        // no-op for now
-    }
 }
