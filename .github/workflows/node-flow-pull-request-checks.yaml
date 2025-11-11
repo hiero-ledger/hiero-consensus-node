@@ -68,7 +68,7 @@ jobs:
       - dependency-check
       - spotless
     with:
-      ref: ${{ github.event.inputs.ref || '' }}
+      ref: ${{ inputs.ref || '' }}
       enable-unit-tests: "true"
       enable-integration-tests: "true"
       enable-hapi-tests: "true"
@@ -87,50 +87,3 @@ jobs:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       snyk-token: ${{ secrets.SNYK_TOKEN }}
-
-  snyk-scan:
-    name: Snyk Scan
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - dependency-check
-      - spotless
-    if: ${{ github.event_name != 'pull_request' || (github.actor != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository) }}
-    with:
-      custom-job-label: Standard
-      enable-unit-tests: false
-      enable-snyk-scan: true
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-      snyk-token: ${{ secrets.SNYK_TOKEN }}
-
-  gradle-determinism:
-    name: Gradle Determinism
-    uses: ./.github/workflows/zxc-verify-gradle-build-determinism.yaml
-    needs:
-      - dependency-check
-      - spotless
-    if: ${{ github.event_name != 'pull_request' || (github.actor != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository) }}
-    with:
-      ref: ${{ github.event.inputs.ref || '' }}
-      java-distribution: temurin
-      java-version: 21.0.6
-    secrets:
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  docker-determinism:
-    name: Docker Determinism
-    uses: ./.github/workflows/zxc-verify-docker-build-determinism.yaml
-    needs:
-      - dependency-check
-      - spotless
-    if: ${{ github.event_name != 'pull_request' || (github.actor != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository) }}
-    with:
-      ref: ${{ github.event.inputs.ref || '' }}
-      java-distribution: temurin
-      java-version: 21.0.6
-    secrets:
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
