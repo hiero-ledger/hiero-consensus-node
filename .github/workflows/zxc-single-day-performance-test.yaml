@@ -1550,7 +1550,7 @@ jobs:
             HeliSwapLoadTest ${{ needs.performance-HeliSwapLoadTest.outputs.output }} ${{ env.MinHeliSwapLoadTest }}\n\
             SmartContractLoadTest ${{ needs.performance-SmartContractLoadTest.outputs.output }} ${{ env.MinSmartContractLoadTest }}"
 
-          if [ "${{ needs.performance-post-test-validation.outputs.ValidatorStatus }}" == "0" ]
+          if [[ "${{ needs.performance-post-test-validation.outputs.ValidatorStatus }}" == "0" ]]
           then
             Validator="PASSED"
           else
