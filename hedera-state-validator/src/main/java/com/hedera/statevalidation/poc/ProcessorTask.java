@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.poc;
 
-import com.hedera.statevalidation.util.reflect.BucketIterator;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.files.hashmap.ParsedBucket;
@@ -76,15 +75,13 @@ public class ProcessorTask implements Runnable {
 
             if (data.location() == pathToDiskLocationLeafNodes.get(path)) {
                 // live object, do something...
-                System.out.println("P2KV: path=" + path + ", key=" + virtualLeafBytes.keyBytes() + ", value="
-                        + virtualLeafBytes.valueBytes());
             } else {
                 // add to wasted items/space
                 dataStats.addObsoleteSpaceBytes(data.bytes().length());
                 dataStats.incrementObsoleteItemCount();
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            dataStats.incrementP2kvFailedToProcessCount();
         }
     }
 
@@ -99,7 +96,6 @@ public class ProcessorTask implements Runnable {
 
             if (data.location() == pathToDiskLocationInternalNodes.get(path)) {
                 // live object, do something...
-                System.out.println("P2H: path=" + path + ", hash=" + virtualHashRecord.hash());
 
             } else {
                 // add to wasted items/space
@@ -107,7 +103,7 @@ public class ProcessorTask implements Runnable {
                 dataStats.incrementObsoleteItemCount();
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            dataStats.incrementP2hFailedToProcessCount();
         }
     }
 
@@ -121,18 +117,13 @@ public class ProcessorTask implements Runnable {
 
             if (data.location() == bucketIndexToBucketLocation.get(bucket.getBucketIndex())) {
                 // live object, do something...
-                var bucketIterator = new BucketIterator(bucket);
-                while (bucketIterator.hasNext()) {
-                    final ParsedBucket.BucketEntry entry = bucketIterator.next();
-                    System.out.println("K2P: key=" + entry.getKeyBytes() + ", path=" + entry.getValue());
-                }
             } else {
                 // add to wasted items/space
                 dataStats.addObsoleteSpaceBytes(data.bytes().length());
                 dataStats.incrementObsoleteItemCount();
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            dataStats.incrementK2pFailedToProcessCount();
         }
     }
 }
