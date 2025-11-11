@@ -340,6 +340,10 @@ public class AddressBookTestBase {
     }
 
     protected void givenValidNode() {
+        this.givenValidNode(false);
+    }
+
+    protected void givenValidNode(boolean deleted) {
         node = new Node(
                 nodeId.number(),
                 accountId,
@@ -349,7 +353,7 @@ public class AddressBookTestBase {
                 Bytes.wrap(gossipCaCertificate),
                 Bytes.wrap(grpcCertificateHash),
                 0,
-                false,
+                deleted,
                 key,
                 false,
                 null);

@@ -32,7 +32,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNAT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NODE_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -76,7 +76,7 @@ class AtomicNodeDeleteTest {
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 viewNode(nodeName, node -> assertFalse(node.deleted(), "Node should not be deleted")),
                 atomicBatch(nodeDelete(nodeName).batchKey(BATCH_OPERATOR)).payingWith(BATCH_OPERATOR),
-                viewNode(nodeName, node -> assertNull(node, "Node should be deleted")));
+                viewNode(nodeName, node -> assertTrue(node.deleted(), "Node should be deleted")));
     }
 
     @EmbeddedHapiTest(MUST_SKIP_INGEST)
@@ -283,7 +283,7 @@ class AtomicNodeDeleteTest {
                                 .signedBy("payer", "adminKey")
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR),
-                viewNode("testNode", node -> assertNull(node, "Node should be deleted")));
+                viewNode("testNode", node -> assertTrue(node.deleted(), "Node should be deleted")));
     }
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
@@ -300,7 +300,7 @@ class AtomicNodeDeleteTest {
                                 .signedBy(DEFAULT_PAYER, "adminKey")
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR),
-                viewNode("testNode", node -> assertNull(node, "Node should be deleted")));
+                viewNode("testNode", node -> assertTrue(node.deleted(), "Node should be deleted")));
     }
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
@@ -315,7 +315,7 @@ class AtomicNodeDeleteTest {
                 viewNode("testNode", node -> assertFalse(node.deleted(), "Node should not be deleted")),
                 atomicBatch(nodeDelete("testNode").payingWith(DEFAULT_PAYER).batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR),
-                viewNode("testNode", node -> assertNull(node, "Node should be deleted")));
+                viewNode("testNode", node -> assertTrue(node.deleted(), "Node should be deleted")));
     }
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
@@ -334,7 +334,7 @@ class AtomicNodeDeleteTest {
                                 .payingWith(ADDRESS_BOOK_CONTROL)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR),
-                viewNode("testNode", node -> assertNull(node, "Node should be deleted")));
+                viewNode("testNode", node -> assertTrue(node.deleted(), "Node should be deleted")));
     }
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
@@ -349,6 +349,6 @@ class AtomicNodeDeleteTest {
                 viewNode("testNode", node -> assertFalse(node.deleted(), "Node should not be deleted")),
                 atomicBatch(nodeDelete("testNode").payingWith(SYSTEM_ADMIN).batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR),
-                viewNode("testNode", node -> assertNull(node, "Node should be deleted")));
+                viewNode("testNode", node -> assertTrue(node.deleted(), "Node should be deleted")));
     }
 }

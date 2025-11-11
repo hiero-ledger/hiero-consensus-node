@@ -3,7 +3,6 @@ package com.hedera.node.app.service.addressbook.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.NODE_DELETED;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -135,7 +134,6 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
         given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(writableNodeState);
         writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
-        given(storeFactory.readableStore(ReadableEntityIdStore.class)).willReturn(readableEntityCounters);
 
         given(handleContext.body())
                 .willReturn(TransactionBody.newBuilder().nodeDelete(txn).build());
@@ -158,16 +156,14 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
         given(handleContext.body())
                 .willReturn(TransactionBody.newBuilder().nodeDelete(txn).build());
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
-        given(storeFactory.readableStore(ReadableEntityIdStore.class)).willReturn(readableEntityCounters);
 
-        // if node is null and node id is less than the highest node id, will return NODE_DELETED
         HandleException thrown = (HandleException) catchThrowable(() -> subject.handle(handleContext));
-        assertThat(thrown.getStatus()).isEqualTo(NODE_DELETED);
+        assertThat(thrown.getStatus()).isEqualTo(INVALID_NODE_ID);
     }
 
     @Test
-    @DisplayName("Handle removes node from state")
-    void handleRemovesNodeFromState() {
+    @DisplayName("Handle works as expected")
+    void handleWorksAsExpected() {
         final var txn = newDeleteTxn().nodeDeleteOrThrow();
 
         final var existingNode = writableStore.get(WELL_KNOWN_NODE_ID);
@@ -182,22 +178,29 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
 
         subject.handle(handleContext);
 
-        final var changed = writableStore.get(WELL_KNOWN_NODE_ID);
-        assertThat(changed).isNull();
+        final var changedFile = writableStore.get(WELL_KNOWN_NODE_ID);
+
+        assertThat(changedFile).isNotNull();
+        assertThat(changedFile.deleted()).isTrue();
     }
 
     @Test
     @DisplayName("Node already deleted returns error")
     void noFileKeys() {
-        // Missing node id, that is less than the highest node id, is considered as deleted
-        final var txn = newDeleteTxnWithNodeId(45).nodeDeleteOrThrow();
-        givenEntityCounters(50);
+        // mark current node as deleted
+        givenValidNode(true);
+        // refresh sate with updated node
+        rebuildState(1);
+        final var txn = newDeleteTxn().nodeDeleteOrThrow();
+
+        final var existingNode = writableStore.get(WELL_KNOWN_NODE_ID);
+        assertThat(existingNode).isNotNull();
+        assertThat(existingNode.deleted()).isTrue();
 
         given(handleContext.body())
                 .willReturn(TransactionBody.newBuilder().nodeDelete(txn).build());
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
-        given(storeFactory.readableStore(ReadableEntityIdStore.class)).willReturn(readableEntityCounters);
         // expect:
         assertFailsWith(() -> subject.handle(handleContext), ResponseCodeEnum.NODE_DELETED);
     }

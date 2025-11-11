@@ -16,7 +16,6 @@ import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
-import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -57,13 +56,11 @@ public class NodeDeleteHandler implements TransactionHandler {
         final var op = context.body().nodeDeleteOrThrow();
         final var accountConfig = context.configuration().getConfigData(AccountsConfig.class);
         final var nodeStore = context.createStore(ReadableNodeStore.class);
-        final var entityIdStore = context.createStore(ReadableEntityIdStore.class);
         final var payerNum = context.payer().accountNum();
 
         final var existingNode = nodeStore.get(op.nodeId());
-
-        validateFalsePreCheck(existingNode == null && entityIdStore.peekAtNextNodeId() > op.nodeId(), NODE_DELETED);
         validateFalsePreCheck(existingNode == null, INVALID_NODE_ID);
+        validateFalsePreCheck(existingNode.deleted(), NODE_DELETED);
 
         // if payer is not one of the system admin, treasury or address book admin, check the admin key signature
         if (payerNum != accountConfig.treasury()
@@ -88,15 +85,19 @@ public class NodeDeleteHandler implements TransactionHandler {
 
         final var nodeStore = context.storeFactory().writableStore(WritableNodeStore.class);
         final var accountNodeRelStore = context.storeFactory().writableStore(WritableAccountNodeRelStore.class);
-        final var entityIdStore = context.storeFactory().readableStore(ReadableEntityIdStore.class);
 
         Node node = nodeStore.get(nodeId);
 
-        validateFalse(node == null && entityIdStore.peekAtNextNodeId() > nodeId, NODE_DELETED);
         validateFalse(node == null, INVALID_NODE_ID);
 
-        // Remove node from state entirely and update counters
-        nodeStore.remove(nodeId);
+        validateFalse(node.deleted(), NODE_DELETED);
+
+        /* Copy all the fields from existing, and mark deleted flag  */
+        final var nodeBuilder = node.copyBuilder().deleted(true);
+
+        /* --- Put the modified node. It will be in underlying state's modifications map.
+        It will not be committed to state until commit is called on the state.--- */
+        nodeStore.put(nodeBuilder.build());
         accountNodeRelStore.remove(node.accountId());
     }
 

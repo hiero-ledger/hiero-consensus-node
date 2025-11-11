@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.regression.system;
 
 import static com.hedera.hapi.util.HapiUtils.asReadableIp;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.CLASSIC_HAPI_TEST_NETWORK_SIZE;
 import static com.hedera.services.bdd.junit.TestTags.UPGRADE;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
@@ -23,8 +24,10 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.ensureStakingActivated;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.matchStateChange;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -47,6 +50,9 @@ import static org.assertj.core.api.Fail.fail;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.InvalidProtocolBufferException;
+import com.hedera.hapi.block.stream.output.MapChangeKey;
+import com.hedera.hapi.block.stream.output.MapDeleteChange;
+import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -264,7 +270,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
         @BeforeAll
         static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
             testLifecycle.overrideInClass(Map.of(
-                    // Starting with version 0.69.0, deleted nodes are fully removed from state
+                    // Starting with version 0.69.0, deleted nodes are fully removed from state on upgrade
                     // and no longer contribute to the max node count.
                     "nodes.maxNumber", "5",
                     "nodes.updateAccountIdAllowed", "true"));
@@ -319,6 +325,14 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     nodeDelete("2"),
                     validateCandidateRoster(
                             NodeSelector.allNodes(), DabEnabledUpgradeTest::validateNodeId5MultipartEdits),
+                    // Validate removal of the nodes from the state after the upgrade
+                    blockStreamMustIncludePassFrom(matchStateChange(StateChange.newBuilder()
+                            .stateId(NODES_STATE_ID)
+                            .mapDelete(MapDeleteChange.newBuilder()
+                                    .key(MapChangeKey.newBuilder()
+                                            .entityNumberKey(4L)
+                                            .build()))
+                            .build())),
                     upgradeToNextConfigVersion(
                             ENV_OVERRIDES, FakeNmt.removeNode(NodeSelector.byNodeId(4L)), FakeNmt.addNode(5L)),
                     // Validate that nodeId2 and nodeId5 have their new fee collector account IDs,
@@ -333,6 +347,17 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                             .setNode(String.valueOf(classicFeeCollectorIdFor(0))));
         }
     }
+
+    //    @HapiTest
+    //    final Stream<DynamicTest> test() {
+    //        return hapiTest(
+    //                // Now make some changes that should not be incorporated in this upgrade
+    //                nodeDelete("1"),
+    //                prepareFakeUpgrade(),
+    //                // validate that nodes that are deleted are actually removed from the state
+
+    //                upgradeToNextConfigVersion(ENV_OVERRIDES, FakeNmt.removeNode(byNodeId(1))));
+    //    }
 
     private static void verifyAddressInfo(final AddressBookPojo addressBook, HapiSpec spec) {
         final var entries = addressBook.getEntries().stream()

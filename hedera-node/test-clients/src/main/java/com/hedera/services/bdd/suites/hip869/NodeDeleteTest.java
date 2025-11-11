@@ -29,7 +29,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNAT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NODE_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -63,7 +63,7 @@ public class NodeDeleteTest {
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 viewNode(nodeName, node -> assertFalse(node.deleted(), "Node should not be deleted")),
                 nodeDelete(nodeName),
-                viewNode(nodeName, node -> assertNull(node, "Node should be deleted")));
+                viewNode(nodeName, node -> assertTrue(node.deleted(), "Node should be deleted")));
     }
 
     @EmbeddedHapiTest(MUST_SKIP_INGEST)
@@ -232,7 +232,7 @@ public class NodeDeleteTest {
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 nodeDelete("testNode").payingWith("payer").signedBy("payer", "adminKey"),
-                viewNode("testNode", node -> assertNull(node, "Node should be deleted")));
+                viewNode("testNode", node -> assertTrue(node.deleted(), "Node should be deleted")));
     }
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
@@ -246,7 +246,7 @@ public class NodeDeleteTest {
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 viewNode("testNode", node -> assertFalse(node.deleted(), "Node should not be deleted")),
                 nodeDelete("testNode").signedBy(DEFAULT_PAYER, "adminKey"),
-                viewNode("testNode", node -> assertNull(node, "Node should be deleted")));
+                viewNode("testNode", node -> assertTrue(node.deleted(), "Node should be deleted")));
     }
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
@@ -260,7 +260,7 @@ public class NodeDeleteTest {
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 viewNode("testNode", node -> assertFalse(node.deleted(), "Node should not be deleted")),
                 nodeDelete("testNode").payingWith(DEFAULT_PAYER),
-                viewNode("testNode", node -> assertNull(node, "Node should be deleted")));
+                viewNode("testNode", node -> assertTrue(node.deleted(), "Node should be deleted")));
     }
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
@@ -276,7 +276,7 @@ public class NodeDeleteTest {
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 viewNode("testNode", node -> assertFalse(node.deleted(), "Node should not be deleted")),
                 nodeDelete("testNode").payingWith(ADDRESS_BOOK_CONTROL),
-                viewNode("testNode", node -> assertNull(node, "Node should be deleted")));
+                viewNode("testNode", node -> assertTrue(node.deleted(), "Node should be deleted")));
     }
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
@@ -290,6 +290,6 @@ public class NodeDeleteTest {
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 viewNode("testNode", node -> assertFalse(node.deleted(), "Node should not be deleted")),
                 nodeDelete("testNode").payingWith(SYSTEM_ADMIN),
-                viewNode("testNode", node -> assertNull(node, "Node should be deleted")));
+                viewNode("testNode", node -> assertTrue(node.deleted(), "Node should be deleted")));
     }
 }
