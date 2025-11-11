@@ -100,8 +100,8 @@ There are several test suites that are run in the CITR environment, each with it
 
 These tests run sequentially with a Mirrornode setup to measure E2E latency performance.
 
-| Test                                              | TPS |
-| ------------------------------------------------- | --- |
+|                       Test                        | TPS |
+|---------------------------------------------------|-----|
 | Idle load                                         | 10  |
 | Crypto Transfer                                   | 200 |
 | Mixed Tx Types                                    | 2K  |
@@ -112,15 +112,11 @@ These tests run sequentially with a Mirrornode setup to measure E2E latency perf
 | Mixed Tx Types(1/2 HCS and Crypto/HTS rest)       | 10K |
 | Mixed Tx Types(equal weight among HCS/Crypto/HTS) | 10K |
 
-
-
-
 ## SDLT
 
 ## SDPT
 
 ## MDLT
-
 
 ## Shortgevity
 
@@ -138,8 +134,8 @@ These tests run sequentially with a Mirrornode setup to measure E2E latency perf
 
 All tests are run in parallel with adjustable total TPS. Currently runs at PROD supported 10.5K.
 
-| Test Type                               | Ratio                                          |
-| --------------------------------------- | ---------------------------------------------- |
+|                Test Type                |                     Ratio                      |
+|-----------------------------------------|------------------------------------------------|
 | Crypto                                  | %30~                                           |
 | HCS                                     | %30~                                           |
 | HTS                                     | %10~                                           |
