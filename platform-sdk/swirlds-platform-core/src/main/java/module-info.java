@@ -98,7 +98,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.wiring;
     exports com.swirlds.platform.wiring.components;
     exports com.swirlds.platform.event.orphan;
-    exports com.swirlds.platform.publisher;
     exports com.swirlds.platform.components.consensus;
     exports com.swirlds.platform.state.snapshot;
     exports com.swirlds.platform.state.service.schemas;

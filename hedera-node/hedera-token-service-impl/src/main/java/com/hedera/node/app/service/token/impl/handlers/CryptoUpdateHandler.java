@@ -187,16 +187,16 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
             final CryptoUpdateTransactionBody op,
             final Account.Builder builder) {
         // compute head after deletes
-        long currentHead = targetAccount.firstHookId();
-        long headAfterDeletes = currentHead;
+        Long currentHead = targetAccount.numberHooksInUse() > 0 ? targetAccount.firstHookId() : null;
+        Long headAfterDeletes = currentHead;
         // Dispatch all the hooks to delete
         if (!op.hookIdsToDelete().isEmpty()) {
             headAfterDeletes =
-                    dispatchHookDeletions(context, op.hookIdsToDelete(), currentHead, op.accountIDToUpdate());
+                    dispatchHookDeletions(context, op.hookIdsToDelete(), currentHead, op.accountIDToUpdateOrThrow());
         }
         if (!op.hookCreationDetails().isEmpty()) {
-            final var updatedSlots =
-                    dispatchHookCreations(context, op.hookCreationDetails(), headAfterDeletes, op.accountIDToUpdate());
+            final var updatedSlots = dispatchHookCreations(
+                    context, op.hookCreationDetails(), headAfterDeletes, op.accountIDToUpdateOrThrow());
             builder.numberLambdaStorageSlots(targetAccount.numberLambdaStorageSlots() + updatedSlots);
         }
         // Update firstHookId in the account if needed.
@@ -205,7 +205,8 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         if (!op.hookCreationDetails().isEmpty()) {
             builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
         } else if (!op.hookIdsToDelete().isEmpty()) {
-            builder.firstHookId(headAfterDeletes);
+            // If numberLambdaStorageSlots == 0 after deletions, then first hook id is meaningless but set to 0
+            builder.firstHookId(headAfterDeletes == null ? 0 : headAfterDeletes);
         }
     }
 
