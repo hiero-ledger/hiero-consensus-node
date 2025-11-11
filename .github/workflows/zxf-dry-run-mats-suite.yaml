@@ -81,7 +81,7 @@ jobs:
       enable-docker-determinism: ${{ inputs.enable-docker-determinism || 'false' }}
       java-version: "21.0.6"
       java-distribution: "temurin"
-      custom-job-label: "MATS (dry-run):"
+      custom-job-label: ${{ inputs.custom-job-label || 'MATS (dry-run):' }}
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
