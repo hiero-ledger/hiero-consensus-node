@@ -106,10 +106,25 @@ Latitude kubernetes cluster
 
 ### Included Tests
 
-|     Test Name     |                                            Workflow                                            | Required Parameters | Run time |                  Precursor Steps                   |
-|-------------------|------------------------------------------------------------------------------------------------|---------------------|----------|----------------------------------------------------|
-| LongevityLoadTest | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml) | nlg-accounts        | 16 hours | Code Compiles, Solo deployed CNs/NLG onto Latitude |
-| State Validator   | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml) |                     | 30 mins  | LongevityLoadTest                                  |
+|     Test Name     |                                            Workflow                                            |  Required Parameters  | Run time |                  Precursor Steps                   |
+|-------------------|------------------------------------------------------------------------------------------------|-----------------------|----------|----------------------------------------------------|
+| LongevityLoadTest | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml) | nlg-accounts,nlg-time | 16 hours | Code Compiles, Solo deployed CNs/NLG onto Latitude |
+| State Validator   | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml) |                       | 30 mins  | LongevityLoadTest                                  |
+
+### LongevityLoadTest consists of the following tests, running in parallel with pre-defined throttling:
+
+- NftTransferLoadTest, TPS=3000
+- HCSLoadTest, TPS=2000
+- CryptoTransferLoadTest, TPS=5000
+- HeliSwapLoadTest, TPS=300
+- SmartContractLoadTest, TPS=50
+
+### Runtime durations, practical settings
+
+- 30 mins with arguments: nlg-time=3 (mins), nlg-accounts=100000
+- 1 hour : nlg-time=21 (mins), nlg-accounts=20000000
+- 3 hour: nlg-time=180, nlg-accounts=20000000
+- 16 hours: nlg-time=960, nlg-accounts=100000000
 
 ## SDPT
 
@@ -135,13 +150,19 @@ Latitude kubernetes cluster
 
 |       Test Name        |                                              Workflow                                              |                Required Parameters                | Run time  |                  Precursor Steps                   |
 |------------------------|----------------------------------------------------------------------------------------------------|---------------------------------------------------|-----------|----------------------------------------------------|
-| NftTransferLoadTest    | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts                                      | 6 hours   | Code Compiles, Solo deployed CNs/NLG onto Latitude |
+| NftTransferLoadTest    | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts,nlg-time                             | 6 hours   | Code Compiles, Solo deployed CNs/NLG onto Latitude |
 | CryptoBench            | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | maxKey, numRecords, keySize, recordSize, numFiles | 4-5 hours | Code Compiles, Solo deployed CNs/NLG onto Latitude |
-| HCSLoadTest            | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts                                      | 2 hours   | NftTransferLoadTest                                |
-| CryptoTransferLoadTest | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts                                      | 2 hours   | HCSLoadTest                                        |
+| HCSLoadTest            | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts,nlg-time                             | 2 hours   | NftTransferLoadTest                                |
+| CryptoTransferLoadTest | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts,nlg-time                             | 2 hours   | HCSLoadTest                                        |
 | HeliSwapLoadTest       | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts                                      | 6 hours   | CryptoTransferLoadTest                             |
-| SmartContractLoadTest  | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts                                      | 2 hours   | HeliSwapLoadTest                                   |
+| SmartContractLoadTest  | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts,nlg-time                             | 2 hours   | HeliSwapLoadTest                                   |
 | State  Validator       | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) |                                                   | 30 mins   | All previous tests passed                          |
+
+### Runtime durations, practical settings
+
+- 1 hour with arguments: nlg-time=3 (mins), nlg-accounts=100000
+- 10 hours : nlg-time=180 (mins), nlg-accounts=100000000
+- 20 hours: nlg-time=330, nlg-accounts=100000000
 
 ## MDLT
 
@@ -164,9 +185,24 @@ Latitude kubernetes cluster
 
 ### Included Tests
 
-|     Test Name     |                                            Workflow                                            | Required Parameters | Run time  |                  Precursor Steps                   |
-|-------------------|------------------------------------------------------------------------------------------------|---------------------|-----------|----------------------------------------------------|
-| LongevityLoadTest | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml) | nlg-accounts        | 7 days    | Code Compiles, Solo deployed CNs/NLG onto Latitude |
-| State Validator   | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml) |                     | 1.5 hours | LongevityLoadTest                                  |
+|     Test Name     |                                            Workflow                                            |  Required Parameters  | Run time  |                  Precursor Steps                   |
+|-------------------|------------------------------------------------------------------------------------------------|-----------------------|-----------|----------------------------------------------------|
+| LongevityLoadTest | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml) | nlg-accounts,nlg-time | 7 days    | Code Compiles, Solo deployed CNs/NLG onto Latitude |
+| State Validator   | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml) |                       | 1.5 hours | LongevityLoadTest                                  |
+
+### LongevityLoadTest consists of the following tests, running in parallel with pre-defined throttling:
+
+- NftTransferLoadTest, TPS=3000
+- HCSLoadTest, TPS=2000
+- CryptoTransferLoadTest, TPS=5000
+- HeliSwapLoadTest, TPS=300
+- SmartContractLoadTest, TPS=50
+
+### Runtime durations, practical settings
+
+- 30 mins with arguments: nlg-time=3 (mins), nlg-accounts=100000
+- 1 hour : nlg-time=21 (mins), nlg-accounts=20000000
+- 3 hour: nlg-time=180, nlg-accounts=20000000
+- 7 days: nlg-time=10080, nlg-accounts=100000000
 
 ## Shortgevity
