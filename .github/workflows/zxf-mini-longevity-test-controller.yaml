@@ -112,7 +112,7 @@ jobs:
           if [[ "$RESULT" == "success" ]]; then
             TAG_NAME="mqlt-pass-${BUILD_NUM}"
             MSG="Merge Queue Longevity Test passed for build-${BUILD_NUM}"
-          elif [ "$RESULT" == "failure" ]; then
+          elif [[ "$RESULT" == "failure" ]]; then
             TAG_NAME="mqlt-fail-${BUILD_NUM}"
             MSG="Merge Queue Longevity Test FAILED for build-${BUILD_NUM}"
           else
