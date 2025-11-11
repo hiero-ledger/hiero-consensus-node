@@ -192,7 +192,7 @@ jobs:
           if [[ "$RESULT" == "success" ]]; then
             TAG_NAME="sdlt-pass-${BUILD_NUM}"
             MSG="Mini Longevity Test passed for build-${BUILD_NUM}"
-          elif [ "$RESULT" == "failure" ]; then
+          elif [[ "$RESULT" == "failure" ]]; then
             TAG_NAME="sdlt-fail-${BUILD_NUM}"
             MSG="Mini Longevity Test FAILED for build-${BUILD_NUM}"
           else
