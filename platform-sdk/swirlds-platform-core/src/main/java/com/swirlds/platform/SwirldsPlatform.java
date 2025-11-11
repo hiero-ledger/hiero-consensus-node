@@ -34,11 +34,8 @@ import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.event.preconsensus.PcesReplayer;
 import com.swirlds.platform.metrics.RuntimeMetrics;
-import com.swirlds.platform.publisher.DefaultPlatformPublisher;
-import com.swirlds.platform.publisher.PlatformPublisher;
 import com.swirlds.platform.reconnect.DefaultSignedStateValidator;
 import com.swirlds.platform.reconnect.ReconnectController;
-import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.nexus.DefaultLatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.LockFreeStateNexus;
@@ -58,7 +55,9 @@ import com.swirlds.platform.system.status.actions.DoneReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.StartedReplayingEventsAction;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformCoordinator;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
@@ -192,7 +191,7 @@ public class SwirldsPlatform implements Platform {
                 new DefaultStateSignatureCollector(platformContext, signedStateMetrics);
 
         this.platformComponents = blocks.platformComponents();
-        this.platformCoordinator = new PlatformCoordinator(blocks.platformComponents());
+        this.platformCoordinator = new PlatformCoordinator(blocks.platformComponents(), blocks.applicationCallbacks());
 
         blocks.statusActionSubmitterReference().set(platformCoordinator);
 
@@ -211,19 +210,19 @@ public class SwirldsPlatform implements Platform {
         initializeState(this, platformContext, initialState, blocks.consensusStateEventHandler(), platformStateFacade);
 
         // This object makes a copy of the state. After this point, initialState becomes immutable.
-        final SwirldStateManager swirldStateManager = blocks.swirldStateManager();
-        swirldStateManager.setState(initialState.getState(), true);
-        platformStateFacade.setCreationSoftwareVersionTo(swirldStateManager.getConsensusState(), blocks.appVersion());
+        final StateLifecycleManager stateLifecycleManager = blocks.stateLifecycleManager();
+        final MerkleNodeState state = initialState.getState();
+        stateLifecycleManager.initState(state, true);
+        platformStateFacade.setCreationSoftwareVersionTo(stateLifecycleManager.getMutableState(), blocks.appVersion());
 
         final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
 
         blocks.freezeCheckHolder()
                 .setFreezeCheckRef(instant ->
-                        platformStateFacade.isInFreezePeriod(instant, swirldStateManager.getConsensusState()));
+                        platformStateFacade.isInFreezePeriod(instant, stateLifecycleManager.getMutableState()));
 
         final AppNotifier appNotifier = new DefaultAppNotifier(blocks.notificationEngine());
 
-        final PlatformPublisher publisher = new DefaultPlatformPublisher(blocks.applicationCallbacks());
         final ReconnectController reconnectController = new ReconnectController(
                 platformStateFacade,
                 currentRoster,
@@ -231,7 +230,7 @@ public class SwirldsPlatform implements Platform {
                 this,
                 platformContext,
                 platformCoordinator,
-                swirldStateManager,
+                stateLifecycleManager,
                 savedStateController,
                 blocks.consensusStateEventHandler(),
                 blocks.reservedSignedStateResultPromise(),
@@ -258,8 +257,7 @@ public class SwirldsPlatform implements Platform {
                 latestImmutableStateNexus,
                 latestCompleteStateNexus,
                 savedStateController,
-                appNotifier,
-                publisher);
+                appNotifier);
 
         final Hash legacyRunningEventHash =
                 platformStateFacade.legacyRunningEventHashOf(initialState.getState()) == null
