@@ -183,7 +183,7 @@ jobs:
           BUILD_NUM="${{ needs.verify-tag.outputs.build-number }}"
 
           # Skip tagging if no build number is found
-          if [ -z "$BUILD_NUM" ]; then
+          if [[ -z "$BUILD_NUM" ]]; then
             echo "No build number found. Skipping tagging step." >> "${GITHUB_STEP_SUMMARY}"
             exit 0
           fi
