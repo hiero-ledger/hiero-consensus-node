@@ -86,9 +86,13 @@ on:
       slack-tck-report-webhook:
         description: "Slack TCK Report Webhook"
         required: false
-
-      snyk-token:
-        required: false
+    outputs:
+      failure-mode:
+        description: "Indicates the failure mode of the workflow"
+        value: ${{ jobs.set-failure-mode.outputs.failure-mode }}
+      failed-jobs:
+        description: "List of failed jobs in the workflow"
+        value: ${{ jobs.set-failure-mode.outputs.failed-jobs }}
 
 permissions:
   id-token: write
@@ -284,3 +288,129 @@ jobs:
     secrets:
       access-token: ${{ secrets.regression-access-token }}
       slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
+
+  set-failure-mode:
+    name: Set Failure Mode
+    runs-on: hiero-citr-linux-medium
+    needs:
+      - xts-timing-sensitive-tests
+      - xts-time-consuming-tests
+      - xts-hammer-tests
+      - xts-hapi-time-consuming-tests
+      - xts-hapi-block-node-comms-tests
+      - xts-otter-tests
+      - abbreviated-panel
+      - hedera-node-jrs-panel
+      - sdk-tck-regression-panel
+      - mirror-node-regression-panel
+      - json-rpc-relay-regression-panel
+      - block-node-regression-panel
+    if: ${{ !cancelled() && always() }} # always run unless cancelled
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
+      - name: Set Failure Mode
+        id: set-failure-mode
+        run: |
+          job_statuses=(
+            ${{ needs.xts-timing-sensitive-tests.result || 'skipped' }}
+            ${{ needs.xts-time-consuming-tests.result || 'skipped' }}
+            ${{ needs.xts-hammer-tests.result || 'skipped' }}
+            ${{ needs.xts-hapi-time-consuming-tests.result || 'skipped' }}
+            ${{ needs.xts-hapi-block-node-comms-tests.result || 'skipped' }}
+            ${{ needs.xts-otter-tests.result || 'skipped' }}
+
+          )
+          job_failure_modes=(
+            ${{ needs.xts-timing-sensitive-tests.outputs.failure-mode || 'none' }}
+            ${{ needs.xts-time-consuming-tests.outputs.failure-mode || 'none' }}
+            ${{ needs.xts-hammer-tests.outputs.failure-mode || 'none' }}
+            ${{ needs.xts-hapi-time-consuming-tests.outputs.failure-mode || 'none' }}
+            ${{ needs.xts-hapi-block-node-comms-tests.outputs.failure-mode || 'none' }}
+            ${{ needs.xts-otter-tests.outputs.failure-mode || 'none' }}
+
+          )
+          job_names=(
+            "xts-timing-sensitive-tests"
+            "xts-time-consuming-tests"
+            "xts-hammer-tests"
+            "xts-hapi-time-consuming-tests"
+            "xts-hapi-block-node-comms-tests"
+            "xts-otter-tests"
+            "abbreviated-panel"
+            "hedera-node-jrs-panel"
+            "sdk-tck-regression-panel"
+            "mirror-node-regression-panel"
+            "json-rpc-relay-regression-panel"
+            "block-node-regression-panel"
+          )
+
+          # Final outputs
+          failure_mode="none"
+          failed_tests=""
+
+          # go through all of the job statuses and check failure mode (none | workflow | general)
+          # if any job failed (failure-mode != none) then set the failure mode for the workflow
+          # to that jobs failure mode.
+          # only set failure mode once
+          # append the failing job to the failed-tests list.
+
+          for job in "${!job_statuses[@]}"; do
+            status=${job_statuses[$job]}
+            mode=${job_failure_modes[$job]}
+            name=${job_names[$job]}
+
+            if [[ "$status" == "failure" ]]; then
+              if [[ "$mode" != "none" && "$failure_mode" == "none" ]]; then
+                failure_mode="$mode"
+              fi
+              if [[ -z "$failed_tests" ]]; then
+                failed_tests="$name"
+              else
+                failed_tests="$failed_tests, $name"
+              fi
+            fi
+          done
+
+          # if any panel jobs failed, set failure mode to 'general' if not already set to something
+          # other than "none"
+          # Add the failed panel job to the failed-tests list
+
+          panel_statuses=(
+            ${{ needs.abbreviated-panel.result || 'skipped' }}
+            ${{ needs.hedera-node-jrs-panel.result || 'skipped' }}
+            ${{ needs.sdk-tck-regression-panel.result || 'skipped' }}
+            ${{ needs.mirror-node-regression-panel.result || 'skipped' }}
+            ${{ needs.json-rpc-relay-regression-panel.result || 'skipped' }}
+            ${{ needs.block-node-regression-panel.result || 'skipped' }}
+          )
+          panel_names=(
+            "abbreviated-panel"
+            "hedera-node-jrs-panel"
+            "sdk-tck-regression-panel"
+            "mirror-node-regression-panel"
+            "json-rpc-relay-regression-panel"
+            "block-node-regression-panel"
+          )
+
+          for job in "${!panel_statuses[@]}"; do
+            status=${panel_statuses[$job]}
+            name=${panel_names[$job]}
+
+            if [[ "$status" == "failure" ]]; then
+              if [[ "$failure_mode" == "none" ]]; then
+                failure_mode="general"
+              fi
+              if [[ -z "$failed_tests" ]]; then
+                failed_tests="$name"
+              else
+                failed_tests="$failed_tests, $name"
+              fi
+            fi
+          done
+
+          echo failure-mode="${failure_mode}" >> $GITHUB_OUTPUT
+          echo failed-tests="${failed_tests}" >> $GITHUB_OUTPUT
