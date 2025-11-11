@@ -90,7 +90,7 @@ jobs:
     runs-on: hiero-citr-linux-medium
     needs:
       - mats-tests
-    if: ${{ needs.mats-unit-tests.result == 'success' }}
+    if: ${{ needs.mats-tests.result == 'success' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0

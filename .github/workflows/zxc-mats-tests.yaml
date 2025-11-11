@@ -127,7 +127,7 @@ jobs:
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       enable-unit-tests: false
-      enable-integration-tests: ${{ inputs.enable-unit-tests == 'true' }}
+      enable-integration-tests: ${{ inputs.enable-integration-tests == 'true' }}
       enable-network-log-capture: true
     secrets:
       access-token: ${{ secrets.access-token }}
@@ -490,5 +490,5 @@ jobs:
             fi
           done
 
-          echo failure-mode="${failure_mode}" >> $GITHUB_OUTPUT
-          echo failed-tests="${failed_tests}" >> $GITHUB_OUTPUT
+          echo failure-mode="${failure_mode}" >> "${GITHUB_OUTPUT}"
+          echo failed-tests="${failed_tests}" >> "${GITHUB_OUTPUT}"

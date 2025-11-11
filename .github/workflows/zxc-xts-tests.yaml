@@ -92,7 +92,7 @@ on:
         value: ${{ jobs.set-failure-mode.outputs.failure-mode }}
       failed-jobs:
         description: "List of failed jobs in the workflow"
-        value: ${{ jobs.set-failure-mode.outputs.failed-jobs }}
+        value: ${{ jobs.set-failure-mode.outputs.failed-tests }}
 
 permissions:
   id-token: write
