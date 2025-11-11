@@ -78,6 +78,8 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
         this.selfId = requireNonNull(selfId);
         this.dispatchExecutor = createDispatchExecutor();
         this.backgroundExecutor = Executors.newCachedThreadPool();
+
+        TimestampCollector.INSTANCE.init(org.hiero.consensus.model.node.NodeId.of(selfId.id()));
     }
 
     /**

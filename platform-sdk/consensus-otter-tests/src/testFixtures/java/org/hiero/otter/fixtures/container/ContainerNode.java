@@ -564,7 +564,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     }
 
     private void downloadTimestampFile(@NonNull final Path localOutputDirectory) {
-        copyFileFromContainerIfExists(localOutputDirectory, "timestamps.csv");
+        copyFileFromContainerIfExists(localOutputDirectory, "timestamps" + selfId.id() + ".csv");
     }
 
     private void copyFileFromContainerIfExists(
