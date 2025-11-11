@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl;
 
-import static com.swirlds.metrics.api.FloatFormats.FORMAT_DECIMAL_3;
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.ATTEMPTING_CREATION;
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.IDLE;
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.NO_ELIGIBLE_PARENTS;
@@ -13,6 +12,8 @@ import com.swirlds.common.metrics.extensions.PhaseTimer;
 import com.swirlds.common.metrics.extensions.PhaseTimerBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.DoubleGauge;
+import com.swirlds.metrics.api.DoubleGauge.Config;
+import com.swirlds.metrics.api.FloatFormats;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -49,6 +50,9 @@ import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
  */
 public class DefaultEventCreator implements EventCreatorModule {
 
+    private static final Config SYNC_ROUND_LAG_METRIC_CONFIG = new Config(Metrics.PLATFORM_CATEGORY, "syncRoundLag")
+            .withDescription("How many rounds on average are we lagging behind peers")
+            .withFormat(FloatFormats.FORMAT_DECIMAL_3);
     /**
      * Creates events.
      */
@@ -159,9 +163,7 @@ public class DefaultEventCreator implements EventCreatorModule {
                 .setMetricsNamePrefix("eventCreation")
                 .build();
 
-        syncLagBehind = metrics.getOrCreate(new DoubleGauge.Config(Metrics.PLATFORM_CATEGORY, "sync_round_lag")
-                .withDescription("How many rounds on average are we lagging behind peers")
-                .withFormat(FORMAT_DECIMAL_3));
+        syncLagBehind = metrics.getOrCreate(SYNC_ROUND_LAG_METRIC_CONFIG);
     }
 
     /**

@@ -6,8 +6,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import org.hiero.consensus.model.node.NodeId;
 
 // utility class to hold weight and lag in a map value
@@ -32,7 +30,7 @@ public class SyncLagCalculator {
     /**
      * Keep track of how much behind or ahead we are compared to peers based on the latestConsensusRound
      */
-    private final ConcurrentMap<NodeId, WeightAndLag> consensusLag = new ConcurrentHashMap<>();
+    private final Map<NodeId, WeightAndLag> consensusLag = new HashMap<>();
 
     /**
      * Current node id
