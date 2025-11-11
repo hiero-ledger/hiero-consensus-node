@@ -86,6 +86,7 @@ There are several test suites that are run in the CITR environment, each with it
 ## SDCT
 
 ## SDLT
+
 ### Environment
 
 - SDLT runs inside of self-hosted github runners every 24 hours on the **default branch** (`main`).
@@ -98,15 +99,20 @@ There are several test suites that are run in the CITR environment, each with it
 - SDLT Dry Run is triggered manually via the [ZXF: [CITR] Adhoc - Single Day Performance Test Controller (SDPT)](/.github/workflows/zxf-single-day-performance-test-controller-adhoc.yaml) workflow.
 
 ### Hardware
+
 Latitude kubernetes cluster
 - 7 nodes for Consensus Nodes
 - 1 node for aux services and NLG client
+
 ### Included Tests
-| Test Name                    |                                              Workflow                                               |                               Required Parameters                               | Run time   | Precursor Steps                                    |
-|------------------------------|-----------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------|------------|----------------------------------------------------|
-| LongevityLoadTest            | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml)      |    nlg-accounts                                                                 | 16 hours   | Code Compiles, Solo deployed CNs/NLG onto Latitude |
-| State Validator              | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml)      |                                                                                 | 30 mins    | LongevityLoadTest |
+
+|     Test Name     |                                            Workflow                                            | Required Parameters | Run time |                  Precursor Steps                   |
+|-------------------|------------------------------------------------------------------------------------------------|---------------------|----------|----------------------------------------------------|
+| LongevityLoadTest | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml) | nlg-accounts        | 16 hours | Code Compiles, Solo deployed CNs/NLG onto Latitude |
+| State Validator   | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml) |                     | 30 mins  | LongevityLoadTest                                  |
+
 ## SDPT
+
 ### Environment
 
 - SDPT runs inside of self-hosted github runners every 24 hours on the **default branch** (`main`).
@@ -119,22 +125,26 @@ Latitude kubernetes cluster
 - SDPT Dry Run is triggered manually via the [ZXF: [CITR] Adhoc - Single Day Longevity Test Controller](/.github/workflows/zxf-single-day-longevity-test-controller-adhoc.yaml) workflow.
 
 ### Hardware
- Latitude kubernetes cluster
-  - 7 nodes for Consensus Nodes
-  - 1 node for CryptoBench
-  - 1 node for aux services and NLG client
+
+Latitude kubernetes cluster
+- 7 nodes for Consensus Nodes
+- 1 node for CryptoBench
+- 1 node for aux services and NLG client
+
 ### Included Tests
-| Test Name                  |                                              Workflow                                               |                                Required Parameters                                | Run time  | Precursor Steps                                    |
-|----------------------------|-----------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------|-----------|----------------------------------------------------|
-| NftTransferLoadTest        | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml)  | nlg-accounts                                                                      | 6 hours   | Code Compiles, Solo deployed CNs/NLG onto Latitude |
-| CryptoBench                | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml)  | maxKey, numRecords, keySize, recordSize, numFiles                                 | 4-5 hours | Code Compiles, Solo deployed CNs/NLG onto Latitude |
-| HCSLoadTest                | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml)  | nlg-accounts                                                                      | 2 hours   | NftTransferLoadTest                                |
-| CryptoTransferLoadTest     | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml)  | nlg-accounts                                                                      | 2 hours   | HCSLoadTest                                        |
-| HeliSwapLoadTest           | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml)  | nlg-accounts                                                                      | 6 hours   | CryptoTransferLoadTest                             |
-| SmartContractLoadTest      | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml)  | nlg-accounts                                                                      | 2 hours   | HeliSwapLoadTest                                   |
-| State  Validator           | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml)  |                                                                                   | 30 mins   | All previous tests passed                          |
+
+|       Test Name        |                                              Workflow                                              |                Required Parameters                | Run time  |                  Precursor Steps                   |
+|------------------------|----------------------------------------------------------------------------------------------------|---------------------------------------------------|-----------|----------------------------------------------------|
+| NftTransferLoadTest    | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts                                      | 6 hours   | Code Compiles, Solo deployed CNs/NLG onto Latitude |
+| CryptoBench            | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | maxKey, numRecords, keySize, recordSize, numFiles | 4-5 hours | Code Compiles, Solo deployed CNs/NLG onto Latitude |
+| HCSLoadTest            | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts                                      | 2 hours   | NftTransferLoadTest                                |
+| CryptoTransferLoadTest | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts                                      | 2 hours   | HCSLoadTest                                        |
+| HeliSwapLoadTest       | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts                                      | 6 hours   | CryptoTransferLoadTest                             |
+| SmartContractLoadTest  | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts                                      | 2 hours   | HeliSwapLoadTest                                   |
+| State  Validator       | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) |                                                   | 30 mins   | All previous tests passed                          |
 
 ## MDLT
+
 ### Environment
 
 - MDLT runs inside of self-hosted github runners on demand, against any PR, tag, or branch, assuming release candidate
@@ -143,16 +153,20 @@ Latitude kubernetes cluster
 
 ### Workflows
 
-- SDLT is triggered by the [ZXF: [CITR] Single Day Longevity Test Controller](/.github/workflows/zxf-single-day-longevity-test-controller.yaml) workflow.
-- SDLT Dry Run is triggered manually via the [ZXF: [CITR] Adhoc - Single Day Longevity Test Controller](/.github/workflows/zxf-single-day-longevity-test-controller-adhoc.yaml) workflow.
+- MDLT is triggered by the [ZXF: [CITR] Single Day Longevity Test Controller](/.github/workflows/zxf-single-day-longevity-test-controller.yaml) workflow.
+- MDLT Dry Run is triggered manually via the [ZXF: [CITR] Adhoc - Single Day Longevity Test Controller](/.github/workflows/zxf-single-day-longevity-test-controller-adhoc.yaml) workflow.
 
 ### Hardware
+
 Latitude kubernetes cluster
 - 7 nodes for Consensus Nodes
 - 1 node for aux services and NLG client
+
 ### Included Tests
-| Test Name                    |                                              Workflow                                               |                                Required Parameters                               | Run time  | Precursor Steps                                    |
-|------------------------------|-----------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------|-----------|----------------------------------------------------|
-| LongevityLoadTest            | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml)      |    nlg-accounts                                                                  | 7 days    | Code Compiles, Solo deployed CNs/NLG onto Latitude |
-| State Validator              | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml)      |                                                                                  | 1.5 hours | LongevityLoadTest |
+
+|     Test Name     |                                            Workflow                                            | Required Parameters | Run time  |                  Precursor Steps                   |
+|-------------------|------------------------------------------------------------------------------------------------|---------------------|-----------|----------------------------------------------------|
+| LongevityLoadTest | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml) | nlg-accounts        | 7 days    | Code Compiles, Solo deployed CNs/NLG onto Latitude |
+| State Validator   | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml) |                     | 1.5 hours | LongevityLoadTest                                  |
+
 ## Shortgevity
