@@ -189,7 +189,6 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      * This version number should be used to handle compatibility issues that may arise from any future changes
      */
     public static class ClassVersion {
-        public static final int REHASH_LEAVES = 3;
         public static final int NO_VIRTUAL_ROOT_NODE = 4;
     }
 
@@ -1579,8 +1578,8 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             @NonNull final SerializableDataInputStream in, @NonNull final Path inputDirectory, final int version)
             throws IOException {
 
-        if (version < ClassVersion.REHASH_LEAVES) {
-            throw new UnsupportedOperationException("Version must be at least ClassVersion.REHASH_LEAVES");
+        if (version < ClassVersion.NO_VIRTUAL_ROOT_NODE) {
+            throw new UnsupportedOperationException("Version must be at least ClassVersion.NO_VIRTUAL_ROOT_NODE");
         }
 
         final int fileNameLengthInBytes = in.readInt();
