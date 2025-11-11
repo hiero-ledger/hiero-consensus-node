@@ -109,7 +109,7 @@ jobs:
           RESULT="${{ needs.run-single-day-longevity-test.outputs.result }}"
           BUILD_NUM="${{ needs.verify-tag.outputs.build-number }}"
 
-          if [ "$RESULT" == "success" ]; then
+          if [[ "$RESULT" == "success" ]]; then
             TAG_NAME="mqlt-pass-${BUILD_NUM}"
             MSG="Merge Queue Longevity Test passed for build-${BUILD_NUM}"
           elif [ "$RESULT" == "failure" ]; then
