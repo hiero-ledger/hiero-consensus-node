@@ -100,7 +100,7 @@ public record PlatformComponents(
         ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring,
         ComponentWiring<InlinePcesWriter, PlatformEvent> pcesInlineWriterWiring,
         ComponentWiring<BranchReporter, Void> branchReporterWiring) {
-    private static final int LOW_TPS_TARGET_ROUNDS = 20; // Trigger backpressure after N rounds at low TPS
+    private static final int LOW_TPS_TARGET_ROUNDS = 25; // Trigger backpressure after N rounds at low TPS
     /**
      * Bind components to the wiring.
      *
@@ -227,24 +227,12 @@ public record PlatformComponents(
         final long capacity = schedulerConfiguration.unhandledTaskCapacity() == null
                 ? 0L
                 : schedulerConfiguration.unhandledTaskCapacity();
-        final double lowTpsPenalty = (double) capacity / LOW_TPS_TARGET_ROUNDS;
+        final double lowTpsPenalty = (double) capacity / LOW_TPS_TARGET_ROUNDS; //2500
 
-        // The following is a trick that assures that at low tps, we can still detect unhealthy status for this
-        // component.
-        // We assume a LOW_TPS_TARGET_ROUNDS value as unhealthy target rounds limit, lowTpsPenalty calculated as:
-        // capacity / LOW_TPS_TARGET_ROUNDS gives us the max weight to assign a low tps round.
-        // lowTpsPenaltyValue value is calculated dividing lowTpsPenalty to the log10 of the number of transactions,
-        // that gives us an increasing denominator that does not increase too fast but still allows the calculated count
-        // to represent a higher value the lower the transactions in a round
         return data -> {
             if (data instanceof final ConsensusRound consensusRound) {
 
-                // Inverse penalty: high value at low TPS, low value at high TPS
-                // values of unhandled_task_count metric associated to this component can be misleading at low tps
-                final double lowTpsPenaltyValue =
-                        Math.ceil(lowTpsPenalty / Math.log10(Math.max(consensusRound.getNumAppTransactions(), 10)));
-
-                return (long) Math.max(lowTpsPenaltyValue, consensusRound.getNumAppTransactions());
+                return (long) Math.max(lowTpsPenalty, consensusRound.getNumAppTransactions());
             }
             return 1L;
         };
