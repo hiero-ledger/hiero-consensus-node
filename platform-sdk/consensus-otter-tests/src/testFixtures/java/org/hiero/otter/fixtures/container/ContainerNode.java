@@ -47,6 +47,7 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.Node;
+import org.hiero.otter.fixtures.ProfilerEvent;
 import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.app.OtterTransaction;
@@ -123,6 +124,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     /** A source of randomness for the node */
     private final Random random;
 
+    /** The profiler for this node */
+    private final ContainerProfiler profiler;
+
     /**
      * Constructor for the {@link ContainerNode} class.
      *
@@ -168,6 +172,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
         // Blocking stub for initializing and killing the consensus node
         containerControlBlockingStub = ContainerControlServiceGrpc.newBlockingStub(containerControlChannel);
+
+        profiler = new ContainerProfiler(selfId, container, localOutputDirectory);
     }
 
     /**
@@ -462,6 +468,25 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     @NonNull
     public SingleNodeReconnectResult newReconnectResult() {
         return new SingleNodeReconnectResultImpl(selfId, newPlatformStatusResult(), newLogResult());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void startProfiling(
+            @NonNull final String outputFilename,
+            @NonNull final Duration samplingInterval,
+            @NonNull final ProfilerEvent... events) {
+        profiler.startProfiling(outputFilename, samplingInterval, events);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void stopProfiling() {
+        profiler.stopProfiling();
     }
 
     /**
