@@ -307,7 +307,7 @@ class StateFileManagerTests {
 
                     final SignedState stateFromDisk = assertDoesNotThrow(
                             () -> SignedStateFileReader.readState(
-                                            savedStateInfo.getDirectory(),
+                                            savedStateInfo.stateDirectory(),
                                             TestVirtualMapState::new,
                                             TEST_PLATFORM_STATE_FACADE,
                                             context)
