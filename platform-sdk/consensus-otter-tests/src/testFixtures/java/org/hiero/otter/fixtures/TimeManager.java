@@ -23,6 +23,18 @@ public interface TimeManager {
     void waitFor(@NonNull Duration waitTime);
 
     /**
+     * Wait for a specified duration in real time.
+     *
+     * <p>This method behaves the same as {@link #waitFor(Duration)} but is explicitly intended for use cases where
+     * * real time waiting is required, regardless of the time management strategy in use.
+     *
+     * @param waitTime the duration to wait
+     */
+    default void waitForRealTime(@NonNull final Duration waitTime) {
+        waitFor(waitTime);
+    }
+
+    /**
      * Wait for a condition to become {@code true} within a specified time.
      *
      * @param condition the condition to wait for, which should return {@code true} when the condition is met

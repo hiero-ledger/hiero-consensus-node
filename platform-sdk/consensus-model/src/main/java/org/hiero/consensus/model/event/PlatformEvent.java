@@ -64,6 +64,9 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      */
     private long nGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
 
+    /** Index in the timestamp collection table, -1 if not tracked */
+    private int timestampIndex = -1;
+
     /**
      * Construct a new instance from an unsigned event and a signature.
      *
@@ -106,6 +109,24 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
         this.senderId = null;
         this.consensusData = NO_CONSENSUS;
         Objects.requireNonNull(gossipEvent.eventCore(), "The eventCore must not be null");
+    }
+
+    /**
+     * Get the timestamp index
+     *
+     * @return the timestamp index
+     */
+    public int getTimestampIndex() {
+        return timestampIndex;
+    }
+
+    /**
+     * Set the timestamp index
+     *
+     * @param timestampIndex the timestamp index
+     */
+    public void setTimestampIndex(final int timestampIndex) {
+        this.timestampIndex = timestampIndex;
     }
 
     /**

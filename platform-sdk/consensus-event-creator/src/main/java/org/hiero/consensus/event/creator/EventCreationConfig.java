@@ -35,8 +35,8 @@ import java.time.Duration;
  */
 @ConfigData("event.creation")
 public record EventCreationConfig(
-        @ConfigProperty(defaultValue = "20") double maxCreationRate,
-        @ConfigProperty(defaultValue = "100") double creationAttemptRate,
+        @ConfigProperty(defaultValue = "1000") double maxCreationRate,
+        @ConfigProperty(defaultValue = "1000") double creationAttemptRate,
         @ConfigProperty(defaultValue = "10") double antiSelfishnessFactor,
         @ConfigProperty(defaultValue = "10") int tipsetSnapshotHistorySize,
         @ConfigProperty(defaultValue = "1024") int eventIntakeThrottle,

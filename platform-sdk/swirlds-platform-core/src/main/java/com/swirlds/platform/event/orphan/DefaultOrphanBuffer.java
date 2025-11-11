@@ -7,6 +7,8 @@ import static org.hiero.consensus.model.event.NonDeterministicGeneration.assignN
 import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.gossip.IntakeEventCounter;
+import com.swirlds.platform.util.TimestampCollector;
+import com.swirlds.platform.util.TimestampCollector.Position;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -101,6 +103,7 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
         if (missingParents.isEmpty()) {
             return eventIsNotAnOrphan(event);
         } else {
+            TimestampCollector.INSTANCE.timestamp(Position.ORPHAN_BUFFER_ENTERED, event);
             final OrphanedEvent orphanedEvent = new OrphanedEvent(event, missingParents);
             for (final EventDescriptorWrapper missingParent : missingParents) {
                 this.missingParentMap.computeIfAbsent(missingParent, EMPTY_LIST).add(orphanedEvent);
@@ -208,6 +211,8 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
                 intakeEventCounter.eventExitedIntakePipeline(event.getSenderId());
                 continue;
             }
+
+            TimestampCollector.INSTANCE.timestamp(Position.ORPHAN_BUFFER_RELEASED, event);
 
             unorphanedEvents.add(nonOrphan);
             eventsWithParents.put(nonOrphanDescriptor, nonOrphan);

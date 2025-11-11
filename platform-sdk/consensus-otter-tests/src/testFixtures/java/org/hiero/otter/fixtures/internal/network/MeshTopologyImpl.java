@@ -21,9 +21,9 @@ import org.hiero.otter.fixtures.network.MeshTopology;
  */
 public class MeshTopologyImpl implements MeshTopology {
 
-    private static final Duration AVERAGE_NETWORK_DELAY = Duration.ofMillis(200);
+    private static final Duration AVERAGE_NETWORK_DELAY = Duration.ofMillis(0);
     private static final ConnectionData DEFAULT =
-            new ConnectionData(true, AVERAGE_NETWORK_DELAY, Percentage.withPercentage(5), UNLIMITED_BANDWIDTH);
+            new ConnectionData(true, AVERAGE_NETWORK_DELAY, Percentage.withPercentage(0), UNLIMITED_BANDWIDTH);
 
     private final Function<Integer, List<? extends Node>> nodeFactory;
     private final Supplier<InstrumentedNode> instrumentedNodeFactory;

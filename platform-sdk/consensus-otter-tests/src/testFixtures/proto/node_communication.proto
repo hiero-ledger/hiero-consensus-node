@@ -220,4 +220,7 @@ service NodeCommunicationService {
 
   // RPC to control quiescence of the node.
   rpc QuiescenceCommandUpdate(QuiescenceRequest) returns (google.protobuf.Empty);
+
+  // RPC to dump timestamps file
+  rpc DumpTimestamps(google.protobuf.Empty) returns (google.protobuf.Empty);
 }

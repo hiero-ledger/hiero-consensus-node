@@ -10,7 +10,7 @@ import java.util.List;
  *
  * @param services A comma-separated list of service class names to include in the Otter application.
  */
-@ConfigData("event")
+@ConfigData("otter.app")
 public record OtterAppConfig(
         @ConfigProperty(
                         defaultValue = "org.hiero.otter.fixtures.app.services.consistency.ConsistencyService,"

@@ -501,6 +501,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                     Path.of("build", "container", NODE_IDENTIFIER_FORMAT.formatted(selfId.id()));
             downloadConsensusFiles(localOutputDirectory);
             downloadConsistencyServiceFiles(localOutputDirectory);
+            downloadTimestampFile(localOutputDirectory);
         } catch (final IOException e) {
             throw new UncheckedIOException("Failed to copy files from container", e);
         }
@@ -560,6 +561,10 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         final Path historyFilePath = historyFileDirectory.resolve(consistencyServiceConfig.historyFileName());
         copyFileFromContainerIfExists(
                 localOutputDirectory, historyFilePath.toString(), consistencyServiceConfig.historyFileName());
+    }
+
+    private void downloadTimestampFile(@NonNull final Path localOutputDirectory) {
+        copyFileFromContainerIfExists(localOutputDirectory, "timestamps.csv");
     }
 
     private void copyFileFromContainerIfExists(
@@ -636,5 +641,14 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         } catch (final IllegalArgumentException e) {
             log.warn("Received unknown platform status: {}", statusName);
         }
+    }
+
+    /**
+     * Notifies the node to dump its timestamps file for analysis.
+     */
+    @SuppressWarnings("ResultOfMethodCallIgnored")
+    public void dumpTimestampsFile() {
+        log.info("Sending command to dump timestamps file on node {}", selfId);
+        nodeCommBlockingStub.dumpTimestamps(Empty.getDefaultInstance());
     }
 }

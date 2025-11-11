@@ -157,6 +157,15 @@ public class ContainerNetwork extends AbstractNetwork {
     }
 
     /**
+     * Notifies all nodes in the network to dump their timestamps file for analysis.
+     */
+    public void dumpTimestampsFile() {
+        for (final Node node : nodes()) {
+            ((ContainerNode) node).dumpTimestampsFile();
+        }
+    }
+
+    /**
      * Shuts down the network and cleans up resources. Once this method is called, the network cannot be started again.
      * This method is idempotent and can be called multiple times without any side effects.
      */

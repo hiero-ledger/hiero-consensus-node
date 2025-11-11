@@ -13,6 +13,8 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.platform.gossip.IntakeEventCounter;
+import com.swirlds.platform.util.TimestampCollector;
+import com.swirlds.platform.util.TimestampCollector.Position;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -266,11 +268,17 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
     @Override
     @Nullable
     public PlatformEvent validateEvent(@NonNull final PlatformEvent event) {
+
+        TimestampCollector.INSTANCE.timestamp(Position.EVENT_HASHED, event);
+
         if (areRequiredFieldsNonNull(event)
                 && areByteFieldsCorrectLength(event)
                 && isTransactionByteCountValid(event)
                 && areParentsInternallyConsistent(event)
                 && isEventBirthRoundValid(event)) {
+
+            TimestampCollector.INSTANCE.timestamp(Position.EVENT_VALIDATED, event);
+
             return event;
         } else {
             intakeEventCounter.eventExitedIntakePipeline(event.getSenderId());

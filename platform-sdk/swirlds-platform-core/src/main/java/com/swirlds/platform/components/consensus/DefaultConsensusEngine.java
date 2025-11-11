@@ -16,6 +16,8 @@ import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.ConsensusEngineMetrics;
 import com.swirlds.platform.metrics.ConsensusMetrics;
 import com.swirlds.platform.metrics.ConsensusMetricsImpl;
+import com.swirlds.platform.util.TimestampCollector;
+import com.swirlds.platform.util.TimestampCollector.Position;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -98,6 +100,8 @@ public class DefaultConsensusEngine implements ConsensusEngine {
     @NonNull
     public ConsensusEngineOutput addEvent(@NonNull final PlatformEvent event) {
         Objects.requireNonNull(event);
+
+        TimestampCollector.INSTANCE.timestamp(Position.EVENT_ADDED_TO_HASHGRAPH, event);
 
         if (freezeRoundController.isFrozen()) {
             // If we are frozen, ignore all events

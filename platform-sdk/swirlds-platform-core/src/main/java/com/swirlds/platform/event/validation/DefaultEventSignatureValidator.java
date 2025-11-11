@@ -11,6 +11,8 @@ import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.gossip.IntakeEventCounter;
+import com.swirlds.platform.util.TimestampCollector;
+import com.swirlds.platform.util.TimestampCollector.Position;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.PublicKey;
@@ -158,6 +160,9 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
         }
 
         if (isSignatureValid(event)) {
+
+            TimestampCollector.INSTANCE.timestamp(Position.SIGNATURE_VALIDATED, event);
+
             return event;
         } else {
             intakeEventCounter.eventExitedIntakePipeline(event.getSenderId());
