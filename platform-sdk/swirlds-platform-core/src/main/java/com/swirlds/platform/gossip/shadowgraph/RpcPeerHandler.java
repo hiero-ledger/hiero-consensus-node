@@ -334,6 +334,9 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         // protocol, so nobody will broadcast events to us anymore
         this.syncMetrics.broadcastEventReceived();
         final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
+
+        TimestampCollector.INSTANCE.register(platformEvent);
+
         eventHandler.accept(platformEvent);
     }
 
@@ -473,7 +476,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
         platformEvent.setSenderId(peerId);
 
-        TimestampCollector.INSTANCE.register(platformEvent);
+//        TimestampCollector.INSTANCE.register(platformEvent);
 
         this.intakeEventCounter.eventEnteredIntakePipeline(peerId);
         eventHandler.accept(platformEvent);
