@@ -170,9 +170,17 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
             logToConsole(() -> log.info("Starting node {}...", selfId));
 
+            InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
+                if (Objects.equals(logEntry.nodeId(), selfId)) {
+                    resultsCollector.addLogEntry(logEntry);
+                }
+                return lifeCycle == DESTROYED ? UNSUBSCRIBE : CONTINUE;
+            });
+
             // Log the startup message using the same STARTUP marker and message as production nodes
             // Uses a platform logger to ensure it routes through per-node appenders
             startupLogger.info(LogMarker.STARTUP.getMarker(), "\n\n" + StaticPlatformBuilder.STARTUP_MESSAGE + "\n");
+
             if (savedStateDirectory != null) {
                 try {
                     OtterSavedStateUtils.copySaveState(selfId, savedStateDirectory, outputDirectory);
@@ -295,13 +303,6 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             "nodePlatformStatusCollector",
                             "platformStatus",
                             wrapConsumerWithNodeContext(this::handlePlatformStatusChange));
-
-            InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
-                if (Objects.equals(logEntry.nodeId(), selfId)) {
-                    resultsCollector.addLogEntry(logEntry);
-                }
-                return lifeCycle == DESTROYED ? UNSUBSCRIBE : CONTINUE;
-            });
 
             platform = platformComponentBuilder.build();
             platformStatus = PlatformStatus.STARTING_UP;
