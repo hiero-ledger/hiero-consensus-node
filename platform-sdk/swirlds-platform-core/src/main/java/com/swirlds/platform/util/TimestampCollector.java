@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.util;
 
+import static java.util.Objects.requireNonNull;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
@@ -12,6 +14,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A singleton class for collecting timestamps of various events during the processing of platform events.
@@ -78,6 +81,17 @@ public enum TimestampCollector {
     private final long[][] timestamps = new long[MAX_ELEMENTS][Position.values().length];
     private final AtomicBoolean done = new AtomicBoolean(false);
 
+    private NodeId selfId;
+
+    /**
+     * Initialize the {@code TimestampCollector}
+     *
+     * @param selfId the {@link NodeId} of the node
+     */
+    public void init(@NonNull final NodeId selfId) {
+        this.selfId = requireNonNull(selfId);
+    }
+
     /**
      * Registers a new event for timestamp collection.
      *
@@ -87,13 +101,15 @@ public enum TimestampCollector {
     public int register(@NonNull final PlatformEvent event) {
         if (System.nanoTime() > WARMUP_NANOS) {
             final long count = counter.incrementAndGet();
-            if (count < MAX_ELEMENTS && count % TimestampCollector.GAP == 0) {
+            if (count % TimestampCollector.GAP == 0) {
                 final int index = (int) (count / TimestampCollector.GAP);
-                event.setTimestampIndex(index);
-                timestamp(Position.GOSSIP_ENTERED, event);
-                return index;
-            } else if (count == MAX_ELEMENTS) {
-                store();
+                if (index < MAX_ELEMENTS) {
+                    event.setTimestampIndex(index);
+                    timestamp(Position.GOSSIP_ENTERED, event);
+                    return index;
+                } else if (index == MAX_ELEMENTS) {
+                    store();
+                }
             }
         }
         return -1;
@@ -117,10 +133,8 @@ public enum TimestampCollector {
      */
     public void store() {
         if (done.compareAndSet(false, true)) {
-            try (final BufferedWriter writer = new BufferedWriter(new FileWriter("timestamps.csv"))) {
-                final String heading = Stream.of(Position.values())
-                        .skip(1L)
-                        .map(Position::toString)
+            try (final BufferedWriter writer = new BufferedWriter(new FileWriter("timestamps" + selfId.id() + ".csv"))) {
+                final String heading = Stream.of(Position.values()).skip(1L).map(Position::toString)
                         .collect(Collectors.joining(","));
                 writer.write(heading);
                 writer.newLine();
