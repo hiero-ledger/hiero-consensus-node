@@ -621,7 +621,7 @@ class BlockStreamManagerImplTest {
                     return bWriter;
                 })
                 .when(bWriter)
-                .writePbjItemAndBytes(any(), any());
+                .writePbjItem(any());
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
 
@@ -977,7 +977,7 @@ class BlockStreamManagerImplTest {
                     return aWriter;
                 })
                 .when(aWriter)
-                .writePbjItemAndBytes(any(), any());
+                .writePbjItem(any());
 
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
@@ -1041,7 +1041,7 @@ class BlockStreamManagerImplTest {
                     return aWriter;
                 })
                 .when(aWriter)
-                .writePbjItemAndBytes(any(), any());
+                .writePbjItem(any());
 
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
@@ -1111,7 +1111,7 @@ class BlockStreamManagerImplTest {
                     return aWriter;
                 })
                 .when(aWriter)
-                .writePbjItemAndBytes(any(), any());
+                .writePbjItem(any());
 
         doAnswer(invocationOnMock -> {
                     final var item = BlockItem.PROTOBUF.parse((Bytes) invocationOnMock.getArgument(1));
@@ -1121,7 +1121,7 @@ class BlockStreamManagerImplTest {
                     return bWriter;
                 })
                 .when(bWriter)
-                .writePbjItemAndBytes(any(), any());
+                .writePbjItem(any());
 
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
@@ -1176,7 +1176,7 @@ class BlockStreamManagerImplTest {
                     return aWriter;
                 })
                 .when(aWriter)
-                .writePbjItemAndBytes(any(), any());
+                .writePbjItem(any());
 
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
@@ -1245,7 +1245,7 @@ class BlockStreamManagerImplTest {
                     return aWriter;
                 })
                 .when(aWriter)
-                .writePbjItemAndBytes(any(), any());
+                .writePbjItem(any());
         lenient().when(state.getWritableStates(BlockStreamService.NAME)).thenReturn(writableStates);
         lenient().when(state.getReadableStates(BlockStreamService.NAME)).thenReturn(readableStates);
         lenient().when(state.getReadableStates(PlatformStateService.NAME)).thenReturn(readableStates);
