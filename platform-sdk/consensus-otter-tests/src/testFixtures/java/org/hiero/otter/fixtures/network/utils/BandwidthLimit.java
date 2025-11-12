@@ -99,6 +99,27 @@ public class BandwidthLimit implements Comparable<BandwidthLimit> {
      * {@inheritDoc}
      */
     @Override
+    public boolean equals(final Object o) {
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        final BandwidthLimit that = (BandwidthLimit) o;
+        return kilobytesPerSecond == that.kilobytesPerSecond;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int hashCode() {
+        return kilobytesPerSecond;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public String toString() {
         return "BandwidthLimit{" + "KB/s=" + kilobytesPerSecond + '}';
     }
