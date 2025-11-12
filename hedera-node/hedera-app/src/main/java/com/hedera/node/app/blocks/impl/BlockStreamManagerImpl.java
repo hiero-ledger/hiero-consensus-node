@@ -107,6 +107,16 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     private static final Logger log = LogManager.getLogger(BlockStreamManagerImpl.class);
     public static final Bytes NULL_HASH = Bytes.wrap(new byte[HASH_SIZE]);
+    private static final Bytes DEPTH_2_NODE_2_COMBINED;
+
+    static {
+        // For the future reserved roots, compute the combined hash of the subroot at depth 2,node 2. This hash will
+        // then combine with the subroot containing the block data at the end of each round
+        final Bytes combinedNullHash = BlockImplUtils.combine(NULL_HASH, NULL_HASH);
+        final Bytes depth3Node3 = BlockImplUtils.combine(combinedNullHash, combinedNullHash);
+        final Bytes depth3Node4 = BlockImplUtils.combine(combinedNullHash, combinedNullHash);
+        DEPTH_2_NODE_2_COMBINED = BlockImplUtils.combine(depth3Node3, depth3Node4);
+    }
 
     private final int roundsPerBlock;
     private final Duration blockPeriod;
@@ -1175,28 +1185,19 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final var depth4Node3 = BlockImplUtils.combine(inputsHash, outputsHash);
         final var depth4Node4 = BlockImplUtils.combine(stateChangesHash, traceDataHash);
 
-        final var combinedNulls = BlockImplUtils.combine(NULL_HASH, NULL_HASH);
-        final var depth4Node5 = combinedNulls;
-        final var depth4Node6 = combinedNulls;
-        final var depth4Node7 = combinedNulls;
-        final var depth4Node8 = combinedNulls;
-
         // Compute depth three hashes
         final var depth3Node1 = BlockImplUtils.combine(depth4Node1, depth4Node2);
         final var depth3Node2 = BlockImplUtils.combine(depth4Node3, depth4Node4);
-        final var depth3Node3 = BlockImplUtils.combine(depth4Node5, depth4Node6);
-        final var depth3Node4 = BlockImplUtils.combine(depth4Node7, depth4Node8);
 
         // Compute depth two hashes
         final var depth2Node1 = BlockImplUtils.combine(depth3Node1, depth3Node2);
-        final var depth2Node2 = BlockImplUtils.combine(depth3Node3, depth3Node4);
 
         // Compute depth one hashes
-        final var timestamp = Timestamp.PROTOBUF.toBytes(firstConsensusTimeOfCurrentBlock);
-        final var depth1Node0 = noThrowSha384HashOf(timestamp);
-        final var depth1Node1 = BlockImplUtils.combine(depth2Node1, depth2Node2);
+        final var depth1Node1 = BlockImplUtils.combine(depth2Node1, DEPTH_2_NODE_2_COMBINED);
 
         // Compute the block's root hash
+        final var timestamp = Timestamp.PROTOBUF.toBytes(firstConsensusTimeOfCurrentBlock);
+        final var depth1Node0 = noThrowSha384HashOf(timestamp);
         final var rootHash = BlockImplUtils.combine(depth1Node0, depth1Node1);
         return new RootAndSiblingHashes(rootHash, new MerkleSiblingHash[] {
             // Level 5 first sibling (right child)
@@ -1206,7 +1207,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Level 3 first sibling (right child)
             new MerkleSiblingHash(false, depth3Node2),
             // Level 2 first sibling (right child)
-            new MerkleSiblingHash(false, depth2Node2)
+            new MerkleSiblingHash(false, DEPTH_2_NODE_2_COMBINED)
         });
     }
 

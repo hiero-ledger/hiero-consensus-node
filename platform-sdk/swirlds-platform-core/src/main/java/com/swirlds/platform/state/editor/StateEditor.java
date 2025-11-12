@@ -42,17 +42,17 @@ public class StateEditor {
     /**
      * Create a new state editor.
      *
-     * @param statePath the path where the signed state can be found
+     * @param stateDirPath the directory path where the signed state can be found
      */
     @SuppressWarnings("java:S106")
-    public StateEditor(final Path statePath) throws IOException {
+    public StateEditor(final Path stateDirPath) throws IOException {
 
         final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
 
         platformContext = PlatformContext.create(configuration);
 
-        final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readStateFile(
-                statePath,
+        final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readState(
+                stateDirPath,
                 (virtualMap) -> {
                     // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
                     throw new UnsupportedOperationException();
@@ -61,7 +61,7 @@ public class StateEditor {
                 platformContext);
 
         try (final ReservedSignedState reservedSignedState = deserializedSignedState.reservedSignedState()) {
-            System.out.println("\nLoading state from " + statePath);
+            System.out.println("\nLoading state from " + stateDirPath);
             signedState.set(reservedSignedState.get(), "StateEditor constructor");
             System.out.println("Hashing state");
             try {
