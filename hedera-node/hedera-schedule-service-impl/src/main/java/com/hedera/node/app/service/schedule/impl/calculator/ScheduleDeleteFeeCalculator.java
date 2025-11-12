@@ -13,19 +13,19 @@ import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
-public class ScheduleSignFeeCalculator implements ServiceFeeCalculator {
+public class ScheduleDeleteFeeCalculator implements ServiceFeeCalculator {
     @Override
     public void accumulateServiceFee(
             @NonNull final TransactionBody txnBody,
             @Nullable final CalculatorState calculatorState,
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
-        final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.SCHEDULE_SIGN);
-        feeResult.addServiceFee("Base Fee for " + HederaFunctionality.SCHEDULE_SIGN, 1, serviceDef.baseFee());
+        final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.SCHEDULE_DELETE);
+        feeResult.addServiceFee("Base Fee for " + HederaFunctionality.SCHEDULE_DELETE, 1, serviceDef.baseFee());
     }
 
     @Override
     public TransactionBody.DataOneOfType getTransactionType() {
-        return TransactionBody.DataOneOfType.SCHEDULE_SIGN;
+        return TransactionBody.DataOneOfType.SCHEDULE_DELETE;
     }
 }

@@ -14,6 +14,7 @@ import com.hedera.node.app.service.schedule.ScheduleServiceApi;
 import com.hedera.node.app.service.schedule.ScheduleStreamBuilder;
 import com.hedera.node.app.service.schedule.WritableScheduleStore;
 import com.hedera.node.app.service.schedule.impl.calculator.ScheduleCreateFeeCalculator;
+import com.hedera.node.app.service.schedule.impl.calculator.ScheduleDeleteFeeCalculator;
 import com.hedera.node.app.service.schedule.impl.calculator.ScheduleSignFeeCalculator;
 import com.hedera.node.app.service.schedule.impl.handlers.ScheduleHandlers;
 import com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema;
@@ -288,6 +289,7 @@ public final class ScheduleServiceImpl implements ScheduleService {
 
     @Override
     public Set<ServiceFeeCalculator> serviceFeeCalculators() {
-        return Set.of(new ScheduleCreateFeeCalculator(), new ScheduleSignFeeCalculator());
+        return Set.of(
+                new ScheduleCreateFeeCalculator(), new ScheduleSignFeeCalculator(), new ScheduleDeleteFeeCalculator());
     }
 }

@@ -200,6 +200,13 @@
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1 }
           ]
+        },
+        {
+          "name": "ScheduleDelete",
+          "baseFee": 100000,
+          "extras": [
+            { "name": "SIGNATURES", "includedCount": 1 }
+          ]
         }
       ]
     }
