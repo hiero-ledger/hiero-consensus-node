@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.util;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -117,7 +118,9 @@ public enum TimestampCollector {
     public void store() {
         if (done.compareAndSet(false, true)) {
             try (final BufferedWriter writer = new BufferedWriter(new FileWriter("timestamps.csv"))) {
-                final String heading = Stream.of(Position.values()).skip(1L).map(Position::toString)
+                final String heading = Stream.of(Position.values())
+                        .skip(1L)
+                        .map(Position::toString)
                         .collect(Collectors.joining(","));
                 writer.write(heading);
                 writer.newLine();

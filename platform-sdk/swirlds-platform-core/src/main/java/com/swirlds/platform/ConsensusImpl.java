@@ -570,7 +570,8 @@ public class ConsensusImpl implements Consensus {
             if (countingVote.isSupermajority()) {
                 // we've decided one famous event. Set it as famous.
                 candidateWitness.fameDecided(votingWitness.getVote(candidateWitness));
-                TimestampCollector.INSTANCE.timestamp(Position.FAME_DECIDED, candidateWitness.getWitness().getBaseEvent());
+                TimestampCollector.INSTANCE.timestamp(
+                        Position.FAME_DECIDED, candidateWitness.getWitness().getBaseEvent());
                 if (roundElections.isDecided()) {
                     // this round has been decided
                     consensusMetrics.lastFamousInRound(candidateWitness.getWitness());
