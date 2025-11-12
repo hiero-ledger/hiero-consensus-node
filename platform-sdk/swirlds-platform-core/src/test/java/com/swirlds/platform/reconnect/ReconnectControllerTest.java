@@ -284,7 +284,7 @@ class ReconnectControllerTest {
         // Start controller
         final var controllerRunnable = RunnableCompletionControl.unblocked(() -> {
             try (final var ignored = mockStatic(SignedStateFileReader.class)) {
-               controller.run();
+                controller.run();
             }
         });
 
