@@ -17,7 +17,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
 
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager.BlockNodeConnectionTask;
@@ -864,8 +863,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         task.run();
 
         verify(connection).createRequestPipeline();
+        verify(connection).getBlockNodeConnectionConfig();
+        verify(connection).closeAtBlockBoundary();
         verify(executorService).schedule(eq(task), anyLong(), eq(TimeUnit.MILLISECONDS));
-        verify(connection).close(true);
         verify(metrics).recordConnectionCreateFailure();
 
         verifyNoMoreInteractions(connection);

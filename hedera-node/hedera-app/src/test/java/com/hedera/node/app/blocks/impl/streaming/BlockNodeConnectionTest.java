@@ -1819,13 +1819,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         // Ensure publish stream returns pipeline
         lenient().doReturn(requestPipeline).when(grpcServiceClient).publishBlockStream(connection);
 
-        // Start the connection to trigger worker construction
-        final AtomicReference<Thread> workerThreadRef = workerThreadRef();
-        workerThreadRef.set(null);
-        connection.createRequestPipeline();
-        connection.updateConnectionState(ConnectionState.ACTIVE);
-
-        // Feed one item just over configuredMax to force fatal branch if limit not respected
+        // Set up block state BEFORE starting worker thread to avoid race condition
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
         streamingBlockNumber.set(5);
         final BlockState block = new BlockState(5);
@@ -1835,6 +1829,12 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final BlockItem tooLarge = newBlockTxItem(configuredMax + 10);
         block.addItem(tooLarge);
         doReturn(block).when(bufferService).getBlockState(5);
+
+        // Start the connection to trigger worker construction (after mocks are set up)
+        final AtomicReference<Thread> workerThreadRef = workerThreadRef();
+        workerThreadRef.set(null);
+        connection.createRequestPipeline();
+        connection.updateConnectionState(ConnectionState.ACTIVE);
 
         // Allow worker loop to run
         Thread.sleep(250);

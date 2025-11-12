@@ -246,7 +246,6 @@ public class BlockNodeConnectionManager {
 
             final byte[] jsonConfig = Files.readAllBytes(configPath);
             final BlockNodeConnectionInfo protoConfig = BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(jsonConfig));
-            List<BlockNodeProtocolConfig> nodes = new ArrayList<>();
             for (BlockNodeConfig nodeConfig : protoConfig.nodes()) {
                 nodes.add(new BlockNodeProtocolConfig(
                         nodeConfig,
