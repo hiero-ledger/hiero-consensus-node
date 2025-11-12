@@ -145,6 +145,7 @@ public class VirtualMapState implements MerkleNodeState {
     public VirtualMapState(@NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics) {
         this.virtualMap = requireNonNull(virtualMap);
         this.metrics = requireNonNull(metrics);
+        this.virtualMap.registerMetrics(metrics);
     }
 
     /**

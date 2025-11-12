@@ -63,10 +63,11 @@ public final class TestingAppStateInitializer {
             registry.registerConstructable(
                     new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(configuration)));
             registry.registerConstructable(new ClassConstructorPair(
-                    MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(configuration)));
-            registry.registerConstructable(new ClassConstructorPair(
                     VirtualNodeCache.class,
                     () -> new VirtualNodeCache(configuration.getConfigData(VirtualMapConfig.class))));
+            ConstructableRegistry.getInstance()
+                    .registerConstructable(new ClassConstructorPair(
+                            MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(configuration)));
         } catch (ConstructableRegistryException e) {
             throw new IllegalStateException(e);
         }

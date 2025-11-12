@@ -10,8 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.route.MerkleRoute;
@@ -20,12 +18,9 @@ import com.swirlds.merkledb.test.fixtures.ExampleFixedValue;
 import com.swirlds.merkledb.test.fixtures.ExampleLongKey;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
-import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.internal.merkle.VirtualInternalNode;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -38,8 +33,6 @@ import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -56,9 +49,6 @@ class VirtualMapSerializationTests {
         registry.registerConstructables("com.swirlds.virtualmap");
         registry.registerConstructables("com.swirlds.common");
         registry.registerConstructables("org.hiero");
-        ConstructableRegistry.getInstance()
-                .registerConstructable(new ClassConstructorPair(
-                        MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(CONFIGURATION)));
         registry.registerConstructable(new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(CONFIGURATION)));
         registry.registerConstructable(new ClassConstructorPair(
                 VirtualNodeCache.class,
@@ -68,11 +58,11 @@ class VirtualMapSerializationTests {
     /**
      * Create a new virtual map data source builder.
      */
-    public static MerkleDbDataSourceBuilder constructBuilder() throws IOException {
+    public static MerkleDbDataSourceBuilder constructBuilder() {
         return constructBuilder(CONFIGURATION);
     }
 
-    public static MerkleDbDataSourceBuilder constructBuilder(final Configuration configuration) throws IOException {
+    public static MerkleDbDataSourceBuilder constructBuilder(final Configuration configuration) {
         return new MerkleDbDataSourceBuilder(configuration, 10_000, Long.MAX_VALUE);
     }
 
@@ -153,24 +143,6 @@ class VirtualMapSerializationTests {
         return map;
     }
 
-    @Test
-    @DisplayName("Serialize Data Source Builder")
-    void serializeDataSourceBuilder() throws IOException {
-        final VirtualDataSourceBuilder builder = constructBuilder();
-
-        final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
-
-        out.writeSerializable(builder, true);
-
-        final SerializableDataInputStream in =
-                new SerializableDataInputStream(new ByteArrayInputStream(byteOut.toByteArray()));
-
-        final VirtualDataSourceBuilder deserializedBuilder = in.readSerializable();
-
-        assertEquals(builder, deserializedBuilder, "expected deserialized builder to match the original");
-    }
-
     /**
      * Make sure the comparison utility function works as expected.
      */
@@ -209,14 +181,10 @@ class VirtualMapSerializationTests {
         final Path savedStateDirectory =
                 LegacyTemporaryFileBuilder.buildTemporaryDirectory("saved-state", CONFIGURATION);
 
-        final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final MerkleDataOutputStream out = new MerkleDataOutputStream(byteOut);
-
         // Make sure the map is hashed
         map.getHash();
 
-        out.writeMerkleTree(savedStateDirectory, map);
-        out.flush();
+        map.createSnapshot(savedStateDirectory);
 
         try (final Stream<Path> filesInDirectory = Files.list(savedStateDirectory)) {
             List<Path> list = filesInDirectory.toList();
@@ -224,9 +192,8 @@ class VirtualMapSerializationTests {
             assertFalse(list.isEmpty(), "there should be a non-zero number of files created");
         }
 
-        final MerkleDataInputStream in = new MerkleDataInputStream(new ByteArrayInputStream(byteOut.toByteArray()));
-
-        final VirtualMap deserializedMap = in.readMerkleTree(savedStateDirectory, Integer.MAX_VALUE);
+        final VirtualMap deserializedMap =
+                VirtualMap.loadFromDirectory(savedStateDirectory, CONFIGURATION, () -> constructBuilder(CONFIGURATION));
 
         assertMapsAreEqual(map, deserializedMap);
 

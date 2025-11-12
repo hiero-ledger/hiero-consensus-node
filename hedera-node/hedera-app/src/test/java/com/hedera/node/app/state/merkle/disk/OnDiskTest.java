@@ -73,6 +73,7 @@ class OnDiskTest extends MerkleTestBase {
     private Schema schema;
     private StateDefinition<AccountID, Account> def;
     private VirtualMap virtualMap;
+    private MerkleDbDataSourceBuilder builder;
 
     @BeforeEach
     void setUp() throws IOException {
@@ -89,7 +90,7 @@ class OnDiskTest extends MerkleTestBase {
             }
         };
 
-        final var builder = new MerkleDbDataSourceBuilder(CONFIGURATION, 100, 0);
+        builder = new MerkleDbDataSourceBuilder(CONFIGURATION, 100, 0);
         virtualMap =
                 new VirtualMap(StateMetadata.computeLabel(TokenService.NAME, ACCOUNTS_KEY), builder, CONFIGURATION);
 
@@ -145,7 +146,7 @@ class OnDiskTest extends MerkleTestBase {
         virtualMap.getHash();
 
         final var snapshotDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory("snapshot", CONFIGURATION);
-        final byte[] serializedBytes = writeTree(virtualMap, snapshotDir);
+        virtualMap.createSnapshot(snapshotDir);
 
         // Before we can read the data back, we need to register the data types
         // I plan to deserialize.
@@ -155,8 +156,8 @@ class OnDiskTest extends MerkleTestBase {
         virtualMap.release();
 
         // read it back now as our map and validate the data come back fine
-        virtualMap = parseTree(serializedBytes, snapshotDir);
-        final var rs = new OnDiskReadableKVState<AccountID, Account>(
+        virtualMap = VirtualMap.loadFromDirectory(snapshotDir, CONFIGURATION, () -> builder);
+        final var rs = new OnDiskReadableKVState<>(
                 ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL, AccountID.PROTOBUF, Account.PROTOBUF, virtualMap);
         for (int i = 0; i < 10; i++) {
             final var id = AccountID.newBuilder().accountNum(i).build();

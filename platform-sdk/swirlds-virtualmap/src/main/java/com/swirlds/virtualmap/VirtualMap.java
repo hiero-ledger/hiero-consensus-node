@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap;
 
+import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
+import static com.hedera.pbj.runtime.ProtoWriterTools.writeLong;
+import static com.hedera.pbj.runtime.ProtoWriterTools.writeString;
 import static com.swirlds.common.io.streams.StreamDebugUtils.deserializeAndDebugOnFailure;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
@@ -18,11 +21,15 @@ import static com.swirlds.virtualmap.internal.Path.getSiblingPath;
 import static com.swirlds.virtualmap.internal.Path.isLeft;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MINUTES;
-import static org.hiero.base.utility.CommonUtils.getNormalisedStringBytes;
 
 import com.hedera.pbj.runtime.Codec;
+import com.hedera.pbj.runtime.FieldDefinition;
+import com.hedera.pbj.runtime.FieldType;
+import com.hedera.pbj.runtime.MalformedProtobufException;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.common.io.ExternalSelfSerializable;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.utility.FileUtils;
@@ -73,11 +80,13 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.channels.ClosedByInterruptException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -85,6 +94,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -163,6 +173,13 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         implements CustomReconnectRoot<Long, Long>, ExternalSelfSerializable, Labeled, MerkleInternal, VirtualRoot {
 
     private static final String NO_NULL_KEYS_ALLOWED_MESSAGE = "Null keys are not allowed";
+
+    public static final String METADATA_FILE_NAME = "virtual_map_metadata.pbj";
+
+    private static final FieldDefinition FIELD_METADATA_LABEL =
+            new FieldDefinition("label", FieldType.STRING, false, true, false, 1);
+    private static final FieldDefinition FIELD_METADATA_FAST_COPY_VERSION =
+            new FieldDefinition("fastCopyVersion", FieldType.UINT64, false, true, false, 2);
 
     /**
      * Used for serialization.
@@ -347,8 +364,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      * This can <strong>only</strong> be called as part of serialization and reconnect, not for normal use.
      */
     public VirtualMap(final @NonNull Configuration configuration) {
-        requireNonNull(configuration);
-        this.configuration = configuration;
+        this.configuration = requireNonNull(configuration);
 
         this.fastCopyVersion = 0;
         // Hasher is required during reconnects
@@ -367,11 +383,11 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      * @param configuration platform configuration
      */
     public VirtualMap(
-            final String label,
-            final VirtualDataSourceBuilder dataSourceBuilder,
+            final @NonNull String label,
+            final @NonNull VirtualDataSourceBuilder dataSourceBuilder,
             final @NonNull Configuration configuration) {
-        requireNonNull(configuration);
-        this.configuration = configuration;
+        requireNonNull(label);
+        this.configuration = requireNonNull(configuration);
 
         if (label.length() > MAX_LABEL_CHARS) {
             throw new IllegalArgumentException("Label cannot be greater than 512 characters");
@@ -383,6 +399,31 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         this.flushCandidateThreshold.set(virtualMapConfig.copyFlushCandidateThreshold());
         this.dataSourceBuilder = requireNonNull(dataSourceBuilder);
         this.metadata = new VirtualMapMetadata(label);
+        postInit();
+    }
+
+    private VirtualMap(
+            final @NonNull String label,
+            final @NonNull VirtualDataSourceBuilder dataSourceBuilder,
+            final @NonNull Configuration configuration,
+            final long fastCopyVersion,
+            final @NonNull Path snapshotPath) {
+        requireNonNull(label);
+        requireNonNull(dataSourceBuilder);
+        requireNonNull(snapshotPath);
+
+        this.configuration = requireNonNull(configuration);
+        this.fastCopyVersion = fastCopyVersion;
+        this.hasher = new VirtualHasher();
+        this.virtualMapConfig = requireNonNull(configuration.getConfigData(VirtualMapConfig.class));
+        this.flushCandidateThreshold.set(virtualMapConfig.copyFlushCandidateThreshold());
+        this.dataSourceBuilder = requireNonNull(dataSourceBuilder);
+        this.metadata = new VirtualMapMetadata(label);
+        this.cache = new VirtualNodeCache(virtualMapConfig, fastCopyVersion);
+        this.dataSource = dataSourceBuilder.build(label, snapshotPath, true, false);
+        metadata.setLastLeafPath(dataSource.getLastLeafPath());
+        metadata.setFirstLeafPath(dataSource.getFirstLeafPath());
+
         postInit();
     }
 
@@ -1111,8 +1152,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      */
     @Override
     public RecordAccessor detach() {
-        final Path snapshotPath = dataSourceSnapshot();
-        final VirtualDataSource dataSourceCopy = dataSourceBuilder.build(getLabel(), snapshotPath, false, false);
+        final VirtualDataSource dataSourceCopy = dataSourceBuilder.build(getLabel(), null, false, false);
         final VirtualNodeCache cacheSnapshot = cache.snapshot();
         return new RecordAccessor(metadata.copy(), cacheSnapshot, dataSourceCopy);
     }
@@ -1490,75 +1530,68 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         return copy;
     }
 
-    @Override
-    public MerkleNode migrate(int version) {
-        if (version < ClassVersion.NO_VIRTUAL_ROOT_NODE) {
-            // removing VirtualMapMetadata
-            super.setChild(0, null);
-            // removing VirtualRootNode
-            super.setChild(1, null);
+    /**
+     * Creates a snapshot of the current virtual map
+     * @param outputDirectory target snapshot directory
+     * @throws IOException for IO errors
+     */
+    public void createSnapshot(@NonNull final Path outputDirectory) throws IOException {
+        final ValueReference<VirtualNodeCache> cacheSnapshot = new ValueReference<>();
+        final Path snapshotPath = pipeline.pausePipelineAndRun("detach", () -> {
+            // Lifecycle thread is paused, no cache flushes/merges, it's safe to take cache snapshot
+            cacheSnapshot.setValue(cache.snapshot());
+            // And make a data source snapshot. The snapshot is not loaded here, though, it is
+            // done below
+            return dataSourceSnapshot();
+        });
+
+        // build(), flush() and snapshot() below are called outside pausePipelineAndRun() to
+        // unpause the lifecycle thread as quickly as possible. If the lifecycle thread is paused
+        // for too long, unhandled copies pile up in the virtual pipeline, which triggers size
+        // backpressure mechanism
+        VirtualDataSource dataSourceCopy = null;
+        try {
+            // Restore a data source into memory from the snapshot. It will use its own directory
+            // to store data files
+            dataSourceCopy = dataSourceBuilder.build(getLabel(), snapshotPath, false, true);
+            // Then flush the cache snapshot to the data source copy
+            flush(cacheSnapshot.getValue(), metadata, dataSourceCopy);
+            // And finally snapshot the copy to the target dir
+            dataSourceBuilder.snapshot(outputDirectory, dataSourceCopy);
+        } finally {
+            // Delete the snapshot directory
+            FileUtils.deleteDirectory(snapshotPath);
+            // And delete the data source copy directory
+            if (dataSourceCopy != null) {
+                dataSourceCopy.close();
+            }
         }
 
-        return this;
+        final File metadataFile = outputDirectory.resolve(METADATA_FILE_NAME).toFile();
+
+        try (final WritableStreamingData out =
+                new WritableStreamingData(new BufferedOutputStream(new FileOutputStream(metadataFile)))) {
+            writeString(out, FIELD_METADATA_LABEL, metadata.getLabel());
+            writeLong(out, FIELD_METADATA_FAST_COPY_VERSION, cache.getFastCopyVersion());
+        }
     }
 
     /**
      * {@inheritDoc}
+     * @deprecated use {@link #createSnapshot(Path)} instead
      */
+    @Deprecated(forRemoval = true)
     @Override
     public void serialize(@NonNull final SerializableDataOutputStream out, @NonNull final Path outputDirectory)
             throws IOException {
-
-        // Create and write to state the name of the file we will expect later on deserialization
-        final String outputFileName = metadata.getLabel() + ".vmap";
-        final byte[] outputFileNameBytes = getNormalisedStringBytes(outputFileName);
-        out.writeInt(outputFileNameBytes.length);
-        out.writeNormalisedString(outputFileName);
-
-        // Write the virtual map and sub nodes
-        final Path outputFile = outputDirectory.resolve(outputFileName);
-        try (SerializableDataOutputStream serout =
-                new SerializableDataOutputStream(new BufferedOutputStream(new FileOutputStream(outputFile.toFile())))) {
-            // FUTURE WORK: get rid of the label once we migrate to Virtual Mega Map
-            serout.writeNormalisedString(metadata.getLabel());
-            serout.writeLong(metadata.getSize());
-            final ValueReference<VirtualNodeCache> cacheSnapshot = new ValueReference<>();
-            final Path snapshotPath = pipeline.pausePipelineAndRun("detach", () -> {
-                // Lifecycle thread is paused, no cache flushes/merges, it's safe to take cache snapshot
-                cacheSnapshot.setValue(cache.snapshot());
-                // And make a data source snapshot. The snapshot is not loaded here, though, it is
-                // done below
-                return dataSourceSnapshot();
-            });
-            // build(), flush() and snapshot() below are called outside pausePipelineAndRun() to
-            // unpause the lifecycle thread as quickly as possible. If the lifecycle thread is paused
-            // for too long, unhandled copies pile up in the virtual pipeline, which triggers size
-            // backpressure mechanism
-            VirtualDataSource dataSourceCopy = null;
-            try {
-                // Restore a data source into memory from the snapshot. It will use its own directory
-                // to store data files
-                dataSourceCopy = dataSourceBuilder.build(getLabel(), snapshotPath, false, true);
-                // Then flush the cache snapshot to the data source copy
-                flush(cacheSnapshot.getValue(), metadata, dataSourceCopy);
-                // And finally snapshot the copy to the target dir
-                dataSourceBuilder.snapshot(outputDirectory, dataSourceCopy);
-            } finally {
-                // Delete the snapshot directory
-                FileUtils.deleteDirectory(snapshotPath);
-                // And delete the data source copy directory
-                if (dataSourceCopy != null) {
-                    dataSourceCopy.close();
-                }
-            }
-            serout.writeSerializable(dataSourceBuilder, true);
-            serout.writeLong(cache.getFastCopyVersion());
-        }
+        throw new UnsupportedOperationException("Use createSnapshot instead");
     }
 
     /**
      * {@inheritDoc}
+     * @deprecated use {@link #loadFromDirectory(Path, Configuration, Supplier)} instead
      */
+    @Deprecated(forRemoval = true)
     @Override
     public void deserialize(
             @NonNull final SerializableDataInputStream in, @NonNull final Path inputDirectory, final int version)
@@ -1575,18 +1608,61 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
     }
 
     /**
+     * @param snapshotDirectory directory of the snapshot
+     * @return true if the snapshot format is pre-0.70 version
+     */
+    public static boolean isOldFormat(@NonNull final Path snapshotDirectory) {
+        return !Files.exists(snapshotDirectory.resolve(METADATA_FILE_NAME));
+    }
+
+    public static VirtualMap loadFromDirectory(
+            @NonNull final Path snapshotPath,
+            @NonNull final Configuration configuration,
+            @NonNull Supplier<VirtualDataSourceBuilder> dataSourceBuilderSupplier)
+            throws IOException {
+        final Path stateMetadataFile = snapshotPath.resolve(METADATA_FILE_NAME);
+
+        if (isOldFormat(snapshotPath)) {
+            throw new IllegalArgumentException("State metadata file does not exist: " + stateMetadataFile);
+        }
+
+        long fastCopyVersion = 0;
+        String label = null;
+        try (final ReadableStreamingData in = new ReadableStreamingData(stateMetadataFile)) {
+            while (in.hasRemaining()) {
+                final int tag = in.readVarInt(false);
+                final int fieldNum = tag >> TAG_FIELD_OFFSET;
+                if (fieldNum == FIELD_METADATA_FAST_COPY_VERSION.number()) {
+                    fastCopyVersion = in.readVarLong(false);
+                } else if (fieldNum == FIELD_METADATA_LABEL.number()) {
+                    final int length = in.readVarInt(false);
+                    label = in.readBytes(length).asUtf8String();
+                } else {
+                    throw new MalformedProtobufException("Unknown data source metadata field: " + fieldNum);
+                }
+            }
+            if (label == null) {
+                throw new MalformedProtobufException("VirtualMap state metadata file is missing label field");
+            }
+        }
+        return new VirtualMap(label, dataSourceBuilderSupplier.get(), configuration, fastCopyVersion, snapshotPath);
+    }
+
+    /**
      * Deserializes the given serialized VirtualMap file into this map instance. This is not intended for
      * public use, it is for testing and tools only.
      *
      * @param inputFile              The input .vmap file. Cannot be null.
      * @throws IOException For problems.
+     * @deprecated use {@link #loadFromDirectory} instead
      */
+    @Deprecated(forRemoval = true)
     public void loadFromFile(@NonNull final Path inputFile) throws IOException {
         deserializeAndDebugOnFailure(
                 () -> new SerializableDataInputStream(new BufferedInputStream(new FileInputStream(inputFile.toFile()))),
                 (final MerkleDataInputStream stream) -> {
                     // This instance of `VirtualMapMetadata` will have a label only,
-                    // it's necessary to initialize a datasource in `VirtualRootNode
+                    // it's necessary to initialize a datasource in VirtualMap
                     final String label = requireNonNull(stream.readNormalisedString(MAX_LABEL_CHARS));
                     final long stateSize = stream.readLong();
                     loadFromFileV4(inputFile, stream, new VirtualMapMetadata(label, stateSize));
