@@ -160,9 +160,9 @@ Latitude kubernetes cluster
 
 ### Runtime durations, practical settings
 
-- 1 hour with arguments: nlg-time=3 (mins), nlg-accounts=100000
-- 10 hours : nlg-time=180 (mins), nlg-accounts=100000000
-- 20 hours: nlg-time=330, nlg-accounts=100000000
+- 1 hour with arguments: nlg-time=3 (mins), nlg-accounts=100000, files=60
+- 10 hours : nlg-time=180 (mins), nlg-accounts=100000000, files=600
+- 20 hours: nlg-time=330, nlg-accounts=100000000, files=6000
 
 ## MDLT
 
