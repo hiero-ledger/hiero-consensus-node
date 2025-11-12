@@ -120,16 +120,8 @@ public class TransactionDispatcher {
         try {
             final var handler = getHandler(feeContext.body());
             if (shouldUseSimpleFees(feeContext)) {
-                FeeResult feeResult;
-                // TODO: Temporary fallback for consensus services. Fee calculators should be implemented for all
-                // consensus services
-                try {
-                    feeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
-                            .calculateTxFee(feeContext.body(), feeContext);
-                } catch (Exception ex) {
-                    // No ServiceFeeCalculator for this operation - temporary fall back for consensus services
-                    feeResult = handler.calculateFeeResult(feeContext);
-                }
+                final var feeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
+                        .calculateTxFee(feeContext.body(), feeContext);
                 return feeResultToFees(feeResult, fromPbj(feeContext.activeRate()));
             }
             return handler.calculateFees(feeContext);
@@ -144,12 +136,8 @@ public class TransactionDispatcher {
         }
 
         return switch (feeContext.body().data().kind()) {
-            case CONSENSUS_CREATE_TOPIC,
-                    CONSENSUS_SUBMIT_MESSAGE,
-                    CONSENSUS_UPDATE_TOPIC,
-                    CONSENSUS_DELETE_TOPIC,
-                    CRYPTO_DELETE,
-                    CRYPTO_CREATE_ACCOUNT -> true;
+            case CRYPTO_DELETE,
+                 CRYPTO_CREATE_ACCOUNT -> true;
             default -> false;
         };
     }
