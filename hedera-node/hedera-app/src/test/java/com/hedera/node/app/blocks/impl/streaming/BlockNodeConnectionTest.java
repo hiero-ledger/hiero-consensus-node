@@ -1822,6 +1822,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         }
         assertThat(totalItems).isEqualTo(8);
 
+        verify(metrics).recordRequestExceedsHardLimit();
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
         verify(metrics, times(5)).recordRequestLatency(anyLong());

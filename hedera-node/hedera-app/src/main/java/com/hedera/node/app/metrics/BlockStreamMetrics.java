@@ -572,10 +572,16 @@ public class BlockStreamMetrics {
         connSend_failureCounter.increment();
     }
 
+    /**
+     * Record that a pending request with multiple items exceeds the configured soft limit size.
+     */
     public void recordMultiItemRequestExceedsSoftLimit() {
         connSend_multiItemRequestExceedsSoftLimitCounter.increment();
     }
 
+    /**
+     * Record that a pending request has exceeded the hard limit size.
+     */
     public void recordRequestExceedsHardLimit() {
         connSend_requestExceedsHardLimitCounter.increment();
     }

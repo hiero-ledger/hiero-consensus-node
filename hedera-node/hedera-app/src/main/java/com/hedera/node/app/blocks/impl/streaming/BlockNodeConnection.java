@@ -796,7 +796,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
                 return true;
             } catch (final RuntimeException e) {
-                logger.error(e);
                 /*
                 There is a possible, and somewhat expected, race condition when one thread is attempting to close this
                 connection while a request is being sent on another thread. Because of this, an exception may get thrown
@@ -1027,9 +1026,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
     @Override
     public String toString() {
-        return "[" + connectionId + "/"
-                + nodeConfig.address() + ":"
-                + nodeConfig.port() + "/" + getConnectionState() + "]";
+        return "[" + connectionId + "/" + nodeConfig.address() + ":" + nodeConfig.port() + "/" + getConnectionState()
+                + "]";
     }
 
     @Override
@@ -1093,6 +1091,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     hardLimitBytes,
                     requestBasePaddingBytes,
                     requestItemPaddingBytes);
+
             while (true) {
                 try {
                     if (connectionState.get().isTerminal()) {
@@ -1123,6 +1122,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         }
 
         /**
+         * Main entry for the worker task. This will attempt to send blocks to a block node as well as additional
+         * "housekeeping" like switching which block we actively stream.
          *
          * @return true if the worker should sleep before trying to do more work, else false if the worker should not
          * sleep and instead immediately try to do more work
@@ -1159,8 +1160,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
                 final int itemSize = item.protobufSize() + requestItemPaddingBytes;
                 final long newRequestBytes = pendingRequestBytes + itemSize;
-                logger.trace(
-                        "{} ItemSize: {}, NewRequestBytes: {}", BlockNodeConnection.this, itemSize, newRequestBytes);
 
                 if (itemSize > hardLimitBytes) {
                     // the item exceeds the absolute max request size (even without accounting for request overhead)
@@ -1171,6 +1170,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     } catch (final Exception e) {
                         // ignore exception... we are about to close the connection
                     }
+                    blockStreamMetrics.recordRequestExceedsHardLimit();
                     logger.error(
                             "{} !!! FATAL: Block item exceeds max message size hard limit; closing connection (block={}, itemIndex={}, itemSize={}, sizeHardLimit={})",
                             BlockNodeConnection.this,
@@ -1341,6 +1341,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                         BlockNodeConnection.this,
                         reqBytes,
                         pendingRequestItems.size());
+                // remove the last item from the pending item set and update state to reflect the removal of the item
                 final BlockItem item = pendingRequestItems.removeLast();
                 --itemIndex;
                 pendingRequestBytes -= (item.protobufSize() + requestItemPaddingBytes);
