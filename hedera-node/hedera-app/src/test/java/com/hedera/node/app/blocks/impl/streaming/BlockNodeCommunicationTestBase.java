@@ -14,7 +14,6 @@ import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.hedera.node.internal.network.BlockNodeConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -168,15 +167,21 @@ public abstract class BlockNodeCommunicationTestBase {
         return BlockItem.newBuilder().blockProof(proof).build();
     }
 
-    protected static BlockNodeConfig newBlockNodeConfig(final String host, final int port, final int priority) {
-        return BlockNodeConfig.newBuilder()
-                .address(host)
-                .port(port)
-                .priority(priority)
-                .build();
+    protected static BlockNodeConfiguration newBlockNodeConfig(final int port, final int priority) {
+        return newBlockNodeConfig("localhost", port, priority);
     }
 
-    protected static BlockNodeProtocolConfig newBlockNodeConfig(final int port, final int priority) {
-        return new BlockNodeProtocolConfig(newBlockNodeConfig("localhost", port, priority), null);
+    protected static BlockNodeConfiguration newBlockNodeConfig(final String address, final int port, final int priority) {
+        return newBlockNodeConfig(address, port, priority, BlockNodeConnectionManager.DEFAULT_MESSAGE_SOFT_LIMIT_BYTES, BlockNodeConnectionManager.DEFAULT_MESSAGE_HARD_LIMIT_BYTES);
+    }
+
+    protected static BlockNodeConfiguration newBlockNodeConfig(final String address, final int port, final int priority, final long messageSoftLimitBytes, final long messageHardLimitBytes) {
+        return BlockNodeConfiguration.newBuilder()
+                .address(address)
+                .port(port)
+                .priority(priority)
+                .messageSizeSoftLimitBytes(messageSoftLimitBytes)
+                .messageSizeHardLimitBytes(messageHardLimitBytes)
+                .build();
     }
 }
