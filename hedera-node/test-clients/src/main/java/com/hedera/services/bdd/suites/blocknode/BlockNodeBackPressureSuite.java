@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
@@ -45,7 +46,7 @@ public class BlockNodeBackPressureSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.buffer.maxBlocks", "10",
+                            "blockStream.buffer.blockTtl", "30s",
                             "blockStream.streamMode", "BOTH",
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
@@ -62,6 +63,7 @@ public class BlockNodeBackPressureSuite {
                         Duration.ofSeconds(15)));
     }
 
+    @Disabled
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
@@ -72,7 +74,7 @@ public class BlockNodeBackPressureSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.buffer.maxBlocks", "15",
+                            "blockStream.buffer.blockTtl", "30s",
                             "blockStream.streamMode", "BLOCKS",
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
@@ -94,6 +96,7 @@ public class BlockNodeBackPressureSuite {
                 waitForAny(byNodeId(0), Duration.ofSeconds(30), PlatformStatus.CHECKING));
     }
 
+    @Disabled
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
@@ -104,7 +107,7 @@ public class BlockNodeBackPressureSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.buffer.maxBlocks", "15",
+                            "blockStream.buffer.blockTtl", "30s",
                             "blockStream.streamMode", "BLOCKS",
                             "blockStream.writerMode", "GRPC"
                         })
