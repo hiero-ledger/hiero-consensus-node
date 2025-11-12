@@ -10,8 +10,8 @@ import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
-import com.swirlds.platform.TimestampCollector;
 import com.swirlds.platform.crypto.CryptoStatic;
+import com.swirlds.platform.util.TimestampCollector;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
 import java.io.IOException;
@@ -94,7 +94,7 @@ public class Speedrun implements Callable<Integer> {
         System.out.println("Waiting 5 sec. for processing to finish");
         Thread.sleep(5000);
 
-        TimestampCollector.store();
+        TimestampCollector.INSTANCE.store();
 
         return 0;
     }
