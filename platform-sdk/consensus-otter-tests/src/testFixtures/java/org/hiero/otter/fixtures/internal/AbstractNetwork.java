@@ -176,16 +176,13 @@ public abstract class AbstractNetwork implements Network {
         }
 
         // Dispatch to appropriate implementation based on configuration type
-        if (configuration instanceof MeshTopologyConfiguration meshConfig) {
-            this.currentTopology = new MeshTopologyImpl(meshConfig, this::createNodes, this::createInstrumentedNode);
-        } else if (configuration instanceof GeoMeshTopologyConfiguration geoConfig) {
-            final GeoMeshTopologyImpl geoTopology =
-                    new GeoMeshTopologyImpl(random, this::createNodes, this::createInstrumentedNode);
-            geoTopology.setGeographicLatencyConfiguration(geoConfig);
-            this.currentTopology = geoTopology;
-        } else {
-            throw new IllegalArgumentException("Unknown topology configuration type: " + configuration.getClass());
-        }
+        this.currentTopology = switch (configuration) {
+            case MeshTopologyConfiguration meshConfig ->
+                    new MeshTopologyImpl(meshConfig, this::createNodes, this::createInstrumentedNode);
+            case GeoMeshTopologyConfiguration geoConfig ->
+                    new GeoMeshTopologyImpl(geoConfig, random, this::createNodes, this::createInstrumentedNode);
+            default -> throw new IllegalArgumentException("Unknown topology configuration type: " + configuration.getClass());
+        };
 
         return this;
     }
