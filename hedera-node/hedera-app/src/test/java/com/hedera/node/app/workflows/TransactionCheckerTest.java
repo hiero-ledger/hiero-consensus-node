@@ -1048,6 +1048,34 @@ final class TransactionCheckerTest extends AppTestBase {
         @DisplayName("Governance Transaction Size Limit Tests")
         class GovernanceTransactionSizeLimitTests {
             // Required test scenarios for governance transactions
+
+            @Test
+            void oversizedTransactionWithPrivilegedPayerFails() {
+                // Given governance transactions enabled, privileged payer, transaction > 130KB
+                props = () -> new VersionedConfigImpl(
+                        HederaTestConfigBuilder.create()
+                                .withValue("governanceTransactions.isEnabled", true)
+                                .withValue("governanceTransactions.maxTxnSize", MAX_LARGE_TX_SIZE) // 130 KB
+                                .withValue("hedera.transaction.maxBytes", MAX_TX_SIZE) // 6 KB
+                                .getOrCreateConfig(),
+                        1);
+
+                checker = new TransactionChecker(props, metrics);
+                final var txInfo = mock(TransactionInfo.class);
+                when(txInfo.signedTx())
+                        .thenReturn(SignedTransaction.newBuilder()
+                                .bodyBytes(Bytes.wrap(new byte[1024 * 131])) // 131 KB transaction
+                                .build());
+                when(txInfo.functionality()).thenReturn(CRYPTO_TRANSFER);
+
+                // When checking transaction size even before the payer is known, it fails early validation
+                assertThatThrownBy(() -> checker.checkTransactionSize(txInfo))
+                        .isInstanceOf(PreCheckException.class)
+                        .has(responseCode(TRANSACTION_OVERSIZE));
+
+                assertThat(counterMetric("NonPrivilegedOversizedTxnsRcv").get()).isZero();
+            }
+
             @Test
             void oversizedTransactionWithNonPrivilegedPayerFails() throws PreCheckException {
                 // Given governance transactions enabled, non-privileged payer, transaction > 6KB (not exempt)
@@ -1071,6 +1099,13 @@ final class TransactionCheckerTest extends AppTestBase {
                         .accountNum(1000) // Non-privileged account
                         .build();
 
+                final var systemDeleteAdminAccountNum = props.getConfiguration()
+                        .getConfigData(AccountsConfig.class)
+                        .systemDeleteAdmin();
+                final var systemDeleteAdminAccountId = AccountID.newBuilder()
+                        .accountNum(systemDeleteAdminAccountNum) // Non-privileged account
+                        .build();
+
                 // When checking transaction size before the payer is known, it passes early validation
                 checker.checkTransactionSize(txInfo);
 
@@ -1078,6 +1113,14 @@ final class TransactionCheckerTest extends AppTestBase {
                 assertThatThrownBy(() -> checker.checkTransactionSizeLimitBasedOnPayer(txInfo, nonPrivilegedAccountId))
                         .isInstanceOf(PreCheckException.class)
                         .has(responseCode(TRANSACTION_OVERSIZE));
+                // When checking transaction size limit based on payer, it also fails for the system delete admin
+                // account
+                assertThatThrownBy(
+                                () -> checker.checkTransactionSizeLimitBasedOnPayer(txInfo, systemDeleteAdminAccountId))
+                        .isInstanceOf(PreCheckException.class)
+                        .has(responseCode(TRANSACTION_OVERSIZE));
+
+                assertThat(counterMetric("NonPrivilegedOversizedTxnsRcv").get()).isEqualTo(2L);
             }
 
             @Test
@@ -1102,49 +1145,24 @@ final class TransactionCheckerTest extends AppTestBase {
                 final long treasuryAccountNum = props.getConfiguration()
                         .getConfigData(AccountsConfig.class)
                         .treasury();
+                final long systemAdminAccountNum = props.getConfiguration()
+                        .getConfigData(AccountsConfig.class)
+                        .treasury();
 
-                final var privilegedAccountId = AccountID.newBuilder()
+                final var treasuryAccountId = AccountID.newBuilder()
                         .accountNum(treasuryAccountNum) // Treasury account (privileged)
+                        .build();
+                final var systemAdminAccountId = AccountID.newBuilder()
+                        .accountNum(systemAdminAccountNum) // Treasury account (privileged)
                         .build();
 
                 // When checking transaction size before the payer is known, it passes early validation
                 checker.checkTransactionSize(txInfo);
 
                 // When checking transaction size limit based on payer, it passes for privileged payer
-                assertDoesNotThrow(() -> checker.checkTransactionSizeLimitBasedOnPayer(txInfo, privilegedAccountId));
-            }
-
-            @Test
-            void oversizedTransactionWithPrivilegedPayerFails() {
-                // Given governance transactions enabled, privileged payer, transaction > 130KB
-                props = () -> new VersionedConfigImpl(
-                        HederaTestConfigBuilder.create()
-                                .withValue("governanceTransactions.isEnabled", true)
-                                .withValue("governanceTransactions.maxTxnSize", MAX_LARGE_TX_SIZE) // 130 KB
-                                .withValue("hedera.transaction.maxBytes", MAX_TX_SIZE) // 6 KB
-                                .getOrCreateConfig(),
-                        1);
-
-                checker = new TransactionChecker(props, metrics);
-                final var txInfo = mock(TransactionInfo.class);
-                when(txInfo.signedTx())
-                        .thenReturn(SignedTransaction.newBuilder()
-                                .bodyBytes(Bytes.wrap(new byte[1024 * 131])) // 131 KB transaction
-                                .build());
-                when(txInfo.functionality()).thenReturn(CRYPTO_TRANSFER);
-
-                final long systemAdminAccountNum = props.getConfiguration()
-                        .getConfigData(AccountsConfig.class)
-                        .systemAdmin();
-
-                final var privilegedAccountId = AccountID.newBuilder()
-                        .accountNum(systemAdminAccountNum) // SystemAdmin account (privileged)
-                        .build();
-
-                // When checking transaction size even before the payer is known, it fails early validation
-                assertThatThrownBy(() -> checker.checkTransactionSize(txInfo))
-                        .isInstanceOf(PreCheckException.class)
-                        .has(responseCode(TRANSACTION_OVERSIZE));
+                assertDoesNotThrow(() -> checker.checkTransactionSizeLimitBasedOnPayer(txInfo, treasuryAccountId));
+                assertDoesNotThrow(() -> checker.checkTransactionSizeLimitBasedOnPayer(txInfo, systemAdminAccountId));
+                assertThat(counterMetric("NonPrivilegedOversizedTxnsRcv").get()).isZero();
             }
         }
     }

@@ -45,7 +45,8 @@ if (jumboTxnIsEnabled && jumboTxnConfig.grpcMethodNames().contains(methodName)) 
     addMethod(builder, serviceName, methodName, method, jumboMarshaller);
 } else {
     // add regular transaction methods
-    method = new TransactionMethod(serviceName, methodName, ingestWorkflow, metrics, messageMaxSize);
+    final int transactionMaxSize = governanceTxnIsEnabled ? governanceTxnMaxSize : messageMaxSize;
+    method = new TransactionMethod(serviceName, methodName, ingestWorkflow, metrics, transactionMaxSize);
     addMethod(builder, serviceName, methodName, method, marshaller);
 }
 ```
@@ -56,13 +57,17 @@ if (jumboTxnIsEnabled && jumboTxnConfig.grpcMethodNames().contains(methodName)) 
 
 ```java
 private static int maxIngestParseSize(Configuration configuration) {
-    final var jumboTxnEnabled =
+    final boolean jumboTxnEnabled =
             configuration.getConfigData(JumboTransactionsConfig.class).isEnabled();
-    final var jumboMaxTxnSize =
+    final int jumboMaxTxnSize =
             configuration.getConfigData(JumboTransactionsConfig.class).maxTxnSize();
-    final var transactionMaxBytes =
+    final int transactionMaxBytes =
             configuration.getConfigData(HederaConfig.class).transactionMaxBytes();
-    return jumboTxnEnabled ? jumboMaxTxnSize : transactionMaxBytes;
+    final boolean governanceTxnEnabled =
+            configuration.getConfigData(GovernanceTransactionsConfig.class).isEnabled();
+    final int governanceTxnSize =
+            configuration.getConfigData(GovernanceTransactionsConfig.class).maxTxnSize();
+    return governanceTxnEnabled ? governanceTxnSize : jumboTxnEnabled ? jumboMaxTxnSize : transactionMaxBytes;
 }
 ```
 
@@ -74,35 +79,41 @@ if (buffer.length() > maxSize) {
 ```
 
 - Inside the `TransactionChecker.checkParsed` method, validate the size limit and the functionality of the transaction.
+- The performed validations are based on\
+  two feature flags: `jumboTransactions` and `governanceTransactions`
+- For more context on how governance transactions work, refer to: [Governance Transactions](../../../governance-transactions.md)
 
 ```java
 void checkTransactionSize(TransactionInfo txInfo) throws PreCheckException {
     final int txSize = txInfo.signedTx().protobufSize();
-        final HederaFunctionality functionality = txInfo.functionality();
-        final boolean isJumboTxnEnabled = jumboTransactionsConfig.isEnabled();
-        final boolean isGovernanceTxnEnabled = governanceTransactionsConfig.isEnabled();
-        boolean exceedsLimit = false;
+    final HederaFunctionality functionality = txInfo.functionality();
+    final boolean isJumboTxnEnabled = jumboTransactionsConfig.isEnabled();
+    final var allowedJumboHederaFunctionalities = jumboTransactionsConfig.allowedHederaFunctionalities();
+    final boolean isGovernanceTxnEnabled = governanceTransactionsConfig.isEnabled();
+    boolean exceedsLimit;
 
-        if (!isJumboTxnEnabled && !isGovernanceTxnEnabled) {
-            exceedsLimit = txSize > hederaConfig.transactionMaxBytes()
-                    && !NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(functionality);
-        }
+    // If neither jumbo nor governance features are enabled, use basic validation
+    if (!isJumboTxnEnabled && !isGovernanceTxnEnabled) {
+        // Allow NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB to exceed the standard limit
+        exceedsLimit = txSize > hederaConfig.transactionMaxBytes()
+                && !NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(functionality);
+    }
+    // For jumbo enabled and governance disabled, only ETHEREUM_TRANSACTION can exceed standard limits
+    else if (isJumboTxnEnabled && !isGovernanceTxnEnabled) {
+        exceedsLimit = !allowedJumboHederaFunctionalities.contains(fromPbj(txInfo.functionality()))
+                && txSize > hederaConfig.transactionMaxBytes()
+                && !NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(functionality);
+    }
+    // For governance transactions enabled, allow transactions through for final validation
+    // (since payer-based limits are applied in checkTransactionSizeLimitBasedOnPayer)
+    // Only reject extremely oversized transactions that exceed governance limits
+    else {
+        exceedsLimit = txSize > governanceTransactionsConfig.maxTxnSize();
+    }
 
-        if (isJumboTxnEnabled) {
-            exceedsLimit = (functionality == HederaFunctionality.ETHEREUM_TRANSACTION
-                            && txSize > jumboTransactionsConfig.maxTxnSize())
-                    || (functionality != HederaFunctionality.ETHEREUM_TRANSACTION
-                            && txSize > hederaConfig.transactionMaxBytes()
-                            && !NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(functionality));
-        }
-
-        if (isGovernanceTxnEnabled) {
-            exceedsLimit = txSize > governanceTransactionsConfig.maxTxnSize();
-        }
-
-        if (exceedsLimit) {
-            throw new PreCheckException(TRANSACTION_OVERSIZE);
-        }
+    if (exceedsLimit) {
+        throw new PreCheckException(TRANSACTION_OVERSIZE);
+    }
 }
 ```
 
@@ -217,5 +228,5 @@ public long transactionIntrinsicGasCost(final Bytes payload, final boolean isCon
 
 #### Negative Tests
 
-- validate that non-jumbo transaction bigger than 6kb should fail
+- validate that non-jumbo transaction bigger than 6kb should fail, if governance transactions are disabled
 - validate that jumbo transaction gets bytes throttled at ingest

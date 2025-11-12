@@ -82,11 +82,16 @@ public class TransactionChecker {
     private static final String COUNTER_SUPER_DEPRECATED_TXNS_NAME = "SuperDeprTxnsRcv";
     private static final String COUNTER_RECEIVED_SUPER_DEPRECATED_DESC =
             "number of super-deprecated txns (body, sigs) received";
+    private static final String COUNTER_NON_PRIVILEGED_OVERSIZED_TXNS = "NonPrivilegedOversizedTxnsRcv";
+    private static final String NON_PRIVILEGED_OVERSIZED_TXNS_DESC =
+            "number of oversized txns received from a non-privileged payer";
 
     /** The {@link Counter} used to track the number of deprecated transactions (bodyBytes, sigMap) received. */
     private final Counter deprecatedCounter;
     /** The {@link Counter} used to track the number of super deprecated transactions (body, sigs) received. */
     private final Counter superDeprecatedCounter;
+    /** The {@link Counter} used to track the number of oversized transactions from a non-privileged payer */
+    private final Counter nonPrivilegedOversizedTransactionsCounter;
 
     private final HederaConfig hederaConfig;
     private final JumboTransactionsConfig jumboTransactionsConfig;
@@ -110,6 +115,9 @@ public class TransactionChecker {
                 .withDescription(COUNTER_RECEIVED_DEPRECATED_DESC));
         this.superDeprecatedCounter = metrics.getOrCreate(new Counter.Config("app", COUNTER_SUPER_DEPRECATED_TXNS_NAME)
                 .withDescription(COUNTER_RECEIVED_SUPER_DEPRECATED_DESC));
+        this.nonPrivilegedOversizedTransactionsCounter =
+                metrics.getOrCreate(new Counter.Config("app", COUNTER_NON_PRIVILEGED_OVERSIZED_TXNS)
+                        .withDescription(NON_PRIVILEGED_OVERSIZED_TXNS_DESC));
 
         hederaConfig = configProvider.getConfiguration().getConfigData(HederaConfig.class);
         jumboTransactionsConfig = configProvider.getConfiguration().getConfigData(JumboTransactionsConfig.class);
@@ -411,9 +419,8 @@ public class TransactionChecker {
             final int maxAllowedSize =
                     isPrivilegedPayer ? governanceTransactionsConfig.maxTxnSize() : hederaConfig.transactionMaxBytes();
             if (txInfo.signedTx().protobufSize() > maxAllowedSize) {
-                // Log or increment metrics for rejected oversized transactions from non-privileged payers
                 if (!isPrivilegedPayer) {
-                    // workflowMetrics.incrementThrottled(txInfo.functionality());
+                    nonPrivilegedOversizedTransactionsCounter.increment();
                 }
                 throw new PreCheckException(TRANSACTION_OVERSIZE);
             }

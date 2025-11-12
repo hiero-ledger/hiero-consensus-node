@@ -424,7 +424,7 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
             @NonNull final QueryWorkflow queryWorkflow,
             @NonNull final Metrics metrics) {
 
-        final int maxTxnSize = configProvider
+        final int standardMaxTxnSize = configProvider
                 .getConfiguration()
                 .getConfigData(HederaConfig.class)
                 .transactionMaxBytes();
@@ -437,22 +437,20 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
                         .getConfiguration()
                         .getConfigData(JumboTransactionsConfig.class)
                         .maxTxnSize()
-                : maxTxnSize;
-
+                : standardMaxTxnSize;
         final boolean isGovTxnEnabled = configProvider
                 .getConfiguration()
                 .getConfigData(GovernanceTransactionsConfig.class)
                 .isEnabled();
-
         final int govMaxTxnSize = isGovTxnEnabled
                 ? configProvider
                         .getConfiguration()
                         .getConfigData(GovernanceTransactionsConfig.class)
                         .maxTxnSize()
-                : maxTxnSize;
+                : standardMaxTxnSize;
 
         // set buffer capacity to be big enough to hold the largest transaction
-        final int bufferCapacity = Math.max(Math.max(govMaxTxnSize, jumboMaxTxnSize), maxTxnSize) + 1;
+        final int bufferCapacity = Math.max(Math.max(govMaxTxnSize, jumboMaxTxnSize), standardMaxTxnSize) + 1;
         // set capacity and max transaction size for both normal and jumbo transactions
         final var dataBufferMarshaller = new DataBufferMarshaller(bufferCapacity, govMaxTxnSize);
         final var jumboBufferMarshaller = new DataBufferMarshaller(bufferCapacity, jumboMaxTxnSize);
