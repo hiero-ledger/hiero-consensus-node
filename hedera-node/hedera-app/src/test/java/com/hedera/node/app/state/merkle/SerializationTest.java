@@ -13,7 +13,6 @@ import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.config.data.HederaConfig;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
-import com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
@@ -206,8 +205,7 @@ class SerializationTest extends MerkleTestBase {
         stateLifecycleManager.createSnapshot(originalTree, tempDir);
         originalTree.release();
 
-        final MerkleNodeState state =
-                stateLifecycleManager.loadSnapshot(tempDir.resolve(MerkleTreeSnapshotReader.SIGNED_STATE_FILE_NAME));
+        final MerkleNodeState state = stateLifecycleManager.loadSnapshot(tempDir);
         initServices(schemaV1, state);
         assertTree(state);
 
