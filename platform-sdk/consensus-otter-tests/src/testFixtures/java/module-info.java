@@ -55,14 +55,21 @@ module org.hiero.otter.fixtures {
     exports org.hiero.otter.fixtures.specs;
     exports org.hiero.otter.fixtures.util;
     exports org.hiero.otter.fixtures.app to
+            com.swirlds.config.extensions,
+            com.swirlds.config.impl,
             org.hiero.consensus.otter.docker.app;
+    exports org.hiero.otter.fixtures.app.services.consistency to
+            com.swirlds.config.extensions,
+            com.swirlds.config.impl;
     exports org.hiero.otter.fixtures.container to
+            com.swirlds.config.impl,
             org.hiero.otter.fixtures.test;
     exports org.hiero.otter.fixtures.container.proto to
             org.hiero.consensus.otter.docker.app;
     exports org.hiero.otter.fixtures.container.utils to
             org.hiero.consensus.otter.docker.app;
     exports org.hiero.otter.fixtures.internal to
+            com.swirlds.config.impl,
             org.hiero.consensus.otter.docker.app,
             org.hiero.otter.fixtures.test;
     exports org.hiero.otter.fixtures.internal.helpers to
@@ -70,6 +77,7 @@ module org.hiero.otter.fixtures {
     exports org.hiero.otter.fixtures.logging.internal to
             org.hiero.consensus.otter.docker.app;
     exports org.hiero.otter.fixtures.turtle to
+            org.apache.logging.log4j.core,
             org.hiero.otter.fixtures.test;
 
     opens org.hiero.otter.fixtures.container.network to
