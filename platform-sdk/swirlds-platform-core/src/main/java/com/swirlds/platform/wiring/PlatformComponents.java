@@ -100,7 +100,9 @@ public record PlatformComponents(
         ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring,
         ComponentWiring<InlinePcesWriter, PlatformEvent> pcesInlineWriterWiring,
         ComponentWiring<BranchReporter, Void> branchReporterWiring) {
-    private static final int LOW_TPS_TARGET_ROUNDS = 25; // Trigger backpressure after N rounds at low TPS
+    // Assuming 1 round/sec it would require LOW_TPS_TARGET_ROUNDS_CAPACITY seconds
+    // for the backpressure mechanism to engage at low tps
+    private static final int LOW_TPS_TARGET_ROUNDS_CAPACITY = 20;
     /**
      * Bind components to the wiring.
      *
@@ -227,12 +229,14 @@ public record PlatformComponents(
         final long capacity = schedulerConfiguration.unhandledTaskCapacity() == null
                 ? 0L
                 : schedulerConfiguration.unhandledTaskCapacity();
-        final double lowTpsPenalty = (double) capacity / LOW_TPS_TARGET_ROUNDS; //2500
+        // we want the mechanism of backpressure to engage soon enough in low tps set ups
+        // since even empty rounds have an effect on the load in execution side
+        final double minimumEffort = (double) capacity / LOW_TPS_TARGET_ROUNDS_CAPACITY; //5000
 
         return data -> {
             if (data instanceof final ConsensusRound consensusRound) {
 
-                return (long) Math.max(lowTpsPenalty, consensusRound.getNumAppTransactions());
+                return (long) Math.max(minimumEffort, consensusRound.getNumAppTransactions());
             }
             return 1L;
         };
