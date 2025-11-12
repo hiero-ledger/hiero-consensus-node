@@ -82,7 +82,7 @@ public abstract class AbstractMetric<D, S extends DataPointSnapshot> implements 
             while (j < nv.length) {
                 if (labelName.equals(nv[j])) {
                     if (nv[j + 1] == null) {
-                        throw new IllegalArgumentException("Label value must not be null for label: " + labelName);
+                        throw new NullPointerException("Label value must not be null for label: " + labelName);
                     }
                     break;
                 }

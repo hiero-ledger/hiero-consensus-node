@@ -13,6 +13,7 @@ import org.hiero.metrics.api.core.Metric;
 import org.hiero.metrics.api.core.MetricRegistry;
 import org.hiero.metrics.api.core.MetricsFacade;
 import org.hiero.metrics.api.core.StatefulMetric;
+import org.hiero.metrics.test.fixtures.SateSetEnum;
 
 /**
  * A default implementation of {@link MetricFramework} for testing purposes of current framework.

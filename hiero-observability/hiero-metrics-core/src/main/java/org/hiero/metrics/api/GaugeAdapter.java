@@ -193,9 +193,9 @@ public interface GaugeAdapter<I, D> extends StatefulMetric<I, D> {
         @Override
         protected GaugeAdapter<I, D> buildMetric() {
             if (valueConverter.isToDoubleFunction()) {
-                return new LongGaugeAdapterImpl<>(this);
-            } else {
                 return new DoubleGaugeAdapterImpl<>(this);
+            } else {
+                return new LongGaugeAdapterImpl<>(this);
             }
         }
 

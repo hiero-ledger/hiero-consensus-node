@@ -49,9 +49,27 @@ public class LabelNamesAndValuesTest {
         LabelNamesAndValues instance2 = new LabelNamesAndValues(namesAndValues);
 
         int hashCode = instance1.hashCode();
-        assertThat(hashCode).as("Hash code is not repetitive").isEqualTo(instance1.hashCode());
+        assertThat(hashCode).as("Hash code is repetitive").isEqualTo(instance1.hashCode());
 
-        assertThat(instance1).as("Objects are not equal").isEqualTo(instance2);
-        assertThat(instance1.hashCode()).as("Hash code is not the same").isEqualTo(instance2.hashCode());
+        assertThat(instance1).as("Objects are equal").isEqualTo(instance2);
+        assertThat(instance1.hashCode()).as("Hash code is the same").isEqualTo(instance2.hashCode());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"!=name,value", "name,value1!=name,value2", "name,value!=name,value,name1,value1"})
+    void testEqualsAndHashCodeIsDifferent(String comparison) {
+        String[] pair = comparison.split("!=");
+
+        LabelValues values1 = new LabelNamesAndValues(pair[0].split(","));
+        LabelValues values2 = new LabelNamesAndValues(pair[1].split(","));
+
+        assertThat(values1).isNotEqualTo(values2);
+        assertThat(values1.hashCode()).isNotEqualTo(values2.hashCode());
+    }
+
+    @Test
+    void testToString() {
+        LabelNamesAndValues labelNamesAndValues = new LabelNamesAndValues("name1", "1", "name2", "2");
+        assertThat(labelNamesAndValues.toString()).isEqualTo("LabelsValues[1,2]");
     }
 }

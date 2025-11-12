@@ -12,11 +12,11 @@ import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import io.prometheus.metrics.model.snapshots.Unit;
 import java.util.UUID;
 import java.util.function.Supplier;
+import org.hiero.metrics.test.fixtures.SateSetEnum;
 import org.hiero.metrics.test.fixtures.framework.DataPointUpdater;
 import org.hiero.metrics.test.fixtures.framework.MetricAdapter;
 import org.hiero.metrics.test.fixtures.framework.MetricFramework;
 import org.hiero.metrics.test.fixtures.framework.MetricType;
-import org.hiero.metrics.test.fixtures.framework.SateSetEnum;
 
 /**
  * {@link MetricFramework} for Prometheus new library.

@@ -45,4 +45,24 @@ public final class TestUtils {
             "invalid`name", // contains backtick
         };
     }
+
+    public static String[] validNames() {
+        return new String[] {
+            "a",
+            "A",
+            "z",
+            "Z",
+            "_",
+            "_0",
+            "a0",
+            "_1",
+            "_9",
+            "A9",
+            "valid_name",
+            "__valid__name__",
+            "ValidName",
+            "validName123",
+            "VALID_NAME_456",
+        };
+    }
 }

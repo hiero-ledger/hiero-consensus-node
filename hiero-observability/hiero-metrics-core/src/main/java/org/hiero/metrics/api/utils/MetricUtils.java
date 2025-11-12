@@ -32,6 +32,9 @@ public final class MetricUtils {
 
         HashSet<String> labelNames = new HashSet<>(labels.length);
         for (Label label : labels) {
+            if (label == null) {
+                throw new NullPointerException("Label must not be null");
+            }
             if (!labelNames.add(label.name())) {
                 throw new IllegalArgumentException("Duplicate label name: " + label.name());
             }

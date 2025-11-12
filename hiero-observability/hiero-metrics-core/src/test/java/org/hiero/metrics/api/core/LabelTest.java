@@ -5,14 +5,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class LabelTest {
 
-    @Test
-    void testValidLabel() {
-        Label label = new Label("method", "GET");
+    @ParameterizedTest
+    @MethodSource("org.hiero.metrics.TestUtils#validNames")
+    void testValidLabel(String validName) {
+        Label label = new Label(validName, "GET");
 
-        assertThat(label.name()).isEqualTo("method");
+        assertThat(label.name()).isEqualTo(validName);
         assertThat(label.value()).isEqualTo("GET");
     }
 
@@ -51,10 +54,10 @@ public class LabelTest {
         assertThatThrownBy(() -> new Label("name", "")).isInstanceOf(IllegalArgumentException.class);
     }
 
-    @Test
-    void testInvalidNameCharactersThrows() {
-        // assume names with invalid characters (e.g. '$') are rejected by MetricUtils.validateNameCharacters
-        assertThatThrownBy(() -> new Label("inva$lid", "value")).isInstanceOf(IllegalArgumentException.class);
+    @ParameterizedTest
+    @MethodSource("org.hiero.metrics.TestUtils#invalidNames")
+    void testInvalidNameCharactersThrows(String invalidName) {
+        assertThatThrownBy(() -> new Label(invalidName, "value")).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

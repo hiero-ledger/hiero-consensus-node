@@ -177,7 +177,8 @@ public interface Metric {
          */
         public final B withUnit(@NonNull Unit unit) {
             Objects.requireNonNull(unit, "unit must not be null");
-            return withUnit(unit.toString());
+            this.unit = unit.toString();
+            return self();
         }
 
         /**
@@ -303,8 +304,7 @@ public interface Metric {
 
         private void validateLabelNameNoEqualMetricName(String labelName) {
             if (labelName.equals(key.name())) {
-                throw new IllegalArgumentException(
-                        "Dynamic label name must not be the same as metric name: " + labelName);
+                throw new IllegalArgumentException("Label name must not be the same as metric name: " + labelName);
             }
         }
     }

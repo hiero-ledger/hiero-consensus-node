@@ -92,11 +92,28 @@ public class MetricKeyTest {
     }
 
     @ParameterizedTest
+    @MethodSource("org.hiero.metrics.TestUtils#validNames")
+    void testValidNameCharacters(String validName) {
+        MetricKey<LongCounter> key = MetricKey.of(validName, LongCounter.class);
+
+        assertThat(key.name()).isEqualTo(validName);
+    }
+
+    @ParameterizedTest
     @MethodSource("org.hiero.metrics.TestUtils#invalidNames")
     void testInvalidCategoryCharactersThrows(String invalidCategory) {
         MetricKey<LongCounter> key = MetricKey.of("requests", LongCounter.class);
 
         assertThatThrownBy(() -> key.withCategory(invalidCategory)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @ParameterizedTest
+    @MethodSource("org.hiero.metrics.TestUtils#validNames")
+    void testValidCategoryCharacters(String categoryName) {
+        String name = "any_name";
+        MetricKey<LongCounter> key = MetricKey.of(name, LongCounter.class).withCategory(categoryName);
+
+        assertThat(key.name()).isEqualTo(categoryName + ":" + name);
     }
 
     @Test
