@@ -208,17 +208,6 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
                 .legacyCalculate(sigValueObj -> usageGivenExplicit(op, sigValueObj, topic));
     }
 
-    @Override
-    public @NonNull FeeResult calculateFeeResult(@NonNull FeeContext feeContext) {
-        final var entity = FeeModelRegistry.lookupModel(HederaFunctionality.CONSENSUS_UPDATE_TOPIC);
-        Map<Extra, Long> params = new HashMap<>();
-        params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
-        params.put(Extra.KEYS, 0L);
-        return entity.computeFee(
-                params,
-                feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT).getSimpleFeesSchedule());
-    }
-
     private void resolveMutableBuilderAttributes(
             @NonNull final HandleContext handleContext,
             @NonNull final ConsensusUpdateTopicTransactionBody op,

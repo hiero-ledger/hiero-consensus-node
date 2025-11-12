@@ -123,16 +123,6 @@ public class ConsensusDeleteTopicHandler implements TransactionHandler {
                 .legacyCalculate(sigValueObj -> usageGiven(CommonPbjConverters.fromPbj(op), sigValueObj));
     }
 
-    @Override
-    public @NonNull FeeResult calculateFeeResult(@NonNull FeeContext feeContext) {
-        final var entity = FeeModelRegistry.lookupModel(HederaFunctionality.CONSENSUS_DELETE_TOPIC);
-        Map<Extra, Long> params = new HashMap<>();
-        params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
-        return entity.computeFee(
-                params,
-                feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT).getSimpleFeesSchedule());
-    }
-
     private FeeData usageGiven(
             final com.hederahashgraph.api.proto.java.TransactionBody txn, final SigValueObj sigUsage) {
         return ConsensusServiceFeeBuilder.getConsensusDeleteTopicFee(txn, sigUsage);
