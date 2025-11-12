@@ -18,11 +18,6 @@ on:
         type: string
         required: false
         default: "21.0.6"
-      custom-label:
-        description: "A custom label to append to the workflow run name."
-        type: string
-        required: false
-        default: ""
 
     secrets:
       gradle-cache-username:
@@ -49,7 +44,7 @@ env:
 
 jobs:
   generate-baseline:
-    name: ${{ inputs.custom-label || 'Gradle -' }} Generate Baseline
+    name: "Gradle: Generate Baseline"
     runs-on: hiero-network-node-linux-medium
     outputs:
       sha: ${{ steps.commit.outputs.sha }}
@@ -126,7 +121,7 @@ jobs:
         run: gsutil cp "${{ steps.manifest.outputs.file }}" "${{ steps.baseline.outputs.file }}"
 
   verify-artifacts:
-    name: "${{ inputs.custom-label || 'Gradle -' }} Verify Artifacts (${{ join(matrix.os, ', ') }})"
+    name: "Gradle: Verify Artifacts (${{ join(matrix.os, ', ') }})"
     runs-on: ${{ matrix.os }}
     needs:
       - generate-baseline

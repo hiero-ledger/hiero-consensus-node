@@ -18,11 +18,7 @@ on:
         type: string
         required: false
         default: "21.0.6"
-      custom-label:
-        description: "Custom label expanding the job names:"
-        type: string
-        required: false
-        default: ""
+
     secrets:
       gradle-cache-username:
         description: "The username used to authenticate with the Gradle Build Cache Node."
@@ -51,7 +47,7 @@ env:
 
 jobs:
   generate-baseline:
-    name: ${{ inputs.custom-label || 'Docker -' }} Generate Baseline
+    name: "Docker: Generate Baseline"
     runs-on: hiero-network-node-linux-medium
     outputs:
       sha: ${{ steps.commit.outputs.sha }}
@@ -208,7 +204,7 @@ jobs:
         run: gsutil cp "${{ steps.manifest.outputs.file }}" "${{ steps.baseline.outputs.file }}"
 
   verify-artifacts:
-    name: "${{ inputs.custom-label || 'Docker -' }} Verify Artifacts (${{ join(matrix.os, ', ') }})"
+    name: "Docker: Verify Artifacts (${{ join(matrix.os, ', ') }})"
     runs-on: ${{ matrix.os }}
     needs:
       - generate-baseline
