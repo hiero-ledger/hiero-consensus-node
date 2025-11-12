@@ -58,15 +58,6 @@ public interface TimeManager {
             throws TimeoutException;
 
     /**
-     * Wait for a specified duration.
-     *
-     * @param waitTime the duration to wait
-     */
-    default void waitForRealTime(@NonNull Duration waitTime) {
-        waitFor(waitTime);
-    }
-
-    /**
      * Wait for a condition to become {@code true} within a specified time in real time.
      *
      * <p>This method behaves the same as {@link #waitForCondition(BooleanSupplier, Duration)} but is explicitly
