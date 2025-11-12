@@ -9,7 +9,6 @@ import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.cr
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.base.time.Time;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -164,8 +163,7 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<VirtualMapState>
      * {@inheritDoc}
      */
     @Override
-    public Function<VirtualMap, VirtualMapState> stateRootFromVirtualMap(
-            @NonNull final Metrics metrics, @NonNull final Time time) {
+    public Function<VirtualMap, VirtualMapState> stateRootFromVirtualMap(@NonNull final Metrics metrics) {
         return virtualMap -> {
             final VirtualMapState state = createStateWithVM(virtualMap);
             TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);

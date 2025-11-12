@@ -4,7 +4,6 @@ package com.swirlds.demo.consistency;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.swirlds.base.time.Time;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -93,8 +92,7 @@ public class ConsistencyTestingToolMain extends DefaultSwirldMain<ConsistencyTes
      * {@inheritDoc}
      */
     @Override
-    public Function<VirtualMap, ConsistencyTestingToolState> stateRootFromVirtualMap(
-            @NonNull final Metrics metrics, @NonNull final Time time) {
+    public Function<VirtualMap, ConsistencyTestingToolState> stateRootFromVirtualMap(@NonNull final Metrics metrics) {
         return virtualMap -> {
             final ConsistencyTestingToolState state = new ConsistencyTestingToolState(virtualMap, new NoOpMetrics());
             TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
