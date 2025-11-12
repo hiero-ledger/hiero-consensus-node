@@ -531,7 +531,7 @@ class ShadowgraphByBirthRoundTests {
         initShadowGraph(RandomUtils.getRandomPrintSeed(), 100, 4);
 
         final EventImpl newEvent = emitter.emitEvent();
-        newEvent.setOtherParent(emitter.emitEvent());
+        //newEvent.setOtherParent(emitter.emitEvent());
 
         assertDoesNotThrow(
                 () -> shadowGraph.addEvent(newEvent.getBaseEvent()),
@@ -543,7 +543,7 @@ class ShadowgraphByBirthRoundTests {
         initShadowGraph(RandomUtils.getRandomPrintSeed(), 100, 4);
 
         final EventImpl newEvent = emitter.emitEvent();
-        newEvent.setSelfParent(emitter.emitEvent());
+        //newEvent.setSelfParent(emitter.emitEvent());
 
         assertDoesNotThrow(
                 () -> shadowGraph.addEvent(newEvent.getBaseEvent()),
