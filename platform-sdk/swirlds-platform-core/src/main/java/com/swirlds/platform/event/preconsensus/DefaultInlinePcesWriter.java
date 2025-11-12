@@ -2,7 +2,8 @@
 package com.swirlds.platform.event.preconsensus;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.TimestampCollector;
+import com.swirlds.platform.util.TimestampCollector;
+import com.swirlds.platform.util.TimestampCollector.Position;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -78,10 +79,9 @@ public class DefaultInlinePcesWriter implements InlinePcesWriter {
                 commonPcesWriter.getCurrentMutableFile().sync();
                 pcesWriterPerEventMetrics.endFileSync();
             }
-            final int index = event.getIndex();
-            if (index > 0) {
-                TimestampCollector.timestamp(TimestampCollector.Position.EVENT_PERSISTED, index);
-            }
+
+            TimestampCollector.INSTANCE.timestamp(Position.EVENT_PERSISTED, event);
+
             return event;
         } catch (final IOException e) {
             throw new UncheckedIOException(e);

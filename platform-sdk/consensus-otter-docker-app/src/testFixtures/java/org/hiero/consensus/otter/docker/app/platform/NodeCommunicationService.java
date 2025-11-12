@@ -12,6 +12,7 @@ import com.google.protobuf.Empty;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.util.TimestampCollector;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -258,6 +259,21 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
                     };
 
             consensusNodeManager.sendQuiescenceCommand(command);
+            responseObserver.onNext(Empty.getDefaultInstance());
+            responseObserver.onCompleted();
+        });
+    }
+
+    /**
+     * Instructs the platform to dump its timestamps for analysis.
+     *
+     * @param request An empty request.
+     * @param responseObserver The observer used to confirm the dump operation.
+     */
+    @Override
+    public void dumpTimestamps(final Empty request, final StreamObserver<Empty> responseObserver) {
+        wrapWithErrorHandling(responseObserver, () -> {
+            TimestampCollector.INSTANCE.store();
             responseObserver.onNext(Empty.getDefaultInstance());
             responseObserver.onCompleted();
         });

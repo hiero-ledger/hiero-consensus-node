@@ -8,8 +8,6 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.Consensus;
 import com.swirlds.platform.ConsensusImpl;
-import com.swirlds.platform.TimestampCollector;
-import com.swirlds.platform.TimestampCollector.Position;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.event.linking.ConsensusLinker;
@@ -18,6 +16,8 @@ import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.ConsensusEngineMetrics;
 import com.swirlds.platform.metrics.ConsensusMetrics;
 import com.swirlds.platform.metrics.ConsensusMetricsImpl;
+import com.swirlds.platform.util.TimestampCollector;
+import com.swirlds.platform.util.TimestampCollector.Position;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -101,10 +101,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
     public ConsensusEngineOutput addEvent(@NonNull final PlatformEvent event) {
         Objects.requireNonNull(event);
 
-        final int currentIndex = event.getIndex();
-        if (currentIndex > 0) {
-            TimestampCollector.timestamp(Position.EVENT_ADDED_TO_HASHGRAPH, currentIndex);
-        }
+        TimestampCollector.INSTANCE.timestamp(Position.EVENT_ADDED_TO_HASHGRAPH, event);
 
         if (freezeRoundController.isFrozen()) {
             // If we are frozen, ignore all events
@@ -115,9 +112,6 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         if (consensusRelevantEvent == null) {
             // The event is either a future event or an ancient event.
             // If it is a future event, it will be added later when the event window is updated.
-            if (currentIndex > 0) {
-                TimestampCollector.timestamp(TimestampCollector.Position.FUTURE_BUFFER_ENTERED, currentIndex);
-            }
             return ConsensusEngineOutput.emptyInstance();
         }
 
@@ -190,14 +184,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
                     .filter(e -> !e.isConsensus())
                     .map(EventImpl::getBaseEvent)
                     .forEach(staleEvents::add);
-            final List<PlatformEvent> releasedEvents = futureEventBuffer.updateEventWindow(eventWindow);
-            for (final PlatformEvent releasedEvent : releasedEvents) {
-                final int index = releasedEvent.getIndex();
-                if (index > 0) {
-                    TimestampCollector.timestamp(TimestampCollector.Position.FUTURE_BUFFER_RELEASED, index);
-                }
-            }
-            eventsToAdd.addAll(releasedEvents);
+            eventsToAdd.addAll(futureEventBuffer.updateEventWindow(eventWindow));
         }
 
         // If multiple rounds reach consensus and multiple rounds are in the freeze period,

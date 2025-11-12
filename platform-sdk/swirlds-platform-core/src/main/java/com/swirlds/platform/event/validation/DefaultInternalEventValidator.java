@@ -12,8 +12,9 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.metrics.api.LongAccumulator;
-import com.swirlds.platform.TimestampCollector;
 import com.swirlds.platform.gossip.IntakeEventCounter;
+import com.swirlds.platform.util.TimestampCollector;
+import com.swirlds.platform.util.TimestampCollector.Position;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -267,19 +268,17 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
     @Override
     @Nullable
     public PlatformEvent validateEvent(@NonNull final PlatformEvent event) {
-        final int index = event.getIndex();
-        if (index > 0) {
-            TimestampCollector.timestamp(TimestampCollector.Position.EVENT_HASHED, index);
-        }
+
+        TimestampCollector.INSTANCE.timestamp(Position.EVENT_HASHED, event);
 
         if (areRequiredFieldsNonNull(event)
                 && areByteFieldsCorrectLength(event)
                 && isTransactionByteCountValid(event)
                 && areParentsInternallyConsistent(event)
                 && isEventBirthRoundValid(event)) {
-            if (index > 0) {
-                TimestampCollector.timestamp(TimestampCollector.Position.EVENT_VALIDATED, index);
-            }
+
+            TimestampCollector.INSTANCE.timestamp(Position.EVENT_VALIDATED, event);
+
             return event;
         } else {
             intakeEventCounter.eventExitedIntakePipeline(event.getSenderId());

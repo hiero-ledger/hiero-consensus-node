@@ -10,8 +10,9 @@ import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.extensions.CountPerSecond;
 import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.TimestampCollector;
 import com.swirlds.platform.gossip.IntakeEventCounter;
+import com.swirlds.platform.util.TimestampCollector;
+import com.swirlds.platform.util.TimestampCollector.Position;
 import com.swirlds.platform.wiring.NoInput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -115,10 +116,7 @@ public class StandardEventDeduplicator implements EventDeduplicator {
             // move toward 0%
             avgDuplicatePercent.update(0);
 
-            final int index = event.getIndex();
-            if (index > 0) {
-                TimestampCollector.timestamp(TimestampCollector.Position.EVENT_DEDUPLICATED, index);
-            }
+            TimestampCollector.INSTANCE.timestamp(Position.EVENT_DEDUPLICATED, event);
 
             return event;
         } else {

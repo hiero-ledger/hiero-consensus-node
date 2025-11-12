@@ -501,10 +501,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                     Path.of("build", "container", NODE_IDENTIFIER_FORMAT.formatted(selfId.id()));
             downloadConsensusFiles(localOutputDirectory);
             downloadConsistencyServiceFiles(localOutputDirectory);
-            downloadFlightRecorderFiles(localOutputDirectory);
-
             downloadTimestampFile(localOutputDirectory);
-
         } catch (final IOException e) {
             throw new UncheckedIOException("Failed to copy files from container", e);
         }
@@ -519,15 +516,6 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         resultsCollector.destroy();
         platformStatus = null;
         lifeCycle = DESTROYED;
-    }
-
-    private void downloadFlightRecorderFiles(final Path localOutputDirectory) {
-        copyFileFromContainerIfExists(
-                localOutputDirectory, "/tmp/recording.jfr", "recording-%d.jfr".formatted(selfId.id()));
-    }
-
-    private void downloadTimestampFile(final Path localOutputDirectory) {
-        copyFileFromContainerIfExists(localOutputDirectory, "timestamps.csv");
     }
 
     private void downloadEventStreamFiles(@NonNull final Path localOutputDirectory) {
@@ -575,6 +563,10 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 localOutputDirectory, historyFilePath.toString(), consistencyServiceConfig.historyFileName());
     }
 
+    private void downloadTimestampFile(@NonNull final Path localOutputDirectory) {
+        copyFileFromContainerIfExists(localOutputDirectory, "timestamps.csv");
+    }
+
     private void copyFileFromContainerIfExists(
             @NonNull final Path localOutputDirectory, @NonNull final String relativePath) {
         copyFileFromContainerIfExists(localOutputDirectory, relativePath, relativePath);
@@ -584,9 +576,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             @NonNull final Path localOutputDirectory,
             @NonNull final String relativeSourcePath,
             @NonNull final String relativeTargetPath) {
-        final String containerPath = relativeSourcePath.startsWith("/")
-                ? relativeSourcePath
-                : CONTAINER_APP_WORKING_DIR + relativeSourcePath;
+        final String containerPath = CONTAINER_APP_WORKING_DIR + relativeSourcePath;
         final String localPath =
                 localOutputDirectory.resolve(relativeTargetPath).toString();
 
@@ -651,5 +641,14 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         } catch (final IllegalArgumentException e) {
             log.warn("Received unknown platform status: {}", statusName);
         }
+    }
+
+    /**
+     * Notifies the node to dump its timestamps file for analysis.
+     */
+    @SuppressWarnings("ResultOfMethodCallIgnored")
+    public void dumpTimestampsFile() {
+        log.info("Sending command to dump timestamps file on node {}", selfId);
+        nodeCommBlockingStub.dumpTimestamps(Empty.getDefaultInstance());
     }
 }

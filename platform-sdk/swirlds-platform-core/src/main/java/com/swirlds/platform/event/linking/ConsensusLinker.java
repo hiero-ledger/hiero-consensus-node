@@ -2,9 +2,10 @@
 package com.swirlds.platform.event.linking;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.TimestampCollector;
 import com.swirlds.platform.event.EventCounter;
 import com.swirlds.platform.internal.EventImpl;
+import com.swirlds.platform.util.TimestampCollector;
+import com.swirlds.platform.util.TimestampCollector.Position;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -100,10 +101,7 @@ public class ConsensusLinker {
         parentDescriptorMap.put(eventDescriptorWrapper, linkedEvent);
         parentHashMap.put(eventDescriptorWrapper.hash(), linkedEvent);
 
-        final int index = event.getIndex();
-        if (index > 0) {
-            TimestampCollector.timestamp(TimestampCollector.Position.PARENTS_LINKED, index);
-        }
+        TimestampCollector.INSTANCE.timestamp(Position.PARENTS_LINKED, event);
 
         return linkedEvent;
     }
