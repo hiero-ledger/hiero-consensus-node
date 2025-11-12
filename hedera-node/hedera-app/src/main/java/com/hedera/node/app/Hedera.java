@@ -264,6 +264,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
      */
     private final UtilServiceImpl utilServiceImpl;
 
+    private final TokenServiceImpl tokenServiceImpl;
+
     /**
      * The file service singleton, kept as a field here to avoid constructing twice
      * (once in constructor to register schemas, again inside Dagger component).
@@ -515,6 +517,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                 .parseSignedAndCheck(
                         txnBytes, config.getConfigData(HederaConfig.class).transactionMaxBytes())
                 .txBody());
+        tokenServiceImpl = new TokenServiceImpl(appContext);
         contractServiceImpl = new ContractServiceImpl(appContext, metrics);
         scheduleServiceImpl = new ScheduleServiceImpl(appContext);
         blockStreamService = new BlockStreamService();
@@ -1245,6 +1248,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                 .fileServiceImpl(fileServiceImpl)
                 .contractServiceImpl(contractServiceImpl)
                 .utilServiceImpl(utilServiceImpl)
+                .tokenServiceImpl(tokenServiceImpl)
                 .scheduleService(scheduleServiceImpl)
                 .initTrigger(trigger)
                 .softwareVersion(version)

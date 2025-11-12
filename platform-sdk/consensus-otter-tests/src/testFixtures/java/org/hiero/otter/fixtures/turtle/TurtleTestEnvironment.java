@@ -26,6 +26,7 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
+import org.hiero.otter.fixtures.chaosbot.ChaosBot;
 import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogClock;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
@@ -153,6 +154,24 @@ public class TurtleTestEnvironment implements TestEnvironment {
     @NonNull
     public TransactionGenerator transactionGenerator() {
         return transactionGenerator;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public ChaosBot createChaosBot() {
+        throw new UnsupportedOperationException("ChaosBot is not supported in TurtleTestEnvironment");
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public ChaosBot createChaosBot(final long seed) {
+        throw new UnsupportedOperationException("ChaosBot is not supported in TurtleTestEnvironment");
     }
 
     /**
