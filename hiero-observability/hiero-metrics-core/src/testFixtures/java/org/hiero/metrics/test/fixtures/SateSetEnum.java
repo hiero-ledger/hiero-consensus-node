@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.metrics.test.fixtures.framework;
+package org.hiero.metrics.test.fixtures;
 
 import java.util.Random;
 

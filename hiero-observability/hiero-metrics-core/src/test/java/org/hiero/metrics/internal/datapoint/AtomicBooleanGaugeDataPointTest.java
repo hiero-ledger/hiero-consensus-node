@@ -44,4 +44,17 @@ public class AtomicBooleanGaugeDataPointTest {
         gauge.reset();
         assertThat(gauge.getAsBoolean()).isTrue();
     }
+
+    @Test
+    void testAsLong() {
+        AtomicBooleanGaugeDataPoint gauge = new AtomicBooleanGaugeDataPoint();
+
+        assertThat(gauge.getAsLong()).isEqualTo(0L);
+
+        gauge.set(true);
+        assertThat(gauge.getAsLong()).isEqualTo(1L);
+
+        gauge.set(false);
+        assertThat(gauge.getAsLong()).isEqualTo(0L);
+    }
 }

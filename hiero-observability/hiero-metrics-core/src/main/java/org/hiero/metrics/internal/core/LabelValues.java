@@ -55,7 +55,7 @@ public abstract sealed class LabelValues permits LabelNamesAndValues, EmptyLabel
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder(size() * 16);
-        sb.append("Labels[");
+        sb.append("LabelsValues[");
         for (int i = 0; i < size(); i++) {
             if (i > 0) {
                 sb.append(',');

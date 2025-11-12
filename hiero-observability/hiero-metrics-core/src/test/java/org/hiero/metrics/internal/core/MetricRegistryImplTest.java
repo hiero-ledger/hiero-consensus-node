@@ -38,11 +38,20 @@ public class MetricRegistryImplTest {
     class Exceptions {
 
         @Test
+        void testCreateRegistryWithNullGlobalLabelThrows() {
+            Label[] globalLabels = new Label[] {new Label("env", "test"), null};
+            assertThatThrownBy(() -> new MetricRegistryImpl(globalLabels))
+                    .isInstanceOf(NullPointerException.class)
+                    .hasMessage("Label must not be null");
+        }
+
+        @Test
         void testDuplicateGlobalLabelName() {
             Label label1 = new Label("env", "test");
-            Label label2 = new Label("env", "production");
+            Label label2 = new Label("other", "label");
+            Label label3 = new Label("env", "production");
 
-            assertThatThrownBy(() -> new MetricRegistryImpl(label1, label2))
+            assertThatThrownBy(() -> new MetricRegistryImpl(label1, label2, label3))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContainingAll("Duplicate label name", "env");
         }

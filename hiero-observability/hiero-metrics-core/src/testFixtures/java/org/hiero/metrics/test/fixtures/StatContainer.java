@@ -10,10 +10,14 @@ import org.hiero.metrics.api.stat.StatUtils;
  */
 public class StatContainer {
 
+    private final IntSupplier initializer;
+
     private final AtomicInteger counter;
     private final AtomicInteger sum;
 
     public StatContainer(IntSupplier initializer) {
+        this.initializer = initializer;
+
         int initialValue = initializer.getAsInt();
         counter = new AtomicInteger(initialValue);
         sum = new AtomicInteger(initialValue);
@@ -42,7 +46,9 @@ public class StatContainer {
     }
 
     public void reset() {
-        counter.set(0);
-        sum.set(0);
+        int initialValue = initializer.getAsInt();
+
+        counter.set(initialValue);
+        sum.set(initialValue);
     }
 }
