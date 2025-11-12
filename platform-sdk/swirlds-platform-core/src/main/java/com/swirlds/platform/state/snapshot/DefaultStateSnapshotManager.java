@@ -288,7 +288,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
 
             final SavedStateInfo savedStateInfo = savedStates.get(index);
             try {
-                deleteDirectoryAndLog(savedStateInfo.getDirectory());
+                deleteDirectoryAndLog(savedStateInfo.stateDirectory());
             } catch (final IOException e) {
                 // Intentionally ignored, deleteDirectoryAndLog will log any exceptions that happen
             }
