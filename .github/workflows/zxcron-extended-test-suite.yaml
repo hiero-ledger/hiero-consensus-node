@@ -577,6 +577,7 @@ jobs:
         run: |
           title="The eXtended Test Suite job failed (${{ needs.fetch-xts-candidate.outputs.xts-info }})."
 
+          data=""
           if [[ "${{ needs.xts-execution.result }}" != "success" ]]; then
             data=$(mktemp)
             {
@@ -595,6 +596,10 @@ jobs:
             echo "- Execute XTS: ${{ needs.xts-execution.result }}"
             echo "- Tag for Promotion: ${{ needs.tag-for-promotion.result }}"
             echo "------------------------------------"
+            if [[ -n "${data}" && -f "${data}" ]]; then
+              cat "${data}"
+              rm "${data}"
+            fi
             echo "Commit information:"
             echo "- Author: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}"
             echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}>"

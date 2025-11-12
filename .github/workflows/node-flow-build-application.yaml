@@ -23,8 +23,8 @@ jobs:
     name: Compile Code
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
-      java-version: ${{ '21.0.6' }}
-      java-distribution: ${{ 'temurin' }}
+      java-version: "21.0.6"
+      java-distribution: "temurin"
       enable-spotless-check: false
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
@@ -210,6 +210,7 @@ jobs:
         id: rootly-summary
         run: |
           title="MATS Error Report"
+          data=""
           if [[ "${{ needs.mats-tests.result }}" != "success" ]]; then
             data=$(mktemp)
             {
