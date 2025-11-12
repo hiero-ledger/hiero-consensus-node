@@ -20,29 +20,30 @@ These metrics relate to the block buffer and are identified by the prefix "buffe
 | `blockStream_buffer_backPressureState`  | Gauge (long)    | Current state of back pressure (0=disabled, 1=action-stage, 2=recovering, 3=active) |
 | `blockStream_buffer_oldestBlock`        | Gauge (long)    | After pruning, the oldest block in the buffer                                       |
 | `blockStream_buffer_newestBlock`        | Gauge (long)    | After pruning, the newest block in the buffer                                       |
-| `blockStream_buffer_blockItemsPerBlock` | Running average | Average number of BlockItems per block in the buffer                                |
-| `blockStream_buffer_blockItemBytes`     | Running average | Average size in bytes of a BlockItem in the buffer                                  |
+| `blockStream_buffer_blockItemsPerBlock` | Running average | Average number of BlockItems per block                                              |
+| `blockStream_buffer_blockItemBytes`     | Running average | Average size in bytes of a BlockItem                                                |
 
 ## Connectivity Metrics
 
 These metrics relate to general connectivity events between the consensus node and the block node. They are prefixed
 with "conn" for identification.
 
-|                  Metric Name                  |      Type       |                                             Description                                              |
-|-----------------------------------------------|-----------------|------------------------------------------------------------------------------------------------------|
-| `blockStream_conn_onComplete`                 | Counter         | Number of onComplete handler invocations on block node connections                                   |
-| `blockStream_conn_onError`                    | Counter         | Number of onError handler invocations on block node connections                                      |
-| `blockStream_conn_opened`                     | Counter         | Number of block node connections opened                                                              |
-| `blockStream_conn_closed`                     | Counter         | Number of block node connections closed                                                              |
-| `blockStream_conn_noActive`                   | Counter         | Number of times streaming a block was attempted but there was no active connection                   |
-| `blockStream_conn_createFailure`              | Counter         | Number of times establishing a block node connection failed                                          |
-| `blockStream_conn_activeConnIp`               | Gauge (long)    | The IP address of the active block node connection (Note: The IP address is converted to an integer) |
-| `blockStream_conn_endOfStreamLimitExceeded`   | Counter         | Number of times an active connection has exceeded the allowed number of EndOfStream responses        |
-| `blockStream_conn_highLatencyEvents`          | Counter         | Count of high latency events from the active block node connection                                   |
-| `blockStream_conn_headerSentToAckLatency`     | Running average | Average latency (ms) between streaming a BlockHeader and receiving its BlockAcknowledgement          |
-| `blockStream_conn_headerProducedToAckLatency` | Running average | Average latency (ms) between producing a BlockHeader and receiving its BlockAcknowledgement          |
-| `blockStream_conn_blockEndSentToAckLatency`   | Running average | Average latency (ms) between streaming an EndOfBlock and receiving its BlockAcknowledgement          |
-| `blockStream_conn_blockClosedToAckLatency`    | Running average | Average latency (ms) between the block closing and receiving its BlockAcknowledgement                |
+|                  Metric Name                  |      Type       |                                              Description                                               |
+|-----------------------------------------------|-----------------|--------------------------------------------------------------------------------------------------------|
+| `blockStream_conn_onComplete`                 | Counter         | Number of onComplete handler invocations on block node connections                                     |
+| `blockStream_conn_onError`                    | Counter         | Number of onError handler invocations on block node connections                                        |
+| `blockStream_conn_opened`                     | Counter         | Number of block node connections opened                                                                |
+| `blockStream_conn_closed`                     | Counter         | Number of block node connections closed                                                                |
+| `blockStream_conn_noActive`                   | Counter         | Number of times streaming a block was attempted but there was no active connection                     |
+| `blockStream_conn_createFailure`              | Counter         | Number of times establishing a block node connection failed                                            |
+| `blockStream_conn_activeConnIp`               | Gauge (long)    | The IP address of the active block node connection (Note: The IP address is converted to an integer)   |
+| `blockStream_conn_endOfStreamLimitExceeded`   | Counter         | Number of times an active connection has exceeded the allowed number of EndOfStream responses          |
+| `blockStream_conn_highLatencyEvents`          | Counter         | Count of high latency events from the active block node connection                                     |
+| `blockStream_conn_headerSentToAckLatency`     | Running average | Average latency (ms) between streaming a BlockHeader and receiving its BlockAcknowledgement            |
+| `blockStream_conn_headerProducedToAckLatency` | Running average | Average latency (ms) between producing a BlockHeader and receiving its BlockAcknowledgement            |
+| `blockStream_conn_blockEndSentToAckLatency`   | Running average | Average latency (ms) between streaming a BlockEnd and receiving its BlockAcknowledgement               |
+| `blockStream_conn_blockClosedToAckLatency`    | Running average | Average latency (ms) between the block closing (Proof produced) and receiving its BlockAcknowledgement |
+| `conn_pipelineOperationTimeoutCounter`        | Counter         | Number of times a pipeline operation has occured                                                       |
 
 ## Connection Receive Metrics
 
