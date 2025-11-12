@@ -28,7 +28,19 @@ public class CryptoCreateFeeCalculator implements ServiceFeeCalculator {
         // Add service base + extras
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_CREATE);
         feeResult.addServiceFee("Base Fee for " + HederaFunctionality.CRYPTO_CREATE, 1, serviceDef.baseFee());
-        addExtraFee(feeResult, "Service", KEYS, feeSchedule, keys);
+
+        // Add KEYS extra, respecting includedCount
+        final var keysExtra = serviceDef.extras().stream()
+                .filter(ref -> ref.name() == KEYS)
+                .findFirst();
+        if (keysExtra.isPresent()) {
+            final long includedCount = keysExtra.get().includedCount();
+            final long chargedKeys = Math.max(0, keys - includedCount);
+            if (chargedKeys > 0) {
+                final long keyFee = org.hiero.hapi.fees.FeeScheduleUtils.lookupExtraFee(feeSchedule, KEYS).fee();
+                feeResult.addServiceFee("Extra KEYS", chargedKeys, keyFee);
+            }
+        }
     }
 
     public TransactionBody.DataOneOfType getTransactionType() {
