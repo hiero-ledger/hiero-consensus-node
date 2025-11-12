@@ -26,14 +26,13 @@ import com.swirlds.platform.state.snapshot.SavedStateInfo;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
-import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.List;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -58,11 +57,12 @@ public final class StartupStateUtils {
      *
      * @param softwareVersion     the software version of the app
      * @param genesisStateBuilder a supplier that can build a genesis state
-     * @param createStateFromVirtualMap   a function to instantiate the state object from a Virtual Map
      * @param mainClassName       the name of the app's SwirldMain class
      * @param swirldName          the name of this swirld
      * @param selfId              the node id of this node
      * @param configAddressBook   the address book from config.txt
+     * @param platformContext     the platform context
+     * @param stateLifecycleManager state lifecycle manager
      * @return the initial state to be used by this node
      * @throws SignedStateLoadingException if there was a problem parsing states on disk and we are not configured to
      *                                     delete malformed states
@@ -73,12 +73,12 @@ public final class StartupStateUtils {
             @NonNull final RecycleBin recycleBin,
             @NonNull final SemanticVersion softwareVersion,
             @NonNull final Supplier<MerkleNodeState> genesisStateBuilder,
-            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
             @NonNull final String mainClassName,
             @NonNull final String swirldName,
             @NonNull final NodeId selfId,
             @NonNull final AddressBook configAddressBook,
-            @NonNull final PlatformContext platformContext)
+            @NonNull final PlatformContext platformContext,
+            @NonNull final StateLifecycleManager stateLifecycleManager)
             throws SignedStateLoadingException {
 
         requireNonNull(mainClassName);
@@ -89,13 +89,7 @@ public final class StartupStateUtils {
         requireNonNull(platformContext.getConfiguration());
 
         final ReservedSignedState loadedState = StartupStateUtils.loadStateFile(
-                recycleBin,
-                selfId,
-                mainClassName,
-                swirldName,
-                createStateFromVirtualMap,
-                softwareVersion,
-                platformContext);
+                recycleBin, selfId, mainClassName, swirldName, softwareVersion, platformContext, stateLifecycleManager);
 
         try (loadedState) {
             if (loadedState.isNotNull()) {
@@ -122,8 +116,9 @@ public final class StartupStateUtils {
      * @param selfId                   the ID of this node
      * @param mainClassName            the name of the main class
      * @param swirldName               the name of the swirld
-     * @param createStateFromVirtualMap a function to instantiate the state object from a Virtual Map
      * @param currentSoftwareVersion   the current software version
+     * @param platformContext          the platform context
+     * @param stateLifecycleManager    state lifecycle manager
      * @return a reserved signed state (wrapped state will be null if no state could be loaded)
      * @throws SignedStateLoadingException if there was a problem parsing states on disk and we are not configured to
      *                                     delete malformed states
@@ -134,9 +129,9 @@ public final class StartupStateUtils {
             @NonNull final NodeId selfId,
             @NonNull final String mainClassName,
             @NonNull final String swirldName,
-            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
             @NonNull final SemanticVersion currentSoftwareVersion,
-            @NonNull final PlatformContext platformContext) {
+            @NonNull final PlatformContext platformContext,
+            @NonNull final StateLifecycleManager stateLifecycleManager) {
 
         final Configuration config = platformContext.getConfiguration();
         final StateConfig stateConfig = config.getConfigData(StateConfig.class);
@@ -153,7 +148,7 @@ public final class StartupStateUtils {
         }
 
         return loadLatestState(
-                recycleBin, currentSoftwareVersion, savedStateFiles, createStateFromVirtualMap, platformContext);
+                recycleBin, currentSoftwareVersion, savedStateFiles, platformContext, stateLifecycleManager);
     }
 
     /**
@@ -215,22 +210,23 @@ public final class StartupStateUtils {
      *
      * @param currentSoftwareVersion the current software version
      * @param savedStateList        the saved states to try
-     * @param createStateFromVirtualMap a function to instantiate the state object from a Virtual Map
+     * @param platformContext       the platform context
+     * @param stateLifecycleManager state lifecycle manager
      * @return the loaded state
      */
     public static ReservedSignedState loadLatestState(
             @NonNull final RecycleBin recycleBin,
             @NonNull final SemanticVersion currentSoftwareVersion,
             @NonNull final List<SavedStateInfo> savedStateList,
-            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
-            @NonNull final PlatformContext platformContext)
+            @NonNull final PlatformContext platformContext,
+            @NonNull final StateLifecycleManager stateLifecycleManager)
             throws SignedStateLoadingException {
 
         logger.info(STARTUP.getMarker(), "Loading latest state from disk.");
 
         for (final SavedStateInfo savedStateInfo : savedStateList) {
             final ReservedSignedState state = loadStateFile(
-                    recycleBin, currentSoftwareVersion, savedStateInfo, createStateFromVirtualMap, platformContext);
+                    recycleBin, currentSoftwareVersion, savedStateInfo, platformContext, stateLifecycleManager);
             if (state != null) {
                 return state;
             }
@@ -245,7 +241,8 @@ public final class StartupStateUtils {
      *
      * @param currentSoftwareVersion the current software version
      * @param savedStateInfo         the state to load
-     * @param createStateFromVirtualMap a function to instantiate the state root object from a Virtual Map
+     * @param platformContext        the platform context
+     * @param stateLifecycleManager  state lifecycle manager
      * @return the loaded state, or null if the state could not be loaded. Will be fully hashed if non-null.
      */
     @Nullable
@@ -253,8 +250,8 @@ public final class StartupStateUtils {
             @NonNull final RecycleBin recycleBin,
             @NonNull final SemanticVersion currentSoftwareVersion,
             @NonNull final SavedStateInfo savedStateInfo,
-            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
-            @NonNull final PlatformContext platformContext)
+            @NonNull final PlatformContext platformContext,
+            @NonNull final StateLifecycleManager stateLifecycleManager)
             throws SignedStateLoadingException {
 
         logger.info(STARTUP.getMarker(), "Loading signed state from disk: {}", savedStateInfo.stateDirectory());
@@ -263,7 +260,7 @@ public final class StartupStateUtils {
         final Configuration configuration = platformContext.getConfiguration();
         try {
             deserializedSignedState =
-                    readState(savedStateInfo.stateDirectory(), createStateFromVirtualMap, platformContext);
+                    readState(savedStateInfo.stateDirectory(), platformContext, stateLifecycleManager);
         } catch (final IOException e) {
             logger.error(EXCEPTION.getMarker(), "unable to load state file {}", savedStateInfo.stateDirectory(), e);
 
@@ -272,7 +269,7 @@ public final class StartupStateUtils {
                 recycleState(recycleBin, savedStateInfo);
                 return null;
             } else {
-                throw new SignedStateLoadingException("unable to load state, this is unrecoverable");
+                throw new SignedStateLoadingException("unable to load state, this is unrecoverable", e);
             }
         }
 
@@ -398,15 +395,9 @@ public final class StartupStateUtils {
             @NonNull final String swirldName,
             @NonNull final NodeId selfId,
             @NonNull final PlatformContext platformContext,
-            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
+            @NonNull final StateLifecycleManager stateLifecycleManager) {
         final var loadedState = loadStateFile(
-                recycleBin,
-                selfId,
-                mainClassName,
-                swirldName,
-                createStateFromVirtualMap,
-                softwareVersion,
-                platformContext);
+                recycleBin, selfId, mainClassName, swirldName, softwareVersion, platformContext, stateLifecycleManager);
         try (loadedState) {
             if (loadedState.isNotNull()) {
                 logger.info(

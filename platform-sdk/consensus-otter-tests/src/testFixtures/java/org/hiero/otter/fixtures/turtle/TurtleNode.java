@@ -36,6 +36,8 @@ import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -218,6 +220,12 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .withRecycleBin(recycleBin)
                     .build();
 
+            final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+                    metrics,
+                    timeManager.time(),
+                    virtualMap -> new VirtualMapState(virtualMap, metrics),
+                    currentConfiguration);
+
             model = WiringModelBuilder.create(platformContext.getMetrics(), timeManager.time())
                     .deterministic()
                     .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
@@ -233,7 +241,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     OtterApp.SWIRLD_NAME,
                     selfId,
                     platformContext,
-                    virtualMap -> new VirtualMapState(virtualMap, metrics));
+                    stateLifecycleManager);
 
             final ReservedSignedState initialState = reservedState.state();
             final MerkleNodeState state = initialState.get().getState();
@@ -258,7 +266,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             selfId,
                             eventStreamLoc,
                             rosterHistory,
-                            virtualMap -> new VirtualMapState(virtualMap, metrics))
+                            stateLifecycleManager)
                     .withPlatformContext(platformContext)
                     .withConfiguration(currentConfiguration)
                     .withKeysAndCerts(keysAndCerts)

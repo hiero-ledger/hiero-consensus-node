@@ -265,12 +265,12 @@ public class Browser {
                     recycleBin,
                     appMain.getSemanticVersion(),
                     appMain::newStateRoot,
-                    appMain.stateRootFromVirtualMap(guiMetrics),
                     appMain.getClass().getName(),
                     appDefinition.getSwirldName(),
                     nodeId,
                     appDefinition.getConfigAddressBook(),
-                    platformContext);
+                    platformContext,
+                    appMain.getStateLifecycleManager());
             final ReservedSignedState initialState = reservedState.state();
 
             // Initialize the address book
@@ -307,7 +307,7 @@ public class Browser {
                     nodeId,
                     String.valueOf(nodeId),
                     rosterHistory,
-                    appMain.stateRootFromVirtualMap(guiMetrics));
+                    appMain.getStateLifecycleManager());
             if (showUi && index == 0) {
                 builder.withPreconsensusEventCallback(guiEventStorage::handlePreconsensusEvent);
                 builder.withConsensusSnapshotOverrideCallback(guiEventStorage::handleSnapshotOverride);

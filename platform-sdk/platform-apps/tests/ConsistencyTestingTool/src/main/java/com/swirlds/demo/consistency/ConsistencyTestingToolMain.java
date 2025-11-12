@@ -8,18 +8,17 @@ import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.DefaultSwirldMain;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
-import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.SecureRandom;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.NodeId;
@@ -50,10 +49,21 @@ public class ConsistencyTestingToolMain extends DefaultSwirldMain<ConsistencyTes
     private static final int TRANSACTIONS_PER_SECOND = 100;
 
     /**
+     * The state lifecycle manager
+     */
+    private final StateLifecycleManager stateLifecycleManager;
+
+    /**
      * Constructor
      */
     public ConsistencyTestingToolMain() {
         logger.info(STARTUP.getMarker(), "constructor called in Main.");
+        stateLifecycleManager = new StateLifecycleManagerImpl(
+                platform.getContext().getMetrics(),
+                platform.getContext().getTime(),
+                virtualMap -> new ConsistencyTestingToolState(
+                        virtualMap, platform.getContext().getMetrics()),
+                CONFIGURATION);
     }
 
     /**
@@ -91,18 +101,6 @@ public class ConsistencyTestingToolMain extends DefaultSwirldMain<ConsistencyTes
      * {@inheritDoc}
      */
     @Override
-    public Function<VirtualMap, ConsistencyTestingToolState> stateRootFromVirtualMap(@NonNull final Metrics metrics) {
-        return virtualMap -> {
-            final ConsistencyTestingToolState state = new ConsistencyTestingToolState(virtualMap, new NoOpMetrics());
-            TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
-            return state;
-        };
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     @NonNull
     public ConsensusStateEventHandler<ConsistencyTestingToolState> newConsensusStateEvenHandler() {
         return new ConsistencyTestingToolConsensusStateEventHandler();
@@ -125,5 +123,14 @@ public class ConsistencyTestingToolMain extends DefaultSwirldMain<ConsistencyTes
     @Override
     public List<Class<? extends Record>> getConfigDataTypes() {
         return List.of(ConsistencyTestingToolConfig.class);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
+    @Override
+    public StateLifecycleManager getStateLifecycleManager() {
+        return stateLifecycleManager;
     }
 }

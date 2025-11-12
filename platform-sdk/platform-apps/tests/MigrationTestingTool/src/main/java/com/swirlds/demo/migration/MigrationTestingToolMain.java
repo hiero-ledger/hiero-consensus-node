@@ -3,28 +3,27 @@ package com.swirlds.demo.migration;
 
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_SECONDS;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestStateWithVM;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.logging.legacy.payload.ApplicationFinishedPayload;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.DefaultSwirldMain;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.SignatureException;
 import java.util.List;
-import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.NodeId;
@@ -62,6 +61,7 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<VirtualMapState>
     private static final SemanticVersion semanticVersion =
             SemanticVersion.newBuilder().major(SOFTWARE_VERSION).build();
 
+    private StateLifecycleManager stateLifecycleManager;
     /**
      * {@inheritDoc}
      */
@@ -81,6 +81,12 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<VirtualMapState>
         transPerSecToCreate = parameters.length >= 3 ? Integer.parseInt(parameters[2]) : transPerSecToCreate;
 
         generator = new TransactionGenerator(seed);
+        PlatformContext context = platform.getContext();
+        stateLifecycleManager = new StateLifecycleManagerImpl(
+                context.getMetrics(),
+                context.getTime(),
+                virtualMap -> new VirtualMapState(virtualMap, new NoOpMetrics()),
+                context.getConfiguration());
     }
 
     /**
@@ -158,18 +164,6 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<VirtualMapState>
         return state;
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Function<VirtualMap, VirtualMapState> stateRootFromVirtualMap(@NonNull final Metrics metrics) {
-        return virtualMap -> {
-            final VirtualMapState state = createTestStateWithVM(virtualMap);
-            TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
-            return state;
-        };
-    }
-
     @Override
     public ConsensusStateEventHandler<VirtualMapState> newConsensusStateEvenHandler() {
         return new MigrationTestToolConsensusStateEventHandler();
@@ -191,5 +185,14 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<VirtualMapState>
     @Override
     public SemanticVersion getSemanticVersion() {
         return semanticVersion;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
+    @Override
+    public StateLifecycleManager getStateLifecycleManager() {
+        return stateLifecycleManager;
     }
 }

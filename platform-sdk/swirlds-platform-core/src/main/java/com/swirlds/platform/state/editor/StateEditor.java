@@ -21,6 +21,9 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateReference;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapState;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.NoSuchElementException;
@@ -49,14 +52,14 @@ public class StateEditor {
         final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
 
         platformContext = PlatformContext.create(configuration);
+        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                virtualMap -> new VirtualMapState(virtualMap, platformContext.getMetrics()),
+                platformContext.getConfiguration());
 
-        final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readState(
-                stateDirPath,
-                (virtualMap) -> {
-                    // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
-                    throw new UnsupportedOperationException();
-                },
-                platformContext);
+        final DeserializedSignedState deserializedSignedState =
+                SignedStateFileReader.readState(stateDirPath, platformContext, stateLifecycleManager);
 
         try (final ReservedSignedState reservedSignedState = deserializedSignedState.reservedSignedState()) {
             System.out.println("\nLoading state from " + stateDirPath);

@@ -49,7 +49,6 @@ import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
-import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import com.swirlds.virtualmap.test.fixtures.InMemoryBuilder;
 import com.swirlds.virtualmap.test.fixtures.InMemoryDataSource;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
@@ -973,7 +972,7 @@ class VirtualMapTests extends VirtualTestBase {
         if (!(metric instanceof Counter counterMetric)) {
             throw new AssertionError("flushCount metric is not a counter");
         }
-        // There is a potential race condition here, as we release `VirtualRootNode.flushLatch`
+        // There is a potential race condition here, as we release `VirtualMap.flushLatch`
         // before we update the statistics (see https://github.com/hashgraph/hedera-services/issues/8439)
         assertEventuallyEquals(
                 flushCount,
@@ -1269,7 +1268,7 @@ class VirtualMapTests extends VirtualTestBase {
     }
 
     /**
-     * This test deserializes a VirtualRootNode that was serialized with version 2 of the serialization format.
+     * This test deserializes a VirtualMap that was serialized with version 2 of the serialization format.
      * This node contains 100 entries, but only 88 of them are valid. The other 12 are deleted.
      */
     @Test
@@ -1290,10 +1289,8 @@ class VirtualMapTests extends VirtualTestBase {
             final VirtualNodeCache cache = root.getCache();
             for (int i = 0; i < 100; i++) {
                 final Bytes key = TestKey.longToKey(i);
-                if (version >= VirtualRootNode.ClassVersion.VERSION_3_NO_NODE_CACHE) {
-                    // Cache must be empty, all values must be in the data source
-                    assertNull(cache.lookupLeafByKey(key));
-                }
+                // Cache must be empty, all values must be in the data source
+                assertNull(cache.lookupLeafByKey(key));
                 if (i % 7 != 0) {
                     assertEquals(new TestValue(i).toBytes(), root.getBytes(key));
                     assertEquals(new TestValue(i), root.get(key, TestValueCodec.INSTANCE));
@@ -1309,10 +1306,10 @@ class VirtualMapTests extends VirtualTestBase {
         try (FileOutputStream fileOutputStream =
                         new FileOutputStream(testDirectory.resolve(fileName).toFile());
                 SerializableDataOutputStream out = new SerializableDataOutputStream(fileOutputStream)) {
-            VirtualMap testKeyTestValueVirtualRootNode = prepareRootForSerialization();
-            testKeyTestValueVirtualRootNode.serialize(out, testDirectory);
+            VirtualMap testKeyTestValueVirtualMap = prepareRootForSerialization();
+            testKeyTestValueVirtualMap.serialize(out, testDirectory);
             fileOutputStream.flush();
-            testKeyTestValueVirtualRootNode.release();
+            testKeyTestValueVirtualMap.release();
         }
     }
 
@@ -1419,26 +1416,22 @@ class VirtualMapTests extends VirtualTestBase {
         final VirtualMap copy5 = copies.get(5);
         final Path snapshotPath =
                 LegacyTemporaryFileBuilder.buildTemporaryDirectory("snapshotAndRestore", CONFIGURATION);
-        try (final ByteArrayOutputStream bout = new ByteArrayOutputStream();
-                final SerializableDataOutputStream out = new SerializableDataOutputStream(bout)) {
-            copy5.serialize(out, snapshotPath);
-            try (final ByteArrayInputStream bin = new ByteArrayInputStream(bout.toByteArray());
-                    final SerializableDataInputStream in = new SerializableDataInputStream(bin)) {
-                final VirtualMap restored = new VirtualMap(CONFIGURATION);
-                restored.deserialize(in, snapshotPath, copy0.getVersion());
-                // All keys 1 to 5 should be in the snapshot
-                for (int i = 1; i < 6; i++) {
-                    final Bytes key = TestKey.longToKey(i);
-                    assertTrue(restored.containsKey(key), "Key " + i + " not found");
-                    assertEquals(new TestValue(i + 100), restored.get(key, TestValueCodec.INSTANCE));
-                }
-                // All keys 6 to 10 should not be there
-                for (int i = 6; i < 10; i++) {
-                    final Bytes key = TestKey.longToKey(i);
-                    assertFalse(restored.containsKey(key), "Key " + i + " found");
-                    assertNull(restored.get(key, TestValueCodec.INSTANCE));
-                }
+        copy5.createSnapshot(snapshotPath);
+        try {
+            final VirtualMap restored = VirtualMap.loadFromDirectory(snapshotPath, CONFIGURATION, InMemoryBuilder::new);
+            // All keys 1 to 5 should be in the snapshot
+            for (int i = 1; i < 6; i++) {
+                final Bytes key = TestKey.longToKey(i);
+                assertTrue(restored.containsKey(key), "Key " + i + " not found");
+                assertEquals(new TestValue(i + 100), restored.get(key, TestValueCodec.INSTANCE));
             }
+            // All keys 6 to 10 should not be there
+            for (int i = 6; i < 10; i++) {
+                final Bytes key = TestKey.longToKey(i);
+                assertFalse(restored.containsKey(key), "Key " + i + " found");
+                assertNull(restored.get(key, TestValueCodec.INSTANCE));
+            }
+
         } finally {
             copies.forEach(VirtualMap::release);
         }

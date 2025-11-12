@@ -266,7 +266,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
         // check if we are loading an existing database or creating a new one
         if (Files.exists(storageDir)) {
-            // Read metadata
+            // Read metadata, inits initialCapacity, hashesRamToDiskThreshold, and validLeafPathRange
             if (!loadMetadata(dbPaths)) {
                 logger.error(
                         MERKLE_DB.getMarker(),
@@ -276,37 +276,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 throw new IOException("Can not load an existing MerkleDbDataSource from ["
                         + storageDir.toAbsolutePath()
                         + "] because metadata file is missing");
-            }
-            // When the data source is loaded from a legacy MerkleDb snapshot, initial capacity and
-            // hashes RAM/disk threshold values are zeroes in table metadata. Use the values from
-            // constructor args. When loading from a new MerkleDb snapshot, table metadata values
-            // are used, and constructor args are ignored
-            if (this.initialCapacity <= 0) {
-                if (initialCapacity > 0) {
-                    this.initialCapacity = initialCapacity;
-                } else {
-                    logger.error(
-                            MERKLE_DB.getMarker(),
-                            "[{}] Initial capacity is not set when loading from legacy MerkleDb snapshot",
-                            tableName);
-                    throw new IOException("Can not load an existing MerkleDbDataSource from ["
-                            + storageDir.toAbsolutePath()
-                            + "] because initial capacity is not set");
-                }
-            }
-            if (this.hashesRamToDiskThreshold <= 0) {
-                if (hashesRamToDiskThreshold >= 0) {
-                    this.hashesRamToDiskThreshold = hashesRamToDiskThreshold;
-                } else {
-                    logger.error(
-                            MERKLE_DB.getMarker(),
-                            "[{}] Wrong value for hashes RAM/disk threshold when loading from legacy MerkleDb snapshot: {}",
-                            tableName,
-                            hashesRamToDiskThreshold);
-                    throw new IOException("Can not load an existing MerkleDbDataSource from ["
-                            + storageDir.toAbsolutePath()
-                            + "] because hashes RAM/disk threshold is set incorrectly");
-                }
             }
         } else {
             this.initialCapacity = initialCapacity;
