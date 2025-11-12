@@ -7,6 +7,7 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.internal.helpers.Utils.createConfiguration;
 
+import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -114,6 +115,13 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
             return;
         }
 
+        dispatcher = new OutboundDispatcher(dispatchExecutor, responseObserver);
+
+        InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
+            dispatcher.enqueue(EventMessageFactory.fromStructuredLog(logEntry));
+            return dispatcher.isCancelled() ? SubscriberAction.UNSUBSCRIBE : SubscriberAction.CONTINUE;
+        });
+
         if (consensusNodeManager != null) {
             responseObserver.onError(Status.ALREADY_EXISTS.asRuntimeException());
             log.info(ERROR.getMarker(), "Invalid request, platform already started: {}", request);
@@ -128,35 +136,20 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
         consensusNodeManager = new ConsensusNodeManager(
                 NodeId.of(selfId.id()), platformConfig, genesisRoster, version, keysAndCerts, backgroundExecutor);
 
-        setupStreamingEventDispatcher(responseObserver);
+        setupStreamingEventDispatcher();
 
         consensusNodeManager.start();
     }
 
     /**
      * Sets up all the streaming event dispatchers for the platform.
-     *
-     * @param responseObserver the observer to register for streaming events
      */
-    private void setupStreamingEventDispatcher(@NonNull final StreamObserver<EventMessage> responseObserver) {
-        dispatcher = new OutboundDispatcher(dispatchExecutor, responseObserver);
-
-        // Capture the dispatcher in a final variable so the lambda remains valid
-        final OutboundDispatcher currentDispatcher = dispatcher;
-
+    private void setupStreamingEventDispatcher() {
         consensusNodeManager.registerPlatformStatusChangeListener(
                 notification -> dispatcher.enqueue(EventMessageFactory.fromPlatformStatusChange(notification)));
 
         consensusNodeManager.registerConsensusRoundListener(
                 rounds -> dispatcher.enqueue(EventMessageFactory.fromConsensusRounds(rounds)));
-
-        consensusNodeManager.registerMarkerFileListener(
-                markerFiles -> dispatcher.enqueue(EventMessageFactory.fromMarkerFiles(markerFiles)));
-
-        InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
-            dispatcher.enqueue(EventMessageFactory.fromStructuredLog(logEntry));
-            return currentDispatcher.isCancelled() ? SubscriberAction.UNSUBSCRIBE : SubscriberAction.CONTINUE;
-        });
     }
 
     /**
@@ -208,10 +201,15 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
         }
 
         wrapWithErrorHandling(responseObserver, () -> {
-            final boolean result =
-                    consensusNodeManager.submitTransaction(request.getPayload().toByteArray());
-            responseObserver.onNext(
-                    TransactionRequestAnswer.newBuilder().setResult(result).build());
+            int numFailed = 0;
+            for (final ByteString payload : request.getPayloadList()) {
+                if (!consensusNodeManager.submitTransaction(payload.toByteArray())) {
+                    numFailed++;
+                }
+            }
+            responseObserver.onNext(TransactionRequestAnswer.newBuilder()
+                    .setNumFailed(numFailed)
+                    .build());
             responseObserver.onCompleted();
         });
     }

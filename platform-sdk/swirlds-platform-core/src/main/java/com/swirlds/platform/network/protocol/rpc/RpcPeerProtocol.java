@@ -298,6 +298,9 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         } catch (final ParallelExecutionException e) {
             NetworkUtils.handleNetworkException(e, connection, exceptionRateLimiter);
         } finally {
+            inputQueue.clear();
+            outputQueue.clear();
+            rpcPeerHandler.cleanup();
             permitProvider.release();
             previousPhase = syncMetrics.reportSyncPhase(remotePeerId, SyncPhase.OUTSIDE_OF_RPC);
         }
@@ -547,14 +550,6 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
     public void breakConversation() {
         this.conversationFinishPending = time.currentTimeMillis();
         this.processMessages = false;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void cleanup() {
-        this.rpcPeerHandler.cleanup();
     }
 
     public void setRpcPeerHandler(final RpcPeerHandler rpcPeerHandler) {

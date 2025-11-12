@@ -153,22 +153,25 @@ public class ContractUpdateHandler implements TransactionHandler {
      * @param originalAccount the original account before updates
      */
     public void updateHooks(
-            final HandleContext context,
-            final ContractUpdateTransactionBody op,
-            final Account.Builder builder,
-            final Account originalAccount) {
-        long headAfterDeletes = originalAccount.firstHookId();
+            @NonNull final HandleContext context,
+            @NonNull final ContractUpdateTransactionBody op,
+            @NonNull final Account.Builder builder,
+            @NonNull final Account originalAccount) {
+        Long headAfterDeletes = originalAccount.numberHooksInUse() == 0 ? null : originalAccount.firstHookId();
         // Dispatch all the hooks to delete
         if (!op.hookIdsToDelete().isEmpty()) {
             HookDispatchUtils.dispatchHookDeletions(
-                    context, op.hookIdsToDelete(), headAfterDeletes, originalAccount.accountId());
+                    context, op.hookIdsToDelete(), headAfterDeletes, originalAccount.accountIdOrThrow());
         }
         if (!op.hookCreationDetails().isEmpty()) {
-            HookDispatchUtils.dispatchHookCreations(
-                    context, op.hookCreationDetails(), headAfterDeletes, originalAccount.accountId());
+            final var numSlotsUpdated = HookDispatchUtils.dispatchHookCreations(
+                    context, op.hookCreationDetails(), headAfterDeletes, originalAccount.accountIdOrThrow());
             builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
+            final var currentSlots = originalAccount.numberLambdaStorageSlots() + numSlotsUpdated;
+            builder.numberLambdaStorageSlots(currentSlots);
         } else if (!op.hookIdsToDelete().isEmpty()) {
-            builder.firstHookId(headAfterDeletes);
+            // If numberLambdaStorageSlots == 0 after deletions, then first hook id is meaningless but set to 0
+            builder.firstHookId(headAfterDeletes == null ? 0 : headAfterDeletes);
         }
         if (!op.hookCreationDetails().isEmpty() || !op.hookIdsToDelete().isEmpty()) {
             final var current = originalAccount.numberHooksInUse();

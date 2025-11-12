@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.state.hooks;
 
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.getHookOwnerId;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS;
-import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_ID;
+import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -62,7 +63,7 @@ public class ProxyEvmHook extends AbstractProxyEvmAccount {
     @Override
     @NonNull
     public ContractID hederaContractId() {
-        return entityIdFactory.newContractId(HTS_HOOKS_CONTRACT_ID.contractNumOrThrow());
+        return entityIdFactory.newContractId(HTS_HOOKS_CONTRACT_NUM);
     }
 
     @Override
@@ -77,26 +78,16 @@ public class ProxyEvmHook extends AbstractProxyEvmAccount {
 
     @Override
     public @NonNull UInt256 getStorageValue(@NonNull final UInt256 key) {
-        return state.getStorageValue(entityIdFactory.newContractId(HTS_HOOKS_CONTRACT_ID.contractNumOrThrow()), key);
+        return state.getStorageValue(entityIdFactory.newContractId(HTS_HOOKS_CONTRACT_NUM), key);
     }
 
     @NonNull
     private static AccountID getOwnerId(final @NonNull HookId hookId) {
-        return requireNonNull(hookId).entityIdOrThrow().hasAccountId()
-                ? hookId.entityIdOrThrow().accountIdOrThrow()
-                : asAccountId(hookId.entityIdOrThrow().contractIdOrThrow());
+        return getHookOwnerId(hookId.entityIdOrThrow());
     }
 
     @Override
     public boolean isRegularAccount() {
         return false;
-    }
-
-    private static AccountID asAccountId(final ContractID contractID) {
-        return AccountID.newBuilder()
-                .shardNum(contractID.shardNum())
-                .realmNum(contractID.realmNum())
-                .accountNum(contractID.contractNumOrThrow())
-                .build();
     }
 }

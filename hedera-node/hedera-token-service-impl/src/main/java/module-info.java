@@ -25,7 +25,6 @@ module com.hedera.node.app.service.token.impl {
     requires com.google.common;
     requires org.apache.logging.log4j;
     requires org.bouncycastle.provider;
-    requires org.slf4j;
     requires tuweni.bytes;
 
     exports com.hedera.node.app.service.token.impl.handlers;
@@ -39,4 +38,5 @@ module com.hedera.node.app.service.token.impl {
     exports com.hedera.node.app.service.token.impl.comparator;
     exports com.hedera.node.app.service.token.impl.handlers.transfer.hooks;
     exports com.hedera.node.app.service.token.impl.handlers.transfer.customfees;
+    exports com.hedera.node.app.service.token.impl.calculator;
 }

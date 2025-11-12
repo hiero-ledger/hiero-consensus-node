@@ -227,6 +227,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
@@ -491,7 +492,7 @@ public class UtilVerbs {
      * application logs do not contain the given pattern.
      *
      * @param selector the selector for the node whose log to validate
-     * @param pattern the pattern that must be present
+     * @param pattern the pattern that must not be present
      * @param delay the delay before validation
      * @return the operation that validates the logs of the target network
      */
@@ -502,10 +503,24 @@ public class UtilVerbs {
 
     /**
      * Returns an operation that delays for the given time and then validates that the selected nodes'
-     * block node comms logs do not contain the given pattern.
+     * block node comms logs contain the given pattern.
      *
      * @param selector the selector for the node whose log to validate
      * @param pattern the pattern that must be present
+     * @param delay the delay before validation
+     * @return the operation that validates the logs of the target network
+     */
+    public static LogContainmentOp assertBlockNodeCommsLogContains(
+            @NonNull final NodeSelector selector, @NonNull final String pattern, @NonNull final Duration delay) {
+        return new LogContainmentOp(selector, BLOCK_NODE_COMMS_LOG, CONTAINS, pattern, delay);
+    }
+
+    /**
+     * Returns an operation that delays for the given time and then validates that the selected nodes'
+     * block node comms logs do not contain the given pattern.
+     *
+     * @param selector the selector for the node whose log to validate
+     * @param pattern the pattern that must not be present
      * @param delay the delay before validation
      * @return the operation that validates the logs of the target network
      */
@@ -2059,6 +2074,16 @@ public class UtilVerbs {
         return validateChargedUsdWithin(txn, expectedUsd, allowedPercentDiff);
     }
 
+    public static CustomSpecAssert validateChargedFee(String txn, long expectedFee) {
+        return assertionsHold((spec, assertLog) -> {
+            final var actualFeeCharged = getChargedFee(spec, txn);
+            assertEquals(
+                    expectedFee,
+                    actualFeeCharged,
+                    String.format("%s fee (%s) is different than expected!", actualFeeCharged, txn));
+        });
+    }
+
     public static CustomSpecAssert validateChargedUsdWithChild(
             String txn, double expectedUsd, double allowedPercentDiff) {
         return assertionsHold((spec, assertLog) -> {
@@ -2483,6 +2508,94 @@ public class UtilVerbs {
     }
 
     /**
+     * Returns a {@link BlockStreamAssertion} factory that asserts the stream items sharing the same base
+     * transaction id as the given top-level transaction have the expected nonce sequence.
+     * @param scheduleCreateTx the name of the top-level transaction
+     * @param nonces the expected nonce sequence
+     * @return a factory for a {@link BlockStreamAssertion} that asserts the nonce sequence
+     */
+    public static Function<HapiSpec, BlockStreamAssertion> scheduledNonceSequence(
+            @NonNull final String scheduleCreateTx, @NonNull final List<Integer> nonces) {
+        requireNonNull(scheduleCreateTx);
+        requireNonNull(nonces);
+        final var nextIndex = new AtomicInteger(0);
+        return spec -> block -> {
+            final com.hederahashgraph.api.proto.java.TransactionID creationTxnId;
+            try {
+                creationTxnId = spec.registry().getTxnId(scheduleCreateTx);
+            } catch (RegistryNotFound ignore) {
+                return false;
+            }
+            final var executionTxnId =
+                    protoToPbj(creationTxnId.toBuilder().setScheduled(true).build(), TransactionID.class);
+            final var items = block.items();
+            for (final var item : items) {
+                if (item.hasSignedTransaction()) {
+                    final var parts = TransactionParts.from(item.signedTransactionOrThrow());
+                    final var txId = parts.transactionIdOrThrow();
+                    final var baseTxId = txId.copyBuilder().nonce(0).build();
+                    if (baseTxId.equals(executionTxnId)) {
+                        final int expectedNonce = nonces.get(nextIndex.getAndIncrement());
+                        assertEquals(expectedNonce, txId.nonce());
+                    }
+                }
+            }
+            return nextIndex.get() == nonces.size();
+        };
+    }
+
+    /**
+     * Returns a {@link BlockStreamAssertion} factory that asserts the {@link TransactionResult} block items of an
+     * execute immediate scheduling transaction and all its triggered child transaction(s) are as expected.
+     * @param scheduleCreateTx the name of the top-level transaction
+     * @param cb the callback to apply to the two results
+     * @return a factory for a {@link BlockStreamAssertion} that asserts the relationship
+     */
+    public static Function<HapiSpec, BlockStreamAssertion> executeImmediateResults(
+            @NonNull final String scheduleCreateTx,
+            @NonNull final BiConsumer<TransactionResult, List<TransactionResult>> cb) {
+        requireNonNull(scheduleCreateTx);
+        requireNonNull(cb);
+        return spec -> block -> {
+            final com.hederahashgraph.api.proto.java.TransactionID creationTxnId;
+            try {
+                creationTxnId = spec.registry().getTxnId(scheduleCreateTx);
+            } catch (RegistryNotFound ignore) {
+                return false;
+            }
+            final var executionTxnId = protoToPbj(creationTxnId, TransactionID.class);
+            final var items = block.items();
+            TransactionResult schedulingTxResult = null;
+            List<TransactionResult> triggeredTxResults = null;
+            for (int i = 0, n = items.size(); i < n; i++) {
+                final var item = items.get(i);
+                if (item.hasSignedTransaction()) {
+                    final var parts = TransactionParts.from(item.signedTransactionOrThrow());
+                    final var txId = parts.transactionIdOrThrow();
+                    final var baseTxId =
+                            txId.copyBuilder().scheduled(false).nonce(0).build();
+                    if (baseTxId.equals(executionTxnId)) {
+                        final var result = items.get(i + 1).transactionResultOrThrow();
+                        if (txId.nonce() == 0 && !txId.scheduled()) {
+                            schedulingTxResult = result;
+                        } else {
+                            if (triggeredTxResults == null) {
+                                triggeredTxResults = new ArrayList<>();
+                            }
+                            triggeredTxResults.add(result);
+                        }
+                    }
+                }
+            }
+            if (schedulingTxResult != null && triggeredTxResults != null) {
+                cb.accept(schedulingTxResult, triggeredTxResults);
+                return true;
+            }
+            return false;
+        };
+    }
+
+    /**
      * Returns a {@link BlockStreamAssertion} factory that asserts the result of a scheduled execution
      * of the given named transaction passes the given assertion.
      * @param creationTxn the name of the transaction that created the scheduled execution
@@ -2726,6 +2839,15 @@ public class UtilVerbs {
                 / rcd.getReceipt().getExchangeRate().getCurrentRate().getHbarEquiv()
                 * rcd.getReceipt().getExchangeRate().getCurrentRate().getCentEquiv()
                 / 100;
+    }
+
+    private static long getChargedFee(@NonNull final HapiSpec spec, @NonNull final String txn) {
+        requireNonNull(spec);
+        requireNonNull(txn);
+        var subOp = getTxnRecord(txn).logged();
+        allRunFor(spec, subOp);
+        final var rcd = subOp.getResponseRecord();
+        return rcd.getTransactionFee();
     }
 
     private static double getChargedUsedForInnerTxn(

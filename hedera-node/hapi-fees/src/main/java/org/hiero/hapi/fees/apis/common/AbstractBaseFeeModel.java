@@ -31,7 +31,7 @@ public abstract class AbstractBaseFeeModel implements FeeModel {
         return this.description;
     }
 
-    protected FeeResult computeNodeAndNetworkFees(Map<Extra, Object> params, FeeSchedule feeSchedule) {
+    protected FeeResult computeNodeAndNetworkFees(Map<Extra, Long> params, FeeSchedule feeSchedule) {
         var result = new FeeResult();
         final var nodeFee = feeSchedule.node();
         result.addNodeFee("Node base fee", 1, nodeFee.baseFee());
@@ -41,7 +41,7 @@ public abstract class AbstractBaseFeeModel implements FeeModel {
             }
             int included = ref.includedCount();
             long used = (long) params.get(ref.name());
-            long extraFee = lookupExtraFee(feeSchedule, ref).fee();
+            long extraFee = lookupExtraFee(feeSchedule, ref.name()).fee();
             if (used > included) {
                 final long overage = used - included;
                 result.addNodeFee("Node Overage of " + ref.name().name(), overage, overage * extraFee);

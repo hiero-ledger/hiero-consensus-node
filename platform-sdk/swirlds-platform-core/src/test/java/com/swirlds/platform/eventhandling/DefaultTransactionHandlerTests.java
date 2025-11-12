@@ -16,6 +16,7 @@ import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
 import com.swirlds.platform.system.status.actions.FreezePeriodEnteredAction;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
+import com.swirlds.state.MerkleNodeState;
 import java.util.List;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.ConsensusEvent;
@@ -88,7 +89,7 @@ class DefaultTransactionHandlerTests {
     @ParameterizedTest
     @CsvSource({"false", "true"})
     void normalOperation(final boolean pcesRound) throws InterruptedException {
-        final TransactionHandlerTester tester = new TransactionHandlerTester(roster);
+        final TransactionHandlerTester tester = new TransactionHandlerTester();
         final ConsensusRound consensusRound = newConsensusRound(pcesRound);
 
         final TransactionHandlerResult handlerOutput =
@@ -145,16 +146,17 @@ class DefaultTransactionHandlerTests {
                 "the state should match the PCES boolean");
         verify(tester.getStateEventHandler())
                 .onSealConsensusRound(
-                        consensusRound, tester.getSwirldStateManager().getConsensusState());
+                        consensusRound, tester.getStateLifecycleManager().getMutableState());
     }
 
     @Test
     @DisplayName("Round in freeze period")
     void freezeHandling() throws InterruptedException {
-        final TransactionHandlerTester tester = new TransactionHandlerTester(roster);
+        final TransactionHandlerTester tester = new TransactionHandlerTester();
         final ConsensusRound consensusRound = newConsensusRound(false);
-        when(tester.getPlatformStateFacade().freezeTimeOf(tester.getConsensusState()))
-                .thenReturn(consensusRound.getConsensusTimestamp());
+        when(tester.getPlatformStateFacade().isInFreezePeriod(consensusRound.getConsensusTimestamp(), (MerkleNodeState)
+                        tester.getConsensusState()))
+                .thenReturn(true);
 
         final TransactionHandlerResult handlerOutput =
                 tester.getTransactionHandler().handleConsensusRound(consensusRound);

@@ -14,7 +14,6 @@ import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.PlatformStateModifier;
-import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateValueAccumulator;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
@@ -22,6 +21,8 @@ import com.swirlds.platform.system.status.actions.PlatformStatusAction;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import java.util.ArrayList;
 import java.util.List;
 import org.hiero.consensus.model.hashgraph.Round;
@@ -32,7 +33,7 @@ import org.hiero.consensus.model.node.NodeId;
  */
 public class TransactionHandlerTester {
     private final PlatformStateModifier platformState;
-    private final SwirldStateManager swirldStateManager;
+    private final StateLifecycleManager stateLifecycleManager;
     private final DefaultTransactionHandler defaultTransactionHandler;
     private final List<PlatformStatusAction> submittedActions = new ArrayList<>();
     private final List<Round> handledRounds = new ArrayList<>();
@@ -43,9 +44,8 @@ public class TransactionHandlerTester {
     /**
      * Constructs a new {@link TransactionHandlerTester} with the given {@link Roster}.
      *
-     * @param roster the {@link Roster} to use
      */
-    public TransactionHandlerTester(final Roster roster) {
+    public TransactionHandlerTester() {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
         platformState = new PlatformStateValueAccumulator();
@@ -66,21 +66,17 @@ public class TransactionHandlerTester {
                 .when(consensusStateEventHandler)
                 .onHandleConsensusRound(any(), same(consensusState), any());
         final StatusActionSubmitter statusActionSubmitter = submittedActions::add;
-        swirldStateManager = new SwirldStateManager(
-                platformContext,
-                roster,
-                NodeId.FIRST_NODE_ID,
-                statusActionSubmitter,
-                SemanticVersion.newBuilder().major(1).build(),
-                consensusStateEventHandler,
-                platformStateFacade);
-        swirldStateManager.setInitialState(consensusState);
+        stateLifecycleManager = new StateLifecycleManagerImpl(
+                platformContext.getMetrics(), platformContext.getTime(), vm -> consensusState);
+        stateLifecycleManager.initState(consensusState, true);
         defaultTransactionHandler = new DefaultTransactionHandler(
                 platformContext,
-                swirldStateManager,
+                stateLifecycleManager,
                 statusActionSubmitter,
                 mock(SemanticVersion.class),
-                platformStateFacade);
+                platformStateFacade,
+                consensusStateEventHandler,
+                NodeId.of(1));
     }
 
     /**
@@ -112,10 +108,10 @@ public class TransactionHandlerTester {
     }
 
     /**
-     * @return the {@link SwirldStateManager} used by this tester
+     * @return the {@link StateLifecycleManager} used by this tester
      */
-    public SwirldStateManager getSwirldStateManager() {
-        return swirldStateManager;
+    public StateLifecycleManager getStateLifecycleManager() {
+        return stateLifecycleManager;
     }
 
     /**

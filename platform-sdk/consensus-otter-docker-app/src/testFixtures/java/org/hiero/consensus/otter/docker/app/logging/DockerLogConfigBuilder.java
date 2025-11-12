@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.otter.docker.app.logging;
 
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.logging.internal.LogConfigHelper.DEFAULT_PATTERN;
 import static org.hiero.otter.fixtures.logging.internal.LogConfigHelper.combineFilters;
@@ -100,6 +101,7 @@ public final class DockerLogConfigBuilder {
 
         Configurator.reconfigure(builder.build());
 
-        LogManager.getLogger(DockerLogConfigBuilder.class).info("Logging configuration (re)initialized");
+        LogManager.getLogger(DockerLogConfigBuilder.class)
+                .info(STARTUP.getMarker(), "Logging configuration (re)initialized");
     }
 }

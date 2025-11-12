@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
+import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
@@ -21,6 +22,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Objects;
+import org.hiero.block.api.BlockEnd;
 import org.hiero.block.api.BlockItemSet;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
@@ -77,6 +79,22 @@ public abstract class BlockNodeCommunicationTestBase {
     protected static PublishStreamRequest createRequest(final EndStream.Code endCode) {
         final EndStream endStream = EndStream.newBuilder().endCode(endCode).build();
         return PublishStreamRequest.newBuilder().endStream(endStream).build();
+    }
+
+    @NonNull
+    protected static PublishStreamRequest createRequest(final EndStream.Code endCode, final long earliestBlockNumber) {
+        final EndStream endStream = EndStream.newBuilder()
+                .endCode(endCode)
+                .earliestBlockNumber(earliestBlockNumber)
+                .build();
+        return PublishStreamRequest.newBuilder().endStream(endStream).build();
+    }
+
+    @NonNull
+    protected static PublishStreamRequest createRequest(final long blockNumber) {
+        final BlockEnd endOfBlock =
+                BlockEnd.newBuilder().blockNumber(blockNumber).build();
+        return PublishStreamRequest.newBuilder().endOfBlock(endOfBlock).build();
     }
 
     protected TestConfigBuilder createDefaultConfigProvider() {
@@ -143,7 +161,9 @@ public abstract class BlockNodeCommunicationTestBase {
 
         final BlockProof proof = BlockProof.newBuilder()
                 .block(blockNumber)
-                .blockSignature(Bytes.wrap(array))
+                .signedBlockProof(TssSignedBlockProof.newBuilder()
+                        .blockSignature(Bytes.wrap(array))
+                        .build())
                 .build();
         return BlockItem.newBuilder().blockProof(proof).build();
     }
@@ -156,7 +176,7 @@ public abstract class BlockNodeCommunicationTestBase {
                 .build();
     }
 
-    protected static BlockNodeConfig newBlockNodeConfig(final int port, final int priority) {
-        return newBlockNodeConfig("localhost", port, priority);
+    protected static BlockNodeProtocolConfig newBlockNodeConfig(final int port, final int priority) {
+        return new BlockNodeProtocolConfig(newBlockNodeConfig("localhost", port, priority), null);
     }
 }

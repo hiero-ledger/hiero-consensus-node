@@ -30,6 +30,7 @@ import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
+import com.hedera.node.app.service.token.impl.TokenServiceImpl;
 import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.app.services.ServicesInjectionModule;
@@ -39,7 +40,7 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.records.RecordCache;
-import com.hedera.node.app.spi.throttle.Throttle;
+import com.hedera.node.app.spi.throttle.ScheduleThrottle;
 import com.hedera.node.app.state.HederaStateInjectionModule;
 import com.hedera.node.app.state.WorkingStateAccessor;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
@@ -156,6 +157,9 @@ public interface HederaInjectionComponent {
     @Component.Builder
     interface Builder {
         @BindsInstance
+        Builder tokenServiceImpl(TokenServiceImpl tokenService);
+
+        @BindsInstance
         Builder utilServiceImpl(UtilServiceImpl utilService);
 
         @BindsInstance
@@ -204,7 +208,7 @@ public interface HederaInjectionComponent {
         Builder instantSource(InstantSource instantSource);
 
         @BindsInstance
-        Builder throttleFactory(Throttle.Factory throttleFactory);
+        Builder throttleFactory(ScheduleThrottle.Factory throttleFactory);
 
         @BindsInstance
         Builder softwareVersion(SemanticVersion softwareVersion);

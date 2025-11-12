@@ -36,7 +36,7 @@ import com.hedera.node.app.service.schedule.impl.ScheduledTransactionFactory;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.fixtures.Assertions;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
-import com.hedera.node.app.spi.throttle.Throttle;
+import com.hedera.node.app.spi.throttle.ScheduleThrottle;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
@@ -52,10 +52,10 @@ import org.mockito.Mock;
 
 class ScheduleCreateHandlerTest extends ScheduleHandlerTestBase {
     @Mock
-    private Throttle.Factory throttleFactory;
+    private ScheduleThrottle.Factory throttleFactory;
 
     @Mock
-    private Throttle throttle;
+    private ScheduleThrottle throttle;
 
     @Mock
     private ScheduleFeeCharging feeCharging;
@@ -205,7 +205,7 @@ class ScheduleCreateHandlerTest extends ScheduleHandlerTestBase {
         final Set<HederaFunctionality> configuredWhitelist =
                 scheduleConfig.whitelist().functionalitySet();
         given(keyVerifier.authorizingSimpleKeys()).willReturn(new ConcurrentSkipListSet<>(new KeyComparator()));
-        given(throttleFactory.newThrottle(anyInt(), any())).willReturn(throttle);
+        given(throttleFactory.newScheduleThrottle(anyInt(), any())).willReturn(throttle);
         given(throttle.allow(any(), any(), any(), any())).willReturn(true);
         given(throttle.usageSnapshots()).willReturn(ThrottleUsageSnapshots.DEFAULT);
         for (final Schedule next : listOfScheduledOptions) {
@@ -258,7 +258,7 @@ class ScheduleCreateHandlerTest extends ScheduleHandlerTestBase {
         int successCount = 0;
         // make sure we have at least four items in the whitelist to test.
         assertThat(configuredWhitelist).hasSizeGreaterThan(4);
-        given(throttleFactory.newThrottle(anyInt(), any())).willReturn(throttle);
+        given(throttleFactory.newScheduleThrottle(anyInt(), any())).willReturn(throttle);
         given(throttle.allow(any(), any(), any(), any())).willReturn(true);
         given(throttle.usageSnapshots()).willReturn(ThrottleUsageSnapshots.DEFAULT);
         for (final Schedule next : listOfScheduledOptions) {

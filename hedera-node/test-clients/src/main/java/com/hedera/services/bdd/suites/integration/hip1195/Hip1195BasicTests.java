@@ -5,6 +5,7 @@ import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
@@ -12,6 +13,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
@@ -20,6 +22,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewContract;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.GLOBAL_WATCHER;
@@ -33,18 +36,24 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.integration.hip1195.Hip1195EnabledTest.OWNER;
 import static com.hedera.services.bdd.suites.integration.hip1195.Hip1195EnabledTest.PAYER;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_EXECUTION_EXCEPTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_IN_USE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_HOOK_CREATION_SPEC;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_HOOKS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSFER_LIST_SIZE_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
+import com.hedera.hapi.node.hooks.EvmHookSpec;
+import com.hedera.hapi.node.hooks.HookCreationDetails;
+import com.hedera.hapi.node.hooks.HookExtensionPoint;
+import com.hedera.hapi.node.hooks.LambdaEvmHook;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -83,11 +92,17 @@ public class Hip1195BasicTests {
     @Contract(contract = "FalsePrePostHook", creationGas = 5_000_000)
     static SpecContract FALSE_PRE_POST_ALLOWANCE_HOOK;
 
+    @Contract(contract = "FalseTruePrePostHook", creationGas = 5_000_000)
+    static SpecContract FALSE_TRUE_ALLOWANCE_HOOK;
+
     @Contract(contract = "CreateOpHook", creationGas = 5_000_000)
     static SpecContract CREATE_HOOK;
 
     @Contract(contract = "Create2OpHook", creationGas = 5_000_000)
     static SpecContract CREATE2_HOOK;
+
+    @Contract(contract = "SelfDestructOpHook", creationGas = 5_000_000)
+    static SpecContract SELF_DESTRUCT_HOOK;
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -98,6 +113,8 @@ public class Hip1195BasicTests {
         testLifecycle.doAdhoc(FALSE_PRE_POST_ALLOWANCE_HOOK.getInfo());
         testLifecycle.doAdhoc(CREATE_HOOK.getInfo());
         testLifecycle.doAdhoc(CREATE2_HOOK.getInfo());
+        testLifecycle.doAdhoc(SELF_DESTRUCT_HOOK.getInfo());
+        testLifecycle.doAdhoc(FALSE_TRUE_ALLOWANCE_HOOK.getInfo());
 
         testLifecycle.doAdhoc(withOpContext(
                 (spec, opLog) -> GLOBAL_WATCHER.set(new SidecarWatcher(spec.recordStreamsLoc(byNodeId(0))))));
@@ -300,27 +317,162 @@ public class Hip1195BasicTests {
         return hapiTest(
                 cryptoCreate("senderWithPrePostHook")
                         .balance(ONE_HUNDRED_HBARS)
-                        .withHooks(accountAllowanceHook(228L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
+                        .withHooks(accountAllowanceHook(228L, FALSE_PRE_POST_ALLOWANCE_HOOK.name())),
                 cryptoCreate("receiverAccount").balance(0L),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR)
                                 .between("senderWithPrePostHook", "receiverAccount"))
                         .withPrePostHookFor("senderWithPrePostHook", 228L, 25_000L, "")
                         .payingWith(DEFAULT_PAYER)
-                        .signedBy(DEFAULT_PAYER));
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
     }
 
     @HapiTest
-    final Stream<DynamicTest> prePostHookExceedsLimitCryptoTransferFails() {
+    final Stream<DynamicTest> falsePreTruePostCryptoTransferFails() {
         return hapiTest(
-                cryptoCreate("senderWithFalsePrePostHook")
+                cryptoCreate("senderWithPrePostHook")
                         .balance(ONE_HUNDRED_HBARS)
-                        .withHooks(accountAllowanceHook(229L, FALSE_PRE_POST_ALLOWANCE_HOOK.name())),
+                        .withHooks(accountAllowanceHook(228L, FALSE_TRUE_ALLOWANCE_HOOK.name())),
                 cryptoCreate("receiverAccount").balance(0L),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR)
-                                .between("senderWithFalsePrePostHook", "receiverAccount"))
-                        .withPrePostHookFor("senderWithFalsePrePostHook", 229L, 25_000L, "")
+                                .between("senderWithPrePostHook", "receiverAccount"))
+                        .withPrePostHookFor("senderWithPrePostHook", 228L, 25_000L, "")
                         .payingWith(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> cryptoCreateWithHooksFailureScenarios() {
+        return hapiTest(
+                // 1) CryptoCreate with HookCreationDetails fails (lambda present but spec missing)
+                cryptoCreate("ccFail_missingSpec")
+                        .withHook(spec -> HookCreationDetails.newBuilder()
+                                .hookId(500L)
+                                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                                .lambdaEvmHook(LambdaEvmHook.newBuilder())
+                                .build())
+                        .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
+                // 4) CryptoCreate with invalid hook contract_id (spec present but no contract_id set)
+                cryptoCreate("ccFail_invalidContractId")
+                        .withHook(spec -> HookCreationDetails.newBuilder()
+                                .hookId(501L)
+                                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                                .lambdaEvmHook(LambdaEvmHook.newBuilder()
+                                        .spec(EvmHookSpec.newBuilder().build()))
+                                .build())
+                        .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
+                // 5) CryptoCreate without hook bytecode (no lambda set)
+                cryptoCreate("ccFail_noLambda")
+                        .withHook(spec -> HookCreationDetails.newBuilder()
+                                .hookId(502L)
+                                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                                .build())
+                        .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
+
+                // Prepare accounts for update scenarios
+                cryptoCreate("acctNoHooks"),
+                cryptoCreate("acctWithHook").withHooks(accountAllowanceHook(503L, TRUE_ALLOWANCE_HOOK.name())),
+
+                // 2) CryptoUpdate with HookCreationDetails for account without hooks fails (missing spec)
+                cryptoUpdate("acctNoHooks")
+                        .withHook(spec -> HookCreationDetails.newBuilder()
+                                .hookId(504L)
+                                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                                .lambdaEvmHook(LambdaEvmHook.newBuilder())
+                                .build())
+                        .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
+                // 6) CryptoUpdate with invalid hook contract_id (spec present but no contract_id set)
+                cryptoUpdate("acctNoHooks")
+                        .withHook(spec -> HookCreationDetails.newBuilder()
+                                .hookId(505L)
+                                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                                .lambdaEvmHook(LambdaEvmHook.newBuilder()
+                                        .spec(EvmHookSpec.newBuilder().build()))
+                                .build())
+                        .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
+                // 3) CryptoUpdate with HookCreationDetails for account with hooks fails (missing spec)
+                cryptoUpdate("acctWithHook")
+                        .withHook(spec -> HookCreationDetails.newBuilder()
+                                .hookId(506L)
+                                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                                .lambdaEvmHook(LambdaEvmHook.newBuilder())
+                                .build())
+                        .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
+                // 7) CryptoUpdate without hook bytecode (no lambda set)
+                cryptoUpdate("acctWithHook")
+                        .withHook(spec -> HookCreationDetails.newBuilder()
+                                .hookId(507L)
+                                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                                .build())
+                        .hasKnownStatus(INVALID_HOOK_CREATION_SPEC));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> contractCreateAndUpdateWithHooksFailureScenarios() {
+        return hapiTest(
+                uploadInitCode("SimpleUpdate"),
+                uploadInitCode("CreateTrivial"),
+
+                // 1) ContractCreate with HookCreationDetails fails (lambda present but spec missing)
+                contractCreate("SimpleUpdate")
+                        .withHooks(spec -> HookCreationDetails.newBuilder()
+                                .hookId(520L)
+                                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                                .lambdaEvmHook(LambdaEvmHook.newBuilder())
+                                .build())
+                        .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
+                // 4) ContractCreate with invalid hook contract_id (spec present but no contract_id set)
+                contractCreate("CreateTrivial")
+                        .withHooks(spec -> HookCreationDetails.newBuilder()
+                                .hookId(521L)
+                                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                                .lambdaEvmHook(LambdaEvmHook.newBuilder()
+                                        .spec(EvmHookSpec.newBuilder().build()))
+                                .build())
+                        .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
+                // 5) ContractCreate without hook bytecode (no lambda set)
+                contractCreate("SimpleUpdate")
+                        .withHooks(spec -> HookCreationDetails.newBuilder()
+                                .hookId(522L)
+                                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                                .build())
+                        .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
+
+                // Prepare contracts for update scenarios
+                contractCreate("SimpleUpdate").withHooks(accountAllowanceHook(523L, TRUE_ALLOWANCE_HOOK.name())),
+                contractCreate("CreateTrivial"),
+
+                // 2) ContractUpdate with HookCreationDetails for contract without hooks fails (missing spec)
+                contractUpdate("CreateTrivial")
+                        .withHooks(spec -> HookCreationDetails.newBuilder()
+                                .hookId(524L)
+                                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                                .lambdaEvmHook(LambdaEvmHook.newBuilder())
+                                .build())
+                        .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
+                // 6) ContractUpdate with invalid hook contract_id (spec present but no contract_id set)
+                contractUpdate("CreateTrivial")
+                        .withHooks(spec -> HookCreationDetails.newBuilder()
+                                .hookId(525L)
+                                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                                .lambdaEvmHook(LambdaEvmHook.newBuilder()
+                                        .spec(EvmHookSpec.newBuilder().build()))
+                                .build())
+                        .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
+                // 3) ContractUpdate with HookCreationDetails for contract with hooks fails (missing spec)
+                contractUpdate("SimpleUpdate")
+                        .withHooks(spec -> HookCreationDetails.newBuilder()
+                                .hookId(526L)
+                                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                                .lambdaEvmHook(LambdaEvmHook.newBuilder())
+                                .build())
+                        .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
+                // 7) ContractUpdate without hook bytecode (no lambda set)
+                contractUpdate("SimpleUpdate")
+                        .withHooks(spec -> HookCreationDetails.newBuilder()
+                                .hookId(527L)
+                                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                                .build())
+                        .hasKnownStatus(INVALID_HOOK_CREATION_SPEC));
     }
 
     @HapiTest
@@ -534,9 +686,39 @@ public class Hip1195BasicTests {
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
     }
 
-    // ================================================================================================================
-    // CONTRACT HOOK CREATION AND REFERENCE TEST CASES
-    // ================================================================================================================
+    @HapiTest
+    final Stream<DynamicTest> mixedAppearancesRequireSigIfNotAllHookAuthorized() {
+        return hapiTest(
+                newKeyNamed("supplyKey"),
+                cryptoCreate("treasury"),
+                cryptoCreate("senderWithHook").withHooks(accountAllowanceHook(260L, TRUE_ALLOWANCE_HOOK.name())),
+                cryptoCreate("rcvFungible"),
+                cryptoCreate("rcvNft"),
+
+                // Create FT and NFT and distribute to sender
+                tokenCreate("ft").treasury("treasury").supplyKey("supplyKey").initialSupply(1_000L),
+                tokenCreate("nft")
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury("treasury")
+                        .supplyKey("supplyKey")
+                        .initialSupply(0L),
+                tokenAssociate("senderWithHook", List.of("ft", "nft")),
+                tokenAssociate("rcvFungible", "ft"),
+                tokenAssociate("rcvNft", "nft"),
+                mintToken("nft", List.of(ByteString.copyFromUtf8("metadata1"))),
+                cryptoTransfer(
+                        TokenMovement.moving(100, "ft").between("treasury", "senderWithHook"),
+                        TokenMovement.movingUnique("nft", 1L).between("treasury", "senderWithHook")),
+                // Now sender appears twice: once as FT sender (authorized by fungible pre-hook) and
+                // once as NFT sender (no NFT sender hook provided) => must still sign
+                cryptoTransfer(
+                                TokenMovement.moving(10, "ft").between("senderWithHook", "rcvFungible"),
+                                TokenMovement.movingUnique("nft", 1L).between("senderWithHook", "rcvNft"))
+                        .withPreHookFor("senderWithHook", 260L, 25_000L, "")
+                        .payingWith(DEFAULT_PAYER)
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE));
+    }
 
     @HapiTest
     final Stream<DynamicTest> contractCreateWithHookCreationDetails() {
@@ -866,32 +1048,138 @@ public class Hip1195BasicTests {
     }
 
     @HapiTest
-    final Stream<DynamicTest> createOpIsDisabledInHookExecution() {
+    final Stream<DynamicTest> selfDestructOpIsDisabledInHookExecution() {
         return hapiTest(
-                cryptoCreate(OWNER).withHooks(accountAllowanceHook(123L, CREATE_HOOK.name())),
+                cryptoCreate(OWNER).withHooks(accountAllowanceHook(123L, SELF_DESTRUCT_HOOK.name())),
                 cryptoCreate(PAYER).receiverSigRequired(true),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
-                        .withPreHookFor(OWNER, 123L, 25_000L, "")
+                        .withPreHookFor(OWNER, 123L, 2500_000L, "")
                         .payingWith(PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("failedTxn"),
                 getTxnRecord("failedTxn")
                         .andAllChildRecords()
-                        .hasChildRecords(TransactionRecordAsserts.recordWith().status(CONTRACT_EXECUTION_EXCEPTION)));
+                        .hasChildRecords(TransactionRecordAsserts.recordWith()
+                                .contractCallResult(resultWith().error("INVALID_OPERATION")))
+                        .logged());
     }
 
     @HapiTest
-    final Stream<DynamicTest> create2OpIsDisabledInHookExecution() {
+    final Stream<DynamicTest> cannotDeleteAccountWithHooks() {
         return hapiTest(
-                cryptoCreate(OWNER).withHooks(accountAllowanceHook(123L, CREATE2_HOOK.name())),
-                cryptoCreate(PAYER).receiverSigRequired(true),
-                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
+                cryptoCreate(OWNER).withHooks(accountAllowanceHook(123L, SELF_DESTRUCT_HOOK.name())),
+                cryptoDelete(OWNER)
+                        .hasKnownStatus(TRANSACTION_REQUIRES_ZERO_HOOKS)
+                        .payingWith(OWNER),
+                // after removing hook can delete successfully
+                cryptoUpdate(OWNER).removingHook(123L),
+                cryptoDelete(OWNER).payingWith(OWNER));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> transfersWorkWithCryptoTransferLimit() {
+        final var receiverPrefix = "receiver";
+        return hapiTest(
+                withOpContext((spec, log) -> {
+                    for (int i = 0; i < 10; i++) {
+                        allRunFor(
+                                spec,
+                                cryptoCreate(receiverPrefix + i)
+                                        .withHook(accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()))
+                                        .withHook(accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name()))
+                                        .balance(ONE_HBAR));
+                    }
+                }),
+                cryptoCreate(OWNER)
+                        .withHooks(
+                                accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
+                cryptoTransfer(
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver0"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver1"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver2"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver3"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver4"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver5"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver6"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver7"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver8"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver9"))
                         .withPreHookFor(OWNER, 123L, 25_000L, "")
-                        .payingWith(PAYER)
-                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
-                        .via("failedTxn"),
-                getTxnRecord("failedTxn")
+                        .withPreHookFor("receiver0", 123L, 25_000L, "")
+                        .withPreHookFor("receiver1", 123L, 25_000L, "")
+                        .withPreHookFor("receiver2", 123L, 25_000L, "")
+                        .withPreHookFor("receiver3", 123L, 25_000L, "")
+                        .withPreHookFor("receiver4", 123L, 25_000L, "")
+                        .withPreHookFor("receiver5", 123L, 25_000L, "")
+                        .withPreHookFor("receiver6", 123L, 25_000L, "")
+                        .withPreHookFor("receiver7", 123L, 25_000L, "")
+                        .withPreHookFor("receiver8", 123L, 25_000L, "")
+                        .withPreHookFor("receiver9", 123L, 25_000L, "")
+                        .hasKnownStatus(TRANSFER_LIST_SIZE_LIMIT_EXCEEDED),
+                cryptoTransfer(
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver0"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver1"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver2"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver3"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver4"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver5"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver6"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver7"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver8"))
+                        .withPreHookFor(OWNER, 123L, 25_000L, "")
+                        .withPreHookFor("receiver0", 123L, 25_000L, "")
+                        .withPreHookFor("receiver1", 123L, 25_000L, "")
+                        .withPreHookFor("receiver2", 123L, 25_000L, "")
+                        .withPreHookFor("receiver3", 123L, 25_000L, "")
+                        .withPreHookFor("receiver4", 123L, 25_000L, "")
+                        .withPreHookFor("receiver5", 123L, 25_000L, "")
+                        .withPreHookFor("receiver6", 123L, 25_000L, "")
+                        .withPreHookFor("receiver7", 123L, 25_000L, "")
+                        .withPreHookFor("receiver8", 123L, 25_000L, "")
+                        .withPreHookFor("receiver9", 123L, 25_000L, "")
+                        .via("transferTxn"),
+                getTxnRecord("transferTxn")
                         .andAllChildRecords()
-                        .hasChildRecords(TransactionRecordAsserts.recordWith().status(CONTRACT_EXECUTION_EXCEPTION)));
+                        .hasNonStakingChildRecordCount(10)
+                        .logged(),
+                cryptoTransfer(
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver0"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver1"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver2"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver3"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver4"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver5"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver6"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver7"),
+                                TokenMovement.movingHbar(10).between(OWNER, "receiver8"))
+                        .withPrePostHookFor(OWNER, 124L, 25_000L, "")
+                        .withPrePostHookFor("receiver0", 124L, 25_000L, "")
+                        .withPrePostHookFor("receiver1", 124L, 25_000L, "")
+                        .withPrePostHookFor("receiver2", 124L, 25_000L, "")
+                        .withPrePostHookFor("receiver3", 124L, 25_000L, "")
+                        .withPrePostHookFor("receiver4", 124L, 25_000L, "")
+                        .withPrePostHookFor("receiver5", 124L, 25_000L, "")
+                        .withPrePostHookFor("receiver6", 124L, 25_000L, "")
+                        .withPrePostHookFor("receiver7", 124L, 25_000L, "")
+                        .withPrePostHookFor("receiver8", 124L, 25_000L, "")
+                        .withPrePostHookFor("receiver9", 124L, 25_000L, "")
+                        .via("transferPrePostTxn"),
+                getTxnRecord("transferPrePostTxn")
+                        .andAllChildRecords()
+                        .hasNonStakingChildRecordCount(20)
+                        .logged());
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> transfersExceedingChildTxnLimitFails() {
+        return hapiTest(
+                cryptoCreate(OWNER).withHooks(accountAllowanceHook(123L, SELF_DESTRUCT_HOOK.name())),
+                cryptoDelete(OWNER)
+                        .hasKnownStatus(TRANSACTION_REQUIRES_ZERO_HOOKS)
+                        .payingWith(OWNER),
+                // after removing hook can delete successfully
+                cryptoUpdate(OWNER).removingHook(123L),
+                cryptoDelete(OWNER).payingWith(OWNER));
     }
 }
