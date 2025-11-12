@@ -13,7 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager;
-import org.hiero.otter.fixtures.util.TimeoutException;
+import org.hiero.otter.fixtures.exceptions.TimeoutException;
 
 /**
  * A time manager for the turtle network.

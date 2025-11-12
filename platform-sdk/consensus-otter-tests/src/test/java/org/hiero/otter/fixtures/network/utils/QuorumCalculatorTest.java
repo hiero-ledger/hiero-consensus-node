@@ -10,6 +10,7 @@ import com.swirlds.common.utility.Threshold;
 import java.util.ArrayList;
 import java.util.List;
 import org.hiero.otter.fixtures.Node;
+import org.hiero.otter.fixtures.util.QuorumCalculator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

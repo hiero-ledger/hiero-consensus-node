@@ -3,7 +3,7 @@ package org.hiero.otter.fixtures.internal.network;
 
 import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.internal.network.GeoDistributor.calculateNextLocation;
-import static org.hiero.otter.fixtures.network.utils.BandwidthLimit.UNLIMITED_BANDWIDTH;
+import static org.hiero.otter.fixtures.network.BandwidthLimit.UNLIMITED_BANDWIDTH;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -18,8 +18,8 @@ import java.util.function.Supplier;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.network.GeoMeshTopology;
-import org.hiero.otter.fixtures.network.utils.GeographicLatencyConfiguration;
-import org.hiero.otter.fixtures.network.utils.LatencyRange;
+import org.hiero.otter.fixtures.network.GeographicLatencyConfiguration;
+import org.hiero.otter.fixtures.network.LatencyRange;
 
 /**
  * An implementation of {@link GeoMeshTopology}.

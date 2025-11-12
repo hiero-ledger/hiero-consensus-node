@@ -32,6 +32,7 @@ import org.hiero.otter.fixtures.app.services.consistency.ConsistencyService;
 import org.hiero.otter.fixtures.app.services.platform.PlatformStateService;
 import org.hiero.otter.fixtures.app.services.roster.RosterService;
 import org.hiero.otter.fixtures.app.state.OtterStateInitializer;
+import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 
 /**
  * The main entry point for the Otter application. This class is instantiated by the platform when the application is
