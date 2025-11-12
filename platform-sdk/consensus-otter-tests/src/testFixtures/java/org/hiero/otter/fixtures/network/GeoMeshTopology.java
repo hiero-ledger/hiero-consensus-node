@@ -74,15 +74,4 @@ public interface GeoMeshTopology extends MeshTopology {
     @NonNull
     String getRegion(@NonNull Node node);
 
-    /**
-     * Sets realistic latency and jitter based on geographic distribution. Applies different latency characteristics for
-     * same-region, same-continent, and intercontinental connections based on the provided configuration.
-     *
-     * <p>If no {@link GeoMeshTopologyConfiguration} is set, the default
-     * {@link GeoMeshTopologyConfiguration#DEFAULT} is used.
-     *
-     * @param configuration the geographic mesh topology configuration to apply
-     * @throws NullPointerException if {@code config} is {@code null}
-     */
-    void setGeographicLatencyConfiguration(@NonNull GeoMeshTopologyConfiguration configuration);
 }
