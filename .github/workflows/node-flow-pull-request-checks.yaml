@@ -62,7 +62,7 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
 
   mats-pr-checks:
-    name: MATS - PR Checks
+    name: MATS
     uses: ./.github/workflows/zxc-mats-tests.yaml
     needs:
       - dependency-check
