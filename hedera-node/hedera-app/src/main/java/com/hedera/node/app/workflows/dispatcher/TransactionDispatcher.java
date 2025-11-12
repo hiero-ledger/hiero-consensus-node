@@ -136,8 +136,7 @@ public class TransactionDispatcher {
         }
 
         return switch (feeContext.body().data().kind()) {
-            case CRYPTO_DELETE,
-                 CRYPTO_CREATE_ACCOUNT -> true;
+            case CRYPTO_DELETE, CRYPTO_CREATE_ACCOUNT -> true;
             default -> false;
         };
     }

@@ -89,7 +89,8 @@ public class SimpleFeesSuite {
     }
 
     // TODO: Requires Consensus service SimpleFeeCalculator implementations
-    @Disabled("Requires ConsensusCreateTopic, ConsensusUpdateTopic, ConsensusSubmitMessage, ConsensusDeleteTopic, ConsensusGetTopicInfo SimpleFeeCalculator implementations")
+    @Disabled(
+            "Requires ConsensusCreateTopic, ConsensusUpdateTopic, ConsensusSubmitMessage, ConsensusDeleteTopic, ConsensusGetTopicInfo SimpleFeeCalculator implementations")
     @Nested
     class TopicFeesComparison {
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
