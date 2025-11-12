@@ -11,11 +11,11 @@ import com.swirlds.common.io.config.FileSystemManagerConfig_;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.metrics.config.MetricsConfig_;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.TimestampCollector;
 import com.swirlds.platform.config.PathsConfig_;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.listeners.PlatformStatusChangeNotification;
+import com.swirlds.platform.util.TimestampCollector;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -42,7 +42,7 @@ public class OtterNode {
         try {
             System.out.println("Starting OtterNode");
 
-            TimestampCollector.setSelfId(selfId);
+            TimestampCollector.INSTANCE.init(selfId);
 
             final Path outputDirectory = Path.of("build", "remote", "node-" + selfId.id());
 
@@ -112,7 +112,7 @@ public class OtterNode {
         final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
         final NodeId sender = NodeId.of(gossipEvent.eventCore().creatorNodeId());
         platformEvent.setSenderId(sender);
-        platformEvent.setIndex(TimestampCollector.register());
+        TimestampCollector.INSTANCE.register(platformEvent);
         intakeEventCounter.eventEnteredIntakePipeline(sender);
 
         eventHandler.accept(platformEvent);
