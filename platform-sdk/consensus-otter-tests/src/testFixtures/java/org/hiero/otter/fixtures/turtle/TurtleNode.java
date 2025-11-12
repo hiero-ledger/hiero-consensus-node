@@ -10,6 +10,7 @@ import static org.assertj.core.api.Assertions.fail;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
+import static org.hiero.otter.fixtures.logging.context.NodeLoggingContext.logToConsole;
 import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
@@ -41,6 +42,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 import java.util.Random;
 import java.util.function.Consumer;
@@ -55,6 +57,7 @@ import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
+import org.hiero.otter.fixtures.ProfilerEvent;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterAppState;
@@ -165,9 +168,19 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             throwIfInLifecycle(RUNNING, "Node has already been started.");
             throwIfInLifecycle(DESTROYED, "Node has already been destroyed.");
 
+            logToConsole(() -> log.info("Starting node {}...", selfId));
+
+            InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
+                if (Objects.equals(logEntry.nodeId(), selfId)) {
+                    resultsCollector.addLogEntry(logEntry);
+                }
+                return lifeCycle == DESTROYED ? UNSUBSCRIBE : CONTINUE;
+            });
+
             // Log the startup message using the same STARTUP marker and message as production nodes
             // Uses a platform logger to ensure it routes through per-node appenders
             startupLogger.info(LogMarker.STARTUP.getMarker(), "\n\n" + StaticPlatformBuilder.STARTUP_MESSAGE + "\n");
+
             if (savedStateDirectory != null) {
                 try {
                     OtterSavedStateUtils.copySaveState(selfId, savedStateDirectory, outputDirectory);
@@ -291,13 +304,6 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             "platformStatus",
                             wrapConsumerWithNodeContext(this::handlePlatformStatusChange));
 
-            InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
-                if (Objects.equals(logEntry.nodeId(), selfId)) {
-                    resultsCollector.addLogEntry(logEntry);
-                }
-                return lifeCycle == DESTROYED ? UNSUBSCRIBE : CONTINUE;
-            });
-
             platform = platformComponentBuilder.build();
             platformStatus = PlatformStatus.STARTING_UP;
 
@@ -371,7 +377,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * {@inheritDoc}
      */
     @Override
-    public void submitTransaction(@NonNull final OtterTransaction transaction) {
+    public void submitTransactions(@NonNull final List<OtterTransaction> transactions) {
         try (final LoggingContextScope ignored = installNodeContext()) {
             throwIsNotInLifecycle(RUNNING, "Cannot submit transaction when the network is not running.");
             assert executionLayer != null; // executionLayer must be initialized if lifeCycle is STARTED
@@ -381,7 +387,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                 return;
             }
 
-            executionLayer.submitApplicationTransaction(transaction.toByteArray());
+            transactions.forEach(tx -> executionLayer.submitApplicationTransaction(tx.toByteArray()));
         }
     }
 
@@ -504,6 +510,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * method is idempotent and can be called multiple times without any side effects.
      */
     void destroy() {
+        logToConsole(() -> log.info("Destroying node {}...", selfId));
+
         killImmediately();
 
         try (final LoggingContextScope ignored = installNodeContext()) {
@@ -518,6 +526,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     }
 
     private void handlePlatformStatusChange(@NonNull final PlatformStatus platformStatus) {
+        logToConsole(() -> log.info("Received platform status change from node {}: {}", selfId, platformStatus));
         this.platformStatus = requireNonNull(platformStatus);
         resultsCollector.addPlatformStatus(platformStatus);
     }
@@ -544,5 +553,32 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      */
     public boolean startFromSavedState() {
         return savedStateDirectory != null;
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Profiling is not supported in the Turtle environment.
+     *
+     * @throws UnsupportedOperationException always, as profiling is only supported in container environments
+     */
+    @Override
+    public void startProfiling(
+            @NonNull final String outputFilename,
+            @NonNull final Duration samplingInterval,
+            @NonNull final ProfilerEvent... events) {
+        throw new UnsupportedOperationException("Profiling is not supported in the Turtle environment");
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Profiling is not supported in the Turtle environment.
+     *
+     * @throws UnsupportedOperationException always, as profiling is only supported in container environments
+     */
+    @Override
+    public void stopProfiling() {
+        throw new UnsupportedOperationException("Profiling is not supported in the Turtle environments");
     }
 }

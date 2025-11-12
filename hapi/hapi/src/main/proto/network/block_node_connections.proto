@@ -159,6 +159,12 @@ message GrpcClientProtocolConfig {
    * not is controlled by abort_poll_time_expired(). ISO-8601 duration string (e.g., "PT10S").
    */
   google.protobuf.StringValue poll_wait_time = 5;
+
+    /**
+     * Optional maximum message size in bytes that the client will send to the block node.
+     * If present, this value SHALL override the default maximum message size.
+     */
+  google.protobuf.UInt32Value maxMessageSizeBytes = 6;
 }
 
 /**
@@ -176,4 +182,3 @@ message BlockNodeConnectionInfo {
      */
     repeated BlockNodeConfig nodes = 1;
 }
-

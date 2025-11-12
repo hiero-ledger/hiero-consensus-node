@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.node.internal.network.BlockNodeConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -18,4 +20,8 @@ public record BlockNodeProtocolConfig(
         @NonNull BlockNodeConfig blockNodeConfig,
         @Nullable Http2ClientProtocolConfig http2ClientProtocolConfig,
         @Nullable GrpcClientProtocolConfig grpcClientProtocolConfig,
-        @Nullable Integer maxMessageSizeBytes) {}
+        @Nullable Integer maxMessageSizeBytes) {
+    public BlockNodeProtocolConfig {
+        requireNonNull(blockNodeConfig);
+    }
+}
