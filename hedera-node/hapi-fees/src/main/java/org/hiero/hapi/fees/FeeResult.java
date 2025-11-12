@@ -27,7 +27,7 @@ public class FeeResult {
     // TODO: Why do we need a String label here ? It is just used for toString. Same for all methods below
     public void addServiceFee(String label, long count, long cost) {
         final var totalCost = count * cost;
-        details.put(label, new FeeDetail(count, totalCost));
+        details.put(label, new FeeDetail(count, cost));
         service = clampedAdd(service, totalCost);
     }
 
