@@ -38,7 +38,7 @@
       "schedule": [
         {
           "name": "CryptoCreate",
-          "baseFee": 499700000,
+          "baseFee": 499900000,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1 },
             { "name": "KEYS", "includedCount": 1 }
