@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.schedule.impl.calculator;
 
-import static com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl.countKeys;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
-import static org.hiero.hapi.support.fees.Extra.KEYS;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -15,19 +13,15 @@ import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
-public class ScheduleCreateFeeCalculator implements ServiceFeeCalculator {
-
+public class ScheduleSignFeeCalculator implements ServiceFeeCalculator {
     @Override
     public void accumulateServiceFee(
             @NonNull final TransactionBody txnBody,
             @Nullable final CalculatorState calculatorState,
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
-        final var adminKey = txnBody.scheduleCreateOrThrow().adminKey();
-        final long keys = adminKey != null ? countKeys(adminKey) : 0;
-        final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.SCHEDULE_CREATE);
-        feeResult.addServiceFee("Base Fee for " + HederaFunctionality.SCHEDULE_CREATE, 1, serviceDef.baseFee());
-        addExtraFee(feeResult, "Service", KEYS, feeSchedule, keys);
+        final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.SCHEDULE_SIGN);
+        feeResult.addServiceFee("Base Fee for " + HederaFunctionality.SCHEDULE_SIGN, 1, serviceDef.baseFee());
     }
 
     @Override

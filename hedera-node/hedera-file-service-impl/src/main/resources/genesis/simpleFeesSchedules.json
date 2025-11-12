@@ -193,6 +193,13 @@
             { "name": "SIGNATURES", "includedCount": 1 },
             { "name": "KEYS", "includedCount": 1}
           ]
+        },
+        {
+          "name": "ScheduleSign",
+          "baseFee": 100000,
+          "extras": [
+            { "name": "SIGNATURES", "includedCount": 1 }
+          ]
         }
       ]
     }
