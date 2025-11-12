@@ -348,17 +348,6 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
         }
     }
 
-    //    @HapiTest
-    //    final Stream<DynamicTest> test() {
-    //        return hapiTest(
-    //                // Now make some changes that should not be incorporated in this upgrade
-    //                nodeDelete("1"),
-    //                prepareFakeUpgrade(),
-    //                // validate that nodes that are deleted are actually removed from the state
-
-    //                upgradeToNextConfigVersion(ENV_OVERRIDES, FakeNmt.removeNode(byNodeId(1))));
-    //    }
-
     private static void verifyAddressInfo(final AddressBookPojo addressBook, HapiSpec spec) {
         final var entries = addressBook.getEntries().stream()
                 .map(BookEntryPojo::getNodeAccount)

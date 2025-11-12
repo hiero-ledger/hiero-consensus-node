@@ -9,6 +9,7 @@ import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.parseEd25519NodeAdminKeysFrom;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.dispatchSynthFileUpdate;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.parseConfigList;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.dispatchSynthNodeRewards;
@@ -39,6 +40,7 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.fees.ExchangeRateManager;
@@ -816,7 +818,18 @@ public class SystemTransactions {
         stakePeriodChanges.advanceTimeTo(parentTxn, applyStakePeriodSideEffects);
         try {
             long prevEntityNum;
+            long prevHighestNodeId = -1;
             if (dispatch.txnInfo().functionality() == NODE_CREATE) {
+                WritableSingletonState<NodeId> highestNodeBefore =
+                        dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(HIGHEST_NODE_ID_STATE_ID);
+                // save old state
+                prevHighestNodeId = requireNonNull(highestNodeBefore.get()).id();
+                // override the state
+                highestNodeBefore.put(requireNonNull(highestNodeBefore.get())
+                        .copyBuilder()
+                        .id(nextEntityNum - 1)
+                        .build());
+
                 WritableSingletonState<EntityCounts> countsBefore =
                         dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_STATE_ID);
                 prevEntityNum = requireNonNull(countsBefore.get()).numNodes();
@@ -846,6 +859,14 @@ public class SystemTransactions {
                 onSuccess.accept(dispatch);
             }
             if (dispatch.txnInfo().functionality() == NODE_CREATE) {
+                WritableSingletonState<NodeId> highestNodeBefore =
+                        dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(HIGHEST_NODE_ID_STATE_ID);
+                // restore the old state
+                highestNodeBefore.put(requireNonNull(highestNodeBefore.get())
+                        .copyBuilder()
+                        .id(isSuccess ? Math.max(nextEntityNum, prevHighestNodeId) : prevHighestNodeId)
+                        .build());
+
                 WritableSingletonState<EntityCounts> countsBefore =
                         dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_STATE_ID);
                 countsBefore.put(requireNonNull(countsBefore.get())
