@@ -42,9 +42,15 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.TokensConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.hapi.fees.FeeModelRegistry;
+import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
+
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -179,6 +185,31 @@ public final class TokenBurnHandler extends BaseTokenHandler implements Transact
                 .addBytesPerTransaction(meta.getBpt())
                 .addNetworkRamByteSeconds(meta.getTransferRecordDb() * USAGE_PROPERTIES.legacyReceiptStorageSecs())
                 .calculate();
+    }
+
+    @Override
+    public @NonNull FeeResult calculateFeeResult(@NonNull FeeContext feeContext) {
+        requireNonNull(feeContext);
+        final var body = feeContext.body();
+        final var subType = SubType.DEFAULT;
+        final var entity = FeeModelRegistry.lookupModel(HederaFunctionality.TOKEN_BURN);
+        var op = body.tokenBurnOrThrow();
+//        op.amount();
+//        op.hasToken()
+//        op.serialNumbers()
+//        op.token()
+        Map<Extra, Long> params = new HashMap<>();
+        params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
+//        params.put(Extra.KEYS, (long) keyCount);
+//        if (op.tokenType() == TokenType.FUNGIBLE_COMMON) {
+//            params.put(Extra.STANDARD_FUNGIBLE_TOKENS, 1L);
+//        }
+//        if (op.tokenType() == TokenType.NON_FUNGIBLE_UNIQUE) {
+//            params.put(Extra.STANDARD_NON_FUNGIBLE_TOKENS, 1L);
+//        }
+        params.put(Extra.CUSTOM_FEE, 0L);
+        return entity.computeFee(
+                params, feeContext.feeCalculatorFactory().feeCalculator(subType).getSimpleFeesSchedule());
     }
 
     private ValidationResult validateSemantics(
