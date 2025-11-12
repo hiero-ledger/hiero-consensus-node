@@ -103,11 +103,11 @@ defaults:
 
 jobs:
   mats-unit-tests:
-    name: MATS - Unit Tests
+    name: Unit Tests
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       ref: ${{ inputs.ref || '' }}
-      custom-job-label: "${{ inputs.custom-job-label }} Unit Tests"
+      custom-job-label: "${{ inputs.custom-job-label }}"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       enable-unit-tests: ${{ inputs.enable-unit-tests == 'true' }}
@@ -119,11 +119,11 @@ jobs:
       codecov-token: ${{ secrets.codecov-token }}
 
   mats-integration-tests:
-    name: MATS - Integration Tests
+    name: Integration Tests
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       ref: ${{ inputs.ref || '' }}
-      custom-job-label: "${{ inputs.custom-job-label }} Integration Tests"
+      custom-job-label: "${{ inputs.custom-job-label }}"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       enable-unit-tests: false
@@ -135,11 +135,11 @@ jobs:
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   mats-hapi-tests-misc:
-    name: MATS - HAPI Tests (Misc)
+    name: HAPI Tests (Misc)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       ref: ${{ inputs.ref || '' }}
-      custom-job-label: "${{ inputs.custom-job-label }} HAPI Tests (Misc)"
+      custom-job-label: "${{ inputs.custom-job-label }}"
       enable-unit-tests: false
       enable-hapi-tests-misc: ${{ inputs.enable-hapi-tests == 'true' }}
       enable-network-log-capture: true
@@ -150,11 +150,11 @@ jobs:
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   mats-hapi-tests-misc-records:
-    name: MATS - HAPI Tests (Misc Records)
+    name: HAPI Tests (Misc Records)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       ref: ${{ inputs.ref || '' }}
-      custom-job-label: "${{ inputs.custom-job-label }} HAPI Tests (Misc Records)"
+      custom-job-label: "${{ inputs.custom-job-label }}"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       enable-unit-tests: false
@@ -167,11 +167,11 @@ jobs:
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   mats-hapi-tests-crypto:
-    name: MATS - HAPI Tests (Crypto)
+    name: HAPI Tests (Crypto)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       ref: ${{ inputs.ref || '' }}
-      custom-job-label: "${{ inputs.custom-job-label }} HAPI Tests (Crypto)"
+      custom-job-label: "${{ inputs.custom-job-label }}"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       enable-unit-tests: false
@@ -184,11 +184,11 @@ jobs:
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   mats-hapi-tests-simplefees:
-    name: MATS - HAPI Tests (Simple Fees)
+    name: HAPI Tests (Simple Fees)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       ref: ${{ inputs.ref || '' }}
-      custom-job-label: "${{ inputs.custom-job-label }} HAPI Tests (Simple Fees)"
+      custom-job-label: "${{ inputs.custom-job-label }}"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       enable-unit-tests: false
@@ -201,11 +201,11 @@ jobs:
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   mats-hapi-tests-iss:
-    name: MATS - HAPI Tests (ISS)
+    name: HAPI Tests (ISS)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       ref: ${{ inputs.ref || '' }}
-      custom-job-label: "${{ inputs.custom-job-label }} HAPI Tests (ISS)"
+      custom-job-label: "${{ inputs.custom-job-label }}"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       enable-unit-tests: false
@@ -217,11 +217,11 @@ jobs:
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   mats-hapi-tests-token:
-    name: MATS - HAPI Tests (Token)
+    name: HAPI Tests (Token)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       ref: ${{ inputs.ref || '' }}
-      custom-job-label: "${{ inputs.custom-job-label }} HAPI Tests (Token)"
+      custom-job-label: "${{ inputs.custom-job-label }}"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       enable-unit-tests: false
@@ -234,11 +234,11 @@ jobs:
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   mats-hapi-tests-smart-contract:
-    name: MATS - HAPI Tests (Smart Contract)
+    name: HAPI Tests (Smart Contract)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       ref: ${{ inputs.ref || '' }}
-      custom-job-label: "${{ inputs.custom-job-label }} HAPI Tests (Smart Contract)"
+      custom-job-label: "${{ inputs.custom-job-label }}"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       enable-unit-tests: false
@@ -251,11 +251,11 @@ jobs:
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   mats-hapi-tests-restart:
-    name: MATS - HAPI Tests (Restart)
+    name: HAPI Tests (Restart)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       ref: ${{ inputs.ref || '' }}
-      custom-job-label: "${{ inputs.custom-job-label }} HAPI Tests (Restart)"
+      custom-job-label: "${{ inputs.custom-job-label }}"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       enable-unit-tests: false
@@ -267,11 +267,11 @@ jobs:
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   mats-hapi-tests-nd-reconnect:
-    name: MATS - HAPI Tests (Node Death Reconnect)
+    name: HAPI Tests (Node Death Reconnect)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       ref: ${{ inputs.ref || '' }}
-      custom-job-label: "${{ inputs.custom-job-label }} HAPI Tests (Node Death Reconnect)"
+      custom-job-label: "${{ inputs.custom-job-label }}"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       enable-unit-tests: false
@@ -283,11 +283,11 @@ jobs:
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   mats-otter-tests:
-    name: MATS - Otter Tests
+    name: Otter Tests
     uses: ./.github/workflows/zxc-execute-otter-tests.yaml
     with:
       ref: ${{ inputs.ref || '' }}
-      custom-job-label: "${{ inputs.custom-job-label }} Otter Tests"
+      custom-job-label: "${{ inputs.custom-job-label }}"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       enable-fast-otter-tests: ${{ inputs.enable-otter-tests == 'true' }}
@@ -298,11 +298,11 @@ jobs:
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   mats-spotless-check:
-    name: MATS - Spotless Check
+    name: Spotless Check
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       ref: ${{ inputs.ref || '' }}
-      custom-job-label: "${{ inputs.custom-job-label }} Spotless Check"
+      custom-job-label: "${{ inputs.custom-job-label }}"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       enable-unit-tests: false
@@ -314,11 +314,11 @@ jobs:
       snyk-token: ${{ secrets.snyk-token }}
 
   mats-snyk-scan:
-    name: MATS - Snyk Scan
+    name: Snyk Scan
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       ref: ${{ inputs.ref || '' }}
-      custom-job-label: "${{ inputs.custom-job-label }} Snyk Scan"
+      custom-job-label: "${{ inputs.custom-job-label }}"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       enable-unit-tests: false
@@ -330,27 +330,27 @@ jobs:
       snyk-token: ${{ secrets.snyk-token }}
 
   mats-gradle-determinism:
-    name: MATS - Gradle Determinism
+    name: Gradle Determinism
     uses: ./.github/workflows/zxc-verify-gradle-build-determinism.yaml
     if: ${{ inputs.enable-gradle-determinism == 'true' }}
     with:
       ref: ${{ inputs.ref || '' }}
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
-      custom-label: "${{ inputs.custom-job-label }} Gradle Determinism"
+      custom-label: "${{ inputs.custom-job-label }}"
     secrets:
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   mats-docker-determinism:
-    name: MATS - Docker Determinism
+    name: Docker Determinism
     uses: ./.github/workflows/zxc-verify-docker-build-determinism.yaml
     if: ${{ inputs.enable-docker-determinism == 'true' }}
     with:
       ref: ${{ inputs.ref || '' }}
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
-      custom-label: "${{ inputs.custom-job-label }} Docker Determinism"
+      custom-label: "${{ inputs.custom-job-label }}"
     secrets:
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
