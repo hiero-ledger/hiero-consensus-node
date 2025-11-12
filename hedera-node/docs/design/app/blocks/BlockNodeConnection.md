@@ -117,11 +117,11 @@ the large item will be sent in its own request. The absolute maximum size a requ
 limit message size. If an item (or serialized request) exceeds this hard limit, then the consensus node cannot send
 the item/request to the block node.
 
-It is **strongly** recommended that the hard limit be set to `8389632`. This size is 8 MB + 1 KB. The
-largest block items currently supported are 8 MB, and the additional 1 KB is for overhead. If the hard limit is set to
-smaller than 8 MB and one of these large items are produced, then it cannot be sent to a block node.
+It is **strongly** recommended that the hard limit be set to `6292480`. This size is 6 MB + 1 KB. The
+largest block items currently supported are 6 MB, and the additional 1 KB is for overhead. If the hard limit is set to
+smaller than 6 MB and one of these large items are produced, then it cannot be sent to a block node.
 
-The default soft limit size is 2 MB. The default hard limit size is 8 MB + 1 KB.
+The default soft limit size is 2 MB. The default hard limit size is 6 MB + 1 KB.
 
 ### Graceful Connection Close
 

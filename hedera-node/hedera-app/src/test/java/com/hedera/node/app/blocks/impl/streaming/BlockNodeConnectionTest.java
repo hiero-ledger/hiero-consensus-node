@@ -1746,7 +1746,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConfiguration config = connection.getNodeConfig();
         // sanity check to make sure the sizes we are about to use are within the scope of the soft and hard limits
         assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
-        assertThat(config.messageSizeHardLimitBytes()).isEqualTo(8_389_632L); // hard limit = 8 MB + 1 KB
+        assertThat(config.messageSizeHardLimitBytes()).isEqualTo(6_292_480L); // hard limit = 6 MB + 1 KB
 
         final BlockState block = new BlockState(10);
         final BlockItem item1 = newBlockHeaderItem(10);
@@ -2735,7 +2735,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConfiguration config = connection.getNodeConfig();
         // sanity check to make sure the sizes we are about to use are within the scope of the soft and hard limits
         assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
-        assertThat(config.messageSizeHardLimitBytes()).isEqualTo(8_389_632L); // hard limit = 8 MB + 1 KB
+        assertThat(config.messageSizeHardLimitBytes()).isEqualTo(6_292_480L); // hard limit = 6 MB + 1 KB
 
         final BlockState block = new BlockState(10);
         doReturn(block).when(bufferService).getBlockState(10);
@@ -2814,18 +2814,18 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConfiguration config = connection.getNodeConfig();
         // sanity check to make sure the sizes we are about to use are within the scope of the soft and hard limits
         assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
-        assertThat(config.messageSizeHardLimitBytes()).isEqualTo(8_389_632L); // hard limit = 8 MB + 1 KB
+        assertThat(config.messageSizeHardLimitBytes()).isEqualTo(6_292_480L); // hard limit = 6 MB + 1 KB
 
         final BlockState block = new BlockState(10);
         doReturn(block).when(bufferService).getBlockState(10);
         /*
         The item is sized such that, given a request padding of 0 and an item padding of 0, during the pending request
         building phase where the size is estimated, the total estimated size will be exactly the hard limit size
-        of 8_389_632. When we try to send the request, we will build the real PublishStreamRequest and validate the
-        actual size. During this phase, the size will exceed the hard limit size (approximately 8_389_642). Since it has
+        of 6_292_480. When we try to send the request, we will build the real PublishStreamRequest and validate the
+        actual size. During this phase, the size will exceed the hard limit size (approximately 6_292_490). Since it has
         exceeded the hard limit, the item will not get sent and the connection will be closed.
          */
-        final BlockItem item = newBlockTxItem(8_389_627);
+        final BlockItem item = newBlockTxItem(6_292_475);
 
         block.addItem(item);
 

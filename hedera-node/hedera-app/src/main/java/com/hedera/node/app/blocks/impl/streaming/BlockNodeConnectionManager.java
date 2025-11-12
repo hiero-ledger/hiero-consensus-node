@@ -72,11 +72,11 @@ public class BlockNodeConnectionManager {
      */
     public static final long DEFAULT_MESSAGE_SOFT_LIMIT_BYTES = 2L * 1024 * 1024; // 2 MB
     /**
-     * Default message hard limit size - in bytes: 8 MB + 1 KB. The 8 MB is to support the maximum block items, which
-     * themselves can be 8 MB, and the 1 KB is for additional overhead associated with the maximum block item. The
+     * Default message hard limit size - in bytes: 6 MB + 1 KB. The 6 MB is to support the maximum block items, which
+     * themselves can be 6 MB, and the 1 KB is for additional overhead associated with the maximum block item. The
      * overhead should be much lower, but the sake of a nice number it was set to 1 KB.
      */
-    public static final long DEFAULT_MESSAGE_HARD_LIMIT_BYTES = (8L * 1024 * 1024) + 1024; // 8 MB + 1 KB
+    public static final long DEFAULT_MESSAGE_HARD_LIMIT_BYTES = (6L * 1024 * 1024) + 1024; // 6 MB + 1 KB
     /**
      * Initial retry delay for connection attempts.
      */
