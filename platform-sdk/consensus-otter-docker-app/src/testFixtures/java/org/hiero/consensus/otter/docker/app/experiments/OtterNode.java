@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.otter.docker.app.experiments;
 
 import static org.hiero.otter.fixtures.internal.helpers.Utils.createConfiguration;
@@ -36,8 +37,8 @@ public class OtterNode {
     private IntakeEventCounter intakeEventCounter;
     private Consumer<PlatformEvent> eventHandler;
 
-    public void start(@NonNull final NodeId selfId, @NonNull final KeysAndCerts keysAndCerts,
-            @NonNull final Roster roster) {
+    public void start(
+            @NonNull final NodeId selfId, @NonNull final KeysAndCerts keysAndCerts, @NonNull final Roster roster) {
         try {
             System.out.println("Starting OtterNode");
 
@@ -50,7 +51,8 @@ public class OtterNode {
             final Configuration configuration = createConfiguration(overriddenProperties);
 
             // Define semantic version
-            final SemanticVersion version = SemanticVersion.newBuilder().major(1).build();
+            final SemanticVersion version =
+                    SemanticVersion.newBuilder().major(1).build();
 
             // Create background executor
             final ExecutorService backgroundExecutor = Executors.newCachedThreadPool();
@@ -66,8 +68,8 @@ public class OtterNode {
             }
 
             // Create and start the consensus node manager
-            final ConsensusNodeManager consensusNodeManager = new ConsensusNodeManager(
-                    selfId, configuration, roster, version, keysAndCerts, backgroundExecutor);
+            final ConsensusNodeManager consensusNodeManager =
+                    new ConsensusNodeManager(selfId, configuration, roster, version, keysAndCerts, backgroundExecutor);
             final CountDownLatch latch = new CountDownLatch(1);
             consensusNodeManager.registerPlatformStatusChangeListener(new Listener(latch));
             consensusNodeManager.start();
@@ -88,15 +90,20 @@ public class OtterNode {
     @NonNull
     private static Map<String, String> getOverriddenProperties(@NonNull final Path outputDirectory) {
         return Map.of(
-                EventConfig_.EVENTS_LOG_DIR, outputDirectory.resolve("hgcapp").toString(),
+                EventConfig_.EVENTS_LOG_DIR,
+                outputDirectory.resolve("hgcapp").toString(),
                 StateCommonConfig_.SAVED_STATE_DIRECTORY,
                 outputDirectory.resolve("data/saved").toString(),
                 FileSystemManagerConfig_.ROOT_PATH,
                 outputDirectory.resolve("data").toString(),
-                MetricsConfig_.CSV_OUTPUT_FOLDER, outputDirectory.resolve("data/stats").toString(),
-                PathsConfig_.SETTINGS_USED_DIR, outputDirectory.toString(),
-                PathsConfig_.KEYS_DIR_PATH, outputDirectory.resolve("data/keys").toString(),
-                PathsConfig_.APPS_DIR_PATH, outputDirectory.resolve("data/apps").toString(),
+                MetricsConfig_.CSV_OUTPUT_FOLDER,
+                outputDirectory.resolve("data/stats").toString(),
+                PathsConfig_.SETTINGS_USED_DIR,
+                outputDirectory.toString(),
+                PathsConfig_.KEYS_DIR_PATH,
+                outputDirectory.resolve("data/keys").toString(),
+                PathsConfig_.APPS_DIR_PATH,
+                outputDirectory.resolve("data/apps").toString(),
                 PathsConfig_.MARKER_FILES_DIR,
                 outputDirectory.resolve("data/saved/marker_files").toString());
     }

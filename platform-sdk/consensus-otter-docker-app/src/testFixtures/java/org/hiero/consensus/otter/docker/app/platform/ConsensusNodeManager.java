@@ -19,11 +19,9 @@ import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.TimestampCollector;
 import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
-import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.state.service.PlatformStateFacade;
@@ -254,7 +252,8 @@ public class ConsensusNodeManager {
     }
 
     public Consumer<PlatformEvent> eventHandler() {
-        final StandardOutputWire<PlatformEvent> eventOutput = (StandardOutputWire<PlatformEvent>) platformComponents.gossipWiring().getEventOutput();
+        final StandardOutputWire<PlatformEvent> eventOutput = (StandardOutputWire<PlatformEvent>)
+                platformComponents.gossipWiring().getEventOutput();
         return eventOutput::forward;
     }
 }

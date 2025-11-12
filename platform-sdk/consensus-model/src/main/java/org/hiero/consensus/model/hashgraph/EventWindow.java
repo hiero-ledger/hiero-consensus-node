@@ -58,7 +58,7 @@ public record EventWindow(
      */
     @NonNull
     public static EventWindow getGenesisEventWindow() {
-//        return new EventWindow(385_490, ROUND_FIRST, ROUND_FIRST, ROUND_FIRST);
+        //        return new EventWindow(385_490, ROUND_FIRST, ROUND_FIRST, ROUND_FIRST);
         return new EventWindow(ROUND_NEGATIVE_INFINITY, ROUND_FIRST, ROUND_FIRST, ROUND_FIRST);
     }
 

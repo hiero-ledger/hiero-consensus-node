@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.otter.docker.app.experiments;
 
 import com.hedera.hapi.platform.event.GossipEvent;
@@ -44,7 +45,8 @@ public class DataAnalyzer implements Callable<Integer> {
                 final GossipEvent event = GossipEvent.PROTOBUF.parse(eventBytes);
                 final long creatorNodeId = event.eventCore().creatorNodeId();
                 if (uniqueNodeIds.add(creatorNodeId)) {
-                    System.out.println("Creator-Ids: " + uniqueNodeIds.stream().sorted().toList());
+                    System.out.println(
+                            "Creator-Ids: " + uniqueNodeIds.stream().sorted().toList());
                 }
                 count++;
             }

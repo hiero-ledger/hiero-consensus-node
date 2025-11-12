@@ -577,7 +577,8 @@ public class ConsensusImpl implements Consensus {
             if (countingVote.isSupermajority()) {
                 // we've decided one famous event. Set it as famous.
                 candidateWitness.fameDecided(votingWitness.getVote(candidateWitness));
-                final int fameIndex = candidateWitness.getWitness().getBaseEvent().getIndex();
+                final int fameIndex =
+                        candidateWitness.getWitness().getBaseEvent().getIndex();
                 if (fameIndex > 0) {
                     TimestampCollector.timestamp(Position.FAME_DECIDED, fameIndex);
                 }
@@ -898,12 +899,10 @@ public class ConsensusImpl implements Consensus {
             numConsensus++;
             consensusMetrics.consensusReached(e);
 
-
             final int index = e.getBaseEvent().getIndex();
             if (index > 0) {
                 TimestampCollector.timestamp(Position.CONSENSUS_REACHED, index);
             }
-
         }
     }
 
@@ -930,9 +929,9 @@ public class ConsensusImpl implements Consensus {
         return e.getRoundCreated() == ConsensusConstants.ROUND_NEGATIVE_INFINITY;
     }
 
-    //************************************************************************************************
+    // ************************************************************************************************
     // Functions from SWIRLDS-TR-2020-01, verified by Coq proof
-    //************************************************************************************************
+    // ************************************************************************************************
 
     /**
      * Checks if this event is a witness. The {@link EventImpl#isWitness()} is set based on this

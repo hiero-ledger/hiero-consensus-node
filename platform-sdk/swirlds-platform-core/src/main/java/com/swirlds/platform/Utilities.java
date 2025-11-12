@@ -162,7 +162,7 @@ public final class Utilities {
         return 0;
     }
 
-    //***********************************************************
+    // ***********************************************************
     // read from DataInputStream and
     // write to DataOutputStream
 

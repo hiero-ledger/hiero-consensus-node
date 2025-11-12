@@ -503,9 +503,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             downloadConsistencyServiceFiles(localOutputDirectory);
             downloadFlightRecorderFiles(localOutputDirectory);
 
-
             downloadTimestampFile(localOutputDirectory);
-
 
         } catch (final IOException e) {
             throw new UncheckedIOException("Failed to copy files from container", e);
@@ -524,7 +522,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     }
 
     private void downloadFlightRecorderFiles(final Path localOutputDirectory) {
-        copyFileFromContainerIfExists(localOutputDirectory, "/tmp/recording.jfr", "recording-%d.jfr".formatted(selfId.id()));
+        copyFileFromContainerIfExists(
+                localOutputDirectory, "/tmp/recording.jfr", "recording-%d.jfr".formatted(selfId.id()));
     }
 
     private void downloadTimestampFile(final Path localOutputDirectory) {
@@ -585,7 +584,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             @NonNull final Path localOutputDirectory,
             @NonNull final String relativeSourcePath,
             @NonNull final String relativeTargetPath) {
-        final String containerPath = relativeSourcePath.startsWith("/")? relativeSourcePath : CONTAINER_APP_WORKING_DIR + relativeSourcePath;
+        final String containerPath = relativeSourcePath.startsWith("/")
+                ? relativeSourcePath
+                : CONTAINER_APP_WORKING_DIR + relativeSourcePath;
         final String localPath =
                 localOutputDirectory.resolve(relativeTargetPath).toString();
 

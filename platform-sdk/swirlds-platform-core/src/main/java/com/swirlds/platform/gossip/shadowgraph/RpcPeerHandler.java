@@ -440,10 +440,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
         platformEvent.setSenderId(peerId);
 
-
         platformEvent.setIndex(TimestampCollector.register());
-
-
 
         this.intakeEventCounter.eventEnteredIntakePipeline(peerId);
         eventHandler.accept(platformEvent);

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.otter.docker.app.experiments;
 
 import static org.hiero.otter.fixtures.KeysAndCertsConverter.fromProto;
@@ -35,13 +36,19 @@ import picocli.CommandLine.Option;
         description = "Extracts a number of events and signs them.")
 public class Signer implements Callable<Integer> {
 
-    @Option(names = {"-i", "--input"}, description = "The file from which to extract the events.")
+    @Option(
+            names = {"-i", "--input"},
+            description = "The file from which to extract the events.")
     private File inputFile;
 
-    @Option(names = {"-o", "--output"}, description = "The file in which the signed events will be stored.")
+    @Option(
+            names = {"-o", "--output"},
+            description = "The file in which the signed events will be stored.")
     private File outputFile;
 
-    @Option(names = {"-c", "--certificates"}, description = "The file in which the certificates for signing are stored.")
+    @Option(
+            names = {"-c", "--certificates"},
+            description = "The file in which the certificates for signing are stored.")
     private File certificatesFile;
 
     /**
@@ -58,14 +65,16 @@ public class Signer implements Callable<Integer> {
         final long startTime = System.nanoTime();
 
         try (final ReadableStreamingData inputStream = new ReadableStreamingData(inputFile.toPath());
-                final WritableStreamingData outputStream = new WritableStreamingData(new FileOutputStream(outputFile))) {
+                final WritableStreamingData outputStream =
+                        new WritableStreamingData(new FileOutputStream(outputFile))) {
             while (inputStream.hasRemaining()) {
                 final int len = inputStream.readInt();
                 final Bytes eventBytes = inputStream.readBytes(len);
                 final GossipEvent gossipEvent = GossipEvent.PROTOBUF.parse(eventBytes);
                 final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
                 eventHasher.hashEvent(platformEvent);
-                final PlatformSigner signer = signers.get(gossipEvent.eventCore().creatorNodeId());
+                final PlatformSigner signer =
+                        signers.get(gossipEvent.eventCore().creatorNodeId());
                 final Signature signature = signer.sign(platformEvent.getHash());
                 final GossipEvent outputEvent = new GossipEvent.Builder()
                         .eventCore(gossipEvent.eventCore())

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.otter.docker.app.experiments;
 
 import com.hedera.hapi.platform.event.GossipEvent;
@@ -35,10 +36,14 @@ import picocli.CommandLine.Option;
         description = "Creates a KeysAndCerts-object for each creator found in the event stream.")
 public class KeysAndCertsCreator implements Callable<Integer> {
 
-    @Option(names = {"-i", "--input"}, description = "The file from which to extract the events.")
+    @Option(
+            names = {"-i", "--input"},
+            description = "The file from which to extract the events.")
     private File inputFile;
 
-    @Option(names = {"-c", "--certificates"}, description = "The file in which the certificates will be stored.")
+    @Option(
+            names = {"-c", "--certificates"},
+            description = "The file in which the certificates will be stored.")
     private File certificatesFile;
 
     /**
@@ -61,10 +66,12 @@ public class KeysAndCertsCreator implements Callable<Integer> {
             }
         }
 
-        final List<NodeId> nodeIds = uniqueNodeIds.stream().sorted().map(NodeId::of).toList();
+        final List<NodeId> nodeIds =
+                uniqueNodeIds.stream().sorted().map(NodeId::of).toList();
         final Map<NodeId, KeysAndCerts> keysAndCertsMap = CryptoStatic.generateKeysAndCerts(nodeIds, null);
 
-        try (final WritableStreamingData outputStream = new WritableStreamingData(new FileOutputStream(certificatesFile))) {
+        try (final WritableStreamingData outputStream =
+                new WritableStreamingData(new FileOutputStream(certificatesFile))) {
             for (final NodeId nodeId : nodeIds) {
                 final KeysAndCerts keysAndCerts = keysAndCertsMap.get(nodeId);
                 outputStream.writeLong(nodeId.id());

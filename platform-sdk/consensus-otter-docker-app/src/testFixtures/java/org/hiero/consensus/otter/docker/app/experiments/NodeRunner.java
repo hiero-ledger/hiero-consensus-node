@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.otter.docker.app.experiments;
 
 import static java.util.stream.Collectors.toMap;
@@ -34,13 +35,22 @@ import picocli.CommandLine.Option;
         description = "Runs a single Otter node in a network.")
 public class NodeRunner implements Callable<Integer> {
 
-    @Option(names = {"-f", "--file"}, description = "The file from which to read the IP addresses.", required = true)
+    @Option(
+            names = {"-f", "--file"},
+            description = "The file from which to read the IP addresses.",
+            required = true)
     private Path ipAddressesPath;
 
-    @Option(names = {"-n", "--count"}, description = "The number of nodes in the network.", defaultValue = "7")
+    @Option(
+            names = {"-n", "--count"},
+            description = "The number of nodes in the network.",
+            defaultValue = "7")
     private int count;
 
-    @Option(names = {"--id"}, description = "The NodeId of the node.", required = true)
+    @Option(
+            names = {"--id"},
+            description = "The NodeId of the node.",
+            required = true)
     private long id;
 
     @Override
@@ -49,14 +59,14 @@ public class NodeRunner implements Callable<Integer> {
         final NodeId selfId = NodeId.of(id);
 
         // Generate keys and certificates for all nodes
-        final List<NodeId> nodeIds = IntStream.range(0, count).mapToObj(NodeId::of).toList();
+        final List<NodeId> nodeIds =
+                IntStream.range(0, count).mapToObj(NodeId::of).toList();
         final Map<NodeId, KeysAndCerts> keysAndCertsMap = CryptoStatic.generateKeysAndCerts(nodeIds, null);
         final KeysAndCerts selfKeysAndCerts = keysAndCertsMap.get(selfId);
 
         // Create the roster
-        final List<RosterEntry> rosterEntries = keysAndCertsMap.entrySet().stream()
-                .map(this::createRosterEntry)
-                .toList();
+        final List<RosterEntry> rosterEntries =
+                keysAndCertsMap.entrySet().stream().map(this::createRosterEntry).toList();
         final Roster roster = Roster.newBuilder().rosterEntries(rosterEntries).build();
 
         // Start the Otter node
@@ -69,8 +79,7 @@ public class NodeRunner implements Callable<Integer> {
     private RosterEntry createRosterEntry(@NonNull final Entry<NodeId, KeysAndCerts> nodeIdKeysAndCertsEntry) {
         final Map<NodeId, ServiceEndpoint> serviceEndpoints;
         try (final Stream<String> lines = Files.lines(ipAddressesPath)) {
-            serviceEndpoints = lines
-                    .filter(line -> !line.isEmpty())
+            serviceEndpoints = lines.filter(line -> !line.isEmpty())
                     .map(line -> line.split(","))
                     .map(parts -> {
                         final NodeId nodeId = NodeId.of(Long.parseLong(parts[0]));

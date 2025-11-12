@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.otter.docker.app.experiments;
 
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
@@ -21,13 +22,19 @@ import picocli.CommandLine.Option;
         description = "Extracts a number of events from an event stream file.")
 public class Extractor implements Callable<Integer> {
 
-    @Option(names = {"-i", "--input"}, description = "The file from which to extract the events.")
+    @Option(
+            names = {"-i", "--input"},
+            description = "The file from which to extract the events.")
     private File input;
 
-    @Option(names = {"-o", "--output"}, description = "The file in which the events will be stored.")
+    @Option(
+            names = {"-o", "--output"},
+            description = "The file in which the events will be stored.")
     private File output;
 
-    @Option(names = {"-n", "--count"}, description = "The number of events to extract.")
+    @Option(
+            names = {"-n", "--count"},
+            description = "The number of events to extract.")
     private int count;
 
     /**

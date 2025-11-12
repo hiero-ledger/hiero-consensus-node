@@ -77,7 +77,10 @@ public class TimestampCollector {
 
     public static void store() {
         try (final BufferedWriter writer = new BufferedWriter(new FileWriter("timestamps" + selfId + ".csv"))) {
-            final String heading = Stream.of(Position.values()).skip(1L).map(Position::toString).collect(Collectors.joining(","));
+            final String heading = Stream.of(Position.values())
+                    .skip(1L)
+                    .map(Position::toString)
+                    .collect(Collectors.joining(","));
             writer.write(heading);
             writer.newLine();
 

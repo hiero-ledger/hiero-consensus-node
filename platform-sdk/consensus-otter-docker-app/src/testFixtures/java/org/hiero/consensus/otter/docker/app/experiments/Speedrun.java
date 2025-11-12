@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.otter.docker.app.experiments;
 
 import static org.hiero.otter.fixtures.KeysAndCertsConverter.fromProto;
@@ -39,13 +40,19 @@ public class Speedrun implements Callable<Integer> {
 
     private static final NodeId SELF_ID = NodeId.of(100L);
 
-    @Option(names = {"-i", "--input"}, description = "The file from which to extract the events.")
+    @Option(
+            names = {"-i", "--input"},
+            description = "The file from which to extract the events.")
     private File inputFile;
 
-    @Option(names = {"-c", "--certificates"}, description = "The file in which the certificates for signing are stored.")
+    @Option(
+            names = {"-c", "--certificates"},
+            description = "The file in which the certificates for signing are stored.")
     private Path certificatesPath;
 
-    @Option(names = {"-r", "--rate"}, description = "The number of events that are submitted per second.")
+    @Option(
+            names = {"-r", "--rate"},
+            description = "The number of events that are submitted per second.")
     private int rate = 500;
 
     /**
@@ -102,7 +109,10 @@ public class Speedrun implements Callable<Integer> {
                 final Bytes bytes = stream.readBytes(len);
                 final KeysAndCerts keysAndCerts = fromProto(ProtoKeysAndCerts.parseFrom(bytes.toByteArray()));
                 final Bytes certificate = Bytes.wrap(keysAndCerts.sigCert().getEncoded());
-                final ServiceEndpoint serviceEndpoint = ServiceEndpoint.newBuilder().domainName("localhost").port(5005 + (int) creatorNodeId).build();
+                final ServiceEndpoint serviceEndpoint = ServiceEndpoint.newBuilder()
+                        .domainName("localhost")
+                        .port(5005 + (int) creatorNodeId)
+                        .build();
                 final RosterEntry rosterEntry = RosterEntry.newBuilder()
                         .nodeId(creatorNodeId)
                         .gossipCaCertificate(certificate)
@@ -115,7 +125,10 @@ public class Speedrun implements Callable<Integer> {
         final RosterEntry selfEntry = RosterEntry.newBuilder()
                 .nodeId(SELF_ID.id())
                 .gossipCaCertificate(Bytes.wrap(selfKeysAndCerts.sigCert().getEncoded()))
-                .gossipEndpoint(ServiceEndpoint.newBuilder().domainName("localhost").port(5005 + (int) SELF_ID.id()).build())
+                .gossipEndpoint(ServiceEndpoint.newBuilder()
+                        .domainName("localhost")
+                        .port(5005 + (int) SELF_ID.id())
+                        .build())
                 .weight(100L)
                 .build();
         rosterEntries.add(selfEntry);

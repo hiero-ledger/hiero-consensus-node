@@ -16,9 +16,7 @@ import java.util.stream.LongStream;
  * @param keyBuilder Build a key for index 1..size.
  * @param valueBuilder Build a value for key index 1..size.
  */
-public record StateBuilder(
-        Function<Long, Bytes> keyBuilder,
-        Function<Long, BenchmarkValue> valueBuilder) {
+public record StateBuilder(Function<Long, Bytes> keyBuilder, Function<Long, BenchmarkValue> valueBuilder) {
 
     /** Return {@code true} with the given probability. */
     private static boolean isRandomOutcome(final Random random, final double probability) {

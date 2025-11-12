@@ -101,7 +101,7 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
                 "-XX:+StartAttachListener",
                 "-cp",
                 DOCKER_APP_JAR + ":" + DOCKER_APP_LIBS,
-//                "-XX:StartFlightRecording=delay=60s,duration=150s,filename=/tmp/recording.jfr",
+                //                "-XX:StartFlightRecording=delay=60s,duration=150s,filename=/tmp/recording.jfr",
                 CONSENSUS_NODE_MAIN_CLASS,
                 String.valueOf(selfId.id()));
 
