@@ -54,7 +54,7 @@
         },
         {
           "name": "CryptoDelete",
-          "baseFee": 49900000,
+          "baseFee": 38000000,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1 }
           ]

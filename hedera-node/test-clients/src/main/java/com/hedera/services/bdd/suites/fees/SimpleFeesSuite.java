@@ -306,7 +306,7 @@ public class SimpleFeesSuite {
                             .fee(ONE_HBAR)
                             .via("deleteAccountTxn"),
                     // node=1, network=9, service490, extra sig=100 = 500 ucents = 0.005 USD
-                    validateChargedUsdWithin("deleteAccountTxn", 0.0052, 1.0));
+                    validateChargedUsdWithin("deleteAccountTxn", 0.005, 1.0));
         }
     }
 
