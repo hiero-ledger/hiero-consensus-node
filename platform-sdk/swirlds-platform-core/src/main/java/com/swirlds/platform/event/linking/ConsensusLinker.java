@@ -85,14 +85,9 @@ public class ConsensusLinker {
             return null;
         }
 
-        final EventImpl selfParent = getParentToLink(event, event.getSelfParent());
-
-        // FUTURE WORK: Extend other parent linking to support multiple other parents.
-        // Until then, take the first parent in the list.
-        final List<EventDescriptorWrapper> otherParents = event.getOtherParents();
-        final EventImpl otherParent = otherParents.isEmpty() ? null : getParentToLink(event, otherParents.getFirst());
-
-        final EventImpl linkedEvent = new EventImpl(event, selfParent, otherParent);
+        final List<EventImpl> parents = event.getAllParents()
+                .stream().map(ed -> getParentToLink(event, ed)).toList();
+        final EventImpl linkedEvent = new EventImpl(event, parents);
         EventCounter.incrementLinkedEventCount();
 
         final EventDescriptorWrapper eventDescriptorWrapper = event.getDescriptor();
