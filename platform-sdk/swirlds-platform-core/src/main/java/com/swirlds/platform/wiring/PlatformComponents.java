@@ -231,7 +231,7 @@ public record PlatformComponents(
                 : schedulerConfiguration.unhandledTaskCapacity();
         // we want the mechanism of backpressure to engage soon enough in low tps set ups
         // since even empty rounds have an effect on the load in execution side
-        final double minimumEffort = (double) capacity / LOW_TPS_TARGET_ROUNDS_CAPACITY; //5000
+        final double minimumEffort = (double) capacity / LOW_TPS_TARGET_ROUNDS_CAPACITY; // 5000
 
         return data -> {
             if (data instanceof final ConsensusRound consensusRound) {
