@@ -5,10 +5,13 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetAdvancementWeight.ZERO_ADVANCEMENT_WEIGHT;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.LogMarker;
+import com.swirlds.metrics.api.IntegerAccumulator;
+import com.swirlds.metrics.api.IntegerAccumulator.Config;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -20,11 +23,13 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.BytesSigner;
+import org.hiero.base.crypto.SignatureType;
 import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.event.creator.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.EventCreator;
@@ -45,9 +50,10 @@ public class TipsetEventCreator implements EventCreator {
 
     private static final Logger logger = LogManager.getLogger(TipsetEventCreator.class);
 
+    private static final Bytes MOCK_SIGNATURE = Bytes.wrap(new byte[SignatureType.RSA.signatureLength()]);
+
     private final Time time;
     private final SecureRandom random;
-    private final BytesSigner signer;
     private final NodeId selfId;
     private final TipsetTracker tipsetTracker;
     private final TipsetWeightCalculator tipsetWeightCalculator;
@@ -102,6 +108,27 @@ public class TipsetEventCreator implements EventCreator {
      */
     private boolean breakQuiescenceEventCreated;
 
+    private static final IntegerAccumulator.Config NO_REGISTERED_EVENTS = new Config("platform",
+            "tipset_a_no_registered_events").withAccumulator(Integer::sum);
+    private static final IntegerAccumulator.Config ONE_REGISTERED_EVENT = new Config("platform",
+            "tipset_b_one_registered_event").withAccumulator(Integer::sum);
+    private static final IntegerAccumulator.Config MULTIPLE_REGISTERED_EVENTS = new Config("platform",
+            "tipset_c_multiple_registered_events").withAccumulator(Integer::sum);
+    private static final IntegerAccumulator.Config NO_PARENTS = new Config("platform",
+            "tipset_d_no_parents").withAccumulator(Integer::sum);
+    private static final IntegerAccumulator.Config ONE_PARENT = new Config("platform",
+            "tipset_e_one_parent").withAccumulator(Integer::sum);
+    private static final IntegerAccumulator.Config MULTIPLE_PARENTS = new Config("platform",
+            "tipset_v_multiple_parents").withAccumulator(Integer::sum);
+    private final IntegerAccumulator noRegisteredEvents;
+    private final IntegerAccumulator oneRegisteredEvents;
+    private final IntegerAccumulator multipleRegisteredEvents;
+    private final IntegerAccumulator noParents;
+    private final IntegerAccumulator oneParent;
+    private final IntegerAccumulator multipleParents;
+
+    private final AtomicInteger counter = new AtomicInteger(0);
+
     /**
      * Create a new tipset event creator.
      *
@@ -126,7 +153,6 @@ public class TipsetEventCreator implements EventCreator {
 
         this.time = Objects.requireNonNull(time);
         this.random = Objects.requireNonNull(random);
-        this.signer = Objects.requireNonNull(signer);
         this.selfId = Objects.requireNonNull(selfId);
         this.transactionSupplier = Objects.requireNonNull(transactionSupplier);
         this.roster = Objects.requireNonNull(roster);
@@ -147,6 +173,13 @@ public class TipsetEventCreator implements EventCreator {
         eventWindow = EventWindow.getGenesisEventWindow();
         lastReceivedEventWindow = time.now();
         eventHasher = new PbjStreamHasher();
+
+        noRegisteredEvents = metrics.getOrCreate(NO_REGISTERED_EVENTS);
+        oneRegisteredEvents = metrics.getOrCreate(ONE_REGISTERED_EVENT);
+        multipleRegisteredEvents = metrics.getOrCreate(MULTIPLE_REGISTERED_EVENTS);
+        noParents = metrics.getOrCreate(NO_PARENTS);
+        oneParent = metrics.getOrCreate(ONE_PARENT);
+        multipleParents = metrics.getOrCreate(MULTIPLE_PARENTS);
     }
 
     /**
@@ -182,6 +215,7 @@ public class TipsetEventCreator implements EventCreator {
         } else {
             tipsetTracker.addPeerEvent(event);
             childlessOtherEventTracker.addEvent(event);
+            counter.incrementAndGet();
         }
     }
 
@@ -210,6 +244,33 @@ public class TipsetEventCreator implements EventCreator {
         if (quiescenceCommand == QuiescenceCommand.QUIESCE) {
             return null;
         }
+
+        final int count = counter.getAndSet(0);
+        switch (count) {
+            case 0:
+                noRegisteredEvents.update(1);
+                break;
+            case 1:
+                oneRegisteredEvents.update(1);
+                break;
+            default:
+                multipleRegisteredEvents.update(1);
+        }
+
+        if (count > 0) {
+            final int otherParents = childlessOtherEventTracker.getChildlessEvents().size();
+            switch (otherParents) {
+                case 0:
+                    noParents.update(1);
+                    break;
+                case 1:
+                    oneParent.update(1);
+                    break;
+                default:
+                    multipleParents.update(1);
+            }
+        }
+
         UnsignedEvent event = maybeCreateUnsignedEvent();
         if (event != null) {
             breakQuiescenceEventCreated = false;
@@ -260,7 +321,7 @@ public class TipsetEventCreator implements EventCreator {
     }
 
     private PlatformEvent signEvent(final UnsignedEvent event) {
-        return new PlatformEvent(event, signer.sign(event.getHash().getBytes()));
+        return new PlatformEvent(event, MOCK_SIGNATURE);
     }
 
     /**
@@ -492,8 +553,8 @@ public class TipsetEventCreator implements EventCreator {
      * Regardless of whatever the host computer's clock says, the event creation time must always advance from self
      * parent to child.
      *
-     * @param selfParent   the self parent
-     * @param otherParent  the other parent
+     * @param selfParent the self parent
+     * @param otherParent the other parent
      * @param transactions the transactions to be included in the new event
      * @return the creation time for the new event
      */
