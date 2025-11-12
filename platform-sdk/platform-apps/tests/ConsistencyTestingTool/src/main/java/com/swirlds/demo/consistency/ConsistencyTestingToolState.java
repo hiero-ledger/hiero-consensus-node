@@ -6,7 +6,6 @@ import static com.swirlds.demo.consistency.V0680ConsistencyTestingToolSchema.ROU
 import static com.swirlds.demo.consistency.V0680ConsistencyTestingToolSchema.STATE_LONG_STATE_ID;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static org.hiero.base.utility.ByteUtils.byteArrayToLong;
 import static org.hiero.base.utility.NonCryptographicHashing.hash64;
 
@@ -84,7 +83,7 @@ public class ConsistencyTestingToolState extends VirtualMapState<ConsistencyTest
 
     public ConsistencyTestingToolState(
             @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
-        super(configuration, metrics, time);
+        super(configuration, metrics);
         transactionHandlingHistory = new TransactionHandlingHistory();
         transactionsAwaitingPostHandle = ConcurrentHashMap.newKeySet();
         logger.info(STARTUP.getMarker(), "New State Constructed.");
@@ -95,7 +94,7 @@ public class ConsistencyTestingToolState extends VirtualMapState<ConsistencyTest
      */
     public ConsistencyTestingToolState(
             @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
-        super(virtualMap, metrics, time);
+        super(virtualMap, metrics);
         transactionHandlingHistory = new TransactionHandlingHistory();
         transactionsAwaitingPostHandle = ConcurrentHashMap.newKeySet();
         logger.info(STARTUP.getMarker(), "New State Constructed.");
@@ -117,12 +116,6 @@ public class ConsistencyTestingToolState extends VirtualMapState<ConsistencyTest
     @Override
     protected ConsistencyTestingToolState copyingConstructor() {
         return new ConsistencyTestingToolState(this);
-    }
-
-    @Override
-    protected ConsistencyTestingToolState newInstance(
-            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
-        return new ConsistencyTestingToolState(virtualMap, metrics, time);
     }
 
     /**
@@ -154,14 +147,6 @@ public class ConsistencyTestingToolState extends VirtualMapState<ConsistencyTest
         }
 
         transactionHandlingHistory.init(logFilePath);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    protected long getRound() {
-        return DEFAULT_PLATFORM_STATE_FACADE.roundOf(this);
     }
 
     /**

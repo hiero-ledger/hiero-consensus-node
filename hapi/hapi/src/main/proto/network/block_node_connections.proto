@@ -18,6 +18,8 @@ option java_package = "com.hedera.node.internal.network.legacy";
 // <<<pbj.java_package = "com.hedera.node.internal.network">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
+import "google/protobuf/wrappers.proto";
+
 /**
  * A single block node connection configuration.<br/>
  *
@@ -57,6 +59,12 @@ message BlockNodeConfig {
    * node SHALL connect to a node in the next-highest available priority group.
    */
     int32 priority = 3;
+
+    /**
+     * Optional maximum message size in bytes that the client will send to the block node.
+     * If present, this value SHALL override the default maximum message size.
+     */
+    google.protobuf.UInt32Value maxMessageSizeBytes = 4;
 }
 
 /**
@@ -74,4 +82,3 @@ message BlockNodeConnectionInfo {
      */
     repeated BlockNodeConfig nodes = 1;
 }
-

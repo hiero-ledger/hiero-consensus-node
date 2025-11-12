@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.infra;
 
-import static com.hedera.node.app.hapi.utils.contracts.HookUtils.getHookOwnerId;
 import static com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore.isAllZeroWord;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
@@ -141,7 +140,7 @@ public class IterableStorageManager {
             HookId hookId = null;
             List<LambdaStorageUpdate> updates = new ArrayList<>();
             for (final var modifiedKey : slotKeys) {
-                hookId = modifiedKey.hookId();
+                hookId = modifiedKey.hookIdOrThrow();
                 final var value = writableEvmHookStore.getSlotValue(modifiedKey);
                 final var slot = LambdaStorageSlot.newBuilder()
                         .value(isAllZeroWord(requireNonNull(value).value()) ? Bytes.EMPTY : value.value())
@@ -149,11 +148,11 @@ public class IterableStorageManager {
                         .build();
                 updates.add(LambdaStorageUpdate.newBuilder().storageSlot(slot).build());
             }
-            final var slotsChanged = writableEvmHookStore.updateStorage(hookId, updates);
-            if (slotsChanged != 0) {
+            final int slotsDelta = writableEvmHookStore.updateStorage(hookId, updates);
+            if (slotsDelta != 0) {
                 enhancement
                         .operations()
-                        .updateLambdaStorageSlots(getHookOwnerId(hookId.entityIdOrThrow()), slotsChanged);
+                        .updateLambdaStorageSlots(hookId.entityIdOrThrow().accountIdOrThrow(), slotsDelta);
             }
         }
     }

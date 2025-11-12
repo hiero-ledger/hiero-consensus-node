@@ -41,6 +41,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.ThrowingRunnable;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 
 /**
@@ -71,7 +72,7 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
      * @param fallenBehindManager  tracks if we have fallen behind
      * @param intakeEventCounter   used for tracking events in the intake pipeline per peer
      * @param executor             for executing read/write tasks in parallel
-     * @param syncLagHandler       callback for reporting median sync lag
+     * @param syncProgressHandler  callback for reporting sync progress
      */
     public ShadowgraphSynchronizer(
             @NonNull final PlatformContext platformContext,
@@ -82,7 +83,7 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
             @NonNull final FallenBehindMonitor fallenBehindManager,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final ParallelExecutor executor,
-            @NonNull final Consumer<Double> syncLagHandler) {
+            @NonNull final Consumer<SyncProgress> syncProgressHandler) {
 
         super(
                 platformContext,
@@ -92,7 +93,7 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
                 receivedEventHandler,
                 fallenBehindManager,
                 intakeEventCounter,
-                syncLagHandler);
+                syncProgressHandler);
         this.executor = Objects.requireNonNull(executor);
     }
 
@@ -154,7 +155,7 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
 
             syncMetrics.eventWindow(myWindow, theirTipsAndEventWindow.eventWindow());
 
-            reportRoundDifference(myWindow, theirTipsAndEventWindow.eventWindow(), connection.getOtherId());
+            reportSyncStatus(myWindow, theirTipsAndEventWindow.eventWindow(), connection.getOtherId());
 
             final FallenBehindStatus status =
                     fallenBehindMonitor.check(myWindow, theirTipsAndEventWindow.eventWindow(), connection.getOtherId());
