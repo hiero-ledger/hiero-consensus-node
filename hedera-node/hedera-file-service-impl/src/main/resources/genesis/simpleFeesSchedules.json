@@ -11,7 +11,7 @@
     "multiplier": 2
   },
   "unreadable": {
-    "feeValue": 100
+    "feeValue": 199992
   },
 
   "extras": [
@@ -38,9 +38,10 @@
       "schedule": [
         {
           "name": "CryptoCreate",
-          "baseFee": 498500000,
+          "baseFee": 499700000,
           "extras": [
-            { "name": "SIGNATURES", "includedCount": 1 }
+            { "name": "SIGNATURES", "includedCount": 1 },
+            { "name": "KEYS", "includedCount": 1 }
           ]
         },
         {
@@ -53,7 +54,7 @@
         },
         {
           "name": "CryptoDelete",
-          "baseFee": 49850000,
+          "baseFee": 49700000,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1 }
           ]
