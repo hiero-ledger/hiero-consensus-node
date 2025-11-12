@@ -325,7 +325,6 @@ jobs:
             ${{ needs.xts-hapi-time-consuming-tests.result || 'skipped' }}
             ${{ needs.xts-hapi-block-node-comms-tests.result || 'skipped' }}
             ${{ needs.xts-otter-tests.result || 'skipped' }}
-
           )
           job_failure_modes=(
             ${{ needs.xts-timing-sensitive-tests.outputs.failure-mode || 'none' }}
@@ -334,7 +333,6 @@ jobs:
             ${{ needs.xts-hapi-time-consuming-tests.outputs.failure-mode || 'none' }}
             ${{ needs.xts-hapi-block-node-comms-tests.outputs.failure-mode || 'none' }}
             ${{ needs.xts-otter-tests.outputs.failure-mode || 'none' }}
-
           )
           job_names=(
             "xts-timing-sensitive-tests"
