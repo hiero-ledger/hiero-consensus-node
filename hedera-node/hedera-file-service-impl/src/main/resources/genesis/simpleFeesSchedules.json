@@ -3,12 +3,12 @@
     "baseFee": 100000,
     "extras": [
       {
-        "name": "SIGNATURES", "includedCount": 10
+        "name": "SIGNATURES", "includedCount": 1
       }
     ]
   },
   "network": {
-    "multiplier": 2
+    "multiplier": 9
   },
   "unreadable": {
     "feeValue": 100
@@ -54,7 +54,7 @@
         },
         {
           "name": "CryptoDelete",
-          "baseFee": 49700000,
+          "baseFee": 49000000,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1 }
           ]

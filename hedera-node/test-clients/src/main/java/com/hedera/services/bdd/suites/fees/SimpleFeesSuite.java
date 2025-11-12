@@ -305,7 +305,7 @@ public class SimpleFeesSuite {
                             .payingWith(PAYER)
                             .fee(ONE_HBAR)
                             .via("deleteAccountTxn"),
-                    validateChargedUsdWithin("deleteAccountTxn", 0.005, 1.0));
+                    validateChargedUsdWithin("deleteAccountTxn", 0.006, 1.0));
         }
     }
 
