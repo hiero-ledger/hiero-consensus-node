@@ -9,7 +9,6 @@ import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.PendingProof;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.FileSystem;
 
@@ -56,16 +55,6 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
-    public void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull final Bytes bytes) {
-        requireNonNull(item, "item cannot be null");
-        requireNonNull(bytes, "bytes cannot be null");
-        this.fileBlockItemWriter.writeItem(bytes.toByteArray());
-        if (isStreamingEnabled()) {
-            this.grpcBlockItemWriter.writePbjItem(item);
-        }
-    }
-
-    @Override
     public void closeCompleteBlock() {
         this.fileBlockItemWriter.closeCompleteBlock();
         if (isStreamingEnabled()) {
@@ -84,19 +73,10 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
 
     @Override
     public void writePbjItem(@NonNull final BlockItem item) {
-        throw new UnsupportedOperationException("writePbjItem is not supported in this implementation");
-    }
-
-    /**
-     * Jumps to a specific block number after a freeze event.
-     * This method only affects the gRPC writer, not the file writer.
-     *
-     * @param blockNumber the block number to jump to after freeze
-     */
-    @Override
-    public void jumpToBlockAfterFreeze(final long blockNumber) {
+        this.fileBlockItemWriter.writePbjItem(item);
         if (isStreamingEnabled()) {
-            this.grpcBlockItemWriter.jumpToBlockAfterFreeze(blockNumber);
+            this.grpcBlockItemWriter.writePbjItem(item);
         }
     }
+
 }
