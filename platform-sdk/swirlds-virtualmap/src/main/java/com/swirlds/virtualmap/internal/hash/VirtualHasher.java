@@ -13,6 +13,7 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -213,7 +214,7 @@ public final class VirtualHasher {
                         if (right == null) {
                             final long rightPath = rankPath + i * 2 + 1;
                             right = hashReader.apply(rightPath);
-                            if ((right == null) && (rightPath != 2)) {
+                            if (right == null) {
                                 throw new RuntimeException("Failed to load hash for path = " + rightPath);
                             }
                         }
@@ -233,8 +234,11 @@ public final class VirtualHasher {
         static Hash hash(final Hash left, final Hash right) {
             final WritableMessageDigest wmd = MESSAGE_DIGEST_THREAD_LOCAL.get();
             wmd.reset();
-            // Unique value to make sure internal node hashes are different from leaf hashes
-            wmd.writeByte((byte) 0x02);
+            // Unique value to make sure internal node hashes are different from leaf hashes. This
+            // value indicates the number of child nodes. All internal virtual nodes have 2 children
+            // except a root node in a tree with just one element / leaf. In this and only this case,
+            // the right hash will be set to a marker NO_PATH2_HASH hash object
+            wmd.writeByte(right == NO_PATH2_HASH ? (byte) 0x01 : (byte) 0x02);
             left.getBytes().writeTo(wmd);
             if (right != NO_PATH2_HASH) { // use identity check rather than equals
                 right.getBytes().writeTo(wmd);
@@ -642,6 +646,8 @@ public final class VirtualHasher {
     }
 
     public Hash emptyRootHash() {
-        return ChunkHashTask.hash(Cryptography.NULL_HASH, Cryptography.NULL_HASH);
+        final MessageDigest md = Cryptography.DEFAULT_DIGEST_TYPE.buildDigest();
+        md.update((byte) 0x00);
+        return new Hash(md.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
     }
 }

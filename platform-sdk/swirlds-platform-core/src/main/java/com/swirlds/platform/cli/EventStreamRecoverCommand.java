@@ -67,10 +67,10 @@ public final class EventStreamRecoverCommand extends AbstractCommand {
 
     @CommandLine.Parameters(
             index = "0",
-            description = "The path to the bootstrap SignedState.swh file."
-                    + "Events will be replayed on top of this state file.")
-    private void setBootstrapSignedState(final Path bootstrapSignedState) {
-        this.bootstrapSignedState = pathMustExist(bootstrapSignedState.toAbsolutePath());
+            description =
+                    "The path to the bootstrap state directory." + "Events will be replayed on top of this state.")
+    private void setBootstrapSignedState(final Path bootstrapSignedStateDir) {
+        this.bootstrapSignedState = dirMustExist(bootstrapSignedStateDir.toAbsolutePath());
     }
 
     @CommandLine.Option(

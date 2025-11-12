@@ -66,6 +66,7 @@ public class BlockStreamMetrics {
     private LongGauge conn_activeConnIpGauge;
     private Counter conn_endOfStreamLimitCounter;
     private Counter conn_highLatencyCounter;
+    private Counter conn_pipelineOperationTimeoutCounter;
     private RunningAverageMetric conn_headerSentToAckLatency;
     private RunningAverageMetric conn_headerProducedToAckLatency;
     private RunningAverageMetric conn_blockEndSentToAckLatency;
@@ -335,6 +336,11 @@ public class BlockStreamMetrics {
                 .withFormat("%,.2f");
 
         conn_headerSentToBlockEndSentLatency = metrics.getOrCreate(headerToBlockEndLatencyCfg);
+
+        final Counter.Config pipelineTimeoutCfg = newCounter(GROUP_CONN, "pipelineOperationTimeout")
+                .withDescription(
+                        "Number of times a pipeline onNext() or onComplete() operation timed out on a block node connection");
+        conn_pipelineOperationTimeoutCounter = metrics.getOrCreate(pipelineTimeoutCfg);
     }
 
     /**
@@ -440,6 +446,13 @@ public class BlockStreamMetrics {
      */
     public void recordBlockClosedToAckLatency(final long latencyMs) {
         conn_blockClosedToAckLatency.update(latencyMs);
+    }
+
+    /**
+     * Record that a pipeline onNext() or onComplete() operation timed out.
+     */
+    public void recordPipelineOperationTimeout() {
+        conn_pipelineOperationTimeoutCounter.increment();
     }
 
     // Connection RECV metrics -----------------------------------------------------------------------------------------

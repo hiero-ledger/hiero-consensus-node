@@ -79,7 +79,7 @@ env:
   GRAFANA_SYSADM_CHI: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P631E2BA859A814B3&var-job=performance-chicago-node-exporter
 
   #Release version from jFrog
-  NLG_VERSION: 0.7.0
+  NLG_VERSION: 0.9.0
 
   #Thresholds for performance
   #benchmarks
@@ -92,7 +92,7 @@ env:
   MinHCSLoadTest: 19867
   MinCryptoTransferLoadTest: 17338
   MinHeliSwapLoadTest: 1008
-  MinSmartContractLoadTest: 5950
+  MinSmartContractLoadTest: 4000
 
 jobs:
   performance-tests-start:

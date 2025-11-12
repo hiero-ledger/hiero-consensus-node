@@ -57,7 +57,7 @@ class GrpcBlockItemWriterTest {
         // Create BlockProof as easiest way to build object from BlockStreams
         Bytes bytes = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
         final var proof = BlockItem.newBuilder()
-                .blockProof(BlockProof.newBuilder().blockSignature(bytes).siblingHashes(new ArrayList<>()))
+                .blockProof(BlockProof.newBuilder().siblingHashes(new ArrayList<>()))
                 .build();
 
         grpcBlockItemWriter.writePbjItemAndBytes(proof, bytes);
@@ -73,7 +73,7 @@ class GrpcBlockItemWriterTest {
         // Create BlockProof as easiest way to build object from BlockStreams
         Bytes bytes = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
         final var proof = BlockItem.newBuilder()
-                .blockProof(BlockProof.newBuilder().blockSignature(bytes).siblingHashes(new ArrayList<>()))
+                .blockProof(BlockProof.newBuilder().siblingHashes(new ArrayList<>()))
                 .build();
 
         grpcBlockItemWriter.writePbjItem(proof);
