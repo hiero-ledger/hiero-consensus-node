@@ -3,7 +3,7 @@
     "baseFee": 100000,
     "extras": [
       {
-        "name": "SIGNATURES", "includedCount": 3
+        "name": "SIGNATURES", "includedCount": 10
       }
     ]
   },
