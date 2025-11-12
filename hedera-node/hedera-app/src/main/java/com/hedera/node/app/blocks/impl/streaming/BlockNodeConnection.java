@@ -459,7 +459,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         });
         blockEndSentAtMsByBlock.forEach((blockNum, sentAtMs) -> {
             if (blockNum <= acknowledgedBlockNumber) {
-                if (headerSentAtMsByBlock.remove(blockNum, sentAtMs)) {
+                if (blockEndSentAtMsByBlock.remove(blockNum, sentAtMs)) {
                     final long latencyMs = nowMs - sentAtMs;
                     blockStreamMetrics.recordBlockEndSentToAckLatency(latencyMs);
                 }
@@ -762,9 +762,11 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     blockStreamMetrics.recordRequestSent(request.request().kind());
                 }
 
-                blockStreamMetrics.recordRequestBlockItemCount(
-                        request.blockItems().blockItems().size());
-                blockStreamMetrics.recordRequestBytes(request.protobufSize());
+                if (request.hasBlockItems()) {
+                    blockStreamMetrics.recordRequestBlockItemCount(
+                            request.blockItems().blockItems().size());
+                    blockStreamMetrics.recordRequestBytes(request.protobufSize());
+                }
                 return true;
             } catch (final RuntimeException e) {
                 /*
