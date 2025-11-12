@@ -15,14 +15,14 @@
   },
 
   "extras": [
-    { "name":  "SIGNATURES",                     "fee": 10000000 },
-    { "name":  "BYTES",                          "fee": 100 },
+    { "name":  "SIGNATURES",                     "fee": 1000000 },
+    { "name":  "BYTES",                          "fee": 110 },
     { "name":  "KEYS",                           "fee": 100000000 },
     { "name":  "TOKEN_TYPES",                    "fee": 0 },
     { "name":  "NFT_SERIALS",                    "fee": 8900000 },
     { "name":  "ACCOUNTS",                       "fee": 0 },
     { "name":  "STANDARD_FUNGIBLE_TOKENS",       "fee": 9000000 },
-    { "name":  "STANDARD_NON_FUNGIBLE_TOKENS",   "fee": 190000000 },
+    { "name":  "STANDARD_NON_FUNGIBLE_TOKENS",   "fee": 100000 },
     { "name":  "CUSTOM_FEE_FUNGIBLE_TOKENS",     "fee": 19000000 },
     { "name":  "CUSTOM_FEE_NON_FUNGIBLE_TOKENS", "fee": 10100000 },
     { "name":  "CREATED_AUTO_ASSOCIATIONS",      "fee": 0 },
@@ -38,10 +38,9 @@
       "schedule": [
         {
           "name": "CryptoCreate",
-          "baseFee": 499700000,
+          "baseFee": 498500000,
           "extras": [
-            { "name": "SIGNATURES", "includedCount": 1 },
-            { "name": "KEYS", "includedCount": 1 }
+            { "name": "SIGNATURES", "includedCount": 1 }
           ]
         },
         {
@@ -54,14 +53,14 @@
         },
         {
           "name": "CryptoDelete",
-          "baseFee": 49700000,
+          "baseFee": 49850000,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1 }
           ]
         },
         {
           "name": "CryptoTransfer",
-          "baseFee": 700000,
+          "baseFee": 18,
           "extras": [
             {  "name": "SIGNATURES", "includedCount": 1 },
             {  "name": "KEYS",       "includedCount": 1 },
@@ -84,7 +83,7 @@
         },
         {
           "name": "ConsensusUpdateTopic",
-          "baseFee": 1900000,
+          "baseFee": 3240000,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 2 },
             { "name": "KEYS",       "includedCount": 1 }
@@ -100,14 +99,14 @@
         },
         {
           "name": "ConsensusDeleteTopic",
-          "baseFee": 49700000,
+          "baseFee": 21700000,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1 }
           ]
         },
         {
           "name": "ConsensusGetTopicInfo",
-          "baseFee": 700000,
+          "baseFee": 5000000,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1 }
           ]

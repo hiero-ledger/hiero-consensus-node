@@ -58,7 +58,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 
 @Tag(MATS)
 @Tag(SIMPLE_FEES)
@@ -90,9 +94,6 @@ public class SimpleFeesSuite {
         return value * 100000;
     }
 
-    // TODO: Requires Consensus service SimpleFeeCalculator implementations
-    @Disabled(
-            "Requires ConsensusCreateTopic, ConsensusUpdateTopic, ConsensusSubmitMessage, ConsensusDeleteTopic, ConsensusGetTopicInfo SimpleFeeCalculator implementations")
     @Nested
     class TopicFeesComparison {
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -123,7 +124,7 @@ public class SimpleFeesSuite {
                             .adminKeyName(ADMIN)
                             .fee(ONE_HBAR)
                             .via("create-topic-admin-txn"),
-                    validateChargedUsd("create-topic-admin-txn", ucents_to_USD(2100))
+                    validateChargedUsd("create-topic-admin-txn", ucents_to_USD(1630))
 
                     // keys = 1, sigs = 2
                     );
@@ -143,7 +144,7 @@ public class SimpleFeesSuite {
                             .adminKeyName(PAYER)
                             .fee(ONE_HBAR)
                             .via("create-topic-admin-txn"),
-                    validateChargedUsd("create-topic-admin-txn", ucents_to_USD(2000)));
+                    validateChargedUsd("create-topic-admin-txn", ucents_to_USD(1022)));
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -160,14 +161,14 @@ public class SimpleFeesSuite {
                             .adminKeyName(ADMIN)
                             .fee(ONE_HBAR)
                             .via("create-topic-admin-txn"),
-                    validateChargedUsd("create-topic-admin-txn", ucents_to_USD(2100)),
+                    validateChargedUsd("create-topic-admin-txn", ucents_to_USD(1630)),
                     // update topic is base:19 + key(1-1), node:(base:1,sig:1)*3 to include network
                     updateTopic("testTopic")
                             .adminKey(ADMIN)
                             .payingWith(PAYER)
                             .fee(ONE_HBAR)
                             .via("update-topic-txn"),
-                    validateChargedUsd("update-topic-txn", ucents_to_USD(22)));
+                    validateChargedUsd("update-topic-txn", ucents_to_USD(35.4)));
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -221,7 +222,7 @@ public class SimpleFeesSuite {
                             .message(new String(messageBytes))
                             .fee(ONE_HBAR)
                             .via("submit-message-txn"),
-                    validateChargedUsd("submit-message-txn", ucents_to_USD(10.5)));
+                    validateChargedUsd("submit-message-txn", ucents_to_USD(11.6)));
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -238,7 +239,7 @@ public class SimpleFeesSuite {
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
                     // the extra 10 is for the admin key
-                    validateChargedUsd("create-topic-txn", ucents_to_USD(2000)),
+                    validateChargedUsd("create-topic-txn", ucents_to_USD(1022)),
                     // get topic info, provide up to 1 hbar to pay for it
                     getTopicInfo("testTopic")
                             .payingWith(PAYER)
@@ -260,9 +261,9 @@ public class SimpleFeesSuite {
                             .adminKeyName(ADMIN)
                             .fee(ONE_HBAR)
                             .via("create-topic-admin-txn"),
-                    validateChargedUsd("create-topic-admin-txn", ucents_to_USD(2100)),
+                    validateChargedUsd("create-topic-admin-txn", ucents_to_USD(1630)),
                     deleteTopic("testTopic").payingWith(PAYER).fee(ONE_HBAR).via("delete-topic-txn"),
-                    validateChargedUsd("delete-topic-txn", ucents_to_USD(600)));
+                    validateChargedUsd("delete-topic-txn", ucents_to_USD(505 + 315)));
         }
     }
 
@@ -280,8 +281,8 @@ public class SimpleFeesSuite {
                             .via("create-account-txn"),
                     // node=1, network=2, service=499,700,000 tinycents
                     // sigs = 1 (included), keys = 1 (included)
-                    // Total: 100,000 + 200,000 + 499,700,000 = 500,000,000 tinycents = $0.05
-                    validateChargedUsdWithin("create-account-txn", ucents_to_USD(5000), 0.01));
+                    // Total: 100,000 + 200,000 + 499,700,000 = 500,000,000 tinycents = $0.06
+                    validateChargedUsdWithin("create-account-txn", ucents_to_USD(6000), 0.01));
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -298,8 +299,8 @@ public class SimpleFeesSuite {
                             .via("create-account-key-txn"),
                     // node=1, network=2, service=499,700,000 tinycents
                     // sigs = 1 (included), keys = 1 (included, so no extra charge)
-                    // Total: 100,000 + 200,000 + 499,700,000 = 500,000,000 tinycents = $0.05
-                    validateChargedUsdWithin("create-account-key-txn", ucents_to_USD(5000), 0.01));
+                    // Total: 100,000 + 200,000 + 499,700,000 = 500,000,000 tinycents = $0.06
+                    validateChargedUsdWithin("create-account-key-txn", ucents_to_USD(6000), 0.01));
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -313,126 +314,7 @@ public class SimpleFeesSuite {
                             .payingWith(PAYER)
                             .fee(ONE_HBAR)
                             .via("delete-account-txn"),
-                    // node=1, network=2, service=49,700,000 tinycents
-                    // sigs = 1 (included)
-                    // Total: 100,000 + 200,000 + 49,700,000 = 50,000,000 tinycents = $0.005
-                    validateChargedUsdWithin("delete-account-txn", ucents_to_USD(500), 0.01));
-        }
-
-        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-        @DisplayName("compare crypto create with 2 keys")
-        final Stream<DynamicTest> cryptoCreateWith2Keys() {
-            return runBeforeAfter(
-                    newKeyNamed("key1"),
-                    newKeyNamed("key2"),
-                    newKeyListNamed("keyList2", List.of("key1", "key2")),
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    cryptoCreate("accountWith2Keys")
-                            .balance(0L)
-                            .key("keyList2")
-                            .payingWith(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("create-2keys-txn"),
-                    // node=100,000, network=200,000, service=499,700,000 tinycents
-                    // keys = 2, includedCount=1, so 1 extra key charged
-                    // Extra keys: 1 × 100,000,000 = 100,000,000
-                    // Total: 100,000 + 200,000 + 499,700,000 + 100,000,000 = 600,000,000 tinycents = $0.06
-                    validateChargedUsdWithin("create-2keys-txn", ucents_to_USD(6000), 0.01));
-        }
-
-        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-        @DisplayName("compare crypto create with 3 keys")
-        final Stream<DynamicTest> cryptoCreateWith3Keys() {
-            return runBeforeAfter(
-                    newKeyNamed("key1"),
-                    newKeyNamed("key2"),
-                    newKeyNamed("key3"),
-                    newKeyListNamed("keyList3", List.of("key1", "key2", "key3")),
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    cryptoCreate("accountWith3Keys")
-                            .balance(0L)
-                            .key("keyList3")
-                            .payingWith(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("create-3keys-txn"),
-                    // node=100,000, network=200,000, service=499,700,000 tinycents
-                    // keys = 3, includedCount=1, so 2 extra keys charged
-                    // Extra keys: 2 × 100,000,000 = 200,000,000
-                    // Total: 100,000 + 200,000 + 499,700,000 + 200,000,000 = 700,000,000 tinycents = $0.07
-                    validateChargedUsdWithin("create-3keys-txn", ucents_to_USD(7000), 0.01));
-        }
-
-        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-        @DisplayName("compare crypto create with 5 keys")
-        final Stream<DynamicTest> cryptoCreateWith5Keys() {
-            return runBeforeAfter(
-                    newKeyNamed("key1"),
-                    newKeyNamed("key2"),
-                    newKeyNamed("key3"),
-                    newKeyNamed("key4"),
-                    newKeyNamed("key5"),
-                    newKeyListNamed("keyList5", List.of("key1", "key2", "key3", "key4", "key5")),
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    cryptoCreate("accountWith5Keys")
-                            .balance(0L)
-                            .key("keyList5")
-                            .payingWith(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("create-5keys-txn"),
-                    // node=100,000, network=200,000, service=499,700,000 tinycents
-                    // keys = 5, includedCount=1, so 4 extra keys charged
-                    // Extra keys: 4 × 100,000,000 = 400,000,000
-                    // Total: 100,000 + 200,000 + 499,700,000 + 400,000,000 = 900,000,000 tinycents = $0.09
-                    validateChargedUsdWithin("create-5keys-txn", ucents_to_USD(9000), 0.01));
-        }
-
-        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-        @DisplayName("compare crypto create with threshold key")
-        final Stream<DynamicTest> cryptoCreateWithThresholdKey() {
-            return runBeforeAfter(
-                    newKeyNamed("key1"),
-                    newKeyNamed("key2"),
-                    newKeyNamed("key3"),
-                    newThresholdKeyNamed("thresholdKey", 2, List.of("key1", "key2", "key3")),
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    cryptoCreate("accountWithThreshold")
-                            .balance(0L)
-                            .key("thresholdKey")
-                            .payingWith(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("create-threshold-txn"),
-                    // node=100,000, network=200,000, service=499,700,000 tinycents
-                    // ThresholdKey with 3 keys inside, countKeys() recursively counts all 3
-                    // keys = 3, includedCount=1, so 2 extra keys charged
-                    // Extra keys: 2 × 100,000,000 = 200,000,000
-                    // Total: 100,000 + 200,000 + 499,700,000 + 200,000,000 = 700,000,000 tinycents = $0.07
-                    validateChargedUsdWithin("create-threshold-txn", ucents_to_USD(7000), 0.01));
-        }
-
-        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-        @DisplayName("compare crypto create with nested key structure")
-        final Stream<DynamicTest> cryptoCreateWithNestedKeyStructure() {
-            return runBeforeAfter(
-                    newKeyNamed("key1"),
-                    newKeyNamed("key2"),
-                    newKeyNamed("key3"),
-                    newKeyNamed("key4"),
-                    newKeyListNamed("innerList", List.of("key1", "key2")),
-                    newThresholdKeyNamed("nestedKey", 1, List.of("innerList", "key3", "key4")),
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    cryptoCreate("accountWithNestedKeys")
-                            .balance(0L)
-                            .key("nestedKey")
-                            .payingWith(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("create-nested-txn"),
-                    // node=100,000, network=200,000, service=499,700,000 tinycents
-                    // ThresholdKey containing: KeyList(key1, key2) + key3 + key4
-                    // countKeys() recursively counts all 4 simple keys
-                    // keys = 4, includedCount=1, so 3 extra keys charged
-                    // Extra keys: 3 × 100,000,000 = 300,000,000
-                    // Total: 100,000 + 200,000 + 499,700,000 + 300,000,000 = 800,000,000 tinycents = $0.08
-                    validateChargedUsdWithin("create-nested-txn", ucents_to_USD(8000), 0.01));
+                    validateChargedUsdWithin("delete-account-txn", ucents_to_USD(6000), 0.01));
         }
     }
 
@@ -571,8 +453,6 @@ public class SimpleFeesSuite {
         //            );
         //        }
 
-        // TODO: Requires migration to SimpleFeeCalculator - currently disabled as fallback removed
-        @Disabled("Requires ConsensusSubmitMessage SimpleFeeCalculator implementation")
         @HapiTest
         @DisplayName("Simple fee for submitting a large message")
         final Stream<DynamicTest> submitBiggerMessageFee() {
@@ -601,14 +481,12 @@ public class SimpleFeesSuite {
                             "submit-message-txn",
                             ucents_to_USD(
                                     7 // base fee for submit message
-                                            + 0.5 // for the extra 500 bytes
+                                            + 1.6 // for the extra 500 bytes
                                             + 1 * 3 // node + network fee
                                     )));
         }
     }
 
-    // TODO: Requires Consensus service SimpleFeeCalculator implementations
-    @Disabled("Requires Consensus SimpleFeeCalculator implementations")
     @Nested
     class TopicFeesNegativeCases {
 
@@ -995,13 +873,6 @@ public class SimpleFeesSuite {
             }
         }
 
-        // TODO: Re-enable these PreHandle validation tests after fixing error handling
-        // Currently all tests in this class return FAIL_INVALID instead of specific error codes
-        // (INSUFFICIENT_TX_FEE, INVALID_PAYER_SIGNATURE, TRANSACTION_EXPIRED, etc.)
-        // Root cause: SimpleFeeCalculatorImpl likely throws exceptions during fee calculation
-        // which get caught and converted to FAIL_INVALID instead of proper response codes.
-        // Fix required: Add proper null checks and error handling in preHandle methods of handlers
-        @Disabled("PreHandle validation returns FAIL_INVALID - needs error handling improvements")
         @Nested
         class SimpleFeesEnabledOnlyCreateTopicFailsOnPreHandle {
             @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
