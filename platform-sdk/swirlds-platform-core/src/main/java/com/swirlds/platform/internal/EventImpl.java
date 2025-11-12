@@ -157,6 +157,7 @@ public class EventImpl implements Clearable {
         throw new UnsupportedOperationException("Should be deleted and use getParents()");
     }
 
+    @Deprecated
     public List<EventImpl> getOtherParents() {
         final EventImpl firstParent = parents.getFirst();
         if (!firstParent.getCreatorId().equals(this.baseEvent.getCreatorId())) {
@@ -502,15 +503,6 @@ public class EventImpl implements Clearable {
      */
     public boolean hasSelfParent() {
         return baseEvent.getSelfParent() != null;
-    }
-
-    /**
-     * Check if the event has other parents.
-     *
-     * @return true if the event has other parents
-     */
-    public boolean hasOtherParent() {
-        return !baseEvent.getOtherParents().isEmpty();
     }
 
     /**
