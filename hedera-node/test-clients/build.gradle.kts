@@ -15,7 +15,7 @@ mainModuleInfo {
 
 sourceSets { create("rcdiff") }
 
-tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-Xlint:-exports") }
+tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-Xlint:-dangling-doc-comments,-exports") }
 
 tasks.register<JavaExec>("runTestClient") {
     group = "build"

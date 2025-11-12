@@ -11,7 +11,7 @@ plugins {
 // Remove the following line to enable all 'javac' lint checks that we have turned on by default
 // and then fix the reported issues.
 tasks.withType<JavaCompile>().configureEach {
-    options.compilerArgs.add("-Xlint:-exports,-lossy-conversions")
+    options.compilerArgs.add("-Xlint:-dangling-doc-comments,-exports,-lossy-conversions")
 }
 
 mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }

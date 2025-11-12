@@ -22,7 +22,7 @@ testModuleInfo {
     opensTo("org.junit.platform.commons")
 }
 
-tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-Xlint:-exports") }
+tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-Xlint:-dangling-doc-comments,-exports") }
 
 tasks.compileJava { dependsOn(":test-clients:assemble") }
 

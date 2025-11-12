@@ -15,3 +15,6 @@ testModuleInfo {
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
 }
+tasks.withType<JavaCompile>().configureEach {
+    options.compilerArgs.add("-Xlint:-dangling-doc-comments")
+}

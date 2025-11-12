@@ -18,3 +18,8 @@ testModuleInfo {
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
 }
+
+tasks.withType<JavaCompile>().configureEach {
+    options.compilerArgs.add("-Xlint:-dangling-doc-comments")
+}
+

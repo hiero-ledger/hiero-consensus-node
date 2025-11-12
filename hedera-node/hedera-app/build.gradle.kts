@@ -7,6 +7,10 @@ plugins {
 
 description = "Hedera Application - Implementation"
 
+tasks.withType<JavaCompile>().configureEach {
+    options.compilerArgs.add("-Xlint:-dangling-doc-comments")
+}
+
 mainModuleInfo {
     annotationProcessor("dagger.compiler")
     annotationProcessor("com.google.auto.service.processor")
