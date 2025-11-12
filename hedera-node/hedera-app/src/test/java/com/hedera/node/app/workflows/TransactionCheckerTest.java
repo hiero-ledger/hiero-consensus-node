@@ -437,7 +437,6 @@ final class TransactionCheckerTest extends AppTestBase {
                     HederaTestConfigBuilder.create()
                             .withValue("jumboTransactions.isEnabled", true)
                             .withValue("jumboTransactions.maxTxnSize", 1024 * 10) // 10 KB
-                            .withValue("hedera.transaction.maxBytes", 1024 * 6) // 6 KB
                             .getOrCreateConfig(),
                     1);
 
@@ -472,7 +471,6 @@ final class TransactionCheckerTest extends AppTestBase {
                             .withValue("governanceTransactions.isEnabled", false)
                             .withValue("jumboTransactions.isEnabled", true)
                             .withValue("jumboTransactions.maxTxnSize", 1024 * 10) // 10 KB
-                            .withValue("hedera.transaction.maxBytes", 1024 * 6) // 6 KB
                             .getOrCreateConfig(),
                     1);
 
@@ -496,7 +494,6 @@ final class TransactionCheckerTest extends AppTestBase {
                             .withValue("jumboTransactions.isEnabled", true)
                             .withValue("jumboTransactions.isEnabled", true)
                             .withValue("jumboTransactions.maxTxnSize", 1024 * 10) // 10 KB
-                            .withValue("hedera.transaction.maxBytes", 1024 * 6) // 6 KB
                             .getOrCreateConfig(),
                     1);
 

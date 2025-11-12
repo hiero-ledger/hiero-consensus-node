@@ -377,11 +377,10 @@ public class TransactionChecker {
         }
     }
 
-    public void checkTransactionSize(TransactionInfo txInfo) throws PreCheckException {
+    public void checkTransactionSize(@NonNull final TransactionInfo txInfo) throws PreCheckException {
         final int txSize = txInfo.signedTx().protobufSize();
         final HederaFunctionality functionality = txInfo.functionality();
         final boolean isJumboTxnEnabled = jumboTransactionsConfig.isEnabled();
-        final var allowedJumboHederaFunctionalities = jumboTransactionsConfig.allowedHederaFunctionalities();
         final boolean isGovernanceTxnEnabled = governanceTransactionsConfig.isEnabled();
         boolean exceedsLimit;
 
@@ -393,9 +392,7 @@ public class TransactionChecker {
         }
         // For jumbo enabled and governance disabled, only ETHEREUM_TRANSACTION can exceed standard limits
         else if (isJumboTxnEnabled && !isGovernanceTxnEnabled) {
-            exceedsLimit = !allowedJumboHederaFunctionalities.contains(fromPbj(txInfo.functionality()))
-                    && txSize > hederaConfig.transactionMaxBytes()
-                    && !NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(functionality);
+            exceedsLimit = checkJumboRequirements(txInfo);
         }
         // For governance transactions enabled, allow transactions through for final validation
         // (since payer-based limits are applied in checkTransactionSizeLimitBasedOnPayer)
@@ -404,27 +401,47 @@ public class TransactionChecker {
             exceedsLimit = txSize > governanceTransactionsConfig.maxTxnSize();
         }
 
-        if (exceedsLimit) {
-            throw new PreCheckException(TRANSACTION_OVERSIZE);
-        }
+        if (exceedsLimit) throw new PreCheckException(TRANSACTION_OVERSIZE);
     }
 
     public void checkTransactionSizeLimitBasedOnPayer(
             @NonNull final TransactionInfo txInfo, @NonNull final com.hedera.hapi.node.base.AccountID payerAccountId)
             throws PreCheckException {
 
-        if (governanceTransactionsConfig.isEnabled()) {
-            // Check if the payer is privileged (treasury or systemAdmin)
-            final boolean isPrivilegedPayer = accountsConfig.isSuperuser(payerAccountId);
-            final int maxAllowedSize =
-                    isPrivilegedPayer ? governanceTransactionsConfig.maxTxnSize() : hederaConfig.transactionMaxBytes();
-            if (txInfo.signedTx().protobufSize() > maxAllowedSize) {
-                if (!isPrivilegedPayer) {
-                    nonPrivilegedOversizedTransactionsCounter.increment();
-                }
-                throw new PreCheckException(TRANSACTION_OVERSIZE);
+        final int txSize = txInfo.signedTx().protobufSize();
+        // Check if the payer is privileged (treasury or systemAdmin)
+        final boolean isPrivilegedPayer = accountsConfig.isSuperuser(payerAccountId);
+        boolean exceedsLimit;
+
+        if (isPrivilegedPayer) {
+            exceedsLimit = txSize > governanceTransactionsConfig.maxTxnSize();
+        } else {
+            // Non-privileged payers follow jumbo logic when the jumbo feature is enabled
+            if (jumboTransactionsConfig.isEnabled()) {
+                exceedsLimit = checkJumboRequirements(txInfo);
+            } else {
+                // Only governance enabled, non-privileged payers are limited to standard size
+                exceedsLimit = txSize > hederaConfig.transactionMaxBytes()
+                        && !NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(txInfo.functionality());
             }
         }
+
+        if (exceedsLimit) {
+            if (!isPrivilegedPayer) {
+                nonPrivilegedOversizedTransactionsCounter.increment();
+            }
+            throw new PreCheckException(TRANSACTION_OVERSIZE);
+        }
+    }
+
+    private boolean checkJumboRequirements(@NonNull final TransactionInfo txInfo) {
+        final int txSize = txInfo.signedTx().protobufSize();
+        final HederaFunctionality functionality = txInfo.functionality();
+        final var allowedJumboHederaFunctionalities = jumboTransactionsConfig.allowedHederaFunctionalities();
+
+        return !allowedJumboHederaFunctionalities.contains(fromPbj(txInfo.functionality()))
+                && txSize > hederaConfig.transactionMaxBytes()
+                && !NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(functionality);
     }
 
     public enum RequireMinValidLifetimeBuffer {

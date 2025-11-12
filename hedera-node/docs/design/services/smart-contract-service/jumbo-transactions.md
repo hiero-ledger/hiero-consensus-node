@@ -88,33 +88,34 @@ void checkTransactionSize(TransactionInfo txInfo) throws PreCheckException {
     final int txSize = txInfo.signedTx().protobufSize();
     final HederaFunctionality functionality = txInfo.functionality();
     final boolean isJumboTxnEnabled = jumboTransactionsConfig.isEnabled();
-    final var allowedJumboHederaFunctionalities = jumboTransactionsConfig.allowedHederaFunctionalities();
     final boolean isGovernanceTxnEnabled = governanceTransactionsConfig.isEnabled();
     boolean exceedsLimit;
 
-    // If neither jumbo nor governance features are enabled, use basic validation
     if (!isJumboTxnEnabled && !isGovernanceTxnEnabled) {
-        // Allow NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB to exceed the standard limit
         exceedsLimit = txSize > hederaConfig.transactionMaxBytes()
                 && !NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(functionality);
     }
-    // For jumbo enabled and governance disabled, only ETHEREUM_TRANSACTION can exceed standard limits
     else if (isJumboTxnEnabled && !isGovernanceTxnEnabled) {
-        exceedsLimit = !allowedJumboHederaFunctionalities.contains(fromPbj(txInfo.functionality()))
-                && txSize > hederaConfig.transactionMaxBytes()
-                && !NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(functionality);
+        exceedsLimit = checkJumboRequirements(txInfo);
     }
-    // For governance transactions enabled, allow transactions through for final validation
-    // (since payer-based limits are applied in checkTransactionSizeLimitBasedOnPayer)
-    // Only reject extremely oversized transactions that exceed governance limits
     else {
         exceedsLimit = txSize > governanceTransactionsConfig.maxTxnSize();
     }
 
-    if (exceedsLimit) {
-        throw new PreCheckException(TRANSACTION_OVERSIZE);
-    }
+    if (exceedsLimit) throw new PreCheckException(TRANSACTION_OVERSIZE);
 }
+```
+
+```java
+boolean checkJumboRequirements(@NonNull final TransactionInfo txInfo) {
+        final int txSize = txInfo.signedTx().protobufSize();
+        final HederaFunctionality functionality = txInfo.functionality();
+        final var allowedJumboHederaFunctionalities = jumboTransactionsConfig.allowedHederaFunctionalities();
+
+        return !allowedJumboHederaFunctionalities.contains(fromPbj(txInfo.functionality()))
+                && txSize > hederaConfig.transactionMaxBytes()
+                && !NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(functionality);
+    }
 ```
 
 - Additionally, check after Ethereum hydrate is done if the `ethereumCallData` field is up to 128KB

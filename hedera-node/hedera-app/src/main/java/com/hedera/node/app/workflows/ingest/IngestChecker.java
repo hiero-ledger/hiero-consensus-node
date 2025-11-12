@@ -69,6 +69,7 @@ import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.hedera.node.config.Utils;
+import com.hedera.node.config.data.GovernanceTransactionsConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -315,8 +316,11 @@ public final class IngestChecker {
             throw new PreCheckException(UNAUTHORIZED);
         }
 
-        // 5a. Check transaction size limits based on the payer account
-        transactionChecker.checkTransactionSizeLimitBasedOnPayer(txInfo, payerAccountId);
+        // 5a. Check transaction size limits based on the payer account,
+        // if the governance transactions feature is enabled
+        final boolean isGovernanceTxnEnabled =
+                configuration.getConfigData(GovernanceTransactionsConfig.class).isEnabled();
+        if (isGovernanceTxnEnabled) transactionChecker.checkTransactionSizeLimitBasedOnPayer(txInfo, payerAccountId);
 
         final var payerKey = payer.key();
         // There should, absolutely, be a key for this account. If there isn't, then something is wrong in
