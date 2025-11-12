@@ -76,6 +76,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     private static final int MAX_BYTES_PER_REQUEST = 2_097_152;
 
+    public static final int ACKNOWLEDGED_BLOCK_THRESHOLD = 100;
+
     private record Options(Optional<String> authority, String contentType) implements ServiceInterface.RequestOptions {}
 
     private static final Options OPTIONS =
@@ -539,18 +541,21 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         final long currentBlockProducing = blockBufferService.getLastBlockNumberProduced();
 
         // Record latencies for all acknowledged blocks
-        final long nowMs = System.currentTimeMillis();
-        long highestAckedBlock = blockBufferService.getHighestAckedBlockNumber();
-        long startingBlock = highestAckedBlock == -1 ? acknowledgedBlockNumber : highestAckedBlock;
-        for (long blkNum = startingBlock + 1; blkNum <= acknowledgedBlockNumber; blkNum++) {
-            BlockState blockState = blockBufferService.getBlockState(blkNum);
-            if (blockState != null && blockState.openTimestamp() != null) {
-                long headerProducedToAckMs = nowMs - blockState.openTimestamp().toEpochMilli();
-                blockStreamMetrics.recordHeaderProducedToAckLatency(headerProducedToAckMs);
-            }
-            if (blockState != null && blockState.closedTimestamp() != null) {
-                long blockClosedToAckMs = nowMs - blockState.closedTimestamp().toEpochMilli();
-                blockStreamMetrics.recordBlockClosedToAckLatency(blockClosedToAckMs);
+        if (acknowledgedBlockNumber != Long.MAX_VALUE) {
+            final long nowMs = System.currentTimeMillis();
+            final long startingBlock = getStartingBlock(acknowledgedBlockNumber);
+            for (long blkNum = startingBlock + 1; blkNum <= acknowledgedBlockNumber; blkNum++) {
+                BlockState blockState = blockBufferService.getBlockState(blkNum);
+                if (blockState != null && blockState.openedTimestamp() != null) {
+                    long headerProducedToAckMs =
+                            nowMs - blockState.openedTimestamp().toEpochMilli();
+                    blockStreamMetrics.recordHeaderProducedToAckLatency(headerProducedToAckMs);
+                }
+                if (blockState != null && blockState.closedTimestamp() != null) {
+                    long blockClosedToAckMs =
+                            nowMs - blockState.closedTimestamp().toEpochMilli();
+                    blockStreamMetrics.recordBlockClosedToAckLatency(blockClosedToAckMs);
+                }
             }
         }
 
@@ -576,6 +581,17 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             final long updated = streamingBlockNumber.updateAndGet(current -> Math.max(current, blockToJumpTo));
             blockStreamMetrics.recordStreamingBlockNumber(updated);
         }
+    }
+
+    private long getStartingBlock(long acknowledgedBlockNumber) {
+        long highestAckedBlock = blockBufferService.getHighestAckedBlockNumber();
+        long startingBlock = highestAckedBlock == -1 ? acknowledgedBlockNumber : highestAckedBlock;
+        if (Math.abs(acknowledgedBlockNumber - startingBlock) > ACKNOWLEDGED_BLOCK_THRESHOLD) {
+            // If there is a large gap between the last acknowledged block and the new one,
+            // the node will only calculate latencies for the last 100 blocks to avoid excessive processing.
+            startingBlock = acknowledgedBlockNumber - ACKNOWLEDGED_BLOCK_THRESHOLD;
+        }
+        return startingBlock;
     }
 
     /**

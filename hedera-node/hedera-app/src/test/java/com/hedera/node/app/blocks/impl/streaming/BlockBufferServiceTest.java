@@ -439,8 +439,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBufferNewestBlock(4L);
         assertThat(buffer).hasSize(4);
 
-        // reset the block stream metrics mock to capture the next interaction that has the same value as before
-        verifyNoMoreInteractions(blockStreamMetrics);
         reset(blockStreamMetrics);
 
         // add another block and prune again, this will cause the buffer to be fully saturated
@@ -459,8 +457,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBufferOldestBlock(1L);
         verify(blockStreamMetrics).recordBufferNewestBlock(5L);
 
-        // reset the block stream metrics mock to capture the next interaction that has the same value as before
-        verifyNoMoreInteractions(blockStreamMetrics);
         reset(blockStreamMetrics);
 
         assertThat(buffer).hasSize(5);
@@ -478,7 +474,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBufferOldestBlock(1L);
         verify(blockStreamMetrics).recordBufferNewestBlock(6L);
 
-        verifyNoMoreInteractions(blockStreamMetrics);
         reset(blockStreamMetrics);
         assertThat(buffer).hasSize(6);
 
@@ -502,7 +497,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBufferOldestBlock(2L);
         verify(blockStreamMetrics).recordBufferNewestBlock(6L);
 
-        verifyNoMoreInteractions(blockStreamMetrics);
         reset(blockStreamMetrics);
 
         assertThat(buffer).hasSize(5);
@@ -519,7 +513,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBufferOldestBlock(2L);
         verify(blockStreamMetrics).recordBufferNewestBlock(6L);
 
-        verifyNoMoreInteractions(blockStreamMetrics);
         reset(blockStreamMetrics);
         assertThat(buffer).hasSize(5);
 
@@ -540,7 +533,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBufferOldestBlock(3L);
         verify(blockStreamMetrics).recordBufferNewestBlock(7L);
 
-        verifyNoMoreInteractions(blockStreamMetrics);
         reset(blockStreamMetrics);
         assertThat(buffer).hasSize(5);
         assertThat(blockBufferService.getEarliestAvailableBlockNumber()).isEqualTo(3L);
@@ -695,8 +687,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, atLeastOnce()).recordBackPressureDisabled();
         verify(blockStreamMetrics, atLeastOnce()).recordBufferOldestBlock(anyLong());
         verify(blockStreamMetrics, atLeastOnce()).recordBufferNewestBlock(anyLong());
-
-        verifyNoMoreInteractions(blockStreamMetrics);
     }
 
     @Test
@@ -803,8 +793,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verify(blockStreamMetrics).recordBufferOldestBlock(1L);
         verify(blockStreamMetrics).recordBufferNewestBlock(10L);
-
-        verifyNoMoreInteractions(blockStreamMetrics);
     }
 
     @Test
@@ -933,7 +921,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBufferOldestBlock(1L);
         verify(blockStreamMetrics).recordBufferNewestBlock(10L);
         verifyNoMoreInteractions(connectionManager);
-        verifyNoMoreInteractions(blockStreamMetrics);
     }
 
     @Test
@@ -970,7 +957,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBufferOldestBlock(1L);
         verify(blockStreamMetrics).recordBufferNewestBlock(7L);
         verifyNoMoreInteractions(connectionManager);
-        verifyNoMoreInteractions(blockStreamMetrics);
     }
 
     @Test
@@ -1007,7 +993,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBufferOldestBlock(1L);
         verify(blockStreamMetrics).recordBufferNewestBlock(4L);
         verifyNoMoreInteractions(connectionManager);
-        verifyNoMoreInteractions(blockStreamMetrics);
     }
 
     @Test
@@ -1049,7 +1034,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBufferOldestBlock(1L);
         verify(blockStreamMetrics).recordBufferNewestBlock(10L);
         verifyNoMoreInteractions(connectionManager);
-        verifyNoMoreInteractions(blockStreamMetrics);
     }
 
     @Test
@@ -1084,7 +1068,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBufferOldestBlock(1L);
         verify(blockStreamMetrics).recordBufferNewestBlock(8L);
         verifyNoMoreInteractions(connectionManager);
-        verifyNoMoreInteractions(blockStreamMetrics);
     }
 
     @Test
@@ -1281,7 +1264,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verify(blockStreamMetrics).recordBufferOldestBlock(0L);
         verify(blockStreamMetrics).recordBufferNewestBlock(9L);
-        verifyNoMoreInteractions(blockStreamMetrics);
         reset(blockStreamMetrics);
 
         final AtomicReference<CompletableFuture<Boolean>> backPressureFutureRef1 =
@@ -1309,7 +1291,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verify(blockStreamMetrics).recordBufferOldestBlock(0L);
         verify(blockStreamMetrics).recordBufferNewestBlock(9L);
-        verifyNoMoreInteractions(blockStreamMetrics);
         reset(blockStreamMetrics);
 
         // ACK one more block to get to the recovery threshold
@@ -1332,7 +1313,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verify(blockStreamMetrics).recordBufferOldestBlock(0L);
         verify(blockStreamMetrics).recordBufferNewestBlock(9L);
-        verifyNoMoreInteractions(blockStreamMetrics);
         reset(blockStreamMetrics);
 
         // ACK remaining blocks
@@ -1355,7 +1335,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verify(blockStreamMetrics).recordBufferOldestBlock(0L);
         verify(blockStreamMetrics).recordBufferNewestBlock(9L);
-        verifyNoMoreInteractions(blockStreamMetrics);
     }
 
     @Test

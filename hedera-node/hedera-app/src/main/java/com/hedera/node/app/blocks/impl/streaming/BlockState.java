@@ -35,8 +35,10 @@ public class BlockState {
      * The timestamp associated with when this block was closed.
      */
     private volatile Instant closedTimestamp;
-
-    private volatile Instant openTimestamp;
+    /**
+     * The timestamp associated with when this block was opened.
+     */
+    private volatile Instant openedTimestamp;
 
     /**
      * Create a new block state object.
@@ -65,7 +67,7 @@ public class BlockState {
         final int index = itemIndex.incrementAndGet();
         blockItems.put(index, item);
         if (item.hasBlockHeader()) {
-            openTimestamp = Instant.now();
+            openedTimestamp = Instant.now();
         }
     }
 
@@ -110,8 +112,8 @@ public class BlockState {
     /**
      * @return the timestamp of when block was opened, else null if the block has not been opened
      */
-    public @Nullable Instant openTimestamp() {
-        return openTimestamp;
+    public @Nullable Instant openedTimestamp() {
+        return openedTimestamp;
     }
 
     /**
@@ -153,5 +155,13 @@ public class BlockState {
                 + blockNumber + ", closedTimestamp="
                 + closedTimestamp + ", blockItemCount="
                 + blockItems.size() + '}';
+    }
+
+    /**
+     * Sets the opened timestamp for this block.
+     * @param openedInstant the timestamp when the block was opened
+     */
+    public void setOpenedTimestamp(Instant openedInstant) {
+        this.openedTimestamp = openedInstant;
     }
 }

@@ -497,9 +497,12 @@ public class BlockBufferService {
 
             final Timestamp closedTimestamp = bufferedBlock.closedTimestamp();
             final Instant closedInstant = Instant.ofEpochSecond(closedTimestamp.seconds(), closedTimestamp.nanos());
+            final Timestamp openedTimestamp = bufferedBlock.openedTimestamp();
+            final Instant openedInstant = Instant.ofEpochSecond(openedTimestamp.seconds(), openedTimestamp.nanos());
             logger.debug(
                     "Reconstructed block {} from disk and closed at {}", bufferedBlock.blockNumber(), closedInstant);
             block.closeBlock(closedInstant);
+            block.setOpenedTimestamp(openedInstant);
 
             if (bufferedBlock.isAcknowledged()) {
                 setLatestAcknowledgedBlock(bufferedBlock.blockNumber());
