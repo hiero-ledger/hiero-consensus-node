@@ -21,10 +21,8 @@ import com.hedera.node.app.spi.workflows.WarmupContext;
 import com.hedera.node.config.data.FeesConfig;
 import com.hederahashgraph.api.proto.java.ExchangeRate;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import javax.inject.Inject;
 import javax.inject.Singleton;
-
 import org.hiero.hapi.fees.FeeResult;
 
 /**
@@ -123,7 +121,8 @@ public class TransactionDispatcher {
             final var handler = getHandler(feeContext.body());
             if (shouldUseSimpleFees(feeContext)) {
                 FeeResult feeResult;
-                // TODO: Temporary fallback for consensus services. Fee calculators should be implemented for all consensus services
+                // TODO: Temporary fallback for consensus services. Fee calculators should be implemented for all
+                // consensus services
                 try {
                     feeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
                             .calculateTxFee(feeContext.body(), feeContext);
@@ -263,16 +262,18 @@ public class TransactionDispatcher {
             case HINTS_PREPROCESSING_VOTE -> handlers.hintsPreprocessingVoteHandler();
             case CRS_PUBLICATION -> handlers.crsPublicationHandler();
 
-            case SYSTEM_DELETE -> switch (txBody.systemDeleteOrThrow().id().kind()) {
-                case CONTRACT_ID -> handlers.contractSystemDeleteHandler();
-                case FILE_ID -> handlers.fileSystemDeleteHandler();
-                default -> throw new UnsupportedOperationException(SYSTEM_DELETE_WITHOUT_ID_CASE);
-            };
-            case SYSTEM_UNDELETE -> switch (txBody.systemUndeleteOrThrow().id().kind()) {
-                case CONTRACT_ID -> handlers.contractSystemUndeleteHandler();
-                case FILE_ID -> handlers.fileSystemUndeleteHandler();
-                default -> throw new UnsupportedOperationException(SYSTEM_UNDELETE_WITHOUT_ID_CASE);
-            };
+            case SYSTEM_DELETE ->
+                switch (txBody.systemDeleteOrThrow().id().kind()) {
+                    case CONTRACT_ID -> handlers.contractSystemDeleteHandler();
+                    case FILE_ID -> handlers.fileSystemDeleteHandler();
+                    default -> throw new UnsupportedOperationException(SYSTEM_DELETE_WITHOUT_ID_CASE);
+                };
+            case SYSTEM_UNDELETE ->
+                switch (txBody.systemUndeleteOrThrow().id().kind()) {
+                    case CONTRACT_ID -> handlers.contractSystemUndeleteHandler();
+                    case FILE_ID -> handlers.fileSystemUndeleteHandler();
+                    default -> throw new UnsupportedOperationException(SYSTEM_UNDELETE_WITHOUT_ID_CASE);
+                };
 
             default -> throw new UnsupportedOperationException(TYPE_NOT_SUPPORTED);
         };
