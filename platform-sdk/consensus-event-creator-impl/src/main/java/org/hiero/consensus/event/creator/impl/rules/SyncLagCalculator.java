@@ -46,13 +46,16 @@ public class SyncLagCalculator {
     public SyncLagCalculator(final NodeId selfId, final Roster roster) {
         this.selfId = selfId;
         totalWeight = roster.rosterEntries().stream()
+                .peek(entry -> weightMap.put(NodeId.of(entry.nodeId()), entry.weight()))
+                .peek(entry -> {
+                    if (selfId.id() != entry.nodeId()) {
+                        consensusLag.put(NodeId.of(entry.nodeId()), new WeightAndLag(entry.weight(), 0));
+                    }
+                })
                 .mapToLong(entry -> {
-                    NodeId peerId = NodeId.of(entry.nodeId());
-                    weightMap.put(peerId, entry.weight());
                     if (selfId.id() == entry.nodeId()) {
                         return 0;
                     } else {
-                        consensusLag.put(peerId, new WeightAndLag(entry.weight(), 0));
                         return entry.weight();
                     }
                 })
