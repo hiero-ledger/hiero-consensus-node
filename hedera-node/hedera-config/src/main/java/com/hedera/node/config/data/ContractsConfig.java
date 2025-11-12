@@ -97,7 +97,7 @@ public record ContractsConfig(
                 boolean chargeGasOnEvmHandleException,
         @ConfigProperty(value = "evm.nonExtantContractsFail", defaultValue = "0") @NetworkProperty
                 Set<Long> evmNonExtantContractsFail,
-        @ConfigProperty(value = "evm.version", defaultValue = "v0.51") @NetworkProperty String evmVersion,
+        @ConfigProperty(value = "evm.version", defaultValue = "v0.70") @NetworkProperty String evmVersion,
         @ConfigProperty(value = "evm.nativeLibVerification.halt.enabled", defaultValue = "false") @NetworkProperty
                 boolean nativeLibVerificationHaltEnabled,
         @ConfigProperty(value = "evm.pectra.enabled", defaultValue = "true") @NetworkProperty boolean evmPectraEnabled,
