@@ -47,16 +47,30 @@ public class PcesFileChannelWriter implements PcesFileWriter {
      *
      * @param filePath       the path to the file to write to
      * @param extraOpenOptions extra flags to indicate how to open the file
+     * @param bufferCapacity  the size of the buffer
      * @throws IOException if an error occurs while opening the file
      */
-    public PcesFileChannelWriter(@NonNull final Path filePath, @NonNull final List<OpenOption> extraOpenOptions)
+    PcesFileChannelWriter(
+            @NonNull final Path filePath, @NonNull final List<OpenOption> extraOpenOptions, final int bufferCapacity)
             throws IOException {
         final List<OpenOption> allOpenOptions =
                 new ArrayList<>(List.of(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE));
         allOpenOptions.addAll(extraOpenOptions);
         this.channel = FileChannel.open(filePath, allOpenOptions.toArray(OpenOption[]::new));
-        this.buffer = ByteBuffer.allocateDirect(BUFFER_CAPACITY);
+        this.buffer = ByteBuffer.allocateDirect(bufferCapacity);
         this.writableSequentialData = BufferedData.wrap(buffer);
+    }
+
+    /**
+     * Create a new writer that writes events to a file using a {@link FileChannel}.
+     *
+     * @param filePath       the path to the file to write to
+     * @param extraOpenOptions extra flags to indicate how to open the file
+     * @throws IOException if an error occurs while opening the file
+     */
+    public PcesFileChannelWriter(@NonNull final Path filePath, @NonNull final List<OpenOption> extraOpenOptions)
+            throws IOException {
+        this(filePath, extraOpenOptions, BUFFER_CAPACITY);
     }
 
     @Override

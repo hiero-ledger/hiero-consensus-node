@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.preconsensus;
 
-import static com.swirlds.platform.event.preconsensus.PcesFileChannelWriter.BUFFER_CAPACITY;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.platform.event.GossipEvent;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.test.fixtures.Randotron;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,7 +22,8 @@ import org.junit.jupiter.api.io.TempDir;
  */
 class PcesFileChannelWriterTest {
     // A large payload size that exceeds writer's buffer capacity
-    private static final int LARGE_PAYLOAD_SIZE = BUFFER_CAPACITY + 2 * 1024 * 1024;
+    private static final int BUFFER_CAPACITY = 1024;
+    private static final int LARGE_PAYLOAD_SIZE = 1024;
     private final Randotron random = Randotron.create();
 
     @TempDir
@@ -31,7 +34,9 @@ class PcesFileChannelWriterTest {
 
     @BeforeEach
     void before() {
-        testFile = tempDir.resolve("test-events.pces");
+        final var pcesFile = PcesFile.of(Time.getCurrent().now(), 0, 0, Long.MAX_VALUE, 0, tempDir)
+                .getFileName();
+        testFile = tempDir.resolve(pcesFile);
     }
 
     @AfterEach
@@ -59,16 +64,20 @@ class PcesFileChannelWriterTest {
                 eventSize > BUFFER_CAPACITY,
                 "Event size should exceed 10MB buffer capacity. Actual size: " + eventSize);
 
-        writer = new PcesFileChannelWriter(testFile);
-        writer.writeVersion(1);
+        writer = new PcesFileChannelWriter(testFile, List.of(), BUFFER_CAPACITY);
+        writer.writeVersion(2);
 
         // This should trigger buffer expansion since event exceeds default 10MB buffer
         final long bytesWritten = writer.writeEvent(largeEvent);
 
         assertTrue(bytesWritten > 0, "Large event should be written successfully");
-        assertTrue(bytesWritten > BUFFER_CAPACITY, "Bytes written should exceed 10MB. Actual: " + bytesWritten);
+        assertTrue(
+                bytesWritten > BUFFER_CAPACITY, "Bytes written should exceed BUFFER_CAPACITY. Actual: " + bytesWritten);
         assertTrue(Files.exists(testFile), "File should exist after writing large event");
         assertTrue(writer.fileSize() > 0, "File size should be greater than zero");
+
+        assertEquals(
+                largeEvent, PcesUtilities.parseFile(testFile).iterator(0).next().getGossipEvent());
     }
 
     @Test
@@ -89,7 +98,7 @@ class PcesFileChannelWriterTest {
                 .getGossipEvent();
 
         writer = new PcesFileChannelWriter(testFile);
-        writer.writeVersion(1);
+        writer.writeVersion(2);
 
         // Write normal event first
         final long normalBytes1 = writer.writeEvent(normalEvent);
@@ -97,7 +106,7 @@ class PcesFileChannelWriterTest {
 
         // Write large event - triggers buffer expansion
         final long largeBytes = writer.writeEvent(largeEvent);
-        assertTrue(largeBytes > BUFFER_CAPACITY, "Large event should be written and exceed 10MB");
+        assertTrue(largeBytes > BUFFER_CAPACITY, "Large event should be written and exceed BUFFER_CAPACITY");
 
         // Write another normal event after buffer expansion
         final long normalBytes2 = writer.writeEvent(normalEvent);
@@ -109,5 +118,9 @@ class PcesFileChannelWriterTest {
                 writer.fileSize() >= expectedMinSize,
                 "File size should account for all events. Expected >= " + expectedMinSize + ", actual: "
                         + writer.fileSize());
+        final PcesFileIterator iterator = PcesUtilities.parseFile(testFile).iterator(0);
+        assertEquals(normalEvent, iterator.next().getGossipEvent());
+        assertEquals(largeEvent, iterator.next().getGossipEvent());
+        assertEquals(normalEvent, iterator.next().getGossipEvent());
     }
 }
