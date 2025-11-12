@@ -23,10 +23,8 @@ public class CryptoDeleteFeeCalculator implements ServiceFeeCalculator {
             @Nullable final CalculatorState calculatorState,
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
-        final long signatures = calculatorState != null ? calculatorState.numTxnSignatures() : 0;
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_DELETE);
         feeResult.addServiceFee("Base Fee for " + HederaFunctionality.CRYPTO_DELETE, 1, serviceDef.baseFee());
-        addExtraFee(feeResult, serviceDef, SIGNATURES, feeSchedule, signatures);
     }
 
     @Override
