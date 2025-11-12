@@ -67,7 +67,7 @@ public class Rehash {
     @Test
     void validateMerkleTree(DeserializedSignedState deserializedSignedState, HashInfo hashInfo) {
 
-        var platformStateFacade = PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
+        var platformStateFacade = PlatformStateFacade.PLATFORM_STATE_FACADE;
         var infoStringFromState = platformStateFacade.getInfoString(
                 deserializedSignedState.reservedSignedState().get().getState(), HASH_DEPTH);
 

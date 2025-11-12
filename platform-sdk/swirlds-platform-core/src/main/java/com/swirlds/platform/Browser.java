@@ -19,6 +19,7 @@ import static com.swirlds.platform.gui.internal.BrowserWindowManager.moveBrowser
 import static com.swirlds.platform.gui.internal.BrowserWindowManager.setBrowserWindow;
 import static com.swirlds.platform.gui.internal.BrowserWindowManager.setStateHierarchy;
 import static com.swirlds.platform.gui.internal.BrowserWindowManager.showBrowserWindow;
+import static com.swirlds.platform.state.service.PlatformStateFacade.PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.state.signed.StartupStateUtils.getInitialState;
 import static com.swirlds.platform.system.SystemExitUtils.exitSystem;
 import static com.swirlds.platform.system.address.AddressBookUtils.initializeAddressBook;
@@ -51,7 +52,6 @@ import com.swirlds.platform.gui.model.InfoApp;
 import com.swirlds.platform.gui.model.InfoMember;
 import com.swirlds.platform.gui.model.InfoSwirld;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.SwirldMain;
@@ -257,7 +257,6 @@ public class Browser {
                     recycleBin,
                     merkleCryptography);
 
-            PlatformStateFacade platformStateFacade = new PlatformStateFacade();
             // Create the initial state for the platform
             ConsensusStateEventHandler consensusStateEventHandler = appMain.newConsensusStateEvenHandler();
             final HashedReservedSignedState reservedState = getInitialState(
@@ -269,7 +268,7 @@ public class Browser {
                     appDefinition.getSwirldName(),
                     nodeId,
                     appDefinition.getConfigAddressBook(),
-                    platformStateFacade,
+                    PLATFORM_STATE_FACADE,
                     platformContext);
             final ReservedSignedState initialState = reservedState.state();
 
@@ -281,17 +280,17 @@ public class Browser {
                     appDefinition.getConfigAddressBook(),
                     platformContext,
                     consensusStateEventHandler,
-                    platformStateFacade);
+                    PLATFORM_STATE_FACADE);
 
             final State state = initialState.get().getState();
 
             // If we are upgrading, then we are loading a freeze state and we need to update the latest freeze round
             // value
             if (HapiUtils.SEMANTIC_VERSION_COMPARATOR.compare(
-                            appMain.getSemanticVersion(), platformStateFacade.creationSemanticVersionOf(state))
+                            appMain.getSemanticVersion(), PLATFORM_STATE_FACADE.creationSemanticVersionOf(state))
                     > 0) {
-                final long initialStateRound = platformStateFacade.roundOf(state);
-                platformStateFacade.bulkUpdateOf(state, v -> {
+                final long initialStateRound = PLATFORM_STATE_FACADE.roundOf(state);
+                PLATFORM_STATE_FACADE.bulkUpdateOf(state, v -> {
                     v.setLatestFreezeRound(initialStateRound);
                 });
             }
@@ -308,7 +307,7 @@ public class Browser {
                     nodeId,
                     String.valueOf(nodeId),
                     rosterHistory,
-                    platformStateFacade,
+                    PLATFORM_STATE_FACADE,
                     appMain.stateRootFromVirtualMap(guiMetrics, Time.getCurrent()));
             if (showUi && index == 0) {
                 builder.withPreconsensusEventCallback(guiEventStorage::handlePreconsensusEvent);

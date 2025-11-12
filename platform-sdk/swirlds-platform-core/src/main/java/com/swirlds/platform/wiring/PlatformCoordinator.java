@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.wiring;
 
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
+import static com.swirlds.platform.state.service.PlatformStateFacade.PLATFORM_STATE_FACADE;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.io.IOIterator;
@@ -397,7 +397,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
         final MerkleNodeState state = signedState.getState();
 
         final ConsensusSnapshot consensusSnapshot =
-                Objects.requireNonNull(DEFAULT_PLATFORM_STATE_FACADE.consensusSnapshotOf(state));
+                Objects.requireNonNull(PLATFORM_STATE_FACADE.consensusSnapshotOf(state));
         this.consensusSnapshotOverride(consensusSnapshot);
 
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
@@ -406,7 +406,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
         this.updateEventWindow(EventWindowUtils.createEventWindow(consensusSnapshot, configuration));
 
         final RunningEventHashOverride runningEventHashOverride =
-                new RunningEventHashOverride(DEFAULT_PLATFORM_STATE_FACADE.legacyRunningEventHashOf(state), true);
+                new RunningEventHashOverride(PLATFORM_STATE_FACADE.legacyRunningEventHashOf(state), true);
         this.updateRunningHash(runningEventHashOverride);
         this.registerPcesDiscontinuity(signedState.getRound());
     }

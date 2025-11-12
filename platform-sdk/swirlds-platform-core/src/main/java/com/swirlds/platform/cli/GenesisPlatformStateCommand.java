@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.cli;
 
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
+import static com.swirlds.platform.state.service.PlatformStateFacade.PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadata.NO_NODE_ID;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateFilesToDirectory;
 
@@ -69,7 +69,7 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
                 });
 
         System.out.printf("Reading from %s %n", statePath.toAbsolutePath());
-        final PlatformStateFacade stateFacade = DEFAULT_PLATFORM_STATE_FACADE;
+        final PlatformStateFacade stateFacade = PLATFORM_STATE_FACADE;
         final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readState(
                 statePath,
                 (virtualMap) -> {

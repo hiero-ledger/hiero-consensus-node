@@ -4,6 +4,7 @@ package com.swirlds.platform;
 import static com.swirlds.common.io.utility.FileUtils.throwIfFileExists;
 import static com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader.SIGNED_STATE_FILE_NAME;
 import static com.swirlds.platform.StateFileManagerTests.hashState;
+import static com.swirlds.platform.state.service.PlatformStateFacade.PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.CURRENT_ROSTER_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.HASH_INFO_FILE_NAME;
@@ -32,7 +33,6 @@ import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileUtils;
@@ -61,7 +61,6 @@ class SignedStateFileReadWriteTest {
     Path testDirectory;
 
     private static SemanticVersion platformVersion;
-    private static PlatformStateFacade stateFacade;
     private StateLifecycleManager stateLifecycleManager;
 
     @BeforeAll
@@ -75,7 +74,6 @@ class SignedStateFileReadWriteTest {
         registry.registerConstructables("com.swirlds.virtualmap");
         registry.registerConstructables("com.swirlds.merkledb");
         registerConstructablesForStorage(CONFIGURATION);
-        stateFacade = new PlatformStateFacade();
     }
 
     @BeforeEach
@@ -100,7 +98,7 @@ class SignedStateFileReadWriteTest {
                 .setSoftwareVersion(platformVersion)
                 .build();
         final MerkleNodeState state = signedState.getState();
-        writeHashInfoFile(platformContext, testDirectory, state, stateFacade);
+        writeHashInfoFile(platformContext, testDirectory, state, PLATFORM_STATE_FACADE);
         final StateConfig stateConfig =
                 new TestConfigBuilder().getOrCreateConfig().getConfigData(StateConfig.class);
 
@@ -188,7 +186,7 @@ class SignedStateFileReadWriteTest {
                 directory,
                 StateToDiskReason.PERIODIC_SNAPSHOT,
                 signedState,
-                stateFacade,
+                PLATFORM_STATE_FACADE,
                 stateLifecycleManager);
 
         assertTrue(exists(stateFile), "state file should exist");

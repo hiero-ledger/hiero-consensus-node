@@ -2,6 +2,7 @@
 package com.swirlds.platform.state.signed;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static com.swirlds.platform.state.service.PlatformStateFacade.PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateToDisk;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
@@ -31,7 +32,6 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.config.StateConfig_;
 import com.swirlds.platform.internal.SignedStateLoadingException;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
@@ -73,8 +73,6 @@ public class StartupStateUtilsTests {
     private final String mainClassName = "mainClassName";
     private final String swirldName = "swirldName";
     private SemanticVersion currentSoftwareVersion;
-    private PlatformStateFacade platformStateFacade;
-    private StateLifecycleManager stateLifecycleManager;
 
     @BeforeEach
     void beforeEach() throws IOException {
@@ -84,7 +82,6 @@ public class StartupStateUtilsTests {
                 .getOrCreateConfig()
                 .getConfigData(StateCommonConfig.class));
         currentSoftwareVersion = SemanticVersion.newBuilder().major(1).build();
-        platformStateFacade = new PlatformStateFacade();
     }
 
     @AfterEach
@@ -130,7 +127,7 @@ public class StartupStateUtilsTests {
         final SignedState signedState =
                 new RandomSignedStateGenerator(random).setRound(round).build();
 
-        stateLifecycleManager =
+        final StateLifecycleManager stateLifecycleManager =
                 new StateLifecycleManagerImpl(new NoOpMetrics(), new FakeTime(), TestVirtualMapState::new);
         stateLifecycleManager.initState(signedState.getState(), true);
         stateLifecycleManager.getMutableState().release();
@@ -146,7 +143,7 @@ public class StartupStateUtilsTests {
                 savedStateDirectory,
                 StateToDiskReason.PERIODIC_SNAPSHOT,
                 signedState,
-                platformStateFacade,
+                PLATFORM_STATE_FACADE,
                 stateLifecycleManager);
 
         if (corrupted) {
@@ -175,7 +172,7 @@ public class StartupStateUtilsTests {
                         swirldName,
                         TestVirtualMapState::new,
                         currentSoftwareVersion,
-                        platformStateFacade,
+                        PLATFORM_STATE_FACADE,
                         platformContext)
                 .getNullable();
 
@@ -205,7 +202,7 @@ public class StartupStateUtilsTests {
                         swirldName,
                         TestVirtualMapState::new,
                         currentSoftwareVersion,
-                        platformStateFacade,
+                        PLATFORM_STATE_FACADE,
                         platformContext)
                 .get();
 
@@ -240,7 +237,7 @@ public class StartupStateUtilsTests {
                         swirldName,
                         TestVirtualMapState::new,
                         currentSoftwareVersion,
-                        platformStateFacade,
+                        PLATFORM_STATE_FACADE,
                         platformContext)
                 .get());
     }
@@ -286,7 +283,7 @@ public class StartupStateUtilsTests {
                         swirldName,
                         TestVirtualMapState::new,
                         currentSoftwareVersion,
-                        platformStateFacade,
+                        PLATFORM_STATE_FACADE,
                         platformContext)
                 .getNullable();
 

@@ -83,7 +83,7 @@ public class MigrationTestToolConsensusStateEventHandler
                     FREEZE_TIME_OFFSET.getSeconds(),
                     round.getConsensusTimestamp(),
                     freezeTime);
-            PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE.bulkUpdateOf(state, v -> {
+            PlatformStateFacade.PLATFORM_STATE_FACADE.bulkUpdateOf(state, v -> {
                 v.setFreezeTime(freezeTime);
             });
         }

@@ -3,6 +3,7 @@ package com.swirlds.platform.cli;
 
 import static com.swirlds.common.merkle.utility.MerkleUtils.rehashTree;
 import static com.swirlds.platform.cli.utils.HederaUtils.SWIRLD_NAME;
+import static com.swirlds.platform.state.service.PlatformStateFacade.PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadLatestState;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistryWithConfiguration;
@@ -29,7 +30,6 @@ import com.swirlds.config.extensions.sources.LegacyFileConfigSource;
 import com.swirlds.platform.cli.utils.HederaUtils;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.state.SavedStateUtils;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.SavedStateInfo;
 import com.swirlds.platform.state.snapshot.SavedStateMetadata;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
@@ -229,10 +229,8 @@ public class CrystalTransplantCommand extends AbstractCommand {
             throw new RuntimeException(e);
         }
 
-        final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
-
         final SwirldMain<? extends MerkleNodeState> appMain =
-                HederaUtils.createHederaAppMain(platformContext, platformStateFacade);
+                HederaUtils.createHederaAppMain(platformContext, PLATFORM_STATE_FACADE);
         final List<SavedStateInfo> savedStateFiles = SignedStateFilePath.getSavedStateFiles(sourceStatePath);
 
         if (savedStateFiles.isEmpty()) {
@@ -253,7 +251,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
                         return appMain.newStateRoot();
                     }
                 },
-                platformStateFacade,
+                PLATFORM_STATE_FACADE,
                 platformContext)) {
             final Hash newHash = rehashTree(
                     platformContext.getMerkleCryptography(),

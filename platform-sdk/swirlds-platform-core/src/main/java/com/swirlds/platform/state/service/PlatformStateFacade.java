@@ -31,7 +31,7 @@ import org.hiero.consensus.model.hashgraph.Round;
  */
 public class PlatformStateFacade {
 
-    public static final PlatformStateFacade DEFAULT_PLATFORM_STATE_FACADE = new PlatformStateFacade();
+    public static final PlatformStateFacade PLATFORM_STATE_FACADE = new PlatformStateFacade();
 
     /**
      * Given a {@link State}, returns the creation version of the platform state if it exists.
@@ -71,8 +71,8 @@ public class PlatformStateFacade {
     /**
      * Determines if a {@code timestamp} is in a freeze period according to the provided timestamps.
      *
-     * @param consensusTime  the consensus time to check
-     * @param state     the state object to extract the data from
+     * @param consensusTime the consensus time to check
+     * @param state         the state object to extract the data from
      * @return true is the {@code timestamp} is in a freeze period
      */
     public boolean isInFreezePeriod(@NonNull final Instant consensusTime, @NonNull final MerkleNodeState state) {
@@ -309,4 +309,9 @@ public class PlatformStateFacade {
     private WritablePlatformStateStore writablePlatformStateStore(@NonNull final State state) {
         return new WritablePlatformStateStore(state.getWritableStates(NAME));
     }
+
+    /**
+     * Default constructor
+     */
+    protected PlatformStateFacade() {}
 }

@@ -2,7 +2,7 @@
 package com.swirlds.demo.consistency;
 
 import static com.swirlds.demo.consistency.ConsistencyTestingToolMain.CONFIGURATION;
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
+import static com.swirlds.platform.state.service.PlatformStateFacade.PLATFORM_STATE_FACADE;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -68,7 +68,7 @@ public class ConsistencyTestingToolStateTest {
                 CONFIGURATION, merkleDbConfig.initialCapacity(), merkleDbConfig.hashesRamToDiskThreshold());
         final VirtualMap virtualMap = new VirtualMap("ConsistencyTestingToolStateTest", dsBuilder, CONFIGURATION);
         state = new ConsistencyTestingToolState(virtualMap, new NoOpMetrics(), Time.getCurrent());
-        stateLifecycle = new ConsistencyTestingToolConsensusStateEventHandler(DEFAULT_PLATFORM_STATE_FACADE);
+        stateLifecycle = new ConsistencyTestingToolConsensusStateEventHandler(PLATFORM_STATE_FACADE);
         TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
     }
 

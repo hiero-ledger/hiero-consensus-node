@@ -105,7 +105,7 @@ public final class StateUtils {
 
             final PlatformContext platformContext = getPlatformContext();
             final ServicesRegistryImpl serviceRegistry = initServiceRegistry();
-            final PlatformStateFacade platformStateFacade = PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
+            final PlatformStateFacade platformStateFacade = PlatformStateFacade.PLATFORM_STATE_FACADE;
 
             serviceRegistry.register(
                     new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getState, platformStateFacade));
@@ -198,7 +198,7 @@ public final class StateUtils {
                                 roster -> true,
                                 (r, b) -> {},
                                 StateUtils::getState,
-                                PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE),
+                                PlatformStateFacade.PLATFORM_STATE_FACADE),
                         PLATFORM_STATE_SERVICE)
                 .forEach(servicesRegistry::register);
 
@@ -218,7 +218,7 @@ public final class StateUtils {
             @NonNull final ServicesRegistry servicesRegistry) {
         final Configuration configuration = platformContext.getConfiguration();
         final ServiceMigrator serviceMigrator = new OrderedServiceMigrator();
-        final PlatformStateFacade platformFacade = PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
+        final PlatformStateFacade platformFacade = PlatformStateFacade.PLATFORM_STATE_FACADE;
         final SemanticVersion version = platformFacade.creationSoftwareVersionOf(state);
 
         PlatformStateService.PLATFORM_STATE_SERVICE.setAppVersionFn(v -> version);

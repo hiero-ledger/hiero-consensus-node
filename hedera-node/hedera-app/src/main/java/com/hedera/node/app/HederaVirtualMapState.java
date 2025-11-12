@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app;
 
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
+import static com.swirlds.platform.state.service.PlatformStateFacade.PLATFORM_STATE_FACADE;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 
 import com.hedera.hapi.platform.state.QueueState;
@@ -133,6 +133,6 @@ public class HederaVirtualMapState extends VirtualMapState<HederaVirtualMapState
 
     @Override
     public String toString() {
-        return "HederaVirtualMapState[round=%d]".formatted(DEFAULT_PLATFORM_STATE_FACADE.roundOf(this));
+        return "HederaVirtualMapState[round=%d]".formatted(PLATFORM_STATE_FACADE.roundOf(this));
     }
 }

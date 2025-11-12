@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
+import static com.swirlds.platform.state.service.PlatformStateFacade.PLATFORM_STATE_FACADE;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -55,8 +56,7 @@ class StateLifecycleManagerTests {
         final SwirldsPlatform platform = mock(SwirldsPlatform.class);
         final Roster roster = RandomRosterBuilder.create(Randotron.create()).build();
         when(platform.getRoster()).thenReturn(roster);
-        PlatformStateFacade platformStateFacade = new PlatformStateFacade();
-        initialState = newState(platformStateFacade);
+        initialState = newState(PLATFORM_STATE_FACADE);
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
@@ -156,8 +156,7 @@ class StateLifecycleManagerTests {
     @Test
     @DisplayName("initState() rejects second startup initialization")
     void initStateRejectsSecondStartup() {
-        final PlatformStateFacade psf = new PlatformStateFacade();
-        final MerkleNodeState another = newState(psf);
+        final MerkleNodeState another = newState(PLATFORM_STATE_FACADE);
         assertThrows(IllegalStateException.class, () -> stateLifecycleManager.initState(another, true));
         another.release();
     }

@@ -3,7 +3,7 @@ package com.swirlds.platform.cli;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.platform.recovery.EventRecoveryWorkflow.recoverState;
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
+import static com.swirlds.platform.state.service.PlatformStateFacade.PLATFORM_STATE_FACADE;
 
 import com.swirlds.cli.commands.EventStreamCommand;
 import com.swirlds.cli.utility.AbstractCommand;
@@ -123,7 +123,7 @@ public final class EventStreamRecoverCommand extends AbstractCommand {
                 outputPath,
                 selfId,
                 loadSigningKeys,
-                DEFAULT_PLATFORM_STATE_FACADE);
+                PLATFORM_STATE_FACADE);
         return 0;
     }
 }
