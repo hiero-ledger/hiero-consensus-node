@@ -258,8 +258,10 @@ public class BlockNodeConnectionManager {
                         .address(nodeConfig.address())
                         .priority(nodeConfig.priority())
                         .port(nodeConfig.port())
-                        .messageSizeSoftLimitBytes(nodeConfig.messageSizeSoftLimitBytesOrElse(DEFAULT_MESSAGE_SOFT_LIMIT_BYTES))
-                        .messageSizeHardLimitBytes(nodeConfig.messageSizeHardLimitBytesOrElse(DEFAULT_MESSAGE_HARD_LIMIT_BYTES))
+                        .messageSizeSoftLimitBytes(
+                                nodeConfig.messageSizeSoftLimitBytesOrElse(DEFAULT_MESSAGE_SOFT_LIMIT_BYTES))
+                        .messageSizeHardLimitBytes(
+                                nodeConfig.messageSizeHardLimitBytesOrElse(DEFAULT_MESSAGE_HARD_LIMIT_BYTES))
                         .build();
 
                 nodes.add(cfg);
@@ -484,9 +486,7 @@ public class BlockNodeConnectionManager {
 
         if (logger.isDebugEnabled()) {
             logger.debug(
-                    "Selected block node {}:{} for connection attempt",
-                    selectedNode.address(),
-                    selectedNode.port());
+                    "Selected block node {}:{} for connection attempt", selectedNode.address(), selectedNode.port());
         }
 
         // Immediately schedule the FIRST connection attempt.
@@ -510,8 +510,7 @@ public class BlockNodeConnectionManager {
         }
 
         final SortedMap<Integer, List<BlockNodeConfiguration>> priorityGroups = snapshot.stream()
-                .collect(
-                        Collectors.groupingBy(BlockNodeConfiguration::priority, TreeMap::new, toList()));
+                .collect(Collectors.groupingBy(BlockNodeConfiguration::priority, TreeMap::new, toList()));
 
         BlockNodeConfiguration selectedNode = null;
 
@@ -797,8 +796,7 @@ public class BlockNodeConnectionManager {
                         if (force) {
                             try {
                                 final Duration delay = getForcedSwitchRescheduleDelay();
-                                scheduleConnectionAttempt(
-                                        activeConnection.getNodeConfig(), delay, null, false);
+                                scheduleConnectionAttempt(activeConnection.getNodeConfig(), delay, null, false);
                                 logger.debug(
                                         "Scheduled previously active connection {} in {} ms due to forced switch.",
                                         activeConnection,
@@ -1044,7 +1042,9 @@ public class BlockNodeConnectionManager {
      * @param timestamp the timestamp when the block was sent
      */
     public void recordBlockProofSent(
-            @NonNull final BlockNodeConfiguration blockNodeConfig, final long blockNumber, @NonNull final Instant timestamp) {
+            @NonNull final BlockNodeConfiguration blockNodeConfig,
+            final long blockNumber,
+            @NonNull final Instant timestamp) {
         if (!isStreamingEnabled()) {
             return;
         }
@@ -1064,7 +1064,9 @@ public class BlockNodeConnectionManager {
      * @return the evaluation result including latency and switching decision
      */
     public BlockNodeStats.HighLatencyResult recordBlockAckAndCheckLatency(
-            @NonNull final BlockNodeConfiguration blockNodeConfig, final long blockNumber, @NonNull final Instant timestamp) {
+            @NonNull final BlockNodeConfiguration blockNodeConfig,
+            final long blockNumber,
+            @NonNull final Instant timestamp) {
         if (!isStreamingEnabled()) {
             return new BlockNodeStats.HighLatencyResult(0L, 0, false, false);
         }

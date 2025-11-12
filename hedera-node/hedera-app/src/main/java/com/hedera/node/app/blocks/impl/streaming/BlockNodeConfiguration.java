@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
@@ -16,7 +17,12 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  *                                  request may "burst" to in order to accommodate large block items (must be greater
  *                                  than or equal to the soft limit)
  */
-public record BlockNodeConfiguration(@NonNull String address, int port, int priority, long messageSizeSoftLimitBytes, long messageSizeHardLimitBytes) {
+public record BlockNodeConfiguration(
+        @NonNull String address,
+        int port,
+        int priority,
+        long messageSizeSoftLimitBytes,
+        long messageSizeHardLimitBytes) {
 
     public BlockNodeConfiguration {
         requireNonNull(address, "Address must be specified");
@@ -34,7 +40,8 @@ public record BlockNodeConfiguration(@NonNull String address, int port, int prio
             throw new IllegalArgumentException("Message size soft limit must be greater than 0");
         }
         if (messageSizeHardLimitBytes < messageSizeSoftLimitBytes) {
-            throw new IllegalArgumentException("Message size hard limit must be greater than or equal to soft limit size");
+            throw new IllegalArgumentException(
+                    "Message size hard limit must be greater than or equal to soft limit size");
         }
     }
 
@@ -76,12 +83,7 @@ public record BlockNodeConfiguration(@NonNull String address, int port, int prio
 
         public BlockNodeConfiguration build() {
             return new BlockNodeConfiguration(
-                    address,
-                    port,
-                    priority,
-                    messageSizeSoftLimitBytes,
-                    messageSizeHardLimitBytes
-            );
+                    address, port, priority, messageSizeSoftLimitBytes, messageSizeHardLimitBytes);
         }
     }
 }

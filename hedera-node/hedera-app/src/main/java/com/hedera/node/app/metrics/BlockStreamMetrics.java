@@ -508,8 +508,10 @@ public class BlockStreamMetrics {
                 .withDescription("Number of individual block items sent to block nodes");
         this.connSend_blockItemsCounter = metrics.getOrCreate(blockItemsCfg);
 
-        final Counter.Config multiItemReqExceedsSoftLimitCfg = newCounter(GROUP_CONN_SEND, "multiItemRequestExceedsSoftLimit")
-                .withDescription("Number of requests that contain multiple items whose total size exceeds the soft limit size");
+        final Counter.Config multiItemReqExceedsSoftLimitCfg = newCounter(
+                        GROUP_CONN_SEND, "multiItemRequestExceedsSoftLimit")
+                .withDescription(
+                        "Number of requests that contain multiple items whose total size exceeds the soft limit size");
         this.connSend_multiItemRequestExceedsSoftLimitCounter = metrics.getOrCreate(multiItemReqExceedsSoftLimitCfg);
 
         final Counter.Config requestExceedsHardLimitCfg = newCounter(GROUP_CONN_SEND, "requestExceedsHardLimit")

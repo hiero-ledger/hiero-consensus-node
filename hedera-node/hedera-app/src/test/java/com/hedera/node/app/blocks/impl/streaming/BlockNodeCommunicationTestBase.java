@@ -171,11 +171,22 @@ public abstract class BlockNodeCommunicationTestBase {
         return newBlockNodeConfig("localhost", port, priority);
     }
 
-    protected static BlockNodeConfiguration newBlockNodeConfig(final String address, final int port, final int priority) {
-        return newBlockNodeConfig(address, port, priority, BlockNodeConnectionManager.DEFAULT_MESSAGE_SOFT_LIMIT_BYTES, BlockNodeConnectionManager.DEFAULT_MESSAGE_HARD_LIMIT_BYTES);
+    protected static BlockNodeConfiguration newBlockNodeConfig(
+            final String address, final int port, final int priority) {
+        return newBlockNodeConfig(
+                address,
+                port,
+                priority,
+                BlockNodeConnectionManager.DEFAULT_MESSAGE_SOFT_LIMIT_BYTES,
+                BlockNodeConnectionManager.DEFAULT_MESSAGE_HARD_LIMIT_BYTES);
     }
 
-    protected static BlockNodeConfiguration newBlockNodeConfig(final String address, final int port, final int priority, final long messageSoftLimitBytes, final long messageHardLimitBytes) {
+    protected static BlockNodeConfiguration newBlockNodeConfig(
+            final String address,
+            final int port,
+            final int priority,
+            final long messageSoftLimitBytes,
+            final long messageHardLimitBytes) {
         return BlockNodeConfiguration.newBuilder()
                 .address(address)
                 .port(port)

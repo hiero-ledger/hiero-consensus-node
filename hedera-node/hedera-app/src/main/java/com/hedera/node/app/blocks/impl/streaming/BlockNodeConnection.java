@@ -307,8 +307,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 new PbjGrpcClientConfig(timeoutDuration, tls, Optional.of(""), "application/grpc");
 
         final WebClient webClient = WebClient.builder()
-                .baseUri("http://" + nodeConfig.address() + ":"
-                        + nodeConfig.port())
+                .baseUri("http://" + nodeConfig.address() + ":" + nodeConfig.port())
                 .tls(tls)
                 .protocolConfigs(List.of(GrpcClientProtocolConfig.builder()
                         .abortPollTimeExpired(false)
@@ -318,10 +317,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 .build();
 
         logger.debug(
-                "{} Created BlockStreamPublishServiceClient for {}:{}.",
-                this,
-                nodeConfig.address(),
-                nodeConfig.port());
+                "{} Created BlockStreamPublishServiceClient for {}:{}.", this, nodeConfig.address(), nodeConfig.port());
         return clientFactory.createClient(webClient, grpcConfig, OPTIONS);
     }
 
@@ -542,8 +538,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         // Check if we've exceeded the EndOfStream rate limit
         // Record the EndOfStream event and check if the rate limit has been exceeded.
         // The connection manager maintains persistent stats for each node across connections.
-        if (blockNodeConnectionManager.recordEndOfStreamAndCheckLimit(
-                nodeConfig, Instant.now())) {
+        if (blockNodeConnectionManager.recordEndOfStreamAndCheckLimit(nodeConfig, Instant.now())) {
             if (logger.isInfoEnabled()) {
                 logger.info(
                         "{} Block node has exceeded the allowed number of EndOfStream responses "
@@ -1043,8 +1038,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             return false;
         }
         final BlockNodeConnection that = (BlockNodeConnection) o;
-        return Objects.equals(connectionId, that.connectionId)
-                && Objects.equals(nodeConfig, that.nodeConfig);
+        return Objects.equals(connectionId, that.connectionId) && Objects.equals(nodeConfig, that.nodeConfig);
     }
 
     @Override
@@ -1092,8 +1086,13 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         @Override
         public void run() {
-            logger.info("{} Worker thread started (messageSizeSoftLimit={}, messageSizeHardLimit={}, requestPadding={}, itemPadding={})",
-                    BlockNodeConnection.this, softLimitBytes, hardLimitBytes, requestBasePaddingBytes, requestItemPaddingBytes);
+            logger.info(
+                    "{} Worker thread started (messageSizeSoftLimit={}, messageSizeHardLimit={}, requestPadding={}, itemPadding={})",
+                    BlockNodeConnection.this,
+                    softLimitBytes,
+                    hardLimitBytes,
+                    requestBasePaddingBytes,
+                    requestItemPaddingBytes);
             while (true) {
                 try {
                     if (connectionState.get().isTerminal()) {
@@ -1160,7 +1159,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
                 final int itemSize = item.protobufSize() + requestItemPaddingBytes;
                 final long newRequestBytes = pendingRequestBytes + itemSize;
-                logger.trace("{} ItemSize: {}, NewRequestBytes: {}", BlockNodeConnection.this, itemSize, newRequestBytes);
+                logger.trace(
+                        "{} ItemSize: {}, NewRequestBytes: {}", BlockNodeConnection.this, itemSize, newRequestBytes);
 
                 if (itemSize > hardLimitBytes) {
                     // the item exceeds the absolute max request size (even without accounting for request overhead)
@@ -1169,10 +1169,15 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     try {
                         trySendPendingRequest();
                     } catch (final Exception e) {
-                        // ignore exception... we are about to close the connection regardless
+                        // ignore exception... we are about to close the connection
                     }
-                    logger.error("{} !!! FATAL: Block item exceeds max message size hard limit; closing connection (block={}, itemIndex={}, itemSize={}, sizeHardLimit={})",
-                            BlockNodeConnection.this, block.blockNumber(), itemIndex, itemSize, hardLimitBytes);
+                    logger.error(
+                            "{} !!! FATAL: Block item exceeds max message size hard limit; closing connection (block={}, itemIndex={}, itemSize={}, sizeHardLimit={})",
+                            BlockNodeConnection.this,
+                            block.blockNumber(),
+                            itemIndex,
+                            itemSize,
+                            hardLimitBytes);
                     endTheStreamWith(EndStream.Code.ERROR);
                     return true;
                 } else if (itemSize >= softLimitBytes) {
@@ -1331,8 +1336,11 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 // the multi-item request exceeds the soft limit
                 // try to remove the last item from the request and try sending again
                 blockStreamMetrics.recordMultiItemRequestExceedsSoftLimit();
-                logger.trace("{} Multi-item request exceeds soft limit; will attempt to remove last item and send again (requestSize={}, items={})",
-                        BlockNodeConnection.this, reqBytes, pendingRequestItems.size());
+                logger.trace(
+                        "{} Multi-item request exceeds soft limit; will attempt to remove last item and send again (requestSize={}, items={})",
+                        BlockNodeConnection.this,
+                        reqBytes,
+                        pendingRequestItems.size());
                 final BlockItem item = pendingRequestItems.removeLast();
                 --itemIndex;
                 pendingRequestBytes -= (item.protobufSize() + requestItemPaddingBytes);
@@ -1351,8 +1359,13 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 return false;
             }
 
-            logger.trace("{} Attempting to send request (block={}, request={}, itemCount={}, bytes={})",
-                    BlockNodeConnection.this, block.blockNumber(), requestCtr.get(), pendingRequestItems.size(), reqBytes);
+            logger.trace(
+                    "{} Attempting to send request (block={}, request={}, itemCount={}, bytes={})",
+                    BlockNodeConnection.this,
+                    block.blockNumber(),
+                    requestCtr.get(),
+                    pendingRequestItems.size(),
+                    reqBytes);
 
             try {
                 if (sendRequest(block.blockNumber(), requestCtr.get(), req)) {
@@ -1365,16 +1378,27 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     requestCtr.incrementAndGet();
                     return true;
                 } else {
-                    logger.warn("{} Sending the request failed for a non-exceptional reason (block={}, request={})",
-                            BlockNodeConnection.this, block.blockNumber(), requestCtr.get());
+                    logger.warn(
+                            "{} Sending the request failed for a non-exceptional reason (block={}, request={})",
+                            BlockNodeConnection.this,
+                            block.blockNumber(),
+                            requestCtr.get());
                 }
             } catch (final UncheckedIOException e) {
-                logger.debug("{} UncheckedIOException caught in connection worker thread (block={}, request={})",
-                        BlockNodeConnection.this, block.blockNumber(), requestCtr.get(), e);
+                logger.debug(
+                        "{} UncheckedIOException caught in connection worker thread (block={}, request={})",
+                        BlockNodeConnection.this,
+                        block.blockNumber(),
+                        requestCtr.get(),
+                        e);
                 handleStreamFailureWithoutOnComplete();
             } catch (final Exception e) {
-                logger.debug("{} Exception caught in connection worker thread (block={}, request={})",
-                        BlockNodeConnection.this, block.blockNumber(), requestCtr.get(), e);
+                logger.debug(
+                        "{} Exception caught in connection worker thread (block={}, request={})",
+                        BlockNodeConnection.this,
+                        block.blockNumber(),
+                        requestCtr.get(),
+                        e);
                 handleStreamFailure();
             }
 

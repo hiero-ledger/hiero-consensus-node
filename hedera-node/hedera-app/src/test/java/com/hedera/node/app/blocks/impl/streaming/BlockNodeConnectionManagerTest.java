@@ -217,10 +217,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         // Verify new connections were created (map should have 2 entries - retry + new node)
         assertThat(connections).hasSize(2);
-        assertThat(connections)
-                .containsKeys(
-                        nodeConfig,
-                        newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8081, 1));
+        assertThat(connections).containsKeys(nodeConfig, newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8081, 1));
     }
 
     @Test
@@ -1330,8 +1327,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testRecordActiveConnectionIp() throws Exception {
-        final var method =
-                BlockNodeConnectionManager.class.getDeclaredMethod("recordActiveConnectionIp", BlockNodeConfiguration.class);
+        final var method = BlockNodeConnectionManager.class.getDeclaredMethod(
+                "recordActiveConnectionIp", BlockNodeConfiguration.class);
         method.setAccessible(true);
 
         final BlockNodeConfiguration config = newBlockNodeConfig("localhost", 8080, 1);
@@ -1410,7 +1407,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final Path dir = tempDir;
         final Path file = dir.resolve("block-nodes.json");
 
-        final String json = """
+        final String json =
+                """
                 {
                   "nodes": [
                     {
@@ -1862,8 +1860,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     @SuppressWarnings("unchecked")
     private List<BlockNodeConfiguration> invoke_extractBlockNodesConfigurations(final String path) {
         try {
-            return (List<BlockNodeConfiguration>)
-                    extractBlockNodesConfigurationsHandle.invoke(connectionManager, path);
+            return (List<BlockNodeConfiguration>) extractBlockNodesConfigurationsHandle.invoke(connectionManager, path);
         } catch (final Throwable e) {
             throw new RuntimeException(e);
         }
