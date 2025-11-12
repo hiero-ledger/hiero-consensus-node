@@ -20,7 +20,9 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uncheckedSubmit
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.updateTopic;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newThresholdKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
@@ -315,6 +317,122 @@ public class SimpleFeesSuite {
                     // sigs = 1 (included)
                     // Total: 100,000 + 200,000 + 49,700,000 = 50,000,000 tinycents = $0.005
                     validateChargedUsdWithin("delete-account-txn", ucents_to_USD(500), 0.01));
+        }
+
+        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+        @DisplayName("compare crypto create with 2 keys")
+        final Stream<DynamicTest> cryptoCreateWith2Keys() {
+            return runBeforeAfter(
+                    newKeyNamed("key1"),
+                    newKeyNamed("key2"),
+                    newKeyListNamed("keyList2", List.of("key1", "key2")),
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate("accountWith2Keys")
+                            .balance(0L)
+                            .key("keyList2")
+                            .payingWith(PAYER)
+                            .fee(ONE_HBAR)
+                            .via("create-2keys-txn"),
+                    // node=100,000, network=200,000, service=499,700,000 tinycents
+                    // keys = 2, includedCount=1, so 1 extra key charged
+                    // Extra keys: 1 × 100,000,000 = 100,000,000
+                    // Total: 100,000 + 200,000 + 499,700,000 + 100,000,000 = 600,000,000 tinycents = $0.06
+                    validateChargedUsdWithin("create-2keys-txn", ucents_to_USD(6000), 0.01));
+        }
+
+        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+        @DisplayName("compare crypto create with 3 keys")
+        final Stream<DynamicTest> cryptoCreateWith3Keys() {
+            return runBeforeAfter(
+                    newKeyNamed("key1"),
+                    newKeyNamed("key2"),
+                    newKeyNamed("key3"),
+                    newKeyListNamed("keyList3", List.of("key1", "key2", "key3")),
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate("accountWith3Keys")
+                            .balance(0L)
+                            .key("keyList3")
+                            .payingWith(PAYER)
+                            .fee(ONE_HBAR)
+                            .via("create-3keys-txn"),
+                    // node=100,000, network=200,000, service=499,700,000 tinycents
+                    // keys = 3, includedCount=1, so 2 extra keys charged
+                    // Extra keys: 2 × 100,000,000 = 200,000,000
+                    // Total: 100,000 + 200,000 + 499,700,000 + 200,000,000 = 700,000,000 tinycents = $0.07
+                    validateChargedUsdWithin("create-3keys-txn", ucents_to_USD(7000), 0.01));
+        }
+
+        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+        @DisplayName("compare crypto create with 5 keys")
+        final Stream<DynamicTest> cryptoCreateWith5Keys() {
+            return runBeforeAfter(
+                    newKeyNamed("key1"),
+                    newKeyNamed("key2"),
+                    newKeyNamed("key3"),
+                    newKeyNamed("key4"),
+                    newKeyNamed("key5"),
+                    newKeyListNamed("keyList5", List.of("key1", "key2", "key3", "key4", "key5")),
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate("accountWith5Keys")
+                            .balance(0L)
+                            .key("keyList5")
+                            .payingWith(PAYER)
+                            .fee(ONE_HBAR)
+                            .via("create-5keys-txn"),
+                    // node=100,000, network=200,000, service=499,700,000 tinycents
+                    // keys = 5, includedCount=1, so 4 extra keys charged
+                    // Extra keys: 4 × 100,000,000 = 400,000,000
+                    // Total: 100,000 + 200,000 + 499,700,000 + 400,000,000 = 900,000,000 tinycents = $0.09
+                    validateChargedUsdWithin("create-5keys-txn", ucents_to_USD(9000), 0.01));
+        }
+
+        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+        @DisplayName("compare crypto create with threshold key")
+        final Stream<DynamicTest> cryptoCreateWithThresholdKey() {
+            return runBeforeAfter(
+                    newKeyNamed("key1"),
+                    newKeyNamed("key2"),
+                    newKeyNamed("key3"),
+                    newThresholdKeyNamed("thresholdKey", 2, List.of("key1", "key2", "key3")),
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate("accountWithThreshold")
+                            .balance(0L)
+                            .key("thresholdKey")
+                            .payingWith(PAYER)
+                            .fee(ONE_HBAR)
+                            .via("create-threshold-txn"),
+                    // node=100,000, network=200,000, service=499,700,000 tinycents
+                    // ThresholdKey with 3 keys inside, countKeys() recursively counts all 3
+                    // keys = 3, includedCount=1, so 2 extra keys charged
+                    // Extra keys: 2 × 100,000,000 = 200,000,000
+                    // Total: 100,000 + 200,000 + 499,700,000 + 200,000,000 = 700,000,000 tinycents = $0.07
+                    validateChargedUsdWithin("create-threshold-txn", ucents_to_USD(7000), 0.01));
+        }
+
+        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+        @DisplayName("compare crypto create with nested key structure")
+        final Stream<DynamicTest> cryptoCreateWithNestedKeyStructure() {
+            return runBeforeAfter(
+                    newKeyNamed("key1"),
+                    newKeyNamed("key2"),
+                    newKeyNamed("key3"),
+                    newKeyNamed("key4"),
+                    newKeyListNamed("innerList", List.of("key1", "key2")),
+                    newThresholdKeyNamed("nestedKey", 1, List.of("innerList", "key3", "key4")),
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate("accountWithNestedKeys")
+                            .balance(0L)
+                            .key("nestedKey")
+                            .payingWith(PAYER)
+                            .fee(ONE_HBAR)
+                            .via("create-nested-txn"),
+                    // node=100,000, network=200,000, service=499,700,000 tinycents
+                    // ThresholdKey containing: KeyList(key1, key2) + key3 + key4
+                    // countKeys() recursively counts all 4 simple keys
+                    // keys = 4, includedCount=1, so 3 extra keys charged
+                    // Extra keys: 3 × 100,000,000 = 300,000,000
+                    // Total: 100,000 + 200,000 + 499,700,000 + 300,000,000 = 800,000,000 tinycents = $0.08
+                    validateChargedUsdWithin("create-nested-txn", ucents_to_USD(8000), 0.01));
         }
     }
 

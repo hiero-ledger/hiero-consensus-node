@@ -57,11 +57,11 @@ class CryptoCreateFeeCalculatorTest {
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
 
             // Then: Real production values from simpleFeesSchedules.json
-            // node=100000, network=200000, service=498500000 + 100000000 (KEYS) = 598500000
-            // Note: addExtraFee adds the unit fee directly, not amount * fee
+            // keys = 0, includedCount=1, chargedKeys = max(0, 0-1) = 0, no extra charge
+            // node=100000, network=200000, service=499700000
             assertThat(result).isNotNull();
             assertThat(result.node).isEqualTo(100000L);
-            assertThat(result.service).isEqualTo(598500000L);
+            assertThat(result.service).isEqualTo(499700000L);
             assertThat(result.network).isEqualTo(200000L);
         }
 
@@ -78,10 +78,10 @@ class CryptoCreateFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
 
-            // Then: Same as no key case - addExtraFee adds unit fee regardless of count
-            // node=100000, network=200000, service=498500000 + 100000000 = 598500000
+            // Then: 1 key, includedCount=1, chargedKeys = max(0, 1-1) = 0, no extra charge
+            // node=100000, network=200000, service=499700000
             assertThat(result.node).isEqualTo(100000L);
-            assertThat(result.service).isEqualTo(598500000L);
+            assertThat(result.service).isEqualTo(499700000L);
             assertThat(result.network).isEqualTo(200000L);
         }
 
@@ -106,9 +106,10 @@ class CryptoCreateFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
 
-            // Then: Same as other cases - addExtraFee adds unit fee regardless of key count
-            // service=498500000 + 100000000 = 598500000
-            assertThat(result.service).isEqualTo(598500000L);
+            // Then: 3 keys, includedCount=1, chargedKeys = max(0, 3-1) = 2
+            // extra = 2 × 100000000 = 200000000
+            // service = 499700000 + 200000000 = 699700000
+            assertThat(result.service).isEqualTo(699700000L);
         }
 
         @Test
@@ -139,9 +140,10 @@ class CryptoCreateFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
 
-            // Then: Same as other cases - addExtraFee adds unit fee regardless of key count
-            // service=498500000 + 100000000 = 598500000
-            assertThat(result.service).isEqualTo(598500000L);
+            // Then: ThresholdKey with 3 keys, includedCount=1, chargedKeys = max(0, 3-1) = 2
+            // extra = 2 × 100000000 = 200000000
+            // service = 499700000 + 200000000 = 699700000
+            assertThat(result.service).isEqualTo(699700000L);
         }
     }
 
@@ -155,13 +157,16 @@ class CryptoCreateFeeCalculatorTest {
                         .build())
                 .network(NetworkFee.newBuilder().multiplier(2).build())
                 .extras(
-                        makeExtraDef(Extra.SIGNATURES, 1000000L),
+                        makeExtraDef(Extra.SIGNATURES, 10000000L),
                         makeExtraDef(Extra.KEYS, 100000000L),
-                        makeExtraDef(Extra.BYTES, 110L))
+                        makeExtraDef(Extra.BYTES, 100L))
                 .services(makeService(
                         "CryptoService",
                         makeServiceFee(
-                                HederaFunctionality.CRYPTO_CREATE, 498500000L, makeExtraIncluded(Extra.SIGNATURES, 1))))
+                                HederaFunctionality.CRYPTO_CREATE,
+                                499700000L,
+                                makeExtraIncluded(Extra.SIGNATURES, 1),
+                                makeExtraIncluded(Extra.KEYS, 1))))
                 .build();
     }
 }

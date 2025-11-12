@@ -36,9 +36,10 @@ public class CryptoCreateFeeCalculator implements ServiceFeeCalculator {
             final long includedCount = keysExtra.get().includedCount();
             final long chargedKeys = Math.max(0, keys - includedCount);
             if (chargedKeys > 0) {
-                final long keyFee = org.hiero.hapi.fees.FeeScheduleUtils.lookupExtraFee(feeSchedule, KEYS)
+                final long keyFeeRate = org.hiero.hapi.fees.FeeScheduleUtils.lookupExtraFee(feeSchedule, KEYS)
                         .fee();
-                feeResult.addServiceFee("Extra KEYS", chargedKeys, keyFee);
+                final long totalKeyFee = chargedKeys * keyFeeRate;
+                feeResult.addServiceFee("Extra KEYS", chargedKeys, totalKeyFee);
             }
         }
     }
