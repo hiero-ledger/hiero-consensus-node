@@ -275,8 +275,7 @@ class ReconnectControllerTest {
     void testPromiseCleanupAfterConsumption() throws Exception {
         final ReconnectController controller = createController();
         final CountDownLatch stateProvidedLatch = new CountDownLatch(1);
-        final CountDownLatch reconnectCompleteLatch = new CountDownLatch(1);
-        final AtomicBoolean secondAcquireFailed = new AtomicBoolean(false);
+        final AtomicBoolean stateAcquired = new AtomicBoolean(false);
 
         // Start controller
         final var controllerRunnable = RunnableCompletionControl.unblocked(() -> {
@@ -284,50 +283,40 @@ class ReconnectControllerTest {
                 controller.run();
             }
         });
-        final var controllerThread = controllerRunnable.start();
 
         final var notifier = RunnableCompletionControl.unblocked(() -> {
             fallenBehindMonitor.report(NodeId.of(1));
             fallenBehindMonitor.report(NodeId.of(2));
         });
 
-        notifier.start();
-        notifier.waitIsFinished(LONG_TIMEOUT);
-
         final var simulator = RunnableCompletionControl.unblocked(() -> {
             try {
 
-                // First reconnect - acquire and provide
-                Thread.sleep(100);
-                assertTrue(peerReservedSignedStateResultPromise.acquire(), "First acquire should succeed");
+                stateAcquired.set(peerReservedSignedStateResultPromise.acquire());
+                if (!stateAcquired.get()) {
+                    return;
+                }
                 peerReservedSignedStateResultPromise.resolveWithValue(testReservedSignedState);
-                stateProvidedLatch.countDown();
-
-                // Wait for reconnect to complete
-                Thread.sleep(200);
-
-                // Try to acquire again - should fail because promise was consumed
-                secondAcquireFailed.set(!peerReservedSignedStateResultPromise.acquire());
-                reconnectCompleteLatch.countDown();
-
                 controller.stopReconnectLoop();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         });
+        controllerRunnable.start();
+        notifier.start();
+        notifier.waitIsFinished(LONG_TIMEOUT);
+        Thread.sleep(200); // Give enough time for reconnec controller to start
+        simulator.start();
+        simulator.waitIsFinished(LONG_TIMEOUT);
+        assertTrue(stateAcquired.get(), "acquire should succeed");
+
+        controllerRunnable.waitIsFinished(LONG_TIMEOUT);
 
         simulator.start();
-
-        assertTrue(stateProvidedLatch.await(2, SECONDS), "State should have been provided");
-        assertTrue(reconnectCompleteLatch.await(2, SECONDS), "Reconnect should have completed");
-
-        controllerThread.interrupt();
-        controllerRunnable.waitIsFinished(LONG_TIMEOUT);
         simulator.waitIsFinished(LONG_TIMEOUT);
-
         // After consumption, the promise should not allow new acquires (consumed)
         // Note: This depends on the implementation of BlockingResourceProvider
-        assertTrue(secondAcquireFailed.get(), "Second acquire should fail after promise consumed");
+        assertFalse(stateAcquired.get(), "Second acquire should fail after promise consumed");
     }
 
     @Test
