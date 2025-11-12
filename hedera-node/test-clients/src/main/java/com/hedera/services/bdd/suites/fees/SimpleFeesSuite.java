@@ -864,7 +864,8 @@ public class SimpleFeesSuite {
             }
         }
 
-        // DISABLED: Requires code changes to charge minimal fees for pre-handle validation failures instead of full transaction fees.
+        // DISABLED: Requires code changes to charge minimal fees for pre-handle validation failures instead of full
+        // transaction fees.
         @Disabled("Pre-handle validation failures charge full transaction fee instead of minimal unreadable fee")
         @Nested
         class SimpleFeesEnabledOnlyCreateTopicFailsOnPreHandle {
