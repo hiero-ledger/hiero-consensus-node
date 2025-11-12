@@ -273,7 +273,7 @@ public class SimpleFeesSuite {
                             .payingWith(PAYER)
                             .fee(ONE_HBAR)
                             .via("createAccountTxn"),
-                    validateChargedUsdWithin("createAccountTxn", 0.06, 1.0));
+                    validateChargedUsdWithin("createAccountTxn", 0.05, 1.0));
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -288,7 +288,7 @@ public class SimpleFeesSuite {
                             .payingWith(PAYER)
                             .fee(ONE_HBAR)
                             .via("createAccountKeyTxn"),
-                    validateChargedUsdWithin("createAccountKeyTxn", 0.06, 1.0));
+                    validateChargedUsdWithin("createAccountKeyTxn", 0.05, 1.0));
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -305,7 +305,8 @@ public class SimpleFeesSuite {
                             .payingWith(PAYER)
                             .fee(ONE_HBAR)
                             .via("deleteAccountTxn"),
-                    validateChargedUsdWithin("deleteAccountTxn", 0.006, 1.0));
+                    // node=1, network=9, service490, extra sig=100 = 500 ucents = 0.005 USD
+                    validateChargedUsdWithin("deleteAccountTxn", 0.0052, 1.0));
         }
     }
 

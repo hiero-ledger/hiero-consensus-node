@@ -3,7 +3,7 @@
     "baseFee": 100000,
     "extras": [
       {
-        "name": "SIGNATURES", "includedCount": 1
+        "name": "SIGNATURES", "includedCount": 3
       }
     ]
   },
@@ -38,7 +38,7 @@
       "schedule": [
         {
           "name": "CryptoCreate",
-          "baseFee": 499900000,
+          "baseFee": 499000000,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1 },
             { "name": "KEYS", "includedCount": 1 }
@@ -54,7 +54,7 @@
         },
         {
           "name": "CryptoDelete",
-          "baseFee": 49000000,
+          "baseFee": 49900000,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1 }
           ]
