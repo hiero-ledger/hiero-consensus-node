@@ -84,8 +84,7 @@ public class ConsistencyTestingToolMain extends DefaultSwirldMain<ConsistencyTes
     @Override
     @NonNull
     public ConsistencyTestingToolState newStateRoot() {
-        final ConsistencyTestingToolState state =
-                new ConsistencyTestingToolState(CONFIGURATION, new NoOpMetrics(), Time.getCurrent());
+        final ConsistencyTestingToolState state = new ConsistencyTestingToolState(CONFIGURATION, new NoOpMetrics());
         TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
         return state;
     }
@@ -97,8 +96,7 @@ public class ConsistencyTestingToolMain extends DefaultSwirldMain<ConsistencyTes
     public Function<VirtualMap, ConsistencyTestingToolState> stateRootFromVirtualMap(
             @NonNull final Metrics metrics, @NonNull final Time time) {
         return virtualMap -> {
-            final ConsistencyTestingToolState state =
-                    new ConsistencyTestingToolState(virtualMap, new NoOpMetrics(), time);
+            final ConsistencyTestingToolState state = new ConsistencyTestingToolState(virtualMap, new NoOpMetrics());
             TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
             return state;
         };

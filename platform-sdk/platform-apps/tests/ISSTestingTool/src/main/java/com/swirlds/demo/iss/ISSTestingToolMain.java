@@ -90,7 +90,7 @@ public class ISSTestingToolMain extends DefaultSwirldMain<ISSTestingToolState> {
     @Override
     @NonNull
     public ISSTestingToolState newStateRoot() {
-        final ISSTestingToolState state = new ISSTestingToolState(CONFIGURATION, new NoOpMetrics(), Time.getCurrent());
+        final ISSTestingToolState state = new ISSTestingToolState(CONFIGURATION, new NoOpMetrics());
         TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
         return state;
     }
@@ -102,7 +102,7 @@ public class ISSTestingToolMain extends DefaultSwirldMain<ISSTestingToolState> {
     public Function<VirtualMap, ISSTestingToolState> stateRootFromVirtualMap(
             @NonNull final Metrics metrics, @NonNull final Time time) {
         return virtualMap -> {
-            final ISSTestingToolState state = new ISSTestingToolState(virtualMap, new NoOpMetrics(), time);
+            final ISSTestingToolState state = new ISSTestingToolState(virtualMap, new NoOpMetrics());
             TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
             return state;
         };

@@ -587,7 +587,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
     @Override
     public Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap(
             @NonNull final Metrics metrics, @NonNull final Time time) {
-        return virtualMap -> new HederaVirtualMapState(virtualMap, metrics, time);
+        return virtualMap -> new VirtualMapState(virtualMap, metrics, platformStateFacade::roundOf);
     }
 
     /**
@@ -617,7 +617,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                 startGrpcServer();
                 if (initState != null) {
                     // Disabling start up mode, so since now singletons will be commited only on block close
-                    if (initState instanceof VirtualMapState<?> virtualMapState) {
+                    if (initState instanceof VirtualMapState virtualMapState) {
                         virtualMapState.disableStartupMode();
                     }
                 }
@@ -937,7 +937,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
 
             logger.debug("Shutting down the state");
             final var state = daggerApp.workingStateAccessor().getState();
-            if (state instanceof HederaVirtualMapState msr) {
+            if (state instanceof VirtualMapState msr) {
                 msr.close();
             }
 

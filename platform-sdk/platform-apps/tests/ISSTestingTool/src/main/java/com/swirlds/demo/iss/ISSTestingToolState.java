@@ -16,11 +16,10 @@ import static com.swirlds.demo.iss.V0680ISSTestingToolSchema.ISS_SERVICE_NAME;
 import static com.swirlds.demo.iss.V0680ISSTestingToolSchema.PLANNED_ISS_LIST_STATE_ID;
 import static com.swirlds.demo.iss.V0680ISSTestingToolSchema.PLANNED_LOG_ERROR_LIST_STATE_ID;
 import static com.swirlds.demo.iss.V0680ISSTestingToolSchema.RUNNING_SUM_STATE_ID;
+import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.FAKE_ROUND_SUPPLIER;
 
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.primitives.ProtoString;
-import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.InitTrigger;
@@ -49,7 +48,7 @@ import org.hiero.consensus.model.event.ConsensusEvent;
 /**
  * State for the ISSTestingTool.
  */
-public class ISSTestingToolState extends VirtualMapState<ISSTestingToolState> implements MerkleNodeState {
+public class ISSTestingToolState extends VirtualMapState implements MerkleNodeState {
 
     /**
      * The true "state" of this app. Each transaction is just an integer that gets added to this value.
@@ -71,14 +70,12 @@ public class ISSTestingToolState extends VirtualMapState<ISSTestingToolState> im
      */
     private List<PlannedLogError> plannedLogErrorList = new LinkedList<>();
 
-    public ISSTestingToolState(
-            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
-        super(configuration, metrics);
+    public ISSTestingToolState(@NonNull final Configuration configuration, @NonNull final Metrics metrics) {
+        super(configuration, metrics, FAKE_ROUND_SUPPLIER);
     }
 
-    public ISSTestingToolState(
-            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
-        super(virtualMap, metrics);
+    public ISSTestingToolState(@NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics) {
+        super(virtualMap, metrics, FAKE_ROUND_SUPPLIER);
     }
 
     /**
@@ -92,15 +89,14 @@ public class ISSTestingToolState extends VirtualMapState<ISSTestingToolState> im
         this.plannedLogErrorList = new ArrayList<>(that.plannedLogErrorList);
     }
 
+    @NonNull
     @Override
-    protected ISSTestingToolState copyingConstructor() {
+    public ISSTestingToolState copy() {
         return new ISSTestingToolState(this);
     }
 
     public void initState(InitTrigger trigger, Platform platform) {
         throwIfImmutable();
-
-        final PlatformContext platformContext = platform.getContext();
 
         final var schema = new V0680ISSTestingToolSchema();
         schema.statesToCreate().stream()

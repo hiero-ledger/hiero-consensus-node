@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.app;
 
 import static java.util.Objects.requireNonNull;
+import static org.hiero.otter.fixtures.app.OtterStateUtils.commitState;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -10,6 +11,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
+import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -38,7 +40,7 @@ import org.hiero.otter.fixtures.app.state.OtterStateInitializer;
  * started. It creates the services that make up the application and routes events and rounds to those services.
  */
 @SuppressWarnings("removal")
-public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
+public class OtterApp implements ConsensusStateEventHandler<VirtualMapState> {
 
     private static final Logger log = LogManager.getLogger();
 
@@ -117,7 +119,7 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
     @Override
     public void onPreHandle(
             @NonNull final Event event,
-            @NonNull final OtterAppState state,
+            @NonNull final VirtualMapState state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         for (final OtterService service : allServices) {
             service.preHandleEvent(event);
@@ -145,7 +147,7 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
     @Override
     public void onHandleConsensusRound(
             @NonNull final Round round,
-            @NonNull final OtterAppState state,
+            @NonNull final VirtualMapState state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         for (final OtterService service : allServices) {
             service.onRoundStart(state.getWritableStates(service.name()), round);
@@ -186,7 +188,7 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
             service.onRoundComplete(state.getWritableStates(service.name()), round);
         }
 
-        state.commitState();
+        commitState(state);
 
         maybeDoBottleneck();
     }
@@ -213,7 +215,7 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
      * {@inheritDoc}
      */
     @Override
-    public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final OtterAppState state) {
+    public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final VirtualMapState state) {
         return true;
     }
 
@@ -222,7 +224,7 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
      */
     @Override
     public void onStateInitialized(
-            @NonNull final OtterAppState state,
+            @NonNull final VirtualMapState state,
             @NonNull final Platform platform,
             @NonNull final InitTrigger trigger,
             @Nullable final SemanticVersion previousVersion) {
@@ -241,7 +243,7 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
      */
     @Override
     public void onUpdateWeight(
-            @NonNull final OtterAppState state,
+            @NonNull final VirtualMapState state,
             @NonNull final AddressBook configAddressBook,
             @NonNull final PlatformContext context) {
         // No weight update required yet
@@ -251,7 +253,7 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
      * {@inheritDoc}
      */
     @Override
-    public void onNewRecoveredState(@NonNull final OtterAppState recoveredState) {
+    public void onNewRecoveredState(@NonNull final VirtualMapState recoveredState) {
         // No new recovered state required yet
     }
 

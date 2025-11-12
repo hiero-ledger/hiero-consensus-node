@@ -71,6 +71,7 @@ import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -157,7 +158,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
 
     /**
      * {@inheritDoc}
-     * Specifically, {@link HederaVirtualMapState}.
+     * Specifically, {@link VirtualMapState}.
      */
     @Override
     public Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap(
@@ -476,7 +477,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 TssBlockHashSigner::new,
                 metrics,
                 platformStateFacade,
-                () -> new HederaVirtualMapState(configuration, metrics, time));
+                () -> new VirtualMapState(configuration, metrics, platformStateFacade::roundOf));
     }
 
     /**

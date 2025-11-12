@@ -3,6 +3,8 @@ package com.swirlds.demo.migration;
 
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_SECONDS;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.FAKE_ROUND_SUPPLIER;
+import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createStateWithVM;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -19,6 +21,7 @@ import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.DefaultSwirldMain;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.SignatureException;
@@ -34,7 +37,7 @@ import org.hiero.consensus.roster.RosterUtils;
  * <p>
  * Command line arguments: Seed(long), TransactionsPerNode(int)
  */
-public class MigrationTestingToolMain extends DefaultSwirldMain<MigrationTestingToolState> {
+public class MigrationTestingToolMain extends DefaultSwirldMain<VirtualMapState> {
 
     private static final Logger logger = LogManager.getLogger(MigrationTestingToolMain.class);
 
@@ -151,9 +154,8 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<MigrationTesting
      */
     @NonNull
     @Override
-    public MigrationTestingToolState newStateRoot() {
-        final MigrationTestingToolState state =
-                new MigrationTestingToolState(CONFIGURATION, new NoOpMetrics(), Time.getCurrent());
+    public VirtualMapState newStateRoot() {
+        final VirtualMapState state = new VirtualMapState(CONFIGURATION, new NoOpMetrics(), FAKE_ROUND_SUPPLIER);
         TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
         return state;
     }
@@ -162,17 +164,17 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<MigrationTesting
      * {@inheritDoc}
      */
     @Override
-    public Function<VirtualMap, MigrationTestingToolState> stateRootFromVirtualMap(
+    public Function<VirtualMap, VirtualMapState> stateRootFromVirtualMap(
             @NonNull final Metrics metrics, @NonNull final Time time) {
         return virtualMap -> {
-            final MigrationTestingToolState state = new MigrationTestingToolState(virtualMap, new NoOpMetrics(), time);
+            final VirtualMapState state = createStateWithVM(virtualMap);
             TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
             return state;
         };
     }
 
     @Override
-    public ConsensusStateEventHandler<MigrationTestingToolState> newConsensusStateEvenHandler() {
+    public ConsensusStateEventHandler<VirtualMapState> newConsensusStateEvenHandler() {
         return new MigrationTestToolConsensusStateEventHandler();
     }
 
