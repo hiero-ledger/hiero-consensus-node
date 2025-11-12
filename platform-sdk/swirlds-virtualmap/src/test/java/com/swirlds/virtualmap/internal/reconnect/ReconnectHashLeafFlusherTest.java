@@ -13,6 +13,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import com.swirlds.virtualmap.test.fixtures.InMemoryDataSource;
@@ -91,8 +92,15 @@ public class ReconnectHashLeafFlusherTest {
                 new ReconnectHashLeafFlusher(ds, hashChunkHeight, flushInterval, stats);
         final int COUNT = 500;
         flusher.start(COUNT - 1, COUNT * 2 - 2);
-        for (int i = 0; i < COUNT * 2 - 1; i++) {
-            flusher.updateHash(i, hash(i + 2));
+        final long minHashChunkId = VirtualHashChunk.minChunkIdForPaths(COUNT * 2 - 2, hashChunkHeight);
+        for (int i = 0; i <= minHashChunkId; i++) {
+            final long chunkPath = VirtualHashChunk.chunkIdToChunkPath(i, hashChunkHeight);
+            final VirtualHashChunk chunk = new VirtualHashChunk(chunkPath, hashChunkHeight);
+            for (int j = 0; j < chunk.getChunkSize(); j++) {
+                final long path = VirtualHashChunk.getPathInChunk(chunkPath, j, hashChunkHeight);
+                chunk.setHashAtPath(path, hash((int) (path + 2)));
+            }
+            flusher.updateHashChunk(chunk);
         }
         flusher.finish();
         assertEquals(COUNT - 1, ds.getFirstLeafPath());

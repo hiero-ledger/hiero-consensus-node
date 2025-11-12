@@ -321,6 +321,9 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      * Paths are not initialized in this instance on purpose.
      */
     private VirtualMapMetadata reconnectState;
+
+    private VirtualNodeCache reconnectCache;
+
     /**
      * The {@link RecordAccessor} for the state, cache, and data source needed during reconnect.
      */
@@ -407,6 +410,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         reconnectHashingFuture = null;
         reconnectHashingStarted = null;
         reconnectIterator = null;
+        reconnectCache = null;
         reconnectRecords = null;
         pipeline = source.pipeline;
         flushCandidateThreshold.set(source.flushCandidateThreshold.get());
@@ -1223,7 +1227,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             flush(snapshotCache, originalMap.metadata, this.dataSource);
 
             final int hashChunkHeight = virtualMapConfig.virtualHasherChunkHeight();
-            final VirtualNodeCache reconnectCache = new VirtualNodeCache(
+            reconnectCache = new VirtualNodeCache(
                     virtualMapConfig,
                     hashChunkHeight,
                     dataSource::loadHashChunk,
@@ -1367,7 +1371,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
                 .setThreadName("hasher")
                 .setRunnable(() -> reconnectHashingFuture.complete(hasher.hash(
                         reconnectRecords::findHash,
-                        null,
+                        reconnectCache::preloadHashChunk,
                         reconnectIterator,
                         firstLeafPath,
                         lastLeafPath,

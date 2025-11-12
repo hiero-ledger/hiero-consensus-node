@@ -1177,10 +1177,11 @@ public final class VirtualNodeCache implements FastCopyable {
         final VirtualHashChunk chunk = preloadHashChunk(path);
         assert chunk.getChunkId() == hashChunkId;
         chunk.setHashAtPath(path, hash);
+        updateHashChunk(chunk);
     }
 
     public VirtualHashChunk preloadHashChunk(final long path) {
-
+        /*
         final long hashChunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
         return idToDirtyHashChunkIndex.compute(hashChunkId, (id, mutation) -> {
                     Mutation<Long, VirtualHashChunk> nextMutation = mutation;
@@ -1220,8 +1221,8 @@ public final class VirtualNodeCache implements FastCopyable {
                     return mutation;
                 })
                 .value;
+        */
 
-        /*
         final long hashChunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
         Mutation<Long, VirtualHashChunk> mutation = idToDirtyHashChunkIndex.get(hashChunkId);
         if (mutation != null) {
@@ -1242,7 +1243,7 @@ public final class VirtualNodeCache implements FastCopyable {
             assert chunk.getChunkId() == hashChunkId;
             return chunk;
         }
-        */
+
     }
 
     private void updateHashChunk(final VirtualHashChunk chunk) {
@@ -1262,9 +1263,11 @@ public final class VirtualNodeCache implements FastCopyable {
                         * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
             } else {
                 assert nextMutation.notFiltered();
-                assert mutation.value.height() == chunk.height();
+                sizeDelta -= (long) VirtualHashChunk.getChunkSize(nextMutation.value.height())
+                        * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
                 nextMutation.value = chunk;
-                // No need to update estimated size, the chunks are of the same size
+                sizeDelta += (long) VirtualHashChunk.getChunkSize(nextMutation.value.height())
+                        * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
             }
             if (previousMutation != null) {
                 assert previousMutation.notFiltered();

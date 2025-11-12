@@ -18,16 +18,19 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.hash.VirtualHasher;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import com.swirlds.virtualmap.test.fixtures.InMemoryBuilder;
+import com.swirlds.virtualmap.test.fixtures.InMemoryDataSource;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Cryptography;
@@ -80,9 +83,14 @@ class ReconnectHashListenerTest {
         final int last = 2 * size - 2;
         final ReconnectHashListener listener = new ReconnectHashListener(flusher);
         final VirtualHasher hasher = new VirtualHasher();
+        final Function<Long, VirtualHashChunk> chunkPreloader = path -> {
+            final long chunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
+            final long chunkPath = VirtualHashChunk.chunkIdToChunkPath(chunkId, hashChunkHeight);
+            return new VirtualHashChunk(chunkPath, hashChunkHeight);
+        };
         hasher.hash(
                 this::hash,
-                null,
+                chunkPreloader,
                 LongStream.range(first, last + 1).mapToObj(this::leaf).iterator(),
                 first,
                 last,
@@ -181,8 +189,12 @@ class ReconnectHashListenerTest {
         }
 
         @Override
-        public VirtualHashChunk loadHashChunk(final long chunkId) throws IOException {
-            return delegate.loadHashChunk(chunkId);
+        public VirtualHashChunk loadHashChunk(final long chunkId) {
+            try {
+                return delegate.loadHashChunk(chunkId);
+            } catch (final IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
 
         @Override

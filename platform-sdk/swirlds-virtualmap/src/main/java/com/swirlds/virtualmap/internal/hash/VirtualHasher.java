@@ -269,11 +269,9 @@ public final class VirtualHasher {
         @Override
         protected boolean onExecute() {
             int len = 1 << height;
-            boolean newChunk = false;
             if ((insProvided.get() == len) && (Path.getRank(path) % defaultChunkHeight == 0)) {
-                if ((height == defaultChunkHeight) || (Path.getRightGrandChildPath(path, height + 1) <= lastLeafPath)) {
-                    hashChunk = new VirtualHashChunk(path, height, defaultChunkHeight);
-                    newChunk = true;
+                if ((height == defaultChunkHeight) || (Path.getLeftGrandChildPath(path, height) >= firstLeafPath)) {
+                    hashChunk = new VirtualHashChunk(path, defaultChunkHeight);
                 }
             }
             if ((hashChunk == null) && (hashChunkPreloader != null)) {
@@ -317,7 +315,7 @@ public final class VirtualHasher {
                 rankPath = Path.getParentPath(rankPath);
                 len = len >> 1;
             }
-            if (newChunk && (hashChunk != null)) {
+            if (hashChunk != null) {
                 listener.onHashChunkHashed(hashChunk);
             }
             if (out != null) {
