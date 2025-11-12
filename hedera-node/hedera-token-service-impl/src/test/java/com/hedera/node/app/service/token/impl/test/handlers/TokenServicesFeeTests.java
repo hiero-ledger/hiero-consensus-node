@@ -1,8 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_BURN;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_DELETE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_FREEZE_ACCOUNT;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_PAUSE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_UNFREEZE_ACCOUNT;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_UNPAUSE;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
@@ -15,12 +21,24 @@ import static org.mockito.Mockito.mock;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
+import com.hedera.hapi.node.token.TokenBurnTransactionBody;
 import com.hedera.hapi.node.token.TokenCreateTransactionBody;
+import com.hedera.hapi.node.token.TokenDeleteTransactionBody;
+import com.hedera.hapi.node.token.TokenFreezeAccountTransactionBody;
 import com.hedera.hapi.node.token.TokenMintTransactionBody;
+import com.hedera.hapi.node.token.TokenPauseTransactionBody;
+import com.hedera.hapi.node.token.TokenUnfreezeAccountTransactionBody;
+import com.hedera.hapi.node.token.TokenUnpauseTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.token.impl.handlers.TokenBurnHandler;
 import com.hedera.node.app.service.token.impl.handlers.TokenCreateHandler;
+import com.hedera.node.app.service.token.impl.handlers.TokenDeleteHandler;
+import com.hedera.node.app.service.token.impl.handlers.TokenFreezeAccountHandler;
 import com.hedera.node.app.service.token.impl.handlers.TokenMintHandler;
+import com.hedera.node.app.service.token.impl.handlers.TokenPauseHandler;
+import com.hedera.node.app.service.token.impl.handlers.TokenUnfreezeAccountHandler;
+import com.hedera.node.app.service.token.impl.handlers.TokenUnpauseHandler;
 import com.hedera.node.app.service.token.impl.validators.CustomFeesValidator;
 import com.hedera.node.app.service.token.impl.validators.TokenCreateValidator;
 import com.hedera.node.app.service.token.impl.validators.TokenSupplyChangeOpsValidator;
@@ -45,6 +63,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 public class TokenServicesFeeTests {
     private static final long TOKEN_CREATE_BASE_FEE = 15;
     private static final long TOKEN_MINT_BASE_FEE = 20;
+    private static final long TOKEN_FREEZE_BASE_FEE = 25;
+    private static final long TOKEN_UNFREEZE_BASE_FEE = 30;
+    private static final long TOKEN_PAUSE_BASE_FEE = 35;
+    private static final long TOKEN_UNPAUSE_BASE_FEE = 40;
+    private static final long TOKEN_BURN_BASE_FEE = 40;
+    private static final long TOKEN_DELETE_BASE_FEE = 45;
+
     private static final long COMMON_TOKEN_FEE = 5;
     private static final long UNIQUE_TOKEN_FEE = 10;
 
@@ -62,11 +87,23 @@ public class TokenServicesFeeTests {
 
     private TokenCreateHandler createHandler;
     private TokenMintHandler mintHandler;
+    private TokenFreezeAccountHandler freezeAccountHandler;
+    private TokenUnfreezeAccountHandler unfreezeAccountHandler;
+    private TokenPauseHandler pauseHandler;
+    private TokenUnpauseHandler unpauseHandler;
+    private TokenBurnHandler burnHandler;
+    private TokenDeleteHandler deleteHandler;
 
     @BeforeEach
     void beforeEach() {
         createHandler = new TokenCreateHandler(entityIdFactory, customFeesValidator, tokenCreateValidator);
         mintHandler = new TokenMintHandler(tokenSupplyChangeOpsValidator);
+        freezeAccountHandler = new TokenFreezeAccountHandler();
+        unfreezeAccountHandler = new TokenUnfreezeAccountHandler();
+        pauseHandler = new TokenPauseHandler();
+        unpauseHandler = new TokenUnpauseHandler();
+        burnHandler = new TokenBurnHandler(tokenSupplyChangeOpsValidator);
+        deleteHandler = new TokenDeleteHandler();
     }
 
     @Test
@@ -124,20 +161,116 @@ public class TokenServicesFeeTests {
         assertEquals(TOKEN_MINT_BASE_FEE + UNIQUE_TOKEN_FEE, result.total());
     }
 
+    @Test
+    void freezeToken() {
+        final var commonToken = TokenID.newBuilder().tokenNum(1234).build();
+        final var txBody2 = TransactionBody.newBuilder()
+                .tokenFreeze(TokenFreezeAccountTransactionBody.newBuilder()
+                        .token(commonToken)
+                        .build()
+                ).build();
+        final var feeContext = createMockFeeContext(txBody2, 1);
+        final var result = freezeAccountHandler.calculateFeeResult(feeContext);
+        assertNotNull(result);
+        assertEquals(TOKEN_FREEZE_BASE_FEE, result.total());
+    }
+
+    @Test
+    void unfreezeToken() {
+        final var commonToken = TokenID.newBuilder().tokenNum(1234).build();
+        final var txBody2 = TransactionBody.newBuilder()
+                .tokenUnfreeze(TokenUnfreezeAccountTransactionBody.newBuilder()
+                        .token(commonToken)
+                        .build()
+                ).build();
+        final var feeContext = createMockFeeContext(txBody2, 1);
+        final var result = unfreezeAccountHandler.calculateFeeResult(feeContext);
+        assertNotNull(result);
+        assertEquals(TOKEN_UNFREEZE_BASE_FEE, result.total());
+    }
+
+    @Test
+    void pauseCommonToken() {
+        final var tokenId = TokenID.newBuilder().tokenNum(1234).build();
+        final var txBody2 = TransactionBody.newBuilder()
+                .tokenPause(TokenPauseTransactionBody.newBuilder()
+                        .token(tokenId)
+                        .build()
+                ).build();
+        final var feeContext = createMockFeeContext(txBody2, 1);
+        final var result = pauseHandler.calculateFeeResult(feeContext);
+        assertNotNull(result);
+        assertEquals(TOKEN_PAUSE_BASE_FEE, result.total());
+    }
+
+    @Test
+    void unpauseCommonToken() {
+        final var tokenId = TokenID.newBuilder().tokenNum(1234).build();
+        final var txBody2 = TransactionBody.newBuilder()
+                .tokenUnpause(TokenUnpauseTransactionBody.newBuilder()
+                        .token(tokenId)
+                        .build()
+                ).build();
+        final var feeContext = createMockFeeContext(txBody2, 1);
+        final var result = unpauseHandler.calculateFeeResult(feeContext);
+        assertNotNull(result);
+        assertEquals(TOKEN_UNPAUSE_BASE_FEE, result.total());
+    }
+
+    @Test
+    void burnCommonToken() {
+        final var tokenId = TokenID.newBuilder().tokenNum(1234).build();
+        final var body = TransactionBody.newBuilder()
+                .tokenBurn(TokenBurnTransactionBody.newBuilder()
+                        .token(tokenId)
+                        .build()
+                ).build();
+        final var feeContext = createMockFeeContext(body, 1);
+        final var result = burnHandler.calculateFeeResult(feeContext);
+        assertNotNull(result);
+        assertEquals(TOKEN_BURN_BASE_FEE, result.total());
+    }
+
+    @Test
+    void burnUniqueToken() {
+        final var tokenId = TokenID.newBuilder().tokenNum(1234).build();
+        final var body = TransactionBody.newBuilder()
+                .tokenBurn(TokenBurnTransactionBody.newBuilder()
+                        .token(tokenId)
+                        .build()
+                ).build();
+        final var feeContext = createMockFeeContext(body, 1);
+        final var result = burnHandler.calculateFeeResult(feeContext);
+        assertNotNull(result);
+        assertEquals(TOKEN_BURN_BASE_FEE, result.total());
+    }
+
+
+    @Test
+    void deleteToken() {
+        final var tokenId = TokenID.newBuilder().tokenNum(1234).build();
+        final var deleteBody = TokenDeleteTransactionBody.newBuilder()
+                .token(tokenId)
+                .build();
+        final var txnBody = TransactionBody.newBuilder()
+                .tokenDeletion(deleteBody)
+                .build();
+        final var feeContext = createMockFeeContext(txnBody, 1);
+        final var result = deleteHandler.calculateFeeResult(feeContext);
+        assertNotNull(result);
+        assertEquals(TOKEN_DELETE_BASE_FEE, result.total());
+    }
+
+
     /*
        // TODO
        create FT with custom fees
        create NFT with custom fees
        mint 10 NTF tokens??
-       burn an NFT
        grant and revoke KYC
-       freeze and unfreeze NFT
-       freeze and unfreeze common
-       pause and unpause
        update common token
        update NFT token
        update multiple NFT tokens
-       delete token
        token associate dissociate
        get info for common token
        get info for NFT token
@@ -175,7 +308,14 @@ public class TokenServicesFeeTests {
                                 TOKEN_MINT_BASE_FEE,
                                 makeExtraIncluded(Extra.KEYS, 1),
                                 makeExtraIncluded(Extra.STANDARD_FUNGIBLE_TOKENS, 0),
-                                makeExtraIncluded(Extra.STANDARD_NON_FUNGIBLE_TOKENS, 0))))
+                                makeExtraIncluded(Extra.STANDARD_NON_FUNGIBLE_TOKENS, 0)),
+                        makeServiceFee(TOKEN_BURN, TOKEN_BURN_BASE_FEE),
+                        makeServiceFee(TOKEN_DELETE, TOKEN_DELETE_BASE_FEE),
+                        makeServiceFee(TOKEN_PAUSE,TOKEN_PAUSE_BASE_FEE),
+                        makeServiceFee(TOKEN_UNPAUSE, TOKEN_UNPAUSE_BASE_FEE),
+                        makeServiceFee(TOKEN_FREEZE_ACCOUNT, TOKEN_FREEZE_BASE_FEE),
+                        makeServiceFee(TOKEN_UNFREEZE_ACCOUNT, TOKEN_UNFREEZE_BASE_FEE)
+                        ))
                 .build();
     }
 }

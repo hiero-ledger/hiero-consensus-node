@@ -3,9 +3,11 @@ package com.hedera.services.bdd.suites.fees;
 
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDelete;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
@@ -181,4 +183,60 @@ public class TokenSimpleServiceFeesSuite {
                         .via("non-fungible-mint-txn"),
                 validateChargedUsdWithin("non-fungible-mint-txn", ucents_to_USD(2000), 15)));
     }
+
+    @HapiTest
+    @DisplayName("compare burn a common token")
+    final Stream<DynamicTest> compareBurnToken() {
+        return compare(() -> Arrays.asList(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(0L)
+                        .payingWith(PAYER)
+                        .supplyKey(SUPPLY_KEY)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .hasKnownStatus(SUCCESS),
+                mintToken(FUNGIBLE_TOKEN, 10)
+                        .payingWith(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .hasKnownStatus(SUCCESS),
+                burnToken(FUNGIBLE_TOKEN, 10)
+                        .payingWith(PAYER)
+                        .hasKnownStatus(SUCCESS)
+                        .via("burn-token-txn"),
+                validateChargedUsd("burn-token-txn", ucents_to_USD(100), 1))
+        );
+    }
+
+    @HapiTest
+    @DisplayName("compare delete a common token")
+    final Stream<DynamicTest> compareDeleteToken() {
+        return compare(() -> Arrays.asList(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
+                cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(0L)
+                        .payingWith(PAYER)
+                        .adminKey(ADMIN)
+                        .supplyKey(SUPPLY_KEY)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .hasKnownStatus(SUCCESS),
+                mintToken(FUNGIBLE_TOKEN, 10)
+                        .payingWith(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .hasKnownStatus(SUCCESS),
+                tokenDelete(FUNGIBLE_TOKEN)
+                        .purging()
+                        .payingWith(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .hasKnownStatus(SUCCESS)
+                        .via("delete-token-txn"),
+                validateChargedUsd("delete-token-txn", ucents_to_USD(162), 1))
+        );
+    }
+
+
 }
