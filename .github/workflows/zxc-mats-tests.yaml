@@ -337,7 +337,6 @@ jobs:
       ref: ${{ inputs.ref || '' }}
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
-      custom-label: "${{ inputs.custom-job-label }}"
     secrets:
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
@@ -350,7 +349,6 @@ jobs:
       ref: ${{ inputs.ref || '' }}
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
-      custom-label: "${{ inputs.custom-job-label }}"
     secrets:
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
