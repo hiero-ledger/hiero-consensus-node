@@ -1198,4 +1198,9 @@ public class PlatformTestingToolConsensusStateEventHandler
     public void onNewRecoveredState(@NonNull PlatformTestingToolState recoveredState) {
         // no-op
     }
+
+    @Override
+    public void onPostHandleConsensusRound() {
+
+    }
 }

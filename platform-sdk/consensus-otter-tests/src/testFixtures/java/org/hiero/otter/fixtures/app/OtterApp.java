@@ -255,6 +255,11 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
         // No new recovered state required yet
     }
 
+    @Override
+    public void onPostHandleConsensusRound() {
+
+    }
+
     /**
      * Updates the synthetic bottleneck value.
      *

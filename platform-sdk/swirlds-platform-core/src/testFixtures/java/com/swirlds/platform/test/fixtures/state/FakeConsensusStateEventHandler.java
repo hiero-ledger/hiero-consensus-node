@@ -61,4 +61,9 @@ public enum FakeConsensusStateEventHandler implements ConsensusStateEventHandler
     public void onNewRecoveredState(@NonNull MerkleNodeState recoveredState) {
         // no-op
     }
+
+    @Override
+    public void onPostHandleConsensusRound() {
+
+    }
 }

@@ -156,4 +156,9 @@ public class ConsistencyTestingToolConsensusStateEventHandler
     public void onNewRecoveredState(@NonNull ConsistencyTestingToolState recoveredState) {
         // no-op
     }
+
+    @Override
+    public void onPostHandleConsensusRound() {
+
+    }
 }

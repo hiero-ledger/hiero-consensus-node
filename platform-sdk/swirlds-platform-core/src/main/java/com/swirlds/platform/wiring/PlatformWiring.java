@@ -29,6 +29,7 @@ import com.swirlds.platform.event.validation.InternalEventValidator;
 import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionHandlerResult;
+import com.swirlds.platform.eventhandling.RoundPostHandler;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.HashLogger;
@@ -264,6 +265,9 @@ public class PlatformWiring {
         consensusRoundOutputWire.solderTo(
                 components.transactionHandlerWiring().getInputWire(TransactionHandler::handleConsensusRound));
 
+        components.transactionHandlerWiring()
+                .getOutputWire().solderTo(components.applicationTransactionPosthandlerWiring().getInputWire(
+                RoundPostHandler::postHandleRound));
         consensusRoundOutputWire.solderTo(
                 components.eventWindowManagerWiring().getInputWire(EventWindowManager::extractEventWindow));
 
@@ -274,10 +278,10 @@ public class PlatformWiring {
         consensusRoundOutputWire.solderTo(
                 components.platformMonitorWiring().getInputWire(PlatformMonitor::consensusRound));
 
-        // The TransactionHandler output is split into two types: system transactions, and state with complexity.
+        // The TransactionPostHandler output is split into two types: system transactions, and state with complexity.
         final OutputWire<Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
                 transactionHandlerSysTxnsOutputWire = components
-                        .transactionHandlerWiring()
+                        .applicationTransactionPosthandlerWiring()
                         .getOutputWire()
                         .buildTransformer(
                                 "getSystemTransactions",
@@ -290,7 +294,7 @@ public class PlatformWiring {
                 components.issDetectorWiring().getInputWire(IssDetector::handleStateSignatureTransactions));
 
         final OutputWire<StateWithHashComplexity> transactionHandlerStateWithComplexityOutput = components
-                .transactionHandlerWiring()
+                .applicationTransactionPosthandlerWiring()
                 .getOutputWire()
                 .buildFilter(
                         "notNullStateFilter",

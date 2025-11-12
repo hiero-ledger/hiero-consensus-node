@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.blocknode;
 
-import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE;
+import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE2;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -44,7 +44,7 @@ import org.junit.jupiter.api.Tag;
  * This suite class tests the behavior of the consensus node to block node communication.
  * NOTE: com.hedera.node.app.blocks.impl.streaming MUST have DEBUG logging enabled.
  */
-@Tag(BLOCK_NODE)
+@Tag(BLOCK_NODE2)
 @OrderedInIsolation
 public class BlockNodeSuite {
     private static final int BLOCK_PERIOD_SECONDS = 2;

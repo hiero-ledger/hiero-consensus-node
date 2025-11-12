@@ -353,4 +353,9 @@ public class ISSTestingToolConsensusStateEventHandler implements ConsensusStateE
     public void onNewRecoveredState(final @NonNull ISSTestingToolState recoveredState) {
         // no-op
     }
+
+    @Override
+    public void onPostHandleConsensusRound() {
+
+    }
 }

@@ -7,7 +7,6 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
@@ -27,6 +26,7 @@ import com.swirlds.platform.event.validation.InternalEventValidator;
 import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionHandlerResult;
+import com.swirlds.platform.eventhandling.RoundPostHandler;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.HashLogger;
@@ -79,6 +79,8 @@ public record PlatformComponents(
         ComponentWiring<StateSnapshotManager, StateSavingResult> stateSnapshotManagerWiring,
         ComponentWiring<StateSigner, StateSignatureTransaction> stateSignerWiring,
         ComponentWiring<TransactionHandler, TransactionHandlerResult> transactionHandlerWiring,
+        ComponentWiring<RoundPostHandler, TransactionHandlerResult>
+        applicationTransactionPosthandlerWiring,
         ComponentWiring<ConsensusEventStream, Void> consensusEventStreamWiring,
         RunningEventHashOverrideWiring runningEventHashOverrideWiring,
         ComponentWiring<StateHasher, ReservedSignedState> stateHasherWiring,
@@ -100,7 +102,6 @@ public record PlatformComponents(
         ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring,
         ComponentWiring<InlinePcesWriter, PlatformEvent> pcesInlineWriterWiring,
         ComponentWiring<BranchReporter, Void> branchReporterWiring) {
-    private static final int LOW_TPS_TARGET_ROUNDS = 25; // Trigger backpressure after N rounds at low TPS
     /**
      * Bind components to the wiring.
      *
@@ -142,6 +143,7 @@ public record PlatformComponents(
         stateSignatureCollectorWiring.bind(stateSignatureCollector);
         eventWindowManagerWiring.bind(eventWindowManager);
         applicationTransactionPrehandlerWiring.bind(builder::buildTransactionPrehandler);
+        applicationTransactionPosthandlerWiring.bind(builder::buildTransactionPosthandler);
         transactionHandlerWiring.bind(builder::buildTransactionHandler);
         consensusEventStreamWiring.bind(builder::buildConsensusEventStream);
         issDetectorWiring.bind(builder::buildIssDetector);
@@ -193,7 +195,8 @@ public record PlatformComponents(
                         model,
                         TransactionHandler.class,
                         config.transactionHandler(),
-                        createTransactionHandlerDataCounter(config.transactionHandler())),
+                        createTransactionHandlerDataCounter()),
+                new ComponentWiring<>(model, RoundPostHandler.class, config.roundPostHandler()),
                 new ComponentWiring<>(model, ConsensusEventStream.class, config.consensusEventStream()),
                 RunningEventHashOverrideWiring.create(model),
                 new ComponentWiring<>(
@@ -221,18 +224,11 @@ public record PlatformComponents(
     }
 
     @NonNull
-    private static ToLongFunction<Object> createTransactionHandlerDataCounter(
-            final TaskSchedulerConfiguration schedulerConfiguration) {
-
-        final long capacity = schedulerConfiguration.unhandledTaskCapacity() == null
-                ? 0L
-                : schedulerConfiguration.unhandledTaskCapacity();
-        final double lowTpsPenalty = (double) capacity / LOW_TPS_TARGET_ROUNDS; //2500
-
+    private static ToLongFunction<Object> createTransactionHandlerDataCounter() {
         return data -> {
             if (data instanceof final ConsensusRound consensusRound) {
 
-                return (long) Math.max(lowTpsPenalty, consensusRound.getNumAppTransactions());
+                return (long) Math.max(1, consensusRound.getNumAppTransactions());
             }
             return 1L;
         };

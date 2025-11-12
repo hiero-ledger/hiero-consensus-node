@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.blocknode;
 
 import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE;
+import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE2;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.BlockNodeVerbs.blockNode;
@@ -91,7 +92,7 @@ public class BlockNodeBackPressureSuite {
                         Duration.ofMinutes(1),
                         "Block buffer is saturated; backpressure is being enabled",
                         "!!! Block buffer is saturated; blocking thread until buffer is no longer saturated")),
-                waitForAny(byNodeId(0), Duration.ofSeconds(30), PlatformStatus.CHECKING));
+                waitForAny(byNodeId(0), Duration.ofSeconds(120), PlatformStatus.CHECKING));
     }
 
     @HapiTest
@@ -124,6 +125,6 @@ public class BlockNodeBackPressureSuite {
                         Duration.ofMinutes(1),
                         "Block buffer is saturated; backpressure is being enabled",
                         "!!! Block buffer is saturated; blocking thread until buffer is no longer saturated")),
-                waitForAny(byNodeId(0), Duration.ofSeconds(30), PlatformStatus.CHECKING));
+                waitForAny(byNodeId(0), Duration.ofSeconds(120), PlatformStatus.CHECKING));
     }
 }

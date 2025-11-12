@@ -135,6 +135,11 @@ public class MigrationTestToolConsensusStateEventHandler
         // no-op
     }
 
+    @Override
+    public void onPostHandleConsensusRound() {
+
+    }
+
     private void consumeSystemTransaction(
             final @NonNull Transaction transaction,
             final @NonNull Event event,

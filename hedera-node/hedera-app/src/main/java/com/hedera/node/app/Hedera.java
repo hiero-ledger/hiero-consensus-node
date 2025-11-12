@@ -987,6 +987,10 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         daggerApp.blockRecordManager().close();
     }
 
+    public void onPostHandleConsensusRound() {
+        System.out.println("on postHandle");
+        daggerApp.blockBufferService().ensureNewBlocksPermitted();
+    }
     /**
      * Invoked by the platform to handle a round of consensus events.  This only happens after {@link #run()} has been
      * called.

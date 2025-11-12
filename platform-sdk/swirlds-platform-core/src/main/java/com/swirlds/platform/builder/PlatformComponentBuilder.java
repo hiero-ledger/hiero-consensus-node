@@ -36,8 +36,10 @@ import com.swirlds.platform.event.validation.DefaultInternalEventValidator;
 import com.swirlds.platform.event.validation.EventSignatureValidator;
 import com.swirlds.platform.event.validation.InternalEventValidator;
 import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
+import com.swirlds.platform.eventhandling.DefaultRoundPostHandler;
 import com.swirlds.platform.eventhandling.DefaultTransactionPrehandler;
 import com.swirlds.platform.eventhandling.TransactionHandler;
+import com.swirlds.platform.eventhandling.RoundPostHandler;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
 import com.swirlds.platform.gossip.SyncGossipModular;
 import com.swirlds.platform.state.hasher.DefaultStateHasher;
@@ -1080,5 +1082,10 @@ public class PlatformComponentBuilder {
             latestCompleteStateNotifier = new DefaultLatestCompleteStateNotifier();
         }
         return latestCompleteStateNotifier;
+    }
+
+    @NonNull
+    public RoundPostHandler buildTransactionPosthandler() {
+        return new DefaultRoundPostHandler(blocks.consensusStateEventHandler());
     }
 }

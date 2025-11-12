@@ -29,7 +29,7 @@ import java.time.Duration;
  * @param stateGarbageCollectorHeartbeatPeriod the frequency that heartbeats should be sent to the state garbage
  *                                             collector
  * @param consensusEventStream                 configuration for the consensus event stream scheduler
- * @param roundDurabilityBuffer                configuration for the round durability buffer scheduler
+ * @param roundPostHandler                     configuration for the round postHandler scheduler
  * @param signedStateSentinel                  configuration for the signed state sentinel scheduler
  * @param signedStateSentinelHeartbeatPeriod   the frequency that heartbeats should be sent to the signed state
  *                                             sentinel
@@ -91,8 +91,8 @@ public record PlatformSchedulersConfig(
                 TaskSchedulerConfiguration signedStateSentinel,
         @ConfigProperty(defaultValue = "10s") Duration signedStateSentinelHeartbeatPeriod,
         @ConfigProperty(defaultValue = "DIRECT_THREADSAFE") TaskSchedulerConfiguration consensusEventStream,
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(5) FLUSHABLE UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration roundDurabilityBuffer,
+        @ConfigProperty(defaultValue = "SEQUENTIAL_THREAD CAPACITY(10) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
+                TaskSchedulerConfiguration roundPostHandler,
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
                 TaskSchedulerConfiguration platformMonitor,
         @ConfigProperty(defaultValue = "DIRECT_THREADSAFE") TaskSchedulerConfiguration transactionPool,

@@ -85,4 +85,6 @@ public interface ConsensusStateEventHandler<T extends MerkleNodeState> {
      * @param recoveredState the recovered state after reapplying all events
      */
     void onNewRecoveredState(@NonNull T recoveredState);
+
+    void onPostHandleConsensusRound();
 }

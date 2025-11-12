@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.blocknode;
 
-import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE;
+import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE2;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -38,7 +38,7 @@ import org.junit.jupiter.api.Tag;
  * This suite is for testing consensus node software upgrade scenarios which change the writerMode to
  * FILE_AND_GRPC or other scenarios involving upgrade paths.
  */
-@Tag(BLOCK_NODE)
+@Tag(BLOCK_NODE2)
 @OrderedInIsolation
 public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.blocknode;
 
-import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE;
+import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE2;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -9,7 +9,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesN
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
-import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.*;
 import static com.hedera.services.bdd.suites.regression.system.MixedOperations.burstOfTps;
 
 import com.hedera.services.bdd.HapiBlockNode;
@@ -25,7 +24,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
-@Tag(BLOCK_NODE)
+@Tag(BLOCK_NODE2)
 @OrderedInIsolation
 public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
 

@@ -447,6 +447,7 @@ public class BlockBufferService {
         final CompletableFuture<Boolean> cf = backpressureCompletableFutureRef.get();
         if (cf != null && !cf.isDone()) {
             try {
+                System.out.println("Block buffer is saturated");
                 logger.error("!!! Block buffer is saturated; blocking thread until buffer is no longer saturated");
                 final long startMs = System.currentTimeMillis();
                 final boolean bufferAvailable = cf.get(); // this will block until the future is completed

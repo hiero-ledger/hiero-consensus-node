@@ -73,4 +73,9 @@ public class ConsensusStateEventHandlerImpl implements ConsensusStateEventHandle
     public void onNewRecoveredState(@NonNull final MerkleNodeState recoveredStateRoot) {
         hedera.onNewRecoveredState();
     }
+
+    @Override
+    public void onPostHandleConsensusRound() {
+        hedera.onPostHandleConsensusRound();
+    }
 }
