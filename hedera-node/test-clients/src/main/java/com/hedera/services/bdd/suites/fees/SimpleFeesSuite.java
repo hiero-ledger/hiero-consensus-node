@@ -277,10 +277,9 @@ public class SimpleFeesSuite {
                             .payingWith(PAYER)
                             .fee(ONE_HBAR)
                             .via("create-account-txn"),
-                    // node=1, network=2, service=499,700,000 tinycents
-                    // sigs = 1 (included), keys = 1 (included)
-                    // Total: 100,000 + 200,000 + 499,700,000 = 500,000,000 tinycents = $0.06
-                    validateChargedUsdWithin("create-account-txn", ucents_to_USD(6000), 0.01));
+                    // node=1, network=2, service=0.00000022 (22 tinycents)
+                    // sigs = 1 (included), keys = 0
+                    validateChargedUsdWithin("create-account-txn", ucents_to_USD(3), 0.01));
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -295,10 +294,9 @@ public class SimpleFeesSuite {
                             .payingWith(PAYER)
                             .fee(ONE_HBAR)
                             .via("create-account-key-txn"),
-                    // node=1, network=2, service=499,700,000 tinycents
-                    // sigs = 1 (included), keys = 1 (included, so no extra charge)
-                    // Total: 100,000 + 200,000 + 499,700,000 = 500,000,000 tinycents = $0.06
-                    validateChargedUsdWithin("create-account-key-txn", ucents_to_USD(6000), 0.01));
+                    // node=1, network=2, service=0.00000022 + 1.00 (1 key)
+                    // sigs = 1 (included), keys = 1
+                    validateChargedUsdWithin("create-account-key-txn", ucents_to_USD(1003), 0.01));
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -312,7 +310,9 @@ public class SimpleFeesSuite {
                             .payingWith(PAYER)
                             .fee(ONE_HBAR)
                             .via("delete-account-txn"),
-                    validateChargedUsdWithin("delete-account-txn", ucents_to_USD(6000), 0.01));
+                    // node=1, network=2, service=0.00000005 (5 tinycents)
+                    // sigs = 1 (included), keys = 0
+                    validateChargedUsdWithin("delete-account-txn", ucents_to_USD(3), 0.01));
         }
     }
 
