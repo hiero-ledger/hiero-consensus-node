@@ -12,8 +12,6 @@ import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.impl.PartialNaryMerkleInternal;
-import com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader;
-import com.swirlds.common.merkle.utility.MerkleTreeSnapshotWriter;
 import com.swirlds.common.utility.Labeled;
 import com.swirlds.common.utility.RuntimeObjectRecord;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
@@ -21,7 +19,6 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.lifecycle.StateMetadata;
-import com.swirlds.state.merkle.MerkleRootSnapshotMetrics;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.EmptyReadableStates;
 import com.swirlds.state.spi.KVChangeListener;
@@ -48,7 +45,6 @@ import com.swirlds.state.test.fixtures.merkle.singleton.SingletonNode;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -107,11 +103,6 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     }
 
     /**
-     * Metrics for the snapshot creation process
-     */
-    private final MerkleRootSnapshotMetrics snapshotMetrics;
-
-    /**
      * Maintains information about all services known by this instance. Map keys are
      * service names, values are service states by service ID.
      */
@@ -138,8 +129,6 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
 
     private final Metrics metrics;
 
-    private final Time time;
-
     private final MerkleCryptography merkleCryptography;
 
     /**
@@ -152,9 +141,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
             @NonNull final MerkleCryptography merkleCryptography) {
         this.registryRecord = RuntimeObjectRegistry.createRecord(getClass());
         this.metrics = requireNonNull(metrics);
-        this.time = requireNonNull(time);
         this.merkleCryptography = requireNonNull(merkleCryptography);
-        this.snapshotMetrics = new MerkleRootSnapshotMetrics(metrics);
     }
 
     /**
@@ -167,9 +154,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         super(from);
         this.registryRecord = RuntimeObjectRegistry.createRecord(getClass());
         this.metrics = from.metrics;
-        this.time = from.time;
         this.merkleCryptography = from.merkleCryptography;
-        this.snapshotMetrics = new MerkleRootSnapshotMetrics(from.metrics);
         this.listeners.addAll(from.listeners);
 
         // Copy over the metadata
@@ -847,28 +832,5 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
             logger.error(EXCEPTION.getMarker(), "Interrupted while hashing state. Expect buggy behavior.");
             Thread.currentThread().interrupt();
         }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void createSnapshot(@NonNull final Path targetPath) {
-        requireNonNull(time);
-        requireNonNull(snapshotMetrics);
-        throwIfMutable();
-        throwIfDestroyed();
-        final long startTime = time.currentTimeMillis();
-        MerkleTreeSnapshotWriter.createSnapshot(this, targetPath, getRound());
-        snapshotMetrics.updateWriteStateToDiskTimeMetric(time.currentTimeMillis() - startTime);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @SuppressWarnings("unchecked")
-    @Override
-    public T loadSnapshot(@NonNull Path targetPath) throws IOException {
-        return (T) MerkleTreeSnapshotReader.readStateFileData(targetPath).stateRoot();
     }
 }

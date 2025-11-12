@@ -15,13 +15,13 @@ import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise;
 import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.iss.IssScratchpad;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -72,7 +72,7 @@ import org.hiero.consensus.roster.RosterHistory;
  * @param notificationEngine                     for sending notifications to the application (legacy pattern)
  * @param statusActionSubmitterReference         a reference to the status action submitter, this can be deleted once
  *                                               platform status management is handled by the wiring framework
- * @param swirldStateManager                     responsible for the mutable state, this is exposed here due to
+ * @param stateLifecycleManager                  responsible for the mutable state, this is exposed here due to
  *                                               reconnect
  * @param getLatestCompleteStateReference        a reference to a supplier that supplies the latest immutable state,
  *                                               this is exposed here due to reconnect, can be removed once reconnect is
@@ -110,7 +110,7 @@ public record PlatformBuildingBlocks(
         @NonNull Scratchpad<IssScratchpad> issScratchpad,
         @NonNull NotificationEngine notificationEngine,
         @NonNull AtomicReference<StatusActionSubmitter> statusActionSubmitterReference,
-        @NonNull SwirldStateManager swirldStateManager,
+        @NonNull StateLifecycleManager stateLifecycleManager,
         @NonNull AtomicReference<Supplier<ReservedSignedState>> getLatestCompleteStateReference,
         boolean firstPlatform,
         @NonNull ConsensusStateEventHandler consensusStateEventHandler,
@@ -140,7 +140,7 @@ public record PlatformBuildingBlocks(
         requireNonNull(issScratchpad);
         requireNonNull(notificationEngine);
         requireNonNull(statusActionSubmitterReference);
-        requireNonNull(swirldStateManager);
+        requireNonNull(stateLifecycleManager);
         requireNonNull(getLatestCompleteStateReference);
         requireNonNull(consensusStateEventHandler);
         requireNonNull(platformStateFacade);
