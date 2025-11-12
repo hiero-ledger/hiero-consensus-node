@@ -68,7 +68,7 @@ jobs:
       - dependency-check
       - spotless
     with:
-      ref: ${{ inputs.ref || '' }}
+      ref: ${{ github.event.pull_request.head.sha }}
       enable-unit-tests: "true"
       enable-integration-tests: "true"
       enable-hapi-tests: "true"

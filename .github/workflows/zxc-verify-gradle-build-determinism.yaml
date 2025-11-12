@@ -49,7 +49,7 @@ env:
 
 jobs:
   generate-baseline:
-    name: ${{ inputs.custom-label || 'Gradle -'}} Generate Baseline
+    name: ${{ inputs.custom-label || 'Gradle -' }} Generate Baseline
     runs-on: hiero-network-node-linux-medium
     outputs:
       sha: ${{ steps.commit.outputs.sha }}
@@ -126,7 +126,7 @@ jobs:
         run: gsutil cp "${{ steps.manifest.outputs.file }}" "${{ steps.baseline.outputs.file }}"
 
   verify-artifacts:
-    name: "${{ inputs.custom-label || 'Gradle -'}} Verify Artifacts (${{ join(matrix.os, ', ') }})"
+    name: "${{ inputs.custom-label || 'Gradle -' }} Verify Artifacts (${{ join(matrix.os, ', ') }})"
     runs-on: ${{ matrix.os }}
     needs:
       - generate-baseline
