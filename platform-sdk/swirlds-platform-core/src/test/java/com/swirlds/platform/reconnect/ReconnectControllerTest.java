@@ -274,13 +274,12 @@ class ReconnectControllerTest {
     @DisplayName("Promise is properly cleaned up after consumption")
     void testPromiseCleanupAfterConsumption() throws Exception {
         final ReconnectController controller = createController();
-        final CountDownLatch stateProvidedLatch = new CountDownLatch(1);
         final AtomicBoolean stateAcquired = new AtomicBoolean(false);
 
         // Start controller
         final var controllerRunnable = RunnableCompletionControl.unblocked(() -> {
             try (final var ignored = mockStatic(SignedStateFileReader.class)) {
-                controller.run();
+               controller.run();
             }
         });
 
