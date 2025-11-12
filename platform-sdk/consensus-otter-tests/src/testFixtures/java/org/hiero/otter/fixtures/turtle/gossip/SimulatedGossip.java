@@ -15,6 +15,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -78,7 +79,7 @@ public class SimulatedGossip implements Gossip {
             @NonNull final BindableInputWire<NoInput, Void> resumeInput,
             @NonNull final BindableInputWire<Duration, Void> systemHealthInput,
             @NonNull final BindableInputWire<PlatformStatus, Void> platformStatusInput,
-            @NonNull final StandardOutputWire<Double> syncLagOutput) {
+            @NonNull final StandardOutputWire<SyncProgress> syncLagOutput) {
 
         this.eventOutput = requireNonNull(eventOutput);
         this.deterministicWiringModel = (DeterministicWiringModel) requireNonNull(model);
