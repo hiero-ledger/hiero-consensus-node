@@ -840,7 +840,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             return;
         }
 
-        logger.info("{} Closing connection", this);
+        logger.info("{} Closing connection.", this);
 
         try {
             closePipeline(callOnComplete);
