@@ -108,7 +108,7 @@ jobs:
 
   report-summary:
     name: Report PR Check Summary
-    runs-on: hiero-client-sdk-linux-medium
+    runs-on: hiero-network-node-linux-medium
     needs:
       - build
       - dependency-check
