@@ -137,7 +137,6 @@ jobs:
 
           # Append summary to GitHub Step Summary
           {
-            echo 'summary<<EOF'
             echo "## PR Check Summary"
             echo ""
             echo "------------------------------------"
@@ -164,5 +163,4 @@ jobs:
                 bash "${{ github.workspace }}/${{ env.PRINT_FAILED_TESTS_SCRIPT }}" "${{ needs.mats-determinism-checks.outputs.failed-tests }}"
                 echo "------------------------------------"
             fi
-            echo EOF
           } >> "${GITHUB_STEP_SUMMARY}"
