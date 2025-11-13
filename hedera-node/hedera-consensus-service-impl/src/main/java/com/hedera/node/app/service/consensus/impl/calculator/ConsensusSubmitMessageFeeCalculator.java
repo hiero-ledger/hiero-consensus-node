@@ -30,7 +30,6 @@ public class ConsensusSubmitMessageFeeCalculator implements ServiceFeeCalculator
 
         final var msgSize = op.message().length();
         addExtraFee(feeResult, serviceDef, Extra.BYTES, feeSchedule, msgSize);
-        addExtraFee(feeResult, serviceDef, Extra.SIGNATURES, feeSchedule, calculatorState.numTxnSignatures());
     }
 
     @Override
