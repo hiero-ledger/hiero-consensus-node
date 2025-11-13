@@ -21,7 +21,8 @@ public class PlatformSigner implements Signer, BytesSigner {
      */
     public PlatformSigner(@NonNull final KeysAndCerts keysAndCerts) {
         this.signer = SigningFactory.createSigner(keysAndCerts.sigKeyPair());
-        final SigningSchema schema = SigningSchema.fromKeyType(keysAndCerts.sigKeyPair().getPrivate());
+        final SigningSchema schema =
+                SigningSchema.fromKeyType(keysAndCerts.sigKeyPair().getPrivate());
         this.signatureType = switch (schema) {
             case RSA -> SignatureType.RSA;
             case ED25519 -> SignatureType.ED25519;
