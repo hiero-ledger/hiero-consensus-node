@@ -68,7 +68,7 @@ public class SigningReqsSuite {
                 uploadInitCode(MINIMAL_CREATIONS_CONTRACT),
                 contractCreate(MINIMAL_CREATIONS_CONTRACT)
                         .exposingContractIdTo(contractId::set)
-                        .gas(5_000_000L)
+                        .gas(6_000_000L)
                         .refusingEthConversion(),
                 cryptoCreate(autoRenew)
                         .keyShape(origKey.signedWith(sigs(ON, MINIMAL_CREATIONS_CONTRACT)))

@@ -3,12 +3,15 @@ package com.hedera.node.app.service.contract.impl.exec.gas;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.tuweni.bytes.Bytes;
+import org.hyperledger.besu.datatypes.Transaction;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
 public interface HederaGasCalculator extends GasCalculator {
 
     /**
      * Calculate gas requirements of the transaction
+     * This method basically overrides {@link GasCalculator#transactionIntrinsicGasCost(Transaction, long)}
+     * and uses {@link GasCalculator#transactionFloorCost(Bytes, long)}
      *
      * @param payload          the payload of the transaction
      * @param isContractCreate is this call a 'contract creation'
