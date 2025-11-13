@@ -115,8 +115,6 @@ public class Hip1195StreamParityTest {
     @HapiTest
     final Stream<DynamicTest> hookChildCreationPassesParity(
             @FungibleToken SpecFungibleToken aToken, @NonFungibleToken(numPreMints = 1) SpecNonFungibleToken bToken) {
-        final String ONLY_OWNER_ABI =
-                "{\"inputs\":[],\"name\":\"onlyOwner\",\"outputs\":[],\"stateMutability\":\"view\",\"type\":\"function\"}";
         return hapiTest(
                 aToken.getInfo(),
                 bToken.getInfo(),

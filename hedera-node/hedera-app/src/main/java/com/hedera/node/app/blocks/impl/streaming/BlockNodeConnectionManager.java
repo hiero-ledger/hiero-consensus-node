@@ -625,7 +625,9 @@ public class BlockNodeConnectionManager {
             configWatcherThreadRef.set(watcherThread);
             logger.info("Started block-nodes.json configuration watcher thread.");
         } catch (final IOException e) {
-            logger.info("Failed to start block-nodes.json configuration watcher. Dynamic updates disabled.", e);
+            logger.info(
+                    "Failed to start block-nodes.json configuration watcher ({}). Dynamic updates disabled.",
+                    e.getMessage());
         }
     }
 
