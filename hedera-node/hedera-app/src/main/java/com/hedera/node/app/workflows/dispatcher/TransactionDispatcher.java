@@ -42,7 +42,6 @@ public class TransactionDispatcher {
     protected final TransactionHandlers handlers;
     protected final FeeManager feeManager;
 
-
     /**
      * Creates a {@code TransactionDispatcher}.
      *
