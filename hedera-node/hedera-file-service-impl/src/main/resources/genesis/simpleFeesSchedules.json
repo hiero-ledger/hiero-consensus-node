@@ -40,7 +40,6 @@
           "name": "CryptoCreate",
           "baseFee": 499000000,
           "extras": [
-            { "name": "SIGNATURES", "includedCount": 1 },
             { "name": "KEYS", "includedCount": 1 }
           ]
         },
@@ -48,16 +47,13 @@
           "name": "CryptoUpdate",
           "baseFee": 22,
           "extras": [
-            {  "name": "SIGNATURES", "includedCount": 1 },
             {  "name": "KEYS",       "includedCount": 1 }
           ]
         },
         {
           "name": "CryptoDelete",
-          "baseFee": 38000000,
-          "extras": [
-            { "name": "SIGNATURES", "includedCount": 1 }
-          ]
+          "baseFee": 49900000,
+          "extras": []
         },
         {
           "name": "CryptoTransfer",
