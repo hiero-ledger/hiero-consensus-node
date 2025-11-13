@@ -9,7 +9,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOIN
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_NODES_CREATED;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.checkDABEnabled;
 import static com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator.validateX509Certificate;
-import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.SYSTEM_TXN_CREATION_ENTITY_NUM;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static java.util.Objects.requireNonNull;
@@ -18,10 +18,12 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.state.addressbook.Node;
+import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.records.NodeCreateStreamBuilder;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
+import com.hedera.node.app.service.entityid.NodeIdGenerator;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
@@ -90,8 +92,12 @@ public class NodeCreateHandler implements TransactionHandler {
         final var accountNodeRelStore = storeFactory.writableStore(WritableAccountNodeRelStore.class);
         final var accountStore = storeFactory.readableStore(ReadableAccountStore.class);
         final var accountId = op.accountIdOrElse(AccountID.DEFAULT);
-
-        validateFalse(nodeStore.sizeOfState() >= nodeConfig.maxNumber(), MAX_NODES_CREATED);
+        final var systemDispatchEntityNum =
+                handleContext.dispatchMetadata().getMetadata(SYSTEM_TXN_CREATION_ENTITY_NUM, Long.class);
+        final var isSystemTxnEntityOverwrite = isSystemTxnEntityOverwrite(
+                handleContext.dispatchMetadata(), handleContext.nodeIdGenerator(), nodeStore);
+        validateTrue(
+                isSystemTxnEntityOverwrite || (nodeStore.sizeOfState() < nodeConfig.maxNumber()), MAX_NODES_CREATED);
         addressBookValidator.validateAccount(
                 accountId, accountStore, accountNodeRelStore, handleContext.expiryValidator());
         addressBookValidator.validateDescription(op.description(), nodeConfig);
@@ -116,12 +122,20 @@ public class NodeCreateHandler implements TransactionHandler {
             nodeBuilder.grpcProxyEndpoint(op.grpcProxyEndpoint());
         }
 
-        // Assign node id using a dedicated generator to avoid reuse
-        final var nextNodeId = handleContext.nodeIdGenerator().newNodeId();
-        final var node = nodeBuilder.nodeId(nextNodeId).build();
+        long nextNodeId;
+        Node node;
+        if (isSystemTxnEntityOverwrite) {
+            // Assign node id using the one provided by the system dispatch metadata
+            nextNodeId = systemDispatchEntityNum.get();
+            node = nodeBuilder.nodeId(nextNodeId).build();
+            nodeStore.put(node);
+        } else {
+            // Assign node id using a dedicated generator to avoid reuse
+            nextNodeId = handleContext.nodeIdGenerator().newNodeId();
+            node = nodeBuilder.nodeId(nextNodeId).build();
+            nodeStore.putAndIncrementCount(node);
+        }
 
-        nodeStore.putAndIncrementCount(node);
-        // add account id relation
         accountNodeRelStore.put(op.accountIdOrThrow(), node.nodeId());
 
         final var recordBuilder = handleContext.savepointStack().getBaseBuilder(NodeCreateStreamBuilder.class);
@@ -140,5 +154,15 @@ public class NodeCreateHandler implements TransactionHandler {
         // the price of the rest of the signatures.
         calculator.addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1));
         return calculator.calculate();
+    }
+
+    // Dispatch transplant updates for the nodes in override network (non-prod environments);
+    private boolean isSystemTxnEntityOverwrite(
+            final HandleContext.DispatchMetadata metadata,
+            final NodeIdGenerator nodeIdGenerator,
+            final ReadableNodeStore nodeStore) {
+        final var systemTxnCreationNum = metadata.getMetadataIfPresent(SYSTEM_TXN_CREATION_ENTITY_NUM, Long.class);
+        final var nextNodeId = systemTxnCreationNum != null ? systemTxnCreationNum : nodeIdGenerator.peekAtNewNodeId();
+        return nodeStore.get(nextNodeId) != null;
     }
 }

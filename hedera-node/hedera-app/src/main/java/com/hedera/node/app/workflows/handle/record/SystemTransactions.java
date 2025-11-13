@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.record;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.NODE_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS_BUT_MISSING_EXPECTED_OPERATION;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.parseEd25519NodeAdminKeysFrom;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
-import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
-import static com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.dispatchSynthFileUpdate;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.parseConfigList;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.dispatchSynthNodeRewards;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.SYSTEM_TXN_CREATION_ENTITY_NUM;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.util.FileUtilities.createFileID;
 import static com.hedera.node.app.workflows.handle.HandleOutput.failInvalidStreamItems;
@@ -35,12 +33,10 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.common.EntityNumber;
-import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.fees.ExchangeRateManager;
@@ -60,6 +56,7 @@ import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
+import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.SystemContext;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
@@ -814,36 +811,16 @@ public class SystemTransactions {
         final var parentTxn =
                 parentTxnFactory.createSystemTxn(state, creatorInfo, now, INTERNAL_TRANSACTION, payerId, body);
         parentTxn.initBaseBuilder(exchangeRateManager.exchangeRates());
-        final var dispatch = parentTxnFactory.createDispatch(parentTxn, parentTxn.baseBuilder(), ignore -> true, NODE);
+        final var createMetadata = new HandleContext.DispatchMetadata(SYSTEM_TXN_CREATION_ENTITY_NUM, nextEntityNum);
+        final var dispatch = parentTxnFactory.createDispatch(
+                parentTxn, parentTxn.baseBuilder(), ignore -> true, NODE, createMetadata);
         stakePeriodChanges.advanceTimeTo(parentTxn, applyStakePeriodSideEffects);
         try {
-            long prevEntityNum;
-            long prevHighestNodeId = -1;
-            if (dispatch.txnInfo().functionality() == NODE_CREATE) {
-                WritableSingletonState<NodeId> highestNodeBefore =
-                        dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(HIGHEST_NODE_ID_STATE_ID);
-                // save old state
-                prevHighestNodeId = requireNonNull(highestNodeBefore.get()).id();
-                // override the state
-                highestNodeBefore.put(requireNonNull(highestNodeBefore.get())
-                        .copyBuilder()
-                        .id(nextEntityNum - 1)
-                        .build());
-
-                WritableSingletonState<EntityCounts> countsBefore =
-                        dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_STATE_ID);
-                prevEntityNum = requireNonNull(countsBefore.get()).numNodes();
-                countsBefore.put(requireNonNull(countsBefore.get())
-                        .copyBuilder()
-                        .numNodes(nextEntityNum)
-                        .build());
-            } else {
-                WritableSingletonState<EntityNumber> controlledNum =
-                        dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_ID_STATE_ID);
-                prevEntityNum = requireNonNull(controlledNum.get()).number();
-                if (nextEntityNum != 0) {
-                    controlledNum.put(new EntityNumber(nextEntityNum - 1));
-                }
+            WritableSingletonState<EntityNumber> controlledNum =
+                    dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_ID_STATE_ID);
+            final var prevEntityNum = requireNonNull(controlledNum.get()).number();
+            if (nextEntityNum != 0) {
+                controlledNum.put(new EntityNumber(nextEntityNum - 1));
             }
 
             dispatchProcessor.processDispatch(dispatch);
@@ -858,28 +835,11 @@ public class SystemTransactions {
             } else {
                 onSuccess.accept(dispatch);
             }
-            if (dispatch.txnInfo().functionality() == NODE_CREATE) {
-                WritableSingletonState<NodeId> highestNodeBefore =
-                        dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(HIGHEST_NODE_ID_STATE_ID);
-                // restore the old state
-                highestNodeBefore.put(requireNonNull(highestNodeBefore.get())
-                        .copyBuilder()
-                        .id(isSuccess ? Math.max(nextEntityNum, prevHighestNodeId) : prevHighestNodeId)
-                        .build());
 
-                WritableSingletonState<EntityCounts> countsBefore =
-                        dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_STATE_ID);
-                countsBefore.put(requireNonNull(countsBefore.get())
-                        .copyBuilder()
-                        .numNodes(isSuccess ? Math.max(nextEntityNum + 1, prevEntityNum) : prevEntityNum)
-                        .build());
-            } else {
-                WritableSingletonState<EntityNumber> controlledNum =
-                        dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_ID_STATE_ID);
-                if (nextEntityNum != 0) {
-                    controlledNum.put(new EntityNumber(prevEntityNum));
-                }
+            if (nextEntityNum != 0) {
+                controlledNum.put(new EntityNumber(prevEntityNum));
             }
+
             dispatch.stack().commitFullStack();
             final var handleOutput =
                     parentTxn.stack().buildHandleOutput(parentTxn.consensusNow(), exchangeRateManager.exchangeRates());

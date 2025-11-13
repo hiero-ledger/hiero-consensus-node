@@ -280,7 +280,7 @@ public class ParentTxnFactory {
                 parentTxn.config().getConfigData(HederaConfig.class), preHandleResult.getVerificationResults());
         final var category = getTxnCategory(preHandleResult);
         final var baseBuilder = parentTxn.initBaseBuilder(exchangeRates);
-        return createDispatch(parentTxn, baseBuilder, keyVerifier, category);
+        return createDispatch(parentTxn, baseBuilder, keyVerifier, category, DispatchMetadata.EMPTY_METADATA);
     }
 
     /**
@@ -299,7 +299,28 @@ public class ParentTxnFactory {
             @NonNull final HandleContext.TransactionCategory category) {
         final var config = parentTxn.config();
         final var keyVerifier = getKeyVerifier(keyVerifierCallback, config, emptySet());
-        return createDispatch(parentTxn, baseBuilder, keyVerifier, category);
+        return createDispatch(parentTxn, baseBuilder, keyVerifier, category, DispatchMetadata.EMPTY_METADATA);
+    }
+
+    /**
+     * Creates a new {@link Dispatch} instance for a transaction in the given context with provided dispatch metadata.
+     *
+     * @param parentTxn
+     * @param baseBuilder
+     * @param keyVerifierCallback
+     * @param category
+     * @param dispatchMetadata
+     * @return the new dispatch instance
+     */
+    public Dispatch createDispatch(
+            @NonNull final ParentTxn parentTxn,
+            @NonNull final StreamBuilder baseBuilder,
+            @NonNull final Predicate<Key> keyVerifierCallback,
+            @NonNull final HandleContext.TransactionCategory category,
+            @NonNull final DispatchMetadata dispatchMetadata) {
+        final var config = parentTxn.config();
+        final var keyVerifier = getKeyVerifier(keyVerifierCallback, config, emptySet());
+        return createDispatch(parentTxn, baseBuilder, keyVerifier, category, dispatchMetadata);
     }
 
     /**
@@ -314,7 +335,8 @@ public class ParentTxnFactory {
             @NonNull final ParentTxn parentTxn,
             @NonNull final StreamBuilder baseBuilder,
             @NonNull final AppKeyVerifier keyVerifier,
-            @NonNull final HandleContext.TransactionCategory transactionCategory) {
+            @NonNull final HandleContext.TransactionCategory transactionCategory,
+            @NonNull final DispatchMetadata dispatchMetadata) {
         final var config = parentTxn.config();
         final var txnInfo = parentTxn.txnInfo();
         final var preHandleResult = parentTxn.preHandleResult();
@@ -361,7 +383,7 @@ public class ParentTxnFactory {
                 dispatchProcessor,
                 throttleAdvisor,
                 feeAccumulator,
-                DispatchMetadata.EMPTY_METADATA,
+                dispatchMetadata,
                 transactionChecker,
                 preHandleResult.innerResults(),
                 preHandleWorkflow,
