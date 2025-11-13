@@ -312,7 +312,7 @@ public class SimpleFeesSuite {
                             .blankMemo()
                             .fee(ONE_HBAR)
                             .via("deleteAccountTxn"),
-                    validateChargedUsdWithin("deleteAccountTxn", 0.00508, 1.0));
+                    validateChargedUsdWithin("deleteAccountTxn", 0.005, 1.0));
         }
     }
 
