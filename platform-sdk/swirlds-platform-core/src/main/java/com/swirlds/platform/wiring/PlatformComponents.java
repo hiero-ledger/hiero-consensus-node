@@ -7,7 +7,6 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
@@ -26,6 +25,7 @@ import com.swirlds.platform.event.validation.EventSignatureValidator;
 import com.swirlds.platform.event.validation.InternalEventValidator;
 import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.eventhandling.TransactionHandler;
+import com.swirlds.platform.eventhandling.TransactionHandlerDataCounter;
 import com.swirlds.platform.eventhandling.TransactionHandlerResult;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
 import com.swirlds.platform.state.hasher.StateHasher;
@@ -50,11 +50,9 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
-import java.util.function.ToLongFunction;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.state.StateSavingResult;
@@ -100,9 +98,7 @@ public record PlatformComponents(
         ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring,
         ComponentWiring<InlinePcesWriter, PlatformEvent> pcesInlineWriterWiring,
         ComponentWiring<BranchReporter, Void> branchReporterWiring) {
-    // Assuming 1 round/sec it would require LOW_TPS_TARGET_ROUNDS_CAPACITY seconds
-    // for the backpressure mechanism to engage at low tps
-    private static final int LOW_TPS_TARGET_ROUNDS_CAPACITY = 20;
+
     /**
      * Bind components to the wiring.
      *
@@ -195,7 +191,7 @@ public record PlatformComponents(
                         model,
                         TransactionHandler.class,
                         config.transactionHandler(),
-                        createTransactionHandlerDataCounter(config.transactionHandler())),
+                        TransactionHandlerDataCounter.create(config.transactionHandler())),
                 new ComponentWiring<>(model, ConsensusEventStream.class, config.consensusEventStream()),
                 RunningEventHashOverrideWiring.create(model),
                 new ComponentWiring<>(
@@ -220,25 +216,5 @@ public record PlatformComponents(
                 new ComponentWiring<>(model, BranchDetector.class, config.branchDetector()),
                 new ComponentWiring<>(model, InlinePcesWriter.class, config.pcesInlineWriter()),
                 new ComponentWiring<>(model, BranchReporter.class, config.branchReporter()));
-    }
-
-    @NonNull
-    private static ToLongFunction<Object> createTransactionHandlerDataCounter(
-            final TaskSchedulerConfiguration schedulerConfiguration) {
-
-        final long capacity = schedulerConfiguration.unhandledTaskCapacity() == null
-                ? 0L
-                : schedulerConfiguration.unhandledTaskCapacity();
-        // we want the mechanism of backpressure to engage soon enough in low tps set ups
-        // since even empty rounds have an effect on the load in execution side
-        final double minimumEffort = (double) capacity / LOW_TPS_TARGET_ROUNDS_CAPACITY; // 5000
-
-        return data -> {
-            if (data instanceof final ConsensusRound consensusRound) {
-
-                return (long) Math.max(minimumEffort, consensusRound.getNumAppTransactions());
-            }
-            return 1L;
-        };
     }
 }
