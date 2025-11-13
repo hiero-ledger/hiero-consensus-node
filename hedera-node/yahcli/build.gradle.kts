@@ -23,10 +23,14 @@ testModuleInfo {
 }
 
 var compilerArgsExtra = ""
-if(JavaVersion.current() >= JavaVersion.VERSION_25){
-    compilerArgsExtra+=",-dangling-doc-comments"
+
+if (JavaVersion.current() >= JavaVersion.VERSION_25) {
+    compilerArgsExtra += ",-dangling-doc-comments"
 }
-tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-Xlint:-exports" + compilerArgsExtra) }
+
+tasks.withType<JavaCompile>().configureEach {
+    options.compilerArgs.add("-Xlint:-exports" + compilerArgsExtra)
+}
 
 tasks.compileJava { dependsOn(":test-clients:assemble") }
 

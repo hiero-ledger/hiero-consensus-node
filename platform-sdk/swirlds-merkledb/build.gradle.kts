@@ -11,9 +11,11 @@ plugins {
 // Remove the following line to enable all 'javac' lint checks that we have turned on by default
 // and then fix the reported issues.
 var compilerArgsExtra = ""
-if(JavaVersion.current() >= JavaVersion.VERSION_25){
-    compilerArgsExtra+=",-dangling-doc-comments"
+
+if (JavaVersion.current() >= JavaVersion.VERSION_25) {
+    compilerArgsExtra += ",-dangling-doc-comments"
 }
+
 tasks.withType<JavaCompile>().configureEach {
     options.compilerArgs.add("-Xlint:-exports,-lossy-conversions" + compilerArgsExtra)
 }
