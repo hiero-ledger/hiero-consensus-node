@@ -22,12 +22,9 @@ public class ConsensusDeleteTopicFeeCalculator implements ServiceFeeCalculator {
             @Nullable CalculatorState calculatorState,
             @NonNull FeeResult feeResult,
             @NonNull FeeSchedule feeSchedule) {
-        long keys = 0;
-        final var op = txnBody.consensusDeleteTopicOrThrow();
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.CONSENSUS_DELETE_TOPIC);
         feeResult.addServiceFee("Base fee for " + HederaFunctionality.CONSENSUS_DELETE_TOPIC, 1, serviceDef.baseFee());
-        addExtraFee(feeResult, serviceDef, Extra.KEYS, feeSchedule, keys);
         addExtraFee(feeResult, serviceDef, Extra.SIGNATURES, feeSchedule, calculatorState.numTxnSignatures());
     }
 
