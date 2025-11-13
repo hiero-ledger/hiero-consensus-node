@@ -30,7 +30,6 @@ import com.swirlds.platform.gossip.DefaultIntakeEventCounter;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
-import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise;
 import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
@@ -59,6 +58,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Signature;
@@ -500,7 +500,7 @@ public final class PlatformBuilder {
                 execution,
                 createStateFromVirtualMap,
                 new FallenBehindMonitor(rosterHistory.getCurrentRoster(), configuration, platformContext.getMetrics()),
-                new ReservedSignedStateResultPromise());
+                new BlockingResourceProvider<>());
 
         return new PlatformComponentBuilder(buildingBlocks);
     }
