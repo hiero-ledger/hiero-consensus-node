@@ -7,14 +7,11 @@ import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 public class TestPlatformStateFacade extends PlatformStateFacade {
-    public static final TestPlatformStateFacade TEST_PLATFORM_STATE_FACADE = new TestPlatformStateFacade();
-
     /**
      * The method is made public for testing purposes.
      */
     @NonNull
-    @Override
-    public PlatformStateModifier getWritablePlatformStateOf(@NonNull State state) {
-        return super.getWritablePlatformStateOf(state);
+    public static PlatformStateModifier getWritablePlatformStateOf(@NonNull State state) {
+        return getWritablePlatformStateOf(state);
     }
 }

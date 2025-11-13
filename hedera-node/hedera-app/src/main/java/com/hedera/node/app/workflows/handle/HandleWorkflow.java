@@ -15,6 +15,7 @@ import static com.hedera.node.app.workflows.handle.TransactionType.ORDINARY_TRAN
 import static com.hedera.node.app.workflows.handle.TransactionType.POST_UPGRADE_TRANSACTION;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
+import static com.swirlds.platform.state.service.PlatformStateFacade.isFreezeRound;
 import static com.swirlds.platform.system.InitTrigger.EVENT_STREAM_RECOVERY;
 import static java.time.Instant.EPOCH;
 import static java.util.Objects.requireNonNull;
@@ -80,7 +81,6 @@ import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.service.WritablePlatformStateStore;
@@ -159,7 +159,6 @@ public class HandleWorkflow {
     // The last second for which this workflow has confirmed all scheduled transactions are executed
     private long lastExecutedSecond;
     private final NodeRewardManager nodeRewardManager;
-    private final PlatformStateFacade platformStateFacade;
     // Flag to indicate whether we have checked for transplant updates after JVM started
     private boolean checkedForTransplant;
 
@@ -192,7 +191,6 @@ public class HandleWorkflow {
             @NonNull final BlockHashSigner blockHashSigner,
             @Nullable final AtomicBoolean systemEntitiesCreatedFlag,
             @NonNull final NodeRewardManager nodeRewardManager,
-            @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final Map<Class<?>, ServiceApiProvider<?>> apiProviders) {
         this.networkInfo = requireNonNull(networkInfo);
@@ -226,7 +224,6 @@ public class HandleWorkflow {
         this.currentPlatformStatus = requireNonNull(currentPlatformStatus);
         this.nodeRewardManager = requireNonNull(nodeRewardManager);
         this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
-        this.platformStateFacade = requireNonNull(platformStateFacade);
         this.blockBufferService = requireNonNull(blockBufferService);
         this.apiProviders = requireNonNull(apiProviders);
     }
@@ -326,7 +323,7 @@ public class HandleWorkflow {
             }
 
             // Update the latest freeze round after everything is handled
-            if (platformStateFacade.isFreezeRound(state, round)) {
+            if (isFreezeRound(state, round)) {
                 // If this is a freeze round, we need to update the freeze info state
                 final var platformStateStore =
                         new WritablePlatformStateStore(state.getWritableStates(PlatformStateService.NAME));

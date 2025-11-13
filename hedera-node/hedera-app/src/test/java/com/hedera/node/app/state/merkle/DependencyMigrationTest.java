@@ -9,7 +9,6 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.TestSchema.CURRENT_VERSION;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
-import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -99,8 +98,7 @@ class DependencyMigrationTest extends MerkleTestBase {
                             VERSIONED_CONFIG,
                             startupNetworks,
                             storeMetricsService,
-                            configProvider,
-                            TEST_PLATFORM_STATE_FACADE))
+                            configProvider))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -116,8 +114,7 @@ class DependencyMigrationTest extends MerkleTestBase {
                             VERSIONED_CONFIG,
                             startupNetworks,
                             storeMetricsService,
-                            configProvider,
-                            TEST_PLATFORM_STATE_FACADE))
+                            configProvider))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -133,8 +130,7 @@ class DependencyMigrationTest extends MerkleTestBase {
                             null,
                             startupNetworks,
                             storeMetricsService,
-                            configProvider,
-                            TEST_PLATFORM_STATE_FACADE))
+                            configProvider))
                     .isInstanceOf(NullPointerException.class);
         }
     }
@@ -225,8 +221,7 @@ class DependencyMigrationTest extends MerkleTestBase {
                 VERSIONED_CONFIG,
                 startupNetworks,
                 storeMetricsService,
-                configProvider,
-                TEST_PLATFORM_STATE_FACADE);
+                configProvider);
 
         // Then: we verify the migrations were run in the expected order
         Assertions.assertThat(orderedInvocations)

@@ -493,7 +493,6 @@ class HandleWorkflowTest {
                 blockHashSigner,
                 null,
                 nodeRewardManager,
-                platformStateFacade,
                 blockBufferService,
                 Map.of());
     }

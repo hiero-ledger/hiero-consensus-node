@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.merkle;
 
-import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.Mockito.lenient;
@@ -179,8 +178,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     config,
                     new HashMap<>(),
                     migrationStateChanges,
-                    startupNetworks,
-                    TEST_PLATFORM_STATE_FACADE);
+                    startupNetworks);
             virtualMap.release();
         }
     }
@@ -224,8 +222,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             config,
                             new HashMap<>(),
                             migrationStateChanges,
-                            startupNetworks,
-                            TEST_PLATFORM_STATE_FACADE))
+                            startupNetworks))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -241,8 +238,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             config,
                             new HashMap<>(),
                             migrationStateChanges,
-                            startupNetworks,
-                            TEST_PLATFORM_STATE_FACADE))
+                            startupNetworks))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -258,8 +254,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             null,
                             new HashMap<>(),
                             migrationStateChanges,
-                            startupNetworks,
-                            TEST_PLATFORM_STATE_FACADE))
+                            startupNetworks))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -275,8 +270,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             config,
                             new HashMap<>(),
                             migrationStateChanges,
-                            startupNetworks,
-                            TEST_PLATFORM_STATE_FACADE))
+                            startupNetworks))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -292,8 +286,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             config,
                             new HashMap<>(),
                             migrationStateChanges,
-                            startupNetworks,
-                            TEST_PLATFORM_STATE_FACADE))
+                            startupNetworks))
                     .isInstanceOf(IllegalArgumentException.class);
         }
 
@@ -313,8 +306,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     config,
                     new HashMap<>(),
                     migrationStateChanges,
-                    startupNetworks,
-                    TEST_PLATFORM_STATE_FACADE);
+                    startupNetworks);
 
             // Then nothing happens
             Mockito.verify(schema, Mockito.times(0)).migrate(Mockito.any());
@@ -336,8 +328,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     config,
                     new HashMap<>(),
                     migrationStateChanges,
-                    startupNetworks,
-                    TEST_PLATFORM_STATE_FACADE);
+                    startupNetworks);
 
             // Then migration doesn't happen but restart is called
             Mockito.verify(schema, Mockito.times(0)).migrate(Mockito.any());
@@ -360,8 +351,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     config,
                     new HashMap<>(),
                     migrationStateChanges,
-                    startupNetworks,
-                    TEST_PLATFORM_STATE_FACADE);
+                    startupNetworks);
 
             // Then migration doesn't happen but restart is called
             Mockito.verify(schema, Mockito.times(1)).migrate(Mockito.any());
@@ -392,8 +382,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     config,
                     new HashMap<>(),
                     migrationStateChanges,
-                    startupNetworks,
-                    TEST_PLATFORM_STATE_FACADE);
+                    startupNetworks);
 
             // Then each of v1, v4, and v6 are called
             assertThat(called).hasSize(3);
@@ -560,8 +549,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         config,
                         new HashMap<>(),
                         migrationStateChanges,
-                        startupNetworks,
-                        TEST_PLATFORM_STATE_FACADE);
+                        startupNetworks);
 
                 // Then we see that the values for A, B, and C are available
                 final var readableStates = merkleTree.getReadableStates(FIRST_SERVICE);
@@ -588,8 +576,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         config,
                         new HashMap<>(),
                         migrationStateChanges,
-                        startupNetworks,
-                        TEST_PLATFORM_STATE_FACADE);
+                        startupNetworks);
 
                 // We should see the v2 state (the delta from v2 after applied atop v1)
                 final var readableStates = merkleTree.getReadableStates(FIRST_SERVICE);
@@ -627,8 +614,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         config,
                         new HashMap<>(),
                         migrationStateChanges,
-                        startupNetworks,
-                        TEST_PLATFORM_STATE_FACADE);
+                        startupNetworks);
 
                 // We should see the v3 state (the delta from v3 after applied atop v2 and v1)
                 final var readableStates = merkleTree.getReadableStates(FIRST_SERVICE);
@@ -671,8 +657,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                                 config,
                                 new HashMap<>(),
                                 migrationStateChanges,
-                                startupNetworks,
-                                TEST_PLATFORM_STATE_FACADE))
+                                startupNetworks))
                         .isInstanceOf(RuntimeException.class)
                         .hasMessage("Bad");
 

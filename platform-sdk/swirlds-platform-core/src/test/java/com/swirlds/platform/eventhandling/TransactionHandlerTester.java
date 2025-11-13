@@ -18,7 +18,6 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateValueAccumulator;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
-import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
@@ -27,19 +26,22 @@ import java.util.ArrayList;
 import java.util.List;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
+import org.mockito.MockedStatic;
 
 /**
  * A helper class for testing the {@link DefaultTransactionHandler}.
  */
-public class TransactionHandlerTester {
+public class TransactionHandlerTester implements AutoCloseable {
     private final PlatformStateModifier platformState;
     private final StateLifecycleManager stateLifecycleManager;
     private final DefaultTransactionHandler defaultTransactionHandler;
     private final List<PlatformStatusAction> submittedActions = new ArrayList<>();
     private final List<Round> handledRounds = new ArrayList<>();
     private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
-    private final TestPlatformStateFacade platformStateFacade;
     private final MerkleNodeState consensusState;
+    private final MockedStatic<PlatformStateFacade> platformStateFacadeMock;
+    private final List<org.hiero.base.crypto.Hash> legacyRunningHashes = new ArrayList<>();
+    private int updateLastFrozenInvocations = 0;
 
     /**
      * Constructs a new {@link TransactionHandlerTester} with the given {@link Roster}.
@@ -52,11 +54,41 @@ public class TransactionHandlerTester {
 
         consensusState = mock(MerkleNodeState.class);
         when(consensusState.getRoot()).thenReturn(mock(MerkleNode.class));
-        platformStateFacade = mock(TestPlatformStateFacade.class);
+        // Set up static mocks for PlatformStateFacade
+        platformStateFacadeMock = org.mockito.Mockito.mockStatic(PlatformStateFacade.class);
 
         consensusStateEventHandler = mock(ConsensusStateEventHandler.class);
         when(consensusState.copy()).thenReturn(consensusState);
-        when(platformStateFacade.getWritablePlatformStateOf(consensusState)).thenReturn(platformState);
+
+        // Stub bulk update to operate on our in-memory PlatformStateValueAccumulator
+        platformStateFacadeMock
+                .when(() -> PlatformStateFacade.bulkUpdateOf(same(consensusState), any()))
+                .thenAnswer(invocation -> {
+                    final java.util.function.Consumer<PlatformStateModifier> updater = invocation.getArgument(1);
+                    updater.accept(platformState);
+                    return null;
+                });
+
+        // By default, not in freeze period
+        platformStateFacadeMock
+                .when(() -> PlatformStateFacade.isInFreezePeriod(any(java.time.Instant.class), same(consensusState)))
+                .thenReturn(false);
+
+        // Capture the legacy running hash updates instead of touching a real state
+        platformStateFacadeMock
+                .when(() -> PlatformStateFacade.setLegacyRunningEventHashTo(same(consensusState), any()))
+                .thenAnswer(invocation -> {
+                    legacyRunningHashes.add(invocation.getArgument(1));
+                    return null;
+                });
+
+        // Track updateLastFrozenTime invocations
+        platformStateFacadeMock
+                .when(() -> PlatformStateFacade.updateLastFrozenTime(same(consensusState)))
+                .thenAnswer(invocation -> {
+                    updateLastFrozenInvocations++;
+                    return null;
+                });
 
         when(consensusStateEventHandler.onSealConsensusRound(any(), any())).thenReturn(true);
         doAnswer(i -> {
@@ -74,7 +106,6 @@ public class TransactionHandlerTester {
                 stateLifecycleManager,
                 statusActionSubmitter,
                 mock(SemanticVersion.class),
-                platformStateFacade,
                 consensusStateEventHandler,
                 NodeId.of(1));
     }
@@ -121,11 +152,35 @@ public class TransactionHandlerTester {
         return consensusStateEventHandler;
     }
 
-    public PlatformStateFacade getPlatformStateFacade() {
-        return platformStateFacade;
+    /**
+     * @return the static mock for PlatformStateFacade used by this tester
+     */
+    public MockedStatic<PlatformStateFacade> getPlatformStateFacadeMock() {
+        return platformStateFacadeMock;
     }
 
     public State getConsensusState() {
         return consensusState;
+    }
+
+    /**
+     * @return the list of legacy running hashes that were set on the state
+     */
+    public List<org.hiero.base.crypto.Hash> getLegacyRunningHashes() {
+        return legacyRunningHashes;
+    }
+
+    /**
+     * @return the number of times updateLastFrozenTime was invoked for the state
+     */
+    public int getUpdateLastFrozenInvocations() {
+        return updateLastFrozenInvocations;
+    }
+
+    @Override
+    public void close() {
+        if (platformStateFacadeMock != null) {
+            platformStateFacadeMock.close();
+        }
     }
 }

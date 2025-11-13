@@ -13,7 +13,6 @@ import com.swirlds.common.utility.Threshold;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.InsufficientSignaturesPayload;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.StateLifecycleManager;
@@ -64,8 +63,6 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
      */
     private final Configuration configuration;
 
-    private final PlatformStateFacade platformStateFacade;
-
     /**
      * the platform context
      */
@@ -93,7 +90,6 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
      * @param mainClassName the main class name of this node
      * @param selfId        the ID of this node
      * @param swirldName    the name of the swirld
-     * @param platformStateFacade the facade to access the platform state
      * @param stateLifecycleManager the state lifecycle manager
      */
     public DefaultStateSnapshotManager(
@@ -101,7 +97,6 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
             @NonNull final String mainClassName,
             @NonNull final NodeId selfId,
             @NonNull final String swirldName,
-            @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final StateLifecycleManager stateLifecycleManager) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
@@ -110,7 +105,6 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         this.mainClassName = Objects.requireNonNull(mainClassName);
         this.swirldName = Objects.requireNonNull(swirldName);
         configuration = platformContext.getConfiguration();
-        this.platformStateFacade = platformStateFacade;
         this.stateLifecycleManager = stateLifecycleManager;
         signedStateFilePath = new SignedStateFilePath(configuration.getConfigData(StateCommonConfig.class));
         metrics = new StateSnapshotManagerMetrics(platformContext);
@@ -181,13 +175,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
     private boolean saveStateTask(@NonNull final SignedState state, @NonNull final Path directory) {
         try {
             SignedStateFileWriter.writeSignedStateToDisk(
-                    platformContext,
-                    selfId,
-                    directory,
-                    getReason(state),
-                    state,
-                    platformStateFacade,
-                    stateLifecycleManager);
+                    platformContext, selfId, directory, getReason(state), state, stateLifecycleManager);
             return true;
         } catch (final Throwable e) {
             logger.error(

@@ -29,7 +29,6 @@ import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.STATE_M
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static com.hedera.services.bdd.junit.support.validators.block.RootHashUtils.extractRootMnemonic;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
-import static com.swirlds.platform.state.service.PlatformStateFacade.PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
@@ -318,7 +317,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var servicesVersion = versionConfig.servicesVersion();
         final var metrics = new NoOpMetrics();
         final var platformConfig = ServicesMain.buildPlatformConfig();
-        final var hedera = ServicesMain.newHedera(PLATFORM_STATE_FACADE, platformConfig, metrics, Time.getCurrent());
+        final var hedera = ServicesMain.newHedera(platformConfig, metrics, Time.getCurrent());
         this.state = hedera.newStateRoot();
         hedera.initializeStatesApi(state, GENESIS, platformConfig);
         final var stateToBeCopied = state;

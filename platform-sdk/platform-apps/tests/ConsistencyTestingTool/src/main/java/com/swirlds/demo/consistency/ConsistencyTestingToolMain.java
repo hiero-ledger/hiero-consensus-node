@@ -2,7 +2,6 @@
 package com.swirlds.demo.consistency;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.state.service.PlatformStateFacade.PLATFORM_STATE_FACADE;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.base.time.Time;
@@ -110,7 +109,7 @@ public class ConsistencyTestingToolMain extends DefaultSwirldMain<ConsistencyTes
     @Override
     @NonNull
     public ConsensusStateEventHandler<ConsistencyTestingToolState> newConsensusStateEvenHandler() {
-        return new ConsistencyTestingToolConsensusStateEventHandler(PLATFORM_STATE_FACADE);
+        return new ConsistencyTestingToolConsensusStateEventHandler();
     }
 
     /**

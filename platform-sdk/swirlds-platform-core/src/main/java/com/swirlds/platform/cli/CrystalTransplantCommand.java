@@ -3,7 +3,6 @@ package com.swirlds.platform.cli;
 
 import static com.swirlds.common.merkle.utility.MerkleUtils.rehashTree;
 import static com.swirlds.platform.cli.utils.HederaUtils.SWIRLD_NAME;
-import static com.swirlds.platform.state.service.PlatformStateFacade.PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadLatestState;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistryWithConfiguration;
@@ -229,8 +228,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
             throw new RuntimeException(e);
         }
 
-        final SwirldMain<? extends MerkleNodeState> appMain =
-                HederaUtils.createHederaAppMain(platformContext, PLATFORM_STATE_FACADE);
+        final SwirldMain<? extends MerkleNodeState> appMain = HederaUtils.createHederaAppMain(platformContext);
         final List<SavedStateInfo> savedStateFiles = SignedStateFilePath.getSavedStateFiles(sourceStatePath);
 
         if (savedStateFiles.isEmpty()) {
@@ -251,7 +249,6 @@ public class CrystalTransplantCommand extends AbstractCommand {
                         return appMain.newStateRoot();
                     }
                 },
-                PLATFORM_STATE_FACADE,
                 platformContext)) {
             final Hash newHash = rehashTree(
                     platformContext.getMerkleCryptography(),

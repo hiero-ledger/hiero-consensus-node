@@ -19,7 +19,9 @@ import static com.swirlds.platform.gui.internal.BrowserWindowManager.moveBrowser
 import static com.swirlds.platform.gui.internal.BrowserWindowManager.setBrowserWindow;
 import static com.swirlds.platform.gui.internal.BrowserWindowManager.setStateHierarchy;
 import static com.swirlds.platform.gui.internal.BrowserWindowManager.showBrowserWindow;
-import static com.swirlds.platform.state.service.PlatformStateFacade.PLATFORM_STATE_FACADE;
+import static com.swirlds.platform.state.service.PlatformStateFacade.bulkUpdateOf;
+import static com.swirlds.platform.state.service.PlatformStateFacade.creationSemanticVersionOf;
+import static com.swirlds.platform.state.service.PlatformStateFacade.roundOf;
 import static com.swirlds.platform.state.signed.StartupStateUtils.getInitialState;
 import static com.swirlds.platform.system.SystemExitUtils.exitSystem;
 import static com.swirlds.platform.system.address.AddressBookUtils.initializeAddressBook;
@@ -268,7 +270,6 @@ public class Browser {
                     appDefinition.getSwirldName(),
                     nodeId,
                     appDefinition.getConfigAddressBook(),
-                    PLATFORM_STATE_FACADE,
                     platformContext);
             final ReservedSignedState initialState = reservedState.state();
 
@@ -279,18 +280,17 @@ public class Browser {
                     initialState,
                     appDefinition.getConfigAddressBook(),
                     platformContext,
-                    consensusStateEventHandler,
-                    PLATFORM_STATE_FACADE);
+                    consensusStateEventHandler);
 
             final State state = initialState.get().getState();
 
             // If we are upgrading, then we are loading a freeze state and we need to update the latest freeze round
             // value
             if (HapiUtils.SEMANTIC_VERSION_COMPARATOR.compare(
-                            appMain.getSemanticVersion(), PLATFORM_STATE_FACADE.creationSemanticVersionOf(state))
+                            appMain.getSemanticVersion(), creationSemanticVersionOf(state))
                     > 0) {
-                final long initialStateRound = PLATFORM_STATE_FACADE.roundOf(state);
-                PLATFORM_STATE_FACADE.bulkUpdateOf(state, v -> {
+                final long initialStateRound = roundOf(state);
+                bulkUpdateOf(state, v -> {
                     v.setLatestFreezeRound(initialStateRound);
                 });
             }
@@ -307,7 +307,6 @@ public class Browser {
                     nodeId,
                     String.valueOf(nodeId),
                     rosterHistory,
-                    PLATFORM_STATE_FACADE,
                     appMain.stateRootFromVirtualMap(guiMetrics, Time.getCurrent()));
             if (showUi && index == 0) {
                 builder.withPreconsensusEventCallback(guiEventStorage::handlePreconsensusEvent);

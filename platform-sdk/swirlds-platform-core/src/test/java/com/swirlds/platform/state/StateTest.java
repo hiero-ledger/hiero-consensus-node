@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
-import static com.swirlds.platform.state.service.PlatformStateFacade.PLATFORM_STATE_FACADE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -77,8 +76,7 @@ class StateTest {
                 "test",
                 shouldSaveToDisk,
                 false,
-                false,
-                PLATFORM_STATE_FACADE);
+                false);
         if (isSupposedToBeHashed) {
             // Hash the underlying VirtualMap
             signedState.getState().getHash();

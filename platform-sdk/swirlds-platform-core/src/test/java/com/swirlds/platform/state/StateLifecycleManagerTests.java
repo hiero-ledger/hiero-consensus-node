@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
-import static com.swirlds.platform.state.service.PlatformStateFacade.PLATFORM_STATE_FACADE;
+import static com.swirlds.platform.state.service.PlatformStateFacade.setCreationSoftwareVersionTo;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -19,7 +19,6 @@ import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.SwirldsPlatform;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
@@ -56,7 +55,7 @@ class StateLifecycleManagerTests {
         final SwirldsPlatform platform = mock(SwirldsPlatform.class);
         final Roster roster = RandomRosterBuilder.create(Randotron.create()).build();
         when(platform.getRoster()).thenReturn(roster);
-        initialState = newState(PLATFORM_STATE_FACADE);
+        initialState = newState();
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
@@ -156,7 +155,7 @@ class StateLifecycleManagerTests {
     @Test
     @DisplayName("initState() rejects second startup initialization")
     void initStateRejectsSecondStartup() {
-        final MerkleNodeState another = newState(PLATFORM_STATE_FACADE);
+        final MerkleNodeState another = newState();
         assertThrows(IllegalStateException.class, () -> stateLifecycleManager.initState(another, true));
         another.release();
     }
@@ -188,13 +187,13 @@ class StateLifecycleManagerTests {
         assertThrows(IllegalStateException.class, uninitialized::getLatestImmutableState);
     }
 
-    private static MerkleNodeState newState(PlatformStateFacade platformStateFacade) {
+    private static MerkleNodeState newState() {
         final String virtualMapLabel =
                 StateLifecycleManagerTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         final MerkleNodeState state = TestVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
         TestingAppStateInitializer.initPlatformState(state);
 
-        platformStateFacade.setCreationSoftwareVersionTo(
+        setCreationSoftwareVersionTo(
                 state, SemanticVersion.newBuilder().major(nextInt(1, 100)).build());
 
         assertEquals(0, state.getRoot().getReservationCount(), "A brand new state should have no references.");

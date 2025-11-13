@@ -139,11 +139,10 @@ class ReconnectControllerTest {
                 .build();
 
         // Create test states
-        final var signedStatePair = new RandomSignedStateGenerator()
+        testSignedState = new RandomSignedStateGenerator()
                 .setRoster(roster)
                 .setState(new TestVirtualMapState())
-                .buildWithFacade();
-        testSignedState = signedStatePair.left();
+                .build();
         SignedStateFileReader.registerServiceStates(testSignedState);
         final SigSet sigSet = new SigSet();
 
@@ -152,7 +151,6 @@ class ReconnectControllerTest {
 
         testSignedState.setSigSet(sigSet);
 
-        platformStateFacade = signedStatePair.right();
         testWorkingState = testSignedState.getState().copy();
         testReservedSignedState = testSignedState.reserve("test");
 
@@ -205,7 +203,6 @@ class ReconnectControllerTest {
      */
     private ReconnectController createController() {
         return new ReconnectController(
-                platformStateFacade,
                 roster,
                 merkleCryptography,
                 platform,
@@ -805,7 +802,6 @@ class ReconnectControllerTest {
                 .build();
 
         final ReconnectController controller = new ReconnectController(
-                platformStateFacade,
                 roster,
                 merkleCryptography,
                 platform,
@@ -882,7 +878,6 @@ class ReconnectControllerTest {
                 .build();
 
         final ReconnectController controller = new ReconnectController(
-                platformStateFacade,
                 roster,
                 merkleCryptography,
                 platform,

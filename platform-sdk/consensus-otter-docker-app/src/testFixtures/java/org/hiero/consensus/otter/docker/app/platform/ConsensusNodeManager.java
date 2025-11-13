@@ -6,7 +6,6 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLogging;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
-import static com.swirlds.platform.state.service.PlatformStateFacade.PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -125,7 +124,6 @@ public class ConsensusNodeManager {
                 OtterApp.APP_NAME,
                 OtterApp.SWIRLD_NAME,
                 selfId,
-                PLATFORM_STATE_FACADE,
                 platformContext,
                 virtualMap -> new OtterAppState(virtualMap, metrics, time));
         final ReservedSignedState initialState = reservedState.state();
@@ -147,7 +145,6 @@ public class ConsensusNodeManager {
                         selfId,
                         Long.toString(selfId.id()),
                         rosterHistory,
-                        PLATFORM_STATE_FACADE,
                         virtualMap -> new OtterAppState(virtualMap, metrics, time))
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)

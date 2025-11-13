@@ -20,10 +20,8 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.config.StateConfig_;
 import com.swirlds.platform.state.PlatformStateAccessor;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.state.MerkleNodeState;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,7 +34,6 @@ public class HashLoggerTest {
     private Logger mockLogger;
     private HashLogger hashLogger;
     private List<String> logged;
-    private TestPlatformStateFacade platformStateFacade;
 
     /**
      * Get a regex that will match a log message containing the given round number
@@ -51,12 +48,11 @@ public class HashLoggerTest {
     @BeforeEach
     public void setUp() {
         mockLogger = mock(Logger.class);
-        platformStateFacade = mock(TestPlatformStateFacade.class);
 
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        hashLogger = new DefaultHashLogger(platformContext, mockLogger, platformStateFacade);
+        hashLogger = new DefaultHashLogger(platformContext, mockLogger);
         logged = new ArrayList<>();
 
         doAnswer(invocation -> {
@@ -116,7 +112,7 @@ public class HashLoggerTest {
                 .withConfiguration(configuration)
                 .build();
 
-        hashLogger = new DefaultHashLogger(platformContext, mockLogger, platformStateFacade);
+        hashLogger = new DefaultHashLogger(platformContext, mockLogger);
         hashLogger.logHashes(createSignedState(1));
         assertThat(logged).isEmpty();
     }
@@ -125,10 +121,8 @@ public class HashLoggerTest {
     public void loggerWithDefaultConstructorWorks() {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
-        final PlatformStateFacade platformStateFacade = mock(PlatformStateFacade.class);
-
         assertDoesNotThrow(() -> {
-            hashLogger = new DefaultHashLogger(platformContext, platformStateFacade);
+            hashLogger = new DefaultHashLogger(platformContext);
             hashLogger.logHashes(createSignedState(1));
         });
     }

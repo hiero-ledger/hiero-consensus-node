@@ -4,7 +4,6 @@ package org.hiero.otter.fixtures.turtle;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
-import static com.swirlds.platform.state.service.PlatformStateFacade.PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.fail;
@@ -239,7 +238,6 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     OtterApp.APP_NAME,
                     OtterApp.SWIRLD_NAME,
                     selfId,
-                    PLATFORM_STATE_FACADE,
                     platformContext,
                     virtualMap -> new OtterAppState(virtualMap, metrics, timeManager.time()));
 
@@ -266,7 +264,6 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             selfId,
                             eventStreamLoc,
                             rosterHistory,
-                            PLATFORM_STATE_FACADE,
                             virtualMap -> new OtterAppState(virtualMap, metrics, timeManager.time()))
                     .withPlatformContext(platformContext)
                     .withConfiguration(currentConfiguration)

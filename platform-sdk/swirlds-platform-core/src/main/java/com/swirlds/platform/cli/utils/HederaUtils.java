@@ -5,7 +5,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.state.MerkleNodeState;
@@ -32,18 +31,16 @@ public class HederaUtils {
      * This is to avoid the circular dependency app-->platform-->app
      *
      * @param platformContext The platform context
-     * @param platformStateFacade a platformStateFacade
      * @throws RuntimeException when there is an issue loading the class
      * @return an instance of hedera app
      */
     public static SwirldMain<? extends MerkleNodeState> createHederaAppMain(
-            @NonNull final PlatformContext platformContext, @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final PlatformContext platformContext) {
         try {
             final Class<?> mainClass = Class.forName(HEDERA_MAIN_CLASS);
-            Method newHederaMethod = mainClass.getDeclaredMethod(
-                    "newHedera", Metrics.class, PlatformStateFacade.class, Configuration.class);
-            return (SwirldMain<? extends MerkleNodeState>) newHederaMethod.invoke(
-                    null, new NoOpMetrics(), platformStateFacade, platformContext.getConfiguration());
+            Method newHederaMethod = mainClass.getDeclaredMethod("newHedera", Metrics.class, Configuration.class);
+            return (SwirldMain<? extends MerkleNodeState>)
+                    newHederaMethod.invoke(null, new NoOpMetrics(), platformContext.getConfiguration());
         } catch (final ClassNotFoundException
                 | NoSuchMethodException
                 | InvocationTargetException

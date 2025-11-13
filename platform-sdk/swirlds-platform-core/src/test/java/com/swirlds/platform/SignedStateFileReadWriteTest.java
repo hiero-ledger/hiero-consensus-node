@@ -4,7 +4,6 @@ package com.swirlds.platform;
 import static com.swirlds.common.io.utility.FileUtils.throwIfFileExists;
 import static com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader.SIGNED_STATE_FILE_NAME;
 import static com.swirlds.platform.StateFileManagerTests.hashState;
-import static com.swirlds.platform.state.service.PlatformStateFacade.PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.CURRENT_ROSTER_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.HASH_INFO_FILE_NAME;
@@ -13,7 +12,6 @@ import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeHas
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignatureSetFile;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateToDisk;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
-import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
 import static java.nio.file.Files.exists;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -98,7 +96,7 @@ class SignedStateFileReadWriteTest {
                 .setSoftwareVersion(platformVersion)
                 .build();
         final MerkleNodeState state = signedState.getState();
-        writeHashInfoFile(platformContext, testDirectory, state, PLATFORM_STATE_FACADE);
+        writeHashInfoFile(platformContext, testDirectory, state);
         final StateConfig stateConfig =
                 new TestConfigBuilder().getOrCreateConfig().getConfigData(StateConfig.class);
 
@@ -141,7 +139,7 @@ class SignedStateFileReadWriteTest {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
         final DeserializedSignedState deserializedSignedState =
-                readState(testDirectory, TestVirtualMapState::new, TEST_PLATFORM_STATE_FACADE, platformContext);
+                readState(testDirectory, TestVirtualMapState::new, platformContext);
         hashState(deserializedSignedState.reservedSignedState().get());
 
         assertNotNull(deserializedSignedState.originalHash(), "hash should not be null");
@@ -186,7 +184,6 @@ class SignedStateFileReadWriteTest {
                 directory,
                 StateToDiskReason.PERIODIC_SNAPSHOT,
                 signedState,
-                PLATFORM_STATE_FACADE,
                 stateLifecycleManager);
 
         assertTrue(exists(stateFile), "state file should exist");

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform;
 
+import static com.swirlds.platform.state.service.PlatformStateFacade.consensusSnapshotOf;
+import static com.swirlds.platform.state.service.PlatformStateFacade.legacyRunningEventHashOf;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.CONSENSUS_TIMESTAMP;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.FREEZE_STATE;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.HASH;
@@ -33,7 +35,6 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.SavedStateMetadata;
 import com.swirlds.platform.state.snapshot.SavedStateMetadataField;
 import com.swirlds.platform.test.fixtures.roster.RosterServiceStateMock;
-import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -201,12 +202,11 @@ class SavedStateMetadataTests {
         final SignedState signedState = mock(SignedState.class);
         final SigSet sigSet = mock(SigSet.class);
         final MerkleNodeState state = mock(MerkleNodeState.class);
-        final TestPlatformStateFacade platformStateFacade = mock(TestPlatformStateFacade.class);
         final ConsensusSnapshot consensusSnapshot = mock(ConsensusSnapshot.class);
         when(state.getHash()).thenReturn(randomHash(random));
         when(state.getHash()).thenReturn(randomHash(random));
-        when(platformStateFacade.legacyRunningEventHashOf(state)).thenReturn(randomHash(random));
-        when(platformStateFacade.consensusSnapshotOf(state)).thenReturn(consensusSnapshot);
+        when(legacyRunningEventHashOf(state)).thenReturn(randomHash(random));
+        when(consensusSnapshotOf(state)).thenReturn(consensusSnapshot);
 
         final Roster roster = mock(Roster.class);
         RosterServiceStateMock.setup(state, roster);
@@ -216,8 +216,7 @@ class SavedStateMetadataTests {
         when(sigSet.getSigningNodes())
                 .thenReturn(new ArrayList<>(List.of(NodeId.of(3L), NodeId.of(1L), NodeId.of(2L))));
 
-        final SavedStateMetadata metadata =
-                SavedStateMetadata.create(signedState, NodeId.of(1234), Instant.now(), platformStateFacade);
+        final SavedStateMetadata metadata = SavedStateMetadata.create(signedState, NodeId.of(1234), Instant.now());
 
         assertEquals(List.of(NodeId.of(1L), NodeId.of(2L), NodeId.of(3L)), metadata.signingNodes());
     }

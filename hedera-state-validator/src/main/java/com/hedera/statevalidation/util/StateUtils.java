@@ -4,6 +4,7 @@ package com.hedera.statevalidation.util;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
 import static com.hedera.statevalidation.util.ConfigUtils.getConfiguration;
 import static com.hedera.statevalidation.util.PlatformContextHelper.getPlatformContext;
+import static com.swirlds.platform.state.service.PlatformStateFacade.creationSoftwareVersionOf;
 import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
 
@@ -57,7 +58,6 @@ import com.hedera.pbj.runtime.OneOf;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.util.BootstrapUtils;
@@ -105,16 +105,13 @@ public final class StateUtils {
 
             final PlatformContext platformContext = getPlatformContext();
             final ServicesRegistryImpl serviceRegistry = initServiceRegistry();
-            final PlatformStateFacade platformStateFacade = PlatformStateFacade.PLATFORM_STATE_FACADE;
 
-            serviceRegistry.register(
-                    new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getState, platformStateFacade));
+            serviceRegistry.register(new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getState));
 
             deserializedSignedState = readState(
                     Path.of(ConfigUtils.STATE_DIR).toAbsolutePath(),
                     virtualMap -> new HederaVirtualMapState(
                             virtualMap, platformContext.getMetrics(), platformContext.getTime()),
-                    platformStateFacade,
                     platformContext);
 
             initServiceMigrator(getState(), platformContext, serviceRegistry);
@@ -194,11 +191,7 @@ public final class StateUtils {
                                 bootstrapConfig
                                         .getConfigData(BlockStreamConfig.class)
                                         .blockPeriod()),
-                        new RosterServiceImpl(
-                                roster -> true,
-                                (r, b) -> {},
-                                StateUtils::getState,
-                                PlatformStateFacade.PLATFORM_STATE_FACADE),
+                        new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getState),
                         PLATFORM_STATE_SERVICE)
                 .forEach(servicesRegistry::register);
 
@@ -218,8 +211,7 @@ public final class StateUtils {
             @NonNull final ServicesRegistry servicesRegistry) {
         final Configuration configuration = platformContext.getConfiguration();
         final ServiceMigrator serviceMigrator = new OrderedServiceMigrator();
-        final PlatformStateFacade platformFacade = PlatformStateFacade.PLATFORM_STATE_FACADE;
-        final SemanticVersion version = platformFacade.creationSoftwareVersionOf(state);
+        final SemanticVersion version = creationSoftwareVersionOf(state);
 
         PlatformStateService.PLATFORM_STATE_SERVICE.setAppVersionFn(v -> version);
 
@@ -233,8 +225,7 @@ public final class StateUtils {
                 configuration,
                 new FakeStartupNetworks(Network.newBuilder().build()),
                 new StoreMetricsServiceImpl(new NoOpMetrics()),
-                new ConfigProviderImpl(),
-                platformFacade);
+                new ConfigProviderImpl());
     }
 
     // Used for lambda shorthands

@@ -15,7 +15,6 @@ import com.swirlds.logging.legacy.payload.ReconnectDataUsagePayload;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
@@ -49,7 +48,6 @@ public class ReconnectStateLearner {
     private final MerkleNodeState currentState;
     private final Duration reconnectSocketTimeout;
     private final ReconnectMetrics statistics;
-    private final PlatformStateFacade platformStateFacade;
     private final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap;
 
     private SigSet sigSet;
@@ -72,8 +70,6 @@ public class ReconnectStateLearner {
      * 		the amount of time that should be used for the socket timeout
      * @param statistics
      * 		reconnect metrics
-     * @param platformStateFacade
-     *      the facade to access the platform state
      * @param createStateFromVirtualMap
      *      a function to instantiate the state object from a Virtual Map
      */
@@ -84,9 +80,7 @@ public class ReconnectStateLearner {
             @NonNull final MerkleNodeState currentState,
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics statistics,
-            @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
-        this.platformStateFacade = Objects.requireNonNull(platformStateFacade);
         this.createStateFromVirtualMap = Objects.requireNonNull(createStateFromVirtualMap);
 
         currentState.throwIfImmutable("Can not perform reconnect with immutable state");
@@ -224,8 +218,7 @@ public class ReconnectStateLearner {
                 "ReconnectLearner.reconnect()",
                 false,
                 false,
-                false,
-                platformStateFacade);
+                false);
         SignedStateFileReader.registerServiceStates(newSignedState);
         newSignedState.setSigSet(sigSet);
 

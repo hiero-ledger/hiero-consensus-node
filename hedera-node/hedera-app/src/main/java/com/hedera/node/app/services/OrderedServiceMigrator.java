@@ -11,7 +11,6 @@ import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.state.merkle.MerkleSchemaRegistry;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.lifecycle.Service;
@@ -50,7 +49,6 @@ public class OrderedServiceMigrator implements ServiceMigrator {
      * @param startupNetworks The startup networks to use for the migrations
      * @param storeMetricsService The store metrics service to use for the migrations
      * @param configProvider The config provider to use for the migrations
-     * @param platformStateFacade The facade class to access platform state
      * @return The list of state changes that occurred during the migrations
      */
     @Override
@@ -63,8 +61,7 @@ public class OrderedServiceMigrator implements ServiceMigrator {
             @NonNull final Configuration platformConfig,
             @NonNull final StartupNetworks startupNetworks,
             @NonNull final StoreMetricsServiceImpl storeMetricsService,
-            @NonNull final ConfigProviderImpl configProvider,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final ConfigProviderImpl configProvider) {
         requireNonNull(state);
         requireNonNull(currentVersion);
         requireNonNull(appConfig);
@@ -87,8 +84,7 @@ public class OrderedServiceMigrator implements ServiceMigrator {
                     platformConfig,
                     sharedValues,
                     migrationStateChanges,
-                    startupNetworks,
-                    platformStateFacade);
+                    startupNetworks);
         });
         return migrationStateChanges.getStateChanges();
     }

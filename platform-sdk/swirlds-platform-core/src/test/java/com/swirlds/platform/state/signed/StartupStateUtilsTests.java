@@ -2,7 +2,7 @@
 package com.swirlds.platform.state.signed;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
-import static com.swirlds.platform.state.service.PlatformStateFacade.PLATFORM_STATE_FACADE;
+import static com.swirlds.platform.state.signed.StartupStateUtils.loadStateFile;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateToDisk;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
@@ -143,7 +143,6 @@ public class StartupStateUtilsTests {
                 savedStateDirectory,
                 StateToDiskReason.PERIODIC_SNAPSHOT,
                 signedState,
-                PLATFORM_STATE_FACADE,
                 stateLifecycleManager);
 
         if (corrupted) {
@@ -165,14 +164,13 @@ public class StartupStateUtilsTests {
 
         final RecycleBin recycleBin = initializeRecycleBin(platformContext, selfId);
 
-        final SignedState loadedState = StartupStateUtils.loadStateFile(
+        final SignedState loadedState = loadStateFile(
                         recycleBin,
                         selfId,
                         mainClassName,
                         swirldName,
                         TestVirtualMapState::new,
                         currentSoftwareVersion,
-                        PLATFORM_STATE_FACADE,
                         platformContext)
                 .getNullable();
 
@@ -195,14 +193,13 @@ public class StartupStateUtilsTests {
         }
 
         final RecycleBin recycleBin = initializeRecycleBin(platformContext, selfId);
-        final SignedState loadedState = StartupStateUtils.loadStateFile(
+        final SignedState loadedState = loadStateFile(
                         recycleBin,
                         selfId,
                         mainClassName,
                         swirldName,
                         TestVirtualMapState::new,
                         currentSoftwareVersion,
-                        PLATFORM_STATE_FACADE,
                         platformContext)
                 .get();
 
@@ -230,14 +227,13 @@ public class StartupStateUtilsTests {
         }
         final RecycleBin recycleBin = initializeRecycleBin(platformContext, selfId);
 
-        assertThrows(SignedStateLoadingException.class, () -> StartupStateUtils.loadStateFile(
+        assertThrows(SignedStateLoadingException.class, () -> loadStateFile(
                         recycleBin,
                         selfId,
                         mainClassName,
                         swirldName,
                         TestVirtualMapState::new,
                         currentSoftwareVersion,
-                        PLATFORM_STATE_FACADE,
                         platformContext)
                 .get());
     }
@@ -276,14 +272,13 @@ public class StartupStateUtilsTests {
         }
         RandomSignedStateGenerator.releaseAllBuiltSignedStates();
 
-        final SignedState loadedState = StartupStateUtils.loadStateFile(
+        final SignedState loadedState = loadStateFile(
                         recycleBin,
                         selfId,
                         mainClassName,
                         swirldName,
                         TestVirtualMapState::new,
                         currentSoftwareVersion,
-                        PLATFORM_STATE_FACADE,
                         platformContext)
                 .getNullable();
 

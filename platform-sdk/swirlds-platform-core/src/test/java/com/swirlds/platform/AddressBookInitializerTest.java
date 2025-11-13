@@ -8,7 +8,6 @@ import static com.swirlds.platform.state.address.AddressBookInitializer.STATE_AD
 import static com.swirlds.platform.state.address.AddressBookInitializer.STATE_ADDRESS_BOOK_USED;
 import static com.swirlds.platform.state.address.AddressBookInitializer.USED_ADDRESS_BOOK_HEADER;
 import static com.swirlds.platform.system.address.AddressBookUtils.addressBookConfigText;
-import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static org.hiero.consensus.roster.RosterUtils.buildAddressBook;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -88,8 +87,7 @@ class AddressBookInitializerTest {
                 signedState,
                 configAddressBook,
                 getPlatformContext(true),
-                consensusStateEventHandler,
-                TEST_PLATFORM_STATE_FACADE);
+                consensusStateEventHandler);
         final AddressBook inititializedAddressBook = initializer.getCurrentAddressBook();
         final AddressBook signedStateAddressBook = buildAddressBook(signedState.getRoster());
         assertEquals(
@@ -119,8 +117,7 @@ class AddressBookInitializerTest {
                 signedState,
                 configAddressBook,
                 getPlatformContext(false),
-                consensusStateEventHandler,
-                TEST_PLATFORM_STATE_FACADE);
+                consensusStateEventHandler);
         final AddressBook inititializedAddressBook = initializer.getCurrentAddressBook();
         final AddressBook signedStateAddressBook = buildAddressBook(signedState.getRoster());
         assertEquals(
@@ -147,8 +144,7 @@ class AddressBookInitializerTest {
                 signedState,
                 configAddressBook,
                 getPlatformContext(false),
-                consensusStateEventHandler,
-                TEST_PLATFORM_STATE_FACADE);
+                consensusStateEventHandler);
         final AddressBook inititializedAddressBook = initializer.getCurrentAddressBook();
         final AddressBook signedStateAddressBook = buildAddressBook(signedState.getRoster());
         assertEquals(
@@ -175,8 +171,7 @@ class AddressBookInitializerTest {
                 signedState,
                 configAddressBook,
                 getPlatformContext(false),
-                consensusStateEventHandler,
-                TEST_PLATFORM_STATE_FACADE);
+                consensusStateEventHandler);
         final AddressBook inititializedAddressBook = initializer.getCurrentAddressBook();
         final AddressBook signedStateAddressBook = buildAddressBook(signedState.getRoster());
         assertEquals(
@@ -206,8 +201,7 @@ class AddressBookInitializerTest {
                 signedState,
                 configAddressBook,
                 getPlatformContext(false),
-                consensusStateEventHandler,
-                TEST_PLATFORM_STATE_FACADE);
+                consensusStateEventHandler);
         final AddressBook inititializedAddressBook = initializer.getCurrentAddressBook();
         final AddressBook signedStateAddressBook = buildAddressBook(signedState.getRoster());
         assertEquals(
@@ -252,8 +246,7 @@ class AddressBookInitializerTest {
                 signedState,
                 configAddressBook,
                 getPlatformContext(false),
-                consensusStateEventHandler,
-                TEST_PLATFORM_STATE_FACADE);
+                consensusStateEventHandler);
         final AddressBook inititializedAddressBook = initializer.getCurrentAddressBook();
         final AddressBook signedStateAddressBook = buildAddressBook(signedState.getRoster());
         assertEquals(
@@ -284,8 +277,7 @@ class AddressBookInitializerTest {
                 signedState,
                 configAddressBook,
                 getPlatformContext(false),
-                consensusStateEventHandler,
-                TEST_PLATFORM_STATE_FACADE);
+                consensusStateEventHandler);
         final AddressBook inititializedAddressBook = initializer.getCurrentAddressBook();
         assertEquals(
                 configAddressBook,
@@ -314,8 +306,7 @@ class AddressBookInitializerTest {
                 signedState,
                 configAddressBook,
                 getPlatformContext(false),
-                consensusStateEventHandler,
-                TEST_PLATFORM_STATE_FACADE);
+                consensusStateEventHandler);
         final AddressBook inititializedAddressBook = initializer.getCurrentAddressBook();
         assertNotEquals(
                 configAddressBook,
