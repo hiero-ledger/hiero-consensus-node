@@ -11,7 +11,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.hapi.block.stream.input.RoundHeader;
@@ -120,7 +119,7 @@ class FileBlockItemWriterTest {
     }
 
     @Test
-    protected void testWritePbjItem() throws IOException {
+    protected void testWriteItem() throws IOException {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
         when(blockStreamConfig.blockFileDir()).thenReturn("N/A");
@@ -131,13 +130,58 @@ class FileBlockItemWriterTest {
         // Open a block
         fileBlockItemWriter.openBlock(1);
 
-        final BlockItem item = BlockItem.newBuilder()
+        // Create a Bytes object and write it
+        final var bytes = new byte[] {1, 2, 3, 4, 5};
+        byte[] expectedBytes = {10, 5, 1, 2, 3, 4, 5};
+        fileBlockItemWriter.writeItem(bytes);
+
+        // Close the block
+        fileBlockItemWriter.closeCompleteBlock();
+
+        Path expectedDirectory = tempDir.resolve("block-0.0.3");
+        final Path expectedBlockFile = expectedDirectory.resolve("000000000000000000000000000000000001.blk.gz");
+        final Path expectedMarkerFile = expectedDirectory.resolve(MF);
+
+        // Verify both block file and marker file exist
+        assertThat(Files.exists(expectedBlockFile)).isTrue();
+        assertThat(Files.exists(expectedMarkerFile)).isTrue();
+
+        // Verify marker file is empty
+        assertThat(Files.size(expectedMarkerFile)).isZero();
+
+        // Ungzip the file
+        try (GZIPInputStream gzis = new GZIPInputStream(Files.newInputStream(expectedBlockFile))) {
+            byte[] fileContents = gzis.readAllBytes();
+
+            // Verify that the contents of the file match the Bytes object
+            // Note: This assertion assumes that the file contains only the Bytes object and nothing else.
+            assertArrayEquals(expectedBytes, fileContents, "Serialized item was not written correctly");
+        }
+    }
+
+    @Test
+    protected void testWritePbjItemAndBytes() throws IOException {
+        when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
+        when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(blockStreamConfig.blockFileDir()).thenReturn("N/A");
+        when(fileSystem.getPath(anyString())).thenReturn(tempDir);
+
+        FileBlockItemWriter fileBlockItemWriter = new FileBlockItemWriter(configProvider, selfNodeInfo, fileSystem);
+
+        // Open a block
+        fileBlockItemWriter.openBlock(1);
+
+        // Create a BlockItem and Bytes object
+        final var bytesData = new byte[] {1, 2, 3, 4, 5};
+        Bytes bytes = Bytes.wrap(bytesData);
+        byte[] expectedBytes = {10, 5, 1, 2, 3, 4, 5};
+
+        // Create a BlockItem (using RoundHeader as a simple example)
+        BlockItem item = BlockItem.newBuilder()
                 .roundHeader(RoundHeader.newBuilder().roundNumber(1L).build())
                 .build();
-        // Create a Bytes object and write it
-        byte[] expectedBytes =
-                Block.PROTOBUF.toBytes(Block.newBuilder().items(item).build()).toByteArray();
-        fileBlockItemWriter.writePbjItem(item, BlockItem.PROTOBUF.toBytes(item));
+
+        fileBlockItemWriter.writePbjItemAndBytes(item, bytes);
 
         // Close the block
         fileBlockItemWriter.closeCompleteBlock();
@@ -173,13 +217,9 @@ class FileBlockItemWriterTest {
         FileBlockItemWriter fileBlockItemWriter = new FileBlockItemWriter(configProvider, selfNodeInfo, fileSystem);
 
         // Create a Bytes object and write it
-        final BlockItem item = BlockItem.newBuilder()
-                .roundHeader(RoundHeader.newBuilder().roundNumber(1L).build())
-                .build();
+        final var bytes = new byte[] {1, 2, 3, 4, 5};
 
-        assertThatThrownBy(
-                        () -> fileBlockItemWriter.writePbjItem(item, BlockItem.PROTOBUF.toBytes(item)),
-                        "Cannot write item before opening a block")
+        assertThatThrownBy(() -> fileBlockItemWriter.writeItem(bytes), "Cannot write item before opening a block")
                 .isInstanceOf(IllegalStateException.class);
     }
 
@@ -265,18 +305,21 @@ class FileBlockItemWriterTest {
         assertTrue(emptyFile.exists(), "Open block should create an empty file");
         assertEquals(0, emptyFile.length(), "Empty file should have zero length");
 
-        final BlockItem blockItem0 = BlockItem.newBuilder()
-                .roundHeader(RoundHeader.newBuilder().roundNumber(1L).build())
-                .build();
-        subject.writePbjItem(blockItem0, BlockItem.PROTOBUF.toBytes(blockItem0));
-        final BlockItem blockItem1 = BlockItem.newBuilder()
-                .roundHeader(RoundHeader.newBuilder().roundNumber(2L).build())
-                .build();
-        subject.writePbjItem(blockItem1, BlockItem.PROTOBUF.toBytes(blockItem0));
-        final BlockItem blockItem2 = BlockItem.newBuilder()
-                .roundHeader(RoundHeader.newBuilder().roundNumber(3L).build())
-                .build();
-        subject.writePbjItem(blockItem2, BlockItem.PROTOBUF.toBytes(blockItem0));
+        subject.writeItem(BlockItem.PROTOBUF
+                .toBytes(BlockItem.newBuilder()
+                        .roundHeader(RoundHeader.newBuilder().roundNumber(1L).build())
+                        .build())
+                .toByteArray());
+        subject.writeItem(BlockItem.PROTOBUF
+                .toBytes(BlockItem.newBuilder()
+                        .roundHeader(RoundHeader.newBuilder().roundNumber(2L).build())
+                        .build())
+                .toByteArray());
+        subject.writeItem(BlockItem.PROTOBUF
+                .toBytes(BlockItem.newBuilder()
+                        .roundHeader(RoundHeader.newBuilder().roundNumber(3L).build())
+                        .build())
+                .toByteArray());
 
         final var pendingProof = PendingProof.newBuilder()
                 .block(1)

@@ -18,11 +18,18 @@ public interface BlockItemWriter {
     void openBlock(final long blockNumber);
 
     /**
+     * Writes an item and/or its serialized bytes to the destination stream.
+     *
+     * @param item the item to write
+     * @param bytes the serialized item to write
+     */
+    void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull final Bytes bytes);
+
+    /**
      * Writes a PBJ item to the destination stream.
      * @param item the item to write
-     * @param bytes serialized bytes
      */
-    void writePbjItem(@NonNull final BlockItem item, @NonNull final Bytes bytes);
+    void writePbjItem(@NonNull final BlockItem item);
 
     /**
      * Closes a block that is complete with a proof.
@@ -34,4 +41,11 @@ public interface BlockItemWriter {
      * @param pendingProof the proof pending a signature
      */
     void flushPendingBlock(@NonNull PendingProof pendingProof);
+
+    /**
+     * Jumps to a specific block number after a freeze event.
+     *
+     * @param blockNumber the block number to jump to after freeze
+     */
+    void jumpToBlockAfterFreeze(final long blockNumber);
 }

@@ -433,6 +433,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     blockDirPath, blockNumber, maxReadDepth(config), maxReadBytesSize(config));
             if (onDiskPendingBlocks.isEmpty()) {
                 log.info("No contiguous pending blocks found for block #{}", blockNumber);
+                final var pendingWriter = writerSupplier.get();
+                pendingWriter.jumpToBlockAfterFreeze(blockNumber);
                 return;
             }
 
@@ -440,8 +442,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 var block = onDiskPendingBlocks.get(i);
                 try {
                     final var pendingWriter = writerSupplier.get();
+                    if (i == 0) { // jump to the first pending block
+                        pendingWriter.jumpToBlockAfterFreeze(
+                                onDiskPendingBlocks.getFirst().number());
+                    }
+
                     pendingWriter.openBlock(block.number());
-                    block.items().forEach(item -> pendingWriter.writePbjItem(item, BlockItem.PROTOBUF.toBytes(item)));
+                    block.items()
+                            .forEach(
+                                    item -> pendingWriter.writePbjItemAndBytes(item, BlockItem.PROTOBUF.toBytes(item)));
                     final var blockHash = block.blockHash();
                     pendingBlocks.add(new PendingBlock(
                             block.number(),
@@ -788,7 +797,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 }
             }
             final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
-            block.writer().writePbjItem(proofItem, BlockItem.PROTOBUF.toBytes(proofItem));
+            block.writer().writePbjItemAndBytes(proofItem, BlockItem.PROTOBUF.toBytes(proofItem));
             block.writer().closeCompleteBlock();
             if (block.number() != blockNumber) {
                 siblingHashes.removeFirst();
@@ -957,7 +966,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             if (header != null) {
                 writer.openBlock(header.number());
             }
-            writer.writePbjItem(item, serialized);
+            writer.writePbjItemAndBytes(item, serialized);
 
             next.send();
             return true;

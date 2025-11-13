@@ -21,6 +21,7 @@ import org.apache.logging.log4j.Logger;
 public class GrpcBlockItemWriter implements BlockItemWriter {
     private static final Logger logger = LogManager.getLogger(GrpcBlockItemWriter.class);
     private final BlockBufferService blockBufferService;
+    private final BlockNodeConnectionManager blockNodeConnectionManager;
     private long blockNumber;
 
     /**
@@ -28,8 +29,12 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
      *
      * @param blockBufferService the block stream state manager that maintains the state of the block
      */
-    public GrpcBlockItemWriter(@NonNull final BlockBufferService blockBufferService) {
+    public GrpcBlockItemWriter(
+            @NonNull final BlockBufferService blockBufferService,
+            @NonNull final BlockNodeConnectionManager blockNodeConnectionManager) {
         this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
+        this.blockNodeConnectionManager =
+                requireNonNull(blockNodeConnectionManager, "blockNodeConnectionManager must not be null");
     }
 
     /**
@@ -52,9 +57,23 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
      * @param blockItem the block item to write
      */
     @Override
-    public void writePbjItem(@NonNull BlockItem blockItem, @NonNull Bytes bytes) {
+    public void writePbjItem(@NonNull BlockItem blockItem) {
         requireNonNull(blockItem, "blockItem must not be null");
         blockBufferService.addItem(blockNumber, blockItem);
+    }
+
+    /**
+     * Writes a protocol buffer formatted block item and its serialized bytes to the current block's state.
+     * Only the block item is used, the serialized bytes are ignored.
+     *
+     * @param item the block item to write
+     * @param bytes the serialized item to write (ignored in this implementation)
+     */
+    @Override
+    public void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull final Bytes bytes) {
+        requireNonNull(item, "item must not be null");
+        requireNonNull(bytes, "bytes must not be null");
+        writePbjItem(item);
     }
 
     /**
@@ -64,6 +83,11 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
     public void closeCompleteBlock() {
         blockBufferService.closeBlock(blockNumber);
         logger.debug("Closed block in GrpcBlockItemWriter {}", blockNumber);
+    }
+
+    @Override
+    public void jumpToBlockAfterFreeze(final long blockNumber) {
+        // no-op
     }
 
     /**
