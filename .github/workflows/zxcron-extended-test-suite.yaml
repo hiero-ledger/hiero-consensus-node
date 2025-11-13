@@ -242,6 +242,7 @@ jobs:
     needs:
       - fetch-xts-candidate
       - parameters
+    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
       commit_sha: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
@@ -275,6 +276,7 @@ jobs:
     needs:
       - fetch-xts-candidate
       - parameters
+    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
       commit_sha: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}

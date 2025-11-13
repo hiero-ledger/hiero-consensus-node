@@ -341,12 +341,6 @@ jobs:
             "xts-hapi-time-consuming-tests"
             "xts-hapi-block-node-comms-tests"
             "xts-otter-tests"
-            "abbreviated-panel"
-            "hedera-node-jrs-panel"
-            "sdk-tck-regression-panel"
-            "mirror-node-regression-panel"
-            "json-rpc-relay-regression-panel"
-            "block-node-regression-panel"
           )
 
           # Final outputs

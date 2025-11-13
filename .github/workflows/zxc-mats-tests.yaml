@@ -49,12 +49,12 @@ on:
         required: false
         default: "true"
       java-version:
-        description: "Java JDK Version:"
+        description: "Java JDK Version"
         type: string
         required: false
         default: "21.0.6"
       java-distribution:
-        description: "Java JDK Distribution:"
+        description: "Java JDK Distribution"
         type: string
         required: false
         default: "temurin"
@@ -86,7 +86,7 @@ on:
         description: "Failure Mode"
         value: ${{ jobs.set-failure-mode.outputs.failure-mode }}
       failed-tests:
-        description: "List of failed Test"
+        description: "List of failed Tests"
         value: ${{ jobs.set-failure-mode.outputs.failed-tests }}
 
 permissions:
