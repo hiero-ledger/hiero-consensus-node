@@ -57,7 +57,7 @@ public class ConsensusDeleteTopicFeeCalculatorTest {
 
             assertThat(result).isNotNull();
             Assertions.assertThat(result.node).isEqualTo(100000L);
-            Assertions.assertThat(result.service).isEqualTo(598500000L);
+            Assertions.assertThat(result.service).isEqualTo(498500000L);
             Assertions.assertThat(result.network).isEqualTo(200000L);
         }
     }
