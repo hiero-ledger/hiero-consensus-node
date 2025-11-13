@@ -10,6 +10,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
+import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -227,8 +228,14 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
             @NonNull final InitTrigger trigger,
             @Nullable final SemanticVersion previousVersion) {
         final Configuration configuration = platform.getContext().getConfiguration();
-        if (state.getReadableStates(ConsistencyService.NAME).isEmpty()) {
-            OtterStateInitializer.initOtterAppState(state, version, appServices);
+        if (! appServices.isEmpty()) {
+            final boolean stateNotInitialized = appServices.stream()
+                    .map(OtterService::name)
+                    .map(state::getReadableStates)
+                    .allMatch(ReadableStates::isEmpty);
+            if (stateNotInitialized) {
+                OtterStateInitializer.initOtterAppState(state, version, appServices);
+            }
         }
 
         for (final OtterService service : allServices) {
