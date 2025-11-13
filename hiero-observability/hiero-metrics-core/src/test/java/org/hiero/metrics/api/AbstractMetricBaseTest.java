@@ -21,7 +21,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
-public abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder<B, M>> {
+abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder<B, M>> {
 
     protected static final String DEFAULT_NAME = "test_metric";
 

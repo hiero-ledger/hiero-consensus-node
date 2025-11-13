@@ -5,7 +5,6 @@ import static org.hiero.metrics.api.utils.MetricUtils.load;
 
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -152,28 +151,24 @@ public final class MetricsFacade {
 
         Optional<MetricsExporter> optionalExporter;
         for (MetricsExporterFactory exporterFactory : exporterFactories) {
+            if (!exportConfig.isExporterEnabled(exporterFactory.name())) {
+                logger.info("Metrics exporter factory is disabled: {}", exporterFactory.name());
+                continue;
+            }
+
             try {
                 optionalExporter = exporterFactory.createExporter(configuration);
             } catch (RuntimeException e) {
-                logger.warn("Failed to create metrics exporter from factory: {}", exporterFactory.getClass(), e);
+                logger.warn("Failed to create metrics exporter from factory: {}", exporterFactory.name(), e);
                 continue;
             }
 
             if (optionalExporter.isEmpty()) {
+                logger.info("Metrics exporter factory doesn't create exporter: {}", exporterFactory.name());
                 continue;
             }
 
             MetricsExporter exporter = optionalExporter.get();
-            if (!exportConfig.isExporterEnabled(exporter.name())) {
-                logger.info("Metrics exporter {} is disabled in configuration. Skipping.", exporter.name());
-                try {
-                    exporter.close();
-                } catch (IOException e) {
-                    throw new RuntimeException(
-                            "Failed to close metrics exporter, which is disabled: " + exporter.name(), e);
-                }
-                continue;
-            }
 
             if (exporter instanceof PullingMetricsExporter pullingExporter) {
                 pullingExporters.add(pullingExporter);
@@ -183,7 +178,7 @@ public final class MetricsFacade {
                 logger.warn(
                         "Unsupported exporter type {} create by factory {}",
                         exporter.getClass(),
-                        exporterFactory.getClass());
+                        exporterFactory.name());
             }
         }
 

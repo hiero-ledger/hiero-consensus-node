@@ -23,7 +23,7 @@ public class PullingMetricsExporterAdapter extends AbstractMetricsExporter imple
     }
 
     @Override
-    public final void init(@NonNull Supplier<Optional<MetricsSnapshot>> snapshotSupplier) {
+    public final void setSnapshotProvider(@NonNull Supplier<Optional<MetricsSnapshot>> snapshotSupplier) {
         this.snapshotSupplier = Objects.requireNonNull(snapshotSupplier);
     }
 

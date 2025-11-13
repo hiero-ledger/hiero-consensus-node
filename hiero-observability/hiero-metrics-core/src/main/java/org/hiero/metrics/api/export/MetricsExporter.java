@@ -19,6 +19,8 @@ public sealed interface MetricsExporter extends Closeable
         permits PullingMetricsExporter, PushingMetricsExporter, AbstractMetricsExporter {
 
     /**
+     * Default implementations returns the simple class name as the exporter name.
+     *
      * @return the name of the exporter, never {@code null} or blank
      */
     @NonNull

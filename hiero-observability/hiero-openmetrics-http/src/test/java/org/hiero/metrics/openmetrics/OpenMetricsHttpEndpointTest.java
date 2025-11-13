@@ -184,7 +184,7 @@ public class OpenMetricsHttpEndpointTest {
 
         @BeforeEach
         void setUp() {
-            testInit(endpoint -> endpoint.init(snapshotSupplier));
+            testInit(endpoint -> endpoint.setSnapshotProvider(snapshotSupplier));
         }
 
         @AfterEach
