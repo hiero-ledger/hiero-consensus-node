@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.spec.dsl.annotations;
 
 import com.hedera.services.bdd.junit.extensions.SpecEntityExtension;
+import com.hedera.services.bdd.spec.dsl.utils.InitcodeTransform;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -53,4 +54,10 @@ public @interface Contract {
      * resources directory for the contract.
      */
     String variant() default "";
+
+    /**
+     * If set, specifies a transform to apply to the initcode before deploying the contract.
+     * @return the transform to apply
+     */
+    Class<? extends InitcodeTransform> initcodeTransform() default InitcodeTransform.NoOp.class;
 }
