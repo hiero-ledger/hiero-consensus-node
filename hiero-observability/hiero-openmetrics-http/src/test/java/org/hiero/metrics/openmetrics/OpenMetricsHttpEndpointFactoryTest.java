@@ -19,6 +19,12 @@ import org.junit.jupiter.api.Test;
 public class OpenMetricsHttpEndpointFactoryTest {
 
     @Test
+    void testInstantiation() {
+        OpenMetricsHttpEndpointFactory factory = new OpenMetricsHttpEndpointFactory();
+        assertThat(factory.name()).isEqualTo("openmetrics-http-endpoint");
+    }
+
+    @Test
     void noExporterCreatedWhenDisabled() {
         Configuration config = ConfigurationBuilder.create()
                 .autoDiscoverExtensions()

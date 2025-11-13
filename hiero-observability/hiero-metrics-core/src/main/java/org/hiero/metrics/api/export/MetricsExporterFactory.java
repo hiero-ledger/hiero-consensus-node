@@ -12,6 +12,12 @@ import java.util.Optional;
 public interface MetricsExporterFactory {
 
     /**
+     * @return the name of the exporter factory, never {@code null} or blank.
+     */
+    @NonNull
+    String name();
+
+    /**
      * Creates a new {@link MetricsExporter} instance based on the provided configuration.
      * Returns an empty {@link Optional} if the factory cannot create an exporter with the given configuration
      * (e.g. disabled flag or wrong configuration).

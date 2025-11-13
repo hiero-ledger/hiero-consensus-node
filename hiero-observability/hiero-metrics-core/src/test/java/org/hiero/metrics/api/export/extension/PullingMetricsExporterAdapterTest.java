@@ -7,7 +7,6 @@ import static org.mockito.Mockito.mock;
 
 import java.io.IOException;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,21 +48,21 @@ public class PullingMetricsExporterAdapterTest {
     }
 
     @Test
-    void testGetSnapshotAfterInit() {
-        AtomicInteger counter = new AtomicInteger();
+    void testGetSnapshotAfterSetSnapshotProvider() {
         MetricsSnapshot snapshot1 = mock(MetricsSnapshot.class);
         MetricsSnapshot snapshot2 = mock(MetricsSnapshot.class);
 
-        exporter.init(() -> counter.getAndIncrement() % 2 == 0 ? Optional.of(snapshot1) : Optional.of(snapshot2));
-
+        exporter.setSnapshotProvider(() -> Optional.of(snapshot1));
         assertThat(exporter.getSnapshot()).contains(snapshot1);
+
+        exporter.setSnapshotProvider(() -> Optional.of(snapshot2));
         assertThat(exporter.getSnapshot()).contains(snapshot2);
     }
 
     @Test
     void testClose() throws IOException {
         MetricsSnapshot snapshot = mock(MetricsSnapshot.class);
-        exporter.init(() -> Optional.of(snapshot));
+        exporter.setSnapshotProvider(() -> Optional.of(snapshot));
 
         assertThat(exporter.getSnapshot()).contains(snapshot);
 

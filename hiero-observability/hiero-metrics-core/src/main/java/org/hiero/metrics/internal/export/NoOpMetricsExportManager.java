@@ -12,6 +12,10 @@ public final class NoOpMetricsExportManager implements MetricsExportManager {
 
     public static final MetricsExportManager INSTANCE = new NoOpMetricsExportManager();
 
+    private NoOpMetricsExportManager() {
+        // private constructor to prevent instantiation
+    }
+
     @NonNull
     @Override
     public String name() {
