@@ -38,12 +38,11 @@ public class FeeResult {
     }
 
     /** Add a network fee with details.
-     * @param count the number of units for this fee.
      * @param cost the actual computed cost of this service fee in tinycents.
      * */
-    public void addNetworkFee(long count, long cost) {
-        details.add(new FeeDetail(count, cost));
-        network = clampedAdd(network, count * cost);
+    public void addNetworkFee(long cost) {
+        details.add(new FeeDetail(1, cost));
+        network = clampedAdd(network, cost);
     }
 
     /** the total fee in tinycents. */
