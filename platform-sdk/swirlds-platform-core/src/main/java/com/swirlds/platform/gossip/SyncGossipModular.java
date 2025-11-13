@@ -138,7 +138,7 @@ public class SyncGossipModular implements Gossip {
         final ProtocolConfig protocolConfig = platformContext.getConfiguration().getConfigData(ProtocolConfig.class);
 
         final int rosterSize = peers.size() + 1;
-        final SyncMetrics syncMetrics = new SyncMetrics(platformContext.getMetrics(), platformContext.getTime());
+        final SyncMetrics syncMetrics = new SyncMetrics(platformContext.getMetrics(), platformContext.getTime(), peers);
 
         if (protocolConfig.rpcGossip()) {
 
