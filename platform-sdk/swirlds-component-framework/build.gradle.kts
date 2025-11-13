@@ -8,9 +8,13 @@ description = "Component Framework"
 
 // Remove the following line to enable all 'javac' lint checks that we have turned on by default
 // and then fix the reported issues.
+var compilerArgsExtra = ""
+if(JavaVersion.current() >= JavaVersion.VERSION_25){
+    compilerArgsExtra+=",-dangling-doc-comments"
+}
 tasks.withType<JavaCompile>().configureEach {
     options.compilerArgs.add(
-        "-Xlint:-dangling-doc-comments,-exports,-lossy-conversions,-overloads,-dep-ann,-text-blocks,-varargs"
+        "-Xlint:-exports,-lossy-conversions,-overloads,-dep-ann,-text-blocks,-varargs" + compilerArgsExtra
     )
 }
 

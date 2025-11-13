@@ -19,7 +19,8 @@ testModuleInfo {
     requires("org.mockito.junit.jupiter")
 }
 
-tasks.withType<JavaCompile>().configureEach {
+if(JavaVersion.current() >= JavaVersion.VERSION_25){
+  tasks.withType<JavaCompile>().configureEach {
     options.compilerArgs.add("-Xlint:-dangling-doc-comments")
+  }
 }
-

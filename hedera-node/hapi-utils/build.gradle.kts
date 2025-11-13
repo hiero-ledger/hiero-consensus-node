@@ -11,7 +11,9 @@ testModuleInfo {
     requires("org.mockito")
     requires("org.assertj.core")
 }
-tasks.withType<JavaCompile>().configureEach {
+if(JavaVersion.current() >= JavaVersion.VERSION_25){
+  tasks.withType<JavaCompile>().configureEach {
     options.compilerArgs.add("-Xlint:-dangling-doc-comments")
+  }
 }
 
