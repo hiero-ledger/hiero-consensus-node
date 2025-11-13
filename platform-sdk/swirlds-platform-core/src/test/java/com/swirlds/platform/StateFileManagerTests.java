@@ -2,7 +2,7 @@
 package com.swirlds.platform;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
-import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readStateFile;
+import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.FATAL_ERROR;
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.ISS;
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.PERIODIC_SNAPSHOT;
@@ -137,8 +137,8 @@ class StateFileManagerTests {
 
         assertEquals(-1, originalState.getReservationCount(), "invalid reservation count");
 
-        final DeserializedSignedState deserializedSignedState = readStateFile(
-                stateFile,
+        final DeserializedSignedState deserializedSignedState = readState(
+                stateDirectory,
                 TestVirtualMapState::new,
                 TEST_PLATFORM_STATE_FACADE,
                 TestPlatformContextBuilder.create().build());
@@ -306,8 +306,8 @@ class StateFileManagerTests {
                     final SavedStateInfo savedStateInfo = currentStatesOnDisk.get(index);
 
                     final SignedState stateFromDisk = assertDoesNotThrow(
-                            () -> SignedStateFileReader.readStateFile(
-                                            savedStateInfo.stateFile(),
+                            () -> SignedStateFileReader.readState(
+                                            savedStateInfo.stateDirectory(),
                                             TestVirtualMapState::new,
                                             TEST_PLATFORM_STATE_FACADE,
                                             context)
