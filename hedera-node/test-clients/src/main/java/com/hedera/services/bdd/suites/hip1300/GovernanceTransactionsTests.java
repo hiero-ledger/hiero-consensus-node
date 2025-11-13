@@ -50,9 +50,8 @@ public class GovernanceTransactionsTests implements LifecycleTest {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of(
-                "hedera.transaction.maxMemoUtf8Bytes", OVERSIZED_TXN_SIZE + "" // to avoid memo size limit
-                ));
+        testLifecycle.overrideInClass(
+                Map.of("hedera.transaction.maxMemoUtf8Bytes", OVERSIZED_TXN_SIZE + "")); // to avoid memo size limit
     }
 
     // --- Tests to examine the behavior before turning on the feature flag ---

@@ -23,6 +23,7 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalseP
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SignaturePair;
@@ -377,8 +378,9 @@ public class TransactionChecker {
         }
     }
 
-    /*
-     *
+    /**
+     * Validates the transaction size
+     * @param txInfo the {@link TransactionInfo} to check
      */
     public void checkTransactionSize(@NonNull final TransactionInfo txInfo) throws PreCheckException {
         final int txSize = txInfo.signedTx().protobufSize();
@@ -407,13 +409,13 @@ public class TransactionChecker {
         if (exceedsLimit) throw new PreCheckException(TRANSACTION_OVERSIZE);
     }
 
-    /*
-     *
+    /**
+     * Validates transaction size limits based on the payer account's privileges.
+     * @param txInfo the {@link TransactionInfo} to check
+     * @param payerAccountId the {@link AccountID} of the transaction payer
      */
     public void checkTransactionSizeLimitBasedOnPayer(
-            @NonNull final TransactionInfo txInfo, @NonNull final com.hedera.hapi.node.base.AccountID payerAccountId)
-            throws PreCheckException {
-
+            @NonNull final TransactionInfo txInfo, @NonNull final AccountID payerAccountId) throws PreCheckException {
         boolean exceedsLimit;
         final int txSize = txInfo.signedTx().protobufSize();
         // Check if the payer is privileged (treasury or systemAdmin)
@@ -441,6 +443,11 @@ public class TransactionChecker {
         }
     }
 
+    /**
+     * Validates can be considered a jumbo transaction.
+     * @param txInfo the {@link TransactionInfo} to check
+     * @return whether the transaction is considered jumbo
+     */
     private boolean checkJumboRequirements(@NonNull final TransactionInfo txInfo) {
         final int txSize = txInfo.signedTx().protobufSize();
         final HederaFunctionality functionality = txInfo.functionality();
