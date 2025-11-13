@@ -525,11 +525,11 @@ public class TxnUtils {
      * Generates random UTF-8 bytes of the specified length, ensuring no null bytes (0x00) are present.
      * This is useful for creating memo content that passes PreCheckValidator validation.
      *
-     * @param n the number of bytes to generate
+     * @param numberOfBytes the number of bytes to generate
      * @return a byte array of length n with no null bytes
      */
-    public static byte[] randomUtf8BytesNoZeroBytes(final int n) {
-        final byte[] data = randomUtf8Bytes(n);
+    public static byte[] randomUtf8BytesNoZeroBytes(final int numberOfBytes) {
+        final byte[] data = randomUtf8Bytes(numberOfBytes);
         // Replace any null bytes with random non-null bytes
         for (int i = 0; i < data.length; i++) {
             if (data[i] == 0) {

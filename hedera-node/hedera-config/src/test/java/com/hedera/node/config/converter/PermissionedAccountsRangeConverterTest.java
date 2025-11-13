@@ -48,6 +48,12 @@ final class PermissionedAccountsRangeConverterTest {
         Assertions.assertThat(converted)
                 .extracting(c -> c.inclusiveTo())
                 .isEqualTo(testDataTuple.output().inclusiveTo());
+        Assertions.assertThat(converted)
+                .extracting(c -> c.excludeFrom())
+                .isEqualTo(testDataTuple.output().excludeFrom());
+        Assertions.assertThat(converted)
+                .extracting(c -> c.excludeInclusiveTo())
+                .isEqualTo(testDataTuple.output().excludeInclusiveTo());
     }
 
     final record TestDataTuple(String input, PermissionedAccountsRange output) {}
@@ -56,7 +62,12 @@ final class PermissionedAccountsRangeConverterTest {
         return Stream.of(
                 new TestDataTuple("1-14", new PermissionedAccountsRange(1L, 14L)),
                 new TestDataTuple("1-*", new PermissionedAccountsRange(1L, Long.MAX_VALUE)),
-                new TestDataTuple("10-*", new PermissionedAccountsRange(10L, Long.MAX_VALUE)));
+                new TestDataTuple("10-*", new PermissionedAccountsRange(10L, Long.MAX_VALUE)),
+                new TestDataTuple("2-799!3-41", new PermissionedAccountsRange(2L, 799L, 3L, 41L)),
+                new TestDataTuple("1-*!5-10", new PermissionedAccountsRange(1L, Long.MAX_VALUE, 5L, 10L)),
+                new TestDataTuple("1-*!5-10", new PermissionedAccountsRange(1L, Long.MAX_VALUE, 5L, 10L)),
+                new TestDataTuple("2-799!5", new PermissionedAccountsRange(2L, 799L, 5L, 5L)),
+                new TestDataTuple("1-*!10", new PermissionedAccountsRange(1L, Long.MAX_VALUE, 10L, 10L)));
     }
 
     static Stream<String> invalidDataProvider() {

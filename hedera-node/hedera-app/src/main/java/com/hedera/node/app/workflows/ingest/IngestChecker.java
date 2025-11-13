@@ -310,8 +310,6 @@ public final class IngestChecker {
         final var storeFactory = new ReadableStoreFactory(state);
         final var payer = solvencyPreCheck.getPayerAccount(storeFactory, txInfo.payerID());
         final var payerAccountId = payer.accountId();
-
-        // is this needed?
         if (payerAccountId == null) {
             throw new PreCheckException(UNAUTHORIZED);
         }

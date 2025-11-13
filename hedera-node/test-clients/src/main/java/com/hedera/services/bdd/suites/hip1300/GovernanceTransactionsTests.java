@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
- * A class with Node Operator Queries tests
+ * A class with Node Operator Queries tests.
  */
 @Tag(CRYPTO)
 @HapiTestLifecycle
@@ -51,7 +51,7 @@ public class GovernanceTransactionsTests implements LifecycleTest {
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of(
-                "hedera.transaction.maxMemoUtf8Bytes", OVERSIZED_TXN_SIZE * 2 + "" // to avoid memo size limit
+                "hedera.transaction.maxMemoUtf8Bytes", OVERSIZED_TXN_SIZE + "" // to avoid memo size limit
                 ));
     }
 

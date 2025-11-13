@@ -36,7 +36,7 @@ import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.workflows.prehandle.DueDiligenceException;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.config.data.ApiPermissionConfig;
 import com.hedera.node.config.data.GovernanceTransactionsConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
@@ -90,12 +90,12 @@ public class TransactionChecker {
     private final Counter deprecatedCounter;
     /** The {@link Counter} used to track the number of super deprecated transactions (body, sigs) received. */
     private final Counter superDeprecatedCounter;
-    /** The {@link Counter} used to track the number of oversized transactions from a non-privileged payer */
+    /** The {@link Counter} used to track the number of oversized transactions from a non-privileged payer. */
     private final Counter nonPrivilegedOversizedTransactionsCounter;
 
     private final HederaConfig hederaConfig;
     private final JumboTransactionsConfig jumboTransactionsConfig;
-    private final AccountsConfig accountsConfig;
+    private final ApiPermissionConfig apiPermissionConfig;
     private final GovernanceTransactionsConfig governanceTransactionsConfig;
 
     // TODO We need to incorporate the check for "TRANSACTION_TOO_MANY_LAYERS". "maxProtoMessageDepth" is a property
@@ -121,7 +121,7 @@ public class TransactionChecker {
 
         hederaConfig = configProvider.getConfiguration().getConfigData(HederaConfig.class);
         jumboTransactionsConfig = configProvider.getConfiguration().getConfigData(JumboTransactionsConfig.class);
-        accountsConfig = configProvider.getConfiguration().getConfigData(AccountsConfig.class);
+        apiPermissionConfig = configProvider.getConfiguration().getConfigData(ApiPermissionConfig.class);
         governanceTransactionsConfig =
                 configProvider.getConfiguration().getConfigData(GovernanceTransactionsConfig.class);
     }
@@ -377,6 +377,9 @@ public class TransactionChecker {
         }
     }
 
+    /*
+     *
+     */
     public void checkTransactionSize(@NonNull final TransactionInfo txInfo) throws PreCheckException {
         final int txSize = txInfo.signedTx().protobufSize();
         final HederaFunctionality functionality = txInfo.functionality();
@@ -404,14 +407,18 @@ public class TransactionChecker {
         if (exceedsLimit) throw new PreCheckException(TRANSACTION_OVERSIZE);
     }
 
+    /*
+     *
+     */
     public void checkTransactionSizeLimitBasedOnPayer(
             @NonNull final TransactionInfo txInfo, @NonNull final com.hedera.hapi.node.base.AccountID payerAccountId)
             throws PreCheckException {
 
+        boolean exceedsLimit;
         final int txSize = txInfo.signedTx().protobufSize();
         // Check if the payer is privileged (treasury or systemAdmin)
-        final boolean isPrivilegedPayer = accountsConfig.isSuperuser(payerAccountId);
-        boolean exceedsLimit;
+        final boolean isPrivilegedPayer =
+                apiPermissionConfig.governanceTransactions().contains(payerAccountId.accountNumOrElse(0L));
 
         if (isPrivilegedPayer) {
             exceedsLimit = txSize > governanceTransactionsConfig.maxTxnSize();
