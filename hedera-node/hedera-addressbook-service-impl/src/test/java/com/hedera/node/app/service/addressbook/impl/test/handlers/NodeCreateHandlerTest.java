@@ -239,6 +239,9 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
     void failsWhenMaxNodesExceeds() {
         txn = new NodeCreateBuilder().withAccountId(accountId).build(payerId);
         given(handleContext.body()).willReturn(txn);
+        given(handleContext.dispatchMetadata()).willReturn(HandleContext.DispatchMetadata.EMPTY_METADATA);
+        given(handleContext.nodeIdGenerator()).willReturn(nodeIdGenerator);
+
         rebuildState(1);
         final var config = HederaTestConfigBuilder.create()
                 .withValue("nodes.maxNumber", 1L)
@@ -246,7 +249,6 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
-        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
         assertEquals(ResponseCodeEnum.MAX_NODES_CREATED, msg.getStatus());
@@ -264,6 +266,8 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(handleContext.expiryValidator()).willReturn(expiryValidator);
+        given(handleContext.dispatchMetadata()).willReturn(HandleContext.DispatchMetadata.EMPTY_METADATA);
+        given(handleContext.nodeIdGenerator()).willReturn(nodeIdGenerator);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
@@ -639,6 +643,8 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(handleContext.expiryValidator()).willReturn(expiryValidator);
+        given(handleContext.dispatchMetadata()).willReturn(HandleContext.DispatchMetadata.EMPTY_METADATA);
+        given(handleContext.nodeIdGenerator()).willReturn(nodeIdGenerator);
         given(expiryValidator.expirationStatus(
                         EntityType.ACCOUNT, account.expiredAndPendingRemoval(), account.tinybarBalance()))
                 .willReturn(OK);

@@ -275,26 +275,6 @@ public class HandleWorkflow {
                 final var now = streamMode == RECORDS
                         ? round.getConsensusTimestamp()
                         : round.iterator().next().getConsensusTimestamp();
-                // clear deleted nodes before transplant updates
-                //                final var writableNodeStates = state.getWritableStates(AddressBookService.NAME);
-                //                final var writableEntityIdStates = state.getWritableStates(EntityIdService.NAME);
-                //                final var entityIdStore = new WritableEntityIdStoreImpl(writableEntityIdStates);
-                //                final var nodeStore = new WritableNodeStore(writableNodeStates, entityIdStore);
-                //                doStreamingKVChanges(writableNodeStates, writableEntityIdStates, () -> {
-                //                    final var nextNodeId = entityIdStore.peekAtNextNodeId();
-                //                    for (int i = 0; i < nextNodeId; i++) {
-                //                        final var node = nodeStore.get(i);
-                //                        if (node != null && node.deleted() &&
-                // !networkInfo.containsNode(node.nodeId())) {
-                //                            nodeStore.remove(node.nodeId());
-                //                            logger.info("Node {} was removed from state", node.nodeId());
-                //                        }
-                //                    }
-                //                });
-                //                logger.info("New node state count : {}", nodeStore.sizeOfState());
-                //                logger.info("Node Entity counts : {}", entityIdStore.numNodes());
-                //                logger.info("Node next id: {}", entityIdStore.peekAtNextNodeId());
-
                 dispatchedTransplantUpdates =
                         systemTransactions.dispatchTransplantUpdates(state, now, round.getRoundNum());
                 transactionsDispatched |= dispatchedTransplantUpdates;
