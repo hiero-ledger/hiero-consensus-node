@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.internal.network.PendingProof;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -51,7 +52,7 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
      * @param blockItem the block item to write
      */
     @Override
-    public void writePbjItem(@NonNull BlockItem blockItem) {
+    public void writePbjItem(@NonNull BlockItem blockItem, @NonNull Bytes bytes) {
         requireNonNull(blockItem, "blockItem must not be null");
         blockBufferService.addItem(blockNumber, blockItem);
     }

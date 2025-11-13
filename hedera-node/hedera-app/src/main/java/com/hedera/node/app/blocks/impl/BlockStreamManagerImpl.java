@@ -441,7 +441,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 try {
                     final var pendingWriter = writerSupplier.get();
                     pendingWriter.openBlock(block.number());
-                    block.items().forEach(pendingWriter::writePbjItem);
+                    block.items().forEach(item -> pendingWriter.writePbjItem(item, BlockItem.PROTOBUF.toBytes(item)));
                     final var blockHash = block.blockHash();
                     pendingBlocks.add(new PendingBlock(
                             block.number(),
@@ -788,7 +788,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 }
             }
             final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
-            block.writer().writePbjItem(proofItem);
+            block.writer().writePbjItem(proofItem, BlockItem.PROTOBUF.toBytes(proofItem));
             block.writer().closeCompleteBlock();
             if (block.number() != blockNumber) {
                 siblingHashes.removeFirst();
@@ -957,7 +957,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             if (header != null) {
                 writer.openBlock(header.number());
             }
-            writer.writePbjItem(item);
+            writer.writePbjItem(item, serialized);
 
             next.send();
             return true;

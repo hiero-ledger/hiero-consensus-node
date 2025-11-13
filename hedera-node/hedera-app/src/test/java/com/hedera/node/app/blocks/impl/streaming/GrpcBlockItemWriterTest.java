@@ -7,7 +7,6 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.ArrayList;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -48,12 +47,11 @@ class GrpcBlockItemWriterTest {
         GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockBufferService);
 
         // Create BlockProof as easiest way to build object from BlockStreams
-        Bytes bytes = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
         final var proof = BlockItem.newBuilder()
                 .blockProof(BlockProof.newBuilder().siblingHashes(new ArrayList<>()))
                 .build();
 
-        grpcBlockItemWriter.writePbjItem(proof);
+        grpcBlockItemWriter.writePbjItem(proof, BlockItem.PROTOBUF.toBytes(proof));
 
         verify(blockBufferService).addItem(0L, proof);
     }
@@ -63,12 +61,11 @@ class GrpcBlockItemWriterTest {
         GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockBufferService);
 
         // Create BlockProof as easiest way to build object from BlockStreams
-        Bytes bytes = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
         final var proof = BlockItem.newBuilder()
                 .blockProof(BlockProof.newBuilder().siblingHashes(new ArrayList<>()))
                 .build();
 
-        grpcBlockItemWriter.writePbjItem(proof);
+        grpcBlockItemWriter.writePbjItem(proof, BlockItem.PROTOBUF.toBytes(proof));
 
         verify(blockBufferService).addItem(0L, proof);
     }

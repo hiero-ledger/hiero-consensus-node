@@ -9,6 +9,7 @@ import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.PendingProof;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.FileSystem;
 
@@ -71,10 +72,10 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
-    public void writePbjItem(@NonNull final BlockItem item) {
-        this.fileBlockItemWriter.writePbjItem(item);
+    public void writePbjItem(@NonNull final BlockItem item, @NonNull Bytes bytes) {
+        this.fileBlockItemWriter.writePbjItem(item, bytes);
         if (isStreamingEnabled()) {
-            this.grpcBlockItemWriter.writePbjItem(item);
+            this.grpcBlockItemWriter.writePbjItem(item, bytes);
         }
     }
 }

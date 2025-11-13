@@ -9,12 +9,15 @@ import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
+import com.hedera.hapi.block.stream.schema.BlockSchema;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.ProtoConstants;
+import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
@@ -335,18 +338,18 @@ public class FileBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
-    public void writePbjItem(@NonNull BlockItem item) {
+    public void writePbjItem(@NonNull BlockItem item, @NonNull Bytes bytes) {
         requireNonNull(item);
         if (state != State.OPEN) {
             throw new IllegalStateException(
                     "Cannot write to a FileBlockItemWriter that is not open for block: " + this.blockNumber);
         }
-        try {
-            BlockItem.PROTOBUF.write(item, writableStreamingData);
-        } catch (final IOException e) {
-            logger.error("Error writing block item in FileBlockItemWriter", e);
-            throw new UncheckedIOException(e);
-        }
+        // Write the ITEMS tag.
+        ProtoWriterTools.writeTag(writableStreamingData, BlockSchema.ITEMS, ProtoConstants.WIRE_TYPE_DELIMITED);
+        // Write the length of the item.
+        writableStreamingData.writeVarInt((int) bytes.length(), false);
+        // Write the item bytes themselves.
+        writableStreamingData.writeBytes(bytes);
     }
 
     @Override

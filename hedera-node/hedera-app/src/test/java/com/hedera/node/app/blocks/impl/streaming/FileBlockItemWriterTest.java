@@ -137,7 +137,7 @@ class FileBlockItemWriterTest {
         // Create a Bytes object and write it
         byte[] expectedBytes =
                 Block.PROTOBUF.toBytes(Block.newBuilder().items(item).build()).toByteArray();
-        fileBlockItemWriter.writePbjItem(item);
+        fileBlockItemWriter.writePbjItem(item, BlockItem.PROTOBUF.toBytes(item));
 
         // Close the block
         fileBlockItemWriter.closeCompleteBlock();
@@ -177,7 +177,9 @@ class FileBlockItemWriterTest {
                 .roundHeader(RoundHeader.newBuilder().roundNumber(1L).build())
                 .build();
 
-        assertThatThrownBy(() -> fileBlockItemWriter.writePbjItem(item), "Cannot write item before opening a block")
+        assertThatThrownBy(
+                        () -> fileBlockItemWriter.writePbjItem(item, BlockItem.PROTOBUF.toBytes(item)),
+                        "Cannot write item before opening a block")
                 .isInstanceOf(IllegalStateException.class);
     }
 
@@ -263,15 +265,18 @@ class FileBlockItemWriterTest {
         assertTrue(emptyFile.exists(), "Open block should create an empty file");
         assertEquals(0, emptyFile.length(), "Empty file should have zero length");
 
-        subject.writePbjItem(BlockItem.newBuilder()
+        final BlockItem blockItem0 = BlockItem.newBuilder()
                 .roundHeader(RoundHeader.newBuilder().roundNumber(1L).build())
-                .build());
-        subject.writePbjItem(BlockItem.newBuilder()
+                .build();
+        subject.writePbjItem(blockItem0, BlockItem.PROTOBUF.toBytes(blockItem0));
+        final BlockItem blockItem1 = BlockItem.newBuilder()
                 .roundHeader(RoundHeader.newBuilder().roundNumber(2L).build())
-                .build());
-        subject.writePbjItem(BlockItem.newBuilder()
+                .build();
+        subject.writePbjItem(blockItem1, BlockItem.PROTOBUF.toBytes(blockItem0));
+        final BlockItem blockItem2 = BlockItem.newBuilder()
                 .roundHeader(RoundHeader.newBuilder().roundNumber(3L).build())
-                .build());
+                .build();
+        subject.writePbjItem(blockItem2, BlockItem.PROTOBUF.toBytes(blockItem0));
 
         final var pendingProof = PendingProof.newBuilder()
                 .block(1)
