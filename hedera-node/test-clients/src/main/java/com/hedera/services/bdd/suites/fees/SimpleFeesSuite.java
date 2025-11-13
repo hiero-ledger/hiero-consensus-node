@@ -303,6 +303,8 @@ public class SimpleFeesSuite {
                     cryptoDelete("accountToDelete")
                             .transfer(PAYER)
                             .payingWith("accountToDelete")
+                            .signedBy("accountToDelete")
+                            .blankMemo()
                             .fee(ONE_HBAR)
                             .via("deleteAccountTxn"),
                     validateChargedUsdWithin("deleteAccountTxn", 0.005, 1.0));

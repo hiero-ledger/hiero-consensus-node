@@ -52,7 +52,7 @@
         },
         {
           "name": "CryptoDelete",
-          "baseFee": 49900000,
+          "baseFee": 49000000,
           "extras": [
           ]
         },
