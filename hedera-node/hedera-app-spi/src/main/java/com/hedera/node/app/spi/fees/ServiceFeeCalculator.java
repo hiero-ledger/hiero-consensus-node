@@ -52,18 +52,15 @@ public interface ServiceFeeCalculator {
      * Adds an extra fee to the result.
      *
      * @param result the fee result
-     * @param feeType "Node" or "Service"
      * @param extra the extra fee
      * @param feeSchedule the fee schedule
      * @param amount the amount of the extra fee
      */
-    // TODO: Why do we need a String feeType here?
     default void addExtraFee(
             @NonNull final FeeResult result,
-            @NonNull final String feeType,
             @NonNull final Extra extra,
             @NonNull FeeSchedule feeSchedule,
             final long amount) {
-        result.addServiceFee(feeType, amount, lookupExtraFee(feeSchedule, extra).fee());
+        result.addServiceFee(amount, lookupExtraFee(feeSchedule, extra).fee());
     }
 }

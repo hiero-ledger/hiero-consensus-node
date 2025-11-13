@@ -21,7 +21,7 @@ public class ScheduleSignFeeCalculator implements ServiceFeeCalculator {
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.SCHEDULE_SIGN);
-        feeResult.addServiceFee("Base Fee for " + HederaFunctionality.SCHEDULE_SIGN, 1, serviceDef.baseFee());
+        feeResult.addServiceFee(1, serviceDef.baseFee());
     }
 
     @Override
