@@ -5,6 +5,7 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_NEGATIVE_INFINITY;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.event.GossipEvent;
@@ -25,6 +26,7 @@ import org.hiero.base.crypto.SignatureType;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.transaction.Transaction;
+import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.transaction.TransactionLimits;
 
 /**
@@ -39,9 +41,9 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
     private static final Duration MINIMUM_LOG_PERIOD = Duration.ofMinutes(1);
 
     /**
-     * Whether this node is in a single-node network.
+     * The complete roster history, i.e. all rosters for non-ancient rounds.
      */
-    private final boolean singleNodeNetwork;
+    private RosterHistory rosterHistory;
 
     /**
      * Keeps track of the number of events in the intake pipeline from each peer
@@ -65,18 +67,18 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
     /**
      * Constructor
      *
-     * @param platformContext    the platform context
-     * @param singleNodeNetwork  true if this node is in a single-node network, otherwise false
+     * @param platformContext the platform context
+     * @param singleNodeNetwork true if this node is in a single-node network, otherwise false
      * @param intakeEventCounter keeps track of the number of events in the intake pipeline from each peer
-     * @param transactionLimits  transaction size limits for validation
+     * @param transactionLimits transaction size limits for validation
      */
     public DefaultInternalEventValidator(
             @NonNull final PlatformContext platformContext,
-            final boolean singleNodeNetwork,
+            @Nullable final RosterHistory rosterHistory,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final TransactionLimits transactionLimits) {
 
-        this.singleNodeNetwork = singleNodeNetwork;
+        this.rosterHistory = Objects.requireNonNull(rosterHistory);
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
 
         this.transactionLimits = Objects.requireNonNull(transactionLimits);
@@ -145,6 +147,7 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
 
     /**
      * Checks whether the transaction is null.
+     *
      * @param transaction the transaction to check
      * @return true if the transaction is null, otherwise false
      */
@@ -204,18 +207,29 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
     }
 
     /**
-     * Checks that if parents are present, then the generation and birth round of the parents are internally
-     * consistent.
+     * Checks that the parent hashes are not the same if the roster size is greater than one.
      *
      * @param event the event to check
-     * @return true if the parent hashes and generations of the event are internally consistent, otherwise false
+     * @return true if the parents are legal given the size of the roster
      */
     private boolean areParentsInternallyConsistent(@NonNull final PlatformEvent event) {
-        // If a parent is not missing, then the generation and birth round must be valid.
         final EventDescriptorWrapper selfParent = event.getSelfParent();
 
+        final Roster applicableRoster = rosterHistory.getRosterForRound(
+                event.getDescriptor().eventDescriptor().birthRound());
+        if (applicableRoster == null) {
+            invalidBirthRoundLogger.error(
+                    EXCEPTION.getMarker(),
+                    "Cannot validate parents for event {} without a roster for birth round {}",
+                    event,
+                    event.getBirthRound());
+            invalidBirthRoundAccumulator.update(1);
+            return false;
+        }
+        final int rosterSize = applicableRoster.rosterEntries().size();
+
         // only single node networks are allowed to have identical self-parent and other-parent hashes
-        if (!singleNodeNetwork && selfParent != null) {
+        if (rosterSize > 1 && selfParent != null) {
             for (final EventDescriptorWrapper otherParent : event.getOtherParents()) {
                 if (selfParent.hash().equals(otherParent.hash())) {
                     invalidParentsLogger.error(
@@ -269,8 +283,8 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
         if (areRequiredFieldsNonNull(event)
                 && areByteFieldsCorrectLength(event)
                 && isTransactionByteCountValid(event)
-                && areParentsInternallyConsistent(event)
-                && isEventBirthRoundValid(event)) {
+                && isEventBirthRoundValid(event)
+                && areParentsInternallyConsistent(event)) {
             return event;
         } else {
             intakeEventCounter.eventExitedIntakePipeline(event.getSenderId());

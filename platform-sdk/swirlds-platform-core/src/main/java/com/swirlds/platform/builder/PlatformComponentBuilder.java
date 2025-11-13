@@ -259,11 +259,9 @@ public class PlatformComponentBuilder {
     @NonNull
     public InternalEventValidator buildInternalEventValidator() {
         if (internalEventValidator == null) {
-            final boolean singleNodeNetwork =
-                    blocks.rosterHistory().getCurrentRoster().rosterEntries().size() == 1;
             internalEventValidator = new DefaultInternalEventValidator(
                     blocks.platformContext(),
-                    singleNodeNetwork,
+                    blocks.rosterHistory(),
                     blocks.intakeEventCounter(),
                     blocks.execution().getTransactionLimits());
         }
