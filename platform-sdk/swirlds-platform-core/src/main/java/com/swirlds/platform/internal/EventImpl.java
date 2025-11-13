@@ -159,6 +159,9 @@ public class EventImpl implements Clearable {
 
     @Deprecated
     public List<EventImpl> getOtherParents() {
+        if (this.parents.isEmpty()) {
+            return List.of();
+        }
         final EventImpl firstParent = parents.getFirst();
         if (!firstParent.getCreatorId().equals(this.baseEvent.getCreatorId())) {
             return parents;

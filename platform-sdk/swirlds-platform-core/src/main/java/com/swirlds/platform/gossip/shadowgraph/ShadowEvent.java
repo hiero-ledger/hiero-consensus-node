@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.shadowgraph;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * A shadow event wraps a hashgraph event, and provides parent pointers to shadow events.
- *
  * The shadow event type is the vertex type of the shadow graph. This is the elemental type of {@link Shadowgraph}.
  * It provides a reference to a hashgraph event instance and the following operations:
  *
@@ -17,7 +20,6 @@ import org.hiero.consensus.model.event.PlatformEvent;
  * </ul>
  *
  * All linking and unlinking of a shadow event is implemented by this type.
- *
  * A shadow event never modifies the fields in a hashgraph event.
  */
 public class ShadowEvent {
@@ -32,9 +34,9 @@ public class ShadowEvent {
     private ShadowEvent selfParent;
 
     /**
-     * other-parent
+     * all parents
      */
-    private ShadowEvent otherParent;
+    private List<ShadowEvent> allParents;
 
     /**
      * Construct a shadow event from an event and the shadow events of its parents
@@ -46,10 +48,15 @@ public class ShadowEvent {
      * @param otherParent
      * 		the other-parent event's shadow
      */
+    @Deprecated
     public ShadowEvent(final PlatformEvent event, final ShadowEvent selfParent, final ShadowEvent otherParent) {
+        this(event, selfParent, Stream.of(selfParent, otherParent).filter(Objects::nonNull).toList());
+    }
+
+    public ShadowEvent(final PlatformEvent event, final ShadowEvent selfParent, @NonNull final List<ShadowEvent> allParents) {
         this.event = event;
         this.selfParent = selfParent;
-        this.otherParent = otherParent;
+        this.allParents = allParents;
     }
 
     /**
@@ -59,7 +66,7 @@ public class ShadowEvent {
      * 		the event
      */
     public ShadowEvent(final PlatformEvent event) {
-        this(event, null, null);
+        this(event, null, List.of());
     }
 
     /**
@@ -76,8 +83,22 @@ public class ShadowEvent {
      *
      * @return the other-parent of {@code this} shadow event
      */
+    @Deprecated
     public ShadowEvent getOtherParent() {
-        return this.otherParent;
+        if(this.allParents.isEmpty()) {
+            return null;
+        }
+        if(selfParent == null) {
+            return allParents.getFirst();
+        }else if(allParents.size() == 1) {
+            return null;
+        }else {
+            return allParents.get(1);
+        }
+    }
+
+    public List<ShadowEvent> getAllParents() {
+        return allParents;
     }
 
     /**
@@ -103,7 +124,7 @@ public class ShadowEvent {
      */
     public void disconnect() {
         selfParent = null;
-        otherParent = null;
+        allParents = List.of();
     }
 
     /**
@@ -117,11 +138,9 @@ public class ShadowEvent {
             return true;
         }
 
-        if (!(o instanceof ShadowEvent)) {
+        if (!(o instanceof final ShadowEvent s)) {
             return false;
         }
-
-        final ShadowEvent s = (ShadowEvent) o;
 
         return getEventBaseHash().equals(s.getEventBaseHash());
     }
