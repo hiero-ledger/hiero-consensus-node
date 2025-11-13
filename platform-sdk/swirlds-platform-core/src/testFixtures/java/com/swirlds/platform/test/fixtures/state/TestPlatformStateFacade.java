@@ -12,6 +12,6 @@ public class TestPlatformStateFacade extends PlatformStateFacade {
      */
     @NonNull
     public static PlatformStateModifier getWritablePlatformStateOf(@NonNull State state) {
-        return getWritablePlatformStateOf(state);
+        return PlatformStateFacade.getWritablePlatformStateOf(state);
     }
 }
