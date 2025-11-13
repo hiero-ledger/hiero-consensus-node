@@ -1,18 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.fees;
-
-import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.spec.SpecOperation;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Tag;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.stream.Stream;
 
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
@@ -32,6 +19,19 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SIMPLE_FEE_SCHEDULE;
+
+import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.spec.SpecOperation;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 
 @Tag(SIMPLE_FEES)
 @Tag(MATS)
@@ -57,6 +57,7 @@ public class ConsensusServiceSimpleFeesSuite {
         opsList.addAll(provider.provide());
         return hapiTest(opsList.toArray(new SpecOperation[opsList.size()]));
     }
+
     @Nested
     class TopicFeesComparison {
         private static final String PAYER = "payer";
@@ -72,8 +73,7 @@ public class ConsensusServiceSimpleFeesSuite {
                             .payingWith(PAYER)
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
-                    validateChargedUsd("create-topic-txn", 0.01)
-            ));
+                    validateChargedUsd("create-topic-txn", 0.01)));
         }
 
         @HapiTest()
@@ -89,8 +89,7 @@ public class ConsensusServiceSimpleFeesSuite {
                             .adminKeyName(ADMIN)
                             .fee(ONE_HBAR)
                             .via("create-topic-admin-txn"),
-                    validateChargedUsd("create-topic-admin-txn", 0.01630)
-            ));
+                    validateChargedUsd("create-topic-admin-txn", 0.01630)));
         }
 
         @HapiTest()
@@ -105,8 +104,7 @@ public class ConsensusServiceSimpleFeesSuite {
                             .adminKeyName(PAYER)
                             .fee(ONE_HBAR)
                             .via("create-topic-admin-txn"),
-                    validateChargedUsd("create-topic-admin-txn", 0.01022))
-            );
+                    validateChargedUsd("create-topic-admin-txn", 0.01022)));
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -155,9 +153,7 @@ public class ConsensusServiceSimpleFeesSuite {
                             .message(new String(messageBytes))
                             .fee(ONE_HBAR)
                             .via("submit-message-txn"),
-                    validateChargedUsd("submit-message-txn", 0.00010))
-            );
-
+                    validateChargedUsd("submit-message-txn", 0.00010)));
         }
 
         @HapiTest()
@@ -184,33 +180,33 @@ public class ConsensusServiceSimpleFeesSuite {
                             .message(new String(messageBytes))
                             .fee(ONE_HBAR)
                             .via("submit-message-txn"),
-                    validateChargedUsdWithin("submit-message-txn", 0.0001233,1)));
+                    validateChargedUsdWithin("submit-message-txn", 0.0001233, 1)));
         }
 
         // TODO: support queries
-//        @HapiTest()
-//        @DisplayName("compare get topic info")
-//        final Stream<DynamicTest> getTopicInfoComparison() {
-//            return compare(() -> Arrays.asList(
-//                    newKeyNamed(PAYER),
-//                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-//                    // create topic. provide up to 1 hbar to pay for it
-//                    createTopic("testTopic")
-//                            .blankMemo()
-//                            .payingWith(PAYER)
-//                            .adminKeyName(PAYER)
-//                            .fee(ONE_HBAR)
-//                            .via("create-topic-txn"),
-//                    // the extra 10 is for the admin key
-//                    validateChargedUsd("create-topic-txn", 0.01022),
-//                    // get topic info, provide up to 1 hbar to pay for it
-//                    getTopicInfo("testTopic")
-//                            .payingWith(PAYER)
-//                            .fee(ONE_HBAR)
-//                            .via("get-topic-txn")
-//                            .logged(),
-//                    validateChargedUsd("get-topic-txn", 0.000101)));
-//        }
+        //        @HapiTest()
+        //        @DisplayName("compare get topic info")
+        //        final Stream<DynamicTest> getTopicInfoComparison() {
+        //            return compare(() -> Arrays.asList(
+        //                    newKeyNamed(PAYER),
+        //                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+        //                    // create topic. provide up to 1 hbar to pay for it
+        //                    createTopic("testTopic")
+        //                            .blankMemo()
+        //                            .payingWith(PAYER)
+        //                            .adminKeyName(PAYER)
+        //                            .fee(ONE_HBAR)
+        //                            .via("create-topic-txn"),
+        //                    // the extra 10 is for the admin key
+        //                    validateChargedUsd("create-topic-txn", 0.01022),
+        //                    // get topic info, provide up to 1 hbar to pay for it
+        //                    getTopicInfo("testTopic")
+        //                            .payingWith(PAYER)
+        //                            .fee(ONE_HBAR)
+        //                            .via("get-topic-txn")
+        //                            .logged(),
+        //                    validateChargedUsd("get-topic-txn", 0.000101)));
+        //        }
 
         @HapiTest()
         @DisplayName("compare delete topic with admin key")
@@ -226,8 +222,7 @@ public class ConsensusServiceSimpleFeesSuite {
                             .via("create-topic-admin-txn"),
                     validateChargedUsd("create-topic-admin-txn", 0.01630),
                     deleteTopic("testTopic").payingWith(PAYER).fee(ONE_HBAR).via("delete-topic-txn"),
-                    validateChargedUsdWithin("delete-topic-txn", 0.0082,1)));
+                    validateChargedUsdWithin("delete-topic-txn", 0.0082, 1)));
         }
     }
-
 }

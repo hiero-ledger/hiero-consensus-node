@@ -79,9 +79,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import org.hiero.hapi.fees.FeeModelRegistry;
-import org.hiero.hapi.fees.FeeResult;
-import org.hiero.hapi.support.fees.Extra;
 
 /**
  * This class contains all workflow-related functionality regarding

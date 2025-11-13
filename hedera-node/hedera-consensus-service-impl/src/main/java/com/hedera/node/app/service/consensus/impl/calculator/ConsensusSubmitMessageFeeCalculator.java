@@ -1,4 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.consensus.impl.calculator;
+
+import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -11,15 +14,18 @@ import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
-import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
-
-
 public class ConsensusSubmitMessageFeeCalculator implements ServiceFeeCalculator {
 
     @Override
-    public void accumulateServiceFee(@NonNull TransactionBody txnBody, @Nullable CalculatorState calculatorState, @NonNull FeeResult feeResult, @NonNull FeeSchedule feeSchedule) {
-        final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE);
-        feeResult.addServiceFee("Base fee for " + HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE, 1, serviceDef.baseFee());
+    public void accumulateServiceFee(
+            @NonNull TransactionBody txnBody,
+            @Nullable CalculatorState calculatorState,
+            @NonNull FeeResult feeResult,
+            @NonNull FeeSchedule feeSchedule) {
+        final ServiceFeeDefinition serviceDef =
+                lookupServiceFee(feeSchedule, HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE);
+        feeResult.addServiceFee(
+                "Base fee for " + HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE, 1, serviceDef.baseFee());
 
         final var op = txnBody.consensusSubmitMessageOrThrow();
 
@@ -36,4 +42,3 @@ public class ConsensusSubmitMessageFeeCalculator implements ServiceFeeCalculator
         return TransactionBody.DataOneOfType.CONSENSUS_SUBMIT_MESSAGE;
     }
 }
-

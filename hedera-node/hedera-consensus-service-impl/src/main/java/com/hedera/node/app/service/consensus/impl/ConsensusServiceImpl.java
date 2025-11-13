@@ -11,7 +11,6 @@ import com.hedera.node.app.spi.RpcService;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.Set;
 
 /**
@@ -29,14 +28,12 @@ public final class ConsensusServiceImpl implements ConsensusService {
         registry.register(new V0490ConsensusSchema());
     }
 
-
     @Override
     public Set<ServiceFeeCalculator> serviceFeeCalculators() {
         return Set.of(
                 new ConsensusCreateTopicFeeCalculator(),
                 new ConsensusDeleteTopicFeeCalculator(),
                 new ConsensusUpdateTopicFeeCalculator(),
-                new ConsensusSubmitMessageFeeCalculator()
-        );
+                new ConsensusSubmitMessageFeeCalculator());
     }
 }

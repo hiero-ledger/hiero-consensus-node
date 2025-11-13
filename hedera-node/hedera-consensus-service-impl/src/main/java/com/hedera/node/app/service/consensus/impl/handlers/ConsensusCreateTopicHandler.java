@@ -46,13 +46,8 @@ import com.hedera.node.config.data.TopicsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.HashMap;
-import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import org.hiero.hapi.fees.FeeModelRegistry;
-import org.hiero.hapi.fees.FeeResult;
-import org.hiero.hapi.support.fees.Extra;
 
 /**
  * This class contains all workflow-related functionality regarding {@link HederaFunctionality#CONSENSUS_CREATE_TOPIC}.
@@ -232,7 +227,6 @@ public class ConsensusCreateTopicHandler implements TransactionHandler {
                 .feeCalculator(subType)
                 .legacyCalculate(sigValueObj -> usageGiven(CommonPbjConverters.fromPbj(body), sigValueObj));
     }
-
 
     private FeeData usageGiven(
             final com.hederahashgraph.api.proto.java.TransactionBody txn, final SigValueObj sigUsage) {

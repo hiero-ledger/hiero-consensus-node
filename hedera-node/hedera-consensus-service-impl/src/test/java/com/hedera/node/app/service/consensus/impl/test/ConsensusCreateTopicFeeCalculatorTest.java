@@ -1,5 +1,11 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.consensus.impl.test;
 
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
+import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
+import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
+import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.consensus.ConsensusCreateTopicTransactionBody;
@@ -7,6 +13,8 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusCreateTopicFeeCalculator;
 import com.hedera.node.app.spi.fees.CalculatorState;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
+import java.util.List;
+import java.util.Set;
 import org.assertj.core.api.Assertions;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
@@ -19,15 +27,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.util.List;
-import java.util.Set;
-
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
-import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
-import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
-import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
-import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 
 /**
  * Unit tests for {@link ConsensusCreateTopicFeeCalculator}.
@@ -53,7 +52,8 @@ public class ConsensusCreateTopicFeeCalculatorTest {
         @DisplayName("calculate fee")
         void calculateFee() {
             final var op = ConsensusCreateTopicTransactionBody.newBuilder().build();
-            final var body = TransactionBody.newBuilder().consensusCreateTopic(op).build();
+            final var body =
+                    TransactionBody.newBuilder().consensusCreateTopic(op).build();
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
 
             assertThat(result).isNotNull();
@@ -79,7 +79,9 @@ public class ConsensusCreateTopicFeeCalculatorTest {
                 .services(makeService(
                         "Consensus",
                         makeServiceFee(
-                                HederaFunctionality.CONSENSUS_CREATE_TOPIC, 498500000L, makeExtraIncluded(Extra.SIGNATURES, 1))))
+                                HederaFunctionality.CONSENSUS_CREATE_TOPIC,
+                                498500000L,
+                                makeExtraIncluded(Extra.SIGNATURES, 1))))
                 .build();
     }
 }
