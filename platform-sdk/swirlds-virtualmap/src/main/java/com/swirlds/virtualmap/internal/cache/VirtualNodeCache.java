@@ -1181,7 +1181,7 @@ public final class VirtualNodeCache implements FastCopyable {
     }
 
     public VirtualHashChunk preloadHashChunk(final long path) {
-        /*
+
         final long hashChunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
         return idToDirtyHashChunkIndex.compute(hashChunkId, (id, mutation) -> {
                     Mutation<Long, VirtualHashChunk> nextMutation = mutation;
@@ -1200,14 +1200,12 @@ public final class VirtualNodeCache implements FastCopyable {
                         }
                         nextMutation = new Mutation<>(null, hashChunkId, hashChunk, fastCopyVersion.get());
                         dirtyHashChunks.add(nextMutation);
-                        sizeDelta += (long) VirtualHashChunk.getChunkSize(hashChunkHeight)
-                                * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
+                        sizeDelta += (long) hashChunk.getChunkSize() * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
                     } else if (nextMutation.version != fastCopyVersion.get()) {
                         final VirtualHashChunk hashChunk = nextMutation.value.copy();
                         nextMutation = new Mutation<>(nextMutation, hashChunkId, hashChunk, fastCopyVersion.get());
                         dirtyHashChunks.add(nextMutation);
-                        sizeDelta += (long) VirtualHashChunk.getChunkSize(hashChunkHeight)
-                                * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
+                        sizeDelta += (long) hashChunk.getChunkSize() * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
                     } else {
                         assert nextMutation.notFiltered();
                     }
@@ -1221,8 +1219,8 @@ public final class VirtualNodeCache implements FastCopyable {
                     return mutation;
                 })
                 .value;
-        */
 
+        /*
         final long hashChunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
         Mutation<Long, VirtualHashChunk> mutation = idToDirtyHashChunkIndex.get(hashChunkId);
         if (mutation != null) {
@@ -1243,7 +1241,7 @@ public final class VirtualNodeCache implements FastCopyable {
             assert chunk.getChunkId() == hashChunkId;
             return chunk;
         }
-
+        */
     }
 
     private void updateHashChunk(final VirtualHashChunk chunk) {
@@ -1259,15 +1257,12 @@ public final class VirtualNodeCache implements FastCopyable {
             if ((nextMutation == null) || (nextMutation.version != fastCopyVersion.get())) {
                 nextMutation = new Mutation<>(nextMutation, hashChunkId, chunk, fastCopyVersion.get());
                 dirtyHashChunks.add(nextMutation);
-                sizeDelta += (long) VirtualHashChunk.getChunkSize(nextMutation.value.height())
-                        * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
+                sizeDelta += (long) chunk.getChunkSize() * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
             } else {
                 assert nextMutation.notFiltered();
-                sizeDelta -= (long) VirtualHashChunk.getChunkSize(nextMutation.value.height())
-                        * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
+                sizeDelta -= (long) nextMutation.value.getChunkSize() * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
                 nextMutation.value = chunk;
-                sizeDelta += (long) VirtualHashChunk.getChunkSize(nextMutation.value.height())
-                        * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
+                sizeDelta += (long) chunk.getChunkSize() * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
             }
             if (previousMutation != null) {
                 assert previousMutation.notFiltered();
