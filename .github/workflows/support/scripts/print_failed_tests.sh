@@ -3,7 +3,7 @@ set -eo pipefail
 
 # Function to print failed tests/checks
 function main() {
-  local tests_output="$1"
+  local tests_output="${1}"
   if [[ -n "${tests_output}" ]]; then
     IFS=',' read -ra TESTS <<< "${tests_output}"
     for test in "${TESTS[@]}"; do
@@ -15,7 +15,7 @@ function main() {
 }
 
 echo "::group::Main Code Execution"
-main
+main "${1}"
 ec="${?}"
 echo "Process Exit Code: ${ec}"
 echo "::endgroup::"
