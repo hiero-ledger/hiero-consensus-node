@@ -11,8 +11,11 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
+import com.swirlds.platform.event.preconsensus.PcesMultiFileIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 import java.time.Duration;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
@@ -29,7 +32,7 @@ public class HappyPathTest {
      * @param env the test environment for this test
      */
     @OtterTest
-    void testHappyPath(@NonNull final TestEnvironment env) {
+    void testHappyPath(@NonNull final TestEnvironment env) throws IOException {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
@@ -56,5 +59,22 @@ public class HappyPathTest {
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
 
         assertThat(network.newEventStreamResults()).haveEqualFiles();
+        network.shutdown();
+
+        int max = 0;
+        int count = 0;
+        double sum = 0;
+        try(final PcesMultiFileIterator pces = network.newPcesResults().pcesResults().getFirst().pcesEvents()){
+            while (pces.hasNext()){
+                count++;
+                final int numParents = pces.next().getAllParents().size();
+                max = Math.max(max, numParents);
+                sum += numParents;
+            }
+        }
+
+        System.out.println("Max number of parents: " + max);
+        System.out.println("Average number of parents: " + (sum/count));
+
     }
 }
