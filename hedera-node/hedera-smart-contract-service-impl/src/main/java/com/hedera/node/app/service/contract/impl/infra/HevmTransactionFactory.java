@@ -48,7 +48,6 @@ import com.hedera.hapi.node.contract.EthereumTransactionBody;
 import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
-import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.contract.impl.annotations.InitialState;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
@@ -296,7 +295,7 @@ public class HevmTransactionFactory {
                     case ETHEREUM_TRANSACTION -> {
                         final var ethTxData = assertValidEthTx(body.ethereumTransactionOrThrow());
                         sender = asAliasedSender(ethTxData);
-                        relayer = body.transactionID().accountID();
+                        relayer = body.transactionIDOrThrow().accountID();
                         yield ethTxData.gasLimit();
                     }
                     case HOOK_DISPATCH ->
@@ -336,10 +335,8 @@ public class HevmTransactionFactory {
     }
 
     private void assertValidCall(@NonNull final ContractCallTransactionBody body) {
-        final var minGasLimit = Math.max(
-                ContractServiceImpl.INTRINSIC_GAS_LOWER_BOUND,
-                gasCalculator.transactionIntrinsicGasCost(EMPTY, false, 0L));
-        validateTrue(body.gas() >= minGasLimit, INSUFFICIENT_GAS);
+        final var gasRequirements = gasCalculator.transactionGasRequirements(EMPTY, false, 0L);
+        validateTrue(body.gas() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
         validateTrue(body.amount() >= 0, CONTRACT_NEGATIVE_VALUE);
         validateTrue(body.gas() <= getMaxGasLimit(contractsConfig), MAX_GAS_LIMIT_EXCEEDED);
 

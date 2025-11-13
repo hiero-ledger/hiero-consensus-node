@@ -96,6 +96,7 @@ class CustomGasChargingTest {
         final var chargingResult = subject.chargeForGas(sender, relayer, context, worldUpdater, wellKnownHapiCall());
         assertEquals(0, chargingResult.relayerAllowanceUsed());
         assertEquals(TestHelpers.INTRINSIC_GAS, chargingResult.intrinsicGas());
+        assertEquals(TestHelpers.INTRINSIC_GAS, chargingResult.minimumGasUsed());
     }
 
     @Test
@@ -416,12 +417,12 @@ class CustomGasChargingTest {
     }
 
     private void givenWellKnownIntrinsicGasCost(boolean isCreation) {
-        given(gasCalculator.transactionIntrinsicGasCost(any(), eq(isCreation), anyLong()))
-                .willReturn(TestHelpers.INTRINSIC_GAS);
+        given(gasCalculator.transactionGasRequirements(any(), eq(isCreation), anyLong()))
+                .willReturn(TestHelpers.NO_ALLOWANCE_CHARGING_RESULT);
     }
 
     private void givenExcessiveIntrinsicGasCost(boolean isCreation) {
-        given(gasCalculator.transactionIntrinsicGasCost(any(), eq(isCreation), anyLong()))
-                .willReturn(100_000_000L);
+        given(gasCalculator.transactionGasRequirements(any(), eq(isCreation), anyLong()))
+                .willReturn(TestHelpers.gasChargesFromIntrinsicGas(100_000_000L));
     }
 }

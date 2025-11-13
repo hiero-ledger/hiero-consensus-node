@@ -143,7 +143,13 @@ public class TransactionProcessor {
 
         // Compute the result of running the frame to completion
         final var result = frameRunner.runToCompletion(
-                transaction.gasLimit(), parties.senderId(), initialFrame, tracer, messageCall, contractCreation);
+                transaction.gasLimit(),
+                parties.senderId(),
+                initialFrame,
+                tracer,
+                messageCall,
+                contractCreation,
+                gasCharges);
 
         // Maybe refund some of the charged fees before committing if not a hook dispatch
         // Note that for hook dispatch, gas is charged during cryptoTransfer and will not be refunded once

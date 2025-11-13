@@ -82,8 +82,8 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
             final var op = txn.contractCreateInstanceOrThrow();
 
             // TODO: Revisit baselineGas with Pectra support epic
-            final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(Bytes.wrap(new byte[0]), true, 0L);
-            validateTruePreCheck(op.gas() >= intrinsicGas, INSUFFICIENT_GAS);
+            final var gasRequirements = gasCalculator.transactionGasRequirements(Bytes.wrap(new byte[0]), true, 0L);
+            validateTruePreCheck(op.gas() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
             validateHookDuplicates(op.hookCreationDetails());
         } catch (@NonNull final Exception e) {
             bumpExceptionMetrics(CONTRACT_CREATE, e);

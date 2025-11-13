@@ -65,9 +65,9 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
 
     /**
      * @param ethereumSignatures the ethereum signatures
-     * @param callDataHydration the ethereum call data hydratino utility to be used for EthTxData
-     * @param provider the provider to be used
-     * @param gasCalculator the gas calculator to be used
+     * @param callDataHydration  the ethereum call data hydratino utility to be used for EthTxData
+     * @param provider           the provider to be used
+     * @param gasCalculator      the gas calculator to be used
      */
     @Inject
     public EthereumTransactionHandler(
@@ -105,9 +105,9 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
             validateTruePreCheck(nonNull(ethTxData), INVALID_ETHEREUM_TRANSACTION);
             final byte[] callData = ethTxData.hasCallData() ? ethTxData.callData() : new byte[0];
             // TODO: Revisit baselineGas with Pectra support epic
-            final var intrinsicGas =
-                    gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(callData), false, 0L);
-            validateTruePreCheck(ethTxData.gasLimit() >= intrinsicGas, INSUFFICIENT_GAS);
+            final var gasRequirements =
+                    gasCalculator.transactionGasRequirements(org.apache.tuweni.bytes.Bytes.wrap(callData), false, 0L);
+            validateTruePreCheck(ethTxData.gasLimit() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
             // Do not allow sending HBars to Burn Address
             if (ethTxData.value().compareTo(BigInteger.ZERO) > 0) {
                 validateFalsePreCheck(Arrays.equals(ethTxData.to(), EMPTY_ADDRESS), INVALID_SOLIDITY_ADDRESS);
@@ -129,9 +129,9 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
      * If the given transaction, when hydrated from the given file store with the given config, implies a valid
      * {@link EthTxSigs}, returns it. Otherwise, returns null.
      *
-     * @param op the transaction
+     * @param op        the transaction
      * @param fileStore the file store
-     * @param config the configuration
+     * @param config    the configuration
      * @return the implied Ethereum signature metadata
      */
     public @Nullable EthTxSigs maybeEthTxSigsFor(
@@ -182,6 +182,7 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
 
     /**
      * Does work needed to externalize details after an Ethereum transaction is throttled.
+     *
      * @param context the handle context
      */
     public void handleThrottled(@NonNull final HandleContext context) {

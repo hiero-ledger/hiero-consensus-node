@@ -19,6 +19,7 @@ import static org.hyperledger.besu.evm.frame.MessageFrame.State.EXCEPTIONAL_HALT
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
@@ -57,12 +58,13 @@ public class FrameRunner {
      * Runs the EVM transaction implied by the given {@link MessageFrame} to completion using the provided
      * {@link org.hyperledger.besu.evm.processor.AbstractMessageProcessor} implementations, and returns the result.
      *
-     * @param gasLimit the gas limit for the transaction
-     * @param frame the frame to run
-     * @param senderId the Hedera id of the sending account
-     * @param tracer the tracer to use
-     * @param messageCall the message call processor to use
+     * @param gasLimit         the gas limit for the transaction
+     * @param frame            the frame to run
+     * @param senderId         the Hedera id of the sending account
+     * @param tracer           the tracer to use
+     * @param messageCall      the message call processor to use
      * @param contractCreation the contract creation processor to use
+     * @param gasCharges       the gas charges of the transaction
      * @return the result of the transaction
      */
     public HederaEvmTransactionResult runToCompletion(
@@ -71,7 +73,8 @@ public class FrameRunner {
             @NonNull final MessageFrame frame,
             @NonNull final ActionSidecarContentTracer tracer,
             @NonNull final CustomMessageCallProcessor messageCall,
-            @NonNull final ContractCreationProcessor contractCreation) {
+            @NonNull final ContractCreationProcessor contractCreation,
+            @NonNull final GasCharges gasCharges) {
         requireNonNull(frame);
         requireNonNull(tracer);
         requireNonNull(senderId);
@@ -92,7 +95,7 @@ public class FrameRunner {
         tracer.sanitizeTracedActions(frame);
 
         // And return the result, success or failure
-        final var gasUsed = effectiveGasUsed(gasLimit, frame);
+        final var gasUsed = effectiveGasUsed(gasLimit, frame, gasCharges);
         if (frame.getState() == COMPLETED_SUCCESS) {
             return successFrom(
                     gasUsed,
@@ -157,15 +160,25 @@ public class FrameRunner {
         }
     }
 
-    private long effectiveGasUsed(final long gasLimit, @NonNull final MessageFrame frame) {
+    private long effectiveGasUsed(
+            final long gasLimit, @NonNull final MessageFrame frame, @NonNull final GasCharges gasCharges) {
         final var nominalGasUsed = gasLimit - frame.getRemainingGas();
 
         // A gas refund limit as defined in EIP-3529
         final var nominalRefund = frame.getGasRefund();
         final var maxGasRefunded = nominalGasUsed / gasCalculator.getMaxRefundQuotient();
         final var actualGasToRefund = Math.min(maxGasRefunded, nominalRefund);
+        var gasUsedAfterRefund = nominalGasUsed - actualGasToRefund;
 
-        final var gasUsedAfterRefund = nominalGasUsed - actualGasToRefund;
+        // This check is added according to https://eips.ethereum.org/EIPS/eip-7623. Issue
+        // https://github.com/hiero-ledger/hiero-consensus-node/issues/21553
+        // 1. `minimumGasUsed = max(intrinsicGas, floorGas)`
+        // 2. we can calculate `gasUsedAfterRefund` just after `execution_gas_used` will be calculated and refund will
+        // be applied
+        // 3. if `gasUsedAfterRefund < minimumGasUsed` we should charge `minimumGasUsed` instead.
+        if (gasUsedAfterRefund < gasCharges.minimumGasUsed()) {
+            gasUsedAfterRefund = gasCharges.minimumGasUsed();
+        }
 
         // Hedera-specific restriction: the transaction can't use less gas than a certain percentage of gasLimit
         final var maxRefundPercentOfGasLimit = contractsConfigOf(frame).maxRefundPercentOfGasLimit();

@@ -16,8 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.notNull;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -35,6 +34,7 @@ import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextTransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
+import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
@@ -43,6 +43,7 @@ import com.hedera.node.app.service.contract.impl.handlers.ContractCreateHandler;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
+import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
@@ -122,9 +123,6 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
 
     @Mock
     private TokenServiceApi tokenServiceApi;
-
-    @Mock
-    private EvmFrameStates evmFrameStates;
 
     private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
 
@@ -290,8 +288,8 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
     void validatePureChecks() {
         // check at least intrinsic gas
         final var txn1 = contractCreateTransactionWithInsufficientGas();
-        given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), true, 0L))
-                .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
+        given(gasCalculator.transactionGasRequirements(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), true, 0L))
+                .willReturn(TestHelpers.gasChargesFromIntrinsicGas(INTRINSIC_GAS_FOR_0_ARG_METHOD));
         given(pureChecksContext.body()).willReturn(txn1);
         assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
     }
@@ -334,6 +332,8 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
 
     @Test
     void validateRepeatedHookIds() {
+        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), anyLong()))
+                .willReturn(GasCharges.NONE);
         final var txn = TransactionBody.newBuilder()
                 .transactionID(transactionID)
                 .contractCreateInstance(ContractCreateTransactionBody.newBuilder()

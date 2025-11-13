@@ -6,32 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.TRACKER_CONTEXT_VARIABLE;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALL_DATA;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CHARGING_RESULT;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CODE_FACTORY;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.GAS_LIMIT;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.INVALID_CONTRACT_ADDRESS;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.MAINNET_CHAIN_ID;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.MAX_GAS_ALLOWANCE;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NETWORK_GAS_PRICE;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NONCE;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NO_ALLOWANCE_CHARGING_RESULT;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.RECEIVER_ID;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.RELAYER_ID;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.USER_OFFERED_GAS_PRICE;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.VALID_CONTRACT_ADDRESS;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.VALUE;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownContextWith;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownHapiCall;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownHapiCreate;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownRelayedHapiCall;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownRelayedHapiCreate;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -243,7 +218,8 @@ class TransactionProcessorTest {
                         initialFrame,
                         tracer,
                         messageCallProcessor,
-                        contractCreationProcessor))
+                        contractCreationProcessor,
+                        CHARGING_RESULT))
                 .willReturn(SUCCESS_RESULT);
 
         final var result =
@@ -299,7 +275,8 @@ class TransactionProcessorTest {
                         initialFrame,
                         tracer,
                         messageCallProcessor,
-                        contractCreationProcessor))
+                        contractCreationProcessor,
+                        CHARGING_RESULT))
                 .willReturn(SUCCESS_RESULT);
         given(featureFlags.isAllowCallsToNonContractAccountsEnabled(any(), any()))
                 .willReturn(true);
@@ -357,7 +334,8 @@ class TransactionProcessorTest {
                         initialFrame,
                         tracer,
                         messageCallProcessor,
-                        contractCreationProcessor))
+                        contractCreationProcessor,
+                        CHARGING_RESULT))
                 .willReturn(SUCCESS_RESULT);
         given(featureFlags.isAllowCallsToNonContractAccountsEnabled(any(), any()))
                 .willReturn(true);
@@ -438,7 +416,6 @@ class TransactionProcessorTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     void ethCreateHappyPathAsExpected() {
         final var inOrder = inOrder(worldUpdater, frameBuilder, frameRunner, gasCharging, senderAccount);
 
@@ -473,7 +450,8 @@ class TransactionProcessorTest {
                         initialFrame,
                         tracer,
                         messageCallProcessor,
-                        contractCreationProcessor))
+                        contractCreationProcessor,
+                        CHARGING_RESULT))
                 .willReturn(SUCCESS_RESULT);
         final var parsedAccount =
                 Account.newBuilder().accountId(senderAccount.hederaId()).build();
@@ -505,7 +483,8 @@ class TransactionProcessorTest {
                         initialFrame,
                         tracer,
                         messageCallProcessor,
-                        contractCreationProcessor);
+                        contractCreationProcessor,
+                        CHARGING_RESULT);
         inOrder.verify(gasCharging)
                 .maybeRefundGiven(
                         GAS_LIMIT - SUCCESS_RESULT.gasUsed(),
@@ -520,7 +499,6 @@ class TransactionProcessorTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     void hapiCreateHappyPathAsExpected() {
         final var inOrder = inOrder(worldUpdater, frameBuilder, frameRunner, gasCharging, senderAccount);
 
@@ -544,7 +522,7 @@ class TransactionProcessorTest {
                         featureFlags,
                         EIP_1014_ADDRESS,
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
-                        CHARGING_RESULT.intrinsicGas(),
+                        NO_ALLOWANCE_CHARGING_RESULT.intrinsicGas(),
                         CODE_FACTORY))
                 .willReturn(initialFrame);
         given(frameRunner.runToCompletion(
@@ -553,7 +531,8 @@ class TransactionProcessorTest {
                         initialFrame,
                         tracer,
                         messageCallProcessor,
-                        contractCreationProcessor))
+                        contractCreationProcessor,
+                        NO_ALLOWANCE_CHARGING_RESULT))
                 .willReturn(SUCCESS_RESULT);
         given(initialFrame.getSelfDestructs()).willReturn(Set.of(NON_SYSTEM_LONG_ZERO_ADDRESS));
 
@@ -572,7 +551,7 @@ class TransactionProcessorTest {
                         featureFlags,
                         EIP_1014_ADDRESS,
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
-                        CHARGING_RESULT.intrinsicGas(),
+                        NO_ALLOWANCE_CHARGING_RESULT.intrinsicGas(),
                         CODE_FACTORY);
         inOrder.verify(frameRunner)
                 .runToCompletion(
@@ -581,7 +560,8 @@ class TransactionProcessorTest {
                         initialFrame,
                         tracer,
                         messageCallProcessor,
-                        contractCreationProcessor);
+                        contractCreationProcessor,
+                        NO_ALLOWANCE_CHARGING_RESULT);
         inOrder.verify(gasCharging)
                 .maybeRefundGiven(GAS_LIMIT - SUCCESS_RESULT.gasUsed(), 0, senderAccount, null, context, worldUpdater);
         inOrder.verify(worldUpdater).deleteAccount(NON_SYSTEM_LONG_ZERO_ADDRESS);
@@ -591,7 +571,6 @@ class TransactionProcessorTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     void ethCallHappyPathAsExpected() {
         final var inOrder =
                 inOrder(worldUpdater, frameBuilder, frameRunner, gasCharging, messageCallProcessor, senderAccount);
@@ -627,7 +606,8 @@ class TransactionProcessorTest {
                         eq(initialFrame),
                         eq(tracer),
                         any(),
-                        eq(contractCreationProcessor)))
+                        eq(contractCreationProcessor),
+                        eq(CHARGING_RESULT)))
                 .willReturn(SUCCESS_RESULT);
         given(initialFrame.getSelfDestructs()).willReturn(Set.of(NON_SYSTEM_LONG_ZERO_ADDRESS));
 
@@ -654,7 +634,8 @@ class TransactionProcessorTest {
                         initialFrame,
                         tracer,
                         messageCallProcessor,
-                        contractCreationProcessor);
+                        contractCreationProcessor,
+                        CHARGING_RESULT);
         inOrder.verify(gasCharging)
                 .maybeRefundGiven(
                         GAS_LIMIT - SUCCESS_RESULT.gasUsed(),
@@ -669,7 +650,6 @@ class TransactionProcessorTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     void ethCallHappyPathAsExpectedAndCanCallNotExistingFeatureFlagOn() {
         final var inOrder =
                 inOrder(worldUpdater, frameBuilder, frameRunner, gasCharging, messageCallProcessor, senderAccount);
@@ -705,7 +685,8 @@ class TransactionProcessorTest {
                         eq(initialFrame),
                         eq(tracer),
                         any(),
-                        eq(contractCreationProcessor)))
+                        eq(contractCreationProcessor),
+                        eq(CHARGING_RESULT)))
                 .willReturn(SUCCESS_RESULT);
         given(initialFrame.getSelfDestructs()).willReturn(Set.of(NON_SYSTEM_LONG_ZERO_ADDRESS));
         given(featureFlags.isAllowCallsToNonContractAccountsEnabled(any(), any()))
@@ -735,7 +716,8 @@ class TransactionProcessorTest {
                         initialFrame,
                         tracer,
                         messageCallProcessor,
-                        contractCreationProcessor);
+                        contractCreationProcessor,
+                        CHARGING_RESULT);
         inOrder.verify(gasCharging)
                 .maybeRefundGiven(
                         GAS_LIMIT - SUCCESS_RESULT.gasUsed(),
@@ -750,7 +732,6 @@ class TransactionProcessorTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     void ethCallAsExpectedWithResourceExhaustionInCommit() {
         givenSenderAccount();
         givenRelayerAccount();
@@ -783,7 +764,8 @@ class TransactionProcessorTest {
                         eq(initialFrame),
                         eq(tracer),
                         any(),
-                        eq(contractCreationProcessor)))
+                        eq(contractCreationProcessor),
+                        eq(CHARGING_RESULT)))
                 .willReturn(SUCCESS_RESULT);
         given(initialFrame.getSelfDestructs()).willReturn(Set.of(NON_SYSTEM_LONG_ZERO_ADDRESS));
 

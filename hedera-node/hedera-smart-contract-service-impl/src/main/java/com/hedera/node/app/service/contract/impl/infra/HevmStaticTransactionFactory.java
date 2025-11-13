@@ -30,14 +30,13 @@ import javax.inject.Inject;
  */
 @QueryScope
 public class HevmStaticTransactionFactory {
-    private static final long INTRINSIC_GAS_LOWER_BOUND = 21_000L;
     private final ContractsConfig contractsConfig;
     private final HederaGasCalculator gasCalculator;
     private final QueryContext context;
     private final AccountID payerId;
 
     /**
-     * @param context the context of this query
+     * @param context       the context of this query
      * @param gasCalculator the gas calculator for this query
      */
     @Inject
@@ -83,7 +82,7 @@ public class HevmStaticTransactionFactory {
      * Given a {@link Query} and an {@link Exception},
      * create and return a {@link HederaEvmTransaction} containing the exception and gas limit
      *
-     * @param query the {@link ContractCallLocalQuery} to convert
+     * @param query     the {@link ContractCallLocalQuery} to convert
      * @param exception the {@link Exception} to wrap
      * @return the implied {@link HederaEvmTransaction}
      */
@@ -113,9 +112,8 @@ public class HevmStaticTransactionFactory {
 
     private void assertValidCall(@NonNull final ContractCallLocalQuery body) {
         // TODO: Revisit baselineGas with Pectra support epic
-        final var minGasLimit =
-                Math.max(INTRINSIC_GAS_LOWER_BOUND, gasCalculator.transactionIntrinsicGasCost(EMPTY, false, 0));
-        validateTrue(body.gas() >= minGasLimit, INSUFFICIENT_GAS);
+        final var gasRequirements = gasCalculator.transactionGasRequirements(EMPTY, false, 0);
+        validateTrue(body.gas() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
         validateTrue(body.gas() <= getMaxGasLimit(contractsConfig), MAX_GAS_LIMIT_EXCEEDED);
     }
 }
