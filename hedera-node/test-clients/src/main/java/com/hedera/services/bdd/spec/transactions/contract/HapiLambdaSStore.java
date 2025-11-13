@@ -142,7 +142,7 @@ public class HapiLambdaSStore extends HapiTxnOp<HapiLambdaSStore> {
     protected List<Function<HapiSpec, Key>> defaultSigners() {
         final Function<HapiSpec, Key> ownerSigner =
                 switch (ownerType) {
-                    case ACCOUNT_ID ->
+                    case ACCOUNT_ID, CONTRACT_ID ->
                         spec -> {
                             final var ownerKey = spec.registry().getKey(ownerName);
                             final var payerKey = spec.registry().getKey(effectivePayer(spec));
