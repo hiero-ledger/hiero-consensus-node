@@ -430,6 +430,34 @@ public class BlockNodeConnectionManager {
         }
     }
 
+    /**
+     * Connection initiated a reset of the stream
+     * @param connection the connection that initiated the reset of the stream
+     */
+    public void connectionResetsTheStream(@NonNull final BlockNodeConnection connection) {
+        if (!isStreamingEnabled()) {
+            return;
+        }
+        requireNonNull(connection);
+
+        removeConnectionAndClearActive(connection);
+
+        // Immediately try to find and connect to the next available node
+        selectNewBlockNodeForStreaming(false);
+    }
+
+    /**
+     * Removes a connection from the connections map and clears the active reference if this was the active connection.
+     * This is a utility method to ensure consistent cleanup behavior.
+     *
+     * @param connection the connection to remove and clean up
+     */
+    private void removeConnectionAndClearActive(@NonNull final BlockNodeConnection connection) {
+        requireNonNull(connection);
+        connections.remove(connection.getBlockNodeConnectionConfig(), connection);
+        activeConnectionRef.compareAndSet(connection, null);
+    }
+
     private void scheduleConnectionAttempt(
             @NonNull final BlockNodeProtocolConfig blockNodeConfig,
             @NonNull final Duration initialDelay,
@@ -455,6 +483,7 @@ public class BlockNodeConnectionManager {
             logger.debug("{} Successfully scheduled reconnection task.", newConnection);
         } catch (final Exception e) {
             logger.error("{} Failed to schedule connection task for block node.", newConnection, e);
+            connections.remove(newConnection.getBlockNodeConnectionConfig());
             newConnection.close(true);
         }
     }
@@ -945,6 +974,9 @@ public class BlockNodeConnectionManager {
                 logger.info("{} Rescheduled connection attempt (delayMillis={}).", connection, jitteredDelayMs);
             } catch (final Exception e) {
                 logger.error("{} Failed to reschedule connection attempt. Removing from retry map.", connection, e);
+                // If rescheduling fails, close the connection and remove it from the connection map. A periodic task
+                // will handle checking if there are no longer any connections
+                connections.remove(connection.getBlockNodeConnectionConfig());
                 connection.close(true);
             }
         }
