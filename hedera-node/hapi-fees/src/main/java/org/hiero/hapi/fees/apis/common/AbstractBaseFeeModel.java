@@ -44,12 +44,12 @@ public abstract class AbstractBaseFeeModel implements FeeModel {
             long extraFee = lookupExtraFee(feeSchedule, ref.name()).fee();
             if (used > included) {
                 final long overage = used - included;
-                result.addNodeFee("Node Overage of " + ref.name().name(), overage, overage * extraFee);
+                result.addNodeFee("Node Overage of " + ref.name().name(), overage, extraFee);
             }
         }
 
         int multiplier = feeSchedule.network().multiplier();
-        result.addNetworkFee("Total Network fee", multiplier, result.node * multiplier);
+        result.addNetworkFee("Total Network fee", 1, result.node * multiplier);
         return result;
     }
 }
