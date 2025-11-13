@@ -6,7 +6,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT_WITH_SIGNER_NONCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
@@ -15,7 +14,6 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
-import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
@@ -41,9 +39,6 @@ class CallOutcomeTest {
 
     @Mock
     private HandleContext context;
-
-    @Mock
-    private EthTxData ethTxData;
 
     @Test
     void setsAbortCallResult() {
@@ -75,32 +70,11 @@ class CallOutcomeTest {
                 null,
                 null,
                 null,
-                SUCCESS_RESULT.asEvmTxResultOf(null, updater, null, null),
+                SUCCESS_RESULT.asEvmTxResultOf(null, null),
                 SUCCESS_RESULT.signerNonce(),
                 Bytes.EMPTY,
                 null);
         assertEquals(CALLED_CONTRACT_ID, outcome.recipientIdIfCreated());
-    }
-
-    @Test
-    void usesSignerNonceWhenEthTxDataIsThere() {
-        given(updater.getCreatedContractIds()).willReturn(List.of(CALLED_CONTRACT_ID));
-        given(updater.entityIdFactory()).willReturn(entityIdFactory);
-        final var outcome = new CallOutcome(
-                SUCCESS_RESULT_WITH_SIGNER_NONCE.asProtoResultOf(null, updater, null),
-                SUCCESS,
-                null,
-                null,
-                null,
-                null,
-                null,
-                SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(ethTxData, updater, Bytes.EMPTY, null),
-                SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
-                Bytes.EMPTY,
-                null);
-        assertEquals(
-                SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
-                outcome.txResult().signerNonce());
     }
 
     @Test
@@ -114,7 +88,7 @@ class CallOutcomeTest {
                 null,
                 null,
                 null,
-                SUCCESS_RESULT.asEvmTxResultOf(null, updater, null, null),
+                SUCCESS_RESULT.asEvmTxResultOf(null, null),
                 SUCCESS_RESULT.signerNonce(),
                 null,
                 null);
@@ -132,7 +106,7 @@ class CallOutcomeTest {
                 null,
                 null,
                 null,
-                SUCCESS_RESULT.asEvmTxResultOf(null, updater, null, null),
+                SUCCESS_RESULT.asEvmTxResultOf(null, null),
                 SUCCESS_RESULT.signerNonce(),
                 null,
                 null);

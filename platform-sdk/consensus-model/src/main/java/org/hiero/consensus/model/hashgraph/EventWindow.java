@@ -112,7 +112,6 @@ public record EventWindow(
     public String toString() {
         return new ToStringBuilder(this)
                 .append("latestConsensusRound", latestConsensusRound)
-                .append("newEventBirthRound", newEventBirthRound)
                 .append("ancientThreshold", ancientThreshold)
                 .append("expiredThreshold", expiredThreshold)
                 .toString();

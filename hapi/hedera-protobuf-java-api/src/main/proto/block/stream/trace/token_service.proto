@@ -1,0 +1,41 @@
+/**
+ * # Token Service
+ * Block stream messages that report the trace data of transactions handled
+ * by the `token` service.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package com.hedera.hapi.block.stream.trace;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hedera.hapi.block.stream.trace.protoc";
+// <<<pbj.java_package = "com.hedera.hapi.block.stream.trace">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+
+/**
+ * Trace data for TokenUpdate transactions that automatically associate tokens.
+ * <p>
+ * This data SHALL capture intermediate state changes that would otherwise be lost
+ * when multiple token update transactions are executed inside of a batch transaction.
+ * These details MUST be recorded to correctly recreate legacy records for inner
+ * transactions, as only the final state would otherwise be visible after batch execution.
+ */
+message AutoAssociateTraceData {
+
+  /**
+   * The account that was automatically associated with tokens.
+   * <p>
+   * This field SHALL contain the ID of the account that received automatic token
+   * associations as part of the token update operation in the batch transaction.
+   */
+  proto.AccountID automatic_token_associations = 1;
+}

@@ -50,10 +50,10 @@ public class FeeScheduleUtils {
                 .build();
     }
 
-    // TODO: Probably store all these in a map once when feeSchedule is updated. So, we don't need to iterate everytime
-    public static ExtraFeeDefinition lookupExtraFee(FeeSchedule feeSchedule, Extra ref) {
+    /** Look up the extra fee definition from a fee schedule */
+    public static ExtraFeeDefinition lookupExtraFee(FeeSchedule feeSchedule, ExtraFeeReference ref) {
         for (ExtraFeeDefinition def : feeSchedule.extras()) {
-            if (def.name().equals(ref)) {
+            if (def.name().equals(ref.name())) {
                 return def;
             }
         }
@@ -61,7 +61,6 @@ public class FeeScheduleUtils {
     }
 
     /** Lookup a service fee */
-    // TODO: Probably store all these in a map once when feeSchedule is updated. So, we don't need to iterate everytime
     public static ServiceFeeDefinition lookupServiceFee(FeeSchedule feeSchedule, HederaFunctionality api) {
         for (ServiceFeeSchedule service : feeSchedule.services()) {
             for (ServiceFeeDefinition def : service.schedule()) {
@@ -96,7 +95,7 @@ public class FeeScheduleUtils {
         for (ServiceFeeSchedule service : feeSchedule.services()) {
             for (ServiceFeeDefinition def : service.schedule()) {
                 for (ExtraFeeReference ref : def.extras()) {
-                    lookupExtraFee(feeSchedule, ref.name());
+                    lookupExtraFee(feeSchedule, ref);
                 }
             }
         }
@@ -105,7 +104,7 @@ public class FeeScheduleUtils {
             return false;
         }
         for (ExtraFeeReference ref : feeSchedule.node().extras()) {
-            lookupExtraFee(feeSchedule, ref.name());
+            lookupExtraFee(feeSchedule, ref);
         }
 
         // check that the services are defined

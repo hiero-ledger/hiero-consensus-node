@@ -2,7 +2,7 @@
 package com.swirlds.platform;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
-import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
+import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readStateFile;
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.FATAL_ERROR;
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.ISS;
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.PERIODIC_SNAPSHOT;
@@ -41,8 +41,6 @@ import com.swirlds.platform.state.snapshot.SignedStateFileUtils;
 import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -77,7 +75,6 @@ class StateFileManagerTests {
     private SignedStateFilePath signedStateFilePath;
 
     Path testDirectory;
-    private StateLifecycleManager stateLifecycleManager;
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
@@ -100,8 +97,6 @@ class StateFileManagerTests {
                 .build();
         signedStateFilePath =
                 new SignedStateFilePath(context.getConfiguration().getConfigData(StateCommonConfig.class));
-        stateLifecycleManager =
-                new StateLifecycleManagerImpl(context.getMetrics(), context.getTime(), TestVirtualMapState::new);
     }
 
     @AfterEach
@@ -137,8 +132,8 @@ class StateFileManagerTests {
 
         assertEquals(-1, originalState.getReservationCount(), "invalid reservation count");
 
-        final DeserializedSignedState deserializedSignedState = readState(
-                stateDirectory,
+        final DeserializedSignedState deserializedSignedState = readStateFile(
+                stateFile,
                 TestVirtualMapState::new,
                 TEST_PLATFORM_STATE_FACADE,
                 TestPlatformContextBuilder.create().build());
@@ -159,7 +154,7 @@ class StateFileManagerTests {
     @DisplayName("Standard Operation Test")
     void standardOperationTest(final boolean successExpected) throws IOException {
         final SignedState signedState = new RandomSignedStateGenerator().build();
-        initLifecycleManagerAndMakeStateImmutable(signedState);
+        makeImmutable(signedState);
         hashState(signedState);
 
         if (!successExpected) {
@@ -171,7 +166,7 @@ class StateFileManagerTests {
         }
 
         final StateSnapshotManager manager = new DefaultStateSnapshotManager(
-                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE, stateLifecycleManager);
+                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE);
 
         final StateSavingResult stateSavingResult = manager.saveStateTask(signedState.reserve("test"));
 
@@ -189,9 +184,9 @@ class StateFileManagerTests {
         final SignedState signedState = new RandomSignedStateGenerator().build();
 
         final StateSnapshotManager manager = new DefaultStateSnapshotManager(
-                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE, stateLifecycleManager);
+                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE);
         signedState.markAsStateToSave(ISS);
-        initLifecycleManagerAndMakeStateImmutable(signedState);
+        makeImmutable(signedState);
         hashState(signedState);
         manager.dumpStateTask(StateDumpRequest.create(signedState.reserve("test")));
 
@@ -231,7 +226,7 @@ class StateFileManagerTests {
         final double standardDeviationTimeBetweenStates = 0.5;
 
         final StateSnapshotManager manager = new DefaultStateSnapshotManager(
-                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE, stateLifecycleManager);
+                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE);
         final SavedStateController controller = new DefaultSavedStateController(context);
 
         Instant timestamp;
@@ -271,8 +266,8 @@ class StateFileManagerTests {
                     .build();
             final ReservedSignedState reservedSignedState = signedState.reserve("initialTestReservation");
 
-            initLifecycleManagerAndMakeStateImmutable(reservedSignedState.get(), round != firstRound);
             controller.markSavedState(new StateWithHashComplexity(reservedSignedState, 1));
+            makeImmutable(reservedSignedState.get());
             hashState(signedState);
 
             if (signedState.isStateToSave()) {
@@ -306,8 +301,8 @@ class StateFileManagerTests {
                     final SavedStateInfo savedStateInfo = currentStatesOnDisk.get(index);
 
                     final SignedState stateFromDisk = assertDoesNotThrow(
-                            () -> SignedStateFileReader.readState(
-                                            savedStateInfo.stateDirectory(),
+                            () -> SignedStateFileReader.readStateFile(
+                                            savedStateInfo.stateFile(),
                                             TestVirtualMapState::new,
                                             TEST_PLATFORM_STATE_FACADE,
                                             context)
@@ -355,7 +350,7 @@ class StateFileManagerTests {
         final int count = 10;
 
         final StateSnapshotManager manager = new DefaultStateSnapshotManager(
-                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE, stateLifecycleManager);
+                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE);
 
         final Path statesDirectory =
                 signedStateFilePath.getSignedStatesDirectoryForSwirld(MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME);
@@ -368,7 +363,7 @@ class StateFileManagerTests {
                 .resolve("node" + SELF_ID + "_round" + issRound);
         final SignedState issState =
                 new RandomSignedStateGenerator(random).setRound(issRound).build();
-        initLifecycleManagerAndMakeStateImmutable(issState);
+        makeImmutable(issState);
         issState.markAsStateToSave(ISS);
         hashState(issState);
         manager.dumpStateTask(StateDumpRequest.create(issState.reserve("test")));
@@ -382,7 +377,7 @@ class StateFileManagerTests {
                 .resolve("node" + SELF_ID + "_round" + fatalRound);
         final SignedState fatalState =
                 new RandomSignedStateGenerator(random).setRound(fatalRound).build();
-        initLifecycleManagerAndMakeStateImmutable(fatalState, true);
+        makeImmutable(fatalState);
         hashState(fatalState);
         fatalState.markAsStateToSave(FATAL_ERROR);
         manager.dumpStateTask(StateDumpRequest.create(fatalState.reserve("test")));
@@ -395,7 +390,7 @@ class StateFileManagerTests {
                     new RandomSignedStateGenerator(random).setRound(round).build();
             issState.markAsStateToSave(PERIODIC_SNAPSHOT);
             states.add(signedState);
-            initLifecycleManagerAndMakeStateImmutable(signedState, true);
+            makeImmutable(signedState);
             hashState(signedState);
             manager.saveStateTask(signedState.reserve("test"));
 
@@ -429,17 +424,7 @@ class StateFileManagerTests {
         signedState.getState().getRoot().getHash();
     }
 
-    void initLifecycleManagerAndMakeStateImmutable(SignedState state) {
-        initLifecycleManagerAndMakeStateImmutable(state, false);
-    }
-
-    void initLifecycleManagerAndMakeStateImmutable(SignedState state, boolean createNewStateLifecycleManager) {
-        if (createNewStateLifecycleManager) {
-            stateLifecycleManager =
-                    new StateLifecycleManagerImpl(context.getMetrics(), context.getTime(), TestVirtualMapState::new);
-        }
-
-        stateLifecycleManager.initState(state.getState(), false);
-        stateLifecycleManager.getMutableState().release();
+    static void makeImmutable(SignedState signedState) {
+        signedState.getState().copy().release();
     }
 }

@@ -35,7 +35,7 @@ public class StandardFeeModel extends AbstractBaseFeeModel {
             }
             int included = ref.includedCount();
             long used = (long) params.get(ref.name());
-            long extraFee = lookupExtraFee(feeSchedule, ref.name()).fee();
+            long extraFee = lookupExtraFee(feeSchedule, ref).fee();
             if (used > included) {
                 final long overage = used - included;
                 result.addServiceFee("Overage of " + ref.name().name(), overage, overage * extraFee);

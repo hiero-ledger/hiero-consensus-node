@@ -61,8 +61,8 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                     parts.outputIfPresent(TransactionOutput.TransactionOneOfType.CONTRACT_CREATE)
                             .map(TransactionOutput::contractCreateOrThrow)
                             .ifPresent(createContractOutput -> {
-                                final var evmResult = createContractOutput.evmTransactionResultOrThrow();
-                                final var derivedBuilder = resultBuilderFrom(evmResult);
+                                final var derivedBuilder =
+                                        resultBuilderFrom(createContractOutput.evmTransactionResultOrThrow());
                                 ContractID createdId = null;
                                 if (parts.status() == SUCCESS) {
                                     if (parts.isTopLevel() || parts.isInnerBatchTxn()) {
@@ -79,8 +79,7 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                                             mapTracesToVerboseLogs(derivedBuilder, parts.traces());
                                         }
                                         baseTranslator.addCreatedIdsTo(derivedBuilder, remainingStateChanges);
-                                        baseTranslator.addChangedContractNonces(
-                                                derivedBuilder, evmResult.contractNonces());
+                                        baseTranslator.addChangedContractNonces(derivedBuilder, remainingStateChanges);
                                     }
                                     createdId = createContractOutput
                                             .evmTransactionResultOrThrow()

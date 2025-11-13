@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URL;
-import java.nio.file.ClosedWatchServiceException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -236,7 +235,6 @@ public class BlockNodeConnectionManager {
      */
     private List<BlockNodeProtocolConfig> extractBlockNodesConfigurations(@NonNull final String blockNodeConfigPath) {
         final Path configPath = Paths.get(blockNodeConfigPath, BLOCK_NODES_FILE_NAME);
-        final List<BlockNodeProtocolConfig> nodes = new ArrayList<>();
         try {
             if (!Files.exists(configPath)) {
                 logger.info("Block node configuration file does not exist: {}", configPath);
@@ -245,6 +243,7 @@ public class BlockNodeConnectionManager {
 
             final byte[] jsonConfig = Files.readAllBytes(configPath);
             final BlockNodeConnectionInfo protoConfig = BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(jsonConfig));
+            List<BlockNodeProtocolConfig> nodes = new ArrayList<>();
             for (BlockNodeConfig nodeConfig : protoConfig.nodes()) {
                 nodes.add(new BlockNodeProtocolConfig(
                         nodeConfig,
@@ -258,8 +257,8 @@ public class BlockNodeConnectionManager {
                     "Failed to read or parse block node configuration from {}. Continuing without block node connections.",
                     configPath,
                     e);
+            return List.of();
         }
-        return nodes;
     }
 
     private Http2ClientProtocolConfig extractOptionalHttp2ClientProtocolConfig(BlockNodeConfig config) {
@@ -357,7 +356,7 @@ public class BlockNodeConnectionManager {
      * @return whether there is only one block node configured
      */
     public boolean isOnlyOneBlockNodeConfigured() {
-        final int size;
+        int size;
         synchronized (availableBlockNodes) {
             size = availableBlockNodes.size();
         }
@@ -521,14 +520,12 @@ public class BlockNodeConnectionManager {
     private void closeAllConnections() {
         logger.debug("Stopping block node connections");
         // Close all connections
-        final Iterator<Map.Entry<BlockNodeProtocolConfig, BlockNodeConnection>> iterator =
+        final Iterator<Map.Entry<BlockNodeProtocolConfig, BlockNodeConnection>> it =
                 connections.entrySet().iterator();
-        while (iterator.hasNext()) {
-            final Map.Entry<BlockNodeProtocolConfig, BlockNodeConnection> entry = iterator.next();
+        while (it.hasNext()) {
+            final Map.Entry<BlockNodeProtocolConfig, BlockNodeConnection> entry = it.next();
             final BlockNodeConnection connection = entry.getValue();
             try {
-                // This method is invoked during a shutdown of the connection manager, in which case we don't want
-                // to gracefully close connections at block boundaries, so just call close immediately.
                 connection.close(true);
             } catch (final RuntimeException e) {
                 logger.debug(
@@ -536,7 +533,7 @@ public class BlockNodeConnectionManager {
                         connection,
                         e);
             }
-            iterator.remove();
+            it.remove();
         }
     }
 
@@ -620,8 +617,8 @@ public class BlockNodeConnectionManager {
         }
 
         final SortedMap<Integer, List<BlockNodeProtocolConfig>> priorityGroups = snapshot.stream()
-                .collect(
-                        Collectors.groupingBy(config -> config.blockNodeConfig().priority(), TreeMap::new, toList()));
+                .collect(Collectors.groupingBy(
+                        config -> config.blockNodeConfig().priority(), TreeMap::new, Collectors.toList()));
 
         BlockNodeProtocolConfig selectedNode = null;
 
@@ -732,7 +729,7 @@ public class BlockNodeConnectionManager {
                                         }
                                     }
                                 }
-                            } catch (final InterruptedException | ClosedWatchServiceException e) {
+                            } catch (final InterruptedException e) {
                                 break;
                             } catch (Exception e) {
                                 logger.info("Exception in config watcher loop.", e);
@@ -874,8 +871,7 @@ public class BlockNodeConnectionManager {
                                 "{} Active connection has equal/higher priority. Ignoring candidate. Active: {}.",
                                 connection,
                                 activeConnection);
-                        // This connection was never initialized so we are safe to call close immediately
-                        connection.close(false);
+                        connection.close(true);
                         return;
                     }
                 }
@@ -901,8 +897,7 @@ public class BlockNodeConnectionManager {
                     // close the old active connection
                     try {
                         logger.debug("{} Closing current active connection {}.", connection, activeConnection);
-                        activeConnection.closeAtBlockBoundary();
-
+                        activeConnection.close(true);
                         // For a forced switch, reschedule the previously active connection to try again later
                         if (force) {
                             try {
@@ -927,7 +922,7 @@ public class BlockNodeConnectionManager {
                     }
                 }
             } catch (final Exception e) {
-                logger.debug("{} Failed to establish connection to block node. Will schedule a retry.", connection, e);
+                logger.debug("{} Failed to establish connection to block node. Will schedule a retry.", connection);
                 blockStreamMetrics.recordConnectionCreateFailure();
                 reschedule();
                 selectNewBlockNodeForStreaming(false);
@@ -1214,7 +1209,7 @@ public class BlockNodeConnectionManager {
         activeConnectionRef.compareAndSet(connection, null);
 
         // Remove from connections map
-        connections.remove(connection.getBlockNodeConnectionConfig());
+        connections.remove(connection.getNodeConfig());
     }
 
     /**

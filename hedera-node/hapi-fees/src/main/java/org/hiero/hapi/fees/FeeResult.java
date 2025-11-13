@@ -24,7 +24,6 @@ public class FeeResult {
      * @param count the number of units for this fee.
      * @param cost the actual computed cost of this service fee in tinycents.
      * */
-    // TODO: Why do we need a String label here ? It is just used for toString. Same for all methods below
     public void addServiceFee(String label, long count, long cost) {
         details.put(label, new FeeDetail(count, cost));
         service = clampedAdd(service, cost);

@@ -34,12 +34,12 @@ import com.swirlds.platform.network.protocol.SyncProtocol;
 import com.swirlds.platform.network.protocol.rpc.RpcProtocol;
 import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.reconnect.ReconnectStateTeacherThrottle;
+import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.wiring.NoInput;
 import com.swirlds.platform.wiring.components.Gossip;
 import com.swirlds.state.MerkleNodeState;
-import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.cert.X509Certificate;
@@ -53,7 +53,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -73,12 +72,12 @@ public class SyncGossipModular implements Gossip {
     private final AbstractSyncProtocol<?> syncProtocol;
     private final FallenBehindMonitor fallenBehindMonitor;
     private final AbstractShadowgraphSynchronizer synchronizer;
-    private final StateLifecycleManager stateLifecycleManager;
+    private final SwirldStateManager swirldStateManager;
     private final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap;
 
     // this is not a nice dependency, should be removed as well as the sharedState
     private Consumer<PlatformEvent> receivedEventHandler;
-    private Consumer<SyncProgress> syncProgressHandler;
+    private Consumer<Double> syncLagHandler;
 
     /**
      * Builds the gossip engine, depending on which flavor is requested in the configuration.
@@ -89,7 +88,7 @@ public class SyncGossipModular implements Gossip {
      * @param roster                        the current roster
      * @param selfId                        this node's ID
      * @param appVersion                    the version of the app
-     * @param stateLifecycleManager            manages the mutable state
+     * @param swirldStateManager            manages the mutable state
      * @param latestCompleteState           holds the latest signed state that has enough signatures to be verifiable
      * @param intakeEventCounter            keeps track of the number of events in the intake pipeline from each peer
      * @param platformStateFacade           the facade to access the platform state
@@ -104,7 +103,7 @@ public class SyncGossipModular implements Gossip {
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
             @NonNull final SemanticVersion appVersion,
-            @NonNull final StateLifecycleManager stateLifecycleManager,
+            @NonNull final SwirldStateManager swirldStateManager,
             @NonNull final Supplier<ReservedSignedState> latestCompleteState,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final PlatformStateFacade platformStateFacade,
@@ -132,7 +131,7 @@ public class SyncGossipModular implements Gossip {
         this.network = new PeerCommunication(platformContext, peers, selfPeer, ownKeysAndCerts);
 
         this.fallenBehindMonitor = fallenBehindMonitor;
-        this.stateLifecycleManager = stateLifecycleManager;
+        this.swirldStateManager = swirldStateManager;
         this.createStateFromVirtualMap = createStateFromVirtualMap;
 
         final ProtocolConfig protocolConfig = platformContext.getConfiguration().getConfigData(ProtocolConfig.class);
@@ -147,10 +146,10 @@ public class SyncGossipModular implements Gossip {
                     rosterSize,
                     syncMetrics,
                     event -> receivedEventHandler.accept(event),
-                    fallenBehindMonitor,
+                    this.fallenBehindMonitor,
                     intakeEventCounter,
                     selfId,
-                    lag -> syncProgressHandler.accept(lag));
+                    lag -> syncLagHandler.accept(lag));
 
             this.synchronizer = rpcSynchronizer;
 
@@ -175,7 +174,7 @@ public class SyncGossipModular implements Gossip {
                     this.fallenBehindMonitor,
                     intakeEventCounter,
                     new CachedPoolParallelExecutor(threadManager, "node-sync"),
-                    lag -> syncProgressHandler.accept(lag));
+                    lag -> syncLagHandler.accept(lag));
 
             this.synchronizer = shadowgraphSynchronizer;
 
@@ -240,7 +239,7 @@ public class SyncGossipModular implements Gossip {
                 fallenBehindMonitor,
                 platformStateFacade,
                 reservedSignedStateResultPromise,
-                stateLifecycleManager,
+                swirldStateManager,
                 createStateFromVirtualMap);
     }
 
@@ -279,7 +278,7 @@ public class SyncGossipModular implements Gossip {
             @NonNull final BindableInputWire<NoInput, Void> resumeGossip,
             @NonNull final BindableInputWire<Duration, Void> systemHealthInput,
             @NonNull final BindableInputWire<PlatformStatus, Void> platformStatusInput,
-            @NonNull final StandardOutputWire<SyncProgress> syncLagOutput) {
+            @NonNull final StandardOutputWire<Double> syncLagOutput) {
 
         startInput.bindConsumer(ignored -> {
             syncProtocol.start();
@@ -305,6 +304,6 @@ public class SyncGossipModular implements Gossip {
             syncProtocol.resume();
         });
         this.receivedEventHandler = eventOutput::forward;
-        this.syncProgressHandler = syncLagOutput::forward;
+        this.syncLagHandler = syncLagOutput::forward;
     }
 }

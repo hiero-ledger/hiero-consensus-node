@@ -89,7 +89,7 @@ class DefaultTransactionHandlerTests {
     @ParameterizedTest
     @CsvSource({"false", "true"})
     void normalOperation(final boolean pcesRound) throws InterruptedException {
-        final TransactionHandlerTester tester = new TransactionHandlerTester();
+        final TransactionHandlerTester tester = new TransactionHandlerTester(roster);
         final ConsensusRound consensusRound = newConsensusRound(pcesRound);
 
         final TransactionHandlerResult handlerOutput =
@@ -146,13 +146,13 @@ class DefaultTransactionHandlerTests {
                 "the state should match the PCES boolean");
         verify(tester.getStateEventHandler())
                 .onSealConsensusRound(
-                        consensusRound, tester.getStateLifecycleManager().getMutableState());
+                        consensusRound, tester.getSwirldStateManager().getConsensusState());
     }
 
     @Test
     @DisplayName("Round in freeze period")
     void freezeHandling() throws InterruptedException {
-        final TransactionHandlerTester tester = new TransactionHandlerTester();
+        final TransactionHandlerTester tester = new TransactionHandlerTester(roster);
         final ConsensusRound consensusRound = newConsensusRound(false);
         when(tester.getPlatformStateFacade().isInFreezePeriod(consensusRound.getConsensusTimestamp(), (MerkleNodeState)
                         tester.getConsensusState()))

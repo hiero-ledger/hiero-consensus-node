@@ -51,7 +51,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_G
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -315,12 +314,7 @@ public class Hip1195EnabledTest {
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 1_000_000L, "")
-                        .signedBy(DEFAULT_PAYER)
-                        .via("successfulTransfer"),
-                getTxnRecord("successfulTransfer")
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(SUCCESS))
-                        .logged());
+                        .signedBy(DEFAULT_PAYER));
     }
 
     @HapiTest

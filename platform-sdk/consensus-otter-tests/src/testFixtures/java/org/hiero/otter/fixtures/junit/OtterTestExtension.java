@@ -32,7 +32,6 @@ import org.junit.jupiter.api.extension.ParameterResolver;
 import org.junit.jupiter.api.extension.TestInstancePreDestroyCallback;
 import org.junit.jupiter.api.extension.TestTemplateInvocationContext;
 import org.junit.jupiter.api.extension.TestTemplateInvocationContextProvider;
-import org.junit.jupiter.api.extension.TestWatcher;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.platform.commons.support.AnnotationSupport;
 
@@ -50,8 +49,7 @@ public class OtterTestExtension
         implements TestInstancePreDestroyCallback,
                 ParameterResolver,
                 TestTemplateInvocationContextProvider,
-                ExecutionCondition,
-                TestWatcher {
+                ExecutionCondition {
 
     private enum Environment {
         TURTLE("turtle"),

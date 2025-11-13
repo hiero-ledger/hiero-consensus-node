@@ -157,7 +157,7 @@ public class ContractUpdateHandler implements TransactionHandler {
             @NonNull final ContractUpdateTransactionBody op,
             @NonNull final Account.Builder builder,
             @NonNull final Account originalAccount) {
-        Long headAfterDeletes = originalAccount.numberHooksInUse() == 0 ? null : originalAccount.firstHookId();
+        long headAfterDeletes = originalAccount.firstHookId();
         // Dispatch all the hooks to delete
         if (!op.hookIdsToDelete().isEmpty()) {
             HookDispatchUtils.dispatchHookDeletions(
@@ -165,13 +165,12 @@ public class ContractUpdateHandler implements TransactionHandler {
         }
         if (!op.hookCreationDetails().isEmpty()) {
             final var numSlotsUpdated = HookDispatchUtils.dispatchHookCreations(
-                    context, op.hookCreationDetails(), headAfterDeletes, originalAccount.accountIdOrThrow());
+                    context, op.hookCreationDetails(), headAfterDeletes, originalAccount.accountId());
             builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
             final var currentSlots = originalAccount.numberLambdaStorageSlots() + numSlotsUpdated;
             builder.numberLambdaStorageSlots(currentSlots);
         } else if (!op.hookIdsToDelete().isEmpty()) {
-            // If numberLambdaStorageSlots == 0 after deletions, then first hook id is meaningless but set to 0
-            builder.firstHookId(headAfterDeletes == null ? 0 : headAfterDeletes);
+            builder.firstHookId(headAfterDeletes);
         }
         if (!op.hookCreationDetails().isEmpty() || !op.hookIdsToDelete().isEmpty()) {
             final var current = originalAccount.numberHooksInUse();

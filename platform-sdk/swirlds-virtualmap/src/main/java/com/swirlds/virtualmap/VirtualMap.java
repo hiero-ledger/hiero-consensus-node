@@ -53,9 +53,11 @@ import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.internal.hash.VirtualHashListener;
 import com.swirlds.virtualmap.internal.hash.VirtualHasher;
+import com.swirlds.virtualmap.internal.merkle.ExternalVirtualMapMetadata;
 import com.swirlds.virtualmap.internal.merkle.VirtualInternalNode;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
+import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import com.swirlds.virtualmap.internal.pipeline.VirtualPipeline;
 import com.swirlds.virtualmap.internal.pipeline.VirtualRoot;
 import com.swirlds.virtualmap.internal.reconnect.ConcurrentBlockingIterator;
@@ -189,6 +191,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      * This version number should be used to handle compatibility issues that may arise from any future changes
      */
     public static class ClassVersion {
+        public static final int REHASH_LEAVES = 3;
         public static final int NO_VIRTUAL_ROOT_NODE = 4;
     }
 
@@ -1578,14 +1581,15 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             @NonNull final SerializableDataInputStream in, @NonNull final Path inputDirectory, final int version)
             throws IOException {
 
-        if (version < ClassVersion.NO_VIRTUAL_ROOT_NODE) {
-            throw new UnsupportedOperationException("Version must be at least ClassVersion.NO_VIRTUAL_ROOT_NODE");
+        if (version < ClassVersion.REHASH_LEAVES) {
+            throw new UnsupportedOperationException("Version must be at least ClassVersion.REHASH_LEAVES");
         }
 
+        boolean vmStateExternal = version < ClassVersion.NO_VIRTUAL_ROOT_NODE;
         final int fileNameLengthInBytes = in.readInt();
         final String inputFileName = in.readNormalisedString(fileNameLengthInBytes);
         final Path inputFile = inputDirectory.resolve(inputFileName);
-        loadFromFile(inputFile);
+        loadFromFile(inputFile, vmStateExternal);
     }
 
     /**
@@ -1593,17 +1597,25 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      * public use, it is for testing and tools only.
      *
      * @param inputFile              The input .vmap file. Cannot be null.
+     * @param vmStateExternal        true for versions prior to version 4, the state is not a leaf for the VirtualMap
      * @throws IOException For problems.
      */
-    public void loadFromFile(@NonNull final Path inputFile) throws IOException {
+    public void loadFromFile(@NonNull final Path inputFile, boolean vmStateExternal) throws IOException {
         deserializeAndDebugOnFailure(
                 () -> new SerializableDataInputStream(new BufferedInputStream(new FileInputStream(inputFile.toFile()))),
                 (final MerkleDataInputStream stream) -> {
-                    // This instance of `VirtualMapMetadata` will have a label only,
-                    // it's necessary to initialize a datasource in `VirtualRootNode
-                    final String label = requireNonNull(stream.readNormalisedString(MAX_LABEL_CHARS));
-                    final long stateSize = stream.readLong();
-                    loadFromFileV4(inputFile, stream, new VirtualMapMetadata(label, stateSize));
+                    if (vmStateExternal) {
+                        loadFromFilePreV4(
+                                inputFile,
+                                stream,
+                                new VirtualMapMetadata(stream.<ExternalVirtualMapMetadata>readSerializable()));
+                    } else {
+                        // This instance of `VirtualMapMetadata` will have a label only,
+                        // it's necessary to initialize a datasource in `VirtualRootNode
+                        final String label = requireNonNull(stream.readNormalisedString(MAX_LABEL_CHARS));
+                        final long stateSize = stream.readLong();
+                        loadFromFileV4(inputFile, stream, new VirtualMapMetadata(label, stateSize));
+                    }
                     return null;
                 });
 
@@ -1616,6 +1628,28 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         dataSource = dataSourceBuilder.build(virtualMapMetadata.getLabel(), inputFile.getParent(), true, false);
         cache = new VirtualNodeCache(virtualMapConfig, stream.readLong());
         metadata = virtualMapMetadata;
+    }
+
+    private void loadFromFilePreV4(Path inputFile, MerkleDataInputStream stream, VirtualMapMetadata externalState)
+            throws IOException {
+        final int virtualRootVersion = stream.readInt();
+        // Prior to V4 the label was serialized twice - as VirtualMap metadata and as VirtualRootNode metadata
+        final String label = stream.readNormalisedString(MAX_LABEL_LENGTH);
+        if (!externalState.getLabel().equals(label)) {
+            throw new IllegalStateException("Label of the VirtualRootNode is not equal to the label of the VirtualMap");
+        }
+        dataSourceBuilder = stream.readSerializable();
+        dataSource = dataSourceBuilder.build(label, inputFile.getParent(), true, false);
+        metadata = externalState;
+        if (virtualRootVersion < VirtualRootNode.ClassVersion.VERSION_3_NO_NODE_CACHE) {
+            throw new UnsupportedOperationException("Version " + virtualRootVersion + " is not supported");
+        }
+        if (virtualRootVersion < VirtualRootNode.ClassVersion.VERSION_4_BYTES) {
+            // FUTURE WORK: clean up all serializers, once all states are of version 4+
+            stream.readSerializable(); // skip key serializer
+            stream.readSerializable(); // skip externalState serializer
+        }
+        cache = new VirtualNodeCache(virtualMapConfig, stream.readLong());
     }
 
     /*

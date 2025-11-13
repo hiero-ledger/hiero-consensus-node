@@ -74,17 +74,17 @@ public final class CompareStatesCommand extends AbstractCommand {
     }
 
     /**
-     * Set the path to state dir A.
+     * Set the path to state A.
      */
-    @CommandLine.Parameters(description = "the path to the first state dir that is being compared")
+    @CommandLine.Parameters(description = "the path to the first SignedState.swh that is being compared")
     private void setStateAPath(final Path stateAPath) {
         this.stateAPath = pathMustExist(stateAPath.toAbsolutePath());
     }
 
     /**
-     * Set the path to state dir B.
+     * Set the path to state B.
      */
-    @CommandLine.Parameters(description = "the path to the second state dir that is being compared")
+    @CommandLine.Parameters(description = "the path to the second SignedState.swh that is being compared")
     private void setStateBPath(final Path stateBPath) {
         this.stateBPath = pathMustExist(stateBPath.toAbsolutePath());
     }
@@ -110,18 +110,18 @@ public final class CompareStatesCommand extends AbstractCommand {
     /**
      * Load a state from disk and hash it.
      *
-     * @param stateDirPath the location of the state to load
+     * @param statePath the location of the state to load
      * @return the loaded state
      */
     private static ReservedSignedState loadAndHashState(
-            @NonNull final PlatformContext platformContext, @NonNull final Path stateDirPath) throws IOException {
+            @NonNull final PlatformContext platformContext, @NonNull final Path statePath) throws IOException {
         Objects.requireNonNull(platformContext);
-        Objects.requireNonNull(stateDirPath);
+        Objects.requireNonNull(statePath);
 
-        logger.info(LogMarker.CLI.getMarker(), "Loading state from {}", stateDirPath);
+        logger.info(LogMarker.CLI.getMarker(), "Loading state from {}", statePath);
 
-        final ReservedSignedState signedState = SignedStateFileReader.readState(
-                        stateDirPath,
+        final ReservedSignedState signedState = SignedStateFileReader.readStateFile(
+                        statePath,
                         (virtualMap) -> {
                             // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
                             throw new UnsupportedOperationException();

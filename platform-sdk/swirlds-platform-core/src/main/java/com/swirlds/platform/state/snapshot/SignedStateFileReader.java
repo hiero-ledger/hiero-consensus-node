@@ -11,7 +11,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.crypto.CryptoStatic;
@@ -46,28 +45,29 @@ public final class SignedStateFileReader {
     /**
      * Reads a SignedState from disk. If the reader throws an exception, it is propagated by this method to the caller.
      *
-     * @param stateDir                     the directory to read from
+     * @param stateFile                     the file to read from
      * @param createStateFromVirtualMap     a function to instantiate the state object from a Virtual Map
      * @param stateFacade                   the facade to access the platform state
      * @return a signed state with it's associated hash (as computed when the state was serialized)
      * @throws IOException if there is any problems with reading from a file
      */
-    public static @NonNull DeserializedSignedState readState(
-            @NonNull final Path stateDir,
+    public static @NonNull DeserializedSignedState readStateFile(
+            @NonNull final Path stateFile,
             @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
             @NonNull final PlatformStateFacade stateFacade,
             @NonNull final PlatformContext platformContext)
             throws IOException {
 
-        requireNonNull(stateDir);
+        requireNonNull(stateFile);
         requireNonNull(platformContext);
         final Configuration conf = platformContext.getConfiguration();
 
-        checkSignedStateFilePath(stateDir);
+        checkSignedStatePath(stateFile);
 
         final DeserializedSignedState returnState;
-        final MerkleNode state = MerkleTreeSnapshotReader.readStateFileData(stateDir);
-        final File sigSetFile = stateDir.resolve(SIGNATURE_SET_FILE_NAME).toFile();
+        final MerkleTreeSnapshotReader.StateFileData data = MerkleTreeSnapshotReader.readStateFileData(stateFile);
+        final File sigSetFile =
+                stateFile.getParent().resolve(SIGNATURE_SET_FILE_NAME).toFile();
         final SigSet sigSet = deserializeAndDebugOnFailure(
                 () -> new BufferedInputStream(new FileInputStream(sigSetFile)), (final MerkleDataInputStream in) -> {
                     readAndCheckSigSetFileVersion(in);
@@ -75,13 +75,13 @@ public final class SignedStateFileReader {
                 });
 
         final MerkleNodeState merkleNodeState =
-                initializeMerkleNodeState(createStateFromVirtualMap, state, platformContext.getMetrics());
+                initializeMerkleNodeState(createStateFromVirtualMap, data.stateRoot(), platformContext.getMetrics());
 
         final SignedState newSignedState = new SignedState(
                 conf,
                 CryptoStatic::verifySignature,
                 merkleNodeState,
-                "SignedStateFileReader.readState()",
+                "SignedStateFileReader.readStateFile()",
                 false,
                 false,
                 false,
@@ -92,7 +92,7 @@ public final class SignedStateFileReader {
         newSignedState.setSigSet(sigSet);
 
         returnState = new DeserializedSignedState(
-                newSignedState.reserve("SignedStateFileReader.readState()"), state.getHash());
+                newSignedState.reserve("SignedStateFileReader.readStateFile()"), data.hash());
 
         return returnState;
     }
@@ -100,16 +100,15 @@ public final class SignedStateFileReader {
     /**
      * Check the path of a signed state file
      *
-     * @param stateDirectory the path to check
+     * @param stateFile the path to check
      * @throws IOException if the path is not valid
      */
-    private static void checkSignedStateFilePath(@NonNull final Path stateDirectory) throws IOException {
-        final Path signedStateFilePath = stateDirectory.resolve(SIGNATURE_SET_FILE_NAME);
-        if (!exists(signedStateFilePath)) {
-            throw new IOException("Directory " + signedStateFilePath.toAbsolutePath() + " does not exist!");
+    private static void checkSignedStatePath(@NonNull final Path stateFile) throws IOException {
+        if (!exists(stateFile)) {
+            throw new IOException("File " + stateFile.toAbsolutePath() + " does not exist!");
         }
-        if (!Files.isRegularFile(signedStateFilePath)) {
-            throw new IOException("File " + signedStateFilePath.toAbsolutePath() + " is not a file!");
+        if (!Files.isRegularFile(stateFile)) {
+            throw new IOException("File " + stateFile.toAbsolutePath() + " is not a file!");
         }
     }
 
