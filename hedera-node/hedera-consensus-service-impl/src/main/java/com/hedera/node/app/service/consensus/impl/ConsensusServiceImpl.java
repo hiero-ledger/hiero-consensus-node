@@ -34,7 +34,8 @@ public final class ConsensusServiceImpl implements ConsensusService {
                 new ConsensusCreateTopicFeeCalculator(),
                 new ConsensusDeleteTopicFeeCalculator(),
                 new ConsensusUpdateTopicFeeCalculator(),
-                // TODO: add additional calculators for ConsensusCreateTopicWithCustomFees and ConsensusSubmitMessageWithCustomFees
+                // TODO: add calculator for ConsensusCreateTopicWithCustomFees
+                // TODO: add calculator for ConsensusSubmitMessageWithCustomFees
                 new ConsensusSubmitMessageFeeCalculator());
     }
 }
