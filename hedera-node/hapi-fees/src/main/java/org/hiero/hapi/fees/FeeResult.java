@@ -29,7 +29,6 @@ public class FeeResult {
     }
 
     /** Add a node fee with details.
-     * @param label a human-readable text description of the fee.
      * @param count the number of units for this fee.
      * @param cost the actual computed cost of this service fee in tinycents.
      * */
@@ -39,7 +38,6 @@ public class FeeResult {
     }
 
     /** Add a network fee with details.
-     * @param label a human-readable text description of the fee.
      * @param count the number of units for this fee.
      * @param cost the actual computed cost of this service fee in tinycents.
      * */
