@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.wiring;
 
+import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.NO_OP;
 import static com.swirlds.component.framework.wires.SolderType.INJECT;
 import static com.swirlds.component.framework.wires.SolderType.OFFER;
 
@@ -10,7 +11,6 @@ import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.transformers.WireFilter;
 import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
-import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
@@ -30,6 +30,7 @@ import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionHandlerResult;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
+import com.swirlds.platform.publisher.PlatformPublisher;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.HashLogger;
 import com.swirlds.platform.state.iss.IssDetector;
@@ -68,8 +69,7 @@ public class PlatformWiring {
     public static void wire(
             @NonNull final PlatformContext platformContext,
             @NonNull final ExecutionLayer execution,
-            @NonNull final PlatformComponents components,
-            @NonNull final ApplicationCallbacks callbacks) {
+            @NonNull final PlatformComponents components) {
         Objects.requireNonNull(platformContext);
         Objects.requireNonNull(execution);
         Objects.requireNonNull(components);
@@ -80,8 +80,8 @@ public class PlatformWiring {
 
         components
                 .gossipWiring()
-                .getSyncProgressOutput()
-                .solderTo(components.eventCreationManagerWiring().getInputWire(EventCreatorModule::reportSyncProgress));
+                .getSyncLagOutput()
+                .solderTo(components.eventCreationManagerWiring().getInputWire(EventCreatorModule::reportSyncRoundLag));
 
         components
                 .eventHasherWiring()
@@ -178,13 +178,14 @@ public class PlatformWiring {
                         components.internalEventValidatorWiring().getInputWire(InternalEventValidator::validateEvent),
                         INJECT);
 
-        if (callbacks.staleEventConsumer() != null) {
+        if (components.platformPublisherWiring().getSchedulerType() != NO_OP) {
             final OutputWire<PlatformEvent> staleEvent = components
                     .consensusEngineWiring()
                     .getOutputWire()
                     .buildTransformer("staleEvents", "consensusEngineOutput", ConsensusEngineOutput::staleEvents)
                     .buildSplitter("staleEventsSplitter", "stale events");
-            staleEvent.solderTo("staleEventCallback", "stale events", callbacks.staleEventConsumer());
+            staleEvent.solderTo(
+                    components.platformPublisherWiring().getInputWire(PlatformPublisher::publishStaleEvent));
         }
 
         // an output wire that filters out only pre-consensus events from the consensus engine
@@ -415,9 +416,9 @@ public class PlatformWiring {
 
         solderNotifier(components);
 
-        if (callbacks.preconsensusEventConsumer() != null) {
+        if (components.platformPublisherWiring().getSchedulerType() != NO_OP) {
             splitOrphanBufferOutput.solderTo(
-                    "preConsensusEventCallback", "pre-consensus events", callbacks.preconsensusEventConsumer());
+                    components.platformPublisherWiring().getInputWire(PlatformPublisher::publishPreconsensusEvent));
         }
 
         buildUnsolderedWires(components);
@@ -483,6 +484,9 @@ public class PlatformWiring {
     private static void buildUnsolderedWires(final PlatformComponents components) {
         components.eventDeduplicatorWiring().getInputWire(EventDeduplicator::clear);
         components.consensusEngineWiring().getInputWire(ConsensusEngine::outOfBandSnapshotUpdate);
+        if (components.platformPublisherWiring().getSchedulerType() != NO_OP) {
+            components.platformPublisherWiring().getInputWire(PlatformPublisher::publishSnapshotOverride);
+        }
         components.eventCreationManagerWiring().getInputWire(EventCreatorModule::clear);
         components.notifierWiring().getInputWire(AppNotifier::sendReconnectCompleteNotification);
         components.notifierWiring().getInputWire(AppNotifier::sendPlatformStatusChangeNotification);

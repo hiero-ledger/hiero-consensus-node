@@ -8,8 +8,7 @@ module org.hiero.base.crypto {
             com.swirlds.platform.core,
             com.swirlds.common.test.fixtures,
             com.swirlds.platform.core.test.fixtures,
-            org.hiero.base.crypto.test.fixtures,
-            org.hiero.otter.test;
+            org.hiero.base.crypto.test.fixtures;
     exports org.hiero.base.crypto.engine to
             com.swirlds.common,
             com.swirlds.common.test.fixtures,

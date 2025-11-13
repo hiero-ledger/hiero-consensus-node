@@ -11,19 +11,15 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uncheckedSubmit;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.updateTopic;
-import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -263,57 +259,6 @@ public class SimpleFeesSuite {
         }
     }
 
-    @Nested
-    class CryptoFeesComparison {
-        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-        @DisplayName("compare crypto create plain")
-        final Stream<DynamicTest> cryptoCreatePlainComparison() {
-            return runBeforeAfter(
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS).via("create-payer-txn"),
-                    cryptoCreate("newAccount")
-                            .balance(0L)
-                            .payingWith(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("create-account-txn"),
-                    // node=1, network=2, service=0.00000022 (22 tinycents)
-                    // sigs = 1 (included), keys = 0
-                    validateChargedUsdWithin("create-account-txn", ucents_to_USD(3), 0.01));
-        }
-
-        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-        @DisplayName("compare crypto create with key")
-        final Stream<DynamicTest> cryptoCreateWithKeyComparison() {
-            return runBeforeAfter(
-                    newKeyNamed("accountKey"),
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    cryptoCreate("newAccount")
-                            .balance(0L)
-                            .key("accountKey")
-                            .payingWith(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("create-account-key-txn"),
-                    // node=1, network=2, service=0.00000022 + 1.00 (1 key)
-                    // sigs = 1 (included), keys = 1
-                    validateChargedUsdWithin("create-account-key-txn", ucents_to_USD(1003), 0.01));
-        }
-
-        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-        @DisplayName("compare crypto delete plain")
-        final Stream<DynamicTest> cryptoDeletePlainComparison() {
-            return runBeforeAfter(
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    cryptoCreate("accountToDelete").balance(ONE_HBAR).payingWith(PAYER),
-                    cryptoDelete("accountToDelete")
-                            .transfer(PAYER)
-                            .payingWith(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("delete-account-txn"),
-                    // node=1, network=2, service=0.00000005 (5 tinycents)
-                    // sigs = 1 (included), keys = 0
-                    validateChargedUsdWithin("delete-account-txn", ucents_to_USD(3), 0.01));
-        }
-    }
-
     /*
     Disable custom fees for now.
     @Nested
@@ -484,10 +429,10 @@ public class SimpleFeesSuite {
     }
 
     @Nested
-    class TopicFeesNegativeCases {
+    class TopicFeesComparisonNegativeCases {
 
         @Nested
-        class TopicFeesComparisonCreateTopicFailsOnIngest {
+        class CreateTopicFailsOnIngest {
             @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
             @DisplayName("create topic with insufficient txn fee fails on ingest and payer not charged")
             final Stream<DynamicTest> createTopicInsufficientFeeFailsOnIngest() {
@@ -504,14 +449,14 @@ public class SimpleFeesSuite {
                                 .blankMemo()
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR / 100000) // fee is too low
+                                .fee(ONE_HBAR / 100) // fee is too low
                                 .via("create-topic-txn")
                                 .hasPrecheck(INSUFFICIENT_TX_FEE),
 
                         // assert no txn record is created
                         getTxnRecord("create-topic-txn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
 
-                        // Save balances and assert changes
+                        // Save payer balance after and assert changes
                         getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
                         withOpContext((spec, log) -> {
                             assertEquals(initialBalance.get(), afterBalance.get());
@@ -543,7 +488,7 @@ public class SimpleFeesSuite {
                         // assert no txn record is created
                         getTxnRecord("create-topic-txn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
 
-                        // Save balances and assert changes
+                        // Save payer balance after and assert changes
                         getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
                         withOpContext((spec, log) -> {
                             assertEquals(initialBalance.get(), afterBalance.get());
@@ -556,7 +501,7 @@ public class SimpleFeesSuite {
                 final AtomicLong initialBalance = new AtomicLong();
                 final AtomicLong afterBalance = new AtomicLong();
                 return runBeforeAfter(
-                        cryptoCreate(PAYER).balance(ONE_HBAR / 100000), // insufficient balance
+                        cryptoCreate(PAYER).balance(ONE_HBAR / 1000), // insufficient balance
                         newKeyNamed(ADMIN),
 
                         // Save payer balance before
@@ -574,7 +519,7 @@ public class SimpleFeesSuite {
                         // assert no txn record is created
                         getTxnRecord("create-topic-txn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
 
-                        // Save balances and assert changes
+                        // Save payer balance after and assert changes
                         getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
                         withOpContext((spec, log) -> {
                             assertEquals(initialBalance.get(), afterBalance.get());
@@ -605,7 +550,7 @@ public class SimpleFeesSuite {
                         // assert no txn record is created
                         getTxnRecord("create-topic-txn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
 
-                        // Save balances and assert changes
+                        // Save payer balance after and assert changes
                         getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
                         withOpContext((spec, log) -> {
                             assertEquals(initialBalance.get(), afterBalance.get());
@@ -641,7 +586,7 @@ public class SimpleFeesSuite {
                         // assert no txn record is created
                         getTxnRecord("create-topic-txn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
 
-                        // Save balances and assert changes
+                        // Save payer balance after and assert changes
                         getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
                         withOpContext((spec, log) -> {
                             assertEquals(initialBalance.get(), afterBalance.get());
@@ -677,7 +622,7 @@ public class SimpleFeesSuite {
                         // assert no txn record is created
                         getTxnRecord("create-topic-txn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
 
-                        // Save balances and assert changes
+                        // Save payer balance after and assert changes
                         getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
                         withOpContext((spec, log) -> {
                             assertEquals(initialBalance.get(), afterBalance.get());
@@ -708,7 +653,7 @@ public class SimpleFeesSuite {
                         // assert no txn record is created
                         getTxnRecord("create-topic-txn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
 
-                        // Save balances and assert changes
+                        // Save payer balance after and assert changes
                         getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
                         withOpContext((spec, log) -> {
                             assertEquals(initialBalance.get(), afterBalance.get());
@@ -738,7 +683,7 @@ public class SimpleFeesSuite {
                                 .via("create-topic-duplicate-txn")
                                 .hasPrecheck(DUPLICATE_TRANSACTION),
 
-                        // Save balances and assert changes
+                        // Save payer balance after and assert changes
                         getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
                         withOpContext((spec, log) -> {
                             assertEquals(initialBalance.get(), afterBalance.get());
@@ -780,7 +725,7 @@ public class SimpleFeesSuite {
                         // assert no txn record is created
                         getTxnRecord("update-topic-txn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
 
-                        // Save balances and assert changes
+                        // Save payer balance after and assert changes
                         getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
                         withOpContext((spec, log) -> {
                             assertEquals(initialBalance.get(), afterBalance.get());
@@ -820,7 +765,7 @@ public class SimpleFeesSuite {
                         // assert no txn record is created
                         getTxnRecord("delete-topic-txn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
 
-                        // Save balances and assert changes
+                        // Save payer balance after and assert changes
                         getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
                         withOpContext((spec, log) -> {
                             assertEquals(initialBalance.get(), afterBalance.get());
@@ -861,7 +806,7 @@ public class SimpleFeesSuite {
                         // assert no txn record is created
                         getTxnRecord("submit-topic-message-txn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
 
-                        // Save balances and assert changes
+                        // Save payer balance after and assert changes
                         getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
                         withOpContext((spec, log) -> {
                             assertEquals(initialBalance.get(), afterBalance.get());
@@ -870,35 +815,31 @@ public class SimpleFeesSuite {
         }
 
         @Nested
-        class SimpleFeesEnabledOnlyCreateTopicFailsOnPreHandle {
+        class CreateTopicFailsOnPreHandle {
             @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
             @DisplayName("create topic with insufficient txn fee fails on pre-handle and payer is not charged")
             final Stream<DynamicTest> createTopicInsufficientFeeFailsOnPreHandle() {
                 final AtomicLong initialBalance = new AtomicLong();
                 final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
 
                 final String INNER_ID = "create-topic-txn-inner-id";
                 final String ENVELOPE_ID = "create-topic-txn-envelope-id";
 
-                return hapiTest(
+                return runBeforeAfter(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
 
                         // Register a TxnId for the inner txn
                         usableTxnIdNamed(INNER_ID).payerId(PAYER),
 
-                        // Save balances before
-                        cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "3")),
+                        // Save payer balance before
                         getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        getAccountBalance("3").exposingBalanceTo(initialNodeBalance::set),
                         withOpContext((spec, log) -> {
                             // build the inner txn
                             final var innerTxn = createTopic("testTopic")
                                     .blankMemo()
                                     .payingWith(PAYER)
                                     .signedBy(PAYER)
-                                    .fee(ONE_HBAR / 100000) // fee is too low
+                                    .fee(ONE_HBAR / 100) // fee is too low
                                     .txnId(INNER_ID)
                                     .via(INNER_ID);
 
@@ -924,13 +865,11 @@ public class SimpleFeesSuite {
                             assertEquals(INSUFFICIENT_TX_FEE, status, "Expected txn to fail but it succeeded");
                         }),
 
-                        // Save balances after and assert payer was not charged
-                        validateChargedUsd(INNER_ID, ucents_to_USD(1.99992)),
+                        // Save payer balance after and assert payer was not charged
+                        validateChargedUsd(INNER_ID, ucents_to_USD(0)),
                         getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("3").exposingBalanceTo(afterNodeBalance::set),
                         withOpContext((spec, log) -> {
                             assertEquals(initialBalance.get(), afterBalance.get());
-                            assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }));
             }
 
@@ -939,23 +878,19 @@ public class SimpleFeesSuite {
             final Stream<DynamicTest> createTopicNotSignedByPayerFailsOnPreHandle() {
                 final AtomicLong initialBalance = new AtomicLong();
                 final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
 
                 final String INNER_ID = "create-topic-txn-inner-id";
                 final String ENVELOPE_ID = "create-topic-txn-envelope-id";
 
-                return hapiTest(
+                return runBeforeAfter(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(ADMIN).balance(ONE_HUNDRED_HBARS),
 
                         // Register a TxnId for the inner txn
                         usableTxnIdNamed(INNER_ID).payerId(PAYER),
 
-                        // Save balances before
-                        cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "3")),
+                        // Save payer balance before
                         getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        getAccountBalance("3").exposingBalanceTo(initialNodeBalance::set),
                         withOpContext((spec, log) -> {
                             // build the inner txn
                             final var innerTxn = createTopic("testTopic")
@@ -963,7 +898,7 @@ public class SimpleFeesSuite {
                                     .payingWith(PAYER)
                                     .adminKeyName(ADMIN)
                                     .signedBy(ADMIN)
-                                    .fee(ONE_HBAR)
+                                    .fee(ONE_HBAR / 100) // fee is too low
                                     .txnId(INNER_ID)
                                     .via(INNER_ID);
 
@@ -989,13 +924,11 @@ public class SimpleFeesSuite {
                             assertEquals(INVALID_PAYER_SIGNATURE, status, "Expected txn to fail but it succeeded");
                         }),
 
-                        // Save balances after and assert payer was not charged
-                        validateChargedUsd(INNER_ID, ucents_to_USD(1.99992)),
+                        // Save payer balance after and assert payer was not charged
+                        validateChargedUsd(INNER_ID, ucents_to_USD(0)),
                         getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("3").exposingBalanceTo(afterNodeBalance::set),
                         withOpContext((spec, log) -> {
                             assertEquals(initialBalance.get(), afterBalance.get());
-                            assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }));
             }
 
@@ -1004,23 +937,19 @@ public class SimpleFeesSuite {
             final Stream<DynamicTest> createTopicWithInsufficientPayerBalanceFailsOnPreHandle() {
                 final AtomicLong initialBalance = new AtomicLong();
                 final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
 
                 final String INNER_ID = "create-topic-txn-inner-id";
                 final String ENVELOPE_ID = "create-topic-txn-envelope-id";
 
-                return hapiTest(
-                        cryptoCreate(PAYER).balance(ONE_HBAR / 100000), // insufficient balance
+                return runBeforeAfter(
+                        cryptoCreate(PAYER).balance(ONE_HBAR / 1000), // insufficient balance
                         cryptoCreate(ADMIN).balance(ONE_HUNDRED_HBARS),
 
                         // Register a TxnId for the inner txn
                         usableTxnIdNamed(INNER_ID).payerId(PAYER),
 
-                        // Save balances before
-                        cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "3")),
+                        // Save payer balance before
                         getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        getAccountBalance("3").exposingBalanceTo(initialNodeBalance::set),
                         withOpContext((spec, log) -> {
                             // build the inner txn
                             final var innerTxn = createTopic("testTopic")
@@ -1054,13 +983,11 @@ public class SimpleFeesSuite {
                             assertEquals(INSUFFICIENT_PAYER_BALANCE, status, "Expected txn to fail but it succeeded");
                         }),
 
-                        // Save balances after and assert payer was not charged
-                        validateChargedUsd(INNER_ID, ucents_to_USD(1.99992)),
+                        // Save payer balance after and assert payer was not charged
+                        validateChargedUsd(INNER_ID, ucents_to_USD(0)),
                         getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("3").exposingBalanceTo(afterNodeBalance::set),
                         withOpContext((spec, log) -> {
                             assertEquals(initialBalance.get(), afterBalance.get());
-                            assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }));
             }
 
@@ -1069,19 +996,18 @@ public class SimpleFeesSuite {
             final Stream<DynamicTest> createTopicWithAdminKeyNotSignedByAdminFailsOnPreHandlePayerIsCharged() {
                 final AtomicLong initialBalance = new AtomicLong();
                 final AtomicLong afterBalance = new AtomicLong();
-
                 final String INNER_ID = "create-topic-txn-inner-id";
                 final String ENVELOPE_ID = "create-topic-txn-envelope-id";
 
-                return hapiTest(
+                return runBeforeAfter(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(ADMIN).balance(ONE_HUNDRED_HBARS),
 
+                        // Save payer balance before
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+
                         // Register a TxnId for the inner txn
                         usableTxnIdNamed(INNER_ID).payerId(PAYER),
-
-                        // Save balances before
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         withOpContext((spec, log) -> {
                             // build the inner txn
                             final var innerTxn = createTopic("testTopic")
@@ -1114,7 +1040,7 @@ public class SimpleFeesSuite {
                                     operation.getResponseRecord().getReceipt().getStatus();
                             assertEquals(INVALID_SIGNATURE, status, "Expected txn to fail but it succeeded");
                         }),
-                        // Save balances after and assert changes
+                        // Save payer balance after and assert changes
                         validateChargedUsd(INNER_ID, ucents_to_USD(1021)),
                         getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
                         withOpContext((spec, log) -> {
@@ -1122,6 +1048,7 @@ public class SimpleFeesSuite {
                         }));
             }
 
+            // should we not charge the payer here?
             @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
             @DisplayName("create topic with too long memo fails on pre-handle and payer is not charged")
             final Stream<DynamicTest> createTopicWithTooLongMemoFailsOnPreHandlePayerIsNotCharged() {
@@ -1130,18 +1057,14 @@ public class SimpleFeesSuite {
                 final String ENVELOPE_ID = "create-topic-txn-envelope-id";
                 final AtomicLong initialBalance = new AtomicLong();
                 final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
-                return hapiTest(
+                return runBeforeAfter(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+
+                        // Save payer balance before
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
 
                         // Register a TxnId for the inner txn
                         usableTxnIdNamed(INNER_ID).payerId(PAYER),
-
-                        // Save balances before
-                        cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "3")),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        getAccountBalance("3").exposingBalanceTo(initialNodeBalance::set),
                         withOpContext((spec, log) -> {
                             // build the inner txn
                             final var innerTxn = createTopic("testTopic")
@@ -1173,12 +1096,10 @@ public class SimpleFeesSuite {
                                     operation.getResponseRecord().getReceipt().getStatus();
                             assertEquals(MEMO_TOO_LONG, status, "Expected txn to fail but it succeeded");
                         }),
-                        validateChargedUsd(INNER_ID, ucents_to_USD(1.99992)),
+                        validateChargedUsd(INNER_ID, ucents_to_USD(0)),
                         getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("3").exposingBalanceTo(afterNodeBalance::set),
                         withOpContext((spec, log) -> {
                             assertEquals(initialBalance.get(), afterBalance.get());
-                            assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }));
             }
 
@@ -1190,19 +1111,14 @@ public class SimpleFeesSuite {
                 final String ENVELOPE_ID = "create-topic-txn-envelope-id";
                 final AtomicLong initialBalance = new AtomicLong();
                 final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
-
-                return hapiTest(
+                return runBeforeAfter(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+
+                        // Save payer balance before
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
 
                         // Register a TxnId for the inner txn
                         usableTxnIdNamed(INNER_ID).modifyValidStart(oneHourPast).payerId(PAYER),
-
-                        // Save balances before
-                        cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "3")),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        getAccountBalance("3").exposingBalanceTo(initialNodeBalance::set),
                         withOpContext((spec, log) -> {
                             // build the inner txn
                             final var innerTxn = createTopic("testTopic")
@@ -1234,12 +1150,10 @@ public class SimpleFeesSuite {
                                     operation.getResponseRecord().getReceipt().getStatus();
                             assertEquals(TRANSACTION_EXPIRED, status, "Expected txn to fail but it succeeded");
                         }),
-                        validateChargedUsd(INNER_ID, ucents_to_USD(1.99992)),
+                        validateChargedUsd(INNER_ID, ucents_to_USD(0)),
                         getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("3").exposingBalanceTo(afterNodeBalance::set),
                         withOpContext((spec, log) -> {
                             assertEquals(initialBalance.get(), afterBalance.get());
-                            assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }));
             }
 
@@ -1251,21 +1165,16 @@ public class SimpleFeesSuite {
                 final String ENVELOPE_ID = "create-topic-txn-envelope-id";
                 final AtomicLong initialBalance = new AtomicLong();
                 final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
-
-                return hapiTest(
+                return runBeforeAfter(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+
+                        // Save payer balance before
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
 
                         // Register a TxnId for the inner txn
                         usableTxnIdNamed(INNER_ID)
                                 .modifyValidStart(oneHourFuture)
                                 .payerId(PAYER),
-
-                        // Save balances before
-                        cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "3")),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        getAccountBalance("3").exposingBalanceTo(initialNodeBalance::set),
                         withOpContext((spec, log) -> {
                             // build the inner txn
                             final var innerTxn = createTopic("testTopic")
@@ -1297,14 +1206,10 @@ public class SimpleFeesSuite {
                                     operation.getResponseRecord().getReceipt().getStatus();
                             assertEquals(INVALID_TRANSACTION_START, status, "Expected txn to fail but it succeeded");
                         }),
-
-                        // Save balances after and assert payer was not charged
-                        validateChargedUsd(INNER_ID, ucents_to_USD(1.99992)),
+                        validateChargedUsd(INNER_ID, ucents_to_USD(0)),
                         getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("3").exposingBalanceTo(afterNodeBalance::set),
                         withOpContext((spec, log) -> {
                             assertEquals(initialBalance.get(), afterBalance.get());
-                            assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }));
             }
 
@@ -1315,19 +1220,14 @@ public class SimpleFeesSuite {
                 final String ENVELOPE_ID = "create-topic-txn-envelope-id";
                 final AtomicLong initialBalance = new AtomicLong();
                 final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
-
-                return hapiTest(
+                return runBeforeAfter(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+
+                        // Save payer balance before
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
 
                         // Register a TxnId for the inner txn
                         usableTxnIdNamed(INNER_ID).payerId(PAYER),
-
-                        // Save balances before
-                        cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "3")),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        getAccountBalance("3").exposingBalanceTo(initialNodeBalance::set),
                         withOpContext((spec, log) -> {
                             // build the inner txn
                             final var innerTxn = createTopic("testTopic")
@@ -1360,13 +1260,10 @@ public class SimpleFeesSuite {
                                     operation.getResponseRecord().getReceipt().getStatus();
                             assertEquals(INVALID_TRANSACTION_DURATION, status, "Expected txn to fail but it succeeded");
                         }),
-
-                        // Save balances after and assert payer was not charged
-                        validateChargedUsd(INNER_ID, ucents_to_USD(1.99992)),
+                        validateChargedUsd(INNER_ID, ucents_to_USD(0)),
                         getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
                         withOpContext((spec, log) -> {
                             assertEquals(initialBalance.get(), afterBalance.get());
-                            assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }));
             }
 
@@ -1377,15 +1274,14 @@ public class SimpleFeesSuite {
                 final String ENVELOPE_ID = "create-topic-txn-envelope-id";
                 final AtomicLong initialBalance = new AtomicLong();
                 final AtomicLong afterBalance = new AtomicLong();
-
-                return hapiTest(
+                return runBeforeAfter(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+
+                        // Save payer balance before
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
 
                         // Register a TxnId for the inner txn
                         usableTxnIdNamed(INNER_ID).payerId(PAYER),
-
-                        // Save balances before
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         withOpContext((spec, log) -> {
                             // build the inner txn
                             final var innerTxn = createTopic("testTopic")
@@ -1441,21 +1337,16 @@ public class SimpleFeesSuite {
                 final String ENVELOPE_ID = "create-topic-txn-envelope-id";
                 final AtomicLong initialBalance = new AtomicLong();
                 final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
-
-                return hapiTest(
+                return runBeforeAfter(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(ADMIN).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(NEW_ADMIN).balance(ONE_HUNDRED_HBARS),
 
+                        // Save payer balance before
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+
                         // Register a TxnId for the inner txn
                         usableTxnIdNamed(INNER_ID).payerId(PAYER),
-
-                        // Save balance before
-                        cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "3")),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        getAccountBalance("3").exposingBalanceTo(initialNodeBalance::set),
 
                         // Create topic with admin key
                         createTopic("testTopic")
@@ -1499,12 +1390,10 @@ public class SimpleFeesSuite {
                         }),
 
                         // Save payer balance after and assert payer was not charged
-                        validateChargedUsd(INNER_ID, ucents_to_USD(1.99992)),
+                        validateChargedUsd(INNER_ID, ucents_to_USD(0)),
                         getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("3").exposingBalanceTo(afterNodeBalance::set),
                         withOpContext((spec, log) -> {
                             assertEquals(initialBalance.get(), afterBalance.get());
-                            assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }));
             }
 
@@ -1515,21 +1404,17 @@ public class SimpleFeesSuite {
                 final String ENVELOPE_ID = "create-topic-txn-envelope-id";
                 final AtomicLong initialBalance = new AtomicLong();
                 final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
-
-                return hapiTest(
+                return runBeforeAfter(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(ADMIN).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(NEW_ADMIN).balance(ONE_HUNDRED_HBARS),
 
+                        // Save payer balance before
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+
                         // Register a TxnId for the inner txn
                         usableTxnIdNamed(INNER_ID).payerId(PAYER),
 
-                        // Save balances before
-                        cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "3")),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        getAccountBalance("3").exposingBalanceTo(initialNodeBalance::set),
                         // Create topic with admin key
                         createTopic("testTopic")
                                 .blankMemo()
@@ -1570,12 +1455,10 @@ public class SimpleFeesSuite {
                         }),
 
                         // Save payer balance after and assert payer was not charged
-                        validateChargedUsd(INNER_ID, ucents_to_USD(1.99992)),
+                        validateChargedUsd(INNER_ID, ucents_to_USD(0)),
                         getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("3").exposingBalanceTo(afterNodeBalance::set),
                         withOpContext((spec, log) -> {
                             assertEquals(initialBalance.get(), afterBalance.get());
-                            assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }));
             }
 
@@ -1586,21 +1469,17 @@ public class SimpleFeesSuite {
                 final String ENVELOPE_ID = "create-topic-txn-envelope-id";
                 final AtomicLong initialBalance = new AtomicLong();
                 final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
-
-                return hapiTest(
+                return runBeforeAfter(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(ADMIN).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(NEW_ADMIN).balance(ONE_HUNDRED_HBARS),
 
+                        // Save payer balance before
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+
                         // Register a TxnId for the inner txn
                         usableTxnIdNamed(INNER_ID).payerId(PAYER),
 
-                        // Save balances before
-                        cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "3")),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        getAccountBalance("3").exposingBalanceTo(initialNodeBalance::set),
                         // Create topic with admin key
                         createTopic("testTopic")
                                 .blankMemo()
@@ -1641,12 +1520,10 @@ public class SimpleFeesSuite {
                         }),
 
                         // Save payer balance after and assert payer was not charged
-                        validateChargedUsd(INNER_ID, ucents_to_USD(1.99992)),
+                        validateChargedUsd(INNER_ID, ucents_to_USD(0)),
                         getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("3").exposingBalanceTo(afterNodeBalance::set),
                         withOpContext((spec, log) -> {
                             assertEquals(initialBalance.get(), afterBalance.get());
-                            assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }));
             }
         }

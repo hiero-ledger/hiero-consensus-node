@@ -147,7 +147,7 @@ public class PlatformTestingToolState extends MerkleStateRoot<PlatformTestingToo
      * {@inheritDoc}
      */
     @Override
-    public long getRound() {
+    protected long getRound() {
         return DEFAULT_PLATFORM_STATE_FACADE.roundOf(this);
     }
 

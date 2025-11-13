@@ -7,7 +7,18 @@ import java.nio.file.Path;
 /**
  * A description of a signed state file and its associated round number.
  *
- * @param stateDirectory the path of the state directory.
+ * @param stateFile the path of the SignedState.swh file.
  * @param metadata  the metadata of the signed state
  */
-public record SavedStateInfo(@NonNull Path stateDirectory, @NonNull SavedStateMetadata metadata) {}
+public record SavedStateInfo(@NonNull Path stateFile, @NonNull SavedStateMetadata metadata) {
+
+    /**
+     * Get the parent directory.
+     *
+     * @return the parent directory
+     */
+    @NonNull
+    public Path getDirectory() {
+        return stateFile.toAbsolutePath().getParent();
+    }
+}

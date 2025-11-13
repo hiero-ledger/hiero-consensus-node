@@ -34,6 +34,7 @@ import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise;
 import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.iss.IssScratchpad;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -41,8 +42,6 @@ import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.MerkleNodeState;
-import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -434,9 +433,7 @@ public final class PlatformBuilder {
         final ApplicationCallbacks callbacks =
                 new ApplicationCallbacks(preconsensusEventConsumer, snapshotOverrideConsumer, staleEventConsumer);
 
-        @SuppressWarnings("unchecked")
-        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
-                platformContext.getMetrics(), platformContext.getTime(), createStateFromVirtualMap);
+        final SwirldStateManager swirldStateManager = new SwirldStateManager(platformContext, currentRoster);
 
         if (model == null) {
             final WiringConfig wiringConfig = platformContext.getConfiguration().getConfigData(WiringConfig.class);
@@ -465,9 +462,9 @@ public final class PlatformBuilder {
             };
         }
 
-        var platformComponentWiring = PlatformComponents.create(platformContext, model);
+        var platformComponentWiring = PlatformComponents.create(platformContext, model, callbacks);
 
-        PlatformWiring.wire(platformContext, execution, platformComponentWiring, callbacks);
+        PlatformWiring.wire(platformContext, execution, platformComponentWiring);
 
         final PlatformBuildingBlocks buildingBlocks = new PlatformBuildingBlocks(
                 platformComponentWiring,
@@ -492,7 +489,7 @@ public final class PlatformBuilder {
                 issScratchpad,
                 NotificationEngine.buildEngine(getStaticThreadManager()),
                 new AtomicReference<>(),
-                stateLifecycleManager,
+                swirldStateManager,
                 new AtomicReference<>(),
                 firstPlatform,
                 consensusStateEventHandler,

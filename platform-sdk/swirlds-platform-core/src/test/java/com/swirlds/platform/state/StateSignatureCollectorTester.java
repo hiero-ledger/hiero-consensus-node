@@ -106,7 +106,7 @@ public class StateSignatureCollectorTester extends DefaultStateSignatureCollecto
 
     private void processState(@NonNull final ReservedSignedState rs) {
         if (rs.get().isComplete()) {
-            latestSignedState.setStateIfNewer(rs.getAndReserve("LatestCompleteStateNexus.initState"));
+            latestSignedState.setStateIfNewer(rs.getAndReserve("LatestCompleteStateNexus.setState"));
             stateHasEnoughSignaturesConsumer.stateHasEnoughSignatures(rs.get());
         } else {
             stateLacksSignaturesConsumer.stateLacksSignatures(rs.get());

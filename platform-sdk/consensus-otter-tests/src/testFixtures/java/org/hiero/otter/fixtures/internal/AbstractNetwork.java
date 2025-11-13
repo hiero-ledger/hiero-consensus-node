@@ -476,27 +476,12 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public void setLatencyForAllConnections(@NonNull final Node node, @NonNull final LatencyRange latencyRange) {
-        log.info("Setting latency for all connections from node {} to range {}", node.selfId(), latencyRange);
-        for (final Node otherNode : nodes()) {
-            if (!node.equals(otherNode)) {
-                setLatencyRange(node, otherNode, latencyRange);
-                setLatencyRange(otherNode, node, latencyRange);
-            }
-        }
-        updateConnections();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void restoreLatencyForAllConnections(@NonNull final Node node) {
-        log.info("Restoring latency for all connections from node {}", node);
-        for (final Node otherNode : nodes()) {
-            if (!node.equals(otherNode)) {
-                latencyOverrides.remove(new ConnectionKey(node.selfId(), otherNode.selfId()));
-                latencyOverrides.remove(new ConnectionKey(otherNode.selfId(), node.selfId()));
+    public void setLatencyForAllConnections(@NonNull final Node sender, @NonNull final LatencyRange latencyRange) {
+        log.info("Setting latency for all connections from node {} to range {}", sender.selfId(), latencyRange);
+        for (final Node receiver : nodes()) {
+            if (!receiver.equals(sender)) {
+                setLatencyRange(sender, receiver, latencyRange);
+                setLatencyRange(receiver, sender, latencyRange);
             }
         }
         updateConnections();
@@ -517,24 +502,13 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public void setBandwidthForAllConnections(@NonNull final Node node, @NonNull final BandwidthLimit bandwidthLimit) {
-        log.info("Setting bandwidth for all connections from node {} to {}", node.selfId(), bandwidthLimit);
-        for (final Node otherNode : nodes()) {
-            if (!node.equals(otherNode)) {
-                bandwidthOverrides.put(new ConnectionKey(node.selfId(), otherNode.selfId()), bandwidthLimit);
-                bandwidthOverrides.put(new ConnectionKey(otherNode.selfId(), node.selfId()), bandwidthLimit);
-            }
-        }
-        updateConnections();
-    }
-
-    @Override
-    public void restoreBandwidthLimitsForAllConnections(@NonNull final Node node) {
-        log.info("Restoring bandwidth for all connections from node {}", node);
-        for (final Node otherNode : nodes()) {
-            if (!node.equals(otherNode)) {
-                bandwidthOverrides.remove(new ConnectionKey(node.selfId(), otherNode.selfId()));
-                bandwidthOverrides.remove(new ConnectionKey(otherNode.selfId(), node.selfId()));
+    public void setBandwidthForAllConnections(
+            @NonNull final Node sender, @NonNull final BandwidthLimit bandwidthLimit) {
+        log.info("Setting bandwidth for all connections from node {} to {}", sender.selfId(), bandwidthLimit);
+        for (final Node receiver : nodes()) {
+            if (!receiver.equals(sender)) {
+                bandwidthOverrides.put(new ConnectionKey(sender.selfId(), receiver.selfId()), bandwidthLimit);
+                bandwidthOverrides.put(new ConnectionKey(receiver.selfId(), sender.selfId()), bandwidthLimit);
             }
         }
         updateConnections();
@@ -622,15 +596,17 @@ public abstract class AbstractNetwork implements Network {
     }
 
     /**
-     * {@inheritDoc}
+     * Submits the transaction to the first active node found in the network.
+     *
+     * @param transaction the transaction to submit
      */
-    public void submitTransactions(@NonNull final List<OtterTransaction> transactions) {
+    private void submitTransaction(@NonNull final OtterTransaction transaction) {
         nodes().stream()
                 .filter(Node::isActive)
                 .findFirst()
                 .map(node -> (AbstractNode) node)
                 .orElseThrow(() -> new AssertionError("No active node found to send transaction to."))
-                .submitTransactions(transactions);
+                .submitTransaction(transaction);
     }
 
     /**

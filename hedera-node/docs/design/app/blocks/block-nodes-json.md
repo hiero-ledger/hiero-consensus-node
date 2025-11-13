@@ -1,6 +1,6 @@
 ## Block Nodes JSON configuration
 
-This document describes the `block-nodes.json` file used to configure which Block Nodes a Consensus Node can connect to, along with optional client protocol settings and message size limit per node.
+This document describes the `block-nodes.json` file used to configure which Block Nodes a Consensus Node can connect to, along with optional client protocol settings per node.
 
 Note: The canonical definition of this structure is the HAPI proto located at `hapi/hapi/src/main/proto/network/block_node_connections.proto`. The `block-nodes.json` file uses the PBJ JSON encoding of that schema.
 
@@ -35,7 +35,6 @@ Each element of `nodes` has the following fields:
   - `initBufferSize` (integer, optional)
   - `pollWaitTime` (string, optional): ISO-8601 duration.
 - `maxMessageSizeBytes` (integer, optional): Maximum per-request payload size in bytes for this node. The system enforces an upper cap of 2,097,152 bytes (2 MB) due to PBJ limits; if configured above this, the effective limit will be 2 MB.
-- `maxMessageSizeBytes` (integer, optional): Maximum per-request payload size in bytes for this node. If omitted, the default is 2,097,152 bytes (2 MB).
 
 ### Example
 
@@ -100,4 +99,4 @@ Each element of `nodes` has the following fields:
 
 ### Related configuration (outside this file)
 
-While the JSON file declares the set of nodes (and optional per-node message size and protocol overrides), general streaming behavior is configured via the `blockNode` section in the application configuration (e.g. `blockNode.blockNodeConnectionFileDir`, backoff limits, latency thresholds, etc.).
+While the JSON file declares the set of nodes and per-node protocol overrides, general streaming behavior is configured via the `blockNode` section in the application configuration (e.g. `blockNode.blockNodeConnectionFileDir`, backoff limits, latency thresholds, etc.).

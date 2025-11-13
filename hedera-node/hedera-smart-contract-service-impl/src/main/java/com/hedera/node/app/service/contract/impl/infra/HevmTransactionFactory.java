@@ -315,7 +315,7 @@ public class HevmTransactionFactory {
                 NOT_APPLICABLE,
                 null,
                 exception,
-                body.hookDispatch());
+                null);
     }
 
     private @NonNull EthTxData assertValidEthTx(@NonNull final EthereumTransactionBody body) {

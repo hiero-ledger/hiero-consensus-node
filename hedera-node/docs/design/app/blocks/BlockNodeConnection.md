@@ -105,17 +105,6 @@ the transition to a terminal state, it too will cease operations.
 
 To establish a connection back to the block node, a new connection object will need to be created.
 
-### Graceful Connection Close
-
-When a connection is closed, a best effort attempt to gracefully close the connection will be performed. There are two
-aspects to this "graceful close":
-1. Unless the connection is unstable, or we are notifying the block node it is too far behind, before closing an attempt
-will be made to send an EndStream request to the block with the code `RESET`.
-2. If the connection is actively streaming a block, a best effort to stream the rest of the block will be performed
-before closing the connection.
-
-A caveat to this is if the connection manager is being shutdown, then the connections will NOT be closed gracefully.
-
 ### Connection States
 
 - **UNINITIALIZED**: Initial state when a connection object is created. The bidi RequestObserver needs to be created.

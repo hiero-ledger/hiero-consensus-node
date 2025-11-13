@@ -41,7 +41,7 @@ public abstract class AbstractBaseFeeModel implements FeeModel {
             }
             int included = ref.includedCount();
             long used = (long) params.get(ref.name());
-            long extraFee = lookupExtraFee(feeSchedule, ref.name()).fee();
+            long extraFee = lookupExtraFee(feeSchedule, ref).fee();
             if (used > included) {
                 final long overage = used - included;
                 result.addNodeFee("Node Overage of " + ref.name().name(), overage, overage * extraFee);

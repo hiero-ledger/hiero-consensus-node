@@ -121,7 +121,6 @@ public class BaseTranslator {
     private final long realm;
     private final Map<Long, Long> nonces = new HashMap<>();
     private final Map<AccountID, Address> evmAddresses = new HashMap<>();
-    private final Map<Bytes, AccountID> aliases = new HashMap<>();
     private final Map<TokenID, Long> totalSupplies = new HashMap<>();
     private final Map<TokenID, TokenType> tokenTypes = new HashMap<>();
     private final Map<TransactionID, ScheduleID> scheduleRefs = new HashMap<>();
@@ -474,21 +473,39 @@ public class BaseTranslator {
 
     /**
      * Adds the created IDs from the given state changes to the provided {@link ContractFunctionResult.Builder}.
-     *
      * @param resultBuilder the builder to populate with created IDs
-     * @param contractNonceInfos the contract nonce infos to maybe add (from a {@link EvmTransactionResult})
+     * @param stateChanges the state changes to process
      */
     public void addChangedContractNonces(
             @NonNull final ContractFunctionResult.Builder resultBuilder,
-            @NonNull final List<ContractNonceInfo> contractNonceInfos) {
+            @NonNull final List<StateChange> stateChanges) {
         requireNonNull(resultBuilder);
-        requireNonNull(contractNonceInfos);
+        requireNonNull(stateChanges);
         if (!externalizeNonces) {
             return;
         }
-        final var infos = new ArrayList<>(contractNonceInfos);
-        infos.sort(NONCE_INFO_CONTRACT_ID_COMPARATOR);
-        resultBuilder.contractNonces(infos);
+        final List<ContractNonceInfo> changedNonces = new ArrayList<>();
+        stateChanges.stream()
+                .filter(StateChange::hasMapUpdate)
+                .map(StateChange::mapUpdateOrThrow)
+                .filter(change -> change.valueOrThrow().hasAccountValue())
+                .map(change -> change.valueOrThrow().accountValueOrThrow())
+                .filter(Account::smartContract)
+                .forEach(contract -> {
+                    final var contractId = contract.accountIdOrThrow();
+                    if (!contract.deleted()
+                            && contract.ethereumNonce() != nonces.getOrDefault(contractId.accountNumOrThrow(), 0L)) {
+                        changedNonces.add(new ContractNonceInfo(
+                                ContractID.newBuilder()
+                                        .shardNum(contractId.shardNum())
+                                        .realmNum(contractId.realmNum())
+                                        .contractNum(contractId.accountNumOrThrow())
+                                        .build(),
+                                contract.ethereumNonce()));
+                    }
+                });
+        changedNonces.sort(NONCE_INFO_CONTRACT_ID_COMPARATOR);
+        resultBuilder.contractNonces(changedNonces);
     }
 
     /**
@@ -517,14 +534,10 @@ public class BaseTranslator {
                 .transferList(parts.transferList())
                 .tokenTransferLists(parts.tokenTransferLists())
                 .automaticTokenAssociations(parts.automaticTokenAssociations())
-                .paidStakingRewards(parts.paidStakingRewards());
+                .paidStakingRewards(parts.paidStakingRewards())
+                .parentConsensusTimestamp(parts.parentConsensusTimestamp());
         final var receiptBuilder = TransactionReceipt.newBuilder()
                 .status(requireNonNull(parts.transactionResult()).status());
-        if (!txnId.scheduled() || parts.isTopLevel()) {
-            recordBuilder.parentConsensusTimestamp(parts.parentConsensusTimestamp());
-        } else {
-            receiptBuilder.exchangeRate(activeRates);
-        }
         final boolean followsUserRecord = asInstant(parts.consensusTimestamp()).isAfter(userTimestamp);
         if ((!followsUserRecord || parts.transactionIdOrThrow().scheduled())
                 && parts.parentConsensusTimestamp() == null) {
@@ -812,8 +825,7 @@ public class BaseTranslator {
                 .contractID(result.contractId())
                 .contractCallResult(result.resultData())
                 .errorMessage(result.errorMessage())
-                .gasUsed(result.gasUsed())
-                .contractNonces(result.contractNonces());
+                .gasUsed(result.gasUsed());
         if (result.hasInternalCallContext()) {
             final var context = result.internalCallContextOrThrow();
             builder.gas(context.gas()).functionParameters(context.callData()).amount(context.value());
@@ -1006,13 +1018,6 @@ public class BaseTranslator {
                     highestPutSerialNos
                             .computeIfAbsent(tokenId, ignore -> new LinkedList<>())
                             .add(nftId.serialNumber());
-                } else if (key.hasProtoBytesKey()) {
-                    final var keyBytes = key.protoBytesKeyOrThrow();
-                    final var value = mapUpdate.valueOrThrow();
-                    if (value.hasAccountIdValue()) {
-                        final var accountId = value.accountIdValueOrThrow();
-                        aliases.put(keyBytes, accountId);
-                    }
                 }
             }
         });
@@ -1191,9 +1196,5 @@ public class BaseTranslator {
                     .build();
         }
         return Optional.ofNullable(result);
-    }
-
-    public Map<Bytes, AccountID> getAliases() {
-        return aliases;
     }
 }

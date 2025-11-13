@@ -34,7 +34,6 @@ import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -47,7 +46,6 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.Node;
-import org.hiero.otter.fixtures.ProfilerEvent;
 import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.app.OtterTransaction;
@@ -124,9 +122,6 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     /** A source of randomness for the node */
     private final Random random;
 
-    /** The profiler for this node */
-    private final ContainerProfiler profiler;
-
     /**
      * Constructor for the {@link ContainerNode} class.
      *
@@ -172,8 +167,6 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
         // Blocking stub for initializing and killing the consensus node
         containerControlBlockingStub = ContainerControlServiceGrpc.newBlockingStub(containerControlChannel);
-
-        profiler = new ContainerProfiler(selfId, container, localOutputDirectory);
     }
 
     /**
@@ -336,21 +329,22 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      * {@inheritDoc}
      */
     @Override
-    public void submitTransactions(@NonNull final List<OtterTransaction> transactions) {
+    public void submitTransaction(@NonNull final OtterTransaction transaction) {
         throwIfInLifecycle(INIT, "Node has not been started yet.");
         throwIfInLifecycle(SHUTDOWN, "Node has been shut down.");
         throwIfInLifecycle(DESTROYED, "Node has been destroyed.");
 
         try {
-            final TransactionRequest.Builder builder = TransactionRequest.newBuilder();
-            transactions.forEach(t -> builder.addPayload(t.toByteString()));
-            final TransactionRequestAnswer answer = nodeCommBlockingStub.submitTransaction(builder.build());
-            if (answer.getNumFailed() > 0) {
-                fail("%d out of %d transaction(s) failed to submit for node %d."
-                        .formatted(answer.getNumFailed(), transactions.size(), selfId.id()));
+            final TransactionRequest request = TransactionRequest.newBuilder()
+                    .setPayload(transaction.toByteString())
+                    .build();
+
+            final TransactionRequestAnswer answer = nodeCommBlockingStub.submitTransaction(request);
+            if (!answer.getResult()) {
+                fail("Failed to submit transaction for node %d.".formatted(selfId.id()));
             }
         } catch (final Exception e) {
-            fail("Failed to submit transaction(s) to node %d".formatted(selfId.id()), e);
+            fail("Failed to submit transaction to node %d".formatted(selfId.id()), e);
         }
     }
 
@@ -378,8 +372,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     }
 
     /**
-     * Gets the container instance for this node. This allows direct access to the underlying Testcontainers container
-     * for operations like retrieving console logs.
+     * Gets the container instance for this node. This allows direct access to the underlying
+     * Testcontainers container for operations like retrieving console logs.
      *
      * @return the container instance
      */
@@ -468,25 +462,6 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     @NonNull
     public SingleNodeReconnectResult newReconnectResult() {
         return new SingleNodeReconnectResultImpl(selfId, newPlatformStatusResult(), newLogResult());
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void startProfiling(
-            @NonNull final String outputFilename,
-            @NonNull final Duration samplingInterval,
-            @NonNull final ProfilerEvent... events) {
-        profiler.startProfiling(outputFilename, samplingInterval, events);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void stopProfiling() {
-        profiler.stopProfiling();
     }
 
     /**

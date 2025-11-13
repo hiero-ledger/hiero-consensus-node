@@ -17,7 +17,4 @@ import org.hiero.consensus.model.event.PlatformEvent;
 public record ApplicationCallbacks(
         @Nullable Consumer<PlatformEvent> preconsensusEventConsumer,
         @Nullable Consumer<ConsensusSnapshot> snapshotOverrideConsumer,
-        @Nullable Consumer<PlatformEvent> staleEventConsumer) {
-
-    public static final ApplicationCallbacks EMPTY = new ApplicationCallbacks(null, null, null);
-}
+        @Nullable Consumer<PlatformEvent> staleEventConsumer) {}

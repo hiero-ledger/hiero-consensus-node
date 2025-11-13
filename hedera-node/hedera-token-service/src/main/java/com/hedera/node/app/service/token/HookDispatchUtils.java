@@ -36,7 +36,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class HookDispatchUtils {
@@ -44,14 +43,13 @@ public class HookDispatchUtils {
     public static final long HTS_HOOKS_CONTRACT_NUM = 365L;
     public static final String HTS_HOOKS_EVM_ADDRESS = "0x" + Long.toHexString(HTS_HOOKS_CONTRACT_NUM);
 
-    public static @Nullable Long dispatchHookDeletions(
+    public static long dispatchHookDeletions(
             @NonNull final HandleContext context,
             @NonNull final List<Long> hooksToDelete,
-            @Nullable final Long headBefore,
+            final long headBefore,
             @NonNull final AccountID ownerId) {
         var currentHead = headBefore;
         for (final var hookId : hooksToDelete) {
-            requireNonNull(hookId);
             final var hookDispatch = HookDispatchTransactionBody.newBuilder()
                     .hookIdToDelete(new HookId(
                             HookEntityId.newBuilder().accountId(ownerId).build(), hookId))
@@ -61,8 +59,8 @@ public class HookDispatchUtils {
                     TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
                     HookDispatchStreamBuilder.class));
             validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
-            if (Objects.equals(hookId, currentHead)) {
-                currentHead = streamBuilder.getNextHookId();
+            if (hookId == currentHead) {
+                currentHead = streamBuilder.getNextHookId() == null ? 0L : streamBuilder.getNextHookId();
             }
         }
         return currentHead;

@@ -439,7 +439,7 @@ public class PlatformComponentBuilder {
                 blocks.platformContext().getMetrics(),
                 blocks.platformContext().getTime(),
                 blocks.secureRandomSupplier().get(),
-                new PlatformSigner(blocks.keysAndCerts()),
+                blocks.keysAndCerts(),
                 blocks.rosterHistory().getCurrentRoster(),
                 blocks.selfId(),
                 blocks.execution(),
@@ -801,7 +801,7 @@ public class PlatformComponentBuilder {
                     blocks.rosterHistory().getCurrentRoster(),
                     blocks.selfId(),
                     blocks.appVersion(),
-                    blocks.stateLifecycleManager(),
+                    blocks.swirldStateManager(),
                     () -> blocks.getLatestCompleteStateReference().get().get(),
                     blocks.intakeEventCounter(),
                     blocks.platformStateFacade(),
@@ -879,8 +879,7 @@ public class PlatformComponentBuilder {
                     actualMainClassName,
                     blocks.selfId(),
                     blocks.swirldName(),
-                    blocks.platformStateFacade(),
-                    blocks.stateLifecycleManager());
+                    blocks.platformStateFacade());
         }
         return stateSnapshotManager;
     }
@@ -1040,7 +1039,7 @@ public class PlatformComponentBuilder {
         if (transactionHandler == null) {
             transactionHandler = new DefaultTransactionHandler(
                     blocks.platformContext(),
-                    blocks.stateLifecycleManager(),
+                    blocks.swirldStateManager(),
                     blocks.statusActionSubmitterReference().get(),
                     blocks.appVersion(),
                     blocks.platformStateFacade(),

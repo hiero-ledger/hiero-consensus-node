@@ -22,8 +22,6 @@ import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.components.appcomm.LatestCompleteStateNotifier;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
-import com.swirlds.platform.crypto.KeyGeneratingException;
-import com.swirlds.platform.crypto.KeysAndCertsGenerator;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.deduplication.EventDeduplicator;
@@ -35,6 +33,7 @@ import com.swirlds.platform.event.validation.EventSignatureValidator;
 import com.swirlds.platform.event.validation.InternalEventValidator;
 import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
+import com.swirlds.platform.publisher.PlatformPublisher;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.HashLogger;
 import com.swirlds.platform.state.iss.IssDetector;
@@ -47,14 +46,10 @@ import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.signer.StateSigner;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.PlatformMonitor;
-import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.util.stream.Stream;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.creator.EventCreatorModule;
-import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterHistory;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -89,14 +84,14 @@ class PlatformWiringTests {
         final WiringModel model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
-        final PlatformComponents platformComponents = PlatformComponents.create(platformContext, model);
-        PlatformWiring.wire(
-                platformContext, mock(ExecutionLayer.class), platformComponents, ApplicationCallbacks.EMPTY);
+        final PlatformComponents platformComponents =
+                PlatformComponents.create(platformContext, model, applicationCallbacks);
+        PlatformWiring.wire(platformContext, mock(ExecutionLayer.class), platformComponents);
 
         final PlatformComponentBuilder componentBuilder =
                 new PlatformComponentBuilder(createBuildingBlocks(platformContext));
 
-        final PlatformCoordinator coordinator = new PlatformCoordinator(platformComponents, ApplicationCallbacks.EMPTY);
+        final PlatformCoordinator coordinator = new PlatformCoordinator(platformComponents);
         componentBuilder
                 .withEventHasher(mock(EventHasher.class))
                 .withInternalEventValidator(mock(InternalEventValidator.class))
@@ -159,7 +154,8 @@ class PlatformWiringTests {
                 mock(SignedStateNexus.class),
                 mock(LatestCompleteStateNexus.class),
                 mock(SavedStateController.class),
-                mock(AppNotifier.class));
+                mock(AppNotifier.class),
+                mock(PlatformPublisher.class));
 
         coordinator.start();
         assertFalse(model.checkForUnboundInputWires());
@@ -173,13 +169,6 @@ class PlatformWiringTests {
         final RosterHistory rosterHistory = mock(RosterHistory.class);
         when(rosterHistory.getCurrentRoster()).thenReturn(Roster.DEFAULT);
         when(blocks.rosterHistory()).thenReturn(rosterHistory);
-        final KeysAndCerts keysAndCerts;
-        try {
-            keysAndCerts = KeysAndCertsGenerator.generate(NodeId.FIRST_NODE_ID, new SecureRandom(), new SecureRandom());
-        } catch (final NoSuchAlgorithmException | NoSuchProviderException | KeyGeneratingException e) {
-            throw new RuntimeException(e);
-        }
-        when(blocks.keysAndCerts()).thenReturn(keysAndCerts);
         return blocks;
     }
 }
