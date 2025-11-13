@@ -11,6 +11,7 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import org.hiero.base.crypto.BytesSigner;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -85,15 +86,16 @@ public interface EventCreatorModule {
     void reportUnhealthyDuration(@NonNull final Duration duration);
 
     /**
-     * Report the lag in rounds behind the other nodes. A negative value means we are ahead of the other nodes.
+     * Report the current sync information against specific peer; EventCreator can use information inside to compute the
+     * round lag or any other information it needs to control event creation
      *
-     * @param lag the lag in rounds behind the other nodes
+     * @param syncProgress status of sync in progress
      */
-    void reportSyncRoundLag(@NonNull Double lag);
+    void reportSyncProgress(@NonNull SyncProgress syncProgress);
 
     /**
-     * Set the quiescence state of this event creator. The event creator will always behave according to the most
-     * recent quiescence command that it has been given.
+     * Set the quiescence state of this event creator. The event creator will always behave according to the most recent
+     * quiescence command that it has been given.
      *
      * @param quiescenceCommand the quiescence command
      */

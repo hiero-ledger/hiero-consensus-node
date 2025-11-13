@@ -802,8 +802,8 @@ public class BlockStreamBuilder
     }
 
     @Override
-    public StreamBuilder triggeringParentConsensus(@NonNull final Instant parentConsensus) {
-        return parentConsensus(parentConsensus);
+    public StreamBuilder triggeringParentConsensus(@NonNull final Instant at) {
+        return parentConsensus(at);
     }
 
     @Override
