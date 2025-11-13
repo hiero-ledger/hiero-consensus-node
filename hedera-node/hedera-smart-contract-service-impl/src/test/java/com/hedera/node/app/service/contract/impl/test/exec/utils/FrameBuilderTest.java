@@ -99,7 +99,7 @@ class FrameBuilderTest {
     @Mock
     private Account contract;
 
-    private final FrameBuilder subject = FrameBuilder.make();
+    private final FrameBuilder subject = new FrameBuilder();
 
     @Test
     void constructsExpectedFrameForCallToExtantContractIncludingOptionalContextVariables() {

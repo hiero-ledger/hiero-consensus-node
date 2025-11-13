@@ -12,7 +12,6 @@ import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.FrameRunner;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
-import com.hedera.node.app.service.contract.impl.exec.TransactionProcessorBESU;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.operations.*;
@@ -22,9 +21,8 @@ import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCa
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
 import com.hedera.node.app.service.contract.impl.exec.v038.Version038AddressChecks;
-import com.hedera.node.app.service.contract.impl.hevm.HederaEVM;
 import com.hedera.node.app.service.contract.impl.exec.v067.Version067FeatureFlags;
-import com.hedera.node.app.service.contract.impl.utils.TODO;
+import com.hedera.node.app.service.contract.impl.hevm.HederaEVM;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
@@ -50,7 +48,6 @@ import org.hyperledger.besu.evm.precompile.KZGPointEvalPrecompiledContract;
 import org.hyperledger.besu.evm.precompile.MainnetPrecompiledContracts;
 import org.hyperledger.besu.evm.precompile.PrecompileContractRegistry;
 import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
-
 /**
  * Provides the Services X.XX BEVM implementation, which is a brand new EVM for
  * the Bonneville project.
@@ -70,17 +67,14 @@ public interface VXXXModule {
             @ServicesVXXX @NonNull final FeatureFlags featureFlags,
             @NonNull final CodeFactory codeFactory
          ) {
-        if( System.getenv("UseBonnevilleEVM")==null )
-            return new TransactionProcessorBESU(
-                frameBuilder,
-                frameRunner,
-                gasCharging,
-                messageCallProcessor,
-                contractCreationProcessor,
-                featureFlags,
-                codeFactory);
-        // Bonneville TP
-        throw new TODO();
+        return TransactionProcessor.make(
+            frameBuilder,
+            frameRunner,
+            gasCharging,
+            messageCallProcessor,
+            contractCreationProcessor,
+            featureFlags,
+            codeFactory);
     }
 
     @Provides
@@ -114,31 +108,23 @@ public interface VXXXModule {
             EvmConfiguration evmConfiguration,
             GasCalculator gasCalculator,
             @CustomOps Set<Operation> customOps) {
-        if( System.getenv("UseBonnevilleEVM")==null ) {
-            KZGPointEvalPrecompiledContract.init();
+        KZGPointEvalPrecompiledContract.init();
 
-            // Use Cancun EVM with 0.51 custom operations and 0x00 chain id (set at runtime)
-            final var operationRegistry = new OperationRegistry();
-            registerCancunOperations(operationRegistry, gasCalculator, BigInteger.ZERO);
-            customOperations.forEach(operationRegistry::put);
-            customOps.forEach(operationRegistry::put);
-            return new HederaEVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.CANCUN);
-        } else {
-            throw new TODO();
-        }
+        // Use Cancun EVM with 0.51 custom operations and 0x00 chain id (set at runtime)
+        final var operationRegistry = new OperationRegistry();
+        registerCancunOperations(operationRegistry, gasCalculator, BigInteger.ZERO);
+        customOperations.forEach(operationRegistry::put);
+        customOps.forEach(operationRegistry::put);
+        return new HederaEVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.CANCUN);
     }
 
     @Provides
     @Singleton
     @ServicesVXXX
     static PrecompileContractRegistry providePrecompileContractRegistry(GasCalculator gasCalculator) {
-        if( System.getenv("UseBonnevilleEVM")==null ) {
-            final var precompileContractRegistry = new PrecompileContractRegistry();
-            MainnetPrecompiledContracts.populateForCancun(precompileContractRegistry, gasCalculator);
-            return precompileContractRegistry;
-        } else {
-            throw new TODO();
-        }
+        final var precompileContractRegistry = new PrecompileContractRegistry();
+        MainnetPrecompiledContracts.populateForCancun(precompileContractRegistry, gasCalculator);
+        return precompileContractRegistry;
     }
 
     @Binds
@@ -156,11 +142,7 @@ public interface VXXXModule {
             @NonNull final GasCalculator gasCalculator,
             @ServicesVXXX @NonNull final AddressChecks addressChecks,
             @ServicesVXXX @NonNull final FeatureFlags featureFlags) {
-        if( System.getenv("UseBonnevilleEVM")==null ) {
-          return new CustomBalanceOperation(gasCalculator, addressChecks, featureFlags);
-        } else {
-            throw new TODO();
-        }
+        return new CustomBalanceOperation(gasCalculator, addressChecks, featureFlags);
     }
 
     @Provides
@@ -170,11 +152,7 @@ public interface VXXXModule {
             @NonNull final GasCalculator gasCalculator,
             @ServicesVXXX @NonNull final AddressChecks addressChecks,
             @ServicesVXXX @NonNull final FeatureFlags featureFlags) {
-        if( System.getenv("UseBonnevilleEVM")==null ) {
-            return new CustomDelegateCallOperation(gasCalculator, addressChecks, featureFlags);
-        } else {
-            throw new TODO();
-        }
+        return new CustomDelegateCallOperation(gasCalculator, addressChecks, featureFlags);
     }
 
     @Provides
@@ -184,11 +162,7 @@ public interface VXXXModule {
             @NonNull final GasCalculator gasCalculator,
             @ServicesVXXX @NonNull final AddressChecks addressChecks,
             @ServicesVXXX @NonNull final FeatureFlags featureFlags) {
-        if( System.getenv("UseBonnevilleEVM")==null ) {
-            return new CustomCallCodeOperation(gasCalculator, addressChecks, featureFlags);
-        } else {
-            throw new TODO();
-        }
+        return new CustomCallCodeOperation(gasCalculator, addressChecks, featureFlags);
     }
 
     @Provides
@@ -198,11 +172,7 @@ public interface VXXXModule {
             @NonNull final GasCalculator gasCalculator,
             @ServicesVXXX @NonNull final AddressChecks addressChecks,
             @ServicesVXXX @NonNull final FeatureFlags featureFlags) {
-        if( System.getenv("UseBonnevilleEVM")==null ) {
-            return new CustomStaticCallOperation(gasCalculator, addressChecks, featureFlags);
-        } else {
-            throw new TODO();
-        }
+        return new CustomStaticCallOperation(gasCalculator, addressChecks, featureFlags);
     }
 
     @Provides
@@ -212,22 +182,14 @@ public interface VXXXModule {
             @NonNull final GasCalculator gasCalculator,
             @ServicesVXXX @NonNull final FeatureFlags featureFlags,
             @ServicesVXXX @NonNull final AddressChecks addressChecks) {
-        if( System.getenv("UseBonnevilleEVM")==null ) {
-            return new CustomCallOperation(featureFlags, gasCalculator, addressChecks);
-        } else {
-            throw new TODO();
-        }
+        return new CustomCallOperation(featureFlags, gasCalculator, addressChecks);
     }
 
     @Provides
     @IntoSet
     @ServicesVXXX
     static Operation provideChainIdOperation(@NonNull final GasCalculator gasCalculator) {
-        if( System.getenv("UseBonnevilleEVM")==null ) {
-            return new CustomChainIdOperation(gasCalculator);
-        } else {
-            throw new TODO();
-        }
+        return new CustomChainIdOperation(gasCalculator);
     }
 
     @Provides
@@ -235,11 +197,7 @@ public interface VXXXModule {
     @ServicesVXXX
     static Operation provideCreateOperation(
             @NonNull final GasCalculator gasCalculator, @NonNull final CodeFactory codeFactory) {
-        if( System.getenv("UseBonnevilleEVM")==null ) {
-            return new CustomCreateOperation(gasCalculator, codeFactory);
-        } else {
-            throw new TODO();
-        }
+        return new CustomCreateOperation(gasCalculator, codeFactory);
     }
 
     @Provides
@@ -249,11 +207,7 @@ public interface VXXXModule {
             @NonNull final GasCalculator gasCalculator,
             @ServicesVXXX @NonNull final FeatureFlags featureFlags,
             @NonNull final CodeFactory codeFactory) {
-        if( System.getenv("UseBonnevilleEVM")==null ) {
-            return new CustomCreate2Operation(gasCalculator, featureFlags, codeFactory);
-        } else {
-            throw new TODO();
-        }
+        return new CustomCreate2Operation(gasCalculator, featureFlags, codeFactory);
     }
 
     @Provides
@@ -261,11 +215,7 @@ public interface VXXXModule {
     @IntoSet
     @ServicesVXXX
     static Operation provideLog0Operation(@NonNull final GasCalculator gasCalculator) {
-        if( System.getenv("UseBonnevilleEVM")==null ) {
-            return new CustomLogOperation(0, gasCalculator);
-        } else {
-            throw new TODO();
-        }
+        return new CustomLogOperation(0, gasCalculator);
     }
 
     @Provides
@@ -273,11 +223,7 @@ public interface VXXXModule {
     @IntoSet
     @ServicesVXXX
     static Operation provideLog1Operation(final GasCalculator gasCalculator) {
-        if( System.getenv("UseBonnevilleEVM")==null ) {
-            return new CustomLogOperation(1, gasCalculator);
-        } else {
-            throw new TODO();
-        }
+        return new CustomLogOperation(1, gasCalculator);
     }
 
     @Provides
@@ -285,11 +231,7 @@ public interface VXXXModule {
     @IntoSet
     @ServicesVXXX
     static Operation provideLog2Operation(final GasCalculator gasCalculator) {
-        if( System.getenv("UseBonnevilleEVM")==null ) {
-            return new CustomLogOperation(2, gasCalculator);
-        } else {
-            throw new TODO();
-        }
+        return new CustomLogOperation(2, gasCalculator);
     }
 
     @Provides
@@ -297,11 +239,7 @@ public interface VXXXModule {
     @IntoSet
     @ServicesVXXX
     static Operation provideLog3Operation(final GasCalculator gasCalculator) {
-        if( System.getenv("UseBonnevilleEVM")==null ) {
-            return new CustomLogOperation(3, gasCalculator);
-        } else {
-            throw new TODO();
-        }
+        return new CustomLogOperation(3, gasCalculator);
     }
 
     @Provides
@@ -309,11 +247,7 @@ public interface VXXXModule {
     @IntoSet
     @ServicesVXXX
     static Operation provideLog4Operation(final GasCalculator gasCalculator) {
-        if( System.getenv("UseBonnevilleEVM")==null ) {
-            return new CustomLogOperation(4, gasCalculator);
-        } else {
-            throw new TODO();
-        }
+        return new CustomLogOperation(4, gasCalculator);
     }
 
     @Provides
@@ -324,11 +258,7 @@ public interface VXXXModule {
             @NonNull final GasCalculator gasCalculator,
             @ServicesVXXX @NonNull final AddressChecks addressChecks,
             @ServicesVXXX @NonNull final FeatureFlags featureFlags) {
-        if( System.getenv("UseBonnevilleEVM")==null ) {
-            return new CustomExtCodeHashOperation(gasCalculator, addressChecks, featureFlags);
-        } else {
-            throw new TODO();
-        }
+        return new CustomExtCodeHashOperation(gasCalculator, addressChecks, featureFlags);
     }
 
     @Provides
@@ -339,11 +269,7 @@ public interface VXXXModule {
             @NonNull final GasCalculator gasCalculator,
             @ServicesVXXX @NonNull final AddressChecks addressChecks,
             @ServicesVXXX @NonNull final FeatureFlags featureFlags) {
-        if( System.getenv("UseBonnevilleEVM")==null ) {
-            return new CustomExtCodeSizeOperation(gasCalculator, addressChecks, featureFlags);
-        } else {
-            throw new TODO();
-        }
+        return new CustomExtCodeSizeOperation(gasCalculator, addressChecks, featureFlags);
     }
 
     @Provides
@@ -354,11 +280,7 @@ public interface VXXXModule {
             @NonNull final GasCalculator gasCalculator,
             @ServicesVXXX @NonNull final AddressChecks addressChecks,
             @ServicesVXXX @NonNull final FeatureFlags featureFlags) {
-        if( System.getenv("UseBonnevilleEVM")==null ) {
-            return new CustomExtCodeCopyOperation(gasCalculator, addressChecks, featureFlags);
-        } else {
-            throw new TODO();
-        }
+        return new CustomExtCodeCopyOperation(gasCalculator, addressChecks, featureFlags);
     }
 
     @Provides
@@ -366,11 +288,7 @@ public interface VXXXModule {
     @IntoSet
     @ServicesVXXX
     static Operation providePrevRandaoOperation(@NonNull final GasCalculator gasCalculator) {
-        if( System.getenv("UseBonnevilleEVM")==null ) {
-            return new CustomPrevRandaoOperation(gasCalculator);
-        } else {
-            throw new TODO();
-        }
+        return new CustomPrevRandaoOperation(gasCalculator);
     }
 
     @Provides
@@ -379,11 +297,7 @@ public interface VXXXModule {
     @ServicesVXXX
     static Operation provideSelfDestructOperation(
             @NonNull final GasCalculator gasCalculator, @ServicesVXXX @NonNull final AddressChecks addressChecks) {
-        if( System.getenv("UseBonnevilleEVM")==null ) {
-            return new CustomSelfDestructOperation(gasCalculator, addressChecks, UseEIP6780Semantics.YES);
-        } else {
-            throw new TODO();
-        }
+        return new CustomSelfDestructOperation(gasCalculator, addressChecks, UseEIP6780Semantics.YES);
     }
 
     @Provides
@@ -391,11 +305,7 @@ public interface VXXXModule {
     @ServicesVXXX
     static Operation provideSLoadOperation(
             @NonNull final GasCalculator gasCalculator, @ServicesVXXX @NonNull final FeatureFlags featureFlags) {
-        if( System.getenv("UseBonnevilleEVM")==null ) {
-            return new CustomSLoadOperation(featureFlags, new SLoadOperation(gasCalculator));
-        } else {
-            throw new TODO();
-        }
+        return new CustomSLoadOperation(featureFlags, new SLoadOperation(gasCalculator));
     }
 
     @Provides
@@ -403,10 +313,6 @@ public interface VXXXModule {
     @ServicesVXXX
     static Operation provideSStoreOperation(
             @NonNull final GasCalculator gasCalculator, @ServicesVXXX @NonNull final FeatureFlags featureFlags) {
-        if( System.getenv("UseBonnevilleEVM")==null ) {
-            return new CustomSStoreOperation(featureFlags, new SStoreOperation(gasCalculator, FRONTIER_MINIMUM));
-        } else {
-            throw new TODO();
-        }
+        return new CustomSStoreOperation(featureFlags, new SStoreOperation(gasCalculator, FRONTIER_MINIMUM));
     }
 }
