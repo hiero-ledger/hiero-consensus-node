@@ -208,18 +208,10 @@ jobs:
 
       - name: Build Rootly Summary
         id: rootly-summary
+        env:
+          PRINT_FAILED_TESTS_SCRIPT: ".github/workflows/support/scripts/print-failed-tests.sh"
         run: |
           title="MATS Error Report"
-          data=""
-          if [[ "${{ needs.mats-tests.result }}" != "success" ]]; then
-            data=$(mktemp)
-            {
-              echo "MATS tests failed due to a ${{ needs.mats-tests.outputs.failure-mode }} error."
-              echo "Failing Test(s):"
-              echo "${{ needs.mats-tests.outputs.failed-tests }}"
-              echo "------------------------------------"
-            } >> ${data}
-          fi
 
           echo "title=${title}" >> "${GITHUB_OUTPUT}"
           {
@@ -232,9 +224,11 @@ jobs:
             echo "- MATS Tests: ${{ needs.mats-tests.result }}"
             echo "- Deploy CI Triggers: ${{ needs.deploy-ci-trigger.result }}"
             echo "------------------------------------"
-            if [[ -n "${data}" && -f "${data}" ]]; then
-              cat "${data}"
-              rm "${data}"
+            if [[ "${{ needs.mats-tests.result }}" != "success" ]]; then
+              echo "MATS tests failed due to a ${{ needs.mats-tests.outputs.failure-mode }} error."
+              echo "- Failing Test(s):"
+              bash "${{ github.workspace }}/${{ env.PRINT_FAILED_TESTS_SCRIPT }}" "${{ needs.mats-tests.outputs.failed-tests }}"
+              echo "------------------------------------"
             fi
             echo "Commit information:"
             echo "- Author: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}"

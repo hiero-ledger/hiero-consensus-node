@@ -12,33 +12,43 @@ on:
       enable-extended-test-suite:
         type: string
         description: "Run Extended Test Suite"
+        default: "false"
       enable-abbreviated-panel:
         type: string
         description: "Run Abbreviated JRS Panel"
+        default: "false"
       enable-hedera-node-jrs-panel:
         type: string
         description: "Run Hedera Node JRS Panel"
+        default: "false"
       enable-sdk-tck-regression-panel:
         type: string
         description: "Run SDK TCK Regression Panel"
+        default: "false"
       enable-mirror-node-regression-panel:
         type: string
         description: "Run Mirror Node Regression Panel"
+        default: "false"
       enable-rpc-relay-regression-panel:
         type: string
         description: "Run JSON-RPC Relay Regression Panel"
+        default: "false"
       enable-block-node-regression-panel:
         type: string
         description: "Run Block Node Regression Panel"
+        default: "false"
       solo-version:
         type: string
         description: "The solo version to use for the regression panels"
+        default: "latest"
       helm-release-name:
         type: string
         description: "The helm release name to use for the mirror node regression panel"
+        default: "mirror"
       solo-ge-0440:
         type: string
         description: "Is solo version greater than or equal to 0.44.0"
+        default: "false"
       custom-job-label:
         description: "Custom Job Label"
         type: string
@@ -90,7 +100,7 @@ on:
       failure-mode:
         description: "Indicates the failure mode of the workflow"
         value: ${{ jobs.set-failure-mode.outputs.failure-mode }}
-      failed-jobs:
+      failed-tests:
         description: "List of failed jobs in the workflow"
         value: ${{ jobs.set-failure-mode.outputs.failed-tests }}
 
@@ -358,14 +368,14 @@ jobs:
             mode=${job_failure_modes[$job]}
             name=${job_names[$job]}
 
-            if [[ "$status" == "failure" ]]; then
-              if [[ "$mode" != "none" && "$failure_mode" == "none" ]]; then
-                failure_mode="$mode"
+            if [[ "${status}" == "failure" ]]; then
+              if [[ "${mode}" != "none" && "${failure_mode}" == "none" ]]; then
+                failure_mode="${mode}"
               fi
-              if [[ -z "$failed_tests" ]]; then
-                failed_tests="$name"
+              if [[ -z "${failed_tests}" ]]; then
+                failed_tests="${name}"
               else
-                failed_tests="$failed_tests, $name"
+                failed_tests="${failed_tests}, ${name}"
               fi
             fi
           done
@@ -395,17 +405,17 @@ jobs:
             status=${panel_statuses[$job]}
             name=${panel_names[$job]}
 
-            if [[ "$status" == "failure" ]]; then
-              if [[ "$failure_mode" == "none" ]]; then
+            if [[ "${status}" == "failure" ]]; then
+              if [[ "${failure_mode}" == "none" ]]; then
                 failure_mode="general"
               fi
-              if [[ -z "$failed_tests" ]]; then
-                failed_tests="$name"
+              if [[ -z "${failed_tests}" ]]; then
+                failed_tests="${name}"
               else
-                failed_tests="$failed_tests, $name"
+                failed_tests="${failed_tests}, ${name}"
               fi
             fi
           done
 
-          echo failure-mode="${failure_mode}" >> "${GITHUB_OUTPUT}"
-          echo failed-tests="${failed_tests}" >> "${GITHUB_OUTPUT}"
+          echo "failure-mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
+          echo "failed-tests=${failed_tests}" >> "${GITHUB_OUTPUT}"

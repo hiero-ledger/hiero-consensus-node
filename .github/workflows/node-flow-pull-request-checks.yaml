@@ -74,9 +74,6 @@ jobs:
       enable-hapi-tests: "true"
       enable-otter-tests: "true"
       enable-spotless-check: "true"
-      enable-snyk-scan: "true"
-      enable-gradle-determinism: "true"
-      enable-docker-determinism: "true"
       java-version: "21.0.6"
       java-distribution: "temurin"
       custom-job-label: "Standard"
@@ -87,3 +84,79 @@ jobs:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       snyk-token: ${{ secrets.SNYK_TOKEN }}
+
+  mats-determinism-checks:
+    name: MATS Determinism
+    uses: ./.github/workflows/zxc-mats-tests.yaml
+    needs:
+      - dependency-check
+      - spotless
+    if: ${{ github.actor != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository }}
+    with:
+      ref: ${{ github.event.pull_request.head.sha }}
+      enable-docker-determinism: "true"
+      enable-gradle-determinism: "true"
+      enable-snyk-scan: "true"
+      java-version: "21.0.6"
+      java-distribution: "temurin"
+      custom-job-label: "Standard"
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+      snyk-token: ${{ secrets.SNYK_TOKEN }}
+
+  report-summary:
+    name: Report PR Check Summary
+    runs-on: hiero-client-sdk-linux-medium
+    needs:
+      - build
+      - dependency-check
+      - spotless
+      - mats-pr-checks
+      - mats-determinism-checks
+    if: ${{ !cancelled() && always() }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
+      - name: Report Summary
+        id: report-summary
+        env:
+          PRINT_FAILED_TESTS_SCRIPT: ".github/workflows/support/scripts/print-failed-tests.sh"
+        run: |
+          echo "::debug::Generating PR Check Summary"
+
+          # Append summary to GitHub Step Summary
+          {
+            echo 'summary<<EOF'
+            echo "## PR Check Summary"
+            echo ""
+            echo "------------------------------------"
+            echo "### Results"
+            echo "- **Build:** ${{ needs.build.result }}"
+            echo "- **Dependency Check:** ${{ needs.dependency-check.result }}"
+            echo "- **Spotless:** ${{ needs.spotless.result }}"
+            echo "- **MATS Tests:** ${{ needs.mats-pr-checks.result }}"
+            echo "- **MATS Determinism Checks:** ${{ needs.mats-determinism-checks.result }}"
+            echo "------------------------------------"
+            if [[ "${{ needs.mats-pr-checks.result }}" == "failure" ]]; then
+                echo "### MATS Test Failures"
+                echo ""
+                echo "- **Failure Mode:** ${{ needs.mats-pr-checks.outputs.failure-mode }}"
+                echo "- **Failed Tests:**"
+                bash "${{ github.workspace }}/${{ env.PRINT_FAILED_TESTS_SCRIPT }}" "${{ needs.mats-pr-checks.outputs.failed-tests }}"
+                echo "------------------------------------"
+            fi
+            if [[ "${{ needs.mats-determinism-checks.result }}" == "failure" ]]; then
+                echo "### MATS Determinism Check Failures"
+                echo ""
+                echo "- **Failure Mode:** ${{ needs.mats-determinism-checks.outputs.failure-mode }}"
+                echo "- **Failed Checks:**"
+                bash "${{ github.workspace }}/${{ env.PRINT_FAILED_TESTS_SCRIPT }}" "${{ needs.mats-determinism-checks.outputs.failed-tests }}"
+                echo "------------------------------------"
+            fi
+            echo EOF
+          } >> "${GITHUB_STEP_SUMMARY}"

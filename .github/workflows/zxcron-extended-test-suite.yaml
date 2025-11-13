@@ -576,19 +576,10 @@ jobs:
 
       - name: Build Rootly Summary
         id: rootly-summary
+        env:
+          PRINT_FAILED_TESTS_SCRIPT: ".github/workflows/support/scripts/print-failed-tests.sh"
         run: |
           title="The eXtended Test Suite job failed (${{ needs.fetch-xts-candidate.outputs.xts-info }})."
-
-          data=""
-          if [[ "${{ needs.xts-execution.result }}" != "success" ]]; then
-            data=$(mktemp)
-            {
-              echo "XTS tests failed due to a ${{ needs.xts-execution.outputs.failure-mode }} error."
-              echo "Failing Test(s):"
-              echo "${{ needs.xts-execution.outputs.failed-tests }}"
-              echo "------------------------------------"
-            } >> ${data}
-          fi
 
           echo "title=${title}" >> "${GITHUB_OUTPUT}"
           {
@@ -598,9 +589,11 @@ jobs:
             echo "- Execute XTS: ${{ needs.xts-execution.result }}"
             echo "- Tag for Promotion: ${{ needs.tag-for-promotion.result }}"
             echo "------------------------------------"
-            if [[ -n "${data}" && -f "${data}" ]]; then
-              cat "${data}"
-              rm "${data}"
+            if [[ "${{ needs.xts-execution.result }}" != "success" ]]; then
+              echo "XTS tests failed due to a ${{ needs.xts-execution.outputs.failure-mode }} error."
+              echo "Failing Test(s):"
+              bash "${{ github.workspace }}/${{ env.PRINT_FAILED_TESTS_SCRIPT }}" "${{ needs.xts-execution.outputs.failed-tests }}"
+              echo "------------------------------------"
             fi
             echo "Commit information:"
             echo "- Author: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}"

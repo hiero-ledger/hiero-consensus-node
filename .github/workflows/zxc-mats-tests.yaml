@@ -12,42 +12,42 @@ on:
         description: "Unit Testing Enabled"
         type: string
         required: false
-        default: "true"
+        default: "false"
       enable-integration-tests:
         description: "Integration Testing Enabled"
         type: string
         required: false
-        default: "true"
+        default: "false"
       enable-hapi-tests:
         description: "HAPI Testing Enabled"
         type: string
         required: false
-        default: "true"
+        default: "false"
       enable-spotless-check:
         description: "Spotless Check Enabled"
         type: string
         required: false
-        default: "true"
+        default: "false"
       enable-otter-tests:
         description: "Otter Tests Enabled"
         type: string
         required: false
-        default: "true"
+        default: "false"
       enable-snyk-scan:
         description: "Snyk Scan Enabled"
         type: string
         required: false
-        default: "true"
+        default: "false"
       enable-gradle-determinism:
         description: "Gradle Build Determinism Check Enabled"
         type: string
         required: false
-        default: "true"
+        default: "false"
       enable-docker-determinism:
         description: "Docker Build Determinism Check Enabled"
         type: string
         required: false
-        default: "true"
+        default: "false"
       java-version:
         description: "Java JDK Version"
         type: string
@@ -104,6 +104,7 @@ defaults:
 jobs:
   mats-unit-tests:
     name: Unit Tests
+    if: ${{ inputs.enable-unit-tests == 'true' }}
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       ref: ${{ inputs.ref || '' }}
@@ -120,6 +121,7 @@ jobs:
 
   mats-integration-tests:
     name: Integration Tests
+    if: ${{ inputs.enable-integration-tests == 'true' }}
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       ref: ${{ inputs.ref || '' }}
@@ -136,6 +138,7 @@ jobs:
 
   mats-hapi-tests-misc:
     name: HAPI Tests (Misc)
+    if: ${{ inputs.enable-hapi-tests == 'true' }}
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       ref: ${{ inputs.ref || '' }}
@@ -151,6 +154,7 @@ jobs:
 
   mats-hapi-tests-misc-records:
     name: HAPI Tests (Misc Records)
+    if: ${{ inputs.enable-hapi-tests == 'true' }}
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       ref: ${{ inputs.ref || '' }}
@@ -168,6 +172,7 @@ jobs:
 
   mats-hapi-tests-crypto:
     name: HAPI Tests (Crypto)
+    if: ${{ inputs.enable-hapi-tests == 'true' }}
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       ref: ${{ inputs.ref || '' }}
@@ -185,6 +190,7 @@ jobs:
 
   mats-hapi-tests-simplefees:
     name: HAPI Tests (Simple Fees)
+    if: ${{ inputs.enable-hapi-tests == 'true' }}
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       ref: ${{ inputs.ref || '' }}
@@ -202,6 +208,7 @@ jobs:
 
   mats-hapi-tests-iss:
     name: HAPI Tests (ISS)
+    if: ${{ inputs.enable-hapi-tests == 'true' }}
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       ref: ${{ inputs.ref || '' }}
@@ -218,6 +225,7 @@ jobs:
 
   mats-hapi-tests-token:
     name: HAPI Tests (Token)
+    if: ${{ inputs.enable-hapi-tests == 'true' }}
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       ref: ${{ inputs.ref || '' }}
@@ -235,6 +243,7 @@ jobs:
 
   mats-hapi-tests-smart-contract:
     name: HAPI Tests (Smart Contract)
+    if: ${{ inputs.enable-hapi-tests == 'true' }}
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       ref: ${{ inputs.ref || '' }}
@@ -252,6 +261,7 @@ jobs:
 
   mats-hapi-tests-restart:
     name: HAPI Tests (Restart)
+    if: ${{ inputs.enable-hapi-tests == 'true' }}
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       ref: ${{ inputs.ref || '' }}
@@ -268,6 +278,7 @@ jobs:
 
   mats-hapi-tests-nd-reconnect:
     name: HAPI Tests (Node Death Reconnect)
+    if: ${{ inputs.enable-hapi-tests == 'true' }}
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       ref: ${{ inputs.ref || '' }}
@@ -284,6 +295,7 @@ jobs:
 
   mats-otter-tests:
     name: Otter Tests
+    if: ${{ inputs.enable-otter-tests == 'true' }}
     uses: ./.github/workflows/zxc-execute-otter-tests.yaml
     with:
       ref: ${{ inputs.ref || '' }}
@@ -299,6 +311,7 @@ jobs:
 
   mats-spotless-check:
     name: Spotless Check
+    if: ${{ inputs.enable-spotless-check == 'true' }}
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       ref: ${{ inputs.ref || '' }}
@@ -315,6 +328,7 @@ jobs:
 
   mats-snyk-scan:
     name: Snyk Scan
+    if: ${{ inputs.enable-snyk-scan == 'true' }}
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       ref: ${{ inputs.ref || '' }}
