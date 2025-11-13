@@ -27,7 +27,7 @@ public class FeeResult {
     // TODO: Why do we need a String label here ? It is just used for toString. Same for all methods below
     public void addServiceFee(String label, long count, long cost) {
         details.put(label, new FeeDetail(count, cost));
-        service = clampedAdd(service, cost);
+        service = clampedAdd(service, count * cost);
     }
 
     /** Add a node fee with details.
@@ -37,7 +37,7 @@ public class FeeResult {
      * */
     public void addNodeFee(String label, long count, long cost) {
         details.put(label, new FeeDetail(count, cost));
-        node = clampedAdd(node, cost);
+        node = clampedAdd(node, count * cost);
     }
 
     /** Add a network fee with details.
@@ -47,7 +47,7 @@ public class FeeResult {
      * */
     public void addNetworkFee(String label, long count, long cost) {
         details.put(label, new FeeDetail(count, cost));
-        network = clampedAdd(network, cost);
+        network = clampedAdd(network, count * cost);
     }
 
     /** the total fee in tinycents. */
