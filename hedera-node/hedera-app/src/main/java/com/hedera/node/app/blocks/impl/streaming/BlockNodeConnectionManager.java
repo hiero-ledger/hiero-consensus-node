@@ -367,10 +367,10 @@ public class BlockNodeConnectionManager {
      */
     public void shutdown() {
         if (!isConnectionManagerActive.compareAndSet(true, false)) {
-            logger.debug("Connection Manager already shutdown.");
+            logger.info("Connection Manager already shutdown.");
             return;
         }
-        logger.debug("Shutting down block node connection manager.");
+        logger.info("Shutting down block node connection manager.");
 
         stopConfigWatcher();
         blockBufferService.shutdown();
@@ -392,7 +392,7 @@ public class BlockNodeConnectionManager {
     }
 
     private void closeAllConnections() {
-        logger.debug("Stopping block node connections");
+        logger.info("Stopping block node connections");
         // Close all connections
         final Iterator<Map.Entry<BlockNodeProtocolConfig, BlockNodeConnection>> iterator =
                 connections.entrySet().iterator();
@@ -419,14 +419,14 @@ public class BlockNodeConnectionManager {
      */
     public void start() {
         if (!isStreamingEnabled()) {
-            logger.debug("Cannot start the connection manager, streaming is not enabled.");
+            logger.warn("Cannot start the connection manager, streaming is not enabled.");
             return;
         }
         if (!isConnectionManagerActive.compareAndSet(false, true)) {
-            logger.debug("Connection Manager already started.");
+            logger.info("Connection Manager already started.");
             return;
         }
-        logger.debug("Starting connection manager.");
+        logger.info("Starting connection manager.");
 
         // Start the block buffer service
         blockBufferService.start();
@@ -461,7 +461,7 @@ public class BlockNodeConnectionManager {
         final BlockNodeProtocolConfig selectedNode = getNextPriorityBlockNode();
 
         if (selectedNode == null) {
-            logger.debug("No available block nodes found for streaming.");
+            logger.info("No available block nodes found for streaming.");
             return false;
         }
 
@@ -743,7 +743,7 @@ public class BlockNodeConnectionManager {
                             <= connection.getNodeConfig().priority()) {
                         // this new connection has a lower (or equal) priority than the existing active connection
                         // this connection task should thus be cancelled/ignored
-                        logger.debug(
+                        logger.info(
                                 "{} Active connection has equal/higher priority. Ignoring candidate. Active: {}.",
                                 connection,
                                 activeConnection);
