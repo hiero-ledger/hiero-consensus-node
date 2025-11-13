@@ -1443,13 +1443,25 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         workerThreadRef.set(null); // clear out the fake worker thread so a real one can be initialized
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
 
+        // Use a latch to wait for the worker thread to call getBlockState
+        final CountDownLatch latch = new CountDownLatch(1);
+
         doReturn(100L).when(bufferService).getHighestAckedBlockNumber();
-        doReturn(new BlockState(101)).when(bufferService).getBlockState(101);
+        doAnswer(invocation -> {
+                    latch.countDown();
+                    return new BlockState(101);
+                })
+                .when(bufferService)
+                .getBlockState(101);
 
         assertThat(streamingBlockNumber).hasValue(-1);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
-        sleep(50); // give some time for the worker loop to detect the changes
+
+        // Wait for the worker thread to call getBlockState (with timeout as safety)
+        assertThat(latch.await(2, TimeUnit.SECONDS))
+                .as("Worker thread should call getBlockState")
+                .isTrue();
 
         assertThat(workerThreadRef).doesNotHaveNullValue();
         assertThat(streamingBlockNumber).hasValue(101);
@@ -1469,14 +1481,26 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         workerThreadRef.set(null); // clear out the fake worker thread so a real one can be initialized
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
 
+        // Use a latch to wait for the worker thread to call getBlockState
+        final CountDownLatch latch = new CountDownLatch(1);
+
         doReturn(-1L).when(bufferService).getHighestAckedBlockNumber();
         doReturn(12L).when(bufferService).getEarliestAvailableBlockNumber();
-        doReturn(new BlockState(12)).when(bufferService).getBlockState(12);
+        doAnswer(invocation -> {
+                    latch.countDown();
+                    return new BlockState(12);
+                })
+                .when(bufferService)
+                .getBlockState(12);
 
         assertThat(streamingBlockNumber).hasValue(-1);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
-        sleep(50); // give some time for the worker loop to detect the changes
+
+        // Wait for the worker thread to call getBlockState (with timeout as safety)
+        assertThat(latch.await(2, TimeUnit.SECONDS))
+                .as("Worker thread should call getBlockState")
+                .isTrue();
 
         assertThat(workerThreadRef).doesNotHaveNullValue();
         assertThat(streamingBlockNumber).hasValue(12);
@@ -1497,13 +1521,31 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         workerThreadRef.set(null); // clear out the fake worker thread so a real one can be initialized
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
 
-        doReturn(-1L).when(bufferService).getHighestAckedBlockNumber();
-        doReturn(-1L).when(bufferService).getEarliestAvailableBlockNumber();
+        // Use a latch to wait for the worker thread to call both methods at least once
+        final CountDownLatch latch = new CountDownLatch(2);
+
+        doAnswer(invocation -> {
+                    latch.countDown();
+                    return -1L;
+                })
+                .when(bufferService)
+                .getHighestAckedBlockNumber();
+
+        doAnswer(invocation -> {
+                    latch.countDown();
+                    return -1L;
+                })
+                .when(bufferService)
+                .getEarliestAvailableBlockNumber();
 
         assertThat(streamingBlockNumber).hasValue(-1);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
-        sleep(50); // give some time for the worker loop to detect the changes
+
+        // Wait for the worker thread to call the expected methods (with timeout as safety)
+        assertThat(latch.await(2, TimeUnit.SECONDS))
+                .as("Worker thread should call getHighestAckedBlockNumber and getEarliestAvailableBlockNumber")
+                .isTrue();
 
         assertThat(workerThreadRef).doesNotHaveNullValue();
         assertThat(streamingBlockNumber).hasValue(-1);
@@ -1528,18 +1570,20 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final BlockState block = new BlockState(10);
 
         doReturn(block).when(bufferService).getBlockState(10);
+        // The worker may call this during switchBlockIfNeeded - use lenient to avoid flakiness
+        lenient().doReturn(10L).when(bufferService).getEarliestAvailableBlockNumber();
 
         final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
-        // sleep to let the worker detect the state change and start doing work
-        sleep(100);
 
-        // add the header to the block, then wait for the max request delay... a request with the header should be sent
+        // Set up latch for the header request, then add the header to the block
+        CountDownLatch latch1 = waitForRequests(requestPipeline, 1);
         final BlockItem item1 = newBlockHeaderItem();
         block.addItem(item1);
 
-        sleep(400);
+        assertThat(latch1.await(2, TimeUnit.SECONDS)).isTrue();
+
         verify(requestPipeline, atLeastOnce()).onNext(requestCaptor.capture());
         final List<PublishStreamRequest> requests1 = requestCaptor.getAllValues();
         reset(requestPipeline);
@@ -1547,7 +1591,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(requests1).hasSize(1);
         assertRequestContainsItems(requests1.getFirst(), item1);
 
-        // add multiple small items to the block and wait for them to be sent in one batch
+        // Set up latch, then add multiple small items to the block - should be sent in one batch
+        CountDownLatch latch2 = waitForRequests(requestPipeline, 1);
         final BlockItem item2 = newBlockTxItem(15);
         final BlockItem item3 = newBlockTxItem(20);
         final BlockItem item4 = newBlockTxItem(50);
@@ -1555,7 +1600,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         block.addItem(item3);
         block.addItem(item4);
 
-        sleep(400);
+        assertThat(latch2.await(2, TimeUnit.SECONDS)).isTrue();
 
         verify(requestPipeline, atLeastOnce()).onNext(requestCaptor.capture());
         final List<PublishStreamRequest> requests2 = requestCaptor.getAllValues();
@@ -1563,13 +1608,14 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         requests2.removeAll(requests1);
         assertRequestContainsItems(requests2, item2, item3, item4);
 
-        // add a large item and a smaller item
+        // Set up latch, then add large items - should be sent in two separate requests due to size
+        CountDownLatch latch3 = waitForRequests(requestPipeline, 2);
         final BlockItem item5 = newBlockTxItem(2_097_000);
         final BlockItem item6 = newBlockTxItem(1_000_250);
         block.addItem(item5);
         block.addItem(item6);
 
-        sleep(500);
+        assertThat(latch3.await(2, TimeUnit.SECONDS)).isTrue();
 
         verify(requestPipeline, times(2)).onNext(requestCaptor.capture());
         final List<PublishStreamRequest> requests3 = requestCaptor.getAllValues();
@@ -1580,8 +1626,22 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(requests3).hasSize(2);
         assertRequestContainsItems(requests3, item5, item6);
 
-        // now add some more items and the block proof, then close the block
-        // after these requests are sent, we should see the worker loop move to the next block
+        // Set up latches, then add final items and close block - should trigger end-of-block and switch to block 11
+        final CountDownLatch blockSwitchLatch = new CountDownLatch(1);
+        lenient()
+                .doAnswer(invocation -> {
+                    Long blockNum = invocation.getArgument(0);
+                    if (blockNum == 11L) {
+                        blockSwitchLatch.countDown();
+                    }
+                    return null; // block 11 doesn't exist
+                })
+                .when(bufferService)
+                .getBlockState(11L);
+
+        CountDownLatch latch4 =
+                waitForRequests(requestPipeline, 1); // at least one request for the items+proof+endBlock
+
         final BlockItem item7 = newBlockTxItem(100);
         final BlockItem item8 = newBlockTxItem(250);
         final BlockItem item9 = newPreProofBlockStateChangesItem();
@@ -1592,7 +1652,11 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         block.addItem(item10);
         block.closeBlock();
 
-        sleep(500);
+        // Wait for requests and block switch to happen
+        assertThat(latch4.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(blockSwitchLatch.await(2, TimeUnit.SECONDS))
+                .as("Worker should switch to block 11")
+                .isTrue();
 
         verify(requestPipeline, atLeastOnce()).onNext(requestCaptor.capture());
         final List<PublishStreamRequest> requests4 = requestCaptor.getAllValues();
@@ -1698,18 +1762,41 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final BlockState block11 = new BlockState(11);
         final BlockItem block11Header = newBlockHeaderItem(11);
         block11.addItem(block11Header);
+
         doReturn(block10).when(bufferService).getBlockState(10);
         doReturn(block11).when(bufferService).getBlockState(11);
 
-        connection.updateConnectionState(ConnectionState.ACTIVE);
-        // sleep to let the worker detect the state change and start doing work
-        sleep(250);
+        // Set up latches to wait for both requests separately
+        final CountDownLatch firstRequestLatch = new CountDownLatch(1);
+        final CountDownLatch bothRequestsLatch = new CountDownLatch(2);
+        final AtomicLong requestCount = new AtomicLong(0);
 
-        // create a skip response to force the connection to jump to block 11
+        doAnswer(invocation -> {
+                    long count = requestCount.incrementAndGet();
+                    if (count == 1) {
+                        firstRequestLatch.countDown();
+                    }
+                    bothRequestsLatch.countDown();
+                    return null;
+                })
+                .when(metrics)
+                .recordRequestSent(any(RequestOneOfType.class));
+
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        // Wait for the first request to be sent
+        assertThat(firstRequestLatch.await(2, TimeUnit.SECONDS))
+                .as("First request (block 10 header) should be sent")
+                .isTrue();
+
+        // Create a skip response to force the connection to jump to block 11
         final PublishStreamResponse skipResponse = createSkipBlock(10L);
         connection.onNext(skipResponse);
 
-        sleep(600); // give the worker thread some time to detect the change
+        // Wait for both requests to be sent
+        assertThat(bothRequestsLatch.await(2, TimeUnit.SECONDS))
+                .as("Both requests (block 10 and block 11 headers) should be sent")
+                .isTrue();
 
         assertThat(streamingBlockNumber).hasValue(11);
 
@@ -1811,11 +1898,13 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         // Ensure publish stream returns pipeline
         lenient().doReturn(requestPipeline).when(grpcServiceClient).publishBlockStream(connection);
 
+        // These methods may be called during error handling (timing-dependent race condition)
+        lenient().doReturn(5L).when(bufferService).getEarliestAvailableBlockNumber();
+        lenient().doReturn(4L).when(bufferService).getHighestAckedBlockNumber();
+
         // Start the connection to trigger worker construction
         final AtomicReference<Thread> workerThreadRef = workerThreadRef();
         workerThreadRef.set(null);
-        connection.createRequestPipeline();
-        connection.updateConnectionState(ConnectionState.ACTIVE);
 
         // Feed one item just over configuredMax to force fatal branch if limit not respected
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
@@ -1828,8 +1917,22 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         block.addItem(tooLarge);
         doReturn(block).when(bufferService).getBlockState(5);
 
-        // Allow worker loop to run
-        Thread.sleep(250);
+        // Set up latch to wait for connection to close (error handling)
+        final CountDownLatch connectionClosedLatch = new CountDownLatch(1);
+        doAnswer(invocation -> {
+                    connectionClosedLatch.countDown();
+                    return null;
+                })
+                .when(connectionManager)
+                .notifyConnectionClosed(connection);
+
+        connection.createRequestPipeline();
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        // Wait for connection to close due to oversized item
+        assertThat(connectionClosedLatch.await(2, TimeUnit.SECONDS))
+                .as("Connection should close due to oversized item")
+                .isTrue();
 
         // Should have sent header, then ended stream due to size violation under configured limit
         verify(requestPipeline, atLeastOnce()).onNext(any(PublishStreamRequest.class));
@@ -2707,5 +2810,26 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
     private static void sleep(final long millis) throws InterruptedException {
         Thread.sleep(millis);
+    }
+
+    /**
+     * Helper method to set up a latch that will count down after the specified number of requests
+     * are sent to the pipeline. This should be called BEFORE adding items to the block, so the
+     * latch is ready when the worker thread sends the requests.
+     *
+     * @param pipeline the pipeline mock to set up the answer on
+     * @param expectedRequests the number of requests to wait for
+     * @return a CountDownLatch that will be counted down after the expected number of requests
+     */
+    private CountDownLatch waitForRequests(
+            final Pipeline<? super PublishStreamRequest> pipeline, final int expectedRequests) {
+        final CountDownLatch latch = new CountDownLatch(expectedRequests);
+        doAnswer(invocation -> {
+                    latch.countDown();
+                    return null;
+                })
+                .when(pipeline)
+                .onNext(any(PublishStreamRequest.class));
+        return latch;
     }
 }
