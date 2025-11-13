@@ -75,7 +75,7 @@ class CryptoCreateFeeCalculatorTest {
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
 
             assertThat(result.node).isEqualTo(100000L);
-            assertThat(result.service).isEqualTo(498500000L);
+            assertThat(result.service).isEqualTo(598500000L);
             assertThat(result.network).isEqualTo(200000L);
         }
 
@@ -246,7 +246,10 @@ class CryptoCreateFeeCalculatorTest {
                 .services(makeService(
                         "CryptoService",
                         makeServiceFee(
-                                HederaFunctionality.CRYPTO_CREATE, 498500000L, makeExtraIncluded(Extra.SIGNATURES, 1))))
+                                HederaFunctionality.CRYPTO_CREATE,
+                                498500000L,
+                                makeExtraIncluded(Extra.SIGNATURES, 1),
+                                makeExtraIncluded(Extra.KEYS, 0))))
                 .build();
     }
 }
