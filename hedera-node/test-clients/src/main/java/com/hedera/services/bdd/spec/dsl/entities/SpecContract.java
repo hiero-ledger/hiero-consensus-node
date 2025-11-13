@@ -246,8 +246,9 @@ public class SpecContract extends AbstractSpecEntity<SpecOperation, Account>
         if (initcodeTransformType != InitcodeTransform.NoOp.class) {
             try {
                 final var transform = initcodeTransformType.getConstructor().newInstance();
-                final var transformed = transform.apply(spec, CommonUtils.hex(initcode.toByteArray()));
-                initcode = ByteString.fromHex(transformed);
+                final var transformed =
+                        transform.transformHexed(spec, CommonUtils.hex(Hex.decode(initcode.toByteArray())));
+                initcode = ByteString.copyFrom(Hex.encode(requireNonNull(CommonUtils.unhex(transformed))));
             } catch (InstantiationException
                     | IllegalAccessException
                     | InvocationTargetException

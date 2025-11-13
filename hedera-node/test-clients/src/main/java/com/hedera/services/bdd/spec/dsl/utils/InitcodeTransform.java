@@ -2,13 +2,20 @@
 package com.hedera.services.bdd.spec.dsl.utils;
 
 import com.hedera.services.bdd.spec.HapiSpec;
-import java.util.function.BiFunction;
 
-public interface InitcodeTransform extends BiFunction<HapiSpec, String, String> {
+public interface InitcodeTransform {
     class NoOp implements InitcodeTransform {
         @Override
-        public String apply(HapiSpec spec, String initcode) {
+        public String transformHexed(HapiSpec spec, String initcode) {
             return initcode;
         }
     }
+
+    /**
+     * Transforms the hexed initcode before deploying the contract.
+     * @param spec the spec
+     * @param initcode the initcode
+     * @return the transformed initcode
+     */
+    String transformHexed(HapiSpec spec, String initcode);
 }

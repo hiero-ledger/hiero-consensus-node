@@ -49,4 +49,10 @@ public @interface Account {
      * @return the maximum number of auto-associations
      */
     int maxAutoAssociations() default 0;
+
+    /**
+     * If set, the hooks to create for the account.
+     * @return the hooks to create for the account
+     */
+    Hook[] hooks() default {};
 }

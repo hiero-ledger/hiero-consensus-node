@@ -20,7 +20,10 @@ public class SpecFungibleToken extends SpecToken {
     public static SpecFungibleToken from(@NonNull final FungibleToken annotation, @NonNull final String defaultName) {
         final var token = new SpecFungibleToken(annotation.name().isBlank() ? defaultName : annotation.name());
         customizeToken(token, annotation.keys(), annotation.useAutoRenewAccount());
-        token.builder().maxSupply(annotation.maxSupply()).totalSupply(annotation.initialSupply());
+        token.builder()
+                .maxSupply(annotation.maxSupply())
+                .totalSupply(annotation.initialSupply())
+                .decimals(annotation.decimals());
         return token;
     }
 
