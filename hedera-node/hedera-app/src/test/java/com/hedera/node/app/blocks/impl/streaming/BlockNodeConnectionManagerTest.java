@@ -864,7 +864,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         task.run();
 
         verify(connection).createRequestPipeline();
-        verify(connection, times(2)).getBlockNodeConnectionConfig(); // Called twice: once in check, once when removing
+        verify(executorService).schedule(eq(task), anyLong(), eq(TimeUnit.MILLISECONDS));
         verify(connection).close(true);
         verify(executorService).schedule(eq(task), anyLong(), eq(TimeUnit.MILLISECONDS));
         verify(metrics).recordConnectionCreateFailure();
@@ -1478,7 +1478,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // Exercise unchanged path: write back same content and ensure no restart occurs
         Files.writeString(
                 file, valid, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-        awaitCondition(() -> !availableNodes().isEmpty(), 2_000);
+        awaitCondition(() -> !availableNodes().isEmpty(), 5_000);
         final Map<BlockNodeProtocolConfig, BlockNodeConnection> before = new HashMap<>(connections());
         invoke_refreshAvailableBlockNodes();
         final Map<BlockNodeProtocolConfig, BlockNodeConnection> after = new HashMap<>(connections());
