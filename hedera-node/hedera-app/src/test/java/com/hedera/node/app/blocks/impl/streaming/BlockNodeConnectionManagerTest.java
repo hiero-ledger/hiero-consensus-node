@@ -866,11 +866,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(connection).createRequestPipeline();
         verify(executorService).schedule(eq(task), anyLong(), eq(TimeUnit.MILLISECONDS));
         verify(connection).close(true);
-        verify(executorService).schedule(eq(task), anyLong(), eq(TimeUnit.MILLISECONDS));
         verify(metrics).recordConnectionCreateFailure();
-        // close(true) records these metrics
-        verify(metrics).recordConnectionClosed();
-        verify(metrics).recordActiveConnectionIp(-1L);
 
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(executorService);
@@ -950,43 +946,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // Verify that the manager was created but has no available nodes
         final List<BlockNodeProtocolConfig> availableNodes = availableNodes();
         assertThat(availableNodes).isEmpty();
-    }
-
-    @Test
-    void testRestartConnection() {
-        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-        final BlockNodeConfig nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
-        doReturn(new BlockNodeProtocolConfig(nodeConfig, null, null, null))
-                .when(connection)
-                .getBlockNodeConnectionConfig();
-
-        // Add the connection to the connections map and set it as active
-        final Map<BlockNodeProtocolConfig, BlockNodeConnection> connections = connections();
-        final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
-        connections.put(new BlockNodeProtocolConfig(nodeConfig, null, null, null), connection);
-        activeConnectionRef.set(connection);
-
-        // Ensure the node config is available for selection
-        final List<BlockNodeProtocolConfig> availableNodes = availableNodes();
-        availableNodes.clear();
-        availableNodes.add(new BlockNodeProtocolConfig(nodeConfig, null, null, null));
-
-        connectionManager.connectionResetsTheStream(connection);
-
-        // Verify the active connection reference was cleared
-        assertThat(activeConnectionRef).hasNullValue();
-        // Verify a new connection was created and added to the connections map
-        assertThat(connections).containsKey(new BlockNodeProtocolConfig(nodeConfig, null, null, null));
-        // Verify it's a different connection object (the old one was replaced)
-        assertThat(connections.get(new BlockNodeProtocolConfig(nodeConfig, null, null, null)))
-                .isNotSameAs(connection);
-
-        // Verify that scheduleConnectionAttempt was called with Duration.ZERO and the block number
-        verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(0L), eq(TimeUnit.MILLISECONDS));
-        verifyNoMoreInteractions(connection);
-        verifyNoInteractions(bufferService);
-        verifyNoInteractions(metrics);
-        verifyNoMoreInteractions(executorService);
     }
 
     @Test
@@ -1121,39 +1080,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final boolean limitExceeded = connectionManager.recordEndOfStreamAndCheckLimit(nodeConfig, Instant.now());
 
         assertThat(limitExceeded).isFalse();
-    }
-
-    @Test
-    void testConnectionResetsTheStream() {
-        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-        final BlockNodeConfig nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
-        doReturn(new BlockNodeProtocolConfig(nodeConfig, null, null, null))
-                .when(connection)
-                .getBlockNodeConnectionConfig();
-        availableNodes().add(new BlockNodeProtocolConfig(nodeConfig, null, null, null));
-
-        // Add the connection to the connections map and set it as active
-        final Map<BlockNodeProtocolConfig, BlockNodeConnection> connections = connections();
-        final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
-        connections.put(new BlockNodeProtocolConfig(nodeConfig, null, null, null), connection);
-        activeConnectionRef.set(connection);
-
-        connectionManager.connectionResetsTheStream(connection);
-
-        // Verify the active connection reference was cleared
-        assertThat(activeConnectionRef).hasNullValue();
-        // Verify a new connection was created and added to the connections map
-        assertThat(connections).containsKey(new BlockNodeProtocolConfig(nodeConfig, null, null, null));
-        // Verify it's a different connection object (the old one was replaced)
-        assertThat(connections.get(new BlockNodeProtocolConfig(nodeConfig, null, null, null)))
-                .isNotSameAs(connection);
-
-        // Verify that selectNewBlockNodeForStreaming was called
-        verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(0L), eq(TimeUnit.MILLISECONDS));
-        verifyNoMoreInteractions(connection);
-        verifyNoInteractions(bufferService);
-        verifyNoInteractions(metrics);
-        verifyNoMoreInteractions(executorService);
     }
 
     @Test

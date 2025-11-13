@@ -237,9 +237,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         this.connectionState = new AtomicReference<>(ConnectionState.UNINITIALIZED);
         this.executorService = requireNonNull(executorService, "executorService must not be null");
         this.pipelineExecutor = requireNonNull(pipelineExecutor, "pipelineExecutor must not be null");
-        final var blockNodeConnectionConfig = configProvider
-                .getConfiguration()
-                .getConfigData(com.hedera.node.config.data.BlockNodeConnectionConfig.class);
+        final var blockNodeConnectionConfig =
+                configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
         this.streamResetPeriod = blockNodeConnectionConfig.streamResetPeriod();
         this.clientFactory = requireNonNull(clientFactory, "clientFactory must not be null");
         this.pipelineOperationTimeout = blockNodeConnectionConfig.pipelineOperationTimeout();
