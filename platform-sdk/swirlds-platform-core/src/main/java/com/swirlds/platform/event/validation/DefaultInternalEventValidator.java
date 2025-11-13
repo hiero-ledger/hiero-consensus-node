@@ -68,7 +68,7 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
      * Constructor
      *
      * @param platformContext the platform context
-     * @param singleNodeNetwork true if this node is in a single-node network, otherwise false
+     * @param rosterHistory the roster history
      * @param intakeEventCounter keeps track of the number of events in the intake pipeline from each peer
      * @param transactionLimits transaction size limits for validation
      */
