@@ -108,7 +108,7 @@ public final class DefaultMetricsExportManager extends AbstractMetricsExportMana
         for (PullingMetricsExporter pullingExporter : pullingExporters) {
             try {
                 logger.info("Initializing pulling exporter: {}", pullingExporter.name());
-                pullingExporter.init(snapshotHolder::get);
+                pullingExporter.setSnapshotProvider(snapshotHolder::get);
             } catch (RuntimeException e) {
                 logger.error(
                         "Error while initializing pulling metrics exporter {}. Ignoring it", pullingExporter.name(), e);
@@ -129,6 +129,8 @@ public final class DefaultMetricsExportManager extends AbstractMetricsExportMana
     @Override
     public synchronized void shutdown() {
         if (scheduledExportFuture != null && !scheduledExportFuture.isDone()) {
+            logger.info("Shutting down export manager");
+
             scheduledExportFuture.cancel(false);
             scheduledExportFuture = null;
 

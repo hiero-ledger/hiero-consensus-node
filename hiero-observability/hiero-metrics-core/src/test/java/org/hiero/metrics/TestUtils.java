@@ -1,6 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.metrics;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.stream.StreamSupport;
+import org.hiero.metrics.api.core.MetricMetadata;
+import org.hiero.metrics.api.export.snapshot.MetricSnapshot;
+import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
+
 public final class TestUtils {
 
     private TestUtils() {}
@@ -64,5 +75,19 @@ public final class TestUtils {
             "validName123",
             "VALID_NAME_456",
         };
+    }
+
+    public static void verifySnapshotHasMetrics(Optional<MetricsSnapshot> optionalSnapshot, String... metrics) {
+        assertThat(optionalSnapshot).isNotEmpty();
+
+        MetricsSnapshot snapshot = optionalSnapshot.get();
+
+        List<String> actualMetrics = StreamSupport.stream(
+                        Spliterators.spliteratorUnknownSize(snapshot.iterator(), Spliterator.ORDERED), false)
+                .map(MetricSnapshot::metadata)
+                .map(MetricMetadata::name)
+                .toList();
+
+        assertThat(actualMetrics).containsExactlyInAnyOrder(metrics);
     }
 }

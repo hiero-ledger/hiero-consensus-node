@@ -25,7 +25,7 @@ public final class SinglePullingExporterMetricsExportManager extends AbstractMet
 
     @Override
     protected void init() {
-        exporter.init(this::takeSnapshot);
+        exporter.setSnapshotProvider(this::takeSnapshot);
     }
 
     @Override

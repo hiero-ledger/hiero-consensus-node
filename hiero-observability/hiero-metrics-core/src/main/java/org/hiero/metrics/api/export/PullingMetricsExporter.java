@@ -19,8 +19,9 @@ public non-sealed interface PullingMetricsExporter extends MetricsExporter {
     /**
      * Initialize the exporter with a supplier of {@link MetricsSnapshot}.
      * The supplier can be called by the exporter when it needs to pull metrics data.
+     * Implementations should be able to handle multiple calls to this method.
      *
      * @param snapshotSupplier the supplier of {@link MetricsSnapshot}
      */
-    void init(@NonNull Supplier<Optional<MetricsSnapshot>> snapshotSupplier);
+    void setSnapshotProvider(@NonNull Supplier<Optional<MetricsSnapshot>> snapshotSupplier);
 }

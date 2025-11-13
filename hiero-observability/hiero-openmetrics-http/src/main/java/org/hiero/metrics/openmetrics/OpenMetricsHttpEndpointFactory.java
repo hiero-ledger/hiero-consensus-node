@@ -17,6 +17,12 @@ public final class OpenMetricsHttpEndpointFactory implements MetricsExporterFact
 
     @NonNull
     @Override
+    public String name() {
+        return "openmetrics-http-endpoint";
+    }
+
+    @NonNull
+    @Override
     public Optional<MetricsExporter> createExporter(@NonNull Configuration configuration) {
         OpenMetricsHttpEndpointConfig exportConfig = configuration.getConfigData(OpenMetricsHttpEndpointConfig.class);
         if (!exportConfig.enabled()) {
