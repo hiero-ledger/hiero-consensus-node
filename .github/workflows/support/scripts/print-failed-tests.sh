@@ -7,6 +7,8 @@ function main() {
   if [[ -n "${tests_output}" ]]; then
     IFS=',' read -ra TESTS <<< "${tests_output}"
     for test in "${TESTS[@]}"; do
+      # trim whitespace
+      test=$(echo "${test}" | xargs)
       echo "  - ${test}"
     done
   fi
