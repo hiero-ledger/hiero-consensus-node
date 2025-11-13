@@ -33,11 +33,10 @@ class CryptoCreateFeeCalculatorTest {
     private CalculatorState calculatorState;
 
     private SimpleFeeCalculatorImpl feeCalculator;
-    private FeeSchedule testSchedule;
 
     @BeforeEach
     void setUp() {
-        testSchedule = createTestFeeSchedule();
+        final var testSchedule = createTestFeeSchedule();
         feeCalculator = new SimpleFeeCalculatorImpl(testSchedule, Set.of(new CryptoCreateFeeCalculator()));
     }
 
@@ -57,11 +56,11 @@ class CryptoCreateFeeCalculatorTest {
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
 
             // Then: Real production values from simpleFeesSchedules.json
-            // node=100000, network=200000, service=498500000 + 100000000 (KEYS) = 598500000
+            // node=100000, network=200000, service=498500000
             // Note: addExtraFee adds the unit fee directly, not amount * fee
             assertThat(result).isNotNull();
             assertThat(result.node).isEqualTo(100000L);
-            assertThat(result.service).isEqualTo(598500000L);
+            assertThat(result.service).isEqualTo(498500000L);
             assertThat(result.network).isEqualTo(200000L);
         }
 
@@ -107,8 +106,8 @@ class CryptoCreateFeeCalculatorTest {
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
 
             // Then: Same as other cases - addExtraFee adds unit fee regardless of key count
-            // service=498500000 + 100000000 = 598500000
-            assertThat(result.service).isEqualTo(598500000L);
+            // service=498500000 + 3x100000000 = 798500000
+            assertThat(result.service).isEqualTo(798500000L);
         }
 
         @Test
@@ -139,9 +138,8 @@ class CryptoCreateFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
 
-            // Then: Same as other cases - addExtraFee adds unit fee regardless of key count
-            // service=498500000 + 100000000 = 598500000
-            assertThat(result.service).isEqualTo(598500000L);
+            // service=498500000 + 3x100000000 = 798500000
+            assertThat(result.service).isEqualTo(798500000L);
         }
     }
 
