@@ -25,6 +25,8 @@ import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.info.CurrentPlatformStatus;
 import com.hedera.node.app.metrics.MetricsInjectionModule;
 import com.hedera.node.app.platform.PlatformModule;
+import com.hedera.node.app.quiescence.QuiescenceController;
+import com.hedera.node.app.quiescence.TxPipelineTracker;
 import com.hedera.node.app.records.BlockRecordInjectionModule;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
@@ -122,6 +124,8 @@ public interface HederaInjectionComponent {
 
     IngestWorkflow ingestWorkflow();
 
+    TxPipelineTracker txPipelineTracker();
+
     @UserQueries
     QueryWorkflow queryWorkflow();
 
@@ -153,6 +157,8 @@ public interface HederaInjectionComponent {
     AsyncFatalIssListener fatalIssListener();
 
     CurrentPlatformStatus currentPlatformStatus();
+
+    QuiescenceController quiescenceController();
 
     @Component.Builder
     interface Builder {

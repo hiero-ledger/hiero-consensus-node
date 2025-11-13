@@ -56,12 +56,9 @@ class CryptoCreateFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
 
-            // Then: Real production values from simpleFeesSchedules.json
-            // node=100000, network=200000, service=498500000 + 100000000 (KEYS) = 598500000
-            // Note: addExtraFee adds the unit fee directly, not amount * fee
             assertThat(result).isNotNull();
             assertThat(result.node).isEqualTo(100000L);
-            assertThat(result.service).isEqualTo(598500000L);
+            assertThat(result.service).isEqualTo(498500000L);
             assertThat(result.network).isEqualTo(200000L);
         }
 
@@ -78,10 +75,8 @@ class CryptoCreateFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
 
-            // Then: Same as no key case - addExtraFee adds unit fee regardless of count
-            // node=100000, network=200000, service=498500000 + 100000000 = 598500000
             assertThat(result.node).isEqualTo(100000L);
-            assertThat(result.service).isEqualTo(598500000L);
+            assertThat(result.service).isEqualTo(498500000L);
             assertThat(result.network).isEqualTo(200000L);
         }
 
@@ -106,9 +101,7 @@ class CryptoCreateFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
 
-            // Then: Same as other cases - addExtraFee adds unit fee regardless of key count
-            // service=498500000 + 100000000 = 598500000
-            assertThat(result.service).isEqualTo(598500000L);
+            assertThat(result.service).isEqualTo(498500000L);
         }
 
         @Test
@@ -139,9 +132,99 @@ class CryptoCreateFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
 
-            // Then: Same as other cases - addExtraFee adds unit fee regardless of key count
-            // service=498500000 + 100000000 = 598500000
-            assertThat(result.service).isEqualTo(598500000L);
+            assertThat(result.service).isEqualTo(498500000L);
+        }
+
+        @Test
+        @DisplayName("calculateTxFee with keys exceeding included count triggers overage")
+        void calculateTxFeeWithKeysOverage() {
+            // Given: Create a fee schedule where only 1 key is included, extras cost 100M each
+            final var scheduleWithLowKeyLimit = FeeSchedule.DEFAULT
+                    .copyBuilder()
+                    .node(NodeFee.newBuilder()
+                            .baseFee(100000L)
+                            .extras(List.of(makeExtraIncluded(Extra.SIGNATURES, 10)))
+                            .build())
+                    .network(NetworkFee.newBuilder().multiplier(2).build())
+                    .extras(
+                            makeExtraDef(Extra.SIGNATURES, 1000000L),
+                            makeExtraDef(Extra.KEYS, 100000000L), // 100M per key
+                            makeExtraDef(Extra.BYTES, 110L))
+                    .services(makeService(
+                            "CryptoService",
+                            makeServiceFee(
+                                    HederaFunctionality.CRYPTO_CREATE,
+                                    498500000L,
+                                    makeExtraIncluded(Extra.KEYS, 1)))) // Only 1 key included
+                    .build();
+
+            feeCalculator =
+                    new SimpleFeeCalculatorImpl(scheduleWithLowKeyLimit, Set.of(new CryptoCreateFeeCalculator()));
+            lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
+
+            // Create a KeyList with 5 keys (4 over the included count of 1)
+            final var keyList = KeyList.newBuilder()
+                    .keys(
+                            Key.newBuilder().ed25519(Bytes.wrap(new byte[32])).build(),
+                            Key.newBuilder().ed25519(Bytes.wrap(new byte[32])).build(),
+                            Key.newBuilder().ed25519(Bytes.wrap(new byte[32])).build(),
+                            Key.newBuilder().ed25519(Bytes.wrap(new byte[32])).build(),
+                            Key.newBuilder().ed25519(Bytes.wrap(new byte[32])).build())
+                    .build();
+            final var key = Key.newBuilder().keyList(keyList).build();
+            final var op = CryptoCreateTransactionBody.newBuilder().key(key).build();
+            final var body =
+                    TransactionBody.newBuilder().cryptoCreateAccount(op).build();
+
+            // When
+            final var result = feeCalculator.calculateTxFee(body, calculatorState);
+
+            // Then: Base fee (498500000) + overage for 4 extra keys (4 * 100000000 = 400000000)
+            assertThat(result.service).isEqualTo(898500000L);
+            assertThat(result.node).isEqualTo(100000L);
+            assertThat(result.network).isEqualTo(200000L);
+        }
+
+        @Test
+        @DisplayName("calculateTxFee with keys exactly at included count has no overage")
+        void calculateTxFeeWithKeysAtIncludedCount() {
+            // Given: Create a fee schedule where only 1 key is included
+            final var scheduleWithLowKeyLimit = FeeSchedule.DEFAULT
+                    .copyBuilder()
+                    .node(NodeFee.newBuilder()
+                            .baseFee(100000L)
+                            .extras(List.of(makeExtraIncluded(Extra.SIGNATURES, 10)))
+                            .build())
+                    .network(NetworkFee.newBuilder().multiplier(2).build())
+                    .extras(
+                            makeExtraDef(Extra.SIGNATURES, 1000000L),
+                            makeExtraDef(Extra.KEYS, 100000000L),
+                            makeExtraDef(Extra.BYTES, 110L))
+                    .services(makeService(
+                            "CryptoService",
+                            makeServiceFee(
+                                    HederaFunctionality.CRYPTO_CREATE,
+                                    498500000L,
+                                    makeExtraIncluded(Extra.KEYS, 1)))) // Only 1 key included
+                    .build();
+
+            feeCalculator =
+                    new SimpleFeeCalculatorImpl(scheduleWithLowKeyLimit, Set.of(new CryptoCreateFeeCalculator()));
+            lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
+
+            // Create exactly 1 key (at the included count boundary)
+            final var key = Key.newBuilder().ed25519(Bytes.wrap(new byte[32])).build();
+            final var op = CryptoCreateTransactionBody.newBuilder().key(key).build();
+            final var body =
+                    TransactionBody.newBuilder().cryptoCreateAccount(op).build();
+
+            // When
+            final var result = feeCalculator.calculateTxFee(body, calculatorState);
+
+            // Then: Only base fee, no overage
+            assertThat(result.service).isEqualTo(498500000L);
+            assertThat(result.node).isEqualTo(100000L);
+            assertThat(result.network).isEqualTo(200000L);
         }
     }
 
