@@ -30,6 +30,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.utility.Mnemonics;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.SavedStateMetadata;
@@ -54,6 +55,8 @@ import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 @DisplayName("SignedStateMetadata Tests")
 class SavedStateMetadataTests {
@@ -205,8 +208,6 @@ class SavedStateMetadataTests {
         final ConsensusSnapshot consensusSnapshot = mock(ConsensusSnapshot.class);
         when(state.getHash()).thenReturn(randomHash(random));
         when(state.getHash()).thenReturn(randomHash(random));
-        when(legacyRunningEventHashOf(state)).thenReturn(randomHash(random));
-        when(consensusSnapshotOf(state)).thenReturn(consensusSnapshot);
 
         final Roster roster = mock(Roster.class);
         RosterServiceStateMock.setup(state, roster);
@@ -216,9 +217,14 @@ class SavedStateMetadataTests {
         when(sigSet.getSigningNodes())
                 .thenReturn(new ArrayList<>(List.of(NodeId.of(3L), NodeId.of(1L), NodeId.of(2L))));
 
-        final SavedStateMetadata metadata = SavedStateMetadata.create(signedState, NodeId.of(1234), Instant.now());
+        try (final MockedStatic<PlatformStateFacade> facadeMock = Mockito.mockStatic(PlatformStateFacade.class)) {
+            facadeMock.when(() -> legacyRunningEventHashOf(state)).thenReturn(randomHash(random));
+            facadeMock.when(() -> consensusSnapshotOf(state)).thenReturn(consensusSnapshot);
 
-        assertEquals(List.of(NodeId.of(1L), NodeId.of(2L), NodeId.of(3L)), metadata.signingNodes());
+            final SavedStateMetadata metadata = SavedStateMetadata.create(signedState, NodeId.of(1234), Instant.now());
+
+            assertEquals(List.of(NodeId.of(1L), NodeId.of(2L), NodeId.of(3L)), metadata.signingNodes());
+        }
     }
 
     @Test
