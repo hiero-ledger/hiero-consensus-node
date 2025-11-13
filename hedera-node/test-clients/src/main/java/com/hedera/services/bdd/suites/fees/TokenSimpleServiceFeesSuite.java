@@ -128,7 +128,8 @@ public class TokenSimpleServiceFeesSuite {
                         .fee(ONE_HUNDRED_HBARS)
                         .hasKnownStatus(SUCCESS)
                         .via("fungible-mint-txn"),
-                validateChargedUsd("fungible-mint-txn", ucents_to_USD(100))));
+                // base mint for fungible is 0.001
+                validateChargedUsdWithin("fungible-mint-txn", 0.001,1)));
     }
 
     @HapiTest
@@ -153,7 +154,7 @@ public class TokenSimpleServiceFeesSuite {
                         .fee(ONE_HUNDRED_HBARS)
                         .hasKnownStatus(SUCCESS)
                         .via("fungible-mint-txn"),
-                validateChargedUsdWithin("fungible-mint-txn", ucents_to_USD(100), 15)));
+                validateChargedUsdWithin("fungible-mint-txn", 0.001, 1)));
     }
 
     @HapiTest
@@ -179,6 +180,6 @@ public class TokenSimpleServiceFeesSuite {
                         .fee(ONE_HUNDRED_HBARS)
                         .hasKnownStatus(SUCCESS)
                         .via("non-fungible-mint-txn"),
-                validateChargedUsdWithin("non-fungible-mint-txn", ucents_to_USD(2000), 15)));
+                validateChargedUsdWithin("non-fungible-mint-txn", 0.02, 1)));
     }
 }
