@@ -5,10 +5,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl;
-
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.IntStream;
-
 import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.Test;
 
