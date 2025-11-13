@@ -11,6 +11,7 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClientConfig;
 import com.hedera.pbj.runtime.grpc.GrpcException;
@@ -21,9 +22,9 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import io.helidon.common.tls.Tls;
 import io.helidon.webclient.api.WebClient;
 import io.helidon.webclient.grpc.GrpcClientProtocolConfig;
-import java.io.UncheckedIOException;
 import io.helidon.webclient.http2.Http2ClientProtocolConfig;
 import io.helidon.webclient.spi.ProtocolConfig;
+import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -236,8 +237,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         this.connectionState = new AtomicReference<>(ConnectionState.UNINITIALIZED);
         this.executorService = requireNonNull(executorService, "executorService must not be null");
         this.pipelineExecutor = requireNonNull(pipelineExecutor, "pipelineExecutor must not be null");
-        final var blockNodeConnectionConfig =
-                configProvider.getConfiguration().getConfigData(com.hedera.node.config.data.BlockNodeConnectionConfig.class);
+        final var blockNodeConnectionConfig = configProvider
+                .getConfiguration()
+                .getConfigData(com.hedera.node.config.data.BlockNodeConnectionConfig.class);
         this.streamResetPeriod = blockNodeConnectionConfig.streamResetPeriod();
         this.clientFactory = requireNonNull(clientFactory, "clientFactory must not be null");
         this.pipelineOperationTimeout = blockNodeConnectionConfig.pipelineOperationTimeout();
@@ -1078,7 +1080,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         private long lastSendTimeMillis = -1;
         private int maxBytesPerRequest = 0;
         private final AtomicInteger requestCtr = new AtomicInteger(1);
-        private int maxBytesPerRequest = 0;
 
         public ConnectionWorkerLoopTask() {
             if (blockNodeProtocolConfig.maxMessageSizeBytes() != null) {

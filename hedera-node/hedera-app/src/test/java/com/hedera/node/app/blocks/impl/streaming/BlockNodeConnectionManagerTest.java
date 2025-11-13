@@ -864,9 +864,13 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         task.run();
 
         verify(connection).createRequestPipeline();
-        verify(executorService).schedule(eq(task), anyLong(), eq(TimeUnit.MILLISECONDS));
+        verify(connection, times(2)).getBlockNodeConnectionConfig(); // Called twice: once in check, once when removing
         verify(connection).close(true);
+        verify(executorService).schedule(eq(task), anyLong(), eq(TimeUnit.MILLISECONDS));
         verify(metrics).recordConnectionCreateFailure();
+        // close(true) records these metrics
+        verify(metrics).recordConnectionClosed();
+        verify(metrics).recordActiveConnectionIp(-1L);
 
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(executorService);

@@ -44,7 +44,6 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.Map;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
@@ -1618,6 +1617,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
                 bufferService,
                 metrics,
                 executorService,
+                pipelineExecutor,
                 null,
                 localFactory);
 
@@ -1646,7 +1646,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         // Should have sent header, then ended stream due to size violation under configured limit
         verify(requestPipeline, atLeastOnce()).onNext(any(PublishStreamRequest.class));
-        verify(connectionManager).connectionResetsTheStream(connection);
+        verify(connectionManager).notifyConnectionClosed(connection);
     }
 
     // Tests that no response processing occurs when connection is already closed

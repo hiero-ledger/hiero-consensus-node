@@ -10,6 +10,7 @@ import static java.util.stream.Collectors.toList;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import com.hedera.node.internal.network.BlockNodeConnectionInfo;
@@ -482,7 +483,6 @@ public class BlockNodeConnectionManager {
             logger.debug("{} Successfully scheduled reconnection task.", newConnection);
         } catch (final Exception e) {
             logger.error("{} Failed to schedule connection task for block node.", newConnection, e);
-            newConnection.closeAtBlockBoundary();
             connections.remove(newConnection.getBlockNodeConnectionConfig());
             newConnection.close(true);
         }
@@ -902,7 +902,8 @@ public class BlockNodeConnectionManager {
                         if (force) {
                             try {
                                 final Duration delay = getForcedSwitchRescheduleDelay();
-                                scheduleConnectionAttempt(activeConnection.getNodeConfig(), delay, null, false);
+                                scheduleConnectionAttempt(
+                                        activeConnection.getBlockNodeConnectionConfig(), delay, null, false);
                                 logger.debug(
                                         "Scheduled previously active connection {} in {} ms due to forced switch.",
                                         activeConnection,
@@ -977,7 +978,6 @@ public class BlockNodeConnectionManager {
                 // will handle checking if there are no longer any connections
                 connections.remove(connection.getBlockNodeConnectionConfig());
                 connection.close(true);
-                connection.closeAtBlockBoundary();
             }
         }
     }
@@ -1210,13 +1210,5 @@ public class BlockNodeConnectionManager {
 
         // Remove from connections map
         connections.remove(connection.getNodeConfig());
-    }
-
-    /**
-     * Gets the block node protocol configurations.
-     * @return the block node protocol configurations
-     */
-    public Map<BlockNodeConfig, BlockNodeProtocolConfig> getBlockNodeProtocolConfigs() {
-        return blockNodeProtocolConfigs;
     }
 }
