@@ -29,7 +29,6 @@ import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
-import org.hiero.otter.fixtures.app.services.consistency.ConsistencyService;
 import org.hiero.otter.fixtures.app.services.platform.PlatformStateService;
 import org.hiero.otter.fixtures.app.services.roster.RosterService;
 import org.hiero.otter.fixtures.app.state.OtterStateInitializer;
@@ -228,7 +227,7 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
             @NonNull final InitTrigger trigger,
             @Nullable final SemanticVersion previousVersion) {
         final Configuration configuration = platform.getContext().getConfiguration();
-        if (! appServices.isEmpty()) {
+        if (!appServices.isEmpty()) {
             final boolean stateNotInitialized = appServices.stream()
                     .map(OtterService::name)
                     .map(state::getReadableStates)
