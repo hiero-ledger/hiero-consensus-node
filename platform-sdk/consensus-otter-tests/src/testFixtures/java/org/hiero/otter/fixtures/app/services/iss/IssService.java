@@ -18,7 +18,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
-import org.hiero.otter.fixtures.app.OtterAppState;
 import org.hiero.otter.fixtures.app.OtterService;
 import org.hiero.otter.fixtures.app.state.OtterServiceStateSpecification;
 import org.hiero.otter.fixtures.network.transactions.HashPartition;
