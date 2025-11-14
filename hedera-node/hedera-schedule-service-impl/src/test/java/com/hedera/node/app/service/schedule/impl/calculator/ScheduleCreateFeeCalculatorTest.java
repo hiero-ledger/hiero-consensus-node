@@ -20,6 +20,7 @@ import com.hedera.node.app.spi.fees.CalculatorState;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -56,8 +57,6 @@ class ScheduleFeeCalculatorsTest {
 
     static Stream<TestCase> provideTestCases() {
         return Stream.of(
-                // ScheduleCreateFeeCalculator cases
-                // No admin key: keys = 0, service fee = 1000000L
                 new TestCase(
                         new ScheduleCreateFeeCalculator(),
                         TransactionBody.newBuilder()
@@ -66,9 +65,8 @@ class ScheduleFeeCalculatorsTest {
                                 .build(),
                         1,
                         100000L,
-                        1000000L,
+                        99000000L,
                         200000L),
-                // Simple ED25519 admin key: keys = 1, service fee = 1000000L + 100000000L = 101000000L
                 new TestCase(
                         new ScheduleCreateFeeCalculator(),
                         TransactionBody.newBuilder()
@@ -79,10 +77,9 @@ class ScheduleFeeCalculatorsTest {
                                         .build())
                                 .build(),
                         2,
-                        100000L,
-                        101000000L,
-                        200000L),
-                // KeyList admin key: keys = 2, service fee = 1000000L + 2*100000000L = 201000000L
+                        1100000L,
+                        99000000L,
+                        2200000L),
                 new TestCase(
                         new ScheduleCreateFeeCalculator(),
                         TransactionBody.newBuilder()
@@ -102,9 +99,8 @@ class ScheduleFeeCalculatorsTest {
                                 .build(),
                         1,
                         100000L,
-                        201000000L,
+                        109000000L,
                         200000L),
-                // ThresholdKey admin key: keys = 2, service fee = 1000000L + 2*100000000L = 201000000L
                 new TestCase(
                         new ScheduleCreateFeeCalculator(),
                         TransactionBody.newBuilder()
@@ -127,9 +123,9 @@ class ScheduleFeeCalculatorsTest {
                                         .build())
                                 .build(),
                         3,
-                        100000L,
-                        201000000L,
-                        200000L),
+                        4100000L,
+                        109000000L,
+                        8200000L),
                 // ScheduleSignFeeCalculator case
                 new TestCase(
                         new ScheduleSignFeeCalculator(),
@@ -139,7 +135,7 @@ class ScheduleFeeCalculatorsTest {
                                 .build(),
                         1,
                         100000L,
-                        100000L,
+                        9000000L,
                         200000L),
                 // ScheduleDeleteFeeCalculator case
                 new TestCase(
@@ -150,7 +146,7 @@ class ScheduleFeeCalculatorsTest {
                                 .build(),
                         1,
                         100000L,
-                        100000L,
+                        9000000L,
                         200000L));
     }
 
@@ -173,49 +169,31 @@ class ScheduleFeeCalculatorsTest {
                 .copyBuilder()
                 .node(NodeFee.newBuilder()
                         .baseFee(100000L)
-                        .extras(List.of(makeExtraIncluded(Extra.SIGNATURES, 10)))
+                        .extras(List.of(makeExtraIncluded(Extra.SIGNATURES, 1)))
                         .build())
                 .network(NetworkFee.newBuilder().multiplier(2).build())
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000L),
-                        makeExtraDef(Extra.KEYS, 100000000L),
+                        makeExtraDef(Extra.KEYS, 10000000L),
                         makeExtraDef(Extra.BYTES, 110L))
                 .services(makeService(
                         "ScheduleService",
-                        makeServiceFee(
-                                HederaFunctionality.SCHEDULE_CREATE, 1000000L, makeExtraIncluded(Extra.SIGNATURES, 1)),
-                        makeServiceFee(
-                                HederaFunctionality.SCHEDULE_SIGN, 100000L, makeExtraIncluded(Extra.SIGNATURES, 1)),
-                        makeServiceFee(
-                                HederaFunctionality.SCHEDULE_DELETE, 100000L, makeExtraIncluded(Extra.SIGNATURES, 1))))
+                        makeServiceFee(HederaFunctionality.SCHEDULE_CREATE, 99000000, makeExtraIncluded(Extra.KEYS, 1)),
+                        makeServiceFee(HederaFunctionality.SCHEDULE_SIGN, 9000000),
+                        makeServiceFee(HederaFunctionality.SCHEDULE_DELETE, 9000000)))
                 .build();
     }
 
-    static class TestCase {
-        final ServiceFeeCalculator calculator;
-        final TransactionBody body;
-        final int numSignatures;
-        final long expectedNodeFee;
-        final long expectedServiceFee;
-        final long expectedNetworkFee;
-
-        TestCase(
-                ServiceFeeCalculator calculator,
-                TransactionBody body,
-                int numSignatures,
-                long expectedNodeFee,
-                long expectedServiceFee,
-                long expectedNetworkFee) {
-            this.calculator = calculator;
-            this.body = body;
-            this.numSignatures = numSignatures;
-            this.expectedNodeFee = expectedNodeFee;
-            this.expectedServiceFee = expectedServiceFee;
-            this.expectedNetworkFee = expectedNetworkFee;
-        }
+    record TestCase(
+            ServiceFeeCalculator calculator,
+            TransactionBody body,
+            int numSignatures,
+            long expectedNodeFee,
+            long expectedServiceFee,
+            long expectedNetworkFee) {
 
         @Override
-        public String toString() {
+        public @NonNull String toString() {
             return calculator.getClass().getSimpleName() + " with " + numSignatures + " signatures";
         }
     }
