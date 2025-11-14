@@ -83,6 +83,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * @param calculatorState the calculator state containing signature count
      * @return the calculated fee result
      */
+    @NonNull
     @Override
     public FeeResult calculateTxFee(
             @NonNull final TransactionBody txnBody, @Nullable final CalculatorState calculatorState) {

@@ -34,6 +34,7 @@ import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.AccountPendingAirdrop;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.hapi.node.token.TokenAirdropTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAirdropStore;
@@ -76,6 +77,9 @@ import org.apache.logging.log4j.Logger;
 @Singleton
 public class TokenAirdropHandler extends TransferExecutor implements TransactionHandler {
     private static final Logger log = LogManager.getLogger(TokenAirdropHandler.class);
+    public static final TransactionBody PLACEHOLDER_SYNTHETIC_AIRDROP = TransactionBody.newBuilder()
+            .tokenAirdrop(TokenAirdropTransactionBody.newBuilder().build())
+            .build();
     private final TokenAirdropValidator validator;
 
     /**
@@ -250,18 +254,14 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
     private static boolean canClaimAirdrop(@NonNull final Key key) {
         return switch (key.key().kind()) {
             case UNSET -> throw new IllegalStateException("Key kind cannot be UNSET");
-            case CONTRACT_ID -> true;
-            case ED25519 -> true;
-            case RSA_3072 -> false;
-            case ECDSA_384 -> false;
+            case CONTRACT_ID, ED25519, ECDSA_SECP256K1 -> true;
+            case RSA_3072, ECDSA_384, DELEGATABLE_CONTRACT_ID -> false;
             case THRESHOLD_KEY ->
                 key.thresholdKeyOrThrow().keysOrThrow().keys().stream()
                                 .filter(TokenAirdropHandler::canClaimAirdrop)
                                 .count()
                         >= key.thresholdKeyOrThrow().threshold();
             case KEY_LIST -> key.keyListOrThrow().keys().stream().allMatch(TokenAirdropHandler::canClaimAirdrop);
-            case ECDSA_SECP256K1 -> true;
-            case DELEGATABLE_CONTRACT_ID -> false;
         };
     }
 
@@ -513,8 +513,14 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
      * @return the airdrop fee
      */
     private long airdropFee(final HandleContext feeContext) {
-        return ((FeeContext) feeContext)
-                .feeCalculatorFactory()
+        final var context = ((FeeContext) feeContext);
+
+        //        if (feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
+        //            return context.dispatchComputeFees(PLACEHOLDER_SYNTHETIC_AIRDROP, context.payer())
+        //                    .totalFee();
+        //        }
+
+        return context.feeCalculatorFactory()
                 .feeCalculator(SubType.DEFAULT)
                 .calculate()
                 .totalFee();
