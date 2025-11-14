@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures;
+package org.hiero.otter.fixtures.internal;
 
 import static java.util.Comparator.comparingLong;
 import static java.util.Objects.requireNonNull;
