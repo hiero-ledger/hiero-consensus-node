@@ -27,7 +27,7 @@ public class CryptoCreateFeeCalculator implements ServiceFeeCalculator {
         final long keys = key != null ? countKeys(key) : 0;
         // Add service base + extras
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_CREATE);
-        feeResult.addServiceFee("Base Fee for " + HederaFunctionality.CRYPTO_CREATE, 1, serviceDef.baseFee());
+        feeResult.addServiceFee(1, serviceDef.baseFee());
         addExtraFee(feeResult, serviceDef, KEYS, feeSchedule, keys);
     }
 
