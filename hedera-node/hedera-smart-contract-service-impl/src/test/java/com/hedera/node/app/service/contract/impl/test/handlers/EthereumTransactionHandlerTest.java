@@ -393,6 +393,17 @@ class EthereumTransactionHandlerTest {
     }
 
     @Test
+    void validatePureChecksCheckBadEthTxnBody() {
+        // check bad eth txn body
+        final var txn1 = ethTxWithNoTx();
+        given(pureChecksContext.body()).willReturn(txn1);
+        assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+        PreCheckException exception =
+                assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+        assertEquals(INVALID_ETHEREUM_TRANSACTION, exception.responseCode());
+    }
+
+    @Test
     void validatePureChecksHbarsToBurnAddress() {
         // check bad to evm address
         try (MockedStatic<EthTxData> ethTxData = Mockito.mockStatic(EthTxData.class)) {
