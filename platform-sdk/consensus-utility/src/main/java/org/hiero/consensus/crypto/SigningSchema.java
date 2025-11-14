@@ -2,6 +2,7 @@
 package org.hiero.consensus.crypto;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.security.Key;
 
 /**
  * Enumeration of supported signing schemas.
@@ -13,10 +14,6 @@ public enum SigningSchema {
      * migrated to use this enum, these constants can be removed.
      */
     RSA(CryptoConstants.SIG_TYPE1, CryptoConstants.SIG_KEY_SIZE_BITS, CryptoConstants.SIG_TYPE2),
-    /**
-     * Elliptic Curve signing schema.
-     */
-    EC("EC", 384, "SHA384withECDSA"),
     /**
      * Ed25519 signing schema.
      */
@@ -64,5 +61,16 @@ public enum SigningSchema {
      */
     public int getKeySizeBits() {
         return keySizeBits;
+    }
+
+    public static SigningSchema fromKeyType(@NonNull final Key key) {
+        final String algorithm = key.getAlgorithm();
+        return switch (algorithm) {
+            case "RSA" -> RSA;
+            // An EdDSA can be either Ed25519 or Ed448, but there is no simple way to distinguish them from the Key
+            // interface.
+            case "Ed25519", "EdDSA" -> ED25519;
+            default -> throw new IllegalArgumentException("Unsupported key algorithm: " + algorithm);
+        };
     }
 }
