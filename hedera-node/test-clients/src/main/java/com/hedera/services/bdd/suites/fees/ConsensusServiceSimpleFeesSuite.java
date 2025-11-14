@@ -118,13 +118,9 @@ public class ConsensusServiceSimpleFeesSuite {
                             .via("create-topic-admin-txn"),
                     // TODO: adjust this once we get final pricing
                     validateChargedUsdWithin("create-topic-admin-txn", 0.01022, 100),
-                    updateTopic("testTopic")
-                            .payingWith(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("update-topic-txn"),
+                    updateTopic("testTopic").payingWith(PAYER).fee(ONE_HBAR).via("update-topic-txn"),
                     // TODO: adjust this once we get final pricing
-                    validateChargedUsdWithin("update-topic-txn", 0.000356, 1000)
-            ));
+                    validateChargedUsdWithin("update-topic-txn", 0.000356, 1000)));
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -254,7 +250,9 @@ public class ConsensusServiceSimpleFeesSuite {
                     validateChargedUsdWithin("create-topic-admin-txn", 0.01020, 100),
                     deleteTopic("testTopic")
                             .signedBy(PAYER)
-                            .payingWith(PAYER).fee(ONE_HBAR).via("delete-topic-txn"),
+                            .payingWith(PAYER)
+                            .fee(ONE_HBAR)
+                            .via("delete-topic-txn"),
                     validateChargedUsdWithin("delete-topic-txn", 0.005, 10)));
         }
     }
