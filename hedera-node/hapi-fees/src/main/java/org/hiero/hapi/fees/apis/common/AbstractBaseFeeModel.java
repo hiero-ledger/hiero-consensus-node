@@ -49,7 +49,7 @@ public abstract class AbstractBaseFeeModel implements FeeModel {
         }
 
         int multiplier = feeSchedule.network().multiplier();
-        result.addNetworkFee(1, result.node * multiplier);
+        result.addNetworkFee(result.node * multiplier);
         return result;
     }
 }

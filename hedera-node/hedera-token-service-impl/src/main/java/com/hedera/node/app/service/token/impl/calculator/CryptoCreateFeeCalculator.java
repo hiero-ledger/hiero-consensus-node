@@ -28,7 +28,7 @@ public class CryptoCreateFeeCalculator implements ServiceFeeCalculator {
         // Add service base + extras
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_CREATE);
         feeResult.addServiceFee(1, serviceDef.baseFee());
-        addExtraFee(feeResult, KEYS, feeSchedule, keys);
+        addExtraFee(feeResult, serviceDef, KEYS, feeSchedule, keys);
     }
 
     public TransactionBody.DataOneOfType getTransactionType() {
