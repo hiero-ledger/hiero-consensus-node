@@ -142,6 +142,10 @@ val prCheckPropOverrides =
             "hapiTestMiscRecords",
             "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         )
+        put(
+            "hapiTestMiscRecordsMATS",
+            "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
+        )
         put("hapiTestSimpleFees", "fees.simpleFeesEnabled=true")
 
         // Copy vals to the MATS variants
