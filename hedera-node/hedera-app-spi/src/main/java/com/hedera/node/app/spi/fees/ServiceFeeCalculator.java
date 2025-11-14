@@ -24,7 +24,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.Extra;
+import org.hiero.hapi.support.fees.ExtraFeeReference;
 import org.hiero.hapi.support.fees.FeeSchedule;
+import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
 /** Calculates transaction and query fees. Null context = approximate, non-null = exact using state. */
 public interface ServiceFeeCalculator {
@@ -52,18 +54,26 @@ public interface ServiceFeeCalculator {
      * Adds an extra fee to the result.
      *
      * @param result the fee result
-     * @param feeType "Node" or "Service"
+     * @param serviceFeeDef the service fee definition containing operation-specific extras with includedCount
      * @param extra the extra fee
      * @param feeSchedule the fee schedule
      * @param amount the amount of the extra fee
      */
-    // TODO: Why do we need a String feeType here?
     default void addExtraFee(
             @NonNull final FeeResult result,
-            @NonNull final String feeType,
+            @NonNull final ServiceFeeDefinition serviceFeeDef,
             @NonNull final Extra extra,
             @NonNull FeeSchedule feeSchedule,
             final long amount) {
-        result.addServiceFee(feeType, amount, lookupExtraFee(feeSchedule, extra).fee());
+        for (ExtraFeeReference ref : serviceFeeDef.extras()) {
+            if (ref.name() == extra) {
+                int included = ref.includedCount();
+                long extraFee = lookupExtraFee(feeSchedule, ref.name()).fee();
+                if (amount > included) {
+                    final long overage = amount - included;
+                    result.addServiceFee(overage, extraFee);
+                }
+            }
+        }
     }
 }

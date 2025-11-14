@@ -26,6 +26,7 @@ import static org.mockito.Mockito.verify;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
@@ -40,6 +41,7 @@ import com.hedera.node.app.service.token.impl.api.TokenServiceApiImpl;
 import com.hedera.node.app.service.token.impl.validators.StakingValidator;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -200,6 +202,15 @@ class TokenServiceApiImplTest {
 
         assertThrows(
                 IllegalArgumentException.class, () -> subject.updateStorageMetadata(CONTRACT_ID, SOME_STORE_KEY, -3));
+    }
+
+    @Test
+    void throwsOnExpectedContractBeingEOA() {
+        final var accountId = AccountID.newBuilder().accountNum(12345).build();
+        accountStore.put(Account.newBuilder().accountId(accountId).build());
+
+        final var e = assertThrows(HandleException.class, () -> subject.updateLambdaStorageSlots(accountId, 1, true));
+        assertEquals(ResponseCodeEnum.WRONG_HOOK_ENTITY_TYPE, e.getStatus());
     }
 
     @Test
