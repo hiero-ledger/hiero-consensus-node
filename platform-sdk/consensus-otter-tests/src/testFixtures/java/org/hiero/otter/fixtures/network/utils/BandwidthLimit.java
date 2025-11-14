@@ -8,7 +8,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * specifications.
  */
 @SuppressWarnings("unused")
-public class BandwidthLimit {
+public class BandwidthLimit implements Comparable<BandwidthLimit> {
 
     private static final int UNLIMITED_KILOBYTES_PER_SECOND = Integer.MAX_VALUE;
 
@@ -24,6 +24,14 @@ public class BandwidthLimit {
             throw new IllegalArgumentException("Bandwidth cannot be negative");
         }
         this.kilobytesPerSecond = kilobytesPerSecond;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int compareTo(@NonNull final BandwidthLimit other) {
+        return kilobytesPerSecond - other.kilobytesPerSecond;
     }
 
     /**
@@ -87,6 +95,30 @@ public class BandwidthLimit {
         return kilobytesPerSecond == UNLIMITED_KILOBYTES_PER_SECOND;
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean equals(final Object o) {
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        final BandwidthLimit that = (BandwidthLimit) o;
+        return kilobytesPerSecond == that.kilobytesPerSecond;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int hashCode() {
+        return kilobytesPerSecond;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public String toString() {
         return "BandwidthLimit{" + "KB/s=" + kilobytesPerSecond + '}';
