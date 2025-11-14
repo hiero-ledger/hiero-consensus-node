@@ -184,7 +184,8 @@ public abstract class AbstractNetwork implements Network {
                     new MeshTopologyImpl(meshConfig, this::createNodes, this::createInstrumentedNode);
             case GeoMeshTopologyConfiguration geoConfig ->
                     new GeoMeshTopologyImpl(geoConfig, random, this::createNodes, this::createInstrumentedNode);
-            default -> throw new IllegalArgumentException("Unknown topology configuration type: " + configuration.getClass());
+            default -> throw new IllegalArgumentException(
+                    "Unknown topology configuration type: " + configuration.getClass());
         };
 
         return this;
