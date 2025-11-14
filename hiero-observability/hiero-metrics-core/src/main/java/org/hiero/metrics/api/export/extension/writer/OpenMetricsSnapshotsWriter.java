@@ -377,6 +377,7 @@ public class OpenMetricsSnapshotsWriter
             return this;
         }
 
+        @NonNull
         @Override
         public OpenMetricsSnapshotsWriter build() {
             return new OpenMetricsSnapshotsWriter(this);

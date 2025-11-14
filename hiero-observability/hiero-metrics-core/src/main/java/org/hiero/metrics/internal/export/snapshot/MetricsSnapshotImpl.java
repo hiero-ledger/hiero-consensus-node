@@ -73,6 +73,8 @@ public final class MetricsSnapshotImpl implements MetricsSnapshot {
 
             @Override
             public MetricSnapshot next() {
+                // we do not check hasNext() here for performance reasons;
+                // if the caller violates the iterator contract, an IndexOutOfBoundsException will be thrown
                 return registrySnapshots.get(registryIdx).get(metricIdx++);
             }
         };

@@ -172,7 +172,9 @@ public class MetricsFacadeTest {
                     ArgumentCaptor.forClass(Supplier.class);
             verify(pullingExporter).setSnapshotProvider(snapshotSupplierCaptor.capture());
             Supplier<Optional<MetricsSnapshot>> snapshotSupplier = snapshotSupplierCaptor.getValue();
-            verifySnapshotHasMetrics(snapshotSupplier.get(), "test_counter");
+            Optional<MetricsSnapshot> optionalSnapshot = snapshotSupplier.get();
+            assertThat(optionalSnapshot).isNotEmpty();
+            verifySnapshotHasMetrics(optionalSnapshot.get(), "test_counter");
 
             // close manager
             exportManager.shutdown();

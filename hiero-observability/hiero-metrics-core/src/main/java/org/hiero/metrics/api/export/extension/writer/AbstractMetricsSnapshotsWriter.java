@@ -45,7 +45,7 @@ public abstract class AbstractMetricsSnapshotsWriter implements MetricsSnapshots
         beforeSnapshotsWrite(snapshots, output);
 
         for (MetricSnapshot metricSnapshot : snapshots) {
-            if (!shouldSkip(metricSnapshot.metadata())) {
+            if (shouldWrite(metricSnapshot.metadata())) {
                 writeMetricSnapshot(snapshots.createAt(), metricSnapshot, output);
             }
         }
@@ -59,7 +59,8 @@ public abstract class AbstractMetricsSnapshotsWriter implements MetricsSnapshots
      * @param snapshots the metrics snapshot to be written
      * @param output    the output stream
      */
-    protected void beforeSnapshotsWrite(@NonNull MetricsSnapshot snapshots, @NonNull OutputStream output) {
+    protected void beforeSnapshotsWrite(@NonNull MetricsSnapshot snapshots, @NonNull OutputStream output)
+            throws IOException {
         // nothing by default
     }
 
@@ -96,8 +97,8 @@ public abstract class AbstractMetricsSnapshotsWriter implements MetricsSnapshots
         return formatter.format(value);
     }
 
-    private boolean shouldSkip(MetricMetadata metadata) {
-        return !metricFilter.test(metadata);
+    private boolean shouldWrite(MetricMetadata metadata) {
+        return metricFilter.test(metadata);
     }
 
     /**
@@ -109,7 +110,7 @@ public abstract class AbstractMetricsSnapshotsWriter implements MetricsSnapshots
      */
     public abstract static class Builder<B extends Builder<B, W>, W extends AbstractMetricsSnapshotsWriter> {
 
-        private static final DecimalFormat DEFAULT_DECIMAL_FORMAT = new DecimalFormat("#.####");
+        private static final DecimalFormat DEFAULT_DECIMAL_FORMAT = new DecimalFormat("#.###");
         private static final Predicate<MetricMetadata> ALLOW_ALL = metadata -> true;
 
         private Predicate<MetricMetadata> metricFilter = ALLOW_ALL;
@@ -146,6 +147,7 @@ public abstract class AbstractMetricsSnapshotsWriter implements MetricsSnapshots
          *
          * @return the built writer instance
          */
+        @NonNull
         public abstract W build();
 
         /**

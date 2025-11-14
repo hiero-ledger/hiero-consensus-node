@@ -9,24 +9,45 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
-import org.hiero.metrics.api.export.AbstractMetricsExporter;
-import org.hiero.metrics.api.export.MetricsExportException;
 import org.hiero.metrics.api.export.PushingMetricsExporter;
 import org.hiero.metrics.api.export.extension.writer.CsvMetricsSnapshotsWriter;
-import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
 
 /**
- * A {@link PushingMetricsExporter} that writes metrics snapshots to a CSV file.
+ * A {@link PushingMetricsExporter} that writes metrics snapshots to a CSV file using {@link CsvMetricsSnapshotsWriter}.
  */
-public class CsvFileMetricsExporter extends AbstractMetricsExporter implements PushingMetricsExporter {
+public class CsvFileMetricsExporter extends PushingMetricsExporterWriterAdapter {
 
     private final Path filePath;
-    private final CsvMetricsSnapshotsWriter writer;
 
+    /**
+     * Creates a new {@link CsvFileMetricsExporter} with the given name and file path using default CSV writer -
+     * {@link CsvMetricsSnapshotsWriter#DEFAULT}.
+     * If the file does not exist, it will be created along with any necessary parent directories.
+     * The CSV headers will be written to the file upon creation.
+     *
+     * @param name     the name of the exporter
+     * @param filePath the path to the CSV file where metrics snapshots will be written
+     * @throws IOException if an I/O error occurs while creating the file or directories
+     */
     public CsvFileMetricsExporter(@NonNull String name, @NonNull Path filePath) throws IOException {
-        super(name);
+        this(name, filePath, CsvMetricsSnapshotsWriter.DEFAULT);
+    }
+
+    /**
+     * Creates a new {@link CsvFileMetricsExporter} with the given name, file path, and writer.
+     * If the file does not exist, it will be created along with any necessary parent directories.
+     * The CSV headers will be written to the file upon creation.
+     *
+     * @param name     the name of the exporter
+     * @param filePath the path to the CSV file where metrics snapshots will be written
+     * @param writer   the CSV metrics snapshots writer to use
+     * @throws IOException if an I/O error occurs while creating the file or directories
+     */
+    public CsvFileMetricsExporter(
+            @NonNull String name, @NonNull Path filePath, @NonNull CsvMetricsSnapshotsWriter writer)
+            throws IOException {
+        super(name, writer);
         this.filePath = Objects.requireNonNull(filePath, "file path must not be null");
-        writer = CsvMetricsSnapshotsWriter.DEFAULT;
 
         if (!Files.exists(filePath)) {
             if (filePath.getParent() != null) {
@@ -40,16 +61,7 @@ public class CsvFileMetricsExporter extends AbstractMetricsExporter implements P
     }
 
     @Override
-    public void export(@NonNull MetricsSnapshot snapshot) throws MetricsExportException {
-        try (OutputStream outputStream = Files.newOutputStream(filePath, APPEND)) {
-            writer.write(snapshot, outputStream);
-        } catch (IOException e) {
-            throw new MetricsExportException("Error exporting metrics by " + name(), e);
-        }
-    }
-
-    @Override
-    public void close() {
-        // No resources to close
+    protected OutputStream openStream() throws IOException {
+        return Files.newOutputStream(filePath, APPEND);
     }
 }

@@ -96,7 +96,7 @@ public interface GenericGauge<T> extends StatefulMetric<Supplier<T>, GaugeDataPo
          */
         private Builder(@NonNull MetricKey<GenericGauge<T>> key, @NonNull ToNumberFunction<T> valueConverter) {
             super(MetricType.GAUGE, key, () -> null, AtomicReferenceGaugeDataPoint::new);
-            this.valueConverter = Objects.requireNonNull(valueConverter, "valueConverter cannot be null");
+            this.valueConverter = Objects.requireNonNull(valueConverter, "value converter cannot be null");
         }
 
         /**

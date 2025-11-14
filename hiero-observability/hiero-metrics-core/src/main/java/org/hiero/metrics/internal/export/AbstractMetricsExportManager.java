@@ -77,24 +77,30 @@ public abstract class AbstractMetricsExportManager implements MetricsExportManag
     public final boolean manageMetricRegistry(@NonNull MetricRegistry registry) {
         if (registry instanceof SnapshotableMetricsRegistry snapshotableRegistry) {
             boolean firstSnapshotableRegistry = false;
-            HashSet<Label> globalLabels = new HashSet<>(registry.globalLabels());
 
             synchronized (this) {
-                if (!registriesGlobalLabels.add(globalLabels)) {
+                if (!registry.globalLabels().isEmpty()
+                        && !registriesGlobalLabels.add(new HashSet<>(registry.globalLabels()))) {
                     throw new IllegalArgumentException(
-                            "Metric registry has duplicate global labels with another registry: " + globalLabels);
+                            "Metric registry has duplicate global labels with another registry: "
+                                    + registry.globalLabels());
                 }
 
                 if (metricRegistries.isEmpty()) {
                     firstSnapshotableRegistry = true;
                     initExportMetrics();
+                } else {
+                    // check same registry instance is not added twice
+                    if (metricRegistries.contains(snapshotableRegistry)) {
+                        throw new IllegalArgumentException("Metric registry instance is already managed: " + registry);
+                    }
                 }
 
                 metricRegistries.add(snapshotableRegistry);
                 snapshots.addRegistry(snapshotableRegistry);
             }
 
-            logger.info("Added metrics registry with global labels: {}", globalLabels);
+            logger.info("Added metrics registry with global labels: {}", registry.globalLabels());
 
             if (firstSnapshotableRegistry) {
                 init();
