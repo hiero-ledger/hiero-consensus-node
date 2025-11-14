@@ -23,6 +23,7 @@ public class HgcaaLogValidator {
     private static final String OVERRIDE_NODE_ADMIN_KEY_PATTERN = OVERRIDE_PREFIX + " node%d is :: %s";
     private static final String WARN = "WARN";
     private static final String ERROR = "ERROR";
+    private static final String FATAL = "FATAL";
     private static final String POSSIBLY_CATASTROPHIC = "Possibly CATASTROPHIC";
     private final String logFileLocation;
     private final Map<Long, Key> overrideNodeAdminKeys;
@@ -141,7 +142,7 @@ public class HgcaaLogValidator {
         }
 
         private boolean isInitialProblem(final String line) {
-            return line.contains(WARN) || line.contains(ERROR);
+            return line.contains(WARN) || line.contains(ERROR) || line.contains(FATAL);
         }
 
         private boolean isPossiblyCatastrophicProblem(final String line) {
