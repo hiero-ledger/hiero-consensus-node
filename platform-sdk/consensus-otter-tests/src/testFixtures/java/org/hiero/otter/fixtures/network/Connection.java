@@ -5,7 +5,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.assertj.core.data.Percentage;
 import org.hiero.otter.fixtures.Node;
-import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
 
 /**
  * Interface representing a connection between two nodes in a network.

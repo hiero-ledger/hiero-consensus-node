@@ -7,9 +7,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.assertj.core.data.Percentage;
 import org.hiero.otter.fixtures.Node;
+import org.hiero.otter.fixtures.network.BandwidthLimit;
 import org.hiero.otter.fixtures.network.Connection;
 import org.hiero.otter.fixtures.network.DirectionalConnection;
-import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
 
 /**
  * Implementation of the Connection interface.
