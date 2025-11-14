@@ -62,7 +62,6 @@ import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterAppState;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
-import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.NetworkConfiguration;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
@@ -72,6 +71,7 @@ import org.hiero.otter.fixtures.internal.result.SingleNodeReconnectResultImpl;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContextScope;
 import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
+import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeEventStreamResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
@@ -82,7 +82,6 @@ import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
-import org.hiero.otter.fixtures.util.SecureRandomBuilder;
 
 /**
  * A node in the turtle network.

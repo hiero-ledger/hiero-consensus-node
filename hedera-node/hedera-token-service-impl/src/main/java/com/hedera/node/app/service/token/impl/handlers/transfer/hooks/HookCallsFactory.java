@@ -58,7 +58,7 @@ public class HookCallsFactory {
         final var accountStore = handleContext.storeFactory().readableStore(ReadableAccountStore.class);
         final var memo = handleContext.body().memo();
         final long txnFee = handleContext.body().transactionFee();
-        return getProposedTransfers(userTxn, accountStore, memo, txnFee, itemizedAssessedFees);
+        return getHookCalls(userTxn, accountStore, memo, txnFee, itemizedAssessedFees);
     }
     /**
      * Encodes the proposed transfers from the user transaction and assessed fees into tuples,
@@ -71,7 +71,7 @@ public class HookCallsFactory {
      * @param itemizedAssessedFees the list of assessed fees with multi-payer debits
      * @return the created {@link HookCalls}
      */
-    private HookCalls getProposedTransfers(
+    private HookCalls getHookCalls(
             @NonNull final CryptoTransferTransactionBody userTxn,
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final String memo,

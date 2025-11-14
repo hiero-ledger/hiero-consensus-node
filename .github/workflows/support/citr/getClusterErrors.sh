@@ -14,12 +14,13 @@ for i in `seq 1 1 $NofNodes`
 do
   sh ${TOOLDIR}/kubectlt -n ${NAMESPACE} exec -it network-node${i}-0 -c root-container -- \
   bash -c "grep -h -i -E 'error|exception|warn' $LOG_DIR/*.log |grep -v -E 'error-|-error|exception-|-exception|exception[\=]' | grep -v 'The most likely causes'" > podlog_${NAMESPACE}/podlog_${NAMESPACE}_network-node${i}-errors.log
+  cat podlog_${NAMESPACE}/podlog_${NAMESPACE}_network-node${i}-errors.log | perl ${TOOLDIR}/backPresureStats.pl >> podlog_${NAMESPACE}/podlog_${NAMESPACE}_network-node${i}-errors.log
 done
 
 cat podlog_${NAMESPACE}/podlog_${NAMESPACE}_network-node*-errors.log | grep -v -E 'exception[\=]null' |\
 perl -ne 'if (/^\d{4}[\-]\d{2}[\-]\d{2}\s+\d{2}[\:]\d{2}[\:]\d{2}[\.]\d+\s+\d+\s+(.*)$/) {print "$1\n";} else {print;}' | perl -pne '~s/\d+/N/g' |sort | uniq -c | sort -n -k 1 -r |\
 grep -v 'Report[\[]' | grep -v 'contracts.evm.chargeGasOnEvmHandleException [\=] true' > podlog_${NAMESPACE}/error_summary.txt
-
+cat podlog_${NAMESPACE}/podlog_${NAMESPACE}_network-node*-errors.log | perl ${TOOLDIR}/backPresureStats.pl >> podlog_${NAMESPACE}/error_summary.txt
 
 for i in `seq 1 1 $NofNodes`
 do
