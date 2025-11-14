@@ -31,7 +31,7 @@ public class TokenMintFeeCalculator implements ServiceFeeCalculator {
             addExtraFee(feeResult, serviceDef, Extra.STANDARD_NON_FUNGIBLE_TOKENS, feeSchedule, 0);
         } else {
             addExtraFee(feeResult, serviceDef, Extra.STANDARD_FUNGIBLE_TOKENS, feeSchedule, 0);
-            addExtraFee(feeResult, serviceDef, Extra.STANDARD_NON_FUNGIBLE_TOKENS, feeSchedule, 1);
+            addExtraFee(feeResult, serviceDef, Extra.STANDARD_NON_FUNGIBLE_TOKENS, feeSchedule, op.metadata().size());
         }
     }
 
