@@ -8,6 +8,7 @@ import static org.hyperledger.besu.evm.operation.SStoreOperation.FRONTIER_MINIMU
 
 import com.hedera.node.app.service.contract.impl.annotations.CustomOps;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesVXXX;
+import com.hedera.node.app.service.contract.impl.bonneville.BonnevilleEVM;
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.FrameRunner;
@@ -61,20 +62,19 @@ public interface VXXXModule {
     static TransactionProcessor provideTransactionProcessor(
             @NonNull final FrameBuilder frameBuilder,
             @NonNull final FrameRunner frameRunner,
-            @ServicesVXXX CustomMessageCallProcessor messageCallProcessor,
-            @ServicesVXXX ContractCreationProcessor contractCreationProcessor,
+            @ServicesVXXX @NonNull final CustomMessageCallProcessor messageCallProcessor,
+            @ServicesVXXX @NonNull final ContractCreationProcessor contractCreationProcessor,
             @NonNull final CustomGasCharging gasCharging,
             @ServicesVXXX @NonNull final FeatureFlags featureFlags,
-            @NonNull final CodeFactory codeFactory
-         ) {
-        return TransactionProcessor.make(
-            frameBuilder,
-            frameRunner,
-            gasCharging,
-            messageCallProcessor,
-            contractCreationProcessor,
-            featureFlags,
-            codeFactory);
+            @NonNull final CodeFactory codeFactory) {
+        return new TransactionProcessor(
+                frameBuilder,
+                frameRunner,
+                gasCharging,
+                messageCallProcessor,
+                contractCreationProcessor,
+                featureFlags,
+                codeFactory);
     }
 
     @Provides
@@ -107,15 +107,19 @@ public interface VXXXModule {
             @ServicesVXXX Set<Operation> customOperations,
             EvmConfiguration evmConfiguration,
             GasCalculator gasCalculator,
-            @CustomOps Set<Operation> customOps) {
-        KZGPointEvalPrecompiledContract.init();
-
+            @CustomOps Set<Operation> customOps,
+            @ServicesVXXX @NonNull FeatureFlags featureFlags) {
         // Use Cancun EVM with 0.51 custom operations and 0x00 chain id (set at runtime)
         final var operationRegistry = new OperationRegistry();
         registerCancunOperations(operationRegistry, gasCalculator, BigInteger.ZERO);
         customOperations.forEach(operationRegistry::put);
         customOps.forEach(operationRegistry::put);
-        return new HederaEVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.CANCUN);
+        if( System.getenv("UseBonnevilleEVM") == null ) {
+            KZGPointEvalPrecompiledContract.init();
+            return new     HederaEVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.CANCUN);
+        } else {
+            return new BonnevilleEVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.CANCUN, featureFlags);
+        }
     }
 
     @Provides

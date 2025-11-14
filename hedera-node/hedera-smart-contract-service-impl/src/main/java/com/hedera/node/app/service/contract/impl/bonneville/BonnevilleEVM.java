@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.bonneville;
 
-import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
+import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.streams.SidecarType;
+import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
+import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
 import com.hedera.node.app.service.contract.impl.utils.TODO;
+import edu.umd.cs.findbugs.annotations.NonNull;
 
 import java.util.*;
 
@@ -11,9 +15,35 @@ import java.util.*;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.evm.EVM;
+import org.hyperledger.besu.evm.EvmSpecVersion;
 import org.hyperledger.besu.evm.account.Account;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
+import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
+import org.hyperledger.besu.evm.internal.EvmConfiguration;
+import org.hyperledger.besu.evm.operation.OperationRegistry;
+import org.hyperledger.besu.evm.tracing.OperationTracer;
+
+
+
+public class BonnevilleEVM extends EVM {
+    private final FeatureFlags _flags;
+    public BonnevilleEVM(
+            @NonNull final OperationRegistry operations,
+            @NonNull final GasCalculator gasCalc,
+            @NonNull final EvmConfiguration evmConfiguration,
+            @NonNull final EvmSpecVersion evmSpecVersion,
+            @NonNull final FeatureFlags featureFlags) {
+        super(operations, gasCalc, evmConfiguration, evmSpecVersion );
+        _flags = featureFlags;
+    }
+
+    @Override
+    public void runToHalt(MessageFrame frame, OperationTracer tracing) {
+        new BEVM(getGasCalculator(), frame, _flags).run();
+    }
+}
 
 /**
  *
@@ -24,51 +54,54 @@ import org.hyperledger.besu.evm.gascalculator.GasCalculator;
  * into my local copy of {@code mStoreOperationGasCost} which is private to a
  * BonnevilleEVM so it can be changed without impacting anything else.
  */
-public class BonnevilleEVM {
-    // Receiver account
-    final Account _recv;
+class BEVM {
+    @NonNull final GasCalculator _gasCalc;
+    @NonNull final MessageFrame _frame;
+
     // Contract bytecodes
     final byte[] _codes;
-    // How to calculate gas
-    final GasCalculator _gasCalc;
-    // Gas when we started
-    final long _startGas;
     // Gas available, runs down to zero
+    private final long _startGas;
     private long _gas;
+
+    // Recipient
+    Account _recv;
 
     // Custom SLoad asks this global question
     final boolean _isSidecarEnabled;
+    // Custom SLoad optional tracking
+    final StorageAccessTracker _tracker;
+    //
+    final ContractID _contractId;
+
+
+
+    BEVM( GasCalculator gasCalc, MessageFrame frame, FeatureFlags flags ) {
+        _gasCalc = gasCalc;
+        if( _gasCalc.getVeryLowTierGasCost() > 10 )
+            throw new TODO("Need to restructure how gas is computed");
+        _frame = frame;
+        // Bytecodes
+        _codes = frame.getCode().getBytes().toArrayUnsafe();
+        // Starting and current gas
+        _startGas = frame.getRemainingGas();
+        _gas = _startGas;
+        // Account receiver
+        _recv = frame.getWorldUpdater().get(frame.getRecipientAddress());
+
+        // Hedera custom sidecar
+        _isSidecarEnabled = flags.isSidecarEnabled(frame, SidecarType.CONTRACT_STATE_CHANGE);
+        // Hedera optional tracking first SLOAD
+        _tracker = FrameUtils.accessTrackerFor(frame);
+
+        var worldUpdater = FrameUtils.proxyUpdaterFor(_frame);
+        _contractId = worldUpdater.getHederaContractId(_frame.getRecipientAddress());
+    }
 
     // Halt reason, or null
     private ExceptionalHaltReason _halt;
 
-    // TODO: Recycle these on a free list; lifetime is hard-limited to a single
-    // contract so should pool nicely.
-
-    public BonnevilleEVM( Account recv, byte[] codes, GasCalculator gasCalc, long gas, boolean isSidecarEnabled ) {
-        _recv = recv;
-        _codes = codes;
-        _gasCalc = gasCalc;
-        _startGas = gas;
-        _gas = gas;
-        if( _gasCalc.getVeryLowTierGasCost() > 10 )
-            throw new TODO("Need to restructure how gas is computed");
-        _isSidecarEnabled = isSidecarEnabled;
-    }
-
-    public long gasUsed() { return Math.max(_startGas,_startGas - _gas); }
-
-    public HederaEvmTransactionResult result() {
-        throw new TODO();
-    }
-
-    public Set<Address> getSelfDestructs() {
-        throw new TODO();
-    }
-
-    public StorageAccessTracker accessTracker() { return null; }
-
-    public BonnevilleEVM run() {
+    public BEVM run() {
         // TODO: setup
         _halt = _run();
         // TODO: cleanup
@@ -82,7 +115,7 @@ public class BonnevilleEVM {
 
     // -----------------------------------------------------------
     // The Stack Implementation
-    private final int MAX_STACK_SIZE = 1024;
+    public final int MAX_STACK_SIZE = 1024;
 
     private int _sp;            // The stack pointer
 
@@ -124,7 +157,7 @@ public class BonnevilleEVM {
 
     // Misaligned long load, which might be short.
     // TODO: Unsafe or ByteBuffer
-    private long getLong( byte[] src, int off, int len ) {
+    private static long getLong( byte[] src, int off, int len ) {
         long adr = 0;
         if( len<=0 ) return adr;
         adr |= (long) (src[--len+off] & 0xFF) <<  0;
@@ -162,10 +195,10 @@ public class BonnevilleEVM {
     private ExceptionalHaltReason popStackWriteMem( int adr ) {
         assert _sp > 0;         // Caller already checked for underflow
         growMem( adr+1 );
-        MEM0[adr] = STK0[_sp];
-        MEM1[adr] = STK1[_sp];
-        MEM2[adr] = STK2[_sp];
-        MEM3[adr] = STK3[_sp--];
+        MEM0[adr] = STK0[--_sp];
+        MEM1[adr] = STK1[  _sp];
+        MEM2[adr] = STK2[  _sp];
+        MEM3[adr] = STK3[  _sp];
         return null;
     }
 
@@ -207,6 +240,7 @@ public class BonnevilleEVM {
             int op = _codes[pc++] & 0xFF;
             halt = switch( op ) {
 
+            case 0x02 -> add();
             case 0x0A -> exp();
 
             case 0x52 -> mstore();
@@ -257,10 +291,10 @@ public class BonnevilleEVM {
         var halt = useGas(_gasCalc.getVeryLowTierGasCost());
         if( halt!=null ) return halt;
         if( _sp < n ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
-        long x0 = STK0[_sp-1-n];
-        long x1 = STK1[_sp-1-n];
-        long x2 = STK2[_sp-1-n];
-        long x3 = STK3[_sp-1-n];
+        long x0 = STK0[_sp-n];
+        long x1 = STK1[_sp-n];
+        long x2 = STK2[_sp-n];
+        long x3 = STK3[_sp-n];
         return push(x0,x1,x2,x3);
     }
 
@@ -324,38 +358,28 @@ public class BonnevilleEVM {
     private final HashMap<AdrKey,AdrKey> _internAK = new HashMap<>();
     private static class AdrKey {
         Address _adr;
-        byte[] _keys = new byte[32];
         UInt256 _ui256; // Warm-up flag; also used to access Account.getStorageValue
+        boolean _warm;
         boolean isWarm() {
-            if( _ui256!=null ) return true;
-            _ui256 = UInt256.fromBytes(Bytes.wrap(_keys));
+            if( _warm ) return true;
+            _warm = true;
             return false;       // Was cold, but warmed-up afterwards
         }
-        @Override public int hashCode() { return _adr.hashCode() ^ Arrays.hashCode(_keys); }
+        @Override public int hashCode() { return _adr.hashCode() ^ _ui256.hashCode(); }
         @Override public boolean equals( Object o ) {
             if( !(o instanceof AdrKey ak) ) return false;
-            return _adr.equals(ak._adr) && Arrays.equals(_keys,ak._keys);
+            return _adr.equals(ak._adr) && _ui256==ak._ui256;
         }
     }
     // Get and intern a slot based on Address and key
     AdrKey getSlot( Address adr, long key0, long key1, long key2, long key3) {
         AdrKey ak = _freeAK.isEmpty() ? new AdrKey() : _freeAK.removeLast();
         ak._adr = adr;
-
-        //ak._keys[0] = (int)(key0>>32);
-        //ak._keys[1] = (int)key0;
-        //ak._keys[2] = (int)(key1>>32);
-        //ak._keys[3] = (int)key1;
-        //ak._keys[4] = (int)(key2>>32);
-        //ak._keys[5] = (int)key2;
-        //ak._keys[6] = (int)(key3>>32);
-        //ak._keys[7] = (int)key3;
-        //AdrKey ak2 = _internAK.get(ak);
-        //if( ak2 != null )
-        //    { _freeAK.add(ak); return ak2; }
-        //_internAK.put(ak,ak);
-        //return ak;
-        throw new TODO();
+        ak._ui256 = UI256.intern(key0,key1,key2,key3);
+        AdrKey ak2 = _internAK.get(ak);
+        if( ak2 != null ) _freeAK.add(ak);
+        else              _internAK.put((ak2=ak),ak);
+        return ak2;
     }
 
 
@@ -363,10 +387,10 @@ public class BonnevilleEVM {
     // Load from the global/permanent store
     private ExceptionalHaltReason sLoad() {
         if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
-        long key0 = STK0[_sp];
-        long key1 = STK1[_sp];
-        long key2 = STK2[_sp];
-        long key3 = STK3[_sp--];
+        long key0 = STK0[--_sp];
+        long key1 = STK1[  _sp];
+        long key2 = STK2[  _sp];
+        long key3 = STK3[  _sp];
 
         // Warmup address; true if already warm.  This is a per-transaction
         // tracking and is only for gas costs.  The actual warming happens if
@@ -379,16 +403,32 @@ public class BonnevilleEVM {
 
         // UInt256 already in AdrKey
         UInt256 val = _recv.getStorageValue( ak._ui256 );
-        //return push(val);
-        throw new TODO();
+        return push(UI256.getLong(val,3),
+                    UI256.getLong(val,2),
+                    UI256.getLong(val,1),
+                    UI256.getLong(val,0));
     }
 
     private ExceptionalHaltReason customSLoad() {
+        if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        // Read key before sLoad replaces it with value
+        long key0 = STK0[_sp-1];
+        long key1 = STK1[_sp-1];
+        long key2 = STK2[_sp-1];
+        long key3 = STK3[_sp-1];
+
         var halt = sLoad();
-        if( halt==null && _isSidecarEnabled ) {
-            throw new TODO();
+        if( halt==null && _isSidecarEnabled && _tracker != null ) {
+          // The base SLOAD operation returns its read value on the stack
+          long val0 = STK0[_sp-1];
+          long val1 = STK1[_sp-1];
+          long val2 = STK2[_sp-1];
+          long val3 = STK3[_sp-1];
+          UInt256 key = UI256.intern(key0,key1,key2,key3);
+          UInt256 val = UI256.intern(val0,val1,val2,val3);
+          _tracker.trackIfFirstRead(_contractId, key, val);
         }
-        throw new TODO();
+        return halt;
     }
 
 
@@ -396,16 +436,40 @@ public class BonnevilleEVM {
     // Arithmetic
 
     // Exponent
+    private ExceptionalHaltReason add() {
+        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
+        if( halt!=null ) return halt;
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        long lhs0 = STK0[--_sp];
+        long lhs1 = STK1[  _sp];
+        long lhs2 = STK2[  _sp];
+        long lhs3 = STK3[  _sp];
+        long rhs0 = STK0[--_sp];
+        long rhs1 = STK1[  _sp];
+        long rhs2 = STK2[  _sp];
+        long rhs3 = STK3[  _sp];
+
+        long add0 = lhs0 + rhs0;
+        if( (lhs0<0 || rhs0<0) && add0>=0 ) throw new TODO();
+        long add1 = lhs1 + rhs1;
+        if( (lhs1<0 || rhs1<0) && add1>=0 ) throw new TODO();
+        long add2 = lhs2 + rhs2;
+        if( (lhs2<0 || rhs2<0) && add2>=0 ) throw new TODO();
+        long add3 = lhs3 + rhs3;
+        return push(add0,add1,add2,add3);
+    }
+
+    // Exponent
     private ExceptionalHaltReason exp() {
         if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
-        long base0 = STK0[_sp];
-        long base1 = STK1[_sp];
-        long base2 = STK2[_sp];
-        long base3 = STK3[_sp--];
-        long pow0  = STK0[_sp];
-        long pow1  = STK1[_sp];
-        long pow2  = STK2[_sp];
-        long pow3  = STK3[_sp];
+        long base0 = STK0[--_sp];
+        long base1 = STK1[  _sp];
+        long base2 = STK2[  _sp];
+        long base3 = STK3[  _sp];
+        long pow0  = STK0[--_sp];
+        long pow1  = STK1[  _sp];
+        long pow2  = STK2[  _sp];
+        long pow3  = STK3[  _sp];
 
         // Gas is based on busy longs in the power, converted to bytes
         int numBytes =
@@ -416,15 +480,15 @@ public class BonnevilleEVM {
         var halt = useGas(_gasCalc.expOperationGasCost(numBytes));
         if( halt!=null ) return halt;
 
+        if( pow1 == 0 && pow2 == 0 && pow3 == 0 ) {
+            if( pow0 == 0 )
+                // base^0 == 1
+                return push(1,0,0,0);  // big endian 1
+        }
         if( base1 == 0 && base2 == 0 && base3 == 0 ) {
-            if( base0 == 0 ) {
-                // 1^pow == 1
-                STK0[_sp] = 1;
-                STK1[_sp] = 0;
-                STK2[_sp] = 0;
-                STK3[_sp] = 0;
-                return null;
-            }
+            if( base0 == 0 )
+                // 0^pow == 0
+                return push(0,0,0,0);
         }
         // Prolly BigInteger
         throw new TODO();

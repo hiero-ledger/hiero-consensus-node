@@ -4,11 +4,11 @@ package com.hedera.node.app.service.contract.impl.exec;
 import static java.util.Objects.requireNonNull;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 
+import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
 import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
-import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
@@ -33,51 +33,30 @@ import org.hyperledger.besu.evm.code.CodeFactory;
  * contract operations ({@code ContractCall}, {@code ContractCreate}, {@code EthereumTransaction},
  * {@code ContractCallLocal}) can reduce to a single code path.
  */
-public abstract class TransactionProcessor {
-    final CustomGasCharging gasCharging;
-    final CustomMessageCallProcessor messageCall;
-    final FeatureFlags featureFlags;
-    final CodeFactory codeFactory;
+public class TransactionProcessor {
+    private final FrameBuilder frameBuilder;
+    private final FrameRunner frameRunner;
+    private final CustomMessageCallProcessor messageCall;
+    private final ContractCreationProcessor contractCreation;
+    private final CustomGasCharging gasCharging;
+    private final FeatureFlags featureFlags;
+    private final CodeFactory codeFactory;
 
     public TransactionProcessor(
-            @NonNull CustomGasCharging gasCharging,
-            @NonNull CustomMessageCallProcessor messageCall,
-            @NonNull FeatureFlags featureFlags,
-            @NonNull CodeFactory codeFactory ) {
-        this.gasCharging = requireNonNull(gasCharging );
+            @NonNull final FrameBuilder frameBuilder,
+            @NonNull final FrameRunner frameRunner,
+            @NonNull final CustomGasCharging gasCharging,
+            @NonNull final CustomMessageCallProcessor messageCall,
+            @NonNull final ContractCreationProcessor contractCreation,
+            @NonNull final FeatureFlags featureFlags,
+            @NonNull final CodeFactory codeFactory) {
+        this.frameBuilder = requireNonNull(frameBuilder);
+        this.frameRunner = requireNonNull(frameRunner);
         this.messageCall = requireNonNull(messageCall );
+        this.contractCreation = requireNonNull(contractCreation);
+        this.gasCharging = requireNonNull(gasCharging );
         this.featureFlags= requireNonNull(featureFlags);
         this.codeFactory = requireNonNull(codeFactory );
-    }
-
-
-    public static TransactionProcessor make(
-            FrameBuilder frameBuilder,
-            FrameRunner frameRunner,
-            CustomGasCharging gasCharging,
-            CustomMessageCallProcessor messageCall,
-            ContractCreationProcessor contractCreationProcessor,
-            FeatureFlags featureFlags,
-            CodeFactory codeFactory) {
-        return System.getenv("UseBonnevilleEVM")==null
-            // BESU
-            ? new TransactionProcessorBESU(
-                frameBuilder,
-                frameRunner,
-                gasCharging,
-                messageCall,
-                contractCreationProcessor,
-                featureFlags,
-                codeFactory)
-            // Bonneville
-            : new TransactionProcessorBEVM(
-                frameBuilder,
-                frameRunner,
-                gasCharging,
-                messageCall,
-                contractCreationProcessor,
-                featureFlags,
-                codeFactory);
     }
 
 
@@ -91,26 +70,6 @@ public abstract class TransactionProcessor {
     }
 
     /**
-     * Process the given transaction, returning the result of running it to completion
-     * and committing to the given updater.
-     *
-     * @param transaction the transaction to process
-     * @param updater the world updater to commit to
-     * @param context the context to use
-     * @param tracer the tracer to use
-     * @param config the node configuration
-     * @return the result of running the transaction to completion
-     */
-    public abstract HederaEvmTransactionResult processTransaction(
-            @NonNull HederaEvmTransaction transaction,
-            @NonNull HederaWorldUpdater updater,
-            @NonNull HederaEvmContext context,
-            @NonNull ActionSidecarContentTracer tracer,
-            @NonNull Configuration config,
-            @NonNull OpsDurationCounter opsDurationCounter);
-
-
-    /**
      * Records the two or three parties involved in a transaction.
      *
      * @param sender the externally-operated account that signed the transaction (AKA the "origin")
@@ -121,6 +80,74 @@ public abstract class TransactionProcessor {
         @NonNull AccountID senderId() {
             return sender.hederaId();
         }
+    }
+
+    /**
+     * Process the given transaction, returning the result of running it to completion
+     * and committing to the given updater.
+     *
+     * @param transaction the transaction to process
+     * @param updater the world updater to commit to
+     * @param context the context to use
+     * @param tracer the tracer to use
+     * @param config the node configuration
+     * @return the result of running the transaction to completion
+     */
+    public HederaEvmTransactionResult processTransaction(
+            @NonNull final HederaEvmTransaction transaction,
+            @NonNull final HederaWorldUpdater updater,
+            @NonNull final HederaEvmContext context,
+            @NonNull final ActionSidecarContentTracer tracer,
+            @NonNull final Configuration config,
+            @NonNull final OpsDurationCounter opsDurationCounter) {
+        final var parties = computeInvolvedPartiesOrAbort(transaction, updater, config);
+        return processTransactionWithParties(
+                transaction, updater, context, tracer, config, opsDurationCounter, parties);
+    }
+
+    private HederaEvmTransactionResult processTransactionWithParties(
+            @NonNull final HederaEvmTransaction transaction,
+            @NonNull final HederaWorldUpdater updater,
+            @NonNull final HederaEvmContext context,
+            @NonNull final ActionSidecarContentTracer tracer,
+            @NonNull final Configuration config,
+            @NonNull final OpsDurationCounter opsDurationCounter,
+            @NonNull final InvolvedParties parties) {
+        // If it is hook dispatch, skip gas charging because gas is pre-paid in cryptoTransfer already
+        final var gasCharges = transaction.hookOwnerAddress() != null
+                ? GasCharges.NONE
+                : gasCharging.chargeForGas(parties.sender(), parties.relayer(), context, updater, transaction);
+        final var initialFrame = frameBuilder.buildInitialFrameWith(
+                transaction,
+                updater,
+                context,
+                config,
+                opsDurationCounter,
+                featureFlags,
+                parties.sender().getAddress(),
+                parties.receiverAddress(),
+                gasCharges.intrinsicGas(),
+                codeFactory);
+
+        // Compute the result of running the frame to completion
+        final var result = frameRunner.runToCompletion(transaction.gasLimit(), parties.senderId(), initialFrame, tracer, messageCall, contractCreation);
+
+        // Maybe refund some of the charged fees before committing if not a hook dispatch
+        // Note that for hook dispatch, gas is charged during cryptoTransfer and will not be refunded once
+        // hook is executed
+        if (transaction.hookOwnerAddress() == null) {
+            gasCharging.maybeRefundGiven(
+                    transaction.unusedGas(result.gasUsed()),
+                    gasCharges.relayerAllowanceUsed(),
+                    parties.sender(),
+                    parties.relayer(),
+                    context,
+                    updater);
+        }
+        initialFrame.getSelfDestructs().forEach(updater::deleteAccount);
+
+        // Tries to commit and return the original result; returns a fees-only result on resource exhaustion
+        return safeCommit(result, transaction, updater, context, FrameUtils.accessTrackerFor(initialFrame));
     }
 
 

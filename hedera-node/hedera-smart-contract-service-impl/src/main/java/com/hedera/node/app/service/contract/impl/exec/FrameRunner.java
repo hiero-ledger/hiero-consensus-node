@@ -80,7 +80,7 @@ public class FrameRunner {
 
         final var recipientAddress = frame.getRecipientAddress();
         // We compute the called contract's Hedera id up front because it could
-        // selfdestruct, preventing us from looking up its id after the fact
+        // self-destruct, preventing us from looking up its id after the fact
         final var recipientMetadata = computeRecipientMetadata(frame, recipientAddress);
 
         // Now run the transaction implied by the frame
