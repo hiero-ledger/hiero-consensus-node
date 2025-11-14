@@ -59,12 +59,10 @@ import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.metrics.api.Metrics;
-
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BiConsumer;
-
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -207,12 +205,12 @@ class EthereumTransactionHandlerTest {
                 .willReturn(HEVM_CREATION);
 
         given(transactionProcessor.processTransaction(
-                HEVM_CREATION,
-                baseProxyWorldUpdater,
-                hederaEvmContext,
-                tracer,
-                DEFAULT_CONFIG,
-                opsDurationCounter))
+                        HEVM_CREATION,
+                        baseProxyWorldUpdater,
+                        hederaEvmContext,
+                        tracer,
+                        DEFAULT_CONFIG,
+                        opsDurationCounter))
                 .willReturn(SUCCESS_RESULT_WITH_SIGNER_NONCE);
     }
 
@@ -440,7 +438,7 @@ class EthereumTransactionHandlerTest {
     void validatePureChecksBadToEvmAddress() {
         // check bad to evm address
         try (MockedStatic<EthTxData> ethTxData = Mockito.mockStatic(EthTxData.class)) {
-            final var toAddress = new byte[]{1, 0, 1, 0};
+            final var toAddress = new byte[] {1, 0, 1, 0};
             ethTxData.when(() -> EthTxData.populateEthTxData(any())).thenReturn(ethTxDataReturned);
             given(pureChecksContext.body()).willReturn(ethTxWithTx());
             given(ethTxDataReturned.value()).willReturn(BigInteger.ZERO);
