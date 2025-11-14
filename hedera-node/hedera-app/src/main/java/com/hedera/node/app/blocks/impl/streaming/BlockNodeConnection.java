@@ -271,7 +271,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
             try {
                 future.get(pipelineOperationTimeout.toMillis(), TimeUnit.MILLISECONDS);
-                logger.debug("{} Request pipeline initialized.", this);
+                logger.debug("{} Request pipeline initialized. Test Change", this);
                 updateConnectionState(ConnectionState.PENDING);
                 blockStreamMetrics.recordConnectionOpened();
             } catch (final TimeoutException e) {
