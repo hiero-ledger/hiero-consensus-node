@@ -29,7 +29,6 @@ import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeDeleteHandler;
-import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
@@ -127,7 +126,7 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
     @Test
     @DisplayName("Fails handle if node doesn't exist")
     void fileDoesntExist() {
-        final var txn = newDeleteTxnWithNodeId(200L).nodeDeleteOrThrow();
+        final var txn = newDeleteTxn().nodeDeleteOrThrow();
 
         given(handleContext.storeFactory()).willReturn(storeFactory);
         writableNodeState = writableNodeStateBuilder(0).build();
@@ -138,6 +137,7 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
         given(handleContext.body())
                 .willReturn(TransactionBody.newBuilder().nodeDelete(txn).build());
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
+
         HandleException thrown = (HandleException) catchThrowable(() -> subject.handle(handleContext));
         assertThat(thrown.getStatus()).isEqualTo(INVALID_NODE_ID);
     }
@@ -146,7 +146,9 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
     @DisplayName("Node is null")
     void NodeIsNull() {
         final var txn = newDeleteTxn().nodeDeleteOrThrow();
+
         node = null;
+
         given(handleContext.storeFactory()).willReturn(storeFactory);
         writableNodeState = writableNodeStateBuilder(1).build();
         given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(writableNodeState);
@@ -156,7 +158,6 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
         given(handleContext.body())
                 .willReturn(TransactionBody.newBuilder().nodeDelete(txn).build());
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
-
         HandleException thrown = (HandleException) catchThrowable(() -> subject.handle(handleContext));
         assertThat(thrown.getStatus()).isEqualTo(INVALID_NODE_ID);
     }
@@ -299,7 +300,6 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
         mockAccountLookup(key, contextPayerId, accountStore);
         final var context = new FakePreHandleContext(accountStore, txn, config);
         context.registerStore(ReadableNodeStore.class, readableStore);
-        context.registerStore(ReadableEntityIdStore.class, readableEntityCounters);
         return context;
     }
 

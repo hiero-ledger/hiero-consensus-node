@@ -92,7 +92,7 @@ public class NodeCreateHandler implements TransactionHandler {
         final var accountNodeRelStore = storeFactory.writableStore(WritableAccountNodeRelStore.class);
         final var accountStore = storeFactory.readableStore(ReadableAccountStore.class);
         final var accountId = op.accountIdOrElse(AccountID.DEFAULT);
-        final var systemDispatchEntityNum =
+        final var maybeSystemTxnDispatchEntityNum =
                 handleContext.dispatchMetadata().getMetadata(SYSTEM_TXN_CREATION_ENTITY_NUM, Long.class);
         final var isSystemTxnEntityOverwrite = isSystemTxnEntityOverwrite(
                 handleContext.dispatchMetadata(), handleContext.nodeIdGenerator(), nodeStore);
@@ -126,7 +126,7 @@ public class NodeCreateHandler implements TransactionHandler {
         Node node;
         if (isSystemTxnEntityOverwrite) {
             // Assign node id using the one provided by the system dispatch metadata
-            nextNodeId = systemDispatchEntityNum.get();
+            nextNodeId = maybeSystemTxnDispatchEntityNum.get();
             node = nodeBuilder.nodeId(nextNodeId).build();
             nodeStore.put(node);
         } else {

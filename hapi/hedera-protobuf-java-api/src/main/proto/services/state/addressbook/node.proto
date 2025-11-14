@@ -125,11 +125,8 @@ message Node {
      * be modified.<br/>
      * If this field is set, then any `nodeUpdate` transaction to modify this
      * node SHALL fail.
-     * <p>
-     * This field is deprecated and the node will be removed from state when it
-     * is deleted.
      */
-    bool deleted = 9 [deprecated = true];
+    bool deleted = 9;
 
     /**
      * An administrative key controlled by the node operator.
