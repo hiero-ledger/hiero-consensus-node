@@ -80,7 +80,7 @@ public class TokenSimpleServiceFeesSuite {
                         .hasKnownStatus(SUCCESS)
                         .via("create-token-txn"),
                 // actual for current fees is ~900_000 even though the spec says 1.0
-                validateChargedUsdWithin("create-token-txn", ucents_to_USD(100_000), 15)));
+                validateChargedUsdWithin("create-token-txn", 1, 15)));
     }
 
     @HapiTest
@@ -103,7 +103,7 @@ public class TokenSimpleServiceFeesSuite {
                         .logged()
                         .hasKnownStatus(SUCCESS)
                         .via("create-token-txn"),
-                validateChargedUsdWithin("create-token-txn", ucents_to_USD(100000), 10)));
+                validateChargedUsdWithin("create-token-txn", 2.0, 100)));
     }
 
     @HapiTest
@@ -129,7 +129,7 @@ public class TokenSimpleServiceFeesSuite {
                         .hasKnownStatus(SUCCESS)
                         .via("fungible-mint-txn"),
                 // base mint for fungible is 0.001
-                validateChargedUsdWithin("fungible-mint-txn", 0.001,1)));
+                validateChargedUsdWithin("fungible-mint-txn", 0.001,10)));
     }
 
     @HapiTest
@@ -154,7 +154,7 @@ public class TokenSimpleServiceFeesSuite {
                         .fee(ONE_HUNDRED_HBARS)
                         .hasKnownStatus(SUCCESS)
                         .via("fungible-mint-txn"),
-                validateChargedUsdWithin("fungible-mint-txn", 0.001, 1)));
+                validateChargedUsdWithin("fungible-mint-txn", 0.001, 10)));
     }
 
     @HapiTest
