@@ -4,7 +4,6 @@ package com.hedera.services.bdd.suites.fees;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
@@ -15,10 +14,8 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.SIMPLE_FEE_SCHEDULE;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -88,8 +85,8 @@ public class ConsensusServiceSimpleFeesSuite {
                             .adminKeyName(ADMIN)
                             .fee(ONE_HBAR)
                             .via("create-topic-admin-txn"),
-                    //TODO: adjust this once we get final pricing
-                    validateChargedUsdWithin("create-topic-admin-txn", 0.0163,30)));
+                    // TODO: adjust this once we get final pricing
+                    validateChargedUsdWithin("create-topic-admin-txn", 0.0163, 30)));
         }
 
         @HapiTest()
@@ -104,8 +101,8 @@ public class ConsensusServiceSimpleFeesSuite {
                             .adminKeyName(PAYER)
                             .fee(ONE_HBAR)
                             .via("create-topic-admin-txn"),
-                    //TODO: adjust this once we get final pricing
-                    validateChargedUsdWithin("create-topic-admin-txn", 0.01022,100)));
+                    // TODO: adjust this once we get final pricing
+                    validateChargedUsdWithin("create-topic-admin-txn", 0.01022, 100)));
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -121,18 +118,18 @@ public class ConsensusServiceSimpleFeesSuite {
                             .adminKeyName(ADMIN)
                             .fee(ONE_HBAR)
                             .via("create-topic-admin-txn"),
-                    //TODO: adjust this once we get final pricing
-                    validateChargedUsdWithin("create-topic-admin-txn", 0.01630,30),
+                    // TODO: adjust this once we get final pricing
+                    validateChargedUsdWithin("create-topic-admin-txn", 0.01630, 30),
                     updateTopic("testTopic")
                             .adminKey(ADMIN)
                             .payingWith(PAYER)
                             .fee(ONE_HBAR)
                             .via("update-topic-txn"),
-                    //TODO: adjust this once we get final pricing
+                    // TODO: adjust this once we get final pricing
                     // old pricing          is 0.000356
                     // new official pricing is 0.000220
                     // 2 sigs + 1 key
-                    validateChargedUsdWithin("update-topic-txn", 0.000356,1000)));
+                    validateChargedUsdWithin("update-topic-txn", 0.000356, 1000)));
         }
 
         @HapiTest()
@@ -162,8 +159,8 @@ public class ConsensusServiceSimpleFeesSuite {
                     // old price is          0.00010
                     // official new price is 0.00010
                     // calc'd   new price is 0.0001899
-                    //TODO: adjust this once we get final pricing
-                    validateChargedUsdWithin("submit-message-txn", 0.00010,100)));
+                    // TODO: adjust this once we get final pricing
+                    validateChargedUsdWithin("submit-message-txn", 0.00010, 100)));
         }
 
         @HapiTest()
@@ -192,7 +189,7 @@ public class ConsensusServiceSimpleFeesSuite {
                             .via("submit-message-txn"),
                     // old prices is 0.0001233
                     // new price is  0.0001 + 110 for each extra byte
-                    //TODO: adjust this once we get final pricing
+                    // TODO: adjust this once we get final pricing
                     validateChargedUsdWithin("submit-message-txn", 0.0001233, 100)));
         }
 
@@ -233,9 +230,9 @@ public class ConsensusServiceSimpleFeesSuite {
                             .adminKeyName(ADMIN)
                             .fee(ONE_HBAR)
                             .via("create-topic-admin-txn"),
-                    validateChargedUsdWithin("create-topic-admin-txn", 0.01630,30),
+                    validateChargedUsdWithin("create-topic-admin-txn", 0.01630, 30),
                     deleteTopic("testTopic").payingWith(PAYER).fee(ONE_HBAR).via("delete-topic-txn"),
-                    //TODO: adjust this once we get final pricing
+                    // TODO: adjust this once we get final pricing
                     validateChargedUsdWithin("delete-topic-txn", 0.0082, 30)));
         }
     }
