@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.metrics.event;
 
-import com.swirlds.base.time.Time;
+import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
+
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.components.consensus.ConsensusEngineOutput;
+import com.swirlds.platform.stats.AverageAndMaxTimeStat;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -16,29 +19,63 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
  * Tracks the delay experienced by events at each stage of the event processing pipeline.
  */
 public class EventPipelineTracker {
-    private final MaxDurationMetric hashing;
-    private final MaxDurationMetric validation;
-    private final MaxDurationMetric deduplication;
-    private final MaxDurationMetric sigVerification;
-    private final MaxDurationMetric orphanBuffer;
-    private final MaxDurationMetric pces;
-    private final MaxDurationMetric consensus;
+    private final AverageAndMaxTimeStat hashing;
+    private final AverageAndMaxTimeStat validation;
+    private final AverageAndMaxTimeStat deduplication;
+    private final AverageAndMaxTimeStat sigVerification;
+    private final AverageAndMaxTimeStat orphanBuffer;
+    private final AverageAndMaxTimeStat pces;
+    private final AverageAndMaxTimeStat consensus;
 
     /**
      * Constructor.
      *
      * @param metrics the metrics system
-     * @param time    the time source
      */
-    public EventPipelineTracker(@NonNull final Metrics metrics, @NonNull final Time time) {
+    public EventPipelineTracker(@NonNull final Metrics metrics) {
         int step = 1;
-        this.hashing = new MaxDurationMetric(metrics, time, "eventDelay_%d_hashing".formatted(step++));
-        this.validation = new MaxDurationMetric(metrics, time, "eventDelay_%d_validation".formatted(step++));
-        this.deduplication = new MaxDurationMetric(metrics, time, "eventDelay_%d_deduplication".formatted(step++));
-        this.sigVerification = new MaxDurationMetric(metrics, time, "eventDelay_%d_verification".formatted(step++));
-        this.orphanBuffer = new MaxDurationMetric(metrics, time, "eventDelay_%d_orphanBuffer".formatted(step++));
-        this.pces = new MaxDurationMetric(metrics, time, "eventDelay_%d_pces".formatted(step++));
-        this.consensus = new MaxDurationMetric(metrics, time, "eventDelay_%d_consensus".formatted(step));
+        this.hashing = new AverageAndMaxTimeStat(
+                metrics,
+                ChronoUnit.MICROS,
+                PLATFORM_CATEGORY,
+                 "eventDelay_%d_hashing".formatted(step++),
+                "event pipeline delay until after hashing");
+        this.validation = new AverageAndMaxTimeStat(
+                metrics,
+                ChronoUnit.MICROS,
+                PLATFORM_CATEGORY,
+                "eventDelay_%d_validation".formatted(step++),
+                "event pipeline delay until after validation");
+        this.deduplication = new AverageAndMaxTimeStat(
+                metrics,
+                ChronoUnit.MICROS,
+                PLATFORM_CATEGORY,
+                "eventDelay_%d_deduplication".formatted(step++),
+                "event pipeline delay until after deduplication");
+        this.sigVerification = new AverageAndMaxTimeStat(
+                metrics,
+                ChronoUnit.MICROS,
+                PLATFORM_CATEGORY,
+                "eventDelay_%d_verification".formatted(step++),
+                "event pipeline delay until after verification");
+        this.orphanBuffer = new AverageAndMaxTimeStat(
+                metrics,
+                ChronoUnit.MICROS,
+                PLATFORM_CATEGORY,
+                "eventDelay_%d_orphanBuffer".formatted(step++),
+                "event pipeline delay until after orphanBuffer");
+        this.pces = new AverageAndMaxTimeStat(
+                metrics,
+                ChronoUnit.MICROS,
+                PLATFORM_CATEGORY,
+                "eventDelay_%d_pces".formatted(step++),
+                "event pipeline delay until after pces");
+        this.consensus = new AverageAndMaxTimeStat(
+                metrics,
+                ChronoUnit.MICROS,
+                PLATFORM_CATEGORY,
+                "eventDelay_%d_consensus".formatted(step++),
+                "event pipeline delay until after consensus");
     }
 
     /**

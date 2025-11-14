@@ -439,7 +439,7 @@ public class PlatformWiring {
                 .getConfigData(PlatformMetricsConfig.class)
                 .eventPipelineMetricsEnabled()) {
             final EventPipelineTracker pipelineTracker =
-                    new EventPipelineTracker(platformContext.getMetrics(), platformContext.getTime());
+                    new EventPipelineTracker(platformContext.getMetrics());
 
             components.eventHasherWiring().getOutputWire().solderForMonitoring(pipelineTracker::afterHashing);
             components
