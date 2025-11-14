@@ -938,7 +938,7 @@ public class Hip1195BasicTests {
                 uploadInitCode("CreateTrivial"),
                 contractCreate("CreateTrivial")
                         .withHooks(accountAllowanceHook(400L, TRUE_ALLOWANCE_HOOK.name()))
-                        .gas(5_000_000L)
+                        .gas(500_000L)
                         .via("contractWithHookCreation")
                         .payingWith("payer"),
                 // One hook price 1 USD and contractCreate price 0.74 USD
@@ -949,7 +949,7 @@ public class Hip1195BasicTests {
                                 accountAllowanceHook(401L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(402L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(403L, TRUE_ALLOWANCE_HOOK.name()))
-                        .gas(5_000_000L)
+                        .gas(500_000L)
                         .via("contractsWithHookCreation")
                         .payingWith("payer"),
                 // One hook price 1 USD and contractCreate price 0.74 USD
