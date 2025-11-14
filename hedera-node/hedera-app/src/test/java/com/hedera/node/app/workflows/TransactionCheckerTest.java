@@ -46,6 +46,7 @@ import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
+import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.GovernanceTransactionsConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -1138,20 +1139,33 @@ final class TransactionCheckerTest extends AppTestBase {
                                 .build());
                 when(txInfo.functionality()).thenReturn(CRYPTO_TRANSFER);
 
-                final var privilegedAccountId = AccountID.newBuilder()
-                        .accountNum(2L) // Account 2 is in the governance range (2,42-799)
+                final long treasuryAccountNum = props.getConfiguration()
+                        .getConfigData(AccountsConfig.class)
+                        .treasury();
+                final long systemAdminAccountNum = props.getConfiguration()
+                        .getConfigData(AccountsConfig.class)
+                        .treasury();
+                final long freezeAdminAccountNum = props.getConfiguration()
+                        .getConfigData(AccountsConfig.class)
+                        .freezeAdmin();
+
+                final var treasuryAccountId = AccountID.newBuilder()
+                        .accountNum(treasuryAccountNum) // Treasury account (privileged)
                         .build();
-                final var anotherPrivilegedAccountId = AccountID.newBuilder()
-                        .accountNum(50L) // Account 50 is in the governance range (2,42-799)
+                final var systemAdminAccountId = AccountID.newBuilder()
+                        .accountNum(systemAdminAccountNum) // System admin account (privileged)
+                        .build();
+                final var freezeAdminAccountId = AccountID.newBuilder()
+                        .accountNum(freezeAdminAccountNum) // Freeze admin account (privileged)
                         .build();
 
                 // When checking transaction size before the payer is known, it passes early validation
                 checker.checkTransactionSize(txInfo);
 
-                // When checking transaction size limit based on payer, it passes for privileged payers
-                assertDoesNotThrow(() -> checker.checkTransactionSizeLimitBasedOnPayer(txInfo, privilegedAccountId));
-                assertDoesNotThrow(
-                        () -> checker.checkTransactionSizeLimitBasedOnPayer(txInfo, anotherPrivilegedAccountId));
+                // When checking transaction size limit based on payer, it passes for privileged payer
+                assertDoesNotThrow(() -> checker.checkTransactionSizeLimitBasedOnPayer(txInfo, treasuryAccountId));
+                assertDoesNotThrow(() -> checker.checkTransactionSizeLimitBasedOnPayer(txInfo, systemAdminAccountId));
+                assertDoesNotThrow(() -> checker.checkTransactionSizeLimitBasedOnPayer(txInfo, freezeAdminAccountId));
                 assertThat(counterMetric("NonPrivilegedOversizedTxnsRcv").get()).isZero();
             }
         }
