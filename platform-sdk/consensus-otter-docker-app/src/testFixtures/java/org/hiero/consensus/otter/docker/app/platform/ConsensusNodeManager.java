@@ -7,7 +7,6 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLogging;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
-import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.FAKE_ROUND_SUPPLIER;
 import static org.hiero.otter.fixtures.app.OtterStateUtils.createGenesisState;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -129,7 +128,7 @@ public class ConsensusNodeManager {
                 selfId,
                 platformStateFacade,
                 platformContext,
-                virtualMap -> new VirtualMapState(virtualMap, metrics, FAKE_ROUND_SUPPLIER));
+                virtualMap -> new VirtualMapState(virtualMap, metrics));
         final ReservedSignedState initialState = reservedState.state();
         final MerkleNodeState state = initialState.get().getState();
 
@@ -150,7 +149,7 @@ public class ConsensusNodeManager {
                         Long.toString(selfId.id()),
                         rosterHistory,
                         platformStateFacade,
-                        virtualMap -> new VirtualMapState(virtualMap, metrics, FAKE_ROUND_SUPPLIER))
+                        virtualMap -> new VirtualMapState(virtualMap, metrics))
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)

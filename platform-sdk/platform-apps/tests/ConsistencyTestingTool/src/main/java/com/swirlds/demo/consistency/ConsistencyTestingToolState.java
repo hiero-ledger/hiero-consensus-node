@@ -6,7 +6,6 @@ import static com.swirlds.demo.consistency.V0680ConsistencyTestingToolSchema.ROU
 import static com.swirlds.demo.consistency.V0680ConsistencyTestingToolSchema.STATE_LONG_STATE_ID;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.FAKE_ROUND_SUPPLIER;
 import static org.hiero.base.utility.ByteUtils.byteArrayToLong;
 import static org.hiero.base.utility.NonCryptographicHashing.hash64;
 
@@ -81,7 +80,7 @@ public class ConsistencyTestingToolState extends VirtualMapState implements Merk
     private final Set<Long> transactionsAwaitingPostHandle;
 
     public ConsistencyTestingToolState(@NonNull final Configuration configuration, @NonNull final Metrics metrics) {
-        super(configuration, metrics, FAKE_ROUND_SUPPLIER);
+        super(configuration, metrics);
         transactionHandlingHistory = new TransactionHandlingHistory();
         transactionsAwaitingPostHandle = ConcurrentHashMap.newKeySet();
         logger.info(STARTUP.getMarker(), "New State Constructed.");
@@ -91,7 +90,7 @@ public class ConsistencyTestingToolState extends VirtualMapState implements Merk
      * Constructor
      */
     public ConsistencyTestingToolState(@NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics) {
-        super(virtualMap, metrics, FAKE_ROUND_SUPPLIER);
+        super(virtualMap, metrics);
         transactionHandlingHistory = new TransactionHandlingHistory();
         transactionsAwaitingPostHandle = ConcurrentHashMap.newKeySet();
         logger.info(STARTUP.getMarker(), "New State Constructed.");

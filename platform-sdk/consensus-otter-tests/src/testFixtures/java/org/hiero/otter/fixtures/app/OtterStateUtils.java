@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app;
 
-import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.FAKE_ROUND_SUPPLIER;
 import static org.hiero.otter.fixtures.app.state.OtterStateInitializer.initOtterAppState;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -35,7 +34,7 @@ public final class OtterStateUtils {
             @NonNull final SemanticVersion version,
             @NonNull final List<OtterService> services) {
 
-        final VirtualMapState state = new VirtualMapState(configuration, metrics, FAKE_ROUND_SUPPLIER);
+        final VirtualMapState state = new VirtualMapState(configuration, metrics);
 
         initOtterAppState(state, version, services);
         RosterUtils.setActiveRoster(state, roster, 0L);

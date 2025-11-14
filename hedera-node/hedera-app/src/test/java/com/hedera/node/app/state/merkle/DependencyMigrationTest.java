@@ -8,7 +8,6 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.TestSchema.CURRENT_VERSION;
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static org.mockito.Mockito.mock;
 
@@ -69,7 +68,7 @@ class DependencyMigrationTest extends MerkleTestBase {
     @BeforeEach
     void setUp() {
         registry = mock(ConstructableRegistry.class);
-        merkleTree = new VirtualMapState(CONFIGURATION, new NoOpMetrics(), DEFAULT_PLATFORM_STATE_FACADE::roundOf);
+        merkleTree = new VirtualMapState(CONFIGURATION, new NoOpMetrics());
         configProvider = new ConfigProviderImpl();
         storeMetricsService = new StoreMetricsServiceImpl(new NoOpMetrics());
     }

@@ -16,7 +16,6 @@ import static com.swirlds.demo.iss.V0680ISSTestingToolSchema.ISS_SERVICE_NAME;
 import static com.swirlds.demo.iss.V0680ISSTestingToolSchema.PLANNED_ISS_LIST_STATE_ID;
 import static com.swirlds.demo.iss.V0680ISSTestingToolSchema.PLANNED_LOG_ERROR_LIST_STATE_ID;
 import static com.swirlds.demo.iss.V0680ISSTestingToolSchema.RUNNING_SUM_STATE_ID;
-import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.FAKE_ROUND_SUPPLIER;
 
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.primitives.ProtoString;
@@ -71,11 +70,11 @@ public class ISSTestingToolState extends VirtualMapState implements MerkleNodeSt
     private List<PlannedLogError> plannedLogErrorList = new LinkedList<>();
 
     public ISSTestingToolState(@NonNull final Configuration configuration, @NonNull final Metrics metrics) {
-        super(configuration, metrics, FAKE_ROUND_SUPPLIER);
+        super(configuration, metrics);
     }
 
     public ISSTestingToolState(@NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics) {
-        super(virtualMap, metrics, FAKE_ROUND_SUPPLIER);
+        super(virtualMap, metrics);
     }
 
     /**

@@ -70,7 +70,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
@@ -119,18 +118,13 @@ public class VirtualMapState implements MerkleNodeState {
      */
     private boolean startupMode = true;
 
-    private final Function<VirtualMapState, Long> roundExtractor;
-
     /**
      * Initializes a {@link VirtualMapState}.
      *
      * @param configuration the platform configuration instance to use when creating the new instance of state
      * @param metrics       the platform metric instance to use when creating the new instance of state
      */
-    public VirtualMapState(
-            @NonNull final Configuration configuration,
-            @NonNull final Metrics metrics,
-            Function<VirtualMapState, Long> roundExtractor) {
+    public VirtualMapState(@NonNull final Configuration configuration, @NonNull final Metrics metrics) {
         requireNonNull(configuration);
         this.metrics = requireNonNull(metrics);
         final MerkleDbDataSourceBuilder dsBuilder;
@@ -140,7 +134,6 @@ public class VirtualMapState implements MerkleNodeState {
 
         this.virtualMap = new VirtualMap(VM_LABEL, dsBuilder, configuration);
         this.virtualMap.registerMetrics(metrics);
-        this.roundExtractor = roundExtractor;
     }
 
     /**
@@ -149,13 +142,9 @@ public class VirtualMapState implements MerkleNodeState {
      * @param virtualMap the virtual map with pre-registered metrics
      * @param metrics    the platform metric instance to use when creating the new instance of state
      */
-    public VirtualMapState(
-            @NonNull final VirtualMap virtualMap,
-            @NonNull final Metrics metrics,
-            Function<VirtualMapState, Long> roundExtractor) {
+    public VirtualMapState(@NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics) {
         this.virtualMap = requireNonNull(virtualMap);
         this.metrics = requireNonNull(metrics);
-        this.roundExtractor = roundExtractor;
     }
 
     /**
@@ -167,7 +156,6 @@ public class VirtualMapState implements MerkleNodeState {
         this.virtualMap = from.virtualMap.copy();
         this.metrics = from.metrics;
         this.startupMode = from.startupMode;
-        this.roundExtractor = from.roundExtractor;
         this.listeners.addAll(from.listeners);
 
         // Copy over the metadata
@@ -915,10 +903,5 @@ public class VirtualMapState implements MerkleNodeState {
         rootJson.put("Queues (Queue States)", queues);
 
         return rootJson.toString();
-    }
-
-    @Override
-    public String toString() {
-        return "VirtualMapState[round=%d]".formatted(roundExtractor.apply(this));
     }
 }

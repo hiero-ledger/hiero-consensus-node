@@ -112,8 +112,7 @@ public final class StateUtils {
 
             deserializedSignedState = readState(
                     Path.of(ConfigUtils.STATE_DIR).toAbsolutePath(),
-                    virtualMap ->
-                            new VirtualMapState(virtualMap, platformContext.getMetrics(), platformStateFacade::roundOf),
+                    virtualMap -> new VirtualMapState(virtualMap, platformContext.getMetrics()),
                     platformStateFacade,
                     platformContext);
 

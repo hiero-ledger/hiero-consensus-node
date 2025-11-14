@@ -5,7 +5,6 @@ import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticT
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
-import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.FAKE_ROUND_SUPPLIER;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.fail;
 import static org.hiero.otter.fixtures.app.OtterStateUtils.createGenesisState;
@@ -238,7 +237,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     selfId,
                     platformStateFacade,
                     platformContext,
-                    virtualMap -> new VirtualMapState(virtualMap, metrics, FAKE_ROUND_SUPPLIER));
+                    virtualMap -> new VirtualMapState(virtualMap, metrics));
 
             final ReservedSignedState initialState = reservedState.state();
             final MerkleNodeState state = initialState.get().getState();
@@ -264,7 +263,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             eventStreamLoc,
                             rosterHistory,
                             platformStateFacade,
-                            virtualMap -> new VirtualMapState(virtualMap, metrics, FAKE_ROUND_SUPPLIER))
+                            virtualMap -> new VirtualMapState(virtualMap, metrics))
                     .withPlatformContext(platformContext)
                     .withConfiguration(currentConfiguration)
                     .withKeysAndCerts(keysAndCerts)

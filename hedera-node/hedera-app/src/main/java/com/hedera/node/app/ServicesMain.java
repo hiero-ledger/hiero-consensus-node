@@ -476,7 +476,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 TssBlockHashSigner::new,
                 metrics,
                 platformStateFacade,
-                () -> new VirtualMapState(configuration, metrics, platformStateFacade::roundOf));
+                () -> new VirtualMapState(configuration, metrics));
     }
 
     /**
