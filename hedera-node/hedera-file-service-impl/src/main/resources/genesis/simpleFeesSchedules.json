@@ -170,14 +170,36 @@
           "name": "TokenBurn",
           "baseFee": 100000000,
           "extras": [
-            { "name": "SIGNATURES", "includedCount": 1 }
           ]
         },
         {
           "name": "TokenDelete",
           "baseFee": 10000000,
           "extras": [
-            { "name": "SIGNATURES", "includedCount": 1 }
+          ]
+        },
+        {
+          "name": "TokenFreezeAccount",
+          "baseFee": 10000000,
+          "extras": [
+          ]
+        },
+        {
+          "name": "TokenUnfreezeAccount",
+          "baseFee": 10000000,
+          "extras": [
+          ]
+        },
+        {
+          "name": "TokenPauseAccount",
+          "baseFee": 10000000,
+          "extras": [
+          ]
+        },
+        {
+          "name": "TokenUnpauseAccount",
+          "baseFee": 10000000,
+          "extras": [
           ]
         }
       ]
