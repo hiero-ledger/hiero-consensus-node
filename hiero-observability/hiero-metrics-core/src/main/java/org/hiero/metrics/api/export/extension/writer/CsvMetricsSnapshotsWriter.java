@@ -194,6 +194,7 @@ public class CsvMetricsSnapshotsWriter
 
     public static class Builder extends AbstractMetricsSnapshotsWriter.Builder<Builder, CsvMetricsSnapshotsWriter> {
 
+        @NonNull
         @Override
         public CsvMetricsSnapshotsWriter build() {
             return new CsvMetricsSnapshotsWriter(this);

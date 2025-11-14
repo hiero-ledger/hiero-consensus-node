@@ -4,6 +4,7 @@ package org.hiero.metrics.internal.export;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hiero.metrics.TestUtils.verifySnapshotHasMetrics;
+import static org.hiero.metrics.TestUtils.verifySnapshotHasMetricsAnyOrder;
 import static org.hiero.metrics.test.fixtures.ThreadUtils.runConcurrentAndWait;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -13,6 +14,7 @@ import static org.mockito.Mockito.verify;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.function.IntFunction;
 import java.util.stream.IntStream;
 import org.hiero.metrics.api.LongCounter;
@@ -22,6 +24,7 @@ import org.hiero.metrics.api.core.MetricsFacade;
 import org.hiero.metrics.api.export.MetricsExportManager;
 import org.hiero.metrics.api.export.PullingMetricsExporter;
 import org.hiero.metrics.api.export.extension.PullingMetricsExporterAdapter;
+import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
 import org.junit.jupiter.api.Test;
 
 public class SinglePullingExporterMetricsExportManagerTest {
@@ -83,6 +86,19 @@ public class SinglePullingExporterMetricsExportManagerTest {
     }
 
     @Test
+    void testManageSameRegistryInstanceTwiceThrows() {
+        MetricsExportManager manager = createManager();
+        MetricRegistry registry = MetricsFacade.createRegistry();
+
+        manager.manageMetricRegistry(registry);
+        manager.manageMetricRegistry(MetricsFacade.createRegistry());
+
+        assertThatThrownBy(() -> manager.manageMetricRegistry(registry))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Metric registry instance is already managed");
+    }
+
+    @Test
     void testManageRegistriesWithoutConflictingGlobalLabels() {
         PullingMetricsExporterAdapter exporter = createExporter();
         MetricsExportManager manager = createManager(exporter);
@@ -91,17 +107,30 @@ public class SinglePullingExporterMetricsExportManagerTest {
         MetricRegistry registry1 = MetricsFacade.createRegistry(new Label("region", "us-east-1"));
         registry1.register(LongCounter.builder("counter1"));
         manager.manageMetricRegistry(registry1);
-        verifySnapshotHasMetrics(exporter.getSnapshot(), "counter1");
+        Optional<MetricsSnapshot> optionalSnapshot = exporter.getSnapshot();
+        assertThat(optionalSnapshot).isNotEmpty();
+        verifySnapshotHasMetrics(optionalSnapshot.get(), "counter1");
 
         MetricRegistry registry2 = MetricsFacade.createRegistry(new Label("region", "us-east-2"));
         registry2.register(LongCounter.builder("counter2"));
         manager.manageMetricRegistry(registry2);
-        verifySnapshotHasMetrics(exporter.getSnapshot(), "counter1", "counter2");
+        optionalSnapshot = exporter.getSnapshot();
+        assertThat(optionalSnapshot).isNotEmpty();
+        verifySnapshotHasMetrics(optionalSnapshot.get(), "counter1", "counter2");
 
         MetricRegistry registry3 = MetricsFacade.createRegistry();
         registry3.register(LongCounter.builder("counter3"));
         manager.manageMetricRegistry(registry3);
-        verifySnapshotHasMetrics(exporter.getSnapshot(), "counter1", "counter2", "counter3");
+        optionalSnapshot = exporter.getSnapshot();
+        assertThat(optionalSnapshot).isNotEmpty();
+        verifySnapshotHasMetrics(optionalSnapshot.get(), "counter1", "counter2", "counter3");
+
+        MetricRegistry registry4 = MetricsFacade.createRegistry(); // second registry without global labels
+        registry4.register(LongCounter.builder("counter4"));
+        manager.manageMetricRegistry(registry4);
+        optionalSnapshot = exporter.getSnapshot();
+        assertThat(optionalSnapshot).isNotEmpty();
+        verifySnapshotHasMetrics(optionalSnapshot.get(), "counter1", "counter2", "counter3", "counter4");
     }
 
     @Test
@@ -156,7 +185,9 @@ public class SinglePullingExporterMetricsExportManagerTest {
         String[] expectedCounters = IntStream.range(0, threadCount * registriesPerThread)
                 .mapToObj(i -> "counter_" + i)
                 .toArray(String[]::new);
-        verifySnapshotHasMetrics(exporter.getSnapshot(), expectedCounters);
+        Optional<MetricsSnapshot> optionalSnapshot = exporter.getSnapshot();
+        assertThat(optionalSnapshot).isNotEmpty();
+        verifySnapshotHasMetricsAnyOrder(optionalSnapshot.get(), expectedCounters);
     }
 
     private PullingMetricsExporterAdapter createExporter() {
