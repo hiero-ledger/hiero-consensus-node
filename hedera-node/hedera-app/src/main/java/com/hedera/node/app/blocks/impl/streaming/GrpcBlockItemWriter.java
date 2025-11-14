@@ -6,7 +6,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.internal.network.PendingProof;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -21,7 +20,6 @@ import org.apache.logging.log4j.Logger;
 public class GrpcBlockItemWriter implements BlockItemWriter {
     private static final Logger logger = LogManager.getLogger(GrpcBlockItemWriter.class);
     private final BlockBufferService blockBufferService;
-    private final BlockNodeConnectionManager blockNodeConnectionManager;
     private long blockNumber;
 
     /**
@@ -29,12 +27,8 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
      *
      * @param blockBufferService the block stream state manager that maintains the state of the block
      */
-    public GrpcBlockItemWriter(
-            @NonNull final BlockBufferService blockBufferService,
-            @NonNull final BlockNodeConnectionManager blockNodeConnectionManager) {
+    public GrpcBlockItemWriter(@NonNull final BlockBufferService blockBufferService) {
         this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
-        this.blockNodeConnectionManager =
-                requireNonNull(blockNodeConnectionManager, "blockNodeConnectionManager must not be null");
     }
 
     /**
@@ -44,7 +38,7 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
      * @param blockNumber the sequence number of the block to open
      */
     @Override
-    public void openBlock(long blockNumber) {
+    public void openBlock(final long blockNumber) {
         if (blockNumber < 0) throw new IllegalArgumentException("Block number must be non-negative");
         this.blockNumber = blockNumber;
         blockBufferService.openBlock(blockNumber);
@@ -57,23 +51,9 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
      * @param blockItem the block item to write
      */
     @Override
-    public void writePbjItem(@NonNull BlockItem blockItem) {
+    public void writePbjItem(@NonNull final BlockItem blockItem) {
         requireNonNull(blockItem, "blockItem must not be null");
         blockBufferService.addItem(blockNumber, blockItem);
-    }
-
-    /**
-     * Writes a protocol buffer formatted block item and its serialized bytes to the current block's state.
-     * Only the block item is used, the serialized bytes are ignored.
-     *
-     * @param item the block item to write
-     * @param bytes the serialized item to write (ignored in this implementation)
-     */
-    @Override
-    public void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull final Bytes bytes) {
-        requireNonNull(item, "item must not be null");
-        requireNonNull(bytes, "bytes must not be null");
-        writePbjItem(item);
     }
 
     /**
@@ -83,11 +63,6 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
     public void closeCompleteBlock() {
         blockBufferService.closeBlock(blockNumber);
         logger.debug("Closed block in GrpcBlockItemWriter {}", blockNumber);
-    }
-
-    @Override
-    public void jumpToBlockAfterFreeze(final long blockNumber) {
-        // no-op
     }
 
     /**

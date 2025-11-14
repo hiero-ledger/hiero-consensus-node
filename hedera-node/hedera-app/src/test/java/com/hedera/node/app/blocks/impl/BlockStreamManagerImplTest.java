@@ -58,7 +58,6 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
@@ -182,8 +181,8 @@ class BlockStreamManagerImplTest {
     @Mock
     private QuiescedHeartbeat quiescedHeartbeat;
 
-    private final AtomicReference<Bytes> lastAItem = new AtomicReference<>();
-    private final AtomicReference<Bytes> lastBItem = new AtomicReference<>();
+    private final AtomicReference<BlockItem> lastAItem = new AtomicReference<>();
+    private final AtomicReference<BlockItem> lastBItem = new AtomicReference<>();
     private final AtomicReference<PlatformState> stateRef = new AtomicReference<>();
     private final AtomicReference<BlockStreamInfo> infoRef = new AtomicReference<>();
 
@@ -290,7 +289,7 @@ class BlockStreamManagerImplTest {
     }
 
     @Test
-    void startsAndEndsBlockWithSingleRoundPerBlockAsExpected() throws ParseException {
+    void startsAndEndsBlockWithSingleRoundPerBlockAsExpected() {
         givenSubjectWith(
                 1,
                 0,
@@ -378,9 +377,8 @@ class BlockStreamManagerImplTest {
         // Assert the block proof was written
         final var proofItem = lastAItem.get();
         assertNotNull(proofItem);
-        final var item = BlockItem.PROTOBUF.parse(proofItem);
-        assertTrue(item.hasBlockProof());
-        final var proof = item.blockProofOrThrow();
+        assertTrue(proofItem.hasBlockProof());
+        final var proof = proofItem.blockProofOrThrow();
         assertEquals(N_BLOCK_NO, proof.block());
         assertEquals(FIRST_FAKE_SIGNATURE, proof.signedBlockProof().blockSignature());
     }
@@ -521,7 +519,7 @@ class BlockStreamManagerImplTest {
     }
 
     @Test
-    void alwaysEndsBlockOnFreezeRoundPerBlockAsExpected() throws ParseException {
+    void alwaysEndsBlockOnFreezeRoundPerBlockAsExpected() {
         final var resultHashes = Bytes.fromHex("aa".repeat(48) + "bb".repeat(48) + "cc".repeat(48) + "dd".repeat(48));
         givenSubjectWith(
                 2,
@@ -609,16 +607,15 @@ class BlockStreamManagerImplTest {
         // Assert the block proof was written
         final var proofItem = lastAItem.get();
         assertNotNull(proofItem);
-        final var item = BlockItem.PROTOBUF.parse(proofItem);
-        assertTrue(item.hasBlockProof());
-        final var proof = item.blockProofOrThrow();
+        assertTrue(proofItem.hasBlockProof());
+        final var proof = proofItem.blockProofOrThrow();
         assertEquals(N_BLOCK_NO, proof.block());
         assertEquals(FIRST_FAKE_SIGNATURE, proof.signedBlockProof().blockSignature());
     }
 
     @Test
     @SuppressWarnings("unchecked")
-    void supportsMultiplePendingBlocksWithIndirectProofAsExpected() throws ParseException {
+    void supportsMultiplePendingBlocksWithIndirectProofAsExpected() {
         given(blockHashSigner.isReady()).willReturn(true);
         givenSubjectWith(
                 1,
@@ -629,11 +626,11 @@ class BlockStreamManagerImplTest {
                 bWriter);
         givenEndOfRoundSetup();
         doAnswer(invocationOnMock -> {
-                    lastBItem.set(invocationOnMock.getArgument(1));
+                    lastBItem.set(invocationOnMock.getArgument(0));
                     return bWriter;
                 })
                 .when(bWriter)
-                .writePbjItemAndBytes(any(), any());
+                .writePbjItem(any(BlockItem.class));
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
 
@@ -681,9 +678,8 @@ class BlockStreamManagerImplTest {
         // Assert both block proofs were written, but with the proof for N using an indirect proof
         final var aProofItem = lastAItem.get();
         assertNotNull(aProofItem);
-        final var aItem = BlockItem.PROTOBUF.parse(aProofItem);
-        assertTrue(aItem.hasBlockProof());
-        final var aProof = aItem.blockProofOrThrow();
+        assertTrue(aProofItem.hasBlockProof());
+        final var aProof = aProofItem.blockProofOrThrow();
         assertEquals(N_BLOCK_NO, aProof.block());
         assertEquals(
                 FIRST_FAKE_SIGNATURE,
@@ -695,9 +691,8 @@ class BlockStreamManagerImplTest {
         // And the proof for N+1 using a direct proof
         final var bProofItem = lastBItem.get();
         assertNotNull(bProofItem);
-        final var bItem = BlockItem.PROTOBUF.parse(bProofItem);
-        assertTrue(bItem.hasBlockProof());
-        final var bProof = bItem.blockProofOrThrow();
+        assertTrue(bProofItem.hasBlockProof());
+        final var bProof = bProofItem.blockProofOrThrow();
         assertEquals(N_BLOCK_NO + 1, bProof.block());
         assertEquals(FIRST_FAKE_SIGNATURE, bProof.signedBlockProof().blockSignature());
         assertTrue(bProof.siblingHashes().isEmpty());
@@ -891,9 +886,9 @@ class BlockStreamManagerImplTest {
         subject.startRound(round, state);
 
         // When tracking multiple event hashes
-        Hash eventHash1 = CryptoRandomUtils.randomHash();
-        Hash eventHash2 = CryptoRandomUtils.randomHash();
-        Hash eventHash3 = CryptoRandomUtils.randomHash();
+        final Hash eventHash1 = CryptoRandomUtils.randomHash();
+        final Hash eventHash2 = CryptoRandomUtils.randomHash();
+        final Hash eventHash3 = CryptoRandomUtils.randomHash();
 
         subject.trackEventHash(eventHash1);
         subject.trackEventHash(eventHash2);
@@ -905,7 +900,7 @@ class BlockStreamManagerImplTest {
         assertEquals(Optional.of(2), subject.getEventIndex(eventHash3));
 
         // And non-existent hash should return empty
-        Hash unknownHash = CryptoRandomUtils.randomHash();
+        final Hash unknownHash = CryptoRandomUtils.randomHash();
         assertEquals(Optional.empty(), subject.getEventIndex(unknownHash));
     }
 
@@ -939,8 +934,8 @@ class BlockStreamManagerImplTest {
         subject.startRound(round, state);
 
         // Track event hashes in the first block
-        Hash eventHash1 = CryptoRandomUtils.randomHash();
-        Hash eventHash2 = CryptoRandomUtils.randomHash();
+        final Hash eventHash1 = CryptoRandomUtils.randomHash();
+        final Hash eventHash2 = CryptoRandomUtils.randomHash();
 
         subject.trackEventHash(eventHash1);
         subject.trackEventHash(eventHash2);
@@ -962,7 +957,7 @@ class BlockStreamManagerImplTest {
         assertEquals(Optional.empty(), subject.getEventIndex(eventHash2));
 
         // Track a new event hash in the second block
-        Hash eventHash3 = CryptoRandomUtils.randomHash();
+        final Hash eventHash3 = CryptoRandomUtils.randomHash();
         subject.trackEventHash(eventHash3);
 
         // Verify the index starts from 0 again in the new block
@@ -980,7 +975,7 @@ class BlockStreamManagerImplTest {
         final AtomicReference<BlockItem> proofItem = new AtomicReference<>();
 
         doAnswer(invocationOnMock -> {
-                    final var item = BlockItem.PROTOBUF.parse((Bytes) invocationOnMock.getArgument(1));
+                    final BlockItem item = invocationOnMock.getArgument(0);
                     if (item.hasBlockFooter()) {
                         footerItem.set(item);
                     } else if (item.hasBlockProof()) {
@@ -989,7 +984,7 @@ class BlockStreamManagerImplTest {
                     return aWriter;
                 })
                 .when(aWriter)
-                .writePbjItemAndBytes(any(), any());
+                .writePbjItem(any(BlockItem.class));
 
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
@@ -1046,14 +1041,14 @@ class BlockStreamManagerImplTest {
         final AtomicReference<BlockItem> footerItem = new AtomicReference<>();
 
         doAnswer(invocationOnMock -> {
-                    final var item = BlockItem.PROTOBUF.parse((Bytes) invocationOnMock.getArgument(1));
+                    final BlockItem item = invocationOnMock.getArgument(0);
                     if (item.hasBlockFooter()) {
                         footerItem.set(item);
                     }
                     return aWriter;
                 })
                 .when(aWriter)
-                .writePbjItemAndBytes(any(), any());
+                .writePbjItem(any(BlockItem.class));
 
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
@@ -1116,24 +1111,24 @@ class BlockStreamManagerImplTest {
         final List<BlockItem> footerItems = new ArrayList<>();
 
         doAnswer(invocationOnMock -> {
-                    final var item = BlockItem.PROTOBUF.parse((Bytes) invocationOnMock.getArgument(1));
+                    final BlockItem item = invocationOnMock.getArgument(0);
                     if (item.hasBlockFooter()) {
                         footerItems.add(item);
                     }
                     return aWriter;
                 })
                 .when(aWriter)
-                .writePbjItemAndBytes(any(), any());
+                .writePbjItem(any(BlockItem.class));
 
         doAnswer(invocationOnMock -> {
-                    final var item = BlockItem.PROTOBUF.parse((Bytes) invocationOnMock.getArgument(1));
+                    final BlockItem item = invocationOnMock.getArgument(0);
                     if (item.hasBlockFooter()) {
                         footerItems.add(item);
                     }
                     return bWriter;
                 })
                 .when(bWriter)
-                .writePbjItemAndBytes(any(), any());
+                .writePbjItem(any(BlockItem.class));
 
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
@@ -1181,14 +1176,14 @@ class BlockStreamManagerImplTest {
 
         lenient()
                 .doAnswer(invocationOnMock -> {
-                    final var item = BlockItem.PROTOBUF.parse((Bytes) invocationOnMock.getArgument(1));
+                    final BlockItem item = invocationOnMock.getArgument(0);
                     if (item.hasBlockFooter()) {
                         footerWritten.set(true);
                     }
                     return aWriter;
                 })
                 .when(aWriter)
-                .writePbjItemAndBytes(any(), any());
+                .writePbjItem(any(BlockItem.class));
 
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
@@ -1249,9 +1244,9 @@ class BlockStreamManagerImplTest {
         mockRoundWithTxnTimestamp(CONSENSUS_NOW);
         lenient()
                 .doAnswer(invocationOnMock -> {
-                    lastAItem.set(invocationOnMock.getArgument(1));
+                    lastAItem.set(invocationOnMock.getArgument(0));
                     if (headerRef != null) {
-                        final var item = BlockItem.PROTOBUF.parse(lastAItem.get());
+                        final BlockItem item = lastAItem.get();
                         if (item.hasBlockHeader()) {
                             headerRef.set(item.blockHeaderOrThrow());
                         }
@@ -1259,7 +1254,7 @@ class BlockStreamManagerImplTest {
                     return aWriter;
                 })
                 .when(aWriter)
-                .writePbjItemAndBytes(any(), any());
+                .writePbjItem(any(BlockItem.class));
         lenient().when(state.getWritableStates(BlockStreamService.NAME)).thenReturn(writableStates);
         lenient().when(state.getReadableStates(BlockStreamService.NAME)).thenReturn(readableStates);
         lenient().when(state.getReadableStates(PlatformStateService.NAME)).thenReturn(readableStates);
@@ -1302,7 +1297,7 @@ class BlockStreamManagerImplTest {
                 .build();
     }
 
-    private void mockRound(Instant timestamp) {
+    private void mockRound(final Instant timestamp) {
         given(round.getRoundNum()).willReturn(ROUND_NO);
         lenient().when(round.iterator()).thenReturn(new Arrays.Iterator<>(new ConsensusEvent[] {mockEvent}));
         lenient().when(round.getConsensusTimestamp()).thenReturn(timestamp);
@@ -1312,7 +1307,7 @@ class BlockStreamManagerImplTest {
         return Bytes.wrap(noThrowSha384HashOf(BlockItem.PROTOBUF.toBytes(item).toByteArray()));
     }
 
-    private void mockRoundWithTxnTimestamp(Instant timestamp) {
+    private void mockRoundWithTxnTimestamp(final Instant timestamp) {
         mockRound(timestamp);
 
         final var txn = new TransactionWrapper(Bytes.fromHex("abcdefABCDEF"));
@@ -1322,7 +1317,7 @@ class BlockStreamManagerImplTest {
                 .thenReturn(new Arrays.Iterator<>(new ConsensusTransaction[] {txn}));
     }
 
-    private BlockItem transactionResultItemFrom(Instant consensusTimestamp) {
+    private BlockItem transactionResultItemFrom(final Instant consensusTimestamp) {
         return BlockItem.newBuilder()
                 .transactionResult(TransactionResult.newBuilder().consensusTimestamp(asTimestamp(consensusTimestamp)))
                 .build();
