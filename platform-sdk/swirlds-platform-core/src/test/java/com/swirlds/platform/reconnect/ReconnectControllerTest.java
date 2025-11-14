@@ -29,7 +29,6 @@ import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
@@ -81,7 +80,6 @@ class ReconnectControllerTest {
     private static final Duration LONG_TIMEOUT = Duration.ofSeconds(3);
 
     private PlatformContext platformContext;
-    private PlatformStateFacade platformStateFacade;
     private Roster roster;
     private MerkleCryptography merkleCryptography;
     private Platform platform;

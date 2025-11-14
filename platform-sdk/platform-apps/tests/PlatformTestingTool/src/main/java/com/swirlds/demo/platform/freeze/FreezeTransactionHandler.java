@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.platform.freeze;
 
-import static com.swirlds.platform.state.service.PlatformStateFacade.bulkUpdateOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
 
 import com.swirlds.demo.platform.fs.stresstest.proto.FreezeTransaction;
 import com.swirlds.state.State;

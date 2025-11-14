@@ -4,7 +4,7 @@ package com.swirlds.demo.consistency;
 import static com.swirlds.demo.consistency.ConsistencyTestingToolMain.CONFIGURATION;
 import static com.swirlds.demo.consistency.ConsistencyTestingToolState.isSystemTransaction;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.state.service.PlatformStateFacade.bulkUpdateOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;

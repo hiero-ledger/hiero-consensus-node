@@ -4,7 +4,7 @@ package com.swirlds.platform.reconnect;
 import static com.swirlds.common.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.platform.reconnect.ReconnectStateLearner.endReconnectHandshake;
-import static com.swirlds.platform.state.service.PlatformStateFacade.getInfoString;
+import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;

@@ -5,8 +5,8 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_0;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
-import static com.swirlds.platform.state.service.PlatformStateFacade.getInfoString;
-import static com.swirlds.platform.state.service.PlatformStateFacade.roundOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
+import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;

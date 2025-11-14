@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.signed;
 
-import static com.swirlds.platform.state.service.PlatformStateFacade.consensusTimestampOf;
-import static com.swirlds.platform.state.service.PlatformStateFacade.legacyRunningEventHashOf;
-import static com.swirlds.platform.state.service.PlatformStateFacade.roundOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.consensusTimestampOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.legacyRunningEventHashOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.state.State;

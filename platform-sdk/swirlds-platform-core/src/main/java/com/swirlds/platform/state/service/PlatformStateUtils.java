@@ -29,7 +29,7 @@ import org.hiero.consensus.model.hashgraph.Round;
  * {@link State}, it can find an instance of {@link PlatformStateAccessor} or {@link PlatformStateModifier} and provide
  * access to particular properties of the platform state.
  */
-public class PlatformStateFacade {
+public final class PlatformStateUtils {
 
     /**
      * @param state the state to extract value from
@@ -74,7 +74,7 @@ public class PlatformStateFacade {
      * @return true is the {@code timestamp} is in a freeze period
      */
     public static boolean isInFreezePeriod(@NonNull final Instant consensusTime, @NonNull final MerkleNodeState state) {
-        return PlatformStateFacade.isInFreezePeriod(consensusTime, freezeTimeOf(state), lastFrozenTimeOf(state));
+        return isInFreezePeriod(consensusTime, freezeTimeOf(state), lastFrozenTimeOf(state));
     }
 
     /**
@@ -240,7 +240,7 @@ public class PlatformStateFacade {
      * @return mutable platform state
      */
     @NonNull
-    protected static PlatformStateModifier getWritablePlatformStateOf(@NonNull final State state) {
+    public static PlatformStateModifier getWritablePlatformStateOf(@NonNull final State state) {
         if (state.isImmutable()) {
             throw new IllegalStateException("Cannot get writable platform state when state is immutable");
         }
@@ -313,5 +313,5 @@ public class PlatformStateFacade {
     /**
      * Default constructor
      */
-    protected PlatformStateFacade() {}
+    private PlatformStateUtils() {}
 }

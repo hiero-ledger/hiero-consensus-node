@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
-import static com.swirlds.platform.state.service.PlatformStateFacade.ancientThresholdOf;
-import static com.swirlds.platform.state.service.PlatformStateFacade.bulkUpdateOf;
-import static com.swirlds.platform.state.service.PlatformStateFacade.consensusSnapshotOf;
-import static com.swirlds.platform.state.service.PlatformStateFacade.consensusTimestampOf;
-import static com.swirlds.platform.state.service.PlatformStateFacade.creationSoftwareVersionOf;
-import static com.swirlds.platform.state.service.PlatformStateFacade.freezeTimeOf;
-import static com.swirlds.platform.state.service.PlatformStateFacade.getInfoString;
-import static com.swirlds.platform.state.service.PlatformStateFacade.lastFrozenTimeOf;
-import static com.swirlds.platform.state.service.PlatformStateFacade.legacyRunningEventHashOf;
-import static com.swirlds.platform.state.service.PlatformStateFacade.platformStateOf;
-import static com.swirlds.platform.state.service.PlatformStateFacade.roundOf;
-import static com.swirlds.platform.state.service.PlatformStateFacade.setCreationSoftwareVersionTo;
-import static com.swirlds.platform.state.service.PlatformStateFacade.setLegacyRunningEventHashTo;
-import static com.swirlds.platform.state.service.PlatformStateFacade.setSnapshotTo;
-import static com.swirlds.platform.state.service.PlatformStateFacade.updateLastFrozenTime;
+import static com.swirlds.platform.state.service.PlatformStateUtils.ancientThresholdOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.consensusSnapshotOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.consensusTimestampOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.creationSoftwareVersionOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.freezeTimeOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
+import static com.swirlds.platform.state.service.PlatformStateUtils.lastFrozenTimeOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.legacyRunningEventHashOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.platformStateOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.setCreationSoftwareVersionTo;
+import static com.swirlds.platform.state.service.PlatformStateUtils.setLegacyRunningEventHashTo;
+import static com.swirlds.platform.state.service.PlatformStateUtils.setSnapshotTo;
+import static com.swirlds.platform.state.service.PlatformStateUtils.updateLastFrozenTime;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE;
 import static com.swirlds.platform.test.fixtures.PlatformStateUtils.randomPlatformState;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
@@ -44,7 +44,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-class PlatformStateFacadeTest {
+class PlatformStateUtilsTest {
 
     private MerkleNodeState state;
     private MerkleNodeState emptyState;
@@ -53,11 +53,11 @@ class PlatformStateFacadeTest {
     @BeforeEach
     void beforeEach() {
         final String virtualMapLabelForState =
-                "vm-state-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+                "vm-state-" + PlatformStateUtilsTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         state = TestVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabelForState);
         TestingAppStateInitializer.initPlatformState(state);
         final String virtualMapLabelForEmptyState =
-                "vm-state-empty-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+                "vm-state-empty-" + PlatformStateUtilsTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         emptyState = TestVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabelForEmptyState);
         platformStateModifier = randomPlatformState(state);
     }
@@ -79,25 +79,25 @@ class PlatformStateFacadeTest {
         final Instant t4 = t3.plusSeconds(1);
 
         // No freeze time set
-        assertFalse(PlatformStateFacade.isInFreezePeriod(t1, null, null));
+        assertFalse(PlatformStateUtils.isInFreezePeriod(t1, null, null));
 
         // No freeze time set, previous freeze time set
-        assertFalse(PlatformStateFacade.isInFreezePeriod(t2, null, t1));
+        assertFalse(PlatformStateUtils.isInFreezePeriod(t2, null, t1));
 
         // Freeze time is in the future, never frozen before
-        assertFalse(PlatformStateFacade.isInFreezePeriod(t2, t3, null));
+        assertFalse(PlatformStateUtils.isInFreezePeriod(t2, t3, null));
 
         // Freeze time is in the future, frozen before
-        assertFalse(PlatformStateFacade.isInFreezePeriod(t2, t3, t1));
+        assertFalse(PlatformStateUtils.isInFreezePeriod(t2, t3, t1));
 
         // Freeze time is in the past, never frozen before
-        assertTrue(PlatformStateFacade.isInFreezePeriod(t2, t1, null));
+        assertTrue(PlatformStateUtils.isInFreezePeriod(t2, t1, null));
 
         // Freeze time is in the past, frozen before at an earlier time
-        assertTrue(PlatformStateFacade.isInFreezePeriod(t3, t2, t1));
+        assertTrue(PlatformStateUtils.isInFreezePeriod(t3, t2, t1));
 
         // Freeze time in the past, already froze at that exact time
-        assertFalse(PlatformStateFacade.isInFreezePeriod(t3, t2, t2));
+        assertFalse(PlatformStateUtils.isInFreezePeriod(t3, t2, t2));
     }
 
     @Test
@@ -118,7 +118,7 @@ class PlatformStateFacadeTest {
     @Test
     void testPlatformStateOf_noPlatformState() {
         final var virtualMapLabel =
-                "vm-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+                "vm-" + PlatformStateUtilsTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         final TestVirtualMapState noPlatformState =
                 TestVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
         noPlatformState.getReadableStates(PlatformStateService.NAME);
@@ -190,7 +190,7 @@ class PlatformStateFacadeTest {
     @Test
     void testSetSnapshotTo() {
         final String virtualMapLabel =
-                "vm-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+                "vm-" + PlatformStateUtilsTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         final TestVirtualMapState randomState = TestVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
         TestingAppStateInitializer.initPlatformState(randomState);
         PlatformStateModifier randomPlatformState = randomPlatformState(randomState);

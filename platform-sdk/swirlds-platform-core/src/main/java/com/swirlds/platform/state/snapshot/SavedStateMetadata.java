@@ -3,11 +3,11 @@ package com.swirlds.platform.state.snapshot;
 
 import static com.swirlds.common.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.state.service.PlatformStateFacade.ancientThresholdOf;
-import static com.swirlds.platform.state.service.PlatformStateFacade.consensusSnapshotOf;
-import static com.swirlds.platform.state.service.PlatformStateFacade.creationSoftwareVersionOf;
-import static com.swirlds.platform.state.service.PlatformStateFacade.legacyRunningEventHashOf;
-import static com.swirlds.platform.state.service.PlatformStateFacade.roundOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.ancientThresholdOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.consensusSnapshotOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.creationSoftwareVersionOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.legacyRunningEventHashOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.CONSENSUS_TIMESTAMP;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.FREEZE_STATE;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.HASH;

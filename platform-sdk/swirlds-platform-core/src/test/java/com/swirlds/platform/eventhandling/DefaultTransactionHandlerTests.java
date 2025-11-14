@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.eventhandling;
 
+import static com.swirlds.platform.state.service.PlatformStateUtils.isInFreezePeriod;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -12,7 +13,6 @@ import static org.mockito.Mockito.verify;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.status.actions.FreezePeriodEnteredAction;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.state.MerkleNodeState;
@@ -150,7 +150,7 @@ class DefaultTransactionHandlerTests {
         try (final TransactionHandlerTester tester = new TransactionHandlerTester()) {
             final ConsensusRound consensusRound = newConsensusRound(false);
             tester.getPlatformStateFacadeMock()
-                    .when(() -> PlatformStateFacade.isInFreezePeriod(
+                    .when(() -> isInFreezePeriod(
                             consensusRound.getConsensusTimestamp(), (MerkleNodeState) tester.getConsensusState()))
                     .thenReturn(true);
 

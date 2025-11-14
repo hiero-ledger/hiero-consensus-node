@@ -12,7 +12,7 @@ package com.swirlds.demo.stats;
  */
 
 import static com.swirlds.demo.stats.StatsDemoMain.CONFIGURATION;
-import static com.swirlds.platform.state.service.PlatformStateFacade.roundOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;

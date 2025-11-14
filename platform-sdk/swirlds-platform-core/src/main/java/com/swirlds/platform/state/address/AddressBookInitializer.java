@@ -3,7 +3,7 @@ package com.swirlds.platform.state.address;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.state.service.PlatformStateFacade.roundOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 import static com.swirlds.platform.system.address.AddressBookUtils.addressBookConfigText;
 import static org.hiero.consensus.roster.RosterRetriever.retrieveActive;
 import static org.hiero.consensus.roster.RosterUtils.buildAddressBook;

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform;
 
-import static com.swirlds.platform.state.service.PlatformStateFacade.consensusSnapshotOf;
-import static com.swirlds.platform.state.service.PlatformStateFacade.legacyRunningEventHashOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.consensusSnapshotOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.legacyRunningEventHashOf;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.CONSENSUS_TIMESTAMP;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.FREEZE_STATE;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.HASH;
@@ -30,7 +30,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.utility.Mnemonics;
-import com.swirlds.platform.state.service.PlatformStateFacade;
+import com.swirlds.platform.state.service.PlatformStateUtils;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.SavedStateMetadata;
@@ -217,7 +217,7 @@ class SavedStateMetadataTests {
         when(sigSet.getSigningNodes())
                 .thenReturn(new ArrayList<>(List.of(NodeId.of(3L), NodeId.of(1L), NodeId.of(2L))));
 
-        try (final MockedStatic<PlatformStateFacade> facadeMock = Mockito.mockStatic(PlatformStateFacade.class)) {
+        try (final MockedStatic<PlatformStateUtils> facadeMock = Mockito.mockStatic(PlatformStateUtils.class)) {
             facadeMock.when(() -> legacyRunningEventHashOf(state)).thenReturn(randomHash(random));
             facadeMock.when(() -> consensusSnapshotOf(state)).thenReturn(consensusSnapshot);
 

@@ -12,7 +12,7 @@ import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHand
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHandler.createExpectedMapName;
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHandler.serialize;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_11_0;
-import static com.swirlds.platform.state.service.PlatformStateFacade.isFreezeRound;
+import static com.swirlds.platform.state.service.PlatformStateUtils.isFreezeRound;
 import static org.hiero.base.utility.CommonUtils.hex;
 
 import com.google.protobuf.ByteString;

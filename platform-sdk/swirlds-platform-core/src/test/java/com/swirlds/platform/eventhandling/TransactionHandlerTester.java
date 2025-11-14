@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.eventhandling;
 
+import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.isInFreezePeriod;
+import static com.swirlds.platform.state.service.PlatformStateUtils.setLegacyRunningEventHashTo;
+import static com.swirlds.platform.state.service.PlatformStateUtils.updateLastFrozenTime;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
@@ -14,7 +18,7 @@ import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.PlatformStateModifier;
-import com.swirlds.platform.state.service.PlatformStateFacade;
+import com.swirlds.platform.state.service.PlatformStateUtils;
 import com.swirlds.platform.state.service.PlatformStateValueAccumulator;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
@@ -39,7 +43,7 @@ public class TransactionHandlerTester implements AutoCloseable {
     private final List<Round> handledRounds = new ArrayList<>();
     private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
     private final MerkleNodeState consensusState;
-    private final MockedStatic<PlatformStateFacade> platformStateFacadeMock;
+    private final MockedStatic<PlatformStateUtils> platformStateFacadeMock;
     private final List<org.hiero.base.crypto.Hash> legacyRunningHashes = new ArrayList<>();
     private int updateLastFrozenInvocations = 0;
 
@@ -54,15 +58,15 @@ public class TransactionHandlerTester implements AutoCloseable {
 
         consensusState = mock(MerkleNodeState.class);
         when(consensusState.getRoot()).thenReturn(mock(MerkleNode.class));
-        // Set up static mocks for PlatformStateFacade
-        platformStateFacadeMock = org.mockito.Mockito.mockStatic(PlatformStateFacade.class);
+        // Set up static mocks for PlatformStateUtils
+        platformStateFacadeMock = org.mockito.Mockito.mockStatic(PlatformStateUtils.class);
 
         consensusStateEventHandler = mock(ConsensusStateEventHandler.class);
         when(consensusState.copy()).thenReturn(consensusState);
 
         // Stub bulk update to operate on our in-memory PlatformStateValueAccumulator
         platformStateFacadeMock
-                .when(() -> PlatformStateFacade.bulkUpdateOf(same(consensusState), any()))
+                .when(() -> bulkUpdateOf(same(consensusState), any()))
                 .thenAnswer(invocation -> {
                     final java.util.function.Consumer<PlatformStateModifier> updater = invocation.getArgument(1);
                     updater.accept(platformState);
@@ -71,12 +75,12 @@ public class TransactionHandlerTester implements AutoCloseable {
 
         // By default, not in freeze period
         platformStateFacadeMock
-                .when(() -> PlatformStateFacade.isInFreezePeriod(any(java.time.Instant.class), same(consensusState)))
+                .when(() -> isInFreezePeriod(any(java.time.Instant.class), same(consensusState)))
                 .thenReturn(false);
 
         // Capture the legacy running hash updates instead of touching a real state
         platformStateFacadeMock
-                .when(() -> PlatformStateFacade.setLegacyRunningEventHashTo(same(consensusState), any()))
+                .when(() -> setLegacyRunningEventHashTo(same(consensusState), any()))
                 .thenAnswer(invocation -> {
                     legacyRunningHashes.add(invocation.getArgument(1));
                     return null;
@@ -84,7 +88,7 @@ public class TransactionHandlerTester implements AutoCloseable {
 
         // Track updateLastFrozenTime invocations
         platformStateFacadeMock
-                .when(() -> PlatformStateFacade.updateLastFrozenTime(same(consensusState)))
+                .when(() -> updateLastFrozenTime(same(consensusState)))
                 .thenAnswer(invocation -> {
                     updateLastFrozenInvocations++;
                     return null;
@@ -153,9 +157,9 @@ public class TransactionHandlerTester implements AutoCloseable {
     }
 
     /**
-     * @return the static mock for PlatformStateFacade used by this tester
+     * @return the static mock for PlatformStateUtils used by this tester
      */
-    public MockedStatic<PlatformStateFacade> getPlatformStateFacadeMock() {
+    public MockedStatic<PlatformStateUtils> getPlatformStateFacadeMock() {
         return platformStateFacadeMock;
     }
 

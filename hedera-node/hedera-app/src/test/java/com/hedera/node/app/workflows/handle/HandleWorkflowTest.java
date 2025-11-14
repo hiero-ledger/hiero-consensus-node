@@ -52,11 +52,9 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableSingletonState;
-import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
@@ -164,16 +162,7 @@ class HandleWorkflowTest {
     private NodeRewardManager nodeRewardManager;
 
     @Mock
-    private PlatformStateFacade platformStateFacade;
-
-    @Mock
     private BlockBufferService blockBufferService;
-
-    @Mock
-    private ReadableStates readableStates;
-
-    @Mock
-    private EventCore eventCore;
 
     @Mock
     private ReadableSingletonState<Object> platformStateReadableSingletonState;

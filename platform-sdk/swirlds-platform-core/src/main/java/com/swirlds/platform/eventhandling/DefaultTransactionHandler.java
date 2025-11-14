@@ -12,10 +12,10 @@ import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.SETTING
 import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.UPDATING_PLATFORM_STATE;
 import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.UPDATING_PLATFORM_STATE_RUNNING_HASH;
 import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.WAITING_FOR_PREHANDLE;
-import static com.swirlds.platform.state.service.PlatformStateFacade.bulkUpdateOf;
-import static com.swirlds.platform.state.service.PlatformStateFacade.isInFreezePeriod;
-import static com.swirlds.platform.state.service.PlatformStateFacade.setLegacyRunningEventHashTo;
-import static com.swirlds.platform.state.service.PlatformStateFacade.updateLastFrozenTime;
+import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.isInFreezePeriod;
+import static com.swirlds.platform.state.service.PlatformStateUtils.setLegacyRunningEventHashTo;
+import static com.swirlds.platform.state.service.PlatformStateUtils.updateLastFrozenTime;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;

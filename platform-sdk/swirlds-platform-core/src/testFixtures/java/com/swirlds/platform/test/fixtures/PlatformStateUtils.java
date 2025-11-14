@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures;
 
-import static com.swirlds.platform.state.service.PlatformStateFacade.bulkUpdateOf;
-import static com.swirlds.platform.state.service.PlatformStateFacade.setSnapshotTo;
-import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.getWritablePlatformStateOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.getWritablePlatformStateOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.setSnapshotTo;
 import static java.util.Arrays.asList;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHashBytes;
