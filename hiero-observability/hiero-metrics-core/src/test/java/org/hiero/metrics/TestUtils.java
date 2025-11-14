@@ -4,10 +4,8 @@ package org.hiero.metrics;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
-import java.util.Optional;
-import java.util.Spliterator;
-import java.util.Spliterators;
-import java.util.stream.StreamSupport;
+import org.assertj.core.api.AbstractListAssert;
+import org.assertj.core.api.ObjectAssert;
 import org.hiero.metrics.api.core.MetricMetadata;
 import org.hiero.metrics.api.export.snapshot.MetricSnapshot;
 import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
@@ -77,17 +75,16 @@ public final class TestUtils {
         };
     }
 
-    public static void verifySnapshotHasMetrics(Optional<MetricsSnapshot> optionalSnapshot, String... metrics) {
-        assertThat(optionalSnapshot).isNotEmpty();
+    public static void verifySnapshotHasMetrics(MetricsSnapshot snapshot, String... metrics) {
+        snapshotHasMetricsAssertion(snapshot).containsExactly(metrics);
+    }
 
-        MetricsSnapshot snapshot = optionalSnapshot.get();
+    public static void verifySnapshotHasMetricsAnyOrder(MetricsSnapshot snapshot, String... metrics) {
+        snapshotHasMetricsAssertion(snapshot).containsExactlyInAnyOrder(metrics);
+    }
 
-        List<String> actualMetrics = StreamSupport.stream(
-                        Spliterators.spliteratorUnknownSize(snapshot.iterator(), Spliterator.ORDERED), false)
-                .map(MetricSnapshot::metadata)
-                .map(MetricMetadata::name)
-                .toList();
-
-        assertThat(actualMetrics).containsExactlyInAnyOrder(metrics);
+    private static AbstractListAssert<?, List<? extends String>, String, ObjectAssert<String>>
+            snapshotHasMetricsAssertion(MetricsSnapshot snapshot) {
+        return assertThat(snapshot).map(MetricSnapshot::metadata).map(MetricMetadata::name);
     }
 }
