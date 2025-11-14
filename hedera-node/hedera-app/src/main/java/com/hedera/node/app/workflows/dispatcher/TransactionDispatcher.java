@@ -136,6 +136,14 @@ public class TransactionDispatcher {
         }
 
         return switch (feeContext.body().data().kind()) {
+            case TOKEN_CREATION,
+                    TOKEN_MINT,
+                    TOKEN_BURN,
+                    TOKEN_DELETION,
+                    TOKEN_PAUSE,
+                    TOKEN_FREEZE,
+                    TOKEN_UNPAUSE,
+                    TOKEN_UNFREEZE -> true;
             case CRYPTO_DELETE, CRYPTO_CREATE_ACCOUNT -> true;
             default -> false;
         };
