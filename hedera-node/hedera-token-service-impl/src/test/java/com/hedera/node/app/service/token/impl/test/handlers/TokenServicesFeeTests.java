@@ -167,8 +167,8 @@ public class TokenServicesFeeTests {
         final var txBody2 = TransactionBody.newBuilder()
                 .tokenFreeze(TokenFreezeAccountTransactionBody.newBuilder()
                         .token(commonToken)
-                        .build()
-                ).build();
+                        .build())
+                .build();
         final var feeContext = createMockFeeContext(txBody2, 1);
         final var result = freezeAccountHandler.calculateFeeResult(feeContext);
         assertNotNull(result);
@@ -181,8 +181,8 @@ public class TokenServicesFeeTests {
         final var txBody2 = TransactionBody.newBuilder()
                 .tokenUnfreeze(TokenUnfreezeAccountTransactionBody.newBuilder()
                         .token(commonToken)
-                        .build()
-                ).build();
+                        .build())
+                .build();
         final var feeContext = createMockFeeContext(txBody2, 1);
         final var result = unfreezeAccountHandler.calculateFeeResult(feeContext);
         assertNotNull(result);
@@ -193,10 +193,9 @@ public class TokenServicesFeeTests {
     void pauseCommonToken() {
         final var tokenId = TokenID.newBuilder().tokenNum(1234).build();
         final var txBody2 = TransactionBody.newBuilder()
-                .tokenPause(TokenPauseTransactionBody.newBuilder()
-                        .token(tokenId)
-                        .build()
-                ).build();
+                .tokenPause(
+                        TokenPauseTransactionBody.newBuilder().token(tokenId).build())
+                .build();
         final var feeContext = createMockFeeContext(txBody2, 1);
         final var result = pauseHandler.calculateFeeResult(feeContext);
         assertNotNull(result);
@@ -207,10 +206,9 @@ public class TokenServicesFeeTests {
     void unpauseCommonToken() {
         final var tokenId = TokenID.newBuilder().tokenNum(1234).build();
         final var txBody2 = TransactionBody.newBuilder()
-                .tokenUnpause(TokenUnpauseTransactionBody.newBuilder()
-                        .token(tokenId)
-                        .build()
-                ).build();
+                .tokenUnpause(
+                        TokenUnpauseTransactionBody.newBuilder().token(tokenId).build())
+                .build();
         final var feeContext = createMockFeeContext(txBody2, 1);
         final var result = unpauseHandler.calculateFeeResult(feeContext);
         assertNotNull(result);
@@ -221,10 +219,8 @@ public class TokenServicesFeeTests {
     void burnCommonToken() {
         final var tokenId = TokenID.newBuilder().tokenNum(1234).build();
         final var body = TransactionBody.newBuilder()
-                .tokenBurn(TokenBurnTransactionBody.newBuilder()
-                        .token(tokenId)
-                        .build()
-                ).build();
+                .tokenBurn(TokenBurnTransactionBody.newBuilder().token(tokenId).build())
+                .build();
         final var feeContext = createMockFeeContext(body, 1);
         final var result = burnHandler.calculateFeeResult(feeContext);
         assertNotNull(result);
@@ -235,32 +231,26 @@ public class TokenServicesFeeTests {
     void burnUniqueToken() {
         final var tokenId = TokenID.newBuilder().tokenNum(1234).build();
         final var body = TransactionBody.newBuilder()
-                .tokenBurn(TokenBurnTransactionBody.newBuilder()
-                        .token(tokenId)
-                        .build()
-                ).build();
+                .tokenBurn(TokenBurnTransactionBody.newBuilder().token(tokenId).build())
+                .build();
         final var feeContext = createMockFeeContext(body, 1);
         final var result = burnHandler.calculateFeeResult(feeContext);
         assertNotNull(result);
         assertEquals(TOKEN_BURN_BASE_FEE, result.total());
     }
 
-
     @Test
     void deleteToken() {
         final var tokenId = TokenID.newBuilder().tokenNum(1234).build();
-        final var deleteBody = TokenDeleteTransactionBody.newBuilder()
-                .token(tokenId)
-                .build();
-        final var txnBody = TransactionBody.newBuilder()
-                .tokenDeletion(deleteBody)
-                .build();
+        final var deleteBody =
+                TokenDeleteTransactionBody.newBuilder().token(tokenId).build();
+        final var txnBody =
+                TransactionBody.newBuilder().tokenDeletion(deleteBody).build();
         final var feeContext = createMockFeeContext(txnBody, 1);
         final var result = deleteHandler.calculateFeeResult(feeContext);
         assertNotNull(result);
         assertEquals(TOKEN_DELETE_BASE_FEE, result.total());
     }
-
 
     /*
        // TODO
@@ -311,11 +301,10 @@ public class TokenServicesFeeTests {
                                 makeExtraIncluded(Extra.STANDARD_NON_FUNGIBLE_TOKENS, 0)),
                         makeServiceFee(TOKEN_BURN, TOKEN_BURN_BASE_FEE),
                         makeServiceFee(TOKEN_DELETE, TOKEN_DELETE_BASE_FEE),
-                        makeServiceFee(TOKEN_PAUSE,TOKEN_PAUSE_BASE_FEE),
+                        makeServiceFee(TOKEN_PAUSE, TOKEN_PAUSE_BASE_FEE),
                         makeServiceFee(TOKEN_UNPAUSE, TOKEN_UNPAUSE_BASE_FEE),
                         makeServiceFee(TOKEN_FREEZE_ACCOUNT, TOKEN_FREEZE_BASE_FEE),
-                        makeServiceFee(TOKEN_UNFREEZE_ACCOUNT, TOKEN_UNFREEZE_BASE_FEE)
-                        ))
+                        makeServiceFee(TOKEN_UNFREEZE_ACCOUNT, TOKEN_UNFREEZE_BASE_FEE)))
                 .build();
     }
 }
