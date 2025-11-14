@@ -40,6 +40,11 @@ public class ContainerConstants {
     public static final String EVENT_STREAM_DIRECTORY = "hgcapp";
 
     /**
+     * Path to the profile output directory
+     */
+    public static final String PROFILE_OUTPUT_DIRECTORY = "profiles/";
+
+    /**
      * The port to open to allow connections to the
      * {@link org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc}
      */

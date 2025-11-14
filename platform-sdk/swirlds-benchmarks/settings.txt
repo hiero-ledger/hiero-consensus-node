@@ -6,5 +6,4 @@ benchmark.printHistogram,                      false
 benchmark.csvOutputFolder,                     data
 benchmark.csvWriteFrequency,                   1000
 benchmark.csvAppend,                           true
-virtualMap.flushInterval,                      20
 virtualMap.familyThrottleThreshold,            10000000000
