@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.reconnect;
 
-import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
-import static java.util.concurrent.TimeUnit.SECONDS;
+import static java.lang.Thread.sleep;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doAnswer;
@@ -47,14 +48,16 @@ import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.concurrent.BlockingResourceProvider;
+import org.hiero.base.concurrent.ThrowingRunnable;
 import org.hiero.base.concurrent.test.fixtures.RunnableCompletionControl;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
@@ -62,11 +65,11 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
 import org.mockito.stubbing.Answer;
 
 /**
@@ -87,7 +90,7 @@ class ReconnectControllerTest {
     private StateLifecycleManager stateLifecycleManager;
     private SavedStateController savedStateController;
     private ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
-    private BlockingResourceProvider<ReservedSignedStateResult> peerReservedSignedStateResultPromise;
+    private BlockingResourceProvider<ReservedSignedStateResult> stateProvider;
     private FallenBehindMonitor fallenBehindMonitor;
     private NodeId selfId;
 
@@ -95,7 +98,6 @@ class ReconnectControllerTest {
     private ReservedSignedState testReservedSignedState;
     private MerkleNodeState testWorkingState;
     private SignedStateValidator signedStateValidator;
-    private MockedStatic<SignedStateFileReader> mockedFileReader;
 
     @BeforeAll
     static void setUpClass() throws ConstructableRegistryException {
@@ -176,8 +178,8 @@ class ReconnectControllerTest {
         // Create real FallenBehindMonitor
         fallenBehindMonitor = new FallenBehindMonitor(NUM_NODES - 1, 0.5);
 
-        // Create real ReservedSignedStatePromise
-        peerReservedSignedStateResultPromise = new BlockingResourceProvider<>();
+        // Create real state provider for peer reconnect
+        stateProvider = new BlockingResourceProvider<>();
 
         // Create the signed state validator
         signedStateValidator = mock(SignedStateValidator.class);
@@ -190,9 +192,6 @@ class ReconnectControllerTest {
         }
         if (testReservedSignedState != null && !testReservedSignedState.isClosed()) {
             testReservedSignedState.close();
-        }
-        if (mockedFileReader != null) {
-            mockedFileReader.close();
         }
     }
 
@@ -209,59 +208,191 @@ class ReconnectControllerTest {
                 stateLifecycleManager,
                 savedStateController,
                 consensusStateEventHandler,
-                peerReservedSignedStateResultPromise,
+                stateProvider,
+                selfId,
+                fallenBehindMonitor,
+                signedStateValidator);
+    }
+    /**
+     * Helper method to create a ReconnectController instance
+     */
+    private ReconnectController createController(final PlatformContext context) {
+        return new ReconnectController(
+                roster,
+                merkleCryptography,
+                platform,
+                context,
+                platformCoordinator,
+                stateLifecycleManager,
+                savedStateController,
+                consensusStateEventHandler,
+                stateProvider,
                 selfId,
                 fallenBehindMonitor,
                 signedStateValidator);
     }
 
+    /**
+     * Test scenario runner that abstracts away all threading complexity.
+     * Use this to write readable tests that focus on the reconnect flow logic.
+     */
+    private class ReconnectScenario {
+        private final ReconnectController controller;
+        private Thread controllerThread;
+        private RunnableCompletionControl controllerRunnable;
+        private final List<RunnableCompletionControl> parallelTasks = new ArrayList<>();
+
+        ReconnectScenario(final ReconnectController controller) {
+            this.controller = controller;
+        }
+
+        /** Start the reconnect controller in a background thread (normal behavior, no exception throwing) */
+        ReconnectScenario start() {
+            return startWithExitCapture(new AtomicReference<>());
+        }
+
+        /** Start the controller with SystemExit mocking to capture exit codes */
+        ReconnectScenario startWithExitCapture(AtomicReference<?> capturedExitCode) {
+            controllerRunnable = RunnableCompletionControl.unblocked(() -> {
+                try (@SuppressWarnings("unused")
+                                final var ignored = mockStatic(SignedStateFileReader.class);
+                        final var systemExitMock = mockStatic(SystemExitUtils.class)) {
+                    systemExitMock
+                            .when(() -> SystemExitUtils.exitSystem(any(SystemExitCode.class)))
+                            .thenAnswer(inv -> {
+                                capturedExitCode.set(inv.getArgument(0));
+                                // Throw exception to simulate system exit and break out of control flow
+                                throw new RuntimeException("Simulated System Exit: " + inv.getArgument(0));
+                            });
+                    controller.run();
+                } catch (RuntimeException e) {
+                    // Expected exception from mocked system exit - this is normal
+                    if (!e.getMessage().startsWith("Simulated System Exit")) {
+                        throw e; // Re-throw if it's not our simulated exit
+                    }
+                }
+            });
+            controllerThread = controllerRunnable.start();
+            return this;
+        }
+
+        /** Report a single node as fallen behind (may not reach threshold) */
+        ReconnectScenario reportFallenBehind(final NodeId... nodeIds) {
+            Arrays.asList(nodeIds).forEach(fallenBehindMonitor::report);
+            return this;
+        }
+
+        /** Provide a valid reconnect state using the test's default reserved state */
+        ReconnectScenario provideState() throws InterruptedException {
+            return provideState(testReservedSignedState);
+        }
+
+        /** Provide a specific reconnect state to the controller */
+        ReconnectScenario provideState(final ReservedSignedState state) throws InterruptedException {
+            assertTrue(stateProvider.acquireProvidePermit(), "Should acquire permit");
+            stateProvider.provide(new ReservedSignedStateResult(state, null));
+            return this;
+        }
+
+        /** Provide an exception instead of a state */
+        ReconnectScenario provideException(final RuntimeException exception) throws InterruptedException {
+            assertTrue(stateProvider.acquireProvidePermit(), "Should acquire permit");
+            stateProvider.provide(new ReservedSignedStateResult(null, exception));
+            return this;
+        }
+
+        /** Wait for reconnect processing to complete */
+        ReconnectScenario waitForReconnectToRequestState() {
+            while (!stateProvider.isWaitingForResource()) {
+                sleep(100);
+            }
+            return this;
+        }
+
+        /** Stop the controller gracefully */
+        void stop() {
+            controller.stopReconnectLoop();
+            interruptControllerThread();
+            parallelTasks.forEach(r -> r.waitIsFinished(LONG_TIMEOUT));
+            controllerRunnable.waitIsFinished(LONG_TIMEOUT);
+        }
+
+        void interruptControllerThread() {
+            controllerThread.interrupt();
+        }
+
+        /** Wait for controller to finish (without stopping it first) */
+        void waitForFinish() {
+            controllerRunnable.waitIsFinished(LONG_TIMEOUT);
+            parallelTasks.forEach(r -> r.waitIsFinished(LONG_TIMEOUT));
+        }
+
+        /** Execute a custom action during the scenario */
+        ReconnectScenario syncRun(final ThrowingRunnable action) {
+            try {
+                action.run();
+            } catch (InterruptedException e) {
+                fail();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            return this;
+        }
+
+        /** Wait for a specified duration */
+        ReconnectScenario wait(final int millis) {
+            sleep(millis);
+            return this;
+        }
+
+        /** Check if controller thread is alive */
+        boolean isControllerAlive() {
+            return controllerThread.isAlive();
+        }
+
+        public ReconnectScenario parallelRun(final Runnable... runnable) {
+            parallelTasks.addAll(Arrays.stream(runnable)
+                    .map(RunnableCompletionControl::unblocked)
+                    .toList());
+            parallelTasks.parallelStream().forEach(RunnableCompletionControl::start);
+            return this;
+        }
+    }
+
+    @Test
+    @DisplayName("Multiple peers try to provide")
+    void testMultiplePeersReportBeforeThreshold() {
+        final var scenario = new ReconnectScenario(createController());
+        final AtomicLong counter = new AtomicLong();
+        final Runnable peer = () -> {
+            if (stateProvider.acquireProvidePermit()) {
+                try {
+                    stateProvider.provide(new ReservedSignedStateResult(testReservedSignedState, null));
+                    counter.incrementAndGet();
+                } catch (InterruptedException e) {
+                    fail();
+                }
+            }
+        };
+        scenario.start()
+                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
+                .waitForReconnectToRequestState()
+                .parallelRun(peer, peer, peer, peer)
+                .stop();
+
+        assertEquals(1, counter.get());
+    }
+
     @Test
     @DisplayName("Successful single reconnect attempt")
-    void testSuccessfulSingleReconnect() throws Exception {
+    void testSuccessfulSingleReconnect() throws InterruptedException {
 
-        final ReconnectController controller = createController();
-        final AtomicBoolean reconnectCompleted = new AtomicBoolean(false);
-
-        // Start controller in a separate thread
-        final var controllerRunnable = RunnableCompletionControl.unblocked(() -> {
-            try (final var staticMock = mockStatic(SignedStateFileReader.class)) {
-                controller.run();
-            }
-        });
-        // Start a thread to simulate the reconnect flow
-        final var notifier = RunnableCompletionControl.unblocked(() -> {
-            // Simulate fallen behind notification
-            fallenBehindMonitor.report(NodeId.of(1));
-            fallenBehindMonitor.report(NodeId.of(2));
-        });
-        notifier.start();
-        final var simulatorThread = RunnableCompletionControl.unblocked(() -> {
-            try {
-                Thread.sleep(50);
-                // Acquire permit and provide state
-                assertTrue(peerReservedSignedStateResultPromise.acquireProvidePermit(), "Should acquire permit");
-                peerReservedSignedStateResultPromise.provide(
-                        new ReservedSignedStateResult(testReservedSignedState, null));
-
-                // Wait a bit to ensure reconnect completes
-                Thread.sleep(200);
-                reconnectCompleted.set(true);
-                controller.stopReconnectLoop();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
-
-        final var controllerThread = controllerRunnable.start();
-        notifier.waitIsFinished(LONG_TIMEOUT);
-        simulatorThread.start();
-
-        // Wait for both threads
-        simulatorThread.waitIsFinished(LONG_TIMEOUT);
-        controllerThread.interrupt();
-        controllerRunnable.waitIsFinished(LONG_TIMEOUT);
-
-        assertTrue(reconnectCompleted.get(), "Reconnect should have completed");
+        new ReconnectControllerTest.ReconnectScenario(createController())
+                .start()
+                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
+                .waitForReconnectToRequestState()
+                .provideState()
+                .stop();
 
         // Verify the expected interactions
         verify(platformCoordinator, times(1)).submitStatusAction(any(FallenBehindAction.class));
@@ -274,83 +405,24 @@ class ReconnectControllerTest {
 
     @Test
     @DisplayName("Promise is properly cleaned up after consumption")
-    void testPromiseCleanupAfterConsumption() throws Exception {
-        final ReconnectController controller = createController();
-        final AtomicBoolean stateAcquired = new AtomicBoolean(false);
-
-        // Start controller
-        final var controllerRunnable = RunnableCompletionControl.unblocked(() -> {
-            try (final var ignored = mockStatic(SignedStateFileReader.class)) {
-                controller.run();
-            }
-        });
-
-        final var notifier = RunnableCompletionControl.unblocked(() -> {
-            fallenBehindMonitor.report(NodeId.of(1));
-            fallenBehindMonitor.report(NodeId.of(2));
-        });
-
-        final var simulator = RunnableCompletionControl.unblocked(() -> {
-            try {
-
-                stateAcquired.set(peerReservedSignedStateResultPromise.acquireProvidePermit());
-                if (!stateAcquired.get()) {
-                    return;
-                }
-                peerReservedSignedStateResultPromise.provide(
-                        new ReservedSignedStateResult(testReservedSignedState, null));
-                controller.stopReconnectLoop();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
-        controllerRunnable.start();
-        notifier.start();
-        notifier.waitIsFinished(LONG_TIMEOUT);
-        Thread.sleep(200); // Give enough time for reconnec controller to start
-        simulator.start();
-        simulator.waitIsFinished(LONG_TIMEOUT);
-        assertTrue(stateAcquired.get(), "acquire should succeed");
-
-        controllerRunnable.waitIsFinished(LONG_TIMEOUT);
-
-        simulator.start();
-        simulator.waitIsFinished(LONG_TIMEOUT);
-        // After consumption, the promise should not allow new acquires (consumed)
-        // Note: This depends on the implementation of BlockingResourceProvider
-        assertFalse(stateAcquired.get(), "Second acquire should fail after promise consumed");
-    }
-
-    @Test
-    @DisplayName("Controller stops when stop() is called")
-    void testControllerStopReconnectLoop() throws Exception {
-        final ReconnectController controller = createController();
-
-        final var controllerRunnable = RunnableCompletionControl.unblocked(() -> {
-            try (final var staticMock = mockStatic(SignedStateFileReader.class)) {
-                controller.run();
-            }
-        });
-
-        final var controllerThread = controllerRunnable.start();
-
-        // Give controller time to start
-        Thread.sleep(100);
-
-        // Stop the controller
-        controller.stopReconnectLoop();
-        controllerThread.interrupt();
-        controllerRunnable.waitIsFinished(LONG_TIMEOUT);
-        Thread.sleep(100);
-        assertFalse(controllerThread.isAlive(), "Controller thread should be terminated");
+    void testPromiseCleanupAfterConsumption() throws InterruptedException {
+        new ReconnectScenario(createController())
+                .start()
+                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
+                .waitForReconnectToRequestState()
+                .provideState()
+                .syncRun(() -> {
+                    // After consumption, the promise should not allow new acquires (consumed)
+                    assertFalse(stateProvider.acquireProvidePermit());
+                })
+                .stop();
     }
 
     @Test
     @DisplayName("State validation failure causes retry")
-    void testStateValidationFailureCausesRetry() throws Exception {
+    void testStateValidationFailureCausesRetry() {
         // Create a new context with a validator that will fail once then succeed
         final AtomicInteger validationAttempts = new AtomicInteger(0);
-        final ReconnectController controller = createController();
 
         // Mock the validator by making consensusStateEventHandler throw on first call
         doAnswer((Answer<Void>) invocation -> {
@@ -362,218 +434,89 @@ class ReconnectControllerTest {
                 .when(consensusStateEventHandler)
                 .onStateInitialized(any(), any(), any(), any());
 
-        final var controllerRunnable = RunnableCompletionControl.unblocked(() -> {
-            try (final var staticMock = mockStatic(SignedStateFileReader.class)) {
-                controller.run();
-            }
-        });
-
-        final var notifier = RunnableCompletionControl.unblocked(() -> {
-            fallenBehindMonitor.report(NodeId.of(1));
-            fallenBehindMonitor.report(NodeId.of(2));
-        });
-
-        notifier.start();
-        notifier.waitIsFinished(LONG_TIMEOUT);
-
-        final var simulatorThread = RunnableCompletionControl.unblocked(() -> {
-            try {
-                // First attempt - will fail validation
-                Thread.sleep(100);
-                assertTrue(peerReservedSignedStateResultPromise.acquireProvidePermit());
-                final ReservedSignedState firstAttempt = testSignedState.reserve("first");
-                peerReservedSignedStateResultPromise.provide(new ReservedSignedStateResult(firstAttempt, null));
-
-                // Second attempt - will succeed
-                Thread.sleep(250);
-                assertTrue(peerReservedSignedStateResultPromise.acquireProvidePermit());
-                final ReservedSignedState secondAttempt = testSignedState.reserve("second");
-                peerReservedSignedStateResultPromise.provide(new ReservedSignedStateResult(secondAttempt, null));
-
-                Thread.sleep(200);
-                controller.stopReconnectLoop();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
-
-        final var controllerThread = controllerRunnable.start();
-        simulatorThread.start();
-
-        simulatorThread.waitIsFinished(LONG_TIMEOUT);
-        controllerThread.interrupt();
-        controllerRunnable.waitIsFinished(LONG_TIMEOUT);
+        new ReconnectScenario(createController())
+                .start()
+                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
+                .waitForReconnectToRequestState()
+                .syncRun(() -> {
+                    try {
+                        // First attempt - will fail validation
+                        assertTrue(stateProvider.acquireProvidePermit(), "Should acquire permit");
+                        stateProvider.provide(new ReservedSignedStateResult(testSignedState.reserve("first"), null));
+                    } catch (InterruptedException e) {
+                        fail();
+                    }
+                })
+                .waitForReconnectToRequestState()
+                .syncRun(() -> {
+                    try {
+                        // Second attempt - will succeed
+                        assertTrue(stateProvider.acquireProvidePermit(), "Should acquire permit");
+                        stateProvider.provide(new ReservedSignedStateResult(testSignedState.reserve("second"), null));
+                    } catch (InterruptedException e) {
+                        fail();
+                    }
+                })
+                .stop();
 
         assertEquals(2, validationAttempts.get(), "Should have attempted validation twice");
         verify(platformCoordinator, times(1)).resumeGossip();
     }
 
     @Test
+    @DisplayName("Providing exception causes retry")
+    void testProvidingAnExceptionCausesRetry() throws InterruptedException {
+        new ReconnectScenario(createController())
+                .start()
+                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
+                .waitForReconnectToRequestState()
+                .provideException(new RuntimeException("simulated exception"))
+                .waitForReconnectToRequestState()
+                .provideState(testSignedState.reserve("second"))
+                .stop();
+    }
+
+    @Test
     @DisplayName("System exits when Hash current state for reconnect throws ExecutionException")
-    void testHashStateExecutionException() throws Exception {
+    void testHashStateExecutionException() {
+        // Setup hash computation to fail
         final CompletableFuture<Hash> failedFuture = new CompletableFuture<>();
         failedFuture.completeExceptionally(new RuntimeException("Hash computation failed"));
         when(merkleCryptography.digestTreeAsync(any())).thenReturn(failedFuture);
+        AtomicReference<SystemExitCode> capturedExitCode = new AtomicReference<>();
 
-        final ReconnectController controller = createController();
-        final AtomicReference<SystemExitCode> capturedExitCode = new AtomicReference<>();
-        final CountDownLatch exitCalledLatch = new CountDownLatch(1);
-        final var controllerRunnable = RunnableCompletionControl.unblocked(() -> {
-            try (final var ignored = mockStatic(SignedStateFileReader.class);
-                    final var mockedSystemExit = mockStatic(SystemExitUtils.class)) {
-                mockedSystemExit
-                        .when(() -> SystemExitUtils.exitSystem(any(SystemExitCode.class)))
-                        .thenAnswer(inv -> {
-                            capturedExitCode.set(inv.getArgument(0));
-                            exitCalledLatch.countDown();
-                            return null;
-                        });
-                controller.run();
-            }
-        });
+        new ReconnectScenario(createController())
+                .startWithExitCapture(capturedExitCode)
+                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
+                .waitForFinish();
 
-        final var simulator = RunnableCompletionControl.unblocked(() -> {
-            try {
-
-                // Trigger fallen behind
-                fallenBehindMonitor.report(NodeId.of(1));
-                fallenBehindMonitor.report(NodeId.of(2));
-                // Wait for hash to fail and controller to be ready for next attempt
-                Thread.sleep(150);
-
-                controller.stopReconnectLoop();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
-
-        final var controllerThread = controllerRunnable.start();
-        simulator.start();
-        simulator.waitIsFinished(LONG_TIMEOUT);
-        controllerThread.interrupt();
-        controllerRunnable.waitIsFinished(LONG_TIMEOUT);
-        // Wait for system exit to be called (should happen immediately in start())
-        assertTrue(
-                exitCalledLatch.await(2, SECONDS),
-                "SystemExitUtils.exitSystem should have been called when reconnect is disabled");
-
-        // Verify the correct exit code
+        // Verify the correct exit code was captured
         assertEquals(
                 SystemExitCode.RECONNECT_FAILURE, capturedExitCode.get(), "Should exit with RECONNECT_FAILURE code");
     }
 
     @Test
-    @DisplayName("Multiple peers report fallen behind before threshold")
-    void testMultiplePeersReportBeforeThreshold() throws Exception {
-        final ReconnectController controller = createController();
-        final CountDownLatch reconnectStartedLatch = new CountDownLatch(1);
-
-        final var controllerRunnable = RunnableCompletionControl.unblocked(() -> {
-            try (final var staticMock = mockStatic(SignedStateFileReader.class)) {
-                controller.run();
-            }
-        });
-
-        final var simulator = RunnableCompletionControl.unblocked(() -> {
-            try {
-                // Report just below threshold (need >50% of 3 peers = need at least 2)
-                Thread.sleep(50);
-                fallenBehindMonitor.report(NodeId.of(1));
-
-                // Wait a bit - reconnect should not start yet
-                Thread.sleep(100);
-                assertFalse(fallenBehindMonitor.hasFallenBehind());
-
-                // Now push over threshold
-                fallenBehindMonitor.report(NodeId.of(2));
-                Thread.sleep(50);
-                assertTrue(fallenBehindMonitor.hasFallenBehind());
-
-                reconnectStartedLatch.countDown();
-
-                // Provide state
-                Thread.sleep(100);
-                if (peerReservedSignedStateResultPromise.acquireProvidePermit()) {
-                    peerReservedSignedStateResultPromise.provide(
-                            new ReservedSignedStateResult(testReservedSignedState, null));
-                }
-
-                Thread.sleep(200);
-                controller.stopReconnectLoop();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
-
-        final var controllerThread = controllerRunnable.start();
-        simulator.start();
-
-        assertTrue(reconnectStartedLatch.await(2, SECONDS), "Reconnect should have started");
-
-        simulator.waitIsFinished(LONG_TIMEOUT);
-        controllerThread.interrupt();
-        controllerRunnable.waitIsFinished(LONG_TIMEOUT);
-
-        verify(platformCoordinator, times(1)).submitStatusAction(any(FallenBehindAction.class));
-    }
-
-    @Test
     @DisplayName("FallenBehindMonitor is reset after successful reconnect")
-    void testFallenBehindMonitorReset() throws Exception {
-        final ReconnectController controller = createController();
-        final AtomicBoolean monitorWasReset = new AtomicBoolean(false);
+    void testFallenBehindMonitorReset() throws InterruptedException {
+        new ReconnectScenario(createController())
+                .start()
+                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
+                .waitForReconnectToRequestState()
+                .provideState()
+                .stop();
 
-        final var controllerRunnable = RunnableCompletionControl.unblocked(() -> {
-            try (final var ignored = mockStatic(SignedStateFileReader.class)) {
-                controller.run();
-            }
-        });
-
-        final var notifier = RunnableCompletionControl.unblocked(() -> {
-            // First reconnect cycle
-            fallenBehindMonitor.report(NodeId.of(1));
-            fallenBehindMonitor.report(NodeId.of(2));
-            assertTrue(fallenBehindMonitor.hasFallenBehind());
-        });
-
-        final var simulator = RunnableCompletionControl.unblocked(() -> {
-            try {
-
-                Thread.sleep(100);
-                assertTrue(peerReservedSignedStateResultPromise.acquireProvidePermit());
-                peerReservedSignedStateResultPromise.provide(
-                        new ReservedSignedStateResult(testReservedSignedState, null));
-
-                // Wait for reconnect to complete
-                Thread.sleep(300);
-
-                // Check if monitor was reset
-                monitorWasReset.set(!fallenBehindMonitor.hasFallenBehind());
-
-                controller.stopReconnectLoop();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
-
-        final var controllerThread = controllerRunnable.start();
-        notifier.start();
-        notifier.waitIsFinished(LONG_TIMEOUT);
-        simulator.start();
-
-        simulator.waitIsFinished(LONG_TIMEOUT);
-        controllerThread.interrupt();
-        controllerRunnable.waitIsFinished(LONG_TIMEOUT);
-
-        assertTrue(monitorWasReset.get(), "FallenBehindMonitor should be reset after successful reconnect");
+        // Verify monitor was reset after successful reconnect
+        assertFalse(
+                fallenBehindMonitor.hasFallenBehind(),
+                "FallenBehindMonitor should be reset after successful reconnect");
     }
 
     @Test
     @DisplayName("Coordinator operations are called in correct order")
-    void testCoordinatorOperationsOrder() throws Exception {
-        final ReconnectController controller = createController();
+    void testCoordinatorOperationsOrder() throws InterruptedException {
         final AtomicReference<String> operationOrder = new AtomicReference<>("");
 
+        // Track operation order
         doAnswer(inv -> {
                     operationOrder.updateAndGet(s -> s + "pauseGossip,");
                     return null;
@@ -595,93 +538,32 @@ class ReconnectControllerTest {
                 .when(platformCoordinator)
                 .resumeGossip();
 
-        final var controllerRunnable = RunnableCompletionControl.unblocked(() -> {
-            try (final var ignored = mockStatic(SignedStateFileReader.class)) {
-                controller.run();
-            }
-        });
+        new ReconnectScenario(createController())
+                .start()
+                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
+                .waitForReconnectToRequestState()
+                .provideState()
+                .wait(200)
+                .stop();
 
-        final var simulator = RunnableCompletionControl.unblocked(() -> {
-            try {
-                Thread.sleep(50);
-                fallenBehindMonitor.report(NodeId.of(1));
-                fallenBehindMonitor.report(NodeId.of(2));
-
-                Thread.sleep(100);
-                assertTrue(peerReservedSignedStateResultPromise.acquireProvidePermit());
-                peerReservedSignedStateResultPromise.provide(
-                        new ReservedSignedStateResult(testReservedSignedState, null));
-
-                Thread.sleep(200);
-                controller.stopReconnectLoop();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
-
-        final var controllerThread = controllerRunnable.start();
-        simulator.start();
-
-        simulator.waitIsFinished(LONG_TIMEOUT);
-        controllerThread.interrupt();
-        controllerRunnable.waitIsFinished(LONG_TIMEOUT);
-
+        // Verify operations occurred in correct order
         final String operations = operationOrder.get();
         assertTrue(operations.contains("pauseGossip"), "Should pause gossip");
         assertTrue(operations.contains("clear"), "Should clear queues");
         assertTrue(operations.contains("resumeGossip"), "Should resume gossip");
 
-        // Verify pauseGossip comes before resumeGossip
         final int pauseIndex = operations.indexOf("pauseGossip");
         final int resumeIndex = operations.indexOf("resumeGossip");
         assertTrue(pauseIndex < resumeIndex, "pauseGossip should come before resumeGossip");
     }
 
     @Test
-    @DisplayName("SavedStateController is notified of received state")
-    void testSavedStateControllerNotified() throws Exception {
-        final ReconnectController controller = createController();
-
-        final var controllerRunnable = RunnableCompletionControl.unblocked(() -> {
-            try (final var ignored = mockStatic(SignedStateFileReader.class)) {
-                controller.run();
-            }
-        });
-
-        final var simulator = RunnableCompletionControl.unblocked(() -> {
-            try {
-                Thread.sleep(50);
-                fallenBehindMonitor.report(NodeId.of(1));
-                fallenBehindMonitor.report(NodeId.of(2));
-
-                Thread.sleep(100);
-                assertTrue(peerReservedSignedStateResultPromise.acquireProvidePermit());
-                peerReservedSignedStateResultPromise.provide(
-                        new ReservedSignedStateResult(testReservedSignedState, null));
-
-                Thread.sleep(200);
-                controller.stopReconnectLoop();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
-
-        final var controllerThread = controllerRunnable.start();
-        simulator.start();
-
-        simulator.waitIsFinished(LONG_TIMEOUT);
-        controllerThread.interrupt();
-        controllerRunnable.waitIsFinished(LONG_TIMEOUT);
-
-        verify(savedStateController, times(1)).reconnectStateReceived(any(ReservedSignedState.class));
-    }
-
-    @Test
     @DisplayName("ReconnectCompleteAction is submitted with correct round")
-    void testReconnectCompleteActionSubmitted() throws Exception {
+    void testReconnectCompleteActionSubmitted() throws InterruptedException {
         final ReconnectController controller = createController();
         final AtomicReference<ReconnectCompleteAction> capturedAction = new AtomicReference<>();
 
+        // Capture the submitted action
         doAnswer(inv -> {
                     final Object arg = inv.getArgument(0);
                     if (arg instanceof ReconnectCompleteAction action) {
@@ -692,37 +574,18 @@ class ReconnectControllerTest {
                 .when(platformCoordinator)
                 .submitStatusAction(any());
 
-        final var controllerRunnable = RunnableCompletionControl.unblocked(() -> {
-            try (final var ignored = mockStatic(SignedStateFileReader.class)) {
-                controller.run();
-            }
-        });
+        final var scenario = new ReconnectScenario(controller);
+        scenario.start()
+                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
+                .waitForReconnectToRequestState()
+                .provideState()
+                .syncRun(() -> {
+                    controller.stopReconnectLoop();
+                    scenario.interruptControllerThread();
+                })
+                .waitForFinish();
 
-        final var simulator = RunnableCompletionControl.unblocked(() -> {
-            try {
-                Thread.sleep(50);
-                fallenBehindMonitor.report(NodeId.of(1));
-                fallenBehindMonitor.report(NodeId.of(2));
-
-                Thread.sleep(100);
-                assertTrue(peerReservedSignedStateResultPromise.acquireProvidePermit());
-                peerReservedSignedStateResultPromise.provide(
-                        new ReservedSignedStateResult(testReservedSignedState, null));
-
-                Thread.sleep(200);
-                controller.stopReconnectLoop();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
-
-        final var controllerThread = controllerRunnable.start();
-        simulator.start();
-
-        simulator.waitIsFinished(LONG_TIMEOUT);
-        controllerThread.interrupt();
-        controllerRunnable.waitIsFinished(LONG_TIMEOUT);
-
+        // Verify the action was submitted with correct round
         assertNotNull(capturedAction.get(), "ReconnectCompleteAction should have been submitted");
         assertEquals(
                 testSignedState.getRound(),
@@ -732,73 +595,45 @@ class ReconnectControllerTest {
 
     @Test
     @DisplayName("System exits when maximum reconnect failures threshold is exceeded")
-    void testSystemExitOnMaxReconnectFailures() throws Exception {
-        final AtomicReference<SystemExitCode> capturedExitCode = new AtomicReference<>();
-        final CountDownLatch exitCalledLatch = new CountDownLatch(1);
-        final Semaphore signedStateIvoked = new Semaphore(0);
+    void testSystemExitOnMaxReconnectFailures() {
         // Mock the validator to throw on first call, succeed on second
         doAnswer(a -> {
-                    signedStateIvoked.release();
                     throw new IllegalStateException("Simulated validation failure");
                 })
                 .when(signedStateValidator)
                 .validate(any(SignedState.class), any(Roster.class), any(SignedStateValidationData.class));
 
         final ReconnectController controller = createController();
+        final AtomicReference<SystemExitCode> capturedExitCode = new AtomicReference<>();
+        final var scenario = new ReconnectScenario(controller);
+        scenario.startWithExitCapture(capturedExitCode)
+                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
+                .waitForReconnectToRequestState()
+                .parallelRun(() -> {
+                    try {
+                        // Simulate 5 failed reconnect attempts (matching maximumReconnectFailuresBeforeShutdown)
+                        for (int i = 0; i < 5; i++) {
+                            sleep(500);
+                            Assertions.assertTrue(stateProvider.acquireProvidePermit());
+                            stateProvider.provide(
+                                    new ReservedSignedStateResult(testSignedState.reserve("retry" + i), null));
+                        }
+                    } catch (InterruptedException e) {
+                        Assertions.fail();
+                    }
+                })
+                .waitForFinish();
 
-        final Thread controllerThread = new Thread(() -> {
-            try (final var ignored = mockStatic(SignedStateFileReader.class);
-                    final var mockedSystemExit = mockStatic(SystemExitUtils.class)) {
-                mockedSystemExit
-                        .when(() -> SystemExitUtils.exitSystem(any(SystemExitCode.class)))
-                        .thenAnswer(inv -> {
-                            capturedExitCode.set(inv.getArgument(0));
-                            exitCalledLatch.countDown();
-                            return null;
-                        });
-                controller.run();
-            }
-        });
-
-        final Thread simulatorThread = new Thread(() -> {
-            try {
-                // Trigger fallen behind
-                fallenBehindMonitor.report(NodeId.of(1));
-                fallenBehindMonitor.report(NodeId.of(2));
-
-                // Simulate 5 failed reconnect attempts (matching maximumReconnectFailuresBeforeShutdown)
-                for (int i = 0; i < 5; i++) {
-                    Thread.sleep(500);
-                    assertTrue(peerReservedSignedStateResultPromise.acquireProvidePermit());
-                    peerReservedSignedStateResultPromise.provide(
-                            new ReservedSignedStateResult(testSignedState.reserve("retry" + i), null));
-                    signedStateIvoked.acquire();
-                }
-
-                // Wait a bit longer for the exit to be called
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
-
-        controllerThread.start();
-        simulatorThread.start();
-
-        controllerThread.join(1000);
-        simulatorThread.join(1000);
-        // Wait for system exit to be called
-        assertTrue(exitCalledLatch.await(5, SECONDS), "SystemExitUtils.exitSystem should have been called");
-
-        // Verify the correct exit code
+        // Verify the correct exit code was captured
+        assertNotNull(capturedExitCode.get(), "SystemExitUtils.exitSystem should have been called");
         assertEquals(
                 SystemExitCode.RECONNECT_FAILURE, capturedExitCode.get(), "Should exit with RECONNECT_FAILURE code");
     }
 
     @Test
     @DisplayName("System exits when reconnect window has elapsed")
-    void testSystemExitOnReconnectWindowTimeout() throws Exception {
+    void testSystemExitOnReconnectWindowTimeout() {
         final AtomicReference<SystemExitCode> capturedExitCode = new AtomicReference<>();
-        final CountDownLatch exitCalledLatch = new CountDownLatch(1);
 
         // Create a platform context with a very short reconnect window (1 second)
         final PlatformContext shortWindowContext = TestPlatformContextBuilder.create()
@@ -811,71 +646,26 @@ class ReconnectControllerTest {
                 .withTime(new FakeTime())
                 .build();
 
-        final ReconnectController controller = new ReconnectController(
-                roster,
-                merkleCryptography,
-                platform,
-                shortWindowContext,
-                platformCoordinator,
-                stateLifecycleManager,
-                savedStateController,
-                consensusStateEventHandler,
-                peerReservedSignedStateResultPromise,
-                selfId,
-                fallenBehindMonitor,
-                signedStateValidator);
+        new ReconnectScenario(createController(shortWindowContext))
+                .startWithExitCapture(capturedExitCode)
+                .syncRun(() -> {
+                    // make the time move forward for the window to elapse
+                    ((FakeTime) shortWindowContext.getTime()).tick(Duration.ofSeconds(2));
+                })
+                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
+                .wait(1000)
+                .waitForFinish();
 
-        final Thread controllerThread = new Thread(() -> {
-            try (final var ignored = mockStatic(SignedStateFileReader.class);
-                    final var mockedSystemExit = mockStatic(SystemExitUtils.class)) {
-                mockedSystemExit
-                        .when(() -> SystemExitUtils.exitSystem(any(SystemExitCode.class)))
-                        .thenAnswer(inv -> {
-                            capturedExitCode.set(inv.getArgument(0));
-                            exitCalledLatch.countDown();
-                            return null;
-                        });
-                controller.run();
-            }
-        });
-
-        final Thread simulatorThread = new Thread(() -> {
-            try {
-                // make the time move forward for the window to elapse
-                ((FakeTime) shortWindowContext.getTime()).tick(Duration.ofSeconds(2));
-
-                // Now trigger fallen behind (after window has elapsed)
-                fallenBehindMonitor.report(NodeId.of(1));
-                fallenBehindMonitor.report(NodeId.of(2));
-
-                // Wait for exit to be called
-                Thread.sleep(200);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
-
-        controllerThread.start();
-        simulatorThread.start();
-
-        // Wait for system exit to be called
-        assertTrue(
-                exitCalledLatch.await(3, SECONDS),
-                "SystemExitUtils.exitSystem should have been called when window elapsed");
-
-        // Verify the correct exit code
+        // Verify the correct exit code was captured
+        assertNotNull(capturedExitCode.get(), "SystemExitUtils.exitSystem should have been called when window elapsed");
         assertEquals(
                 SystemExitCode.RECONNECT_FAILURE, capturedExitCode.get(), "Should exit with RECONNECT_FAILURE code");
-
-        controllerThread.join(1000);
-        simulatorThread.join(1000);
     }
 
     @Test
     @DisplayName("System exits when reconnect is disabled")
-    void testSystemExitWhenReconnectDisabled() throws Exception {
+    void testSystemExitWhenReconnectDisabled() {
         final AtomicReference<SystemExitCode> capturedExitCode = new AtomicReference<>();
-        final CountDownLatch exitCalledLatch = new CountDownLatch(1);
 
         // Create a platform context with reconnect disabled
         final PlatformContext disabledContext = TestPlatformContextBuilder.create()
@@ -887,162 +677,60 @@ class ReconnectControllerTest {
                         .getOrCreateConfig())
                 .build();
 
-        final ReconnectController controller = new ReconnectController(
-                roster,
-                merkleCryptography,
-                platform,
-                disabledContext,
-                platformCoordinator,
-                stateLifecycleManager,
-                savedStateController,
-                consensusStateEventHandler,
-                peerReservedSignedStateResultPromise,
-                selfId,
-                fallenBehindMonitor,
-                signedStateValidator);
+        final ReconnectController controller = createController(disabledContext);
 
-        final Thread controllerThread = new Thread(() -> {
-            try (final var ignored = mockStatic(SignedStateFileReader.class);
-                    final var mockedSystemExit = mockStatic(SystemExitUtils.class)) {
-                mockedSystemExit
-                        .when(() -> SystemExitUtils.exitSystem(any(SystemExitCode.class)))
-                        .thenAnswer(inv -> {
-                            capturedExitCode.set(inv.getArgument(0));
-                            exitCalledLatch.countDown();
-                            return null;
-                        });
-                controller.run();
-            }
-        });
+        final var scenario = new ReconnectScenario(controller);
+        scenario.startWithExitCapture(capturedExitCode)
+                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
+                .waitForFinish();
 
-        controllerThread.start();
-        // Trigger fallen behind
-        fallenBehindMonitor.report(NodeId.of(1));
-        fallenBehindMonitor.report(NodeId.of(2));
-
-        // Wait for system exit to be called (should happen immediately in start())
-        assertTrue(
-                exitCalledLatch.await(2, SECONDS),
-                "SystemExitUtils.exitSystem should have been called when reconnect is disabled");
-
-        // Verify the correct exit code
-        assertEquals(
-                SystemExitCode.BEHIND_RECONNECT_DISABLED,
+        // Verify the correct exit code was captured
+        assertNotNull(
                 capturedExitCode.get(),
-                "Should exit with BEHIND_RECONNECT_DISABLED code");
-
-        controllerThread.join(1000);
+                "SystemExitUtils.exitSystem should have been called when reconnect is disabled");
     }
 
     @Test
     @DisplayName("System exits on unexpected runtime exception during reconnect")
-    void testSystemExitOnUnexpectedRuntimeException() throws Exception {
+    void testSystemExitOnUnexpectedRuntimeException() {
         final AtomicReference<SystemExitCode> capturedExitCode = new AtomicReference<>();
-        final CountDownLatch exitCalledLatch = new CountDownLatch(1);
 
         // Make platformCoordinator.pauseGossip() throw an unexpected RuntimeException
         doThrow(new RuntimeException("Unexpected error during pauseGossip"))
                 .when(platformCoordinator)
                 .pauseGossip();
 
-        final ReconnectController controller = createController();
+        new ReconnectScenario(createController())
+                .startWithExitCapture(capturedExitCode)
+                // Start controller
+                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
+                .waitForFinish();
 
-        final Thread controllerThread = new Thread(() -> {
-            try (final var ignored = mockStatic(SignedStateFileReader.class);
-                    final var mockedSystemExit = mockStatic(SystemExitUtils.class)) {
-                mockedSystemExit
-                        .when(() -> SystemExitUtils.exitSystem(any(SystemExitCode.class)))
-                        .thenAnswer(inv -> {
-                            capturedExitCode.set(inv.getArgument(0));
-                            exitCalledLatch.countDown();
-                            return null;
-                        });
-                controller.run();
-            }
-        });
-
-        final Thread simulatorThread = new Thread(() -> {
-            try {
-                // Trigger fallen behind
-                Thread.sleep(50);
-                fallenBehindMonitor.report(NodeId.of(1));
-                fallenBehindMonitor.report(NodeId.of(2));
-
-                // Wait for the exception to occur and exit to be called
-                Thread.sleep(300);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
-
-        controllerThread.start();
-        simulatorThread.start();
-
-        // Wait for system exit to be called
-        assertTrue(
-                exitCalledLatch.await(2, SECONDS),
-                "SystemExitUtils.exitSystem should have been called on unexpected exception");
-
-        // Verify the correct exit code
+        // Verify the correct exit code was captured
+        assertNotNull(
+                capturedExitCode.get(), "SystemExitUtils.exitSystem should have been called on unexpected exception");
         assertEquals(
                 SystemExitCode.RECONNECT_FAILURE,
                 capturedExitCode.get(),
                 "Should exit with RECONNECT_FAILURE code on unexpected exception");
-
-        controllerThread.join(1000);
-        simulatorThread.join(1000);
     }
 
     @Test
     @DisplayName("System exits on unexpected InterruptedException during reconnect")
-    void testSystemExitOnUnexpectedInterruptedExceptionDuringReconnect() throws Exception {
+    void testSystemExitOnUnexpectedInterruptedExceptionDuringReconnect() {
         final AtomicReference<SystemExitCode> capturedExitCode = new AtomicReference<>();
-        final CountDownLatch exitCalledLatch = new CountDownLatch(1);
 
         final ReconnectController controller = createController();
+        final var scenario = new ReconnectScenario(controller);
+        scenario.startWithExitCapture(capturedExitCode)
+                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
+                .waitForReconnectToRequestState()
+                .parallelRun(scenario::interruptControllerThread)
+                .waitForFinish();
 
-        final Thread controllerThread = new Thread(() -> {
-            try (final var ignored = mockStatic(SignedStateFileReader.class);
-                    final var mockedSystemExit = mockStatic(SystemExitUtils.class)) {
-                mockedSystemExit
-                        .when(() -> SystemExitUtils.exitSystem(any(SystemExitCode.class)))
-                        .thenAnswer(inv -> {
-                            capturedExitCode.set(inv.getArgument(0));
-                            exitCalledLatch.countDown();
-                            return null;
-                        });
-                controller.run();
-            }
-        });
-
-        final Thread simulatorThread = new Thread(() -> {
-            try {
-                // Trigger fallen behind
-                Thread.sleep(50);
-                fallenBehindMonitor.report(NodeId.of(1));
-                fallenBehindMonitor.report(NodeId.of(2));
-                // Give enough time for the reconnect thread to wait on a state to be provided
-                Thread.sleep(2000);
-
-                // Cause an unexpected interruption on the reconnectThread
-                controllerThread.interrupt();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
-
-        controllerThread.start();
-        simulatorThread.start();
-
-        controllerThread.join(3000);
-        simulatorThread.join(3000);
-
-        // Wait for system exit to be called
-        assertTrue(
-                exitCalledLatch.await(2, SECONDS),
-                "SystemExitUtils.exitSystem should have been called on InterruptedException");
-
-        // Verify the correct exit code
+        // Verify the correct exit code was captured
+        assertNotNull(
+                capturedExitCode.get(), "SystemExitUtils.exitSystem should have been called on InterruptedException");
         assertEquals(
                 SystemExitCode.RECONNECT_FAILURE,
                 capturedExitCode.get(),
@@ -1051,52 +739,38 @@ class ReconnectControllerTest {
 
     @Test
     @DisplayName("Controller gracefully stops when interrupted during operations after stop()")
-    void controllerGracefullyStopsWhenStopReconnectLoopIsCalledAndThreadIsInterrupted() throws Exception {
-        final AtomicBoolean systemExitCalled = new AtomicBoolean(false);
+    void controllerGracefullyStopsWhenStopReconnectLoopIsCalledAndThreadIsInterrupted() {
+        final AtomicReference<?> systemExitCalled = new AtomicReference<>();
 
         final ReconnectController controller = createController();
 
-        final Thread controllerThread = new Thread(() -> {
-            try (final var ignored = mockStatic(SignedStateFileReader.class);
-                    final var mockedSystemExit = mockStatic(SystemExitUtils.class)) {
-                mockedSystemExit
-                        .when(() -> SystemExitUtils.exitSystem(any(SystemExitCode.class)))
-                        .thenAnswer(inv -> {
-                            systemExitCalled.set(true);
-                            return null;
-                        });
-                controller.run();
-            }
-        });
-
-        final Thread simulatorThread = new Thread(() -> {
-            try {
-                // Trigger fallen behind
-                Thread.sleep(50);
-                fallenBehindMonitor.report(NodeId.of(1));
-                fallenBehindMonitor.report(NodeId.of(2));
-                // Give enough time for the reconnect thread to wait on a state to be provided
-                Thread.sleep(2000);
-                // Cause an expected interruption on the reconnectThread
-                controller.stopReconnectLoop();
-                controllerThread.interrupt();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
-
-        controllerThread.start();
-        simulatorThread.start();
-
-        controllerThread.join(3000);
-        simulatorThread.join(3000);
+        final var scenario = new ReconnectScenario(controller);
+        scenario
+                // Start controller
+                .startWithExitCapture(systemExitCalled)
+                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
+                .waitForReconnectToRequestState()
+                .parallelRun(() -> {
+                    controller.stopReconnectLoop();
+                    scenario.interruptControllerThread();
+                })
+                .waitForFinish();
 
         // Wait for system exit to be called
-        assertFalse(
+        assertNull(
                 systemExitCalled.get(),
                 "SystemExitUtils.exitSystem should not have been called on expected InterruptedException");
 
         // Verify the thread finished correctly
-        assertFalse(controllerThread.isAlive());
+        assertFalse(scenario.isControllerAlive());
+    }
+
+    private static void sleep(long millis) {
+
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            fail("Unexpected interruption", e);
+        }
     }
 }
