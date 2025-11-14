@@ -24,7 +24,7 @@ public class TokenMintFeeCalculator implements ServiceFeeCalculator {
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_MINT);
-        feeResult.addServiceFee("Base Fee for " + HederaFunctionality.TOKEN_MINT, 1, serviceDef.baseFee());
+        feeResult.addServiceFee(1, serviceDef.baseFee());
         var op = txnBody.tokenMintOrThrow();
         if (op.amount() > 0) {
             addExtraFee(feeResult, serviceDef, Extra.STANDARD_FUNGIBLE_TOKENS, feeSchedule, op.amount());
