@@ -53,9 +53,14 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.hapi.fees.FeeModelRegistry;
+import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
 
 /**
  * This class contains all workflow-related functionality regarding {@link
@@ -303,5 +308,25 @@ public class TokenMintHandler extends BaseTokenHandler implements TransactionHan
         calculator.addRamByteSeconds(meta.getRbs());
         calculator.addNetworkRamByteSeconds(meta.getTransferRecordDb() * USAGE_PROPERTIES.legacyReceiptStorageSecs());
         return calculator.calculate();
+    }
+
+    @Override
+    public @NonNull FeeResult calculateFeeResult(@NonNull FeeContext feeContext) {
+        final var model = FeeModelRegistry.lookupModel(HederaFunctionality.TOKEN_MINT);
+        Map<Extra, Long> params = new HashMap<>();
+        params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
+        params.put(Extra.KEYS, 0L);
+
+        var op = feeContext.body().tokenMintOrThrow();
+        if (op.amount() > 0) {
+            params.put(Extra.STANDARD_FUNGIBLE_TOKENS, op.amount());
+            params.put(Extra.STANDARD_NON_FUNGIBLE_TOKENS, 0L);
+        } else {
+            params.put(Extra.STANDARD_FUNGIBLE_TOKENS, 0L);
+            params.put(Extra.STANDARD_NON_FUNGIBLE_TOKENS, 1L);
+        }
+        return model.computeFee(
+                params,
+                feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT).getSimpleFeesSchedule());
     }
 }
