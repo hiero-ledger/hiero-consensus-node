@@ -9,9 +9,10 @@ import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 public interface HederaGasCalculator extends GasCalculator {
 
     /**
-     * Calculate gas requirements of the transaction
-     * This method basically overrides {@link GasCalculator#transactionIntrinsicGasCost(Transaction, long)}
-     * and uses {@link GasCalculator#transactionFloorCost(Bytes, long)}
+     * Calculate gas requirements of the transaction.
+     * This method mirrors {{@link GasCalculator#transactionIntrinsicGasCost(Transaction, long)},
+     * but does not require a full Transaction object and uses
+     * {@link GasCalculator#transactionFloorCost(Bytes, long)} for `minimumGasUsed` calculation.
      *
      * @param payload          the payload of the transaction
      * @param isContractCreate is this call a 'contract creation'
