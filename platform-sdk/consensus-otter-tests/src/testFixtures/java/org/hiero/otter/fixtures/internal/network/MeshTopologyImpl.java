@@ -2,7 +2,7 @@
 package org.hiero.otter.fixtures.internal.network;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.otter.fixtures.network.utils.BandwidthLimit.UNLIMITED_BANDWIDTH;
+import static org.hiero.otter.fixtures.network.BandwidthLimit.UNLIMITED_BANDWIDTH;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -23,8 +23,8 @@ import org.hiero.otter.fixtures.network.MeshTopologyConfiguration;
 public class MeshTopologyImpl implements MeshTopology {
 
     private static final Duration AVERAGE_NETWORK_DELAY = Duration.ofMillis(200);
-    private static final ConnectionData DEFAULT =
-            new ConnectionData(true, AVERAGE_NETWORK_DELAY, Percentage.withPercentage(5), UNLIMITED_BANDWIDTH);
+    private static final ConnectionState DEFAULT =
+            new ConnectionState(true, AVERAGE_NETWORK_DELAY, Percentage.withPercentage(5), UNLIMITED_BANDWIDTH);
 
     private final Function<Integer, List<? extends Node>> nodeFactory;
     private final Supplier<InstrumentedNode> instrumentedNodeFactory;

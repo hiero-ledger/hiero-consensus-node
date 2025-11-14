@@ -3,7 +3,7 @@ package org.hiero.otter.fixtures.internal.network;
 
 import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.internal.network.GeoDistributor.calculateNextLocation;
-import static org.hiero.otter.fixtures.network.utils.BandwidthLimit.UNLIMITED_BANDWIDTH;
+import static org.hiero.otter.fixtures.network.BandwidthLimit.UNLIMITED_BANDWIDTH;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -27,7 +27,7 @@ import org.hiero.otter.fixtures.network.utils.LatencyRange;
 public class GeoMeshTopologyImpl implements GeoMeshTopology {
 
     private final Map<Node, Location> nodes = new LinkedHashMap<>();
-    private final Map<Connection, ConnectionData> connectionDataMap = new LinkedHashMap<>();
+    private final Map<Connection, ConnectionState> connectionDataMap = new LinkedHashMap<>();
 
     private final Function<Integer, List<? extends Node>> nodeFactory;
     private final Supplier<InstrumentedNode> instrumentedNodeFactory;
@@ -146,13 +146,13 @@ public class GeoMeshTopologyImpl implements GeoMeshTopology {
      */
     @Override
     @NonNull
-    public ConnectionData getConnectionData(@NonNull final Node sender, @NonNull final Node receiver) {
+    public ConnectionState getConnectionData(@NonNull final Node sender, @NonNull final Node receiver) {
         final Connection connection = new Connection(sender, receiver);
         return connectionDataMap.computeIfAbsent(connection, this::addConnectionData);
     }
 
     @NonNull
-    private ConnectionData addConnectionData(@NonNull final Connection connection) {
+    private ConnectionState addConnectionData(@NonNull final Connection connection) {
         final Node node1 = connection.node1;
         final Node node2 = connection.node2;
         final LatencyRange latencyRange;
@@ -166,7 +166,7 @@ public class GeoMeshTopologyImpl implements GeoMeshTopology {
         final long nanos =
                 random.nextLong(latencyRange.min().toNanos(), latencyRange.max().toNanos());
         final Duration latency = Duration.ofNanos(nanos);
-        return new ConnectionData(true, latency, latencyRange.jitterPercent(), UNLIMITED_BANDWIDTH);
+        return new ConnectionState(true, latency, latencyRange.jitterPercent(), UNLIMITED_BANDWIDTH);
     }
 
     private record Connection(@NonNull Node node1, @NonNull Node node2) {

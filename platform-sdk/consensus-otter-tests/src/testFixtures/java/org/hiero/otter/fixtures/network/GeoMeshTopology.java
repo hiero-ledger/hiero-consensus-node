@@ -5,7 +5,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Node;
-import org.hiero.otter.fixtures.network.utils.GeoMeshTopologyConfiguration;
 
 /**
  * Interface for a mesh network topology that simulates realistic latency and jitter based on geographic distribution.

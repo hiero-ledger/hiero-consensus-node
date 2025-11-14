@@ -22,10 +22,7 @@ public class StandardFeeModel extends AbstractBaseFeeModel {
     @Override
     public FeeResult computeFee(Map<Extra, Long> params, FeeSchedule feeSchedule) {
         var result = this.computeNodeAndNetworkFees(params, feeSchedule);
-        result.addServiceFee(
-                "Base Fee for " + this.getApi(),
-                1,
-                lookupServiceFee(feeSchedule, this.getApi()).baseFee());
+        result.addServiceFee(1, lookupServiceFee(feeSchedule, this.getApi()).baseFee());
 
         ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, this.getApi());
         for (ExtraFeeReference ref : serviceDef.extras()) {
@@ -35,10 +32,10 @@ public class StandardFeeModel extends AbstractBaseFeeModel {
             }
             int included = ref.includedCount();
             long used = (long) params.get(ref.name());
-            long extraFee = lookupExtraFee(feeSchedule, ref).fee();
+            long extraFee = lookupExtraFee(feeSchedule, ref.name()).fee();
             if (used > included) {
                 final long overage = used - included;
-                result.addServiceFee("Overage of " + ref.name().name(), overage, overage * extraFee);
+                result.addServiceFee(overage, extraFee);
             }
         }
         return result;

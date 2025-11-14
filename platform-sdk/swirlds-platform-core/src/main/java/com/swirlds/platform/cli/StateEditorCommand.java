@@ -22,7 +22,7 @@ import picocli.CommandLine;
 @SubcommandOf(StateCommand.class)
 public class StateEditorCommand extends AbstractCommand {
 
-    private Path statePath;
+    private Path stateDirPath;
 
     /**
      * Load configuration from these files.
@@ -32,9 +32,9 @@ public class StateEditorCommand extends AbstractCommand {
     /**
      * Set the path to state A.
      */
-    @CommandLine.Parameters(description = "The path to the state to open with the editor")
-    private void setStatePath(final Path statePath) {
-        this.statePath = pathMustExist(statePath.toAbsolutePath());
+    @CommandLine.Parameters(description = "The path to the state directory to open with the editor")
+    private void setStateDirPath(final Path stateDirPath) {
+        this.stateDirPath = dirMustExist(stateDirPath.toAbsolutePath());
     }
 
     /**
@@ -59,7 +59,7 @@ public class StateEditorCommand extends AbstractCommand {
                 ConfigurationBuilder.create(), getAbsolutePath("settings.txt"), configurationPaths);
         BootstrapUtils.setupConstructableRegistry();
 
-        new StateEditor(statePath).start();
+        new StateEditor(stateDirPath).start();
 
         return 0;
     }
