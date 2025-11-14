@@ -68,6 +68,7 @@ module com.hedera.node.app {
 
     exports com.hedera.node.app;
     exports com.hedera.node.app.state;
+    exports com.hedera.node.app.quiescence;
     exports com.hedera.node.app.workflows.ingest;
     exports com.hedera.node.app.workflows.query;
     exports com.hedera.node.app.workflows;

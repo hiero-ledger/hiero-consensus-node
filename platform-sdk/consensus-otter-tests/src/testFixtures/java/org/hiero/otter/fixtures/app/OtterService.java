@@ -15,6 +15,7 @@ import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.otter.fixtures.app.state.OtterServiceStateSpecification;
+import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 
 /**
  * This interface defines a service of the Otter application.

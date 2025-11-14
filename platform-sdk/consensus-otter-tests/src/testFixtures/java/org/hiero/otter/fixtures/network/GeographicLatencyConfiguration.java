@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.network.utils;
+package org.hiero.otter.fixtures.network;
 
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.data.Percentage.withPercentage;
