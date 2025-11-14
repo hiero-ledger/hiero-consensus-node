@@ -285,7 +285,7 @@ public record ApiPermissionConfig(
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange lambdaSStore,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange hookDispatch,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange nodeStakeUpdate,
-        @ConfigProperty(defaultValue = "2-799!3-41") PermissionedAccountsRange governanceTransactions) {
+        @ConfigProperty(defaultValue = "2,42-799") PermissionedAccountsRange governanceTransactions) {
 
     private static final EnumMap<HederaFunctionality, Function<ApiPermissionConfig, PermissionedAccountsRange>>
             permissionKeys = new EnumMap<>(HederaFunctionality.class);
