@@ -6,7 +6,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.hiero.metrics.api.StatelessMetric;
-import org.hiero.metrics.api.core.LongOrDoubleSupplier;
+import org.hiero.metrics.api.core.NumberSupplier;
 import org.hiero.metrics.api.export.snapshot.SingleValueDataPointSnapshot;
 import org.hiero.metrics.internal.core.AbstractMetric;
 import org.hiero.metrics.internal.core.LabelValues;
@@ -14,7 +14,7 @@ import org.hiero.metrics.internal.datapoint.DataPointHolder;
 import org.hiero.metrics.internal.export.snapshot.DoubleValueDataPointSnapshotImpl;
 import org.hiero.metrics.internal.export.snapshot.LongValueDataPointSnapshotImpl;
 
-public final class StatelessMetricImpl extends AbstractMetric<LongOrDoubleSupplier, SingleValueDataPointSnapshot>
+public final class StatelessMetricImpl extends AbstractMetric<NumberSupplier, SingleValueDataPointSnapshot>
         implements StatelessMetric {
 
     private final Set<LabelValues> labelValuesSet = ConcurrentHashMap.newKeySet();
@@ -30,8 +30,8 @@ public final class StatelessMetricImpl extends AbstractMetric<LongOrDoubleSuppli
 
     @Override
     protected SingleValueDataPointSnapshot createDataPointSnapshot(
-            LongOrDoubleSupplier datapoint, LabelValues dynamicLabelValues) {
-        if (datapoint.isDoubleSupplier()) {
+            NumberSupplier datapoint, LabelValues dynamicLabelValues) {
+        if (datapoint.isFloatingSupplier()) {
             return new DoubleValueDataPointSnapshotImpl(dynamicLabelValues);
         } else {
             return new LongValueDataPointSnapshotImpl(dynamicLabelValues);
@@ -40,21 +40,21 @@ public final class StatelessMetricImpl extends AbstractMetric<LongOrDoubleSuppli
 
     @Override
     protected void updateDatapointSnapshot(
-            DataPointHolder<LongOrDoubleSupplier, SingleValueDataPointSnapshot> dataPointHolder) {
-        LongOrDoubleSupplier datapoint = dataPointHolder.dataPoint();
-        if (datapoint.isDoubleSupplier()) {
+            DataPointHolder<NumberSupplier, SingleValueDataPointSnapshot> dataPointHolder) {
+        NumberSupplier datapoint = dataPointHolder.dataPoint();
+        if (datapoint.isFloatingSupplier()) {
             ((DoubleValueDataPointSnapshotImpl) dataPointHolder.snapshot())
-                    .set(datapoint.getDoubleValueSupplier().getAsDouble());
+                    .set(datapoint.getDoubleSupplier().getAsDouble());
         } else {
             ((LongValueDataPointSnapshotImpl) dataPointHolder.snapshot())
-                    .set(datapoint.getLongValueSupplier().getAsLong());
+                    .set(datapoint.getLongSupplier().getAsLong());
         }
     }
 
     @NonNull
     @Override
     public StatelessMetric registerDataPoint(
-            @NonNull LongOrDoubleSupplier valueSupplier, @NonNull String... labelNamesAndValues) {
+            @NonNull NumberSupplier valueSupplier, @NonNull String... labelNamesAndValues) {
         Objects.requireNonNull(valueSupplier, "Value supplier must not be null");
 
         LabelValues labelValues = createLabelValues(labelNamesAndValues);
