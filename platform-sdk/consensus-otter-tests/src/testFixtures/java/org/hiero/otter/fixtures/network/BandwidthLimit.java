@@ -121,6 +121,6 @@ public class BandwidthLimit implements Comparable<BandwidthLimit> {
      */
     @Override
     public String toString() {
-        return "BandwidthLimit{" + "KB/s=" + kilobytesPerSecond + '}';
+        return kilobytesPerSecond + " KB/s";
     }
 }

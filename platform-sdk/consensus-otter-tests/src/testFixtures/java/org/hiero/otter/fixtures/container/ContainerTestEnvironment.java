@@ -19,6 +19,7 @@ import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.chaosbot.ChaosBot;
+import org.hiero.otter.fixtures.chaosbot.ChaosBotConfiguration;
 import org.hiero.otter.fixtures.chaosbot.internal.ChaosBotImpl;
 import org.hiero.otter.fixtures.internal.RegularTimeManager;
 
@@ -122,17 +123,8 @@ public class ContainerTestEnvironment implements TestEnvironment {
      */
     @Override
     @NonNull
-    public ChaosBot createChaosBot() {
-        return new ChaosBotImpl(this);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public ChaosBot createChaosBot(final long seed) {
-        return new ChaosBotImpl(this, seed);
+    public ChaosBot createChaosBot(@NonNull final ChaosBotConfiguration configuration) {
+        return new ChaosBotImpl(this, configuration);
     }
 
     /**
