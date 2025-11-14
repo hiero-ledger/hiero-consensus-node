@@ -1139,10 +1139,10 @@ final class TransactionCheckerTest extends AppTestBase {
                 when(txInfo.functionality()).thenReturn(CRYPTO_TRANSFER);
 
                 final var privilegedAccountId = AccountID.newBuilder()
-                        .accountNum(2L) // Account 2 is in the governance range (2-799!3-41)
+                        .accountNum(2L) // Account 2 is in the governance range (2,42-799)
                         .build();
                 final var anotherPrivilegedAccountId = AccountID.newBuilder()
-                        .accountNum(50L) // Account 50 is in the governance range (2-799!3-41)
+                        .accountNum(50L) // Account 50 is in the governance range (2,42-799)
                         .build();
 
                 // When checking transaction size before the payer is known, it passes early validation

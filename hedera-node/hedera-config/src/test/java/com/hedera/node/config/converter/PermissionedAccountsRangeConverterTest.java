@@ -64,6 +64,9 @@ final class PermissionedAccountsRangeConverterTest {
                 // Inclusion-based syntax
                 new TestDataTuple(
                         "2,7,10-20", createInclusionRange(List.of(new Range(2L), new Range(7L), new Range(10L, 20L)))),
+                new TestDataTuple(
+                        "0,5,9,10-20,30-40",
+                        createInclusionRange(List.of(new Range(2L), new Range(7L), new Range(10L, 20L)))),
                 new TestDataTuple("1-5,15-20", createInclusionRange(List.of(new Range(1L, 5L), new Range(15L, 20L)))),
                 new TestDataTuple("1-10,15", createInclusionRange(List.of(new Range(1L, 10L), new Range(15L)))),
                 // Wildcard in inclusion list

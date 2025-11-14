@@ -86,9 +86,9 @@ public class PermissionedAccountsRange {
                                 final Long from = Long.parseLong(rangeParts[0].trim());
                                 final Long to = Long.parseLong(rangeParts[1].trim());
                                 if (from < to) {
-                                    return new PermissionedAccountsRange(List.of(new Range(from, to)));
+                                    allowedRanges.add(new Range(from, to));
                                 } else if (from.equals(to)) {
-                                    return new PermissionedAccountsRange(List.of(new Range(from)));
+                                    allowedRanges.add(new Range(from));
                                 }
                             } catch (NumberFormatException e) {
                                 // Invalid number, skip
