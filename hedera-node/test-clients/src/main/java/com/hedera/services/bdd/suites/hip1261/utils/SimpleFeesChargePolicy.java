@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip1261.utils;
 
 public enum SimpleFeesChargePolicy {
