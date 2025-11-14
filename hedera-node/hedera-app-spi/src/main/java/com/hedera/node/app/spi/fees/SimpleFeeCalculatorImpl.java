@@ -67,9 +67,9 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
                 final long cost = overage * unitFee;
 
                 if ("Node".equals(feeType)) {
-                    result.addNodeFee("Node Overage of " + ref.name().name(), overage, cost);
+                    result.addNodeFee(overage, cost);
                 } else {
-                    result.addServiceFee("Overage of " + ref.name().name(), overage, cost);
+                    result.addServiceFee(overage, cost);
                 }
             }
         }
@@ -93,12 +93,12 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         final var result = new FeeResult();
 
         // Add node base + extras
-        result.addNodeFee("Node base fee", 1, feeSchedule.node().baseFee());
+        result.addNodeFee(1, feeSchedule.node().baseFee());
         addExtraFees(result, "Node", feeSchedule.node().extras(), signatures, bytes, 0);
 
         // Add network fee
         final int multiplier = feeSchedule.network().multiplier();
-        result.addNetworkFee("Total Network fee", multiplier, result.node * multiplier);
+        result.addNetworkFee(result.node * multiplier);
 
         final var serviceFeeCalculator =
                 serviceFeeCalculators.get(txnBody.data().kind());
