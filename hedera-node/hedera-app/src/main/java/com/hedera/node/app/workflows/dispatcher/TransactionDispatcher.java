@@ -133,10 +133,11 @@ public class TransactionDispatcher {
         }
 
         return switch (feeContext.body().data().kind()) {
-            case CRYPTO_DELETE, CRYPTO_CREATE_ACCOUNT,
-                 //                    TOKEN_AIRDROP,
-                 TOKEN_CLAIM_AIRDROP,
-                 TOKEN_CANCEL_AIRDROP-> true;
+            case CRYPTO_DELETE,
+                    CRYPTO_CREATE_ACCOUNT,
+                    //                    TOKEN_AIRDROP,
+                    TOKEN_CLAIM_AIRDROP,
+                    TOKEN_CANCEL_AIRDROP -> true;
             default -> false;
         };
     }

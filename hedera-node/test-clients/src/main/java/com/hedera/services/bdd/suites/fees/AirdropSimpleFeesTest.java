@@ -25,6 +25,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
@@ -40,16 +41,17 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
+@Tag(MATS)
 @Tag(SIMPLE_FEES)
 public class AirdropSimpleFeesTest extends TokenAirdropBase {
     private static final double BASE_AIRDROP_FEE = 0.05;
     private static final double BASE_CLAIM_AIRDROP_FEE = 0.001;
     private static final double BASE_CANCEL_AIRDROP_FEE = 0.001;
     private static final double TOKEN_ASSOCIATION_FEE = 0.05;
+    // NFTs always charge association fee, so 0.1 base
     private static final double NFT_AIRDROP_FEE = 0.1;
 
     @HapiTest
-    @Tag(MATS)
     @DisplayName("charge association fee for FT correctly")
     final Stream<DynamicTest> chargeAirdropAssociationFeeForFT() {
         var receiver = "receiver";
@@ -73,7 +75,6 @@ public class AirdropSimpleFeesTest extends TokenAirdropBase {
     }
 
     @HapiTest
-    @Tag(MATS)
     @DisplayName("charge association fee for NFT correctly")
     final Stream<DynamicTest> chargeAirdropAssociationFeeForNFT() {
         return hapiTest(
@@ -101,7 +102,6 @@ public class AirdropSimpleFeesTest extends TokenAirdropBase {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> claimFungibleTokenAirdropBaseFee() {
         final var nftSupplyKey = "nftSupplyKey";
         final var receiver = "receiver";
@@ -130,6 +130,7 @@ public class AirdropSimpleFeesTest extends TokenAirdropBase {
                                 HapiTokenClaimAirdrop.pendingAirdrop(OWNER, receiver, FUNGIBLE_TOKEN),
                                 HapiTokenClaimAirdrop.pendingNFTAirdrop(OWNER, receiver, NON_FUNGIBLE_TOKEN, 1))
                         .payingWith("receiver")
+                        .fee(ONE_HBAR)
                         .via("claimTxn"), // assert txn record
                 getTxnRecord("claimTxn")
                         .hasPriority(recordWith()
@@ -137,7 +138,7 @@ public class AirdropSimpleFeesTest extends TokenAirdropBase {
                                         moving(10, FUNGIBLE_TOKEN).between(OWNER, receiver)))
                                 .tokenTransfers(includingNonfungibleMovement(
                                         movingUnique(NON_FUNGIBLE_TOKEN, 1).between(OWNER, receiver)))),
-                validateChargedUsd("claimTxn", BASE_CLAIM_AIRDROP_FEE, 3),
+                validateChargedUsd("claimTxn", BASE_CLAIM_AIRDROP_FEE),
                 // assert balance fungible tokens
                 getAccountBalance(receiver).hasTokenBalance(FUNGIBLE_TOKEN, 10),
                 // assert balances NFT
@@ -148,7 +149,6 @@ public class AirdropSimpleFeesTest extends TokenAirdropBase {
     }
 
     @HapiTest
-    @Tag(MATS)
     @DisplayName("cancel airdrop FT happy path")
     final Stream<DynamicTest> cancelAirdropFungibleTokenHappyPath() {
         final var account = "account";
@@ -184,6 +184,6 @@ public class AirdropSimpleFeesTest extends TokenAirdropBase {
 
                 // Verify that the receiver doesn't have the token
                 getAccountBalance(RECEIVER_WITH_0_AUTO_ASSOCIATIONS).hasTokenBalance(FUNGIBLE_TOKEN, 0),
-                validateChargedUsd("cancelAirdrop", BASE_CANCEL_AIRDROP_FEE, 3));
+                validateChargedUsd("cancelAirdrop", BASE_CANCEL_AIRDROP_FEE));
     }
 }

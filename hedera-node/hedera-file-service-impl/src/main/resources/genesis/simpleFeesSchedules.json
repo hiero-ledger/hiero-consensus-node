@@ -168,24 +168,18 @@
         },
         {
           "name": "TokenAirdrop",
-          "baseFee": 500000000,
-          "extras": [
-            { "name": "SIGNATURES", "includedCount": 1 }
-          ]
+          "baseFee": 499000000,
+          "extras": []
         },
         {
           "name": "TokenClaimAirdrop",
-          "baseFee": 10000000,
-          "extras": [
-            { "name": "SIGNATURES", "includedCount": 1 }
-          ]
+          "baseFee": 9000000,
+          "extras": []
         },
         {
           "name": "TokenCancelAirdrop",
-          "baseFee": 10000000,
-          "extras": [
-            { "name": "SIGNATURES", "includedCount": 1 }
-          ]
+          "baseFee": 9000000,
+          "extras": []
         }
       ]
     }

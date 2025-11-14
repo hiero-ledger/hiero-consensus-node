@@ -7,7 +7,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_R
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PENDING_NFT_AIRDROP_ALREADY_EXISTS;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.AssociateTokenRecipientsStep.PLACEHOLDER_SYNTHETIC_ASSOCIATION;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.AssociateTokenRecipientsStep.associationFeeFor;
 import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.createAccountPendingAirdrop;
@@ -18,7 +17,6 @@ import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.c
 import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.separateFungibleTransfers;
 import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.separateNftTransfers;
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferHelper.createAccountAmount;
-import static com.hedera.node.app.spi.fees.util.FeeUtils.feesToFeeResult;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.lang.Math.toIntExact;
 import static java.util.Objects.requireNonNull;
@@ -59,7 +57,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
-import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.TokensConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -72,7 +69,6 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.hapi.fees.FeeResult;
 
 /**
  * This class contains all workflow-related functionality regarding {@link
@@ -258,18 +254,14 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
     private static boolean canClaimAirdrop(@NonNull final Key key) {
         return switch (key.key().kind()) {
             case UNSET -> throw new IllegalStateException("Key kind cannot be UNSET");
-            case CONTRACT_ID -> true;
-            case ED25519 -> true;
-            case RSA_3072 -> false;
-            case ECDSA_384 -> false;
+            case CONTRACT_ID, ED25519, ECDSA_SECP256K1 -> true;
+            case RSA_3072, ECDSA_384, DELEGATABLE_CONTRACT_ID -> false;
             case THRESHOLD_KEY ->
                 key.thresholdKeyOrThrow().keysOrThrow().keys().stream()
                                 .filter(TokenAirdropHandler::canClaimAirdrop)
                                 .count()
                         >= key.thresholdKeyOrThrow().threshold();
             case KEY_LIST -> key.keyListOrThrow().keys().stream().allMatch(TokenAirdropHandler::canClaimAirdrop);
-            case ECDSA_SECP256K1 -> true;
-            case DELEGATABLE_CONTRACT_ID -> false;
         };
     }
 
@@ -523,10 +515,10 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
     private long airdropFee(final HandleContext feeContext) {
         final var context = ((FeeContext) feeContext);
 
-        if (feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
-            return context.dispatchComputeFees(PLACEHOLDER_SYNTHETIC_AIRDROP, context.payer())
-                    .totalFee();
-        }
+        //        if (feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
+        //            return context.dispatchComputeFees(PLACEHOLDER_SYNTHETIC_AIRDROP, context.payer())
+        //                    .totalFee();
+        //        }
 
         return context.feeCalculatorFactory()
                 .feeCalculator(SubType.DEFAULT)
@@ -549,18 +541,6 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
         // Always charge CryptoTransferFee as base price and then each time a pending airdrop is created
         // we charge airdrop fee in handle
         return calculateCryptoTransferFees(feeContext, op.tokenTransfers());
-    }
-
-    @Override
-    @NonNull
-    public FeeResult calculateFeeResult(@NonNull FeeContext feeContext) {
-        requireNonNull(feeContext);
-        var tokenAirdrop = feeContext.body().tokenAirdropOrThrow();
-
-        // Calculate fees and convert to FeeResult
-        Fees fees = calculateCryptoTransferFees(feeContext, tokenAirdrop.tokenTransfers());
-        var rate = feeContext.activeRate();
-        return feesToFeeResult(fees, fromPbj(rate));
     }
 
     /**
