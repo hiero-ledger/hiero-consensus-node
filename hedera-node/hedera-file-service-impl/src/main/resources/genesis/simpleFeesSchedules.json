@@ -173,19 +173,19 @@
       "schedule": [
         {
           "name": "ScheduleCreate",
-          "baseFee": 1000000,
+          "baseFee": 99000000,
           "extras": [
             { "name": "KEYS", "includedCount": 1}
           ]
         },
         {
           "name": "ScheduleSign",
-          "baseFee": 100000,
+          "baseFee": 9000000,
           "extras": []
         },
         {
           "name": "ScheduleDelete",
-          "baseFee": 100000,
+          "baseFee": 9000000,
           "extras": []
         }
       ]
