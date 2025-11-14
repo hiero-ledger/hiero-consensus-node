@@ -126,7 +126,7 @@ class PlatformTestingToolStateTest {
 
         final PlatformSigner signer = new PlatformSigner(keysAndCerts);
         final Hash stateHash = randotron.nextHash();
-        final Bytes signature = signer.signImmutable(stateHash);
+        final Bytes signature = signer.sign(stateHash.getBytes());
 
         stateSignatureTransaction = StateSignatureTransaction.newBuilder()
                 .round(1000L)

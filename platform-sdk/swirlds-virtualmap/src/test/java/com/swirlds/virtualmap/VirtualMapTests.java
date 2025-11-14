@@ -42,7 +42,6 @@ import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metric.ValueType;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
-import com.swirlds.virtualmap.config.VirtualMapConfig_;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.RecordAccessor;
@@ -1482,16 +1481,15 @@ class VirtualMapTests extends VirtualTestBase {
     }
 
     @Test
-    @DisplayName("Flush interval is inherited by copies")
-    void flushIntervalInheritedTest() {
+    @DisplayName("Flush threshold is inherited by copies")
+    void flushThresholdInheritedTest() {
         final long threshold = 12345678L;
         final VirtualMapConfig config =
                 new TestConfigBuilder().getOrCreateConfig().getConfigData(VirtualMapConfig.class);
 
-        final int flushInterval = config.flushInterval();
         VirtualMap root = createMap();
         root.setFlushCandidateThreshold(threshold);
-        for (int i = 0; i <= flushInterval; i++) {
+        for (int i = 0; i < 50; i++) {
             assertEquals(threshold, root.getFlushCandidateThreshold());
             VirtualMap copy = root.copy();
             copy.postInit();
@@ -1499,64 +1497,6 @@ class VirtualMapTests extends VirtualTestBase {
             root = copy;
         }
         root.release();
-    }
-
-    @Test
-    @DisplayName("Zero flush threshold enables round based flushes")
-    void zeroFlushThresholdTest() {
-        final VirtualMapConfig config =
-                new TestConfigBuilder().getOrCreateConfig().getConfigData(VirtualMapConfig.class);
-        final int flushInterval = config.flushInterval();
-        VirtualMap map = createMap();
-        map.setFlushCandidateThreshold(0);
-        assertFalse(map.shouldBeFlushed()); // the very first copy is never flushed
-        for (int i = 0; i < flushInterval; i++) {
-            VirtualMap copy = map.copy();
-            copy.postInit();
-            map.release();
-            map = copy;
-        }
-        assertTrue(map.shouldBeFlushed());
-        map.release();
-    }
-
-    @Test
-    @DisplayName("Default zero flush threshold")
-    void defaultZeroFlushThresholdTest() {
-        final Configuration configuration = new TestConfigBuilder()
-                .withValue(VirtualMapConfig_.COPY_FLUSH_CANDIDATE_THRESHOLD, "0")
-                .getOrCreateConfig();
-
-        final VirtualDataSourceBuilder builder = new InMemoryBuilder();
-        VirtualMap map = new VirtualMap(VM_LABEL, builder, configuration);
-
-        assertEquals(0, map.getFlushCandidateThreshold());
-        final int flushInterval =
-                configuration.getConfigData(VirtualMapConfig.class).flushInterval();
-        for (int i = 0; i < flushInterval; i++) {
-            VirtualMap copy = map.copy();
-            copy.postInit();
-            map.release();
-            map = copy;
-        }
-        final VirtualMap copyShouldBeFlushed = map;
-        map.setFlushCandidateThreshold(12345678L);
-        for (int i = 0; i < flushInterval; i++) {
-            VirtualMap copy = map.copy();
-            copy.postInit();
-            map.release();
-            map = copy;
-        }
-        final VirtualMap copyShouldNotBeFlushed = map;
-        // shouldBeFlushed() can only be called on released copies, so create one more copy to
-        // release copyShouldNotBeFlushed
-        final VirtualMap finalCopy = map.copy();
-        map.release();
-
-        assertTrue(copyShouldBeFlushed.shouldBeFlushed());
-        assertFalse(copyShouldNotBeFlushed.shouldBeFlushed()); // should still have a custom flush threshold
-
-        finalCopy.release();
     }
 
     @Test

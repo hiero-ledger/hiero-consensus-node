@@ -476,58 +476,69 @@ public class UtilVerbs {
 
     /**
      * Returns an operation that delays for the given time and then validates that the selected nodes'
-     * application logs contain the given pattern.
-     *
+     * application logs contain the given text.
      * @param selector the selector for the node whose log to validate
-     * @param pattern the pattern that must be present
+     * @param text the text that must be present
      * @param delay the delay before validation
      * @return the operation that validates the logs of the target network
      */
-    public static LogContainmentOp assertHgcaaLogContains(
-            @NonNull final NodeSelector selector, @NonNull final String pattern, @NonNull final Duration delay) {
-        return new LogContainmentOp(selector, APPLICATION_LOG, CONTAINS, pattern, delay);
+    public static LogContainmentOp assertHgcaaLogContainsText(
+            @NonNull final NodeSelector selector, @NonNull final String text, @NonNull final Duration delay) {
+        return new LogContainmentOp(selector, APPLICATION_LOG, CONTAINS, text, null, delay);
     }
 
     /**
      * Returns an operation that delays for the given time and then validates that the selected nodes'
-     * application logs do not contain the given pattern.
+     * application logs contain the given regex.
      *
      * @param selector the selector for the node whose log to validate
-     * @param pattern the pattern that must not be present
+     * @param regex the regex that must be found
      * @param delay the delay before validation
      * @return the operation that validates the logs of the target network
      */
-    public static LogContainmentOp assertHgcaaLogDoesNotContain(
-            @NonNull final NodeSelector selector, @NonNull final String pattern, @NonNull final Duration delay) {
-        return new LogContainmentOp(selector, APPLICATION_LOG, DOES_NOT_CONTAIN, pattern, delay);
+    public static LogContainmentOp assertHgcaaLogContainsPattern(
+            @NonNull final NodeSelector selector, @NonNull final String regex, @NonNull final Duration delay) {
+        return new LogContainmentOp(selector, APPLICATION_LOG, CONTAINS, null, Pattern.compile(regex), delay);
     }
 
     /**
      * Returns an operation that delays for the given time and then validates that the selected nodes'
-     * block node comms logs contain the given pattern.
-     *
+     * application logs do not contain the given text.
      * @param selector the selector for the node whose log to validate
-     * @param pattern the pattern that must be present
+     * @param text the text that must be present
      * @param delay the delay before validation
      * @return the operation that validates the logs of the target network
      */
-    public static LogContainmentOp assertBlockNodeCommsLogContains(
-            @NonNull final NodeSelector selector, @NonNull final String pattern, @NonNull final Duration delay) {
-        return new LogContainmentOp(selector, BLOCK_NODE_COMMS_LOG, CONTAINS, pattern, delay);
+    public static LogContainmentOp assertHgcaaLogDoesNotContainText(
+            @NonNull final NodeSelector selector, @NonNull final String text, @NonNull final Duration delay) {
+        return new LogContainmentOp(selector, APPLICATION_LOG, DOES_NOT_CONTAIN, text, null, delay);
     }
 
     /**
      * Returns an operation that delays for the given time and then validates that the selected nodes'
-     * block node comms logs do not contain the given pattern.
-     *
+     * block node comms logs contain the given text.
      * @param selector the selector for the node whose log to validate
-     * @param pattern the pattern that must not be present
+     * @param text the text that must be present
      * @param delay the delay before validation
      * @return the operation that validates the logs of the target network
      */
-    public static LogContainmentOp assertBlockNodeCommsLogDoesNotContain(
-            @NonNull final NodeSelector selector, @NonNull final String pattern, @NonNull final Duration delay) {
-        return new LogContainmentOp(selector, BLOCK_NODE_COMMS_LOG, DOES_NOT_CONTAIN, pattern, delay);
+    public static LogContainmentOp assertBlockNodeCommsLogContainsText(
+            @NonNull final NodeSelector selector, @NonNull final String text, @NonNull final Duration delay) {
+        return new LogContainmentOp(selector, BLOCK_NODE_COMMS_LOG, CONTAINS, text, null, delay);
+    }
+
+    /**
+     * Returns an operation that delays for the given time and then validates that the selected nodes'
+     * block node comms logs do not contain the given text.
+     *
+     * @param selector the selector for the node whose log to validate
+     * @param text the text that must be present
+     * @param delay the delay before validation
+     * @return the operation that validates the logs of the target network
+     */
+    public static LogContainmentOp assertBlockNodeCommsLogDoesNotContainText(
+            @NonNull final NodeSelector selector, @NonNull final String text, @NonNull final Duration delay) {
+        return new LogContainmentOp(selector, BLOCK_NODE_COMMS_LOG, DOES_NOT_CONTAIN, text, null, delay);
     }
 
     /**
