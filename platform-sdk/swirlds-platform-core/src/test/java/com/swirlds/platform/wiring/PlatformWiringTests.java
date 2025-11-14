@@ -52,6 +52,7 @@ import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.util.stream.Stream;
 import org.hiero.consensus.crypto.EventHasher;
+import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -175,7 +176,8 @@ class PlatformWiringTests {
         when(blocks.rosterHistory()).thenReturn(rosterHistory);
         final KeysAndCerts keysAndCerts;
         try {
-            keysAndCerts = KeysAndCertsGenerator.generate(NodeId.FIRST_NODE_ID, new SecureRandom(), new SecureRandom());
+            keysAndCerts = KeysAndCertsGenerator.generate(
+                    NodeId.FIRST_NODE_ID, SigningSchema.RSA, new SecureRandom(), new SecureRandom());
         } catch (final NoSuchAlgorithmException | NoSuchProviderException | KeyGeneratingException e) {
             throw new RuntimeException(e);
         }

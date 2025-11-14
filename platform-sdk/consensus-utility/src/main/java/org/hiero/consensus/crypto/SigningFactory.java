@@ -9,6 +9,7 @@ import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.security.SecureRandom;
+import java.util.EnumMap;
 import java.util.Map;
 import org.hiero.base.crypto.BytesSignatureVerifier;
 import org.hiero.base.crypto.BytesSigner;
@@ -27,10 +28,8 @@ public final class SigningFactory {
     /**
      * The default implementations to use for each schema.
      */
-    private static final Map<String, SigningImplementation> defaultImplementations = Map.of(
-            SigningSchema.RSA.getKeyType(), SigningImplementation.RSA_BC,
-            SigningSchema.EC.getKeyType(), SigningImplementation.EC_JDK,
-            SigningSchema.ED25519.getKeyType(), ED25519_SODIUM);
+    private static final Map<SigningSchema, SigningImplementation> defaultImplementations = new EnumMap<>(
+            Map.of(SigningSchema.RSA, SigningImplementation.RSA_BC, SigningSchema.ED25519, ED25519_SODIUM));
 
     /**
      * Generates a new key pair for the specified signing schema.
@@ -59,7 +58,7 @@ public final class SigningFactory {
      */
     public static @NonNull BytesSigner createSigner(@NonNull final KeyPair keyPair) {
         final SigningImplementation implementation =
-                defaultImplementations.get(keyPair.getPrivate().getAlgorithm());
+                defaultImplementations.get(SigningSchema.fromKeyType(keyPair.getPrivate()));
         if (implementation == null) {
             throw new IllegalArgumentException(
                     "No implementation for key type: " + keyPair.getPrivate().getAlgorithm());
@@ -86,17 +85,15 @@ public final class SigningFactory {
     /**
      * Creates a verifier for the specified key pair using the default implementation for the key type.
      *
-     * @param keyPair the key pair to use for verification
+     * @param publicKey the key to use for verification
      * @return the verifier
      */
-    public static @NonNull BytesSignatureVerifier createVerifier(@NonNull final KeyPair keyPair) {
-        final SigningImplementation implementation =
-                defaultImplementations.get(keyPair.getPublic().getAlgorithm());
+    public static @NonNull BytesSignatureVerifier createVerifier(@NonNull final PublicKey publicKey) {
+        final SigningImplementation implementation = defaultImplementations.get(SigningSchema.fromKeyType(publicKey));
         if (implementation == null) {
-            throw new IllegalArgumentException(
-                    "No implementation for key type: " + keyPair.getPublic().getAlgorithm());
+            throw new IllegalArgumentException("No implementation for key type: " + publicKey.getAlgorithm());
         }
-        return createVerifier(implementation, keyPair.getPublic());
+        return createVerifier(implementation, publicKey);
     }
 
     /**
