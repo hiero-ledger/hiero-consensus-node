@@ -18,7 +18,7 @@ public final class VirtualMapStateTestUtils {
      * @param virtualMapLabel the label to use for the virtual map.
      * @return the created virtual map state
      */
-    public static VirtualMapState createStateWithLabel(@NonNull final String virtualMapLabel) {
+    public static VirtualMapState createTestStateWithLabel(@NonNull final String virtualMapLabel) {
         final var virtualMap = VirtualMapUtils.createVirtualMap(CONFIGURATION, virtualMapLabel);
         return new VirtualMapState(virtualMap, new NoOpMetrics());
     }
@@ -28,7 +28,7 @@ public final class VirtualMapStateTestUtils {
      * @param virtualMap the virtual map to use.
      * @return the created virtual map state.
      */
-    public static VirtualMapState createStateWithVM(@NonNull final VirtualMap virtualMap) {
+    public static VirtualMapState createTestStateWithVM(@NonNull final VirtualMap virtualMap) {
         return new VirtualMapState(virtualMap, new NoOpMetrics());
     }
 
@@ -36,7 +36,7 @@ public final class VirtualMapStateTestUtils {
      * Creates a virtual map state with a default label.
      * @return the created virtual map state.
      */
-    public static VirtualMapState createState() {
+    public static VirtualMapState createTestState() {
         return new VirtualMapState(CONFIGURATION, new NoOpMetrics());
     }
 

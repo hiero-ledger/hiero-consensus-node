@@ -3,7 +3,7 @@ package com.swirlds.demo.migration;
 
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_SECONDS;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createStateWithVM;
+import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestStateWithVM;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -164,7 +164,7 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<VirtualMapState>
     @Override
     public Function<VirtualMap, VirtualMapState> stateRootFromVirtualMap(@NonNull final Metrics metrics) {
         return virtualMap -> {
-            final VirtualMapState state = createStateWithVM(virtualMap);
+            final VirtualMapState state = createTestStateWithVM(virtualMap);
             TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
             return state;
         };

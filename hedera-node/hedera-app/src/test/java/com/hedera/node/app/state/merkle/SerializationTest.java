@@ -3,7 +3,7 @@ package com.hedera.node.app.state.merkle;
 
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static com.swirlds.state.test.fixtures.merkle.MerkleStateRoot.MINIMUM_SUPPORTED_VERSION;
-import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createStateWithVM;
+import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestStateWithVM;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -263,7 +263,7 @@ class SerializationTest extends MerkleTestBase {
 
     private VirtualMapState loadedMerkleTree(final Schema schemaV1, final byte[] serializedBytes) throws IOException {
         final VirtualMap virtualMap = parseTree(serializedBytes, dir);
-        final VirtualMapState loadedTree = createStateWithVM(virtualMap);
+        final VirtualMapState loadedTree = createTestStateWithVM(virtualMap);
         initServices(schemaV1, loadedTree);
 
         return loadedTree;
@@ -307,7 +307,7 @@ class SerializationTest extends MerkleTestBase {
                 TEST_PLATFORM_STATE_FACADE);
 
         final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
-                new NoOpMetrics(), new FakeTime(), VirtualMapStateTestUtils::createStateWithVM);
+                new NoOpMetrics(), new FakeTime(), VirtualMapStateTestUtils::createTestStateWithVM);
 
         stateLifecycleManager.initState(originalTreeCopy, true);
         return stateLifecycleManager;

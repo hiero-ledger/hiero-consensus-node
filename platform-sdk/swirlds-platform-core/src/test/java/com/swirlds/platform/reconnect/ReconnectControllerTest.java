@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.reconnect;
 
-import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createState;
+import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
@@ -141,7 +141,7 @@ class ReconnectControllerTest {
         // Create test states
         final var signedStatePair = new RandomSignedStateGenerator()
                 .setRoster(roster)
-                .setState(createState())
+                .setState(createTestState())
                 .buildWithFacade();
         testSignedState = signedStatePair.left();
         SignedStateFileReader.registerServiceStates(testSignedState);

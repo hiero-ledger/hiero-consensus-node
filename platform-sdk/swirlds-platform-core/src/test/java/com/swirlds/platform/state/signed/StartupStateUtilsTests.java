@@ -131,7 +131,7 @@ public class StartupStateUtilsTests {
                 new RandomSignedStateGenerator(random).setRound(round).build();
 
         stateLifecycleManager = new StateLifecycleManagerImpl(
-                new NoOpMetrics(), new FakeTime(), VirtualMapStateTestUtils::createStateWithVM);
+                new NoOpMetrics(), new FakeTime(), VirtualMapStateTestUtils::createTestStateWithVM);
         stateLifecycleManager.initState(signedState.getState(), true);
         stateLifecycleManager.getMutableState().release();
         // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19905
@@ -173,7 +173,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        VirtualMapStateTestUtils::createStateWithVM,
+                        VirtualMapStateTestUtils::createTestStateWithVM,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -203,7 +203,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        VirtualMapStateTestUtils::createStateWithVM,
+                        VirtualMapStateTestUtils::createTestStateWithVM,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -238,7 +238,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        VirtualMapStateTestUtils::createStateWithVM,
+                        VirtualMapStateTestUtils::createTestStateWithVM,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -284,7 +284,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        VirtualMapStateTestUtils::createStateWithVM,
+                        VirtualMapStateTestUtils::createTestStateWithVM,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)

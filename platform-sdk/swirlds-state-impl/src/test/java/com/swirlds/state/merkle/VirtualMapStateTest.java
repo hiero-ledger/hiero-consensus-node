@@ -5,7 +5,7 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertAllData
 import static com.swirlds.state.StateChangeListener.StateType.MAP;
 import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
-import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createState;
+import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
 import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
@@ -68,7 +68,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
      */
     @BeforeEach
     void setUp() {
-        virtualMapState = createState();
+        virtualMapState = createTestState();
     }
 
     @Nested
@@ -792,7 +792,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
             fruitVirtualMap.release();
 
             // create and prepare a new state
-            virtualMapState = createState();
+            virtualMapState = createTestState();
             setupFruitVirtualMap();
             setupSingletonCountry();
             virtualMap = (VirtualMap) virtualMapState.getRoot();
@@ -1116,7 +1116,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
             fruitVirtualMap.release();
 
             // create and prepare a new state
-            virtualMapState = createState();
+            virtualMapState = createTestState();
             setupFruitVirtualMap();
             setupSingletonCountry();
             virtualMap = (VirtualMap) virtualMapState.getRoot();

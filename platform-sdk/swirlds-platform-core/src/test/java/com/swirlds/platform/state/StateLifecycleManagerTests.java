@@ -61,7 +61,9 @@ class StateLifecycleManagerTests {
                 TestPlatformContextBuilder.create().build();
 
         stateLifecycleManager = new StateLifecycleManagerImpl(
-                platformContext.getMetrics(), platformContext.getTime(), VirtualMapStateTestUtils::createStateWithVM);
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                VirtualMapStateTestUtils::createTestStateWithVM);
         stateLifecycleManager.initState(initialState, true);
     }
 
@@ -175,7 +177,9 @@ class StateLifecycleManagerTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
         final StateLifecycleManager uninitialized = new StateLifecycleManagerImpl(
-                platformContext.getMetrics(), platformContext.getTime(), VirtualMapStateTestUtils::createStateWithVM);
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                VirtualMapStateTestUtils::createTestStateWithVM);
         assertThrows(IllegalStateException.class, uninitialized::getMutableState);
     }
 
@@ -185,14 +189,16 @@ class StateLifecycleManagerTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
         final StateLifecycleManager uninitialized = new StateLifecycleManagerImpl(
-                platformContext.getMetrics(), platformContext.getTime(), VirtualMapStateTestUtils::createStateWithVM);
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                VirtualMapStateTestUtils::createTestStateWithVM);
         assertThrows(IllegalStateException.class, uninitialized::getLatestImmutableState);
     }
 
     private static MerkleNodeState newState(PlatformStateFacade platformStateFacade) {
         final String virtualMapLabel =
                 StateLifecycleManagerTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final MerkleNodeState state = VirtualMapStateTestUtils.createStateWithLabel(virtualMapLabel);
+        final MerkleNodeState state = VirtualMapStateTestUtils.createTestStateWithLabel(virtualMapLabel);
         TestingAppStateInitializer.initPlatformState(state);
 
         platformStateFacade.setCreationSoftwareVersionTo(

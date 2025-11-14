@@ -2,8 +2,8 @@
 package com.hedera.node.app.state.merkle;
 
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
-import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createStateWithLabel;
-import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createStateWithVM;
+import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestStateWithLabel;
+import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestStateWithVM;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.Mockito.lenient;
@@ -173,7 +173,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
             final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
             SemanticVersion latestVersion = version(10, 0, 0);
             schemaRegistry.migrate(
-                    createStateWithVM(virtualMap),
+                    createTestStateWithVM(virtualMap),
                     version(9, 0, 0),
                     latestVersion,
                     config,
@@ -202,7 +202,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
             }
             final var virtualMapLabel =
                     "vm-" + MerkleSchemaRegistryTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-            merkleTree = createStateWithLabel(virtualMapLabel);
+            merkleTree = createTestStateWithLabel(virtualMapLabel);
         }
 
         @AfterEach

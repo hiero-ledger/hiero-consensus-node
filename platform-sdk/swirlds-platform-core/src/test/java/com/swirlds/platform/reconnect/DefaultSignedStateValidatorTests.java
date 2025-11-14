@@ -314,7 +314,7 @@ class DefaultSignedStateValidatorTests {
      * @return the signed state
      */
     private SignedState stateSignedByNodes(final List<Node> signingNodes) {
-        final VirtualMapState state = VirtualMapStateTestUtils.createState();
+        final VirtualMapState state = VirtualMapStateTestUtils.createTestState();
 
         final SignatureVerifier signatureVerifier = (data, signature, key) -> {
             // a signature with a 0 byte is always invalid

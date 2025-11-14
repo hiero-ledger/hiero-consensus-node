@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.manager;
 
-import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createState;
+import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -74,7 +74,7 @@ class OldCompleteStateEventuallyReleasedTest extends AbstractStateSignatureColle
                 .setRoster(roster)
                 .setRound(0)
                 .useSignatureSupplierFromRoster()
-                .setState(createState())
+                .setState(createTestState())
                 .build();
 
         signedStates.put(0L, stateFromDisk);

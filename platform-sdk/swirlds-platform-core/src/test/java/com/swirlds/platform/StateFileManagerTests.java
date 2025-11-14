@@ -101,7 +101,7 @@ class StateFileManagerTests {
         signedStateFilePath =
                 new SignedStateFilePath(context.getConfiguration().getConfigData(StateCommonConfig.class));
         stateLifecycleManager = new StateLifecycleManagerImpl(
-                context.getMetrics(), context.getTime(), VirtualMapStateTestUtils::createStateWithVM);
+                context.getMetrics(), context.getTime(), VirtualMapStateTestUtils::createTestStateWithVM);
     }
 
     @AfterEach
@@ -139,7 +139,7 @@ class StateFileManagerTests {
 
         final DeserializedSignedState deserializedSignedState = readState(
                 stateDirectory,
-                VirtualMapStateTestUtils::createStateWithVM,
+                VirtualMapStateTestUtils::createTestStateWithVM,
                 TEST_PLATFORM_STATE_FACADE,
                 TestPlatformContextBuilder.create().build());
         SignedState signedState = deserializedSignedState.reservedSignedState().get();
@@ -308,7 +308,7 @@ class StateFileManagerTests {
                     final SignedState stateFromDisk = assertDoesNotThrow(
                             () -> SignedStateFileReader.readState(
                                             savedStateInfo.stateDirectory(),
-                                            VirtualMapStateTestUtils::createStateWithVM,
+                                            VirtualMapStateTestUtils::createTestStateWithVM,
                                             TEST_PLATFORM_STATE_FACADE,
                                             context)
                                     .reservedSignedState()
@@ -436,7 +436,7 @@ class StateFileManagerTests {
     void initLifecycleManagerAndMakeStateImmutable(SignedState state, boolean createNewStateLifecycleManager) {
         if (createNewStateLifecycleManager) {
             stateLifecycleManager = new StateLifecycleManagerImpl(
-                    context.getMetrics(), context.getTime(), VirtualMapStateTestUtils::createStateWithVM);
+                    context.getMetrics(), context.getTime(), VirtualMapStateTestUtils::createTestStateWithVM);
         }
 
         stateLifecycleManager.initState(state.getState(), false);

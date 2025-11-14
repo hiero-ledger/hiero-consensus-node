@@ -3,7 +3,7 @@ package com.swirlds.platform.state;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
-import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createStateWithVM;
+import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestStateWithVM;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -63,7 +63,7 @@ class SignedStateTests {
     private MerkleNodeState buildMockState(
             final Random random, final Runnable reserveCallback, final Runnable releaseCallback) {
         final var virtualMapLabel = "vm-" + SignedStateTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final var real = VirtualMapStateTestUtils.createStateWithLabel(virtualMapLabel);
+        final var real = VirtualMapStateTestUtils.createTestStateWithLabel(virtualMapLabel);
         TestingAppStateInitializer.initConsensusModuleStates(real, CONFIGURATION);
         RosterUtils.setActiveRoster(real, RandomRosterBuilder.create(random).build(), 0L);
         final MerkleNodeState state = spy(real);
@@ -216,7 +216,7 @@ class SignedStateTests {
         final var virtualMapLabel = "vm-" + SignedStateTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
 
-        final MerkleNodeState state = spy(createStateWithVM(virtualMap));
+        final MerkleNodeState state = spy(createTestStateWithVM(virtualMap));
         final PlatformStateModifier platformState = mock(PlatformStateModifier.class);
         final TestPlatformStateFacade platformStateFacade = mock(TestPlatformStateFacade.class);
         TestingAppStateInitializer.initPlatformState(state);

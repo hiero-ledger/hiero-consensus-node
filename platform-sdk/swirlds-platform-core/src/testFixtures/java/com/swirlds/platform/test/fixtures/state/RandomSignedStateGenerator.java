@@ -3,7 +3,7 @@ package com.swirlds.platform.test.fixtures.state;
 
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils.buildFakeSignature;
-import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createStateWithLabel;
+import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestStateWithLabel;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHashBytes;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
@@ -151,7 +151,7 @@ public class RandomSignedStateGenerator {
         if (state == null) {
             final String virtualMapLabel =
                     "vm-" + RandomSignedStateGenerator.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-            stateInstance = createStateWithLabel(virtualMapLabel);
+            stateInstance = createTestStateWithLabel(virtualMapLabel);
         } else {
             stateInstance = state;
         }

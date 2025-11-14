@@ -3,7 +3,7 @@ package com.swirlds.platform.state.service;
 
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE;
 import static com.swirlds.platform.test.fixtures.PlatformStateUtils.randomPlatformState;
-import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createStateWithLabel;
+import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestStateWithLabel;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextLong;
@@ -42,11 +42,11 @@ class PlatformStateFacadeTest {
     void beforeEach() {
         final String virtualMapLabelForState =
                 "vm-state-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        state = createStateWithLabel(virtualMapLabelForState);
+        state = createTestStateWithLabel(virtualMapLabelForState);
         TestingAppStateInitializer.initPlatformState(state);
         final String virtualMapLabelForEmptyState =
                 "vm-state-empty-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        emptyState = createStateWithLabel(virtualMapLabelForEmptyState);
+        emptyState = createTestStateWithLabel(virtualMapLabelForEmptyState);
         platformStateFacade = new TestPlatformStateFacade();
         platformStateModifier = randomPlatformState(state, platformStateFacade);
     }
@@ -110,7 +110,7 @@ class PlatformStateFacadeTest {
     void testPlatformStateOf_noPlatformState() {
         final var virtualMapLabel =
                 "vm-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final VirtualMapState noPlatformState = createStateWithLabel(virtualMapLabel);
+        final VirtualMapState noPlatformState = createTestStateWithLabel(virtualMapLabel);
         noPlatformState.getReadableStates(PlatformStateService.NAME);
         assertSame(UNINITIALIZED_PLATFORM_STATE, platformStateFacade.platformStateOf(noPlatformState));
         noPlatformState.release();
@@ -182,7 +182,7 @@ class PlatformStateFacadeTest {
     void testSetSnapshotTo() {
         final String virtualMapLabel =
                 "vm-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final VirtualMapState randomState = createStateWithLabel(virtualMapLabel);
+        final VirtualMapState randomState = createTestStateWithLabel(virtualMapLabel);
         TestingAppStateInitializer.initPlatformState(randomState);
         PlatformStateModifier randomPlatformState = randomPlatformState(randomState, platformStateFacade);
         final var newSnapshot = randomPlatformState.getSnapshot();

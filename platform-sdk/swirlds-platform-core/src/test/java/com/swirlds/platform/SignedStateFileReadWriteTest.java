@@ -82,7 +82,7 @@ class SignedStateFileReadWriteTest {
     void beforeEach() throws IOException {
         testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile("SignedStateFileReadWriteTest", CONFIGURATION);
         stateLifecycleManager = new StateLifecycleManagerImpl(
-                new NoOpMetrics(), new FakeTime(), VirtualMapStateTestUtils::createStateWithVM);
+                new NoOpMetrics(), new FakeTime(), VirtualMapStateTestUtils::createTestStateWithVM);
         LegacyTemporaryFileBuilder.overrideTemporaryFileLocation(testDirectory.resolve("tmp"));
     }
 
@@ -144,7 +144,7 @@ class SignedStateFileReadWriteTest {
                 TestPlatformContextBuilder.create().build();
         final DeserializedSignedState deserializedSignedState = readState(
                 testDirectory,
-                VirtualMapStateTestUtils::createStateWithVM,
+                VirtualMapStateTestUtils::createTestStateWithVM,
                 TEST_PLATFORM_STATE_FACADE,
                 platformContext);
         hashState(deserializedSignedState.reservedSignedState().get());
