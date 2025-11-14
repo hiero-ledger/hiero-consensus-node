@@ -21,6 +21,9 @@ public record GeoMeshTopologyConfiguration(
         @NonNull LatencyRange intercontinental)
         implements TopologyConfiguration {
 
+    private static final double MIN_PERCENTAGE = 0.0;
+    private static final double MAX_PERCENTAGE = 100.0;
+
     /**
      * Default configuration with 20% same-region, 40% same-continent, and 40% intercontinental distribution, using
      * standard latency ranges.
@@ -51,13 +54,13 @@ public record GeoMeshTopologyConfiguration(
      * @throws IllegalArgumentException if percentages are negative or the total exceeds 100.0
      */
     public GeoMeshTopologyConfiguration {
-        if (sameRegionPercent.value < 0.0) {
+        if (sameRegionPercent.value < MIN_PERCENTAGE) {
             throw new IllegalArgumentException("Same-region percentage must not be negative");
         }
-        if (sameContinentPercent.value < 0.0) {
+        if (sameContinentPercent.value < MIN_PERCENTAGE) {
             throw new IllegalArgumentException("Same-continent percentage must not be negative");
         }
-        if (sameRegionPercent.value + sameContinentPercent.value > 100.0) {
+        if (sameRegionPercent.value + sameContinentPercent.value > MAX_PERCENTAGE) {
             throw new IllegalArgumentException("Total percentage cannot exceed 100.0");
         }
         requireNonNull(sameContinent);
@@ -68,17 +71,17 @@ public record GeoMeshTopologyConfiguration(
     /**
      * Creates a copy of this {@code GeoMeshTopologyConfiguration} with the specified distribution percentages.
      *
-     * @param sameRegionPercent percentage of connections that are same-region (0.0 to 1.0)
-     * @param sameContinentPercent percentage of connections that are same-continent (0.0 to 1.0)
+     * @param newSameRegionPercent percentage of connections that are same-region (0.0 to 1.0)
+     * @param newSameContinentPercent percentage of connections that are same-continent (0.0 to 1.0)
      * @return a new {@code GeoMeshTopologyConfiguration} with the specified distribution
      * @throws NullPointerException if any of the parameters are {@code null}
      * @throws IllegalArgumentException if percentages are negative or the total exceeds 100.0
      */
     @NonNull
     public GeoMeshTopologyConfiguration withDistribution(
-            @NonNull final Percentage sameRegionPercent, @NonNull final Percentage sameContinentPercent) {
+            @NonNull final Percentage newSameRegionPercent, @NonNull final Percentage newSameContinentPercent) {
         return new GeoMeshTopologyConfiguration(
-                sameRegionPercent, sameContinentPercent, sameRegion, sameContinent, intercontinental);
+                newSameRegionPercent, newSameContinentPercent, sameRegion, sameContinent, intercontinental);
     }
 
     /**
