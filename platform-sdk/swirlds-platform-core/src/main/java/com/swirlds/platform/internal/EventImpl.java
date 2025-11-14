@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Stream;
 import org.hiero.base.Clearable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
@@ -28,10 +29,8 @@ public class EventImpl implements Clearable {
     private final PlatformEvent baseEvent;
     /** the round number in which this event reached a consensus order */
     private long roundReceived = ConsensusConstants.ROUND_UNDEFINED;
-    /** the self parent of this */
-    private EventImpl selfParent;
-    /** the other parent of this */
-    private EventImpl otherParent;
+    /** the parents of this */
+    private List<EventImpl> parents;
     /** has this event been cleared (because it was old and should be discarded)? */
     private boolean cleared = false;
     /** is this a witness? (is round > selfParent's round, or there is no self parent?) */
@@ -87,13 +86,21 @@ public class EventImpl implements Clearable {
     /** The deterministic generation, see {@link DeGen} */
     private int deGen = 0;
 
+    @Deprecated
     public EventImpl(
             @NonNull final PlatformEvent platformEvent,
             @Nullable final EventImpl selfParent,
             @Nullable final EventImpl otherParent) {
+        this(platformEvent, Stream.of(selfParent, otherParent)
+                .filter(Objects::nonNull)
+                .toList());
+    }
+
+    public EventImpl(
+            @NonNull final PlatformEvent platformEvent,
+            @Nullable final List<EventImpl> parents) {
         Objects.requireNonNull(platformEvent, "baseEvent");
-        this.selfParent = selfParent;
-        this.otherParent = otherParent;
+        this.parents = parents;
         // ConsensusImpl.currMark starts at 1 and counts up, so all events initially count as
         // unmarked
         this.mark = ConsensusConstants.EVENT_UNMARKED;
@@ -132,28 +139,41 @@ public class EventImpl implements Clearable {
      * @return the self parent of this
      */
     public @Nullable EventImpl getSelfParent() {
-        return selfParent;
-    }
-
-    /**
-     * @param selfParent the self parent of this
-     */
-    public void setSelfParent(@Nullable final EventImpl selfParent) {
-        this.selfParent = selfParent;
+        if (this.parents.isEmpty()) {
+            return null;
+        }
+        final EventImpl firstParent = parents.getFirst();
+        if (!firstParent.getCreatorId().equals(this.baseEvent.getCreatorId())) {
+            return null;
+        }
+        return firstParent;
     }
 
     /**
      * @return the other parent of this
      */
+    @Deprecated
     public @Nullable EventImpl getOtherParent() {
-        return otherParent;
+        final List<EventImpl> otherParents = getOtherParents();
+        if (otherParents.isEmpty()) {
+            return null;
+        }
+        return otherParents.getFirst();
     }
 
-    /**
-     * @param otherParent the other parent of this
-     */
-    public void setOtherParent(@Nullable final EventImpl otherParent) {
-        this.otherParent = otherParent;
+    public List<EventImpl> getOtherParents() {
+        if (this.parents.isEmpty()) {
+            return List.of();
+        }
+        final EventImpl firstParent = parents.getFirst();
+        if (!firstParent.getCreatorId().equals(this.baseEvent.getCreatorId())) {
+            return parents;
+        }
+        return parents.subList(1, parents.size());
+    }
+
+    public List<EventImpl> getParents() {
+        return parents;
     }
 
     public boolean isWitness() {
@@ -452,8 +472,7 @@ public class EventImpl implements Clearable {
         }
         cleared = true;
         EventCounter.decrementLinkedEventCount();
-        selfParent = null;
-        otherParent = null;
+        parents = null;
         clearMetadata();
     }
 
