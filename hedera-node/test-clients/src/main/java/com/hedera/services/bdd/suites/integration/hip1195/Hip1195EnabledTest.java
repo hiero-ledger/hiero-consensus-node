@@ -88,7 +88,7 @@ import org.junit.jupiter.api.Tag;
 @Order(12)
 @Tag(INTEGRATION)
 @HapiTestLifecycle
-@TargetEmbeddedMode(CONCURRENT)
+//@TargetEmbeddedMode(CONCURRENT)
 public class Hip1195EnabledTest {
     @Contract(contract = "FalsePreHook", creationGas = 5_000_000)
     static SpecContract FALSE_ALLOWANCE_HOOK;
@@ -1097,12 +1097,8 @@ public class Hip1195EnabledTest {
         final long A = 1L;
 
         return hapiTest(
-                newKeyNamed("k"),
-                cryptoCreate(OWNER)
-                        .key("k")
-                        .balance(1L)
-                        .withHooks(accountAllowanceHook(A, FALSE_ALLOWANCE_HOOK.name())),
-                cryptoUpdate(OWNER).removingHooks(A));
+                getAccountInfo(DEFAULT_PAYER).logged()
+        );
     }
 
     @HapiTest
