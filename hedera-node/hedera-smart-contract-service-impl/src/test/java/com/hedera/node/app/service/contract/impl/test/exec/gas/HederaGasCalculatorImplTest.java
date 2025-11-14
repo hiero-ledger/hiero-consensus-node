@@ -45,7 +45,8 @@ class HederaGasCalculatorImplTest {
                 4 * 3 + // zero byte cost
                         16 * 2 + // non-zero byte cost
                         21_000L + // base TX cost
-                        32_000L, // contract creation base cost
+                        32_000L + // contract creation base cost
+                        2, // contract creation 1 word cost
                 subject.transactionGasRequirements(Bytes.of(0, 1, 0, 3, 0), true, 0L)
                         .intrinsicGas());
     }
@@ -60,7 +61,6 @@ class HederaGasCalculatorImplTest {
                 .count();
         // regular transaction
         final var gasRequirements = subject.transactionGasRequirements(Bytes.of(randomPayload), false, 0L);
-        System.out.println(gasRequirements);
         assertNotEquals(gasRequirements.intrinsicGas(), gasRequirements.minimumGasUsed());
         // gasUsed defined at https://eips.ethereum.org/EIPS/eip-7623
         assertEquals(
@@ -86,10 +86,11 @@ class HederaGasCalculatorImplTest {
         assertNotEquals(gasRequirements.intrinsicGas(), gasRequirements.minimumGasUsed());
         // gasUsed defined at https://eips.ethereum.org/EIPS/eip-7623
         assertEquals(
-                32_000L
-                        + HederaGasCalculatorImpl.TX_BASE_COST
+                HederaGasCalculatorImpl.TX_BASE_COST
                         + HederaGasCalculatorImpl.TX_DATA_ZERO_COST * zeros
-                        + HederaGasCalculatorImpl.ISTANBUL_TX_DATA_NON_ZERO_COST * (randomPayload.length - zeros),
+                        + HederaGasCalculatorImpl.ISTANBUL_TX_DATA_NON_ZERO_COST * (randomPayload.length - zeros)
+                        + 32_000L
+                        + (randomPayload.length / 32 * 2),
                 gasRequirements.intrinsicGas());
         assertEquals(
                 HederaGasCalculatorImpl.TX_BASE_COST + (zeros + (randomPayload.length - zeros) * 4) * 10,
