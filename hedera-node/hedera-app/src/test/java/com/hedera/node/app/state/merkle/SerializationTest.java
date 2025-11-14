@@ -11,8 +11,9 @@ import com.hedera.node.app.services.MigrationStateChanges;
 import com.hedera.node.app.spi.fixtures.TestSchema;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.config.data.HederaConfig;
+import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
-import com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -20,9 +21,11 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.disk.OnDiskReadableKVState;
 import com.swirlds.state.merkle.disk.OnDiskWritableKVState;
 import com.swirlds.state.spi.ReadableKVState;
@@ -75,9 +78,8 @@ class SerializationTest extends MerkleTestBase {
         setupConstructableRegistry();
 
         this.config = new TestConfigBuilder()
-                .withSource(new SimpleConfigSource()
-                        .withValue(VirtualMapConfig_.FLUSH_INTERVAL, 1 + "")
-                        .withValue(VirtualMapConfig_.COPY_FLUSH_CANDIDATE_THRESHOLD, 1 + ""))
+                .withSource(
+                        new SimpleConfigSource().withValue(VirtualMapConfig_.COPY_FLUSH_CANDIDATE_THRESHOLD, 1 + ""))
                 .withConfigDataType(VirtualMapConfig.class)
                 .withConfigDataType(HederaConfig.class)
                 .withConfigDataType(CryptoConfig.class)
@@ -137,7 +139,9 @@ class SerializationTest extends MerkleTestBase {
 
                 if (vm.size() > 1) {
                     vm.enableFlush();
-                    vm.release();
+                    if (vm.getReservationCount() > 0) {
+                        vm.release();
+                    }
                     vm.waitUntilFlushed();
                 }
             } catch (IllegalAccessException | NoSuchFieldException | InterruptedException e) {
@@ -157,11 +161,12 @@ class SerializationTest extends MerkleTestBase {
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     void simpleReadAndWrite(boolean forceFlush) throws IOException, ConstructableRegistryException {
-        final var schemaV1 = createV1Schema();
-        final var originalTree = createMerkleHederaState(schemaV1);
+        final Schema schemaV1 = createV1Schema();
+        final StateLifecycleManager stateLifecycleManager = createStateLifecycleManager(schemaV1);
+        final MerkleNodeState originalTree = stateLifecycleManager.getMutableState();
 
         // When we serialize it to bytes and deserialize it back into a tree
-        MerkleNodeState copy = originalTree.copy(); // make a copy to make VM flushable
+        MerkleNodeState copy = stateLifecycleManager.copyMutableState(); // make a copy to make VM flushable
         final byte[] serializedBytes;
         if (forceFlush) {
             // Force flush the VMs to disk to test serialization and deserialization
@@ -188,21 +193,21 @@ class SerializationTest extends MerkleTestBase {
 
     @Test
     void snapshot() throws IOException {
-        final var schemaV1 = createV1Schema();
-        final var originalTree = createMerkleHederaState(schemaV1);
-        final var tempDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory(config);
+        final Schema<SemanticVersion> schemaV1 = createV1Schema();
+        final StateLifecycleManager stateLifecycleManager = createStateLifecycleManager(schemaV1);
+        final Path tempDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory(config);
+        final MerkleNodeState originalTree = stateLifecycleManager.getLatestImmutableState();
 
         // prepare the tree and create a snapshot
-        originalTree.copy().release();
+        stateLifecycleManager.getMutableState().release();
         originalTree.computeHash();
-        originalTree.createSnapshot(tempDir);
+        stateLifecycleManager.createSnapshot(originalTree, tempDir);
+        originalTree.release();
 
-        final MerkleNodeState state =
-                originalTree.loadSnapshot(tempDir.resolve(MerkleTreeSnapshotReader.SIGNED_STATE_FILE_NAME));
+        final MerkleNodeState state = stateLifecycleManager.loadSnapshot(tempDir);
         initServices(schemaV1, state);
         assertTree(state);
 
-        originalTree.release();
         state.release();
     }
 
@@ -212,14 +217,17 @@ class SerializationTest extends MerkleTestBase {
      * After it gets saved to disk again, and then loaded back in, it results in ClassCastException due to incorrect classId.
      */
     @Test
-    void dualReadAndWrite() throws IOException, ConstructableRegistryException {
-        final var schemaV1 = createV1Schema();
-        final var originalTree = createMerkleHederaState(schemaV1);
+    void dualReadAndWrite() throws IOException {
+        final Schema<SemanticVersion> schemaV1 = createV1Schema();
+        final StateLifecycleManager stateLifecycleManager = createStateLifecycleManager(schemaV1);
+        final MerkleNodeState originalTree = stateLifecycleManager.getMutableState();
 
-        MerkleNodeState copy = originalTree.copy(); // make a copy to make VM flushable
+        MerkleNodeState copy = stateLifecycleManager.copyMutableState(); // make a copy to make VM flushable
 
+        stateLifecycleManager
+                .copyMutableState()
+                .release(); // make a fast copy because we can only write to disk an immutable copy
         forceFlush(originalTree.getReadableStates(FIRST_SERVICE).get(FRUIT_STATE_ID));
-        copy.copy().release(); // make a fast copy because we can only write to disk an immutable copy
         copy.getRoot().getHash();
         final byte[] serializedBytes = writeTree(copy.getRoot(), dir);
 
@@ -275,11 +283,11 @@ class SerializationTest extends MerkleTestBase {
         loadedTree.getRoot().migrate(MINIMUM_SUPPORTED_VERSION);
     }
 
-    private MerkleNodeState createMerkleHederaState(Schema schemaV1) {
+    private StateLifecycleManager createStateLifecycleManager(Schema schemaV1) {
         final SignedState randomState =
                 new RandomSignedStateGenerator().setRound(1).build();
 
-        final var originalTree = randomState.getState();
+        final MerkleNodeState originalTree = randomState.getState();
         // the state is not hashed yet
         final var originalTreeCopy = originalTree.copy();
         originalTree.release();
@@ -295,7 +303,12 @@ class SerializationTest extends MerkleTestBase {
                 migrationStateChanges,
                 startupNetworks,
                 TEST_PLATFORM_STATE_FACADE);
-        return originalTreeCopy;
+
+        final StateLifecycleManager stateLifecycleManager =
+                new StateLifecycleManagerImpl(new NoOpMetrics(), new FakeTime(), TestVirtualMapState::new);
+
+        stateLifecycleManager.initState(originalTreeCopy, true);
+        return stateLifecycleManager;
     }
 
     private static void populateVmCache(State loadedTree) {

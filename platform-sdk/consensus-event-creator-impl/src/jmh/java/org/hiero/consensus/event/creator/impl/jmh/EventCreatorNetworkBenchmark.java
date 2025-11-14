@@ -15,17 +15,21 @@ import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
+import java.security.KeyPair;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
+import org.hiero.base.crypto.BytesSigner;
+import org.hiero.consensus.crypto.SigningFactory;
+import org.hiero.consensus.crypto.SigningImplementation;
 import org.hiero.consensus.event.creator.EventCreationConfig;
 import org.hiero.consensus.event.creator.EventCreationConfig_;
 import org.hiero.consensus.event.creator.impl.DefaultEventCreator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -50,8 +54,8 @@ import org.openjdk.jmh.infra.Blackhole;
  */
 @State(Scope.Benchmark)
 @Fork(value = 1)
-@Warmup(iterations = 1, time = 10)
-@Measurement(iterations = 2, time = 10)
+@Warmup(iterations = 1, time = 2)
+@Measurement(iterations = 2, time = 3)
 public class EventCreatorNetworkBenchmark {
 
     /** The number of nodes in the simulated network. */
@@ -62,14 +66,14 @@ public class EventCreatorNetworkBenchmark {
     @Param({"0"})
     public long seed;
 
+    @Param() // Empty means use all available types
+    public SigningImplementation signingType;
+
     /** The event creators for each node in the network. */
     private List<DefaultEventCreator> eventCreators;
 
     /** The roster defining the network. */
     private Roster roster;
-
-    /** Keys and certificates for each node in the network. */
-    private Function<NodeId, KeysAndCerts> nodeKeysAndCerts;
 
     /** Total number of events created in the current iteration. */
     private int eventsCreatedInIteration;
@@ -91,12 +95,11 @@ public class EventCreatorNetworkBenchmark {
                 .withWeightGenerator(WeightGenerators.BALANCED)
                 .withRealKeysEnabled(true);
         roster = rosterBuilder.build();
-        nodeKeysAndCerts = rosterBuilder::getPrivateKeys;
         eventWindowUpdateInterval = Math.round(numNodes * Math.log(numNodes));
     }
 
     @Setup(Level.Iteration)
-    public void setupIteration() {
+    public void setupIteration() throws NoSuchAlgorithmException, NoSuchProviderException {
         eventCreators = new ArrayList<>(numNodes);
         eventWindow = EventWindow.getGenesisEventWindow();
         final Configuration configuration = new TestConfigBuilder()
@@ -112,13 +115,14 @@ public class EventCreatorNetworkBenchmark {
         // Create an event creator for each node
         for (final RosterEntry entry : roster.rosterEntries()) {
             final NodeId nodeId = NodeId.of(entry.nodeId());
-            final KeysAndCerts keysAndCerts = nodeKeysAndCerts.apply(nodeId);
             final SecureRandom nodeRandom = new SecureRandom();
             nodeRandom.setSeed(nodeId.id());
+            final KeyPair keyPair = SigningFactory.generateKeyPair(signingType.getSigningSchema(), nodeRandom);
+            final BytesSigner signer = SigningFactory.createSigner(signingType, keyPair);
 
             final DefaultEventCreator eventCreator = new DefaultEventCreator();
             eventCreator.initialize(
-                    configuration, metrics, time, nodeRandom, keysAndCerts, roster, nodeId, List::of, () -> false);
+                    configuration, metrics, time, nodeRandom, signer, roster, nodeId, List::of, () -> false);
 
             // Set platform status to ACTIVE so events can be created
             eventCreator.updatePlatformStatus(PlatformStatus.ACTIVE);
@@ -147,6 +151,21 @@ public class EventCreatorNetworkBenchmark {
     @BenchmarkMode(Mode.Throughput)
     @OutputTimeUnit(TimeUnit.SECONDS)
     public void networkEventCreation(final Blackhole bh) {
+        /*
+        Results from a run on a 2020 M1 MacBook Pro:
+
+        Benchmark                                          (numNodes)  (seed)   (signingType)   Mode  Cnt      Score   Error  Units
+        EventCreatorNetworkBenchmark.networkEventCreation           4       0          RSA_BC  thrpt    2    339.674          ops/s
+        EventCreatorNetworkBenchmark.networkEventCreation           4       0         RSA_JDK  thrpt    2    354.803          ops/s
+        EventCreatorNetworkBenchmark.networkEventCreation           4       0          EC_JDK  thrpt    2   1218.762          ops/s
+        EventCreatorNetworkBenchmark.networkEventCreation           4       0  ED25519_SODIUM  thrpt    2  52464.443          ops/s
+        EventCreatorNetworkBenchmark.networkEventCreation           4       0     ED25519_SUN  thrpt    2   2166.134          ops/s
+        EventCreatorNetworkBenchmark.networkEventCreation           8       0          RSA_BC  thrpt    2    342.977          ops/s
+        EventCreatorNetworkBenchmark.networkEventCreation           8       0         RSA_JDK  thrpt    2    355.044          ops/s
+        EventCreatorNetworkBenchmark.networkEventCreation           8       0          EC_JDK  thrpt    2   1216.903          ops/s
+        EventCreatorNetworkBenchmark.networkEventCreation           8       0  ED25519_SODIUM  thrpt    2  45992.627          ops/s
+        EventCreatorNetworkBenchmark.networkEventCreation           8       0     ED25519_SUN  thrpt    2   2153.820          ops/s
+        */
         PlatformEvent newEvent = null;
         for (final DefaultEventCreator creator : eventCreators) {
             final PlatformEvent event = creator.maybeCreateEvent();

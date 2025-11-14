@@ -33,7 +33,6 @@ import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -302,10 +301,5 @@ public class FakeState implements MerkleNodeState {
     @Override
     public void initializeState(@NonNull final StateMetadata<?, ?> md) {
         // do nothing
-    }
-
-    @Override
-    public MerkleNodeState loadSnapshot(@NonNull final Path targetPath) {
-        throw new UnsupportedOperationException();
     }
 }

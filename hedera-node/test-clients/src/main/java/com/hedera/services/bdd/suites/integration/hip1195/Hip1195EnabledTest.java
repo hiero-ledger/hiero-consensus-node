@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.integration.hip1195;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
@@ -51,6 +52,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_G
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -59,6 +61,7 @@ import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.hooks.LambdaMappingEntry;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
@@ -314,7 +317,12 @@ public class Hip1195EnabledTest {
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 1_000_000L, "")
-                        .signedBy(DEFAULT_PAYER));
+                        .signedBy(DEFAULT_PAYER)
+                        .via("successfulTransfer"),
+                getTxnRecord("successfulTransfer")
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS))
+                        .logged());
     }
 
     @HapiTest
@@ -1166,13 +1174,14 @@ public class Hip1195EnabledTest {
                 }));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> createOpHook_createsChildOwnedByHookOwner_and_onlyOwnerChecks() {
         final String ONLY_OWNER_ABI =
                 "{\"inputs\":[],\"name\":\"onlyOwner\",\"outputs\":[],\"stateMutability\":\"view\",\"type\":\"function\"}";
         return hapiTest(
                 cryptoCreate(PAYER),
                 cryptoCreate(OWNER).withHooks(accountAllowanceHook(210L, CREATE_OP_HOOK.name())),
+                viewAccount(OWNER, a -> assertEquals(0, a.ethereumNonce())),
                 cryptoTransfer(movingHbar(1).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 210L, 5_000_000L, "")
                         .payingWith(PAYER)
@@ -1199,14 +1208,15 @@ public class Hip1195EnabledTest {
                             .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
                             .via("onlyOwnerByNonOwner");
                     allRunFor(spec, op1, op2);
-                }));
+                }),
+                // Note the hook owner's nonce has been incremented as a CREATE opcode side effect
+                viewAccount(OWNER, a -> assertEquals(1, a.ethereumNonce())));
     }
 
     @HapiTest
     final Stream<DynamicTest> create2OpHook_createsChildOwnedByHookOwner_and_onlyOwnerChecks() {
         final String ONLY_OWNER_ABI =
                 "{\"inputs\":[],\"name\":\"onlyOwner\",\"outputs\":[],\"stateMutability\":\"view\",\"type\":\"function\"}";
-        final AtomicReference<String> creation = new AtomicReference<>();
         return hapiTest(
                 cryptoCreate(PAYER),
                 cryptoCreate(OWNER).withHooks(accountAllowanceHook(211L, CREATE2_OP_HOOK.name())),
