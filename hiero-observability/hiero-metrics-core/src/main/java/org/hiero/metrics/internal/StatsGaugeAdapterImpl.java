@@ -3,7 +3,7 @@ package org.hiero.metrics.internal;
 
 import java.util.function.Consumer;
 import org.hiero.metrics.api.StatsGaugeAdapter;
-import org.hiero.metrics.api.core.ToLongOrDoubleFunction;
+import org.hiero.metrics.api.core.ToNumberFunction;
 import org.hiero.metrics.internal.core.AbstractStatefulMetric;
 import org.hiero.metrics.internal.core.LabelValues;
 import org.hiero.metrics.internal.datapoint.DataPointHolder;
@@ -14,7 +14,7 @@ public final class StatsGaugeAdapterImpl<I, D> extends AbstractStatefulMetric<I,
 
     private final String statLabelName;
     private final String[] statLabelValues;
-    private final ToLongOrDoubleFunction<D>[] statExportGetters;
+    private final ToNumberFunction<D>[] statExportGetters;
     private final boolean[] isFloatingPointAt;
     private final Consumer<D> reset;
 
@@ -26,11 +26,11 @@ public final class StatsGaugeAdapterImpl<I, D> extends AbstractStatefulMetric<I,
         statLabelValues = builder.getStatNames().toArray(new String[0]);
 
         reset = builder.getReset() != null ? builder.getReset() : container -> {}; // no-op reset if no specified
-        statExportGetters = builder.getStatExportGetters().toArray(new ToLongOrDoubleFunction[0]);
+        statExportGetters = builder.getStatExportGetters().toArray(new ToNumberFunction[0]);
 
         isFloatingPointAt = new boolean[statExportGetters.length];
         for (int i = 0; i < statExportGetters.length; i++) {
-            isFloatingPointAt[i] = statExportGetters[i].isToDoubleFunction();
+            isFloatingPointAt[i] = statExportGetters[i].isFloatingPointFunction();
         }
     }
 
@@ -47,14 +47,14 @@ public final class StatsGaugeAdapterImpl<I, D> extends AbstractStatefulMetric<I,
 
     @Override
     protected void updateDatapointSnapshot(DataPointHolder<D, MultiValueDataPointSnapshotImpl> dataPointHolder) {
-        ToLongOrDoubleFunction<D> getter;
+        ToNumberFunction<D> getter;
         for (int i = 0; i < statExportGetters.length; i++) {
             getter = statExportGetters[i];
-            if (getter.isToDoubleFunction()) {
-                double value = getter.getDoubleValueConverter().applyAsDouble(dataPointHolder.dataPoint());
+            if (getter.isFloatingPointFunction()) {
+                double value = getter.getToDoubleFunction().applyAsDouble(dataPointHolder.dataPoint());
                 dataPointHolder.snapshot().setValueAt(i, value);
             } else {
-                long value = getter.getLongValueConverter().applyAsLong(dataPointHolder.dataPoint());
+                long value = getter.getToLongFunction().applyAsLong(dataPointHolder.dataPoint());
                 dataPointHolder.snapshot().setValueAt(i, value);
             }
         }

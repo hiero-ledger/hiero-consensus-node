@@ -8,17 +8,16 @@ import java.util.function.ToDoubleFunction;
 import java.util.function.ToLongFunction;
 import org.junit.jupiter.api.Test;
 
-public class ToLongOrDoubleFunctionTest {
+public class ToNumberFunctionTest {
 
     @Test
     void testDoubleFunctionGetters() {
         ToDoubleFunction<Object> doubleFunction = obj -> 42.5;
-        ToLongOrDoubleFunction<Object> wrapper = new ToLongOrDoubleFunction<>(doubleFunction);
+        ToNumberFunction<Object> wrapper = new ToNumberFunction<>(doubleFunction);
 
-        assertThat(wrapper.isToDoubleFunction()).isTrue();
-        assertThat(wrapper.getDoubleValueConverter().applyAsDouble(new Object()))
-                .isEqualTo(42.5);
-        assertThatThrownBy(wrapper::getLongValueConverter)
+        assertThat(wrapper.isFloatingPointFunction()).isTrue();
+        assertThat(wrapper.getToDoubleFunction().applyAsDouble(new Object())).isEqualTo(42.5);
+        assertThatThrownBy(wrapper::getToLongFunction)
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("Long value converter is not set");
     }
@@ -26,26 +25,26 @@ public class ToLongOrDoubleFunctionTest {
     @Test
     void testLongFunctionGetters() {
         ToLongFunction<Object> longFunction = obj -> 37L;
-        ToLongOrDoubleFunction<Object> wrapper = new ToLongOrDoubleFunction<Object>(longFunction);
+        ToNumberFunction<Object> wrapper = new ToNumberFunction<Object>(longFunction);
 
-        assertThat(wrapper.isToDoubleFunction()).isFalse();
-        assertThat(wrapper.getLongValueConverter().applyAsLong(new Object())).isEqualTo(37L);
+        assertThat(wrapper.isFloatingPointFunction()).isFalse();
+        assertThat(wrapper.getToLongFunction().applyAsLong(new Object())).isEqualTo(37L);
 
-        assertThatThrownBy(wrapper::getDoubleValueConverter)
+        assertThatThrownBy(wrapper::getToDoubleFunction)
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("Double value converter is not set");
     }
 
     @Test
     void testNullDoubleFunctionThrows() {
-        assertThatThrownBy(() -> new ToLongOrDoubleFunction<>((ToDoubleFunction<?>) null))
+        assertThatThrownBy(() -> new ToNumberFunction<>((ToDoubleFunction<?>) null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("valueConverter cannot be null");
     }
 
     @Test
     void testNullLongSupplierThrows() {
-        assertThatThrownBy(() -> new ToLongOrDoubleFunction<>((ToLongFunction<?>) null))
+        assertThatThrownBy(() -> new ToNumberFunction<>((ToLongFunction<?>) null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("valueConverter cannot be null");
     }
@@ -53,14 +52,14 @@ public class ToLongOrDoubleFunctionTest {
     @Test
     void testDoubleConverterWithNullInput() {
         ToDoubleFunction<String> doubleFunction = Double::parseDouble;
-        ToLongOrDoubleFunction<String> wrapper = new ToLongOrDoubleFunction<>(doubleFunction);
-        assertThat(wrapper.getDoubleValueConverter().applyAsDouble(null)).isNaN();
+        ToNumberFunction<String> wrapper = new ToNumberFunction<>(doubleFunction);
+        assertThat(wrapper.getToDoubleFunction().applyAsDouble(null)).isNaN();
     }
 
     @Test
     void testLongConverterWithNullInput() {
         ToLongFunction<String> longFunction = Long::parseLong;
-        ToLongOrDoubleFunction<String> wrapper = new ToLongOrDoubleFunction<>(longFunction);
-        assertThat(wrapper.getLongValueConverter().applyAsLong(null)).isEqualTo(0L);
+        ToNumberFunction<String> wrapper = new ToNumberFunction<>(longFunction);
+        assertThat(wrapper.getToLongFunction().applyAsLong(null)).isEqualTo(0L);
     }
 }

@@ -18,7 +18,7 @@ public final class LongGaugeAdapterImpl<I, D> extends AbstractStatefulMetric<I, 
     public LongGaugeAdapterImpl(GaugeAdapter.Builder<I, D> builder) {
         super(builder);
 
-        exportGetter = builder.getValueConverter().getLongValueConverter();
+        exportGetter = builder.getValueConverter().getToLongFunction();
         reset = builder.getReset() != null ? builder.getReset() : container -> {};
     }
 

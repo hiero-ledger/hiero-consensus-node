@@ -18,7 +18,7 @@ public final class DoubleGaugeAdapterImpl<I, D> extends AbstractStatefulMetric<I
     public DoubleGaugeAdapterImpl(GaugeAdapter.Builder<I, D> builder) {
         super(builder);
 
-        exportGetter = builder.getValueConverter().getDoubleValueConverter();
+        exportGetter = builder.getValueConverter().getToDoubleFunction();
         reset = builder.getReset() != null ? builder.getReset() : container -> {};
     }
 

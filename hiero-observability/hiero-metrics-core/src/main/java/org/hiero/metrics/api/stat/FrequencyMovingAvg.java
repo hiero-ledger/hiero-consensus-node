@@ -5,7 +5,7 @@ import com.swirlds.base.time.Time;
 import java.util.function.DoubleSupplier;
 import org.hiero.metrics.api.GaugeAdapter;
 import org.hiero.metrics.api.core.MetricKey;
-import org.hiero.metrics.api.core.ToLongOrDoubleFunction;
+import org.hiero.metrics.api.core.ToNumberFunction;
 import org.hiero.metrics.api.utils.Unit;
 
 // Similar to com.swirlds.common.metrics.statistics.StatsSpeedometer
@@ -55,7 +55,7 @@ public final class FrequencyMovingAvg implements DoubleSupplier {
                         key,
                         StatUtils.asInitializer(halfLife),
                         init -> new FrequencyMovingAvg(init.getAsDouble(), time),
-                        new ToLongOrDoubleFunction<>(FrequencyMovingAvg::getAsDouble))
+                        new ToNumberFunction<>(FrequencyMovingAvg::getAsDouble))
                 .withReset(FrequencyMovingAvg::reset)
                 .withUnit(Unit.FREQUENCY_UNIT);
     }

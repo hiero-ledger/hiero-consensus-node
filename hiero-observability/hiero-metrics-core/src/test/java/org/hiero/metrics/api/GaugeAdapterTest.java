@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.function.IntSupplier;
 import org.hiero.metrics.api.core.MetricType;
-import org.hiero.metrics.api.core.ToLongOrDoubleFunction;
+import org.hiero.metrics.api.core.ToNumberFunction;
 import org.hiero.metrics.api.stat.StatUtils;
 import org.hiero.metrics.test.fixtures.StatContainer;
 import org.junit.jupiter.api.Test;
@@ -34,7 +34,7 @@ public class GaugeAdapterTest
 
     protected GaugeAdapter.Builder<IntSupplier, StatContainer> emptyMetricBuilderWithInit(String name, int init) {
         return GaugeAdapter.<IntSupplier, StatContainer>builder(
-                        name, () -> init, StatContainer::new, new ToLongOrDoubleFunction<>(StatContainer::getCounter))
+                        name, () -> init, StatContainer::new, new ToNumberFunction<>(StatContainer::getCounter))
                 .withReset(StatContainer::reset);
     }
 

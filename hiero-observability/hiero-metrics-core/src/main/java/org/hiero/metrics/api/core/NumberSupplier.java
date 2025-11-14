@@ -9,19 +9,19 @@ import java.util.function.LongSupplier;
 /**
  * A wrapper class that holds either a {@link DoubleSupplier} or a {@link LongSupplier}.
  */
-public final class LongOrDoubleSupplier {
+public final class NumberSupplier {
 
-    private final DoubleSupplier doubleValueSupplier;
-    private final LongSupplier longValueSupplier;
+    private final DoubleSupplier doubleSupplier;
+    private final LongSupplier longSupplier;
 
     /**
      * Create an instance that holds a {@link DoubleSupplier}.
      *
      * @param valueSupplier the {@code double} value supplier
      */
-    public LongOrDoubleSupplier(@NonNull DoubleSupplier valueSupplier) {
-        this.doubleValueSupplier = Objects.requireNonNull(valueSupplier, "valueSupplier cannot be null");
-        this.longValueSupplier = null;
+    public NumberSupplier(@NonNull DoubleSupplier valueSupplier) {
+        this.doubleSupplier = Objects.requireNonNull(valueSupplier, "value supplier cannot be null");
+        this.longSupplier = null;
     }
 
     /**
@@ -29,16 +29,16 @@ public final class LongOrDoubleSupplier {
      *
      * @param valueSupplier the {@code long} value supplier
      */
-    public LongOrDoubleSupplier(@NonNull LongSupplier valueSupplier) {
-        this.doubleValueSupplier = null;
-        this.longValueSupplier = Objects.requireNonNull(valueSupplier, "valueSupplier cannot be null");
+    public NumberSupplier(@NonNull LongSupplier valueSupplier) {
+        this.doubleSupplier = null;
+        this.longSupplier = Objects.requireNonNull(valueSupplier, "value supplier cannot be null");
     }
 
     /**
-     * @return {@code true} if this instance holds a {@link LongSupplier}, {@code false} if it holds a {@link DoubleSupplier}
+     * @return {@code true} if this instance holds a {@link DoubleSupplier}, {@code false} if it holds a {@link LongSupplier}
      */
-    public boolean isDoubleSupplier() {
-        return doubleValueSupplier != null;
+    public boolean isFloatingSupplier() {
+        return doubleSupplier != null;
     }
 
     /**
@@ -47,8 +47,8 @@ public final class LongOrDoubleSupplier {
      * @return the {@code double} value supplier
      * @throws NullPointerException if this instance holds a {@link LongSupplier}
      */
-    public DoubleSupplier getDoubleValueSupplier() {
-        return Objects.requireNonNull(this.doubleValueSupplier, "Double value supplier is not set");
+    public DoubleSupplier getDoubleSupplier() {
+        return Objects.requireNonNull(this.doubleSupplier, "Double value supplier is not set");
     }
 
     /**
@@ -57,7 +57,7 @@ public final class LongOrDoubleSupplier {
      * @return the {@code long} value supplier
      * @throws NullPointerException if this instance holds a {@link DoubleSupplier}
      */
-    public LongSupplier getLongValueSupplier() {
-        return Objects.requireNonNull(this.longValueSupplier, "Long value supplier is not set");
+    public LongSupplier getLongSupplier() {
+        return Objects.requireNonNull(this.longSupplier, "Long value supplier is not set");
     }
 }
