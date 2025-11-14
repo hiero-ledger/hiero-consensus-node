@@ -18,7 +18,7 @@ public final class GenericDoubleGaugeImpl<T>
 
     public GenericDoubleGaugeImpl(GenericGauge.Builder<T> builder) {
         super(builder);
-        this.valueConverter = builder.getValueConverter().getDoubleValueConverter();
+        this.valueConverter = builder.getValueConverter().getToDoubleFunction();
     }
 
     @Override

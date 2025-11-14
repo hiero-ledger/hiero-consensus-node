@@ -19,7 +19,7 @@ import java.util.function.ToLongFunction;
 import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.MetricType;
 import org.hiero.metrics.api.core.StatefulMetric;
-import org.hiero.metrics.api.core.ToLongOrDoubleFunction;
+import org.hiero.metrics.api.core.ToNumberFunction;
 import org.hiero.metrics.api.stat.StatUtils;
 import org.hiero.metrics.api.utils.MetricUtils;
 import org.hiero.metrics.internal.StatsGaugeAdapterImpl;
@@ -101,7 +101,7 @@ public interface StatsGaugeAdapter<I, D> extends StatefulMetric<I, D> {
 
         private String statLabel = DEFAULT_STAT_LABEL;
         private final List<String> statNames = new ArrayList<>();
-        private final List<ToLongOrDoubleFunction<D>> statExportGetters = new ArrayList<>();
+        private final List<ToNumberFunction<D>> statExportGetters = new ArrayList<>();
         private Consumer<D> reset;
 
         private Builder(
@@ -131,7 +131,7 @@ public interface StatsGaugeAdapter<I, D> extends StatefulMetric<I, D> {
          * @return the list of functions to get the stat values from the data point
          */
         @NonNull
-        public List<ToLongOrDoubleFunction<D>> getStatExportGetters() {
+        public List<ToNumberFunction<D>> getStatExportGetters() {
             return statExportGetters;
         }
 
@@ -185,7 +185,7 @@ public interface StatsGaugeAdapter<I, D> extends StatefulMetric<I, D> {
          */
         @NonNull
         public Builder<I, D> withDoubleStat(@NonNull String statName, @NonNull ToDoubleFunction<D> exportGetter) {
-            return withStat(statName, new ToLongOrDoubleFunction<>(exportGetter));
+            return withStat(statName, new ToNumberFunction<>(exportGetter));
         }
 
         /**
@@ -199,11 +199,11 @@ public interface StatsGaugeAdapter<I, D> extends StatefulMetric<I, D> {
          */
         @NonNull
         public Builder<I, D> withLongStat(@NonNull String statName, @NonNull ToLongFunction<D> exportGetter) {
-            return withStat(statName, new ToLongOrDoubleFunction<>(exportGetter));
+            return withStat(statName, new ToNumberFunction<>(exportGetter));
         }
 
         @NonNull
-        private Builder<I, D> withStat(@NonNull String statName, @NonNull ToLongOrDoubleFunction<D> exportGetter) {
+        private Builder<I, D> withStat(@NonNull String statName, @NonNull ToNumberFunction<D> exportGetter) {
             statNames.add(ArgumentUtils.throwArgBlank(statName, "stat name"));
             statExportGetters.add(Objects.requireNonNull(exportGetter, "Export getter must not be null"));
             return this;

@@ -6,10 +6,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.DoubleSupplier;
 import java.util.function.LongSupplier;
-import org.hiero.metrics.api.core.LongOrDoubleSupplier;
 import org.hiero.metrics.api.core.Metric;
 import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.MetricType;
+import org.hiero.metrics.api.core.NumberSupplier;
 import org.hiero.metrics.internal.StatelessMetricImpl;
 
 /**
@@ -17,8 +17,8 @@ import org.hiero.metrics.internal.StatelessMetricImpl;
  * and gets/exports its value using provided suppliers.
  * <p>
  * Value suppliers are provided per data point during metric construction using
- * {@link Builder#registerDataPoint(LongOrDoubleSupplier, String...)}, or could be added later
- * using {@link #registerDataPoint(LongOrDoubleSupplier, String...)}.
+ * {@link Builder#registerDataPoint(NumberSupplier, String...)}, or could be added later
+ * using {@link #registerDataPoint(NumberSupplier, String...)}.
  */
 public interface StatelessMetric extends Metric {
 
@@ -71,8 +71,7 @@ public interface StatelessMetric extends Metric {
      * @throws IllegalArgumentException if provided label names do not match {@link #dynamicLabelNames()}
      */
     @NonNull
-    StatelessMetric registerDataPoint(
-            @NonNull LongOrDoubleSupplier valueSupplier, @NonNull String... labelNamesAndValues);
+    StatelessMetric registerDataPoint(@NonNull NumberSupplier valueSupplier, @NonNull String... labelNamesAndValues);
 
     /**
      * Stateless metrics do not hold any state, so this is a no-op.
@@ -88,7 +87,7 @@ public interface StatelessMetric extends Metric {
     final class Builder extends Metric.Builder<Builder, StatelessMetric> {
 
         private final List<String[]> labelNamesAndValues = new ArrayList<>();
-        private final List<LongOrDoubleSupplier> valuesSuppliers = new ArrayList<>();
+        private final List<NumberSupplier> valuesSuppliers = new ArrayList<>();
 
         private Builder(MetricKey<StatelessMetric> key) {
             super(MetricType.GAUGE, key);
@@ -102,7 +101,7 @@ public interface StatelessMetric extends Metric {
          * Order doesn't matter, but for efficiency, it is recommended to provide label names in alphabetical order.
          * <p>
          * All requirements for labels above are validated during metric construction
-         * (when {@link StatelessMetric#registerDataPoint(LongOrDoubleSupplier, String...)} is called),
+         * (when {@link StatelessMetric#registerDataPoint(NumberSupplier, String...)} is called),
          * due to builder usage pattern, when dynamic labels can be registered after data points.
          *
          * @param valueSupplier the supplier to get the {@code long} value of the data point
@@ -111,7 +110,7 @@ public interface StatelessMetric extends Metric {
          */
         @NonNull
         public Builder registerDataPoint(@NonNull LongSupplier valueSupplier, @NonNull String... labelNamesAndValues) {
-            return registerDataPoint(new LongOrDoubleSupplier(valueSupplier), labelNamesAndValues);
+            return registerDataPoint(new NumberSupplier(valueSupplier), labelNamesAndValues);
         }
 
         /**
@@ -122,7 +121,7 @@ public interface StatelessMetric extends Metric {
          * Order doesn't matter, but for efficiency, it is recommended to provide label names in alphabetical order.
          * <p>
          * All requirements for labels above are validated during metric construction
-         * (when {@link StatelessMetric#registerDataPoint(LongOrDoubleSupplier, String...)} is called),
+         * (when {@link StatelessMetric#registerDataPoint(NumberSupplier, String...)} is called),
          * due to builder usage pattern, when dynamic labels can be registered after data points.
          *
          * @param valueSupplier the supplier to get the {@code double} value of the data point
@@ -132,12 +131,12 @@ public interface StatelessMetric extends Metric {
         @NonNull
         public Builder registerDataPoint(
                 @NonNull DoubleSupplier valueSupplier, @NonNull String... labelNamesAndValues) {
-            return registerDataPoint(new LongOrDoubleSupplier(valueSupplier), labelNamesAndValues);
+            return registerDataPoint(new NumberSupplier(valueSupplier), labelNamesAndValues);
         }
 
         @NonNull
         private Builder registerDataPoint(
-                @NonNull LongOrDoubleSupplier valueSupplier, @NonNull String... labelNamesAndValues) {
+                @NonNull NumberSupplier valueSupplier, @NonNull String... labelNamesAndValues) {
             // labels will be validated during metric construction
             valuesSuppliers.add(valueSupplier);
             this.labelNamesAndValues.add(labelNamesAndValues);
@@ -154,7 +153,7 @@ public interface StatelessMetric extends Metric {
         }
 
         @NonNull
-        public LongOrDoubleSupplier getValuesSupplier(int idx) {
+        public NumberSupplier getValuesSupplier(int idx) {
             return valuesSuppliers.get(idx);
         }
 

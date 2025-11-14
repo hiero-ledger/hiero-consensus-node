@@ -18,7 +18,7 @@ public final class GenericLongGaugeImpl<T>
 
     public GenericLongGaugeImpl(GenericGauge.Builder<T> builder) {
         super(builder);
-        this.valueConverter = builder.getValueConverter().getLongValueConverter();
+        this.valueConverter = builder.getValueConverter().getToLongFunction();
     }
 
     @Override

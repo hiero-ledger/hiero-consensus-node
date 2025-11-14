@@ -11,7 +11,7 @@ import java.util.function.ToDoubleFunction;
 import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.MetricType;
 import org.hiero.metrics.api.core.StatefulMetric;
-import org.hiero.metrics.api.core.ToLongOrDoubleFunction;
+import org.hiero.metrics.api.core.ToNumberFunction;
 import org.hiero.metrics.api.datapoint.GaugeDataPoint;
 import org.hiero.metrics.internal.GenericDoubleGaugeImpl;
 import org.hiero.metrics.internal.GenericLongGaugeImpl;
@@ -48,7 +48,7 @@ public interface GenericGauge<T> extends StatefulMetric<Supplier<T>, GaugeDataPo
      */
     @NonNull
     static <T> Builder<T> builder(
-            @NonNull MetricKey<GenericGauge<T>> key, @NonNull ToLongOrDoubleFunction<T> valueConverter) {
+            @NonNull MetricKey<GenericGauge<T>> key, @NonNull ToNumberFunction<T> valueConverter) {
         return new Builder<>(key, valueConverter);
     }
 
@@ -62,7 +62,7 @@ public interface GenericGauge<T> extends StatefulMetric<Supplier<T>, GaugeDataPo
      * @return the builder
      */
     @NonNull
-    static <T> Builder<T> builder(@NonNull String name, @NonNull ToLongOrDoubleFunction<T> valueConverter) {
+    static <T> Builder<T> builder(@NonNull String name, @NonNull ToNumberFunction<T> valueConverter) {
         return builder(key(name), valueConverter);
     }
 
@@ -72,9 +72,9 @@ public interface GenericGauge<T> extends StatefulMetric<Supplier<T>, GaugeDataPo
      * @param unit the chrono unit to convert the duration to {@code long} for export
      * @return the function
      */
-    static ToLongOrDoubleFunction<Duration> durationToLongFunction(@NonNull ChronoUnit unit) {
+    static ToNumberFunction<Duration> durationToLongFunction(@NonNull ChronoUnit unit) {
         Objects.requireNonNull(unit, "unit cannot be null");
-        return new ToLongOrDoubleFunction<>((ToDoubleFunction<Duration>) duration -> duration.get(unit));
+        return new ToNumberFunction<>((ToDoubleFunction<Duration>) duration -> duration.get(unit));
     }
 
     /**
@@ -86,7 +86,7 @@ public interface GenericGauge<T> extends StatefulMetric<Supplier<T>, GaugeDataPo
      */
     final class Builder<T> extends StatefulMetric.Builder<Supplier<T>, GaugeDataPoint<T>, Builder<T>, GenericGauge<T>> {
 
-        private final ToLongOrDoubleFunction<T> valueConverter;
+        private final ToNumberFunction<T> valueConverter;
 
         /**
          * Create a builder for a {@link GenericGauge} with the given metric key and {@code double} value converter.
@@ -94,7 +94,7 @@ public interface GenericGauge<T> extends StatefulMetric<Supplier<T>, GaugeDataPo
          * @param key            the metric key
          * @param valueConverter the function to convert the value to double for export
          */
-        private Builder(@NonNull MetricKey<GenericGauge<T>> key, @NonNull ToLongOrDoubleFunction<T> valueConverter) {
+        private Builder(@NonNull MetricKey<GenericGauge<T>> key, @NonNull ToNumberFunction<T> valueConverter) {
             super(MetricType.GAUGE, key, () -> null, AtomicReferenceGaugeDataPoint::new);
             this.valueConverter = Objects.requireNonNull(valueConverter, "valueConverter cannot be null");
         }
@@ -105,7 +105,7 @@ public interface GenericGauge<T> extends StatefulMetric<Supplier<T>, GaugeDataPo
          * @return the value converter function
          */
         @NonNull
-        public ToLongOrDoubleFunction<T> getValueConverter() {
+        public ToNumberFunction<T> getValueConverter() {
             return valueConverter;
         }
 
@@ -128,10 +128,10 @@ public interface GenericGauge<T> extends StatefulMetric<Supplier<T>, GaugeDataPo
         @NonNull
         @Override
         public GenericGauge<T> buildMetric() {
-            if (valueConverter.isToDoubleFunction()) {
-                return new GenericLongGaugeImpl<>(this);
-            } else {
+            if (valueConverter.isFloatingPointFunction()) {
                 return new GenericDoubleGaugeImpl<>(this);
+            } else {
+                return new GenericLongGaugeImpl<>(this);
             }
         }
 

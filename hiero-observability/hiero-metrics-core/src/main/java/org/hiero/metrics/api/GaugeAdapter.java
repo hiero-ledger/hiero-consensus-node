@@ -12,7 +12,7 @@ import java.util.function.Supplier;
 import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.MetricType;
 import org.hiero.metrics.api.core.StatefulMetric;
-import org.hiero.metrics.api.core.ToLongOrDoubleFunction;
+import org.hiero.metrics.api.core.ToNumberFunction;
 import org.hiero.metrics.internal.DoubleGaugeAdapterImpl;
 import org.hiero.metrics.internal.LongGaugeAdapterImpl;
 
@@ -65,7 +65,7 @@ public interface GaugeAdapter<I, D> extends StatefulMetric<I, D> {
             @NonNull MetricKey<GaugeAdapter<I, D>> key,
             @NonNull I defaultInitializer,
             @NonNull Function<I, D> dataPointFactory,
-            @NonNull ToLongOrDoubleFunction<D> exportGetter) {
+            @NonNull ToNumberFunction<D> exportGetter) {
         return new Builder<>(key, defaultInitializer, dataPointFactory, exportGetter);
     }
 
@@ -86,7 +86,7 @@ public interface GaugeAdapter<I, D> extends StatefulMetric<I, D> {
             @NonNull String name,
             @NonNull I defaultInitializer,
             @NonNull Function<I, D> dataPointFactory,
-            @NonNull ToLongOrDoubleFunction<D> exportGetter) {
+            @NonNull ToNumberFunction<D> exportGetter) {
         return builder(key(name), defaultInitializer, dataPointFactory, exportGetter);
     }
 
@@ -104,7 +104,7 @@ public interface GaugeAdapter<I, D> extends StatefulMetric<I, D> {
     static <D> Builder<Object, D> builder(
             @NonNull MetricKey<GaugeAdapter<Object, D>> key,
             @NonNull Supplier<D> dataPointFactory,
-            @NonNull ToLongOrDoubleFunction<D> exportGetter) {
+            @NonNull ToNumberFunction<D> exportGetter) {
         return new Builder<>(key, NO_DEFAULT_INITIALIZER, init -> dataPointFactory.get(), exportGetter);
     }
 
@@ -120,9 +120,7 @@ public interface GaugeAdapter<I, D> extends StatefulMetric<I, D> {
      * @return the builder
      */
     static <D> Builder<Object, D> builder(
-            @NonNull String name,
-            @NonNull Supplier<D> dataPointFactory,
-            @NonNull ToLongOrDoubleFunction<D> exportGetter) {
+            @NonNull String name, @NonNull Supplier<D> dataPointFactory, @NonNull ToNumberFunction<D> exportGetter) {
         return builder(key(name), dataPointFactory, exportGetter);
     }
 
@@ -131,7 +129,7 @@ public interface GaugeAdapter<I, D> extends StatefulMetric<I, D> {
      */
     final class Builder<I, D> extends StatefulMetric.Builder<I, D, Builder<I, D>, GaugeAdapter<I, D>> {
 
-        private final ToLongOrDoubleFunction<D> valueConverter;
+        private final ToNumberFunction<D> valueConverter;
         private Consumer<D> reset;
 
         /**
@@ -146,7 +144,7 @@ public interface GaugeAdapter<I, D> extends StatefulMetric<I, D> {
                 @NonNull MetricKey<GaugeAdapter<I, D>> key,
                 @NonNull I defaultInitializer,
                 @NonNull Function<I, D> dataPointFactory,
-                @NonNull ToLongOrDoubleFunction<D> valueConverter) {
+                @NonNull ToNumberFunction<D> valueConverter) {
             super(MetricType.GAUGE, key, defaultInitializer, dataPointFactory);
             this.valueConverter = Objects.requireNonNull(valueConverter, "valueConverter cannot be null");
         }
@@ -157,7 +155,7 @@ public interface GaugeAdapter<I, D> extends StatefulMetric<I, D> {
          * @return the value converter function
          */
         @NonNull
-        public ToLongOrDoubleFunction<D> getValueConverter() {
+        public ToNumberFunction<D> getValueConverter() {
             return valueConverter;
         }
 
@@ -192,7 +190,7 @@ public interface GaugeAdapter<I, D> extends StatefulMetric<I, D> {
         @NonNull
         @Override
         protected GaugeAdapter<I, D> buildMetric() {
-            if (valueConverter.isToDoubleFunction()) {
+            if (valueConverter.isFloatingPointFunction()) {
                 return new DoubleGaugeAdapterImpl<>(this);
             } else {
                 return new LongGaugeAdapterImpl<>(this);

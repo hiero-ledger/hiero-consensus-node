@@ -13,20 +13,20 @@ import java.util.function.ToLongFunction;
  *
  * @param <T> the type of the input to the function
  */
-public final class ToLongOrDoubleFunction<T> {
+public final class ToNumberFunction<T> {
 
-    private final ToDoubleFunction<T> doubleValueConverter;
-    private final ToLongFunction<T> longValueConverter;
+    private final ToDoubleFunction<T> toDoubleFunction;
+    private final ToLongFunction<T> toLongFunction;
 
     /**
      * Create an instance that holds a {@link ToDoubleFunction}.
      *
      * @param valueConverter the {@code double} value converter
      */
-    public ToLongOrDoubleFunction(ToDoubleFunction<T> valueConverter) {
+    public ToNumberFunction(ToDoubleFunction<T> valueConverter) {
         Objects.requireNonNull(valueConverter, "valueConverter cannot be null");
-        this.doubleValueConverter = d -> d == null ? Double.NaN : valueConverter.applyAsDouble(d);
-        this.longValueConverter = null;
+        this.toDoubleFunction = d -> d == null ? Double.NaN : valueConverter.applyAsDouble(d);
+        this.toLongFunction = null;
     }
 
     /**
@@ -34,17 +34,17 @@ public final class ToLongOrDoubleFunction<T> {
      *
      * @param valueConverter the {@code long} value converter
      */
-    public ToLongOrDoubleFunction(ToLongFunction<T> valueConverter) {
+    public ToNumberFunction(ToLongFunction<T> valueConverter) {
         Objects.requireNonNull(valueConverter, "valueConverter cannot be null");
-        this.doubleValueConverter = null;
-        this.longValueConverter = val -> val == null ? 0L : valueConverter.applyAsLong(val);
+        this.toDoubleFunction = null;
+        this.toLongFunction = val -> val == null ? 0L : valueConverter.applyAsLong(val);
     }
 
     /**
-     * @return {@code true} if this instance holds a {@link ToLongFunction}, {@code false} if it holds a {@link ToDoubleFunction}
+     * @return {@code true} if this instance holds a {@link ToDoubleFunction}, {@code false} if it holds a {@link ToLongFunction}
      */
-    public boolean isToDoubleFunction() {
-        return doubleValueConverter != null;
+    public boolean isFloatingPointFunction() {
+        return toDoubleFunction != null;
     }
 
     /**
@@ -53,8 +53,8 @@ public final class ToLongOrDoubleFunction<T> {
      * @return the {@code double} value converter
      * @throws NullPointerException if this instance holds a {@link ToLongFunction}
      */
-    public ToDoubleFunction<T> getDoubleValueConverter() {
-        return Objects.requireNonNull(this.doubleValueConverter, "Double value converter is not set");
+    public ToDoubleFunction<T> getToDoubleFunction() {
+        return Objects.requireNonNull(this.toDoubleFunction, "Double value converter is not set");
     }
 
     /**
@@ -63,7 +63,7 @@ public final class ToLongOrDoubleFunction<T> {
      * @return the {@code long} value converter
      * @throws NullPointerException if this instance holds a {@link ToDoubleFunction}
      */
-    public ToLongFunction<T> getLongValueConverter() {
-        return Objects.requireNonNull(this.longValueConverter, "Long value converter is not set");
+    public ToLongFunction<T> getToLongFunction() {
+        return Objects.requireNonNull(this.toLongFunction, "Long value converter is not set");
     }
 }
