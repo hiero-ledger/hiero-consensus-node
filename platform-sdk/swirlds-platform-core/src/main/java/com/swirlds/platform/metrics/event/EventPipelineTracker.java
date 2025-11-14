@@ -38,7 +38,7 @@ public class EventPipelineTracker {
                 metrics,
                 ChronoUnit.MICROS,
                 PLATFORM_CATEGORY,
-                 "eventDelay_%d_hashing".formatted(step++),
+                "eventDelay_%d_hashing".formatted(step++),
                 "event pipeline delay until after hashing");
         this.validation = new AverageAndMaxTimeStat(
                 metrics,

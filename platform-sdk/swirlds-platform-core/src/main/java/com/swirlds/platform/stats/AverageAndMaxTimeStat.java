@@ -48,17 +48,15 @@ public class AverageAndMaxTimeStat {
             default:
                 format = FORMAT_DEFAULT;
         }
-        metrics.getOrCreate(
-                new StatEntry.Config<>(category, name, Double.class, this::getAvg)
-                        .withDescription(desc)
-                        .withFormat(format)
-                        .withReset(this::resetAvg));
-        metrics.getOrCreate(
-                new StatEntry.Config<>(category, name + "MAX", Double.class, this::getMax)
-                        .withDescription("max value of " + name)
-                        .withFormat(format)
-                        .withReset(this::resetMax)
-                        .withResetStatsStringSupplier(this::getAndResetMax));
+        metrics.getOrCreate(new StatEntry.Config<>(category, name, Double.class, this::getAvg)
+                .withDescription(desc)
+                .withFormat(format)
+                .withReset(this::resetAvg));
+        metrics.getOrCreate(new StatEntry.Config<>(category, name + "MAX", Double.class, this::getMax)
+                .withDescription("max value of " + name)
+                .withFormat(format)
+                .withReset(this::resetMax)
+                .withResetStatsStringSupplier(this::getAndResetMax));
     }
 
     private double convert(final long nanos) {
