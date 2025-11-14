@@ -8,12 +8,24 @@ import com.hedera.node.app.spi.fees.Fees;
 import com.hederahashgraph.api.proto.java.ExchangeRate;
 import org.hiero.hapi.fees.FeeResult;
 
+/**
+ * Utility class for converting between different fee representations.
+ * Provides methods to convert fees between `FeeResult` and `Fees` objects,
+ * as well as utility methods for handling tinycents to tinybars conversions.
+ */
 public class FeeUtils {
 
     private FeeUtils() {
         // util class
     }
 
+    /**
+     * Converts a `FeeResult` object to a `Fees` object using the provided exchange rate.
+     *
+     * @param feeResult The `FeeResult` object containing node, network, and service fees in tinycents.
+     * @param rate The `ExchangeRate` object used to convert tinycents to tinybars.
+     * @return A `Fees` object containing the converted fees in tinybars.
+     */
     public static Fees feeResultToFees(FeeResult feeResult, ExchangeRate rate) {
         return new Fees(
                 tinycentsToTinybars(feeResult.node, rate),
@@ -21,6 +33,13 @@ public class FeeUtils {
                 tinycentsToTinybars(feeResult.service, rate));
     }
 
+    /**
+     * Converts a `Fees` object to a `FeeResult` object using the provided exchange rate.
+     *
+     * @param fees The `Fees` object containing node, network, and service fees in tinybars.
+     * @param rate The `ExchangeRate` object used to convert tinybars to tinycents.
+     * @return A `FeeResult` object containing the converted fees in tinycents.
+     */
     public static FeeResult feesToFeeResult(Fees fees, ExchangeRate rate) {
         final var feeResult = new FeeResult();
         feeResult.addNodeFee(1, FeeBuilder.getTinybarsFromTinyCents(rate, fees.nodeFee()));
