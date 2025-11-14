@@ -425,7 +425,7 @@ jobs:
 
       - name: Upload HAPI Test (Misc Records) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-hapi-tests-misc-records && inputs.enable-network-log-capture && steps.gradle-hapi-misc-records.conclusion == 'failure' && !cancelled() }}
+        if: ${{ inputs.enable-hapi-tests-misc-records && inputs.enable-network-log-capture && steps.gradle-hapi-misc-records.conclusion == 'success' && !cancelled() }}
         with:
           name: HAPI Test (Misc Records) Network Logs
           path: |
