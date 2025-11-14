@@ -612,11 +612,11 @@ class ReconnectControllerTest {
 
         final ReconnectController controller = createController();
         final AtomicReference<SystemExitCode> capturedExitCode = new AtomicReference<>();
-        final var scenario = new ReconnectScenario(controller);
-        scenario.startWithExitCapture(capturedExitCode)
+        new ReconnectScenario(controller)
+                .startWithExitCapture(capturedExitCode)
                 .reportFallenBehind(NodeId.of(1), NodeId.of(2))
                 .waitForReconnectToRequestState()
-                .parallelRun(() -> {
+                .syncRun(() -> {
                     try {
                         // Simulate 5 failed reconnect attempts (matching maximumReconnectFailuresBeforeShutdown)
                         for (int i = 0; i < 5; i++) {
@@ -686,8 +686,8 @@ class ReconnectControllerTest {
 
         final ReconnectController controller = createController(disabledContext);
 
-        final var scenario = new ReconnectScenario(controller);
-        scenario.startWithExitCapture(capturedExitCode)
+        new ReconnectScenario(controller)
+                .startWithExitCapture(capturedExitCode)
                 .reportFallenBehind(NodeId.of(1), NodeId.of(2))
                 .waitForFinish();
 
@@ -732,7 +732,7 @@ class ReconnectControllerTest {
         scenario.startWithExitCapture(capturedExitCode)
                 .reportFallenBehind(NodeId.of(1), NodeId.of(2))
                 .waitForReconnectToRequestState()
-                .parallelRun(scenario::interruptControllerThread)
+                .syncRun(scenario::interruptControllerThread)
                 .waitForFinish();
 
         // Verify the correct exit code was captured
@@ -757,7 +757,7 @@ class ReconnectControllerTest {
                 .startWithExitCapture(systemExitCalled)
                 .reportFallenBehind(NodeId.of(1), NodeId.of(2))
                 .waitForReconnectToRequestState()
-                .parallelRun(() -> {
+                .syncRun(() -> {
                     controller.stopReconnectLoop();
                     scenario.interruptControllerThread();
                 })
