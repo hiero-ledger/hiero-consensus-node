@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.calculator;
 
+import static com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl.countKeys;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -26,32 +27,31 @@ public class TokenCreateFeeCalculator implements ServiceFeeCalculator {
             @NonNull final FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_CREATE);
         feeResult.addServiceFee("Base Fee for " + HederaFunctionality.TOKEN_CREATE, 1, serviceDef.baseFee());
-        addExtraFee(feeResult, serviceDef, Extra.SIGNATURES, feeSchedule, calculatorState.numTxnSignatures());
         var op = txnBody.tokenCreationOrThrow();
         long keys = 0;
         if (op.hasAdminKey()) {
-            keys += 1;
+            keys += countKeys(op.adminKey());
         }
         if (op.hasFeeScheduleKey()) {
-            keys += 1;
+            keys += countKeys(op.feeScheduleKey());
         }
         if (op.hasFreezeKey()) {
-            keys += 1;
+            keys += countKeys(op.freezeKey());
         }
         if (op.hasKycKey()) {
-            keys += 1;
+            keys += countKeys(op.kycKey());
         }
         if (op.hasMetadataKey()) {
-            keys += 1;
+            keys += countKeys(op.metadataKey());
         }
         if (op.hasPauseKey()) {
-            keys += 1;
+            keys += countKeys(op.pauseKey());
         }
         if (op.hasSupplyKey()) {
-            keys += 1;
+            keys += countKeys(op.supplyKey());
         }
         if (op.hasWipeKey()) {
-            keys += 1;
+            keys += countKeys(op.wipeKey());
         }
         addExtraFee(feeResult, serviceDef, Extra.KEYS, feeSchedule, keys);
 
