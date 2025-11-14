@@ -69,13 +69,23 @@ public final class SyntheticSnapshot {
      * @return the genesis snapshot, when loaded by consensus, it will start from genesis
      */
     public static @NonNull ConsensusSnapshot getGenesisSnapshot() {
+        return getSnapshotWithTimestamp(Instant.EPOCH);
+    }
+
+    /**
+     * Creates a snapshot with the supplied consensus timestamp. The snapshot is initialized as a genesis snapshot but with a timestamp.
+     * Useful for testing purposes
+     * @param consensusTimestamp the consensus timestamp to use for the snapshot
+     * @return a consensus snapshot
+     */
+    public static @NonNull ConsensusSnapshot getSnapshotWithTimestamp(Instant consensusTimestamp) {
         return ConsensusSnapshot.newBuilder()
                 .round(ConsensusConstants.ROUND_FIRST)
                 .judgeIds(List.of())
                 .minimumJudgeInfoList(
                         List.of(new MinimumJudgeInfo(ConsensusConstants.ROUND_FIRST, ConsensusConstants.ROUND_FIRST)))
                 .nextConsensusNumber(ConsensusConstants.FIRST_CONSENSUS_NUMBER)
-                .consensusTimestamp(CommonUtils.toPbjTimestamp(Instant.EPOCH))
+                .consensusTimestamp(CommonUtils.toPbjTimestamp(consensusTimestamp))
                 .build();
     }
 }
