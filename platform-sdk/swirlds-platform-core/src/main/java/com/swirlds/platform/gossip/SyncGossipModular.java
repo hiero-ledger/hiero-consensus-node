@@ -52,6 +52,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -76,7 +77,7 @@ public class SyncGossipModular implements Gossip {
 
     // this is not a nice dependency, should be removed as well as the sharedState
     private Consumer<PlatformEvent> receivedEventHandler;
-    private Consumer<Double> syncLagHandler;
+    private Consumer<SyncProgress> syncProgressHandler;
 
     /**
      * Builds the gossip engine, depending on which flavor is requested in the configuration.
@@ -134,7 +135,7 @@ public class SyncGossipModular implements Gossip {
         final ProtocolConfig protocolConfig = platformContext.getConfiguration().getConfigData(ProtocolConfig.class);
 
         final int rosterSize = peers.size() + 1;
-        final SyncMetrics syncMetrics = new SyncMetrics(platformContext.getMetrics(), platformContext.getTime());
+        final SyncMetrics syncMetrics = new SyncMetrics(platformContext.getMetrics(), platformContext.getTime(), peers);
 
         if (protocolConfig.rpcGossip()) {
 
@@ -146,7 +147,7 @@ public class SyncGossipModular implements Gossip {
                     fallenBehindMonitor,
                     intakeEventCounter,
                     selfId,
-                    lag -> syncLagHandler.accept(lag));
+                    lag -> syncProgressHandler.accept(lag));
 
             this.synchronizer = rpcSynchronizer;
 
@@ -171,7 +172,7 @@ public class SyncGossipModular implements Gossip {
                     this.fallenBehindMonitor,
                     intakeEventCounter,
                     new CachedPoolParallelExecutor(threadManager, "node-sync"),
-                    lag -> syncLagHandler.accept(lag));
+                    lag -> syncProgressHandler.accept(lag));
 
             this.synchronizer = shadowgraphSynchronizer;
 
@@ -268,7 +269,7 @@ public class SyncGossipModular implements Gossip {
             @NonNull final BindableInputWire<NoInput, Void> resumeGossip,
             @NonNull final BindableInputWire<Duration, Void> systemHealthInput,
             @NonNull final BindableInputWire<PlatformStatus, Void> platformStatusInput,
-            @NonNull final StandardOutputWire<Double> syncLagOutput) {
+            @NonNull final StandardOutputWire<SyncProgress> syncLagOutput) {
 
         startInput.bindConsumer(ignored -> {
             syncProtocol.start();
@@ -294,6 +295,6 @@ public class SyncGossipModular implements Gossip {
             syncProtocol.resume();
         });
         this.receivedEventHandler = eventOutput::forward;
-        this.syncLagHandler = syncLagOutput::forward;
+        this.syncProgressHandler = syncLagOutput::forward;
     }
 }

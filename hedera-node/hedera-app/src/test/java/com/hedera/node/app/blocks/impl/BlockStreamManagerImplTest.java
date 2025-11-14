@@ -50,8 +50,9 @@ import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
+import com.hedera.node.app.quiescence.QuiescedHeartbeat;
+import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
-import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -61,6 +62,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.service.PlatformStateService;
+import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableSingletonState;
@@ -127,9 +129,6 @@ class BlockStreamManagerImplTest {
     private BlockHashSigner blockHashSigner;
 
     @Mock
-    private NetworkInfo networkInfo;
-
-    @Mock
     private StateHashedNotification notification;
 
     @Mock
@@ -137,6 +136,9 @@ class BlockStreamManagerImplTest {
 
     @Mock
     private BoundaryStateChangeListener boundaryStateChangeListener;
+
+    @Mock
+    private Platform platform;
 
     @Mock
     private BlockStreamManager.Lifecycle lifecycle;
@@ -172,6 +174,12 @@ class BlockStreamManagerImplTest {
 
     @Mock
     private ReadableSingletonState<Object> platformStateReadableSingletonState;
+
+    @Mock
+    private QuiescenceController quiescenceController;
+
+    @Mock
+    private QuiescedHeartbeat quiescedHeartbeat;
 
     private final AtomicReference<Bytes> lastAItem = new AtomicReference<>();
     private final AtomicReference<Bytes> lastBItem = new AtomicReference<>();
@@ -242,11 +250,13 @@ class BlockStreamManagerImplTest {
                 () -> aWriter,
                 ForkJoinPool.commonPool(),
                 configProvider,
-                networkInfo,
                 boundaryStateChangeListener,
+                platform,
+                quiescenceController,
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 lifecycle,
+                quiescedHeartbeat,
                 metrics);
         assertSame(EPOCH, subject.lastIntervalProcessTime());
         subject.setLastIntervalProcessTime(CONSENSUS_NOW);
@@ -265,11 +275,13 @@ class BlockStreamManagerImplTest {
                 () -> aWriter,
                 ForkJoinPool.commonPool(),
                 configProvider,
-                networkInfo,
                 boundaryStateChangeListener,
+                platform,
+                quiescenceController,
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 lifecycle,
+                quiescedHeartbeat,
                 metrics);
         assertThrows(IllegalStateException.class, () -> subject.startRound(round, state));
     }
@@ -1207,11 +1219,13 @@ class BlockStreamManagerImplTest {
                 () -> writers[nextWriter.getAndIncrement()],
                 ForkJoinPool.commonPool(),
                 configProvider,
-                networkInfo,
                 boundaryStateChangeListener,
+                platform,
+                quiescenceController,
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 lifecycle,
+                quiescedHeartbeat,
                 metrics);
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.getSingleton(PLATFORM_STATE_STATE_ID)).willReturn(platformStateReadableSingletonState);

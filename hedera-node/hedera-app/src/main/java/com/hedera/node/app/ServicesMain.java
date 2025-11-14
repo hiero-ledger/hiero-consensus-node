@@ -381,7 +381,8 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)
-                .withExecutionLayer(hedera);
+                .withExecutionLayer(hedera)
+                .withStaleEventCallback(hedera);
         final var platform = platformBuilder.build();
         hedera.init(platform, selfId);
 

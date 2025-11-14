@@ -10,6 +10,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
@@ -83,17 +84,33 @@ public class NetworkMetrics {
     /**
      * Constructor of {@code NetworkMetrics}
      *
-     * @param metrics  a reference to the metrics-system
-     * @param selfId   this node's id
+     * @param metrics a reference to the metrics-system
+     * @param selfId  this node's id
+     * @param peers   list of all peers to pre-create dynamic metrics
      * @throws IllegalArgumentException if {@code platform} is {@code null}
      */
-    public NetworkMetrics(@NonNull final Metrics metrics, @NonNull final NodeId selfId) {
+    public NetworkMetrics(@NonNull final Metrics metrics, @NonNull final NodeId selfId, final List<PeerInfo> peers) {
         this.selfId = Objects.requireNonNull(selfId, "The selfId must not be null.");
         this.metrics = Objects.requireNonNull(metrics, "The metrics must not be null.");
 
         avgPing = metrics.getOrCreate(AVG_PING_CONFIG);
         bytesPerSecondSent = metrics.getOrCreate(BYTES_PER_SECOND_SENT_CONFIG);
         avgConnsCreated = metrics.getOrCreate(AVG_CONNS_CREATED_CONFIG);
+
+        precreateDynamicMetrics(peers);
+    }
+
+    /**
+     * Out metric csv report needs all the metrics upfront to not get confused
+     * @param peers list of all peers to pre-create dynamic metrics
+     */
+    private void precreateDynamicMetrics(final List<PeerInfo> peers) {
+        for (final PeerInfo peer : peers) {
+            final NodeId nodeId = peer.nodeId();
+            recordPingTime(nodeId, 0);
+            getDisconnectMetric(nodeId);
+            getAverageBytesPerSecondSentMetric(nodeId);
+        }
     }
 
     /**
@@ -161,15 +178,7 @@ public class NetworkMetrics {
                 totalBytesSent += bytesSent;
                 final NodeId otherId = conn.getOtherId();
 
-                avgBytePerSecSent
-                        .computeIfAbsent(
-                                otherId,
-                                nodeId -> metrics.getOrCreate(new SpeedometerMetric.Config(
-                                                BPSS_CATEGORY, String.format("bytes_per_sec_sent_%02d", nodeId.id()))
-                                        .withDescription(
-                                                String.format("bytes per second sent to node %02d", nodeId.id()))
-                                        .withFormat(FloatFormats.FORMAT_16_2)))
-                        .update(bytesSent);
+                getAverageBytesPerSecondSentMetric(otherId).update(bytesSent);
 
                 if (!conn.connected()) {
                     iterator.remove();
@@ -178,6 +187,15 @@ public class NetworkMetrics {
         }
         bytesPerSecondSent.update(totalBytesSent);
         avgConnsCreated.update(connsCreated.sum());
+    }
+
+    private SpeedometerMetric getAverageBytesPerSecondSentMetric(final NodeId otherId) {
+        return avgBytePerSecSent.computeIfAbsent(
+                otherId,
+                nodeId -> metrics.getOrCreate(new SpeedometerMetric.Config(
+                                BPSS_CATEGORY, String.format("bytes_per_sec_sent_%02d", nodeId.id()))
+                        .withDescription(String.format("bytes per second sent to node %02d", nodeId.id()))
+                        .withFormat(FloatFormats.FORMAT_16_2)));
     }
 
     /**
@@ -204,17 +222,19 @@ public class NetworkMetrics {
         final NodeId otherId = Objects.requireNonNull(connection, "connection must not be null.")
                 .getOtherId();
 
-        disconnectFrequency
-                .computeIfAbsent(
-                        otherId,
-                        nodeId -> new CountPerSecond(
-                                metrics,
-                                new CountPerSecond.Config(
-                                                Metrics.PLATFORM_CATEGORY,
-                                                String.format("disconnects_per_sec_%02d", nodeId.id()))
-                                        .withDescription(String.format(
-                                                "number of disconnects per second from node %02d", nodeId.id()))
-                                        .withFormat(FloatFormats.FORMAT_10_0)))
-                .count();
+        getDisconnectMetric(otherId).count();
+    }
+
+    private CountPerSecond getDisconnectMetric(final NodeId otherId) {
+        return disconnectFrequency.computeIfAbsent(
+                otherId,
+                nodeId -> new CountPerSecond(
+                        metrics,
+                        new CountPerSecond.Config(
+                                        Metrics.PLATFORM_CATEGORY,
+                                        String.format("disconnects_per_sec_%02d", nodeId.id()))
+                                .withDescription(
+                                        String.format("number of disconnects per second from node %02d", nodeId.id()))
+                                .withFormat(FloatFormats.FORMAT_10_0)));
     }
 }
