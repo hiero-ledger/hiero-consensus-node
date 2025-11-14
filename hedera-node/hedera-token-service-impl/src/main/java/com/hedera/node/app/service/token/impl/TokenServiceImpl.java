@@ -43,6 +43,10 @@ public class TokenServiceImpl implements TokenService {
 
     @Override
     public Set<ServiceFeeCalculator> serviceFeeCalculators() {
-        return Set.of(new CryptoCreateFeeCalculator(), new CryptoDeleteFeeCalculator(), new TokenCreateFeeCalculator(), new TokenMintFeeCalculator());
+        return Set.of(
+                new CryptoCreateFeeCalculator(),
+                new CryptoDeleteFeeCalculator(),
+                new TokenCreateFeeCalculator(),
+                new TokenMintFeeCalculator());
     }
 }
