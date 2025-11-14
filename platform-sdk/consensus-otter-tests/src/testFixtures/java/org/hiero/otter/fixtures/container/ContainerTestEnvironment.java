@@ -18,6 +18,8 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
+import org.hiero.otter.fixtures.chaosbot.ChaosBot;
+import org.hiero.otter.fixtures.chaosbot.internal.ChaosBotImpl;
 import org.hiero.otter.fixtures.internal.RegularTimeManager;
 
 /**
@@ -113,6 +115,24 @@ public class ContainerTestEnvironment implements TestEnvironment {
     @NonNull
     public TransactionGenerator transactionGenerator() {
         return transactionGenerator;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public ChaosBot createChaosBot() {
+        return new ChaosBotImpl(this);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public ChaosBot createChaosBot(final long seed) {
+        return new ChaosBotImpl(this, seed);
     }
 
     /**

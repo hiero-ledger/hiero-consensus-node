@@ -214,8 +214,6 @@ public class RpcPeerHandler implements GossipRpcReceiver {
     public void cleanup() {
         clearInternalState();
         state.peerStillSendingEvents = false;
-        sharedShadowgraphSynchronizer.deregisterPeerHandler(this);
-        this.syncMetrics.reportSyncPhase(peerId, SyncPhase.OUTSIDE_OF_RPC);
     }
 
     // HANDLE INCOMING MESSAGES - all done on dispatch thread
@@ -239,6 +237,16 @@ public class RpcPeerHandler implements GossipRpcReceiver {
      */
     @Override
     public void receiveTips(@NonNull final List<Boolean> remoteTipKnowledge) {
+
+        if (state.mySyncData == null) {
+            throw new IllegalStateException("Received tips confirmation before sending sync data from " + peerId);
+        }
+
+        if (state.myTips == null) {
+            throw new IllegalStateException(
+                    "Internal inconsistency - sent sync data but no info about my tips, when receiving tips from "
+                            + peerId);
+        }
 
         if (state.remoteSyncData == null) {
             throw new IllegalStateException("Need sync data before receiving tips from " + peerId);
@@ -306,8 +314,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
 
         this.syncMetrics.eventWindow(state.mySyncData.eventWindow(), remoteEventWindow);
 
-        this.sharedShadowgraphSynchronizer.reportRoundDifference(
-                state.mySyncData.eventWindow(), remoteEventWindow, peerId);
+        this.sharedShadowgraphSynchronizer.reportSyncStatus(state.mySyncData.eventWindow(), remoteEventWindow, peerId);
 
         final FallenBehindStatus behindStatus =
                 fallenBehindMonitor.check(state.mySyncData.eventWindow(), state.remoteSyncData.eventWindow(), peerId);

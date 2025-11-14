@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.prehandle;
 
+import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.SO_FAR_SO_GOOD;
 import static com.hedera.node.app.workflows.prehandle.PreHandleWorkflowImpl.isAtomicBatch;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -31,17 +32,17 @@ public interface PreHandleWorkflow {
      * Starts the pre-handle transaction workflow of the {@link Event}
      *
      * @param readableStoreFactory the {@link ReadableStoreFactory} that is used for looking up stores
-     * @param creatorInfo The {@link AccountID} of the node that created these transactions
-     * @param transactions An {@link Stream} over all transactions to pre-handle
+     * @param creatorInfo if still known, the {@link AccountID} of the node that created these transactions
+     * @param transactions an {@link Stream} over all transactions to pre-handle
      * @param shortCircuitTxnCallback A callback to be called when encountering any short-circuiting
      *                                transaction type
      * @throws NullPointerException if one of the arguments is {@code null}
      */
     void preHandle(
-            @NonNull final ReadableStoreFactory readableStoreFactory,
-            @NonNull final NodeInfo creatorInfo,
-            @NonNull final Stream<Transaction> transactions,
-            @NonNull final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback);
+            @NonNull ReadableStoreFactory readableStoreFactory,
+            @Nullable NodeInfo creatorInfo,
+            @NonNull Stream<Transaction> transactions,
+            @NonNull BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback);
 
     /**
      * Starts the pre-handle transaction workflow for a single transaction.
@@ -97,9 +98,7 @@ public interface PreHandleWorkflow {
                 InnerTransaction.NO);
         // If the transaction is an atomic batch, we need to pre-handle all inner transactions as well
         // and add their results to the outer transaction's pre-handle result
-        if (result.txInfo() != null
-                && isAtomicBatch(result.txInfo())
-                && result.status() == PreHandleResult.Status.SO_FAR_SO_GOOD) {
+        if (result.txInfo() != null && isAtomicBatch(result.txInfo()) && result.status() == SO_FAR_SO_GOOD) {
             final var innerTxns = result.txInfo().txBody().atomicBatchOrThrow().transactions();
             var useInnerResults = maybeReusableResult != null
                     && maybeReusableResult.innerResults() != null
@@ -155,16 +154,14 @@ public interface PreHandleWorkflow {
         } else {
             // This should be impossible since the Platform contract guarantees that
             // ConsensusStateEventHandler.onPreHandle() is always called before
-            // ConsensusStateEventHandler.onHandleTransaction(); and our preHandle() implementation always sets the
-            // metadata to a PreHandleResult
+            // ConsensusStateEventHandler.onHandleTransaction(); and our preHandle()
+            // implementation always uses a PreHandleResult
             log.error(
                     "Received transaction without PreHandleResult metadata from node {} (was {})",
                     (creator != null) ? creator.nodeId() : null,
                     metadata);
             previousResult = null;
         }
-        // We do not know how long transactions are kept in memory. Clearing metadata to avoid keeping it for too long.
-        platformTxn.setMetadata(null);
         return preHandleAllTransactions(
                 creator,
                 storeFactory,

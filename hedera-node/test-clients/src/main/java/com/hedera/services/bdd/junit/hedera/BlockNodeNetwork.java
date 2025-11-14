@@ -182,13 +182,25 @@ public class BlockNodeNetwork {
             if (mode == BlockNodeMode.REAL) {
                 final BlockNodeContainer blockNode = blockNodeContainerById.get(blockNodeId);
                 int priority = (int) blockNodePrioritiesBySubProcessNodeId.get(node.getNodeId())[blockNodeIndex];
-                blockNodes.add(new BlockNodeConfig(blockNode.getHost(), blockNode.getPort(), priority));
+                blockNodes.add(BlockNodeConfig.newBuilder()
+                        .address(blockNode.getHost())
+                        .port(blockNode.getPort())
+                        .priority(priority)
+                        .build());
             } else if (mode == BlockNodeMode.SIMULATOR) {
                 final SimulatedBlockNodeServer sim = simulatedBlockNodeById.get(blockNodeId);
                 int priority = (int) blockNodePrioritiesBySubProcessNodeId.get(node.getNodeId())[blockNodeIndex];
-                blockNodes.add(new BlockNodeConfig("localhost", sim.getPort(), priority));
+                blockNodes.add(BlockNodeConfig.newBuilder()
+                        .address("localhost")
+                        .port(sim.getPort())
+                        .priority(priority)
+                        .build());
             } else if (mode == BlockNodeMode.LOCAL_NODE) {
-                blockNodes.add(new BlockNodeConfig("localhost", BLOCK_NODE_LOCAL_PORT, 0));
+                blockNodes.add(BlockNodeConfig.newBuilder()
+                        .address("localhost")
+                        .port(BLOCK_NODE_LOCAL_PORT)
+                        .priority(0)
+                        .build());
             }
         }
         if (!blockNodes.isEmpty()) {

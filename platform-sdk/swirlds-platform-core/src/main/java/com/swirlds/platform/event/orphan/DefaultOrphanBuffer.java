@@ -5,7 +5,6 @@ import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 import static org.hiero.consensus.model.event.NonDeterministicGeneration.assignNGen;
 
 import com.swirlds.common.metrics.FunctionGauge;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -67,14 +66,10 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
     /**
      * Constructor
      *
-     * @param configuration the platform configuration
      * @param metrics the metrics instance to use
      * @param intakeEventCounter keeps track of the number of events in the intake pipeline from each peer
      */
-    public DefaultOrphanBuffer(
-            @NonNull final Configuration configuration,
-            @NonNull final Metrics metrics,
-            @NonNull final IntakeEventCounter intakeEventCounter) {
+    public DefaultOrphanBuffer(@NonNull final Metrics metrics, @NonNull final IntakeEventCounter intakeEventCounter) {
 
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
         this.currentOrphanCount = 0;

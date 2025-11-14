@@ -16,7 +16,6 @@ import static com.swirlds.demo.iss.V0680ISSTestingToolSchema.ISS_SERVICE_NAME;
 import static com.swirlds.demo.iss.V0680ISSTestingToolSchema.PLANNED_ISS_LIST_STATE_ID;
 import static com.swirlds.demo.iss.V0680ISSTestingToolSchema.PLANNED_LOG_ERROR_LIST_STATE_ID;
 import static com.swirlds.demo.iss.V0680ISSTestingToolSchema.RUNNING_SUM_STATE_ID;
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.primitives.ProtoString;
@@ -74,12 +73,12 @@ public class ISSTestingToolState extends VirtualMapState<ISSTestingToolState> im
 
     public ISSTestingToolState(
             @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
-        super(configuration, metrics, time);
+        super(configuration, metrics);
     }
 
     public ISSTestingToolState(
             @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
-        super(virtualMap, metrics, time);
+        super(virtualMap, metrics);
     }
 
     /**
@@ -96,12 +95,6 @@ public class ISSTestingToolState extends VirtualMapState<ISSTestingToolState> im
     @Override
     protected ISSTestingToolState copyingConstructor() {
         return new ISSTestingToolState(this);
-    }
-
-    @Override
-    protected ISSTestingToolState newInstance(
-            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
-        return new ISSTestingToolState(virtualMap, metrics, time);
     }
 
     public void initState(InitTrigger trigger, Platform platform) {
@@ -192,13 +185,5 @@ public class ISSTestingToolState extends VirtualMapState<ISSTestingToolState> im
 
     List<PlannedLogError> getPlannedLogErrorList() {
         return plannedLogErrorList;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    protected long getRound() {
-        return DEFAULT_PLATFORM_STATE_FACADE.roundOf(this);
     }
 }

@@ -196,7 +196,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
             copyNetworkOverrideFileToCorrectDirectory();
         }
 
-        copyStateFilesToCorrectDirectory(sourceStateInfo.fileInfo().getDirectory());
+        copyStateFilesToCorrectDirectory(sourceStateInfo.fileInfo().stateDirectory());
 
         truncatePCESFilesIfNotAFreezeState();
 

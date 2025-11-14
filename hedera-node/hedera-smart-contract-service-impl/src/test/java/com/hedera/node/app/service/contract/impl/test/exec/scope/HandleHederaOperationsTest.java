@@ -311,7 +311,7 @@ class HandleHederaOperationsTest {
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
 
         subject.updateLambdaStorageSlots(NON_SYSTEM_ACCOUNT_ID, 5);
-        verify(tokenServiceApi).updateLambdaStorageSlots(NON_SYSTEM_ACCOUNT_ID, 5);
+        verify(tokenServiceApi).updateLambdaStorageSlots(NON_SYSTEM_ACCOUNT_ID, 5, false);
     }
 
     @Test
