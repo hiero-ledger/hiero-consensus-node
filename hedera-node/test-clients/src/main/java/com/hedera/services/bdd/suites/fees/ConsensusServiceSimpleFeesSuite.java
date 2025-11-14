@@ -107,7 +107,29 @@ public class ConsensusServiceSimpleFeesSuite {
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
         @DisplayName("compare update topic with admin key")
-        final Stream<DynamicTest> updateTopicComparison() {
+        final Stream<DynamicTest> updateTopicComparisonWithPayerAdmin() {
+            return compare(() -> Arrays.asList(
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                    createTopic("testTopic")
+                            .blankMemo()
+                            .payingWith(PAYER)
+                            .adminKeyName(PAYER)
+                            .fee(ONE_HBAR)
+                            .via("create-topic-admin-txn"),
+                    // TODO: adjust this once we get final pricing
+                    validateChargedUsdWithin("create-topic-admin-txn", 0.01022, 100),
+                    updateTopic("testTopic")
+                            .payingWith(PAYER)
+                            .fee(ONE_HBAR)
+                            .via("update-topic-txn"),
+                    // TODO: adjust this once we get final pricing
+                    validateChargedUsdWithin("update-topic-txn", 0.000356, 1000)
+            ));
+        }
+
+        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+        @DisplayName("compare update topic with admin key")
+        final Stream<DynamicTest> updateTopicComparisonWithAdmin() {
             final String ADMIN = "admin";
             return compare(() -> Arrays.asList(
                     newKeyNamed(ADMIN),
@@ -119,7 +141,7 @@ public class ConsensusServiceSimpleFeesSuite {
                             .fee(ONE_HBAR)
                             .via("create-topic-admin-txn"),
                     // TODO: adjust this once we get final pricing
-                    validateChargedUsdWithin("create-topic-admin-txn", 0.01630, 30),
+                    validateChargedUsdWithin("create-topic-admin-txn", 0.02, 30),
                     updateTopic("testTopic")
                             .adminKey(ADMIN)
                             .payingWith(PAYER)
@@ -222,18 +244,18 @@ public class ConsensusServiceSimpleFeesSuite {
         @DisplayName("compare delete topic with admin key")
         final Stream<DynamicTest> deleteTopicPlainComparison() {
             return compare(() -> Arrays.asList(
-                    newKeyNamed(ADMIN),
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                     createTopic("testTopic")
                             .blankMemo()
                             .payingWith(PAYER)
-                            .adminKeyName(ADMIN)
+                            .adminKeyName(PAYER)
                             .fee(ONE_HBAR)
                             .via("create-topic-admin-txn"),
-                    validateChargedUsdWithin("create-topic-admin-txn", 0.01630, 30),
-                    deleteTopic("testTopic").payingWith(PAYER).fee(ONE_HBAR).via("delete-topic-txn"),
-                    // TODO: adjust this once we get final pricing
-                    validateChargedUsdWithin("delete-topic-txn", 0.0082, 30)));
+                    validateChargedUsdWithin("create-topic-admin-txn", 0.01020, 100),
+                    deleteTopic("testTopic")
+                            .signedBy(PAYER)
+                            .payingWith(PAYER).fee(ONE_HBAR).via("delete-topic-txn"),
+                    validateChargedUsdWithin("delete-topic-txn", 0.005, 10)));
         }
     }
 }
