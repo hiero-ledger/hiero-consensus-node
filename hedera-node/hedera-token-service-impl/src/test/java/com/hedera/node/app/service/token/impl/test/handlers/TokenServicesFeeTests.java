@@ -10,25 +10,21 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.mock;
 
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.token.TokenCreateTransactionBody;
 import com.hedera.hapi.node.token.TokenMintTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.service.entityid.EntityIdFactory;
-import com.hedera.node.app.service.token.impl.handlers.TokenCreateHandler;
-import com.hedera.node.app.service.token.impl.handlers.TokenMintHandler;
-import com.hedera.node.app.service.token.impl.validators.CustomFeesValidator;
-import com.hedera.node.app.service.token.impl.validators.TokenCreateValidator;
-import com.hedera.node.app.service.token.impl.validators.TokenSupplyChangeOpsValidator;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
-import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.app.service.token.impl.calculator.CryptoCreateFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.CryptoDeleteFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenCreateFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenMintFeeCalculator;
+import com.hedera.node.app.spi.fees.CalculatorState;
+import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
+import java.util.Set;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.NetworkFee;
@@ -49,53 +45,52 @@ public class TokenServicesFeeTests {
     private static final long UNIQUE_TOKEN_FEE = 10;
 
     @Mock
-    private EntityIdFactory entityIdFactory;
+    private CalculatorState calculatorState;
 
-    @Mock
-    private CustomFeesValidator customFeesValidator;
-
-    @Mock
-    private TokenCreateValidator tokenCreateValidator;
-
-    @Mock
-    private TokenSupplyChangeOpsValidator tokenSupplyChangeOpsValidator;
-
-    private TokenCreateHandler createHandler;
-    private TokenMintHandler mintHandler;
+    private SimpleFeeCalculatorImpl feeCalculator;
+    private FeeSchedule testSchedule;
 
     @BeforeEach
     void beforeEach() {
-        createHandler = new TokenCreateHandler(entityIdFactory, customFeesValidator, tokenCreateValidator);
-        mintHandler = new TokenMintHandler(tokenSupplyChangeOpsValidator);
+        testSchedule = createTestFeeSchedule();
+        feeCalculator = new SimpleFeeCalculatorImpl(
+                testSchedule,
+                Set.of(
+                        new CryptoCreateFeeCalculator(),
+                        new CryptoDeleteFeeCalculator(),
+                        new TokenCreateFeeCalculator(),
+                        new TokenMintFeeCalculator()));
     }
 
     @Test
     void createCommonToken() {
+        lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
         final var txBody2 = TransactionBody.newBuilder()
                 .tokenCreation(TokenCreateTransactionBody.newBuilder()
                         .tokenType(TokenType.FUNGIBLE_COMMON)
                         .build())
                 .build();
-        final var feeContext = createMockFeeContext(txBody2, 1);
-        final var result = createHandler.calculateFeeResult(feeContext);
+        final var result = feeCalculator.calculateTxFee(txBody2, calculatorState);
         assertNotNull(result);
         assertEquals(TOKEN_CREATE_BASE_FEE, result.total());
     }
 
     @Test
     void createUniqueToken() {
+        lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
         final var txBody = TokenCreateTransactionBody.newBuilder()
                 .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                 .build();
         final var txBody2 = TransactionBody.newBuilder().tokenCreation(txBody).build();
-        final var feeContext = createMockFeeContext(txBody2, 1);
-        final var result = createHandler.calculateFeeResult(feeContext);
+        final var result = feeCalculator.calculateTxFee(txBody2, calculatorState);
+
         assertNotNull(result);
         assertEquals(TOKEN_CREATE_BASE_FEE, result.total());
     }
 
     @Test
     void mintCommonToken() {
+        lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
         final var commonToken = TokenID.newBuilder().tokenNum(1234).build();
         final var txBody2 = TransactionBody.newBuilder()
                 .tokenMint(TokenMintTransactionBody.newBuilder()
@@ -103,23 +98,22 @@ public class TokenServicesFeeTests {
                         .amount(10)
                         .build())
                 .build();
-        final var feeContext = createMockFeeContext(txBody2, 1);
-        final var result = mintHandler.calculateFeeResult(feeContext);
+        final var result = feeCalculator.calculateTxFee(txBody2, calculatorState);
         assertNotNull(result);
         assertEquals(TOKEN_MINT_BASE_FEE + COMMON_TOKEN_FEE * 10, result.total());
     }
 
     @Test
     void mintUniqueToken() {
+        lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
         final var uniqueToken = TokenID.newBuilder().tokenNum(1234).build();
-        final var mintBody = TransactionBody.newBuilder()
+        final var txBody2 = TransactionBody.newBuilder()
                 .tokenMint(TokenMintTransactionBody.newBuilder()
                         .token(uniqueToken)
                         .metadata(List.of(Bytes.wrap("Bart Simpson")))
                         .build())
                 .build();
-        final var feeContext = createMockFeeContext(mintBody, 1);
-        final var result = mintHandler.calculateFeeResult(feeContext);
+        final var result = feeCalculator.calculateTxFee(txBody2, calculatorState);
         assertNotNull(result);
         assertEquals(TOKEN_MINT_BASE_FEE + UNIQUE_TOKEN_FEE, result.total());
     }
@@ -142,18 +136,6 @@ public class TokenServicesFeeTests {
        get info for common token
        get info for NFT token
     */
-
-    private FeeContext createMockFeeContext(TransactionBody txBody, int numSignatures) {
-        final var feeContext = mock(FeeContext.class);
-        final var feeCalculatorFactory = mock(FeeCalculatorFactory.class);
-        final var feeCalculator = mock(FeeCalculator.class);
-        lenient().when(feeContext.numTxnSignatures()).thenReturn(numSignatures);
-        lenient().when(feeContext.body()).thenReturn(txBody);
-        lenient().when(feeContext.feeCalculatorFactory()).thenReturn(feeCalculatorFactory);
-        lenient().when(feeCalculatorFactory.feeCalculator(SubType.DEFAULT)).thenReturn(feeCalculator);
-        lenient().when(feeCalculator.getSimpleFeesSchedule()).thenReturn(createTestFeeSchedule());
-        return feeContext;
-    }
 
     private FeeSchedule createTestFeeSchedule() {
         return FeeSchedule.DEFAULT
