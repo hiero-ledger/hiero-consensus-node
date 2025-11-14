@@ -6,14 +6,15 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.List;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeEventStreamResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
-import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
@@ -103,7 +104,23 @@ public interface Node {
     void sendQuiescenceCommand(@NonNull QuiescenceCommand command);
 
     /**
-     * Allows to override the default timeout for node operations.
+     * Submits a transaction to the node.
+     *
+     * @param transaction the transaction to submit
+     */
+    default void submitTransaction(@NonNull OtterTransaction transaction) {
+        submitTransactions(List.of(transaction));
+    }
+
+    /**
+     * Submits transactions to the node.
+     *
+     * @param transactions the list of transactions to submit
+     */
+    void submitTransactions(@NonNull List<OtterTransaction> transactions);
+
+    /**
+     * Overrides the default timeout for node operations.
      *
      * @param timeout the duration to wait before considering the operation as failed
      * @return an instance of {@link AsyncNodeActions} that can be used to perform node actions
@@ -259,14 +276,6 @@ public interface Node {
     SingleNodeReconnectResult newReconnectResult();
 
     /**
-     * Creates a new result with all marker file result of the node.
-     *
-     * @return the marker file result of the node
-     */
-    @NonNull
-    SingleNodeMarkerFileResult newMarkerFileResult();
-
-    /**
      * Creates a new result with all the event streams created by this node.
      *
      * @return the event stream results of this node
@@ -291,4 +300,55 @@ public interface Node {
      * @return true if the node is running, false otherwise
      */
     boolean isAlive();
+
+    /**
+     * Starts Java Flight Recorder (JFR) profiling on this node with default settings.
+     * Uses 10 ms sampling rate and enables CPU and allocation profiling by default.
+     * The profiler runs in the background until {@link #stopProfiling} is called.
+     * <p>
+     * <b>Warning:</b> Please keep in mind that Otter tests run in an artificial environment. Results obtained from
+     * profiling in such environments may not accurately reflect real-world performance characteristics.
+     * <p>
+     * <b>Note:</b> This feature is not supported in all environments.
+     * Calling this on unsupported environments will throw {@link UnsupportedOperationException}.
+     *
+     * @param outputFile filename for the profile output (must end with ".jfr")
+     * @param events the profiling events to enable (e.g., ProfilerEvent.CPU, ProfilerEvent.ALLOCATION).
+     *               If empty, defaults to CPU and ALLOCATION profiling.
+     * @throws UnsupportedOperationException if profiling is not supported in this environment
+     */
+    default void startProfiling(@NonNull final String outputFile, @NonNull final ProfilerEvent... events) {
+        startProfiling(outputFile, Duration.ofMillis(10L), events);
+    }
+
+    /**
+     * Starts Java Flight Recorder (JFR) profiling on this node with custom settings.
+     * The profiler runs in the background until {@link #stopProfiling} is called.
+     * <p>
+     * <b>Warning:</b> Please keep in mind that Otter tests run in an artificial environment. Results obtained from
+     * profiling in such environments may not accurately reflect real-world performance characteristics.
+     * <p>
+     * <b>Note:</b> This feature is not supported in all environments.
+     * Calling this on unsupported environments will throw {@link UnsupportedOperationException}.
+     *
+     * @param outputFile filename for the profile output (must end with ".jfr")
+     * @param samplingInterval sampling interval for timed events (e.g., Duration.ofMillis(1) for 1ms sampling)
+     * @param events the profiling events to enable (e.g., ProfilerEvent.CPU, ProfilerEvent.ALLOCATION).
+     *               If empty, defaults to CPU and ALLOCATION profiling.
+     * @throws UnsupportedOperationException if profiling is not supported in this environment
+     */
+    void startProfiling(
+            @NonNull String outputFile, @NonNull Duration samplingInterval, @NonNull ProfilerEvent... events);
+
+    /**
+     * Stops Java Flight Recorder profiling and automatically downloads the profiling results to the host machine.
+     * The file is saved to {@code build/container/node-<selfId>/<filename>} where filename was
+     * specified in {@link #startProfiling}.
+     * <p>
+     * <b>Note:</b> This feature is not supported in all environments.
+     * Calling this on unsupported environments will throw {@link UnsupportedOperationException}.
+     *
+     * @throws UnsupportedOperationException if profiling is not supported in this environment
+     */
+    void stopProfiling();
 }

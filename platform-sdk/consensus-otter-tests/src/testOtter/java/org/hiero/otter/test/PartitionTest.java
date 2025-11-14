@@ -23,9 +23,9 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.network.utils.QuorumCalculator;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
+import org.hiero.otter.fixtures.util.QuorumCalculator;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -78,7 +78,6 @@ public class PartitionTest {
         assertContinuouslyThat(network.newConsensusResults())
                 .haveEqualCommonRounds()
                 .haveConsistentRounds();
-        assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
 
         network.start();
 

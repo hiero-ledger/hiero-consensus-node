@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.integration;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSFER_LIST_SIZE_LIMIT_EXCEEDED;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.protoToPbj;
+import static com.hedera.node.app.hapi.utils.CommonUtils.pbjTimestampToInstant;
 import static com.hedera.node.app.service.schedule.impl.ScheduleStoreUtility.calculateBytesHash;
 import static com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema.SCHEDULES_BY_ID_STATE_ID;
 import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema.SCHEDULED_COUNTS_STATE_ID;
@@ -20,6 +21,7 @@ import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
 import static com.hedera.services.bdd.junit.hedera.embedded.RepeatableEmbeddedHedera.DEFAULT_ROUND_DURATION;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -35,6 +37,7 @@ import static com.hedera.services.bdd.spec.keys.SigControl.ON;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
@@ -73,13 +76,14 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.exposeMaxSchedulable;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContain;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContainText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doAdhoc;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfigNow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.executeImmediateResults;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.exposeSpecSecondTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.keyFromMutation;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
@@ -87,6 +91,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.scheduledExecutionResult;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.scheduledNonceSequence;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -107,6 +112,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.STAKING_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_ADMIN;
+import static com.hedera.services.bdd.suites.HapiSuite.THOUSAND_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
@@ -158,6 +164,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.ServicesConfigurationList;
 import com.hedera.hapi.node.base.Setting;
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TimestampSeconds;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.schedule.Schedule;
@@ -835,7 +842,7 @@ public class RepeatableHip423Tests {
                     embeddedHedera.setRoundDuration(DEFAULT_ROUND_DURATION);
                 }),
                 // Verify the second transaction in the same second did not recreate the iterator
-                assertHgcaaLogDoesNotContain(
+                assertHgcaaLogDoesNotContainText(
                         byNodeId(0L), "Unknown k/v state key SCHEDULES_BY_ID", Duration.ofMillis(100L)));
     }
 
@@ -1803,6 +1810,48 @@ public class RepeatableHip423Tests {
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 // validate the result of the schedule
                 getAccountBalance(receiver).hasTinyBars(10L));
+    }
+
+    @RepeatableHapiTest(value = NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> autoCreationHasExpectedNonceAssignments() {
+        return hapiTest(
+                // The SavepointStack should still know the scheduled tx is top-level even preceded by auto-creation
+                blockStreamMustIncludePassFrom(scheduledNonceSequence("createTx", List.of(1, 0))),
+                newKeyNamed("alias"),
+                cryptoCreate("sender").balance(THOUSAND_HBAR).via("creation"),
+                scheduleCreate("scheduledTx", cryptoTransfer(movingHbar(10L).between("sender", "alias")))
+                        .waitForExpiry(true)
+                        .via("createTx")
+                        .withRelativeExpiry("creation", 7)
+                        .payingWith("sender"),
+                sleepForSeconds(14),
+                cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 1L)),
+                getAliasedAccountInfo("alias").has(accountWith().balance(10L)),
+                sleepForSeconds(2),
+                cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 1L)));
+    }
+
+    @RepeatableHapiTest(value = NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> executeImmediateLinksParentConsTime() {
+        return hapiTest(
+                // The SavepointStack should still know the scheduled tx is top-level even preceded by auto-creation
+                blockStreamMustIncludePassFrom(executeImmediateResults("createTx", (scheduling, triggered) -> {
+                    final var schedulingConsTime = pbjTimestampToInstant(scheduling.consensusTimestampOrThrow());
+                    assertEquals(2, triggered.size(), "Wrong number of triggered records");
+                    // The first triggered record is the preceding auto-creation
+                    final var triggeredParentConsTime = pbjTimestampToInstant(
+                            triggered.getLast().parentConsensusTimestampOrElse(Timestamp.DEFAULT));
+                    assertEquals(schedulingConsTime, triggeredParentConsTime, "Wrong parent consensus time");
+                })),
+                newKeyNamed("alias"),
+                cryptoCreate("sender").balance(THOUSAND_HBAR).via("creation"),
+                scheduleCreate("scheduledTx", cryptoTransfer(movingHbar(10L).between("sender", "alias")))
+                        .waitForExpiry(false)
+                        .via("createTx")
+                        .payingWith("sender"),
+                getAliasedAccountInfo("alias").has(accountWith().balance(10L)),
+                sleepForSeconds(2),
+                cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 1L)));
     }
 
     private SpecOperation[] uploadTestContracts(String... contracts) {

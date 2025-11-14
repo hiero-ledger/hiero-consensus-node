@@ -31,6 +31,7 @@ import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
+import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
@@ -56,7 +57,6 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableSingletonState;
-import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
@@ -84,6 +84,9 @@ class HandleWorkflowTest {
 
     @Mock
     private HintsService hintsService;
+
+    @Mock
+    private QuiescenceController quiescenceController;
 
     @Mock
     private BlockHashSigner blockHashSigner;
@@ -170,12 +173,6 @@ class HandleWorkflowTest {
     private BlockBufferService blockBufferService;
 
     @Mock
-    private ReadableStates readableStates;
-
-    @Mock
-    private EventCore eventCore;
-
-    @Mock
     private ReadableSingletonState<Object> platformStateReadableSingletonState;
 
     @Mock
@@ -200,6 +197,7 @@ class HandleWorkflowTest {
         given(eventFromMissingCreator.consensusTransactionIterator()).willReturn(emptyIterator());
         given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(12345L));
         given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
+        given(blockRecordManager.lastIntervalProcessTime()).willReturn(NOW);
 
         givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList());
 
@@ -238,6 +236,7 @@ class HandleWorkflowTest {
         given(event.allParentsIterator())
                 .willReturn(List.<EventDescriptorWrapper>of().iterator());
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
+        given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
 
         // Set up the round
         given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
@@ -280,6 +279,7 @@ class HandleWorkflowTest {
 
         // Setup parent in current block
         given(blockStreamManager.getEventIndex(parentHash)).willReturn(Optional.of(5)); // Parent is at index 5
+        given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
 
         // Setup event with one parent
         EventDescriptorWrapper parent = mock(EventDescriptorWrapper.class);
@@ -334,6 +334,7 @@ class HandleWorkflowTest {
 
         // Setup parent not in current block
         given(blockStreamManager.getEventIndex(parentHash)).willReturn(Optional.empty());
+        given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
 
         // Setup event with one parent
         EventDescriptor parentDescriptor = EventDescriptor.newBuilder().build();
@@ -392,6 +393,7 @@ class HandleWorkflowTest {
         // Setup parents - one in block, one not in block
         given(blockStreamManager.getEventIndex(parentInBlockHash)).willReturn(Optional.of(3));
         given(blockStreamManager.getEventIndex(parentNotInBlockHash)).willReturn(Optional.empty());
+        given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
 
         // Setup descriptors for parents
         EventDescriptor notInBlockDescriptor = EventDescriptor.newBuilder().build();
@@ -495,7 +497,8 @@ class HandleWorkflowTest {
                 nodeRewardManager,
                 platformStateFacade,
                 blockBufferService,
-                Map.of());
+                Map.of(),
+                quiescenceController);
     }
 
     @Test
@@ -508,6 +511,7 @@ class HandleWorkflowTest {
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
         given(event.allParentsIterator())
                 .willReturn(List.<EventDescriptorWrapper>of().iterator());
+        given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
         given(event.consensusTransactionIterator()).willReturn(emptyIterator());
         given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
