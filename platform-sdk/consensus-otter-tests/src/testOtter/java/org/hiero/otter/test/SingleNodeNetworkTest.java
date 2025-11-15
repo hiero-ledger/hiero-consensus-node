@@ -12,12 +12,7 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
-import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import org.hiero.otter.fixtures.Network;
@@ -26,22 +21,17 @@ import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
-import org.junit.jupiter.api.MethodOrderer;
-import org.junit.jupiter.api.Order;
-import org.junit.jupiter.api.TestMethodOrder;
 
 /**
  * Tests basic functionality of a single node network. Single node networks would probably never be used in production,
  * but they can be useful for testing and are officially supported.
  */
-@TestMethodOrder(value = MethodOrderer.OrderAnnotation.class)
 public class SingleNodeNetworkTest {
 
     /**
      * A basic test that a single node network can reach consensus and freeze correctly.
      */
     @OtterTest
-    @Order(0)
     void testSingleNodeNetwork(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -71,51 +61,13 @@ public class SingleNodeNetworkTest {
                 .isGreaterThan(20);
     }
 
-    private static Path tempDir;
-
-    static {
-        try {
-            tempDir = Path.of("tmp");
-            if (Files.exists(tempDir)) FileUtils.deleteDirectory(tempDir);
-
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                try {
-                    FileUtils.deleteDirectory(tempDir);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }));
-        } catch (IOException e) {
-            System.out.println(tempDir);
-            throw new RuntimeException(e);
-        }
-    }
-
+    /**
+     * A basic test that a single node network can be upgraded to a multi node network.
+     */
     @OtterTest
-    @Order(2)
-    void testSingleNodeNetwork2(@NonNull final TestEnvironment environment) throws IOException {
-        final Network network = environment.network();
-        final TimeManager timeManager = environment.timeManager();
-
-        network.addNodes(1);
-        network.start();
-        timeManager.waitFor(Duration.ofSeconds(10L));
-        network.freeze();
-
-        network.shutdown();
-        final Configuration configuration =
-                network.nodes().getLast().configuration().current();
-        final Path outputDirectory =
-                configuration.getConfigData(StateCommonConfig.class).savedStateDirectory();
-        System.out.println(outputDirectory);
-        FileUtils.copyDirectory(outputDirectory, tempDir);
-    }
-
-    @OtterTest
-    @Order(3)
-    void testSingleNodeNetwork3(@NonNull final TestEnvironment env) throws IOException {
+    void testFromSingleNodeStateToTwoNodes(@NonNull final TestEnvironment env) {
         final Network network = env.network();
-        network.savedStateDirectory(tempDir);
+        network.savedStateDirectory(Path.of("previous-version-state"));
         final TimeManager timeManager = env.timeManager();
         final Node node0 = network.addNode();
         final Node node1 = network.addNode();
