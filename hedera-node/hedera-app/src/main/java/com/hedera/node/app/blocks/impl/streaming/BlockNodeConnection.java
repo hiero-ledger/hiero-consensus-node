@@ -1310,10 +1310,10 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     return true;
                 }
             } catch (final UncheckedIOException e) {
-                logger.debug("{} UncheckedIOException caught in connection worker thread", BlockNodeConnection.this, e);
+                logger.warn("{} UncheckedIOException caught in connection worker thread", BlockNodeConnection.this, e);
                 handleStreamFailureWithoutOnComplete();
             } catch (final Exception e) {
-                logger.debug("{} Exception caught in connection worker thread", BlockNodeConnection.this, e);
+                logger.warn("{} Exception caught in connection worker thread", BlockNodeConnection.this, e);
                 handleStreamFailure();
             }
 
