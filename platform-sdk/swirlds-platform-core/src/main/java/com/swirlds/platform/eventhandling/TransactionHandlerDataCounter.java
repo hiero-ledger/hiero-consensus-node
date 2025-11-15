@@ -12,9 +12,10 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
  * Gives a value that represents each round work load
  */
 public class TransactionHandlerDataCounter implements ToLongFunction<Object> {
-    // Assuming 1 round/sec it would require LOW_TPS_TARGET_ROUNDS_CAPACITY seconds
+    // Assuming 1 round/sec it would require LOW_TPS_TARGET_ROUNDS seconds
     // for the backpressure mechanism to engage at low tps
-    private static final int LOW_TPS_TARGET_ROUNDS = 20; // 5000
+    private static final int LOW_TPS_TARGET_ROUNDS =
+            25; // target a capacity of 25 rounds require an approx of 4000 minimum weight
     private final double minimumEffort;
 
     public TransactionHandlerDataCounter(final long roundMaxTransactionCapacity, final double targetMaxRounds) {
