@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
+import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
@@ -38,6 +39,7 @@ import static org.mockito.Mockito.withSettings;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.block.stream.RecordFileItem;
+import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.TransactionResult;
@@ -77,6 +79,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -707,7 +710,7 @@ class BlockStreamManagerImplTest {
 
     @Test
     void createsBlockWhenTimePeriodElapses() {
-        // Given a 2 second block period
+        // Given a 2-second block period
         givenSubjectWith(
                 1,
                 2,
@@ -716,7 +719,6 @@ class BlockStreamManagerImplTest {
                 platformStateWithFreezeTime(null),
                 aWriter);
         givenEndOfRoundSetup();
-        given(round.getRoundNum()).willReturn(ROUND_NO);
         given(blockHashSigner.isReady()).willReturn(true);
 
         // Set up the signature future to complete immediately and run the callback synchronously
@@ -729,39 +731,39 @@ class BlockStreamManagerImplTest {
                 .when(mockSigningFuture)
                 .thenAcceptAsync(any());
 
-        // When starting a round at t=0
-        var time = EPOCH;
-        mockRoundWithTxnTimestamp(time);
+        // When starting a round at t=0 (round ends at t=1)
+        final var first = asInstant(CONSENSUS_THEN);
+        var time = first;
+        var roundEnd = time.plusSeconds(1);
+        mockRoundWithTxnTimestamp(roundEnd);
         subject.init(state, N_MINUS_2_BLOCK_HASH);
         subject.startRound(round, state);
         subject.endRound(state, ROUND_NO);
 
-        // And another round at t=1
-        time = EPOCH.plusSeconds(1);
-        mockRoundWithTxnTimestamp(time);
+        // And another round at t=1 (round ends just before t=2)
+        time = first.plusSeconds(1);
+        roundEnd = time.plusSeconds(1).minusNanos(1);
+        mockRoundWithTxnTimestamp(roundEnd);
         subject.startRound(round, state);
-        // Advance tracked block end timestamp to t=1
-        subject.writeItem(transactionResultItemFrom(time));
         subject.endRound(state, ROUND_NO);
 
-        // Then block should not be closed
+        // Then block should not yet be closed
         verify(aWriter, never()).closeCompleteBlock();
 
-        // When starting another round at t=3 (after period)
-        time = EPOCH.plusSeconds(3);
-        mockRoundWithTxnTimestamp(time);
+        // When starting another round at t=2 (on the block period boundary)
+        time = first.plusSeconds(2);
+        roundEnd = time.plusSeconds(1);
+        mockRoundWithTxnTimestamp(roundEnd);
         subject.startRound(round, state);
-        // Advance tracked block end timestamp to t=3
-        subject.writeItem(transactionResultItemFrom(time));
         subject.endRound(state, ROUND_NO);
 
-        // Then block should be closed
+        // Then block should close
         verify(aWriter).closeCompleteBlock();
     }
 
     @Test
     void doesNotCreateBlockWhenTimePeriodNotElapsed() {
-        // Given a 2 second block period
+        // Given a 2-second block period
         givenSubjectWith(
                 1,
                 2,
@@ -772,18 +774,18 @@ class BlockStreamManagerImplTest {
         givenEndOfRoundSetup();
         given(blockHashSigner.isReady()).willReturn(true);
 
-        // When starting a round at t=0
-        var time = EPOCH;
-        mockRoundWithTxnTimestamp(time);
-        subject.initLastBlockHash(N_MINUS_2_BLOCK_HASH);
+        // When starting a round at t=0 (ending at t=1)
+        final var firstRoundStart = asInstant(CONSENSUS_THEN);
+        final var firstRoundEnd = firstRoundStart.plusSeconds(1);
+        mockRoundWithTxnTimestamp(firstRoundEnd);
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
         subject.startRound(round, state);
 
-        // And another round at t=1.5
-        time = EPOCH.plusSeconds(1).plusNanos(500_000_000);
-        mockRoundWithTxnTimestamp(time);
+        // Also starting another round at t=1.5 (and ending prior to the block's 2-second boundary)
+        final var secondRoundStart = firstRoundStart.plusSeconds(1).plusNanos(500_000_000);
+        final var secondRoundEnd = secondRoundStart.plusNanos(1_000);
+        mockRoundWithTxnTimestamp(secondRoundEnd);
         subject.startRound(round, state);
-        // Advance tracked block end timestamp to t=1.5
-        subject.writeItem(transactionResultItemFrom(time));
         subject.endRound(state, ROUND_NO);
 
         // Then block should not be closed
@@ -1204,6 +1206,100 @@ class BlockStreamManagerImplTest {
         assertFalse(footerWritten.get(), "BlockFooter should not be written until block is closed");
     }
 
+    @Test
+    void blockStartsWithEventTimestampBeforeRoundTimestamp() {
+        // Given a 2-second block period
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter,
+                bWriter);
+        givenEndOfRoundSetup();
+        given(blockHashSigner.isReady()).willReturn(true);
+        // Set up the async signature to return control to this test immediately upon completion
+        given(blockHashSigner.sign(any())).willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        doAnswer(invocationOnMock -> {
+                    final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
+                    consumer.accept(FIRST_FAKE_SIGNATURE);
+                    return null;
+                })
+                .when(mockSigningFuture)
+                .thenAcceptAsync(any());
+
+        // Initialize the subject
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
+
+        // End a round at t=2 (the block's next 2-second boundary), but make the round contain an _event_ timestamp just
+        // prior to that boundary
+        final var roundEnd = asInstant(CONSENSUS_THEN).plusSeconds(2);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(round.getConsensusTimestamp()).willReturn(roundEnd);
+        // Add two events to the round: the first without a timestamp,
+        given(mockEvent.getConsensusTimestamp()).willReturn(null);
+        given(mockEvent.consensusTransactionIterator()).willReturn(Collections.emptyIterator());
+        // The second with a timestamp–just before the block boundary
+        final var eventTimestamp = roundEnd.minusNanos(1);
+        final var mockEvent2 = mock(ConsensusEvent.class);
+        given(mockEvent2.getConsensusTimestamp()).willReturn(eventTimestamp);
+        given(mockEvent2.consensusTransactionIterator()).willReturn(Collections.emptyIterator());
+        given(round.iterator()).willReturn(List.of(mockEvent, mockEvent2).iterator());
+        subject.startRound(round, state);
+        subject.endRound(state, ROUND_NO);
+
+        // The block should close
+        verify(aWriter).closeCompleteBlock();
+        final var finalInfoState = blockStreamInfoState.get();
+        // And have a block starting timestamp equal to the second event's timestamp (instead of the round's timestamp)
+        assertEquals(eventTimestamp, asInstant(finalInfoState.blockTime()));
+    }
+
+    @Test
+    void usesRoundTimestampWhenRoundHasNoTransactionOrEventTimestamps() {
+        // Given a 2 second block period
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter,
+                bWriter // We won't use bWriter, but need to add it to avoid an exception
+                );
+        givenEndOfRoundSetup();
+        given(blockHashSigner.isReady()).willReturn(true);
+        // Set up the async signature to return control to this test immediately upon completion
+        given(blockHashSigner.sign(any())).willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        doAnswer(invocationOnMock -> {
+                    final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
+                    consumer.accept(FIRST_FAKE_SIGNATURE);
+                    return null;
+                })
+                .when(mockSigningFuture)
+                .thenAcceptAsync(any());
+
+        // When starting a round at t=0
+        final var roundStart = asInstant(CONSENSUS_THEN);
+        final var roundEnd = roundStart.plusSeconds(2);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(round.getConsensusTimestamp()).willReturn(roundEnd);
+        given(round.iterator()).willReturn(Collections.emptyIterator());
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(BlockItem.newBuilder()
+                .roundHeader(RoundHeader.newBuilder().roundNumber(ROUND_NO).build())
+                .build());
+        subject.endRound(state, ROUND_NO);
+
+        // Then block should close (due to the round's timestamp on the 2-second boundary
+        verify(aWriter).closeCompleteBlock();
+        final var finalInfoState = blockStreamInfoState.get();
+        // And have a block starting timestamp equal to the second round's timestamp
+        assertEquals(roundEnd, asInstant(finalInfoState.blockTime()));
+    }
+
     private void givenSubjectWith(
             final int roundsPerBlock,
             final int blockPeriod,
@@ -1290,8 +1386,9 @@ class BlockStreamManagerImplTest {
                 .trailingBlockHashes(appendHash(N_MINUS_2_BLOCK_HASH, Bytes.EMPTY, 256))
                 .trailingOutputHashes(resultHashes)
                 .lastIntervalProcessTime(CONSENSUS_THEN)
+                .blockEndTime(CONSENSUS_THEN)
                 .lastHandleTime(CONSENSUS_THEN)
-                .blockTime(asTimestamp(CONSENSUS_NOW.minusSeconds(5))) // Add block time to track last block creation
+                .blockTime(asTimestamp(asInstant(CONSENSUS_THEN).minusSeconds(5)))
                 .build();
     }
 
