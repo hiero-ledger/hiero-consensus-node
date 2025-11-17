@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.eventhandling;
 
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertAllDatabasesClosed;
 import static com.swirlds.platform.consensus.SyntheticSnapshot.getSnapshotWithTimestamp;
+import static com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator.releaseAllBuiltSignedStates;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -21,6 +23,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -85,104 +88,112 @@ class DefaultTransactionHandlerTests {
     @ParameterizedTest
     @CsvSource({"false", "true"})
     void normalOperation(final boolean pcesRound) throws InterruptedException {
-        final TransactionHandlerTester tester = new TransactionHandlerTester();
-        final ConsensusRound consensusRound = newConsensusRound(pcesRound);
+        try (TransactionHandlerTester tester = new TransactionHandlerTester()) {
+            final ConsensusRound consensusRound = newConsensusRound(pcesRound);
 
-        final TransactionHandlerResult handlerOutput =
-                tester.getTransactionHandler().handleConsensusRound(consensusRound);
-        assertNotEquals(null, handlerOutput, "new state should have been created");
-        assertEquals(
-                1,
-                handlerOutput
-                        .stateWithHashComplexity()
-                        .reservedSignedState()
-                        .get()
-                        .getReservationCount(),
-                "state should be returned with a reservation");
+            final TransactionHandlerResult handlerOutput =
+                    tester.getTransactionHandler().handleConsensusRound(consensusRound);
+            assertNotEquals(null, handlerOutput, "new state should have been created");
+            assertEquals(
+                    1,
+                    handlerOutput
+                            .stateWithHashComplexity()
+                            .reservedSignedState()
+                            .get()
+                            .getReservationCount(),
+                    "state should be returned with a reservation");
 
-        assertEquals(0, tester.getSubmittedActions().size(), "the freeze status should not have been submitted");
+            assertEquals(0, tester.getSubmittedActions().size(), "the freeze status should not have been submitted");
 
-        assertEquals(1, tester.getHandledRounds().size(), "a round should have been handled");
-        assertSame(
-                consensusRound,
-                tester.getHandledRounds().getFirst(),
-                "the round handled should be the one we provided");
-        boolean eventWithNoTransactions = false;
-        for (final ConsensusEvent consensusEvent : tester.getHandledRounds().getFirst()) {
-            if (!consensusEvent.consensusTransactionIterator().hasNext()) {
-                eventWithNoTransactions = true;
-                break;
+            assertEquals(1, tester.getHandledRounds().size(), "a round should have been handled");
+            assertSame(
+                    consensusRound,
+                    tester.getHandledRounds().getFirst(),
+                    "the round handled should be the one we provided");
+            boolean eventWithNoTransactions = false;
+            for (final ConsensusEvent consensusEvent : tester.getHandledRounds().getFirst()) {
+                if (!consensusEvent.consensusTransactionIterator().hasNext()) {
+                    eventWithNoTransactions = true;
+                    break;
+                }
             }
-        }
-        assertTrue(
-                eventWithNoTransactions,
-                "at least one event with no transactions should have been provided to the app");
-        assertNull(tester.getPlatformState().getLastFrozenTime(), "no freeze time should have been set");
+            assertTrue(
+                    eventWithNoTransactions,
+                    "at least one event with no transactions should have been provided to the app");
+            assertNull(tester.getPlatformState().getLastFrozenTime(), "no freeze time should have been set");
 
-        // Assert that the legacy running hash was updated with the expected value
-        assertEquals(
-                tester.getLegacyRunningHash(),
-                consensusRound
-                        .getStreamedEvents()
-                        .getLast()
-                        .getRunningHash()
-                        .getFutureHash()
-                        .getAndRethrow(),
-                "the running hash should be updated");
-        assertEquals(
-                pcesRound,
-                handlerOutput
-                        .stateWithHashComplexity()
-                        .reservedSignedState()
-                        .get()
-                        .isPcesRound(),
-                "the state should match the PCES boolean");
-        verify(tester.getStateEventHandler())
-                .onSealConsensusRound(
-                        consensusRound, tester.getStateLifecycleManager().getLatestImmutableState());
+            // Assert that the legacy running hash was updated with the expected value
+            assertEquals(
+                    tester.getLegacyRunningHash(),
+                    consensusRound
+                            .getStreamedEvents()
+                            .getLast()
+                            .getRunningHash()
+                            .getFutureHash()
+                            .getAndRethrow(),
+                    "the running hash should be updated");
+            assertEquals(
+                    pcesRound,
+                    handlerOutput
+                            .stateWithHashComplexity()
+                            .reservedSignedState()
+                            .get()
+                            .isPcesRound(),
+                    "the state should match the PCES boolean");
+            verify(tester.getStateEventHandler())
+                    .onSealConsensusRound(
+                            consensusRound, tester.getStateLifecycleManager().getLatestImmutableState());
+        }
     }
 
     @Test
     @DisplayName("Round in freeze period")
     void freezeHandling() throws InterruptedException {
-        final TransactionHandlerTester tester = new TransactionHandlerTester();
-        tester.enableFreezePeriod();
-        final ConsensusRound consensusRound = newConsensusRound(false);
-        final TransactionHandlerResult handlerOutput =
-                tester.getTransactionHandler().handleConsensusRound(consensusRound);
-        assertNotNull(handlerOutput, "new state should have been created");
-        assertEquals(
-                1,
-                handlerOutput
-                        .stateWithHashComplexity()
-                        .reservedSignedState()
-                        .get()
-                        .getReservationCount(),
-                "state should be returned with a reservation");
-        assertEquals(1, tester.getSubmittedActions().size(), "the freeze status should have been submitted");
-        // The freeze action is the first action submitted.
-        assertEquals(
-                FreezePeriodEnteredAction.class,
-                tester.getSubmittedActions().getFirst().getClass());
-        assertEquals(1, tester.getHandledRounds().size(), "a round should have been handled");
-        assertSame(consensusRound, tester.getHandledRounds().getFirst(), "it should be the round we provided");
+        try (final TransactionHandlerTester tester = new TransactionHandlerTester()) {
+            tester.enableFreezePeriod();
+            final ConsensusRound consensusRound = newConsensusRound(false);
+            final TransactionHandlerResult handlerOutput =
+                    tester.getTransactionHandler().handleConsensusRound(consensusRound);
+            assertNotNull(handlerOutput, "new state should have been created");
+            assertEquals(
+                    1,
+                    handlerOutput
+                            .stateWithHashComplexity()
+                            .reservedSignedState()
+                            .get()
+                            .getReservationCount(),
+                    "state should be returned with a reservation");
+            assertEquals(1, tester.getSubmittedActions().size(), "the freeze status should have been submitted");
+            // The freeze action is the first action submitted.
+            assertEquals(
+                    FreezePeriodEnteredAction.class,
+                    tester.getSubmittedActions().getFirst().getClass());
+            assertEquals(1, tester.getHandledRounds().size(), "a round should have been handled");
+            assertSame(consensusRound, tester.getHandledRounds().getFirst(), "it should be the round we provided");
 
-        final ConsensusRound postFreezeConsensusRound = newConsensusRound(false);
-        final TransactionHandlerResult postFreezeOutput =
-                tester.getTransactionHandler().handleConsensusRound(postFreezeConsensusRound);
-        assertNull(postFreezeOutput, "no state should be created after freeze period");
+            final ConsensusRound postFreezeConsensusRound = newConsensusRound(false);
+            final TransactionHandlerResult postFreezeOutput =
+                    tester.getTransactionHandler().handleConsensusRound(postFreezeConsensusRound);
+            assertNull(postFreezeOutput, "no state should be created after freeze period");
 
-        assertEquals(1, tester.getSubmittedActions().size(), "no new status should have been submitted");
-        assertEquals(1, tester.getHandledRounds().size(), "no new rounds should have been handled");
-        assertSame(consensusRound, tester.getHandledRounds().getFirst(), "it should same round as before");
-        assertEquals(
-                tester.getLegacyRunningHash(),
-                consensusRound
-                        .getStreamedEvents()
-                        .getLast()
-                        .getRunningHash()
-                        .getFutureHash()
-                        .getAndRethrow(),
-                "the running hash should from the freeze round");
+            assertEquals(1, tester.getSubmittedActions().size(), "no new status should have been submitted");
+            assertEquals(1, tester.getHandledRounds().size(), "no new rounds should have been handled");
+            assertSame(consensusRound, tester.getHandledRounds().getFirst(), "it should same round as before");
+            assertEquals(
+                    tester.getLegacyRunningHash(),
+                    consensusRound
+                            .getStreamedEvents()
+                            .getLast()
+                            .getRunningHash()
+                            .getFutureHash()
+                            .getAndRethrow(),
+                    "the running hash should from the freeze round");
+        }
+    }
+
+    @AfterAll
+    static void tearDown() {
+        releaseAllBuiltSignedStates();
+        assertAllDatabasesClosed();
     }
 }

@@ -34,7 +34,7 @@ import org.hiero.consensus.model.node.NodeId;
 /**
  * A helper class for testing the {@link DefaultTransactionHandler}.
  */
-public class TransactionHandlerTester {
+public class TransactionHandlerTester implements AutoCloseable {
     private final PlatformStateModifier platformState;
     private final StateLifecycleManager stateLifecycleManager;
     private final DefaultTransactionHandler defaultTransactionHandler;
@@ -134,5 +134,15 @@ public class TransactionHandlerTester {
             platformStateModifier.setConsensusTimestamp(consensusTimestamp);
             platformStateModifier.setFreezeTime(freezeTime);
         });
+    }
+
+    @Override
+    public void close() {
+        while (stateLifecycleManager.getLatestImmutableState().getRoot().getReservationCount() != -1) {
+            stateLifecycleManager.getLatestImmutableState().release();
+        }
+        while (stateLifecycleManager.getMutableState().getRoot().getReservationCount() != -1) {
+            stateLifecycleManager.getMutableState().release();
+        }
     }
 }
