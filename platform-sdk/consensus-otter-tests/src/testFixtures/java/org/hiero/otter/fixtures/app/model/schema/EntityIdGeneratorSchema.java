@@ -13,17 +13,17 @@ public final class EntityIdGeneratorSchema implements Schema {
     /**
      * Private constructor to prevent instantiation.
      */
-     private EntityIdGeneratorSchema() {
-         // no-op
-     }
+    private EntityIdGeneratorSchema() {
+        // no-op
+    }
 
     // -- FIELD DEFINITIONS ---------------------------------------------
 
     /**
-     * <b>(1)</b> 
+     * <b>(1)</b>
      */
-    public static final FieldDefinition NEXT_ID = new FieldDefinition("nextId", FieldType.UINT64, false, false, false, 1);
-
+    public static final FieldDefinition NEXT_ID =
+            new FieldDefinition("nextId", FieldType.UINT64, false, false, false, 1);
 
     // -- OTHER METHODS -------------------------------------------------
 
@@ -37,18 +37,16 @@ public final class EntityIdGeneratorSchema implements Schema {
         return f != null && getField(f.number()) == f;
     }
 
-/**
- * Get a field definition given a field number
- *
- * @param fieldNumber the fields number to get def for
- * @return field def or null if field number does not exist
- */
-public static FieldDefinition getField(final int fieldNumber) {
-    return switch(fieldNumber) {
-        case 1 -> NEXT_ID;
-        default -> null;
-    };
-}
-
-
+    /**
+     * Get a field definition given a field number
+     *
+     * @param fieldNumber the fields number to get def for
+     * @return field def or null if field number does not exist
+     */
+    public static FieldDefinition getField(final int fieldNumber) {
+        return switch (fieldNumber) {
+            case 1 -> NEXT_ID;
+            default -> null;
+        };
+    }
 }

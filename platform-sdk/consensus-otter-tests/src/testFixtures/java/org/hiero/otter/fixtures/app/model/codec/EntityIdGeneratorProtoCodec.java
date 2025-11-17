@@ -42,11 +42,9 @@ public final class EntityIdGeneratorProtoCodec implements Codec<EntityIdGenerato
     /**
      * Empty constructor
      */
-     public EntityIdGeneratorProtoCodec() {
-         // no-op
-     }
-
-
+    public EntityIdGeneratorProtoCodec() {
+        // no-op
+    }
 
     /**
      * Parses a EntityIdGenerator object from ProtoBuf bytes in a {@link ReadableSequentialData}. Throws if in strict mode ONLY.
@@ -77,88 +75,87 @@ public final class EntityIdGeneratorProtoCodec implements Codec<EntityIdGenerato
             final boolean strictMode,
             final boolean parseUnknownFields,
             final int maxDepth,
-            final int maxSize) throws ParseException {
+            final int maxSize)
+            throws ParseException {
         if (maxDepth < 0) {
             throw new ParseException("Reached maximum allowed depth of nested messages");
         }
         try {
             // -- TEMP STATE FIELDS --------------------------------------
-                long temp_nextId = 0;
+            long temp_nextId = 0;
             List<UnknownField> $unknownFields = null;
-    
-                        // -- PARSE LOOP ---------------------------------------------
-                // Continue to parse bytes out of the input stream until we get to the end.
-                while (input.hasRemaining()) {
-                    // Note: ReadableStreamingData.hasRemaining() won't flip to false
-                    // until the end of stream is actually hit with a read operation.
-                    // So we catch this exception here and **only** here, because an EOFException
-                    // anywhere else suggests that we're processing malformed data and so
-                    // we must re-throw the exception then.
-                    final int tag;
-                    try {
-                        // Read the "tag" byte which gives us the field number for the next field to read
-                        // and the wire type (way it is encoded on the wire).
-                        tag = input.readVarInt(false);
-                    } catch (EOFException e) {
-                        // There's no more fields. Stop the parsing loop.
-                        break;
+
+            // -- PARSE LOOP ---------------------------------------------
+            // Continue to parse bytes out of the input stream until we get to the end.
+            while (input.hasRemaining()) {
+                // Note: ReadableStreamingData.hasRemaining() won't flip to false
+                // until the end of stream is actually hit with a read operation.
+                // So we catch this exception here and **only** here, because an EOFException
+                // anywhere else suggests that we're processing malformed data and so
+                // we must re-throw the exception then.
+                final int tag;
+                try {
+                    // Read the "tag" byte which gives us the field number for the next field to read
+                    // and the wire type (way it is encoded on the wire).
+                    tag = input.readVarInt(false);
+                } catch (EOFException e) {
+                    // There's no more fields. Stop the parsing loop.
+                    break;
+                }
+
+                // The field is the top 5 bits of the byte. Read this off
+                final int field = tag >>> TAG_FIELD_OFFSET;
+
+                // Ask the Schema to inform us what field this represents.
+                final var f = EntityIdGeneratorSchema.getField(field);
+
+                // Given the wire type and the field type, parse the field
+                switch (tag) {
+                    case 8 /* type=0 [UINT64] field=1 [nextId] */ -> {
+                        final var value = readUint64(input);
+                        temp_nextId = value;
                     }
-        
-                    // The field is the top 5 bits of the byte. Read this off
-                    final int field = tag >>> TAG_FIELD_OFFSET;
-        
-                    // Ask the Schema to inform us what field this represents.
-                    final var f = EntityIdGeneratorSchema.getField(field);
-        
-                    // Given the wire type and the field type, parse the field
-                    switch (tag) {
-                        case 8 /* type=0 [UINT64] field=1 [nextId] */ -> {
-                            final var value = readUint64(input);
-                            temp_nextId = value;
+
+                    default -> {
+                        // The wire type is the bottom 3 bits of the byte. Read that off
+                        final int wireType = tag & TAG_WIRE_TYPE_MASK;
+                        // handle error cases here, so we do not do if statements in normal loop
+                        // Validate the field number is valid (must be > 0)
+                        if (field == 0) {
+                            throw new IOException("Bad protobuf encoding. We read a field value of " + field);
                         }
-        
-                        default -> {
-                            // The wire type is the bottom 3 bits of the byte. Read that off
-                            final int wireType = tag & TAG_WIRE_TYPE_MASK;
-                            // handle error cases here, so we do not do if statements in normal loop
-                            // Validate the field number is valid (must be > 0)
-                            if (field == 0) {
-                                throw new IOException("Bad protobuf encoding. We read a field value of "
-                                    + field);
-                            }
-                            // Validate the wire type is valid (must be >=0 && <= 5).
-                            // Otherwise we cannot parse this.
-                            // Note: it is always >= 0 at this point (see code above where it is defined).
-                            if (wireType > 5) {
-                                throw new IOException("Cannot understand wire_type of " + wireType);
-                            }
-                            // It may be that the parser subclass doesn't know about this field
-                            if (f == null) {
-                                if (strictMode) {
-                                    // Since we are parsing is strict mode, this is an exceptional condition.
-                                    throw new UnknownFieldException(field);
-                                } else if (parseUnknownFields) {
-                                    if ($unknownFields == null) {
-                                        $unknownFields = new ArrayList<>($initialSizeOfUnknownFieldsArray);
-                                    }
-                                    $unknownFields.add(new UnknownField(
-                                            field,
-                                            ProtoConstants.get(wireType),
-                                            extractField(input, ProtoConstants.get(wireType), maxSize)
-                                    ));
-                                } else {
-                                    // We just need to read off the bytes for this field to skip it
-                                    // and move on to the next one.
-                                    skipField(input, ProtoConstants.get(wireType), maxSize);
+                        // Validate the wire type is valid (must be >=0 && <= 5).
+                        // Otherwise we cannot parse this.
+                        // Note: it is always >= 0 at this point (see code above where it is defined).
+                        if (wireType > 5) {
+                            throw new IOException("Cannot understand wire_type of " + wireType);
+                        }
+                        // It may be that the parser subclass doesn't know about this field
+                        if (f == null) {
+                            if (strictMode) {
+                                // Since we are parsing is strict mode, this is an exceptional condition.
+                                throw new UnknownFieldException(field);
+                            } else if (parseUnknownFields) {
+                                if ($unknownFields == null) {
+                                    $unknownFields = new ArrayList<>($initialSizeOfUnknownFieldsArray);
                                 }
+                                $unknownFields.add(new UnknownField(
+                                        field,
+                                        ProtoConstants.get(wireType),
+                                        extractField(input, ProtoConstants.get(wireType), maxSize)));
                             } else {
-                                throw new IOException("Bad tag [" + tag + "], field [" + field
-                                        + "] wireType [" + wireType + "]");
+                                // We just need to read off the bytes for this field to skip it
+                                // and move on to the next one.
+                                skipField(input, ProtoConstants.get(wireType), maxSize);
                             }
+                        } else {
+                            throw new IOException(
+                                    "Bad tag [" + tag + "], field [" + field + "] wireType [" + wireType + "]");
                         }
                     }
                 }
-    
+            }
+
             if ($unknownFields != null) {
                 Collections.sort($unknownFields);
                 $initialSizeOfUnknownFieldsArray = Math.max($initialSizeOfUnknownFieldsArray, $unknownFields.size());
@@ -180,9 +177,9 @@ public final class EntityIdGeneratorProtoCodec implements Codec<EntityIdGenerato
      * @throws IOException If there is a problem writing
      */
     public void write(@NonNull EntityIdGenerator data, @NonNull final WritableSequentialData out) throws IOException {
-            // [1] - nextId
+        // [1] - nextId
         writeLong(out, EntityIdGeneratorSchema.NEXT_ID, data.nextId(), true);
-    
+
         // Check if not-empty to avoid creating a lambda if there's nothing to write.
         if (!data.getUnknownFields().isEmpty()) {
             data.getUnknownFields().forEach(uf -> {
@@ -206,8 +203,9 @@ public final class EntityIdGeneratorProtoCodec implements Codec<EntityIdGenerato
     public int write(@NonNull EntityIdGenerator data, @NonNull byte[] output, final int startOffset) {
         int offset = startOffset;
         // [1] - nextId
-        offset += ProtoArrayWriterTools.writeInt64(output, offset, EntityIdGeneratorSchema.NEXT_ID,  data.nextId(), true);
-    
+        offset +=
+                ProtoArrayWriterTools.writeInt64(output, offset, EntityIdGeneratorSchema.NEXT_ID, data.nextId(), true);
+
         // Write unknown fields if there are any
         for (final UnknownField uf : data.getUnknownFields()) {
             final int tag = (uf.field() << TAG_FIELD_OFFSET) | uf.wireType().ordinal();
@@ -230,7 +228,7 @@ public final class EntityIdGeneratorProtoCodec implements Codec<EntityIdGenerato
         final var start = input.position();
         parse(input);
         final var end = input.position();
-        return (int)(end - start);
+        return (int) (end - start);
     }
 
     /**
@@ -255,7 +253,8 @@ public final class EntityIdGeneratorProtoCodec implements Codec<EntityIdGenerato
      * @return true if the bytes represent the item, false otherwise.
      * @throws ParseException If parsing fails
      */
-    public boolean fastEquals(@NonNull EntityIdGenerator item, @NonNull final ReadableSequentialData input) throws ParseException {
+    public boolean fastEquals(@NonNull EntityIdGenerator item, @NonNull final ReadableSequentialData input)
+            throws ParseException {
         return item.equals(parse(input));
     }
 
@@ -268,6 +267,4 @@ public final class EntityIdGeneratorProtoCodec implements Codec<EntityIdGenerato
     public EntityIdGenerator getDefaultInstance() {
         return EntityIdGenerator.DEFAULT;
     }
-
-
 }

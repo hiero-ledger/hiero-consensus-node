@@ -5,9 +5,7 @@ import static com.hedera.pbj.runtime.ProtoConstants.TAG_WIRE_TYPE_MASK;
 import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
 import static com.hedera.pbj.runtime.ProtoParserTools.extractField;
 import static com.hedera.pbj.runtime.ProtoParserTools.readString;
-import static com.hedera.pbj.runtime.ProtoParserTools.readUint64;
 import static com.hedera.pbj.runtime.ProtoParserTools.skipField;
-import static com.hedera.pbj.runtime.ProtoWriterTools.writeLong;
 import static com.hedera.pbj.runtime.ProtoWriterTools.writeMessage;
 import static com.hedera.pbj.runtime.ProtoWriterTools.writeString;
 
@@ -48,11 +46,9 @@ public final class AccountProtoCodec implements Codec<Account> {
     /**
      * Empty constructor
      */
-     public AccountProtoCodec() {
-         // no-op
-     }
-
-
+    public AccountProtoCodec() {
+        // no-op
+    }
 
     /**
      * Parses a Account object from ProtoBuf bytes in a {@link ReadableSequentialData}. Throws if in strict mode ONLY.
@@ -83,120 +79,120 @@ public final class AccountProtoCodec implements Codec<Account> {
             final boolean strictMode,
             final boolean parseUnknownFields,
             final int maxDepth,
-            final int maxSize) throws ParseException {
+            final int maxSize)
+            throws ParseException {
         if (maxDepth < 0) {
             throw new ParseException("Reached maximum allowed depth of nested messages");
         }
         try {
             // -- TEMP STATE FIELDS --------------------------------------
-                AccountId temp_accountId = null;
-        String temp_name = "";
+            AccountId temp_accountId = null;
+            String temp_name = "";
             List<UnknownField> $unknownFields = null;
-    
-                        // -- PARSE LOOP ---------------------------------------------
-                // Continue to parse bytes out of the input stream until we get to the end.
-                while (input.hasRemaining()) {
-                    // Note: ReadableStreamingData.hasRemaining() won't flip to false
-                    // until the end of stream is actually hit with a read operation.
-                    // So we catch this exception here and **only** here, because an EOFException
-                    // anywhere else suggests that we're processing malformed data and so
-                    // we must re-throw the exception then.
-                    final int tag;
-                    try {
-                        // Read the "tag" byte which gives us the field number for the next field to read
-                        // and the wire type (way it is encoded on the wire).
-                        tag = input.readVarInt(false);
-                    } catch (EOFException e) {
-                        // There's no more fields. Stop the parsing loop.
-                        break;
-                    }
-        
-                    // The field is the top 5 bits of the byte. Read this off
-                    final int field = tag >>> TAG_FIELD_OFFSET;
-        
-                    // Ask the Schema to inform us what field this represents.
-                    final var f = AccountSchema.getField(field);
-        
-                    // Given the wire type and the field type, parse the field
-                    switch (tag) {
-                        case 10 /* type=2 [MESSAGE] field=1 [accountId] */ -> {
-                            final var messageLength = input.readVarInt(false);
-                            final AccountId value;
-                            if (messageLength == 0) {
-                                value = AccountId.DEFAULT;
-                            } else {
-                                if (messageLength > maxSize) {
-                                    throw new ParseException("accountId size " + messageLength + " is greater than max " + maxSize);
-                                }
-                                final var limitBefore = input.limit();
-                                // Make sure that we have enough bytes in the message
-                                // to read the subObject.
-                                // If the buffer is truncated on the boundary of a subObject,
-                                // we will not throw.
-                                final var startPos = input.position();
-                                try {
-                                    if ((startPos + messageLength) > limitBefore) {
-                                        throw new BufferUnderflowException();
-                                    }
-                                    input.limit(startPos + messageLength);
-                                    value = AccountId.PROTOBUF.parse(input, strictMode, maxDepth - 1);
-                                    // Make sure we read the full number of bytes. for the types
-                                    if ((startPos + messageLength) != input.position()) {
-                                        throw new BufferOverflowException();
-                                    }
-                                } finally {
-                                    input.limit(limitBefore);
-                                }
-                            }
-                            temp_accountId = value;
-                        }
-                        case 18 /* type=2 [STRING] field=2 [name] */ -> {
-                            final var value = readString(input, maxSize);
-                            temp_name = value;
-                        }
 
-                        default -> {
-                            // The wire type is the bottom 3 bits of the byte. Read that off
-                            final int wireType = tag & TAG_WIRE_TYPE_MASK;
-                            // handle error cases here, so we do not do if statements in normal loop
-                            // Validate the field number is valid (must be > 0)
-                            if (field == 0) {
-                                throw new IOException("Bad protobuf encoding. We read a field value of "
-                                    + field);
+            // -- PARSE LOOP ---------------------------------------------
+            // Continue to parse bytes out of the input stream until we get to the end.
+            while (input.hasRemaining()) {
+                // Note: ReadableStreamingData.hasRemaining() won't flip to false
+                // until the end of stream is actually hit with a read operation.
+                // So we catch this exception here and **only** here, because an EOFException
+                // anywhere else suggests that we're processing malformed data and so
+                // we must re-throw the exception then.
+                final int tag;
+                try {
+                    // Read the "tag" byte which gives us the field number for the next field to read
+                    // and the wire type (way it is encoded on the wire).
+                    tag = input.readVarInt(false);
+                } catch (EOFException e) {
+                    // There's no more fields. Stop the parsing loop.
+                    break;
+                }
+
+                // The field is the top 5 bits of the byte. Read this off
+                final int field = tag >>> TAG_FIELD_OFFSET;
+
+                // Ask the Schema to inform us what field this represents.
+                final var f = AccountSchema.getField(field);
+
+                // Given the wire type and the field type, parse the field
+                switch (tag) {
+                    case 10 /* type=2 [MESSAGE] field=1 [accountId] */ -> {
+                        final var messageLength = input.readVarInt(false);
+                        final AccountId value;
+                        if (messageLength == 0) {
+                            value = AccountId.DEFAULT;
+                        } else {
+                            if (messageLength > maxSize) {
+                                throw new ParseException(
+                                        "accountId size " + messageLength + " is greater than max " + maxSize);
                             }
-                            // Validate the wire type is valid (must be >=0 && <= 5).
-                            // Otherwise we cannot parse this.
-                            // Note: it is always >= 0 at this point (see code above where it is defined).
-                            if (wireType > 5) {
-                                throw new IOException("Cannot understand wire_type of " + wireType);
-                            }
-                            // It may be that the parser subclass doesn't know about this field
-                            if (f == null) {
-                                if (strictMode) {
-                                    // Since we are parsing is strict mode, this is an exceptional condition.
-                                    throw new UnknownFieldException(field);
-                                } else if (parseUnknownFields) {
-                                    if ($unknownFields == null) {
-                                        $unknownFields = new ArrayList<>($initialSizeOfUnknownFieldsArray);
-                                    }
-                                    $unknownFields.add(new UnknownField(
-                                            field,
-                                            ProtoConstants.get(wireType),
-                                            extractField(input, ProtoConstants.get(wireType), maxSize)
-                                    ));
-                                } else {
-                                    // We just need to read off the bytes for this field to skip it
-                                    // and move on to the next one.
-                                    skipField(input, ProtoConstants.get(wireType), maxSize);
+                            final var limitBefore = input.limit();
+                            // Make sure that we have enough bytes in the message
+                            // to read the subObject.
+                            // If the buffer is truncated on the boundary of a subObject,
+                            // we will not throw.
+                            final var startPos = input.position();
+                            try {
+                                if ((startPos + messageLength) > limitBefore) {
+                                    throw new BufferUnderflowException();
                                 }
-                            } else {
-                                throw new IOException("Bad tag [" + tag + "], field [" + field
-                                        + "] wireType [" + wireType + "]");
+                                input.limit(startPos + messageLength);
+                                value = AccountId.PROTOBUF.parse(input, strictMode, maxDepth - 1);
+                                // Make sure we read the full number of bytes. for the types
+                                if ((startPos + messageLength) != input.position()) {
+                                    throw new BufferOverflowException();
+                                }
+                            } finally {
+                                input.limit(limitBefore);
                             }
+                        }
+                        temp_accountId = value;
+                    }
+                    case 18 /* type=2 [STRING] field=2 [name] */ -> {
+                        final var value = readString(input, maxSize);
+                        temp_name = value;
+                    }
+
+                    default -> {
+                        // The wire type is the bottom 3 bits of the byte. Read that off
+                        final int wireType = tag & TAG_WIRE_TYPE_MASK;
+                        // handle error cases here, so we do not do if statements in normal loop
+                        // Validate the field number is valid (must be > 0)
+                        if (field == 0) {
+                            throw new IOException("Bad protobuf encoding. We read a field value of " + field);
+                        }
+                        // Validate the wire type is valid (must be >=0 && <= 5).
+                        // Otherwise we cannot parse this.
+                        // Note: it is always >= 0 at this point (see code above where it is defined).
+                        if (wireType > 5) {
+                            throw new IOException("Cannot understand wire_type of " + wireType);
+                        }
+                        // It may be that the parser subclass doesn't know about this field
+                        if (f == null) {
+                            if (strictMode) {
+                                // Since we are parsing is strict mode, this is an exceptional condition.
+                                throw new UnknownFieldException(field);
+                            } else if (parseUnknownFields) {
+                                if ($unknownFields == null) {
+                                    $unknownFields = new ArrayList<>($initialSizeOfUnknownFieldsArray);
+                                }
+                                $unknownFields.add(new UnknownField(
+                                        field,
+                                        ProtoConstants.get(wireType),
+                                        extractField(input, ProtoConstants.get(wireType), maxSize)));
+                            } else {
+                                // We just need to read off the bytes for this field to skip it
+                                // and move on to the next one.
+                                skipField(input, ProtoConstants.get(wireType), maxSize);
+                            }
+                        } else {
+                            throw new IOException(
+                                    "Bad tag [" + tag + "], field [" + field + "] wireType [" + wireType + "]");
                         }
                     }
                 }
-    
+            }
+
             if ($unknownFields != null) {
                 Collections.sort($unknownFields);
                 $initialSizeOfUnknownFieldsArray = Math.max($initialSizeOfUnknownFieldsArray, $unknownFields.size());
@@ -218,7 +214,7 @@ public final class AccountProtoCodec implements Codec<Account> {
      * @throws IOException If there is a problem writing
      */
     public void write(@NonNull Account data, @NonNull final WritableSequentialData out) throws IOException {
-            // [1] - accountId
+        // [1] - accountId
         writeMessage(out, AccountSchema.ACCOUNT_ID, data.accountId(), AccountId.PROTOBUF);
         // [2] - name
         writeString(out, AccountSchema.NAME, data.name(), true);
@@ -246,9 +242,10 @@ public final class AccountProtoCodec implements Codec<Account> {
     public int write(@NonNull Account data, @NonNull byte[] output, final int startOffset) {
         int offset = startOffset;
         // [1] - accountId
-        offset += ProtoArrayWriterTools.writeMessage(output, offset, AccountSchema.ACCOUNT_ID,  data.accountId(), AccountId.PROTOBUF);
+        offset += ProtoArrayWriterTools.writeMessage(
+                output, offset, AccountSchema.ACCOUNT_ID, data.accountId(), AccountId.PROTOBUF);
         // [2] - name
-        offset += ProtoArrayWriterTools.writeString(output, offset, AccountSchema.NAME,  data.name(), true);
+        offset += ProtoArrayWriterTools.writeString(output, offset, AccountSchema.NAME, data.name(), true);
 
         // Write unknown fields if there are any
         for (final UnknownField uf : data.getUnknownFields()) {
@@ -272,7 +269,7 @@ public final class AccountProtoCodec implements Codec<Account> {
         final var start = input.position();
         parse(input);
         final var end = input.position();
-        return (int)(end - start);
+        return (int) (end - start);
     }
 
     /**
@@ -297,7 +294,8 @@ public final class AccountProtoCodec implements Codec<Account> {
      * @return true if the bytes represent the item, false otherwise.
      * @throws ParseException If parsing fails
      */
-    public boolean fastEquals(@NonNull Account item, @NonNull final ReadableSequentialData input) throws ParseException {
+    public boolean fastEquals(@NonNull Account item, @NonNull final ReadableSequentialData input)
+            throws ParseException {
         return item.equals(parse(input));
     }
 
@@ -310,6 +308,4 @@ public final class AccountProtoCodec implements Codec<Account> {
     public Account getDefaultInstance() {
         return Account.DEFAULT;
     }
-
-
 }

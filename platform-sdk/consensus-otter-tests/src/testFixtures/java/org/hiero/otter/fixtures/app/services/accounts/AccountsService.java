@@ -1,4 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app.services.accounts;
+
+import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.state.spi.WritableKVState;
@@ -12,15 +15,15 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
-import org.hiero.otter.fixtures.app.CreateAccountTransaction;
-import org.hiero.otter.fixtures.app.DeleteAccountTransaction;
 import org.hiero.otter.fixtures.app.OtterService;
-import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.app.model.Account;
 import org.hiero.otter.fixtures.app.model.AccountId;
 import org.hiero.otter.fixtures.app.model.EntityIdGenerator;
 import org.hiero.otter.fixtures.app.state.OtterServiceStateSpecification;
 import org.hiero.otter.fixtures.app.state.OtterStateId;
+import org.hiero.otter.fixtures.network.transactions.CreateAccountTransaction;
+import org.hiero.otter.fixtures.network.transactions.DeleteAccountTransaction;
+import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.jetbrains.annotations.NotNull;
 
 public class AccountsService implements OtterService {
@@ -50,9 +53,9 @@ public class AccountsService implements OtterService {
             @NotNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         switch (transaction.getDataCase()) {
             case CREATEACCOUNTTRANSACTION ->
-                    handleCreateAccount(writableStates, transaction.getCreateAccountTransaction());
+                handleCreateAccount(writableStates, transaction.getCreateAccountTransaction());
             case DELETEACCOUNTTRANSACTION ->
-                    handleDeleteAccount(writableStates, transaction.getDeleteAccountTransaction());
+                handleDeleteAccount(writableStates, transaction.getDeleteAccountTransaction());
         }
     }
 
@@ -60,9 +63,7 @@ public class AccountsService implements OtterService {
     public void preHandleTransaction(
             @NotNull final Event event,
             @NotNull final OtterTransaction transaction,
-            @NotNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
-
-    }
+            @NotNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {}
 
     private void handleCreateAccount(
             @NonNull final WritableStates writableStates,
@@ -82,7 +83,7 @@ public class AccountsService implements OtterService {
         final Account account = new Account(id, accountName);
         accountsState.put(id, account);
 
-        log.info("Account created: id={} name={}", id.id(), accountName);
+        log.info(DEMO_INFO.getMarker(), "Account created: id={} name={}", id.id(), accountName);
     }
 
     private void handleDeleteAccount(
@@ -92,10 +93,11 @@ public class AccountsService implements OtterService {
                 writableStates.get(OtterStateId.ACCOUNTS_STATE_ID.id());
         final AccountId id = new AccountId(deleteAccountTransaction.getId());
         if (!accountsState.contains(id)) {
-            log.info("Account not deleted, doesn't exist: id={}", id.id());
+            log.info(DEMO_INFO.getMarker(), "Account not deleted, doesn't exist: id={}", id.id());
+            return;
         }
         accountsState.remove(id);
 
-        log.info("Account deleted: id={}", id.id());
+        log.info(DEMO_INFO.getMarker(), "Account deleted: id={}", id.id());
     }
 }

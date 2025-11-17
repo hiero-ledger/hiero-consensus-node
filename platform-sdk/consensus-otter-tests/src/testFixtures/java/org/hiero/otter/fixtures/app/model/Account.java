@@ -39,12 +39,11 @@ public final class Account {
 
     private final List<UnknownField> $unknownFields;
 
-
     /**
      * Create a pre-populated Account.
-     * 
-     * @param accountId <b>(1)</b>  
-     * @param name <b>(2)</b>  
+     *
+     * @param accountId <b>(1)</b>
+     * @param name <b>(2)</b>
      */
     public Account(AccountId accountId, String name) {
         this.$unknownFields = null;
@@ -54,9 +53,9 @@ public final class Account {
 
     /**
      * Create a pre-populated Account.
-     * 
-     * @param accountId <b>(1)</b>  
-     * @param name <b>(2)</b>  
+     *
+     * @param accountId <b>(1)</b>
+     * @param name <b>(2)</b>
      */
     public Account(AccountId accountId, String name, final List<UnknownField> $unknownFields) {
         this.$unknownFields = $unknownFields == null ? null : Collections.unmodifiableList($unknownFields);
@@ -65,7 +64,7 @@ public final class Account {
     }
 
     /**
-     * Get field <b>(1)</b> 
+     * Get field <b>(1)</b>
      *
      * @return the value of the accountId field
      */
@@ -74,7 +73,7 @@ public final class Account {
     }
 
     /**
-     * Get field <b>(2)</b> 
+     * Get field <b>(2)</b>
      *
      * @return the value of the name field
      */
@@ -117,7 +116,7 @@ public final class Account {
         // concurrency primitives is that we can ever only write to this field for a given Model object
         // instance, and that the computation is idempotent and derived from immutable state.
         // This is the same trick used in java.lang.String.hashCode() to avoid synchronization.
-    
+
         if ($protobufEncodedSize == -1) {
             int _size = 0;
             // [1] - accountId
@@ -125,24 +124,25 @@ public final class Account {
             // [2] - name
             _size += sizeOfString(AccountSchema.NAME, name, true);
 
-        if ($unknownFields != null) {
-            for (int i = 0; i < $unknownFields.size(); i++) {
-                final UnknownField uf = $unknownFields.get(i);
-                _size += sizeOfVarInt32((uf.field() << ProtoParserTools.TAG_FIELD_OFFSET) | uf.wireType().ordinal());
-                _size += Math.toIntExact(uf.bytes().length());
+            if ($unknownFields != null) {
+                for (int i = 0; i < $unknownFields.size(); i++) {
+                    final UnknownField uf = $unknownFields.get(i);
+                    _size += sizeOfVarInt32((uf.field() << ProtoParserTools.TAG_FIELD_OFFSET)
+                            | uf.wireType().ordinal());
+                    _size += Math.toIntExact(uf.bytes().length());
+                }
             }
-        }
-    
+
             $protobufEncodedSize = _size;
         }
         return $protobufEncodedSize;
     }
 
     /**
-    * Override the default hashCode method for to make hashCode better distributed and follows protobuf rules
-    * for default values. This is important for backward compatibility. This also lazy computes and caches the
-    * hashCode for future calls. It is designed to be thread safe.
-    */
+     * Override the default hashCode method for to make hashCode better distributed and follows protobuf rules
+     * for default values. This is important for backward compatibility. This also lazy computes and caches the
+     * hashCode for future calls. It is designed to be thread safe.
+     */
     @Override
     public int hashCode() {
         // The $hashCode field is subject to a benign data race, making it crucial to ensure that any
@@ -151,14 +151,14 @@ public final class Account {
         // concurrency primitives is that we can ever only write to this field for a given Model object
         // instance, and that the computation is idempotent and derived from immutable state.
         // This is the same trick used in java.lang.String.hashCode() to avoid synchronization.
-    
-        if($hashCode == -1) {
+
+        if ($hashCode == -1) {
             int result = 1;
             if (accountId != null && !accountId.equals(DEFAULT.accountId)) {
-               result = 31 * result + accountId.hashCode();
+                result = 31 * result + accountId.hashCode();
             }
             if (name != null && !name.equals(DEFAULT.name)) {
-               result = 31 * result + name.hashCode();
+                result = 31 * result + name.hashCode();
             }
             if ($unknownFields != null) {
                 for (int i = 0; i < $unknownFields.size(); i++) {
@@ -166,18 +166,18 @@ public final class Account {
                 }
             }
             long hashCode = result;
-                // Shifts: 30, 27, 16, 20, 5, 18, 10, 24, 30
-                hashCode += hashCode << 30;
-                hashCode ^= hashCode >>> 27;
-                hashCode += hashCode << 16;
-                hashCode ^= hashCode >>> 20;
-                hashCode += hashCode << 5;
-                hashCode ^= hashCode >>> 18;
-                hashCode += hashCode << 10;
-                hashCode ^= hashCode >>> 24;
-                hashCode += hashCode << 30;
-    
-            $hashCode = (int)hashCode;
+            // Shifts: 30, 27, 16, 20, 5, 18, 10, 24, 30
+            hashCode += hashCode << 30;
+            hashCode ^= hashCode >>> 27;
+            hashCode += hashCode << 16;
+            hashCode ^= hashCode >>> 20;
+            hashCode += hashCode << 5;
+            hashCode ^= hashCode >>> 18;
+            hashCode += hashCode << 10;
+            hashCode ^= hashCode >>> 24;
+            hashCode += hashCode << 30;
+
+            $hashCode = (int) hashCode;
         }
         return $hashCode;
     }
@@ -190,7 +190,7 @@ public final class Account {
         if (that == null || this.getClass() != that.getClass()) {
             return false;
         }
-        Account thatObj = (Account)that;
+        Account thatObj = (Account) that;
         if ($hashCode != -1 && thatObj.$hashCode != -1 && $hashCode != thatObj.$hashCode) {
             return false;
         }
@@ -239,10 +239,10 @@ public final class Account {
             $ufstr = sb.toString();
         }
         return "Account["
-            + "accountId=" + accountId + ", "
-            + "name=" + name + ", "
-            + ($ufstr == null ? "" : (", " + $ufstr))
-            +"]";
+                + "accountId=" + accountId + ", "
+                + "name=" + name + ", "
+                + ($ufstr == null ? "" : (", " + $ufstr))
+                + "]";
     }
 
     /**
@@ -253,7 +253,7 @@ public final class Account {
     public boolean hasAccountId() {
         return accountId != null;
     }
-    
+
     /**
      * Gets the value for accountId if it has a value, or else returns the default
      * value for the type.
@@ -264,7 +264,7 @@ public final class Account {
     public AccountId accountIdOrElse(@NonNull final AccountId defaultValue) {
         return hasAccountId() ? accountId : defaultValue;
     }
-    
+
     /**
      * Gets the value for accountId if it has a value, or else throws an NPE.
      * value for the type.
@@ -275,7 +275,7 @@ public final class Account {
     public @NonNull AccountId accountIdOrThrow() {
         return requireNonNull(accountId, "Field accountId is null");
     }
-    
+
     /**
      * Executes the supplied {@link Consumer} if, and only if, the accountId has a value
      *
@@ -287,7 +287,6 @@ public final class Account {
         }
     }
 
-
     /**
      * Return a builder for building a copy of this model object. It will be pre-populated with all the data from this
      * model object.
@@ -297,7 +296,7 @@ public final class Account {
     public Builder copyBuilder() {
         return new Builder(accountId, name, $unknownFields);
     }
-    
+
     /**
      * Return a new builder for building a model object. This is just a shortcut for <code>new Model.Builder()</code>.
      *
@@ -312,39 +311,45 @@ public final class Account {
      * paths use the constructor directly.
      */
     public static final class Builder {
-        @Nullable private AccountId accountId = null;
-        @NonNull private String name = "";
+        @Nullable
+        private AccountId accountId = null;
+
+        @NonNull
+        private String name = "";
+
         private final List<UnknownField> $unknownFields;
-    
+
         /**
          * Create an empty builder
          */
-        public Builder() { $unknownFields = null; }
-    
+        public Builder() {
+            $unknownFields = null;
+        }
+
         /**
          * Create a pre-populated Builder.
-         * 
-         * @param accountId <b>(1)</b>  
-         * @param name <b>(2)</b>  
+         *
+         * @param accountId <b>(1)</b>
+         * @param name <b>(2)</b>
          */
         public Builder(AccountId accountId, String name) {
             this.$unknownFields = null;
             this.accountId = accountId;
             this.name = name != null ? name : "";
         }
-    
+
         /**
          * Create a pre-populated Builder.
-         * 
-         * @param accountId <b>(1)</b>  
-         * @param name <b>(2)</b>  
+         *
+         * @param accountId <b>(1)</b>
+         * @param name <b>(2)</b>
          */
         public Builder(AccountId accountId, String name, final List<UnknownField> $unknownFields) {
             this.$unknownFields = $unknownFields == null ? null : Collections.unmodifiableList($unknownFields);
             this.accountId = accountId;
             this.name = name != null ? name : "";
         }
-    
+
         /**
          * Build a new model record with data set on builder
          *
@@ -353,9 +358,9 @@ public final class Account {
         public Account build() {
             return new Account(accountId, name);
         }
-    
+
         /**
-         * <b>(1)</b> 
+         * <b>(1)</b>
          *
          * @param accountId value to set
          * @return builder to continue building with
@@ -364,20 +369,20 @@ public final class Account {
             this.accountId = accountId;
             return this;
         }
-    
+
         /**
-         * <b>(1)</b> 
+         * <b>(1)</b>
          *
          * @param builder A pre-populated builder
          * @return builder to continue building with
          */
         public Builder accountId(AccountId.Builder builder) {
-            this.accountId = builder.build() ;
+            this.accountId = builder.build();
             return this;
         }
-    
+
         /**
-         * <b>(2)</b> 
+         * <b>(2)</b>
          *
          * @param name value to set
          * @return builder to continue building with
@@ -387,6 +392,4 @@ public final class Account {
             return this;
         }
     }
-
-
 }

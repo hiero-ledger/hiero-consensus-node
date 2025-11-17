@@ -33,11 +33,10 @@ public final class EntityIdGenerator {
 
     private final List<UnknownField> $unknownFields;
 
-
     /**
      * Create a pre-populated EntityIdGenerator.
-     * 
-     * @param nextId <b>(1)</b> 
+     *
+     * @param nextId <b>(1)</b>
      */
     public EntityIdGenerator(long nextId) {
         this.$unknownFields = null;
@@ -46,8 +45,8 @@ public final class EntityIdGenerator {
 
     /**
      * Create a pre-populated EntityIdGenerator.
-     * 
-     * @param nextId <b>(1)</b> 
+     *
+     * @param nextId <b>(1)</b>
      */
     public EntityIdGenerator(long nextId, final List<UnknownField> $unknownFields) {
         this.$unknownFields = $unknownFields == null ? null : Collections.unmodifiableList($unknownFields);
@@ -55,7 +54,7 @@ public final class EntityIdGenerator {
     }
 
     /**
-     * Get field <b>(1)</b> 
+     * Get field <b>(1)</b>
      *
      * @return the value of the nextId field
      */
@@ -98,30 +97,31 @@ public final class EntityIdGenerator {
         // concurrency primitives is that we can ever only write to this field for a given Model object
         // instance, and that the computation is idempotent and derived from immutable state.
         // This is the same trick used in java.lang.String.hashCode() to avoid synchronization.
-    
+
         if ($protobufEncodedSize == -1) {
             int _size = 0;
             // [1] - nextId
             _size += sizeOfLong(EntityIdGeneratorSchema.NEXT_ID, nextId, true);
-    
-        if ($unknownFields != null) {
-            for (int i = 0; i < $unknownFields.size(); i++) {
-                final UnknownField uf = $unknownFields.get(i);
-                _size += sizeOfVarInt32((uf.field() << ProtoParserTools.TAG_FIELD_OFFSET) | uf.wireType().ordinal());
-                _size += Math.toIntExact(uf.bytes().length());
+
+            if ($unknownFields != null) {
+                for (int i = 0; i < $unknownFields.size(); i++) {
+                    final UnknownField uf = $unknownFields.get(i);
+                    _size += sizeOfVarInt32((uf.field() << ProtoParserTools.TAG_FIELD_OFFSET)
+                            | uf.wireType().ordinal());
+                    _size += Math.toIntExact(uf.bytes().length());
+                }
             }
-        }
-    
+
             $protobufEncodedSize = _size;
         }
         return $protobufEncodedSize;
     }
 
     /**
-    * Override the default hashCode method for to make hashCode better distributed and follows protobuf rules
-    * for default values. This is important for backward compatibility. This also lazy computes and caches the
-    * hashCode for future calls. It is designed to be thread safe.
-    */
+     * Override the default hashCode method for to make hashCode better distributed and follows protobuf rules
+     * for default values. This is important for backward compatibility. This also lazy computes and caches the
+     * hashCode for future calls. It is designed to be thread safe.
+     */
     @Override
     public int hashCode() {
         // The $hashCode field is subject to a benign data race, making it crucial to ensure that any
@@ -130,8 +130,8 @@ public final class EntityIdGenerator {
         // concurrency primitives is that we can ever only write to this field for a given Model object
         // instance, and that the computation is idempotent and derived from immutable state.
         // This is the same trick used in java.lang.String.hashCode() to avoid synchronization.
-    
-        if($hashCode == -1) {
+
+        if ($hashCode == -1) {
             int result = 1;
             if (nextId != DEFAULT.nextId) {
                 result = 31 * result + Long.hashCode(nextId);
@@ -142,18 +142,18 @@ public final class EntityIdGenerator {
                 }
             }
             long hashCode = result;
-                // Shifts: 30, 27, 16, 20, 5, 18, 10, 24, 30
-                hashCode += hashCode << 30;
-                hashCode ^= hashCode >>> 27;
-                hashCode += hashCode << 16;
-                hashCode ^= hashCode >>> 20;
-                hashCode += hashCode << 5;
-                hashCode ^= hashCode >>> 18;
-                hashCode += hashCode << 10;
-                hashCode ^= hashCode >>> 24;
-                hashCode += hashCode << 30;
-    
-            $hashCode = (int)hashCode;
+            // Shifts: 30, 27, 16, 20, 5, 18, 10, 24, 30
+            hashCode += hashCode << 30;
+            hashCode ^= hashCode >>> 27;
+            hashCode += hashCode << 16;
+            hashCode ^= hashCode >>> 20;
+            hashCode += hashCode << 5;
+            hashCode ^= hashCode >>> 18;
+            hashCode += hashCode << 10;
+            hashCode ^= hashCode >>> 24;
+            hashCode += hashCode << 30;
+
+            $hashCode = (int) hashCode;
         }
         return $hashCode;
     }
@@ -166,7 +166,7 @@ public final class EntityIdGenerator {
         if (that == null || this.getClass() != that.getClass()) {
             return false;
         }
-        EntityIdGenerator thatObj = (EntityIdGenerator)that;
+        EntityIdGenerator thatObj = (EntityIdGenerator) that;
         if ($hashCode != -1 && thatObj.$hashCode != -1 && $hashCode != thatObj.$hashCode) {
             return false;
         }
@@ -205,13 +205,8 @@ public final class EntityIdGenerator {
             }
             $ufstr = sb.toString();
         }
-        return "EntityIdGenerator["
-            + "nextId=" + nextId
-            + ($ufstr == null ? "" : (", " + $ufstr))
-            +"]";
+        return "EntityIdGenerator[" + "nextId=" + nextId + ($ufstr == null ? "" : (", " + $ufstr)) + "]";
     }
-
-
 
     /**
      * Return a builder for building a copy of this model object. It will be pre-populated with all the data from this
@@ -222,7 +217,7 @@ public final class EntityIdGenerator {
     public Builder copyBuilder() {
         return new Builder(nextId, $unknownFields);
     }
-    
+
     /**
      * Return a new builder for building a model object. This is just a shortcut for <code>new Model.Builder()</code>.
      *
@@ -239,32 +234,34 @@ public final class EntityIdGenerator {
     public static final class Builder {
         private long nextId = 0;
         private final List<UnknownField> $unknownFields;
-    
+
         /**
          * Create an empty builder
          */
-        public Builder() { $unknownFields = null; }
-    
+        public Builder() {
+            $unknownFields = null;
+        }
+
         /**
          * Create a pre-populated Builder.
-         * 
-         * @param nextId <b>(1)</b> 
+         *
+         * @param nextId <b>(1)</b>
          */
         public Builder(long nextId) {
             this.$unknownFields = null;
             this.nextId = nextId;
         }
-    
+
         /**
          * Create a pre-populated Builder.
-         * 
-         * @param nextId <b>(1)</b> 
+         *
+         * @param nextId <b>(1)</b>
          */
         public Builder(long nextId, final List<UnknownField> $unknownFields) {
             this.$unknownFields = $unknownFields == null ? null : Collections.unmodifiableList($unknownFields);
             this.nextId = nextId;
         }
-    
+
         /**
          * Build a new model record with data set on builder
          *
@@ -273,9 +270,9 @@ public final class EntityIdGenerator {
         public EntityIdGenerator build() {
             return new EntityIdGenerator(nextId);
         }
-    
+
         /**
-         * <b>(1)</b> 
+         * <b>(1)</b>
          *
          * @param nextId value to set
          * @return builder to continue building with
@@ -285,6 +282,4 @@ public final class EntityIdGenerator {
             return this;
         }
     }
-
-
 }

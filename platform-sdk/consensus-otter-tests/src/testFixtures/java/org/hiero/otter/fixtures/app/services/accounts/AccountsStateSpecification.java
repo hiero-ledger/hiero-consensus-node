@@ -1,11 +1,10 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app.services.accounts;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.spi.WritableStates;
-
 import java.util.Set;
-
 import org.hiero.otter.fixtures.app.model.Account;
 import org.hiero.otter.fixtures.app.model.AccountId;
 import org.hiero.otter.fixtures.app.model.EntityIdGenerator;
@@ -25,8 +24,10 @@ public class AccountsStateSpecification implements OtterServiceStateSpecificatio
     @Override
     public @NotNull Set<StateDefinition<?, ?>> statesToCreate() {
         return Set.of(
-                StateDefinition.singleton(ENTITYID_GENERATOR_STATE_ID, ENTITYID_GENERATOR_STATE_KEY, EntityIdGenerator.PROTOBUF),
-                StateDefinition.onDisk(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_KEY, AccountId.PROTOBUF, Account.PROTOBUF, MAX_ACCOUNTS));
+                StateDefinition.singleton(
+                        ENTITYID_GENERATOR_STATE_ID, ENTITYID_GENERATOR_STATE_KEY, EntityIdGenerator.PROTOBUF),
+                StateDefinition.onDisk(
+                        ACCOUNTS_STATE_ID, ACCOUNTS_STATE_KEY, AccountId.PROTOBUF, Account.PROTOBUF, MAX_ACCOUNTS));
     }
 
     @Override

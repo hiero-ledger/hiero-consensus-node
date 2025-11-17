@@ -13,17 +13,16 @@ public final class AccountIdSchema implements Schema {
     /**
      * Private constructor to prevent instantiation.
      */
-     private AccountIdSchema() {
-         // no-op
-     }
+    private AccountIdSchema() {
+        // no-op
+    }
 
     // -- FIELD DEFINITIONS ---------------------------------------------
 
     /**
-     * <b>(1)</b> 
+     * <b>(1)</b>
      */
     public static final FieldDefinition ID = new FieldDefinition("id", FieldType.UINT64, false, false, false, 1);
-
 
     // -- OTHER METHODS -------------------------------------------------
 
@@ -37,18 +36,16 @@ public final class AccountIdSchema implements Schema {
         return f != null && getField(f.number()) == f;
     }
 
-/**
- * Get a field definition given a field number
- *
- * @param fieldNumber the fields number to get def for
- * @return field def or null if field number does not exist
- */
-public static FieldDefinition getField(final int fieldNumber) {
-    return switch(fieldNumber) {
-        case 1 -> ID;
-        default -> null;
-    };
-}
-
-
+    /**
+     * Get a field definition given a field number
+     *
+     * @param fieldNumber the fields number to get def for
+     * @return field def or null if field number does not exist
+     */
+    public static FieldDefinition getField(final int fieldNumber) {
+        return switch (fieldNumber) {
+            case 1 -> ID;
+            default -> null;
+        };
+    }
 }
