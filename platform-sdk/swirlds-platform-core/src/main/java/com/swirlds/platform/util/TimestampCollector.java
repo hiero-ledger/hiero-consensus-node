@@ -133,8 +133,11 @@ public enum TimestampCollector {
      */
     public void store() {
         if (done.compareAndSet(false, true)) {
-            try (final BufferedWriter writer = new BufferedWriter(new FileWriter("timestamps" + selfId.id() + ".csv"))) {
-                final String heading = Stream.of(Position.values()).skip(1L).map(Position::toString)
+            try (final BufferedWriter writer =
+                    new BufferedWriter(new FileWriter("timestamps" + selfId.id() + ".csv"))) {
+                final String heading = Stream.of(Position.values())
+                        .skip(1L)
+                        .map(Position::toString)
                         .collect(Collectors.joining(","));
                 writer.write(heading);
                 writer.newLine();

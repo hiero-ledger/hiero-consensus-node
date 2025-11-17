@@ -16,13 +16,11 @@ import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
-import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
-import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
@@ -39,10 +37,8 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
-import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -78,9 +74,6 @@ public class ConsensusNodeManager {
 
     /** The current quiescence command. Volatile because it is read and set by different gRPC messages */
     private volatile QuiescenceCommand quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
-
-    private final PlatformBuildingBlocks blocks;
-    private final PlatformComponents platformComponents;
 
     /**
      * Creates a new instance of {@code ConsensusNodeManager} with the specified parameters. This constructor
@@ -164,10 +157,10 @@ public class ConsensusNodeManager {
 
         // Build the platform component builder
         final PlatformComponentBuilder componentBuilder = builder.buildComponentBuilder();
-        blocks = componentBuilder.getBuildingBlocks();
+        final PlatformBuildingBlocks blocks = componentBuilder.getBuildingBlocks();
 
         // Wiring: Forward consensus rounds to registered listeners
-        platformComponents = blocks.platformComponents();
+        final PlatformComponents platformComponents = blocks.platformComponents();
         platformComponents
                 .consensusEngineWiring()
                 .consensusRoundsOutputWire()
@@ -245,15 +238,5 @@ public class ConsensusNodeManager {
     public void sendQuiescenceCommand(@NonNull final QuiescenceCommand command) {
         this.quiescenceCommand = command;
         platform.quiescenceCommand(command);
-    }
-
-    public IntakeEventCounter intakeEventCounter() {
-        return blocks.intakeEventCounter();
-    }
-
-    public Consumer<PlatformEvent> eventHandler() {
-        final StandardOutputWire<PlatformEvent> eventOutput = (StandardOutputWire<PlatformEvent>)
-                platformComponents.gossipWiring().getEventOutput();
-        return eventOutput::forward;
     }
 }
