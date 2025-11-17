@@ -95,6 +95,8 @@ jobs:
 
       - name: Configure and run solo
         id: run-solo
+        env:
+          MIRROR_NODE_VERSION: "0.142.2"
         run: |
           set -ex
           cat <<EOF > mirror.yml
