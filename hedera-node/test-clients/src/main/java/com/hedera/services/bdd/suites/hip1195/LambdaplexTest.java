@@ -128,7 +128,12 @@ public class LambdaplexTest implements InitcodeTransform {
         FOK
     }
 
-    private record FillParty(@NonNull SpecAccount account, @NonNull Side side, @NonNull BigDecimal debit, @NonNull BigDecimal credit, @NonNull String... b64Salts) {
+    private record FillParty(
+            @NonNull SpecAccount account,
+            @NonNull Side side,
+            @NonNull BigDecimal debit,
+            @NonNull BigDecimal credit,
+            @NonNull String... b64Salts) {
         private FillParty {
             requireNonNull(account);
             requireNonNull(side);
@@ -137,16 +142,26 @@ public class LambdaplexTest implements InitcodeTransform {
             requireNonNull(b64Salts);
         }
 
-        public static FillParty seller(SpecAccount account, BigDecimal quantity, BigDecimal averagePrice, String... b64Salts) {
+        public static FillParty seller(
+                SpecAccount account, BigDecimal quantity, BigDecimal averagePrice, String... b64Salts) {
             // Seller debits base, credits quote
             return new FillParty(account, Side.SELL, quantity.negate(), quantity.multiply(averagePrice), b64Salts);
         }
 
-        public static FillParty buyer(SpecAccount account, BigDecimal quantity, BigDecimal averagePrice, String... b64Salts) {
+        public static FillParty buyer(
+                SpecAccount account, BigDecimal quantity, BigDecimal averagePrice, String... b64Salts) {
             // Buyer debits quote, credits base
-            return new FillParty(account, Side.BUY, quantity.multiply(averagePrice).negate(), quantity, b64Salts);
+            return new FillParty(
+                    account, Side.BUY, quantity.multiply(averagePrice).negate(), quantity, b64Salts);
         }
     }
+
+    private static final int APPLES_DECIMALS = 4;
+    private static final int BANANAS_DECIMALS = 5;
+    private static final int USDC_DECIMALS = 6;
+    private static final long APPLES_SCALE = 10L * 10L * 10L * 10L;
+    private static final long BANANAS_SCALE = 10L * 10L * 10L * 10L * 10L;
+    private static final long USDC_SCALE = 10L * 10L * 10L * 10L * 10L * 10L;
 
     @Contract(contract = "MockSupraRegistry", creationGas = 1_000_000L)
     static SpecContract MOCK_SUPRA_REGISTRY;
@@ -154,13 +169,13 @@ public class LambdaplexTest implements InitcodeTransform {
     @Contract(contract = "OrderFlowAllowance", creationGas = 2_000_000L, initcodeTransform = LambdaplexTest.class)
     static SpecContract LAMBDAPLEX_HOOK;
 
-    @FungibleToken(initialSupply = 10_000 * 10_000L, decimals = 4)
+    @FungibleToken(initialSupply = 10_000 * APPLES_SCALE, decimals = APPLES_DECIMALS)
     static SpecFungibleToken APPLES;
 
-    @FungibleToken(initialSupply = 10_000 * 100_000L, decimals = 5)
+    @FungibleToken(initialSupply = 10_000 * BANANAS_SCALE, decimals = BANANAS_DECIMALS)
     static SpecFungibleToken BANANAS;
 
-    @FungibleToken(initialSupply = 10_000 * 1_000_000L, decimals = 6)
+    @FungibleToken(initialSupply = 10_000 * USDC_SCALE, decimals = USDC_DECIMALS)
     static SpecFungibleToken USDC;
 
     @Account(
@@ -200,18 +215,28 @@ public class LambdaplexTest implements InitcodeTransform {
                 MARKET_MAKER.getInfo(),
                 PARTY.getInfo(),
                 COUNTERPARTY.getInfo(),
+                // Initialize everyone's token balances
                 cryptoTransfer(
-                        moving(1000, APPLES.name()).between(APPLES.treasury().name(), MARKET_MAKER.name()),
-                        moving(1000, BANANAS.name()).between(BANANAS.treasury().name(), MARKET_MAKER.name()),
-                        moving(1000, USDC.name()).between(USDC.treasury().name(), MARKET_MAKER.name())),
+                        moving(applesUnits(1000), APPLES.name())
+                                .between(APPLES.treasury().name(), MARKET_MAKER.name()),
+                        moving(bananasUnits(1000), BANANAS.name())
+                                .between(BANANAS.treasury().name(), MARKET_MAKER.name()),
+                        moving(usdcUnits(1000), USDC.name())
+                                .between(USDC.treasury().name(), MARKET_MAKER.name())),
                 cryptoTransfer(
-                        moving(100, APPLES.name()).between(APPLES.treasury().name(), PARTY.name()),
-                        moving(100, BANANAS.name()).between(BANANAS.treasury().name(), PARTY.name()),
-                        moving(100, USDC.name()).between(USDC.treasury().name(), PARTY.name())),
+                        moving(applesUnits(100), APPLES.name())
+                                .between(APPLES.treasury().name(), PARTY.name()),
+                        moving(bananasUnits(100), BANANAS.name())
+                                .between(BANANAS.treasury().name(), PARTY.name()),
+                        moving(usdcUnits(100), USDC.name())
+                                .between(USDC.treasury().name(), PARTY.name())),
                 cryptoTransfer(
-                        moving(100, APPLES.name()).between(APPLES.treasury().name(), COUNTERPARTY.name()),
-                        moving(100, BANANAS.name()).between(BANANAS.treasury().name(), COUNTERPARTY.name()),
-                        moving(100, USDC.name()).between(USDC.treasury().name(), COUNTERPARTY.name())));
+                        moving(applesUnits(100), APPLES.name())
+                                .between(APPLES.treasury().name(), COUNTERPARTY.name()),
+                        moving(bananasUnits(100), BANANAS.name())
+                                .between(BANANAS.treasury().name(), COUNTERPARTY.name()),
+                        moving(usdcUnits(100), USDC.name())
+                                .between(USDC.treasury().name(), COUNTERPARTY.name())));
     }
 
     @HapiTest
@@ -299,8 +324,7 @@ public class LambdaplexTest implements InitcodeTransform {
                 }
             }
             final var registry = spec.registry();
-            builder
-                    .addTokenTransfers(TokenTransferList.newBuilder()
+            builder.addTokenTransfers(TokenTransferList.newBuilder()
                             .setToken(registry.getTokenID(specBaseToken.name()))
                             .addAllTransfers(baseAdjustments))
                     .addTokenTransfers(TokenTransferList.newBuilder()
@@ -308,7 +332,6 @@ public class LambdaplexTest implements InitcodeTransform {
                             .addAllTransfers(quoteAdjustments))
                     .build();
         });
-
     }
 
     private static BigDecimal averagePrice(final double d) {
@@ -418,7 +441,8 @@ public class LambdaplexTest implements InitcodeTransform {
                 quantity,
                 feeBps,
                 slippagePercentTolerance * 10_000,
-                timeInForce == TimeInForce.FOK ? 1_000_000 : 0);
+                // "Fill-or-kill" is encoded as a minimum fill percentage of 100% minus the slippage tolerance
+                timeInForce == TimeInForce.FOK ? 1_000_000 * (100 - slippagePercentTolerance) / 100 : 0);
     }
 
     private SpecOperation placeStopMarketOrder(
@@ -609,6 +633,18 @@ public class LambdaplexTest implements InitcodeTransform {
         public BigInteger biDenominator() {
             return BigInteger.valueOf(denominator);
         }
+    }
+
+    private static long applesUnits(long apples) {
+        return apples * APPLES_SCALE;
+    }
+
+    private static long bananasUnits(long bananas) {
+        return bananas * BANANAS_SCALE;
+    }
+
+    private static long usdcUnits(long usdc) {
+        return usdc * USDC_SCALE;
     }
 
     private static long inBaseUnits(BigDecimal amount, int decimals) {
