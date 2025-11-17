@@ -167,7 +167,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private long lastRoundOfPrevBlock;
     // A block's starting timestamp is defined as the consensus timestamp of the round's first transaction
     private Timestamp blockTimestamp;
-    private Instant consensusTimeLastRound;
+    private Instant consensusTimeCurrentRound;
     private Timestamp lastUsedTime;
     private BlockItemWriter writer;
 
@@ -370,8 +370,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         requireNonNull(calculatedLastBlockHash);
         this.lastBlockHash = calculatedLastBlockHash;
         previousBlockHashes.addLeaf(calculatedLastBlockHash.toByteArray());
-        consensusTimeLastRound =
-                (blockStreamInfo.blockEndTime() != null) ? asInstant(blockStreamInfo.blockEndTime()) : Instant.EPOCH;
     }
 
     @Override
@@ -387,12 +385,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // In case we hash this round, include a future for the end-of-round state hash
         endRoundStateHashes.put(round.getRoundNum(), new CompletableFuture<>());
 
-        lastUsedTime = asTimestamp(round.getConsensusTimestamp());
-
         // Writer will be null when beginning a new block
         if (writer == null) {
             writer = writerSupplier.get();
             blockTimestamp = asTimestamp(firstConsensusTimestampOf(round));
+            lastUsedTime = asTimestamp(round.getConsensusTimestamp());
 
             final var blockStreamInfo = blockStreamInfoFrom(state);
             pendingWork = classifyPendingWork(blockStreamInfo, version);
@@ -427,6 +424,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .hapiProtoVersion(hapiVersion);
             worker.addItem(BlockItem.newBuilder().blockHeader(header).build());
         }
+        consensusTimeCurrentRound = round.getConsensusTimestamp();
     }
 
     /**
@@ -668,7 +666,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             lastBlockHash = finalBlockRootHash;
             previousBlockHashes.addLeaf(lastBlockHash.toByteArray());
             writer = null;
-            consensusTimeLastRound = lastUsedConsensusTime();
 
             // Special case when signing with hinTS and this is the freeze round; we have to wait
             // until after restart to gossip partial signatures and sign any pending blocks
@@ -905,7 +902,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         }
 
         // For time-based blocks, check if enough consensus time has elapsed
-        final var elapsed = Duration.between(consensusTimeLastRound, asInstant(lastUsedTime));
+        final var elapsed = Duration.between(asInstant(blockTimestamp), consensusTimeCurrentRound);
         return elapsed.compareTo(blockPeriod) >= 0;
     }
 

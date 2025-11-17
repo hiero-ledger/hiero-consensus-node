@@ -39,7 +39,6 @@ import static org.mockito.Mockito.withSettings;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.block.stream.RecordFileItem;
-import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.TransactionResult;
@@ -794,7 +793,7 @@ class BlockStreamManagerImplTest {
 
     @Test
     void alwaysEndsBlockOnFreezeRoundEvenIfPeriodNotElapsed() {
-        // Given a 2 second block period
+        // Given a 2-second block period
         givenSubjectWith(
                 1,
                 2,
@@ -1207,7 +1206,7 @@ class BlockStreamManagerImplTest {
     }
 
     @Test
-    void blockStartsWithEventTimestampBeforeRoundTimestamp() {
+    void blockUsesRoundTimestampWhenRoundHasNoTransactionOrEventTimestamps() {
         // Given a 2-second block period
         givenSubjectWith(
                 1,
@@ -1215,8 +1214,45 @@ class BlockStreamManagerImplTest {
                 blockStreamInfoWith(
                         Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
                 platformStateWithFreezeTime(null),
-                aWriter,
-                bWriter);
+                aWriter);
+        givenEndOfRoundSetup(null, 1L);
+        given(blockHashSigner.isReady()).willReturn(true);
+        // Set up the async signature to return control to this test immediately upon completion
+        given(blockHashSigner.sign(any())).willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        doAnswer(invocationOnMock -> {
+                    final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
+                    consumer.accept(FIRST_FAKE_SIGNATURE);
+                    return null;
+                })
+                .when(mockSigningFuture)
+                .thenAcceptAsync(any());
+
+        // When starting a round at t=0 and ending at t=2 (the block's next 2-second boundary),
+        final var roundStart = asInstant(CONSENSUS_THEN);
+        final var roundEnd = roundStart.plusSeconds(2);
+        given(round.getConsensusTimestamp()).willReturn(roundEnd);
+        given(round.iterator()).willReturn(Collections.emptyIterator()); // No events in the round
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.endRound(state, 1);
+
+        // Then block should close
+        verify(aWriter).closeCompleteBlock();
+        final var finalInfoState = blockStreamInfoState.get();
+        // And have a block starting timestamp equal to the round's timestamp
+        assertEquals(roundEnd, asInstant(finalInfoState.blockTime()));
+    }
+
+    @Test
+    void blockUsesEventTimestampBeforeRoundTimestamp() {
+        // Given a 2-second block period
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
         givenEndOfRoundSetup();
         given(blockHashSigner.isReady()).willReturn(true);
         // Set up the async signature to return control to this test immediately upon completion
@@ -1232,20 +1268,16 @@ class BlockStreamManagerImplTest {
         // Initialize the subject
         subject.init(state, N_MINUS_2_BLOCK_HASH);
 
-        // End a round at t=2 (the block's next 2-second boundary), but make the round contain an _event_ timestamp just
-        // prior to that boundary
+        // Start the round at t=0 with an event timestamp, and end the round at t=2 (the block's next 2-second boundary)
+        // with the round timestamp
+        final var roundStart = asInstant(CONSENSUS_THEN);
         final var roundEnd = asInstant(CONSENSUS_THEN).plusSeconds(2);
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(round.getConsensusTimestamp()).willReturn(roundEnd);
-        // Add two events to the round: the first without a timestamp,
-        given(mockEvent.getConsensusTimestamp()).willReturn(null);
+        given(mockEvent.getConsensusTimestamp()).willReturn(roundStart);
         given(mockEvent.consensusTransactionIterator()).willReturn(Collections.emptyIterator());
-        // The second with a timestamp–just before the block boundary
-        final var eventTimestamp = roundEnd.minusNanos(1);
-        final var mockEvent2 = mock(ConsensusEvent.class);
-        given(mockEvent2.getConsensusTimestamp()).willReturn(eventTimestamp);
-        given(mockEvent2.consensusTransactionIterator()).willReturn(Collections.emptyIterator());
-        given(round.iterator()).willReturn(List.of(mockEvent, mockEvent2).iterator());
+        given(round.iterator()).willReturn(List.of(mockEvent).iterator());
+
         subject.startRound(round, state);
         subject.endRound(state, ROUND_NO);
 
@@ -1253,51 +1285,7 @@ class BlockStreamManagerImplTest {
         verify(aWriter).closeCompleteBlock();
         final var finalInfoState = blockStreamInfoState.get();
         // And have a block starting timestamp equal to the second event's timestamp (instead of the round's timestamp)
-        assertEquals(eventTimestamp, asInstant(finalInfoState.blockTime()));
-    }
-
-    @Test
-    void usesRoundTimestampWhenRoundHasNoTransactionOrEventTimestamps() {
-        // Given a 2 second block period
-        givenSubjectWith(
-                1,
-                2,
-                blockStreamInfoWith(
-                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
-                platformStateWithFreezeTime(null),
-                aWriter,
-                bWriter // We won't use bWriter, but need to add it to avoid an exception
-                );
-        givenEndOfRoundSetup();
-        given(blockHashSigner.isReady()).willReturn(true);
-        // Set up the async signature to return control to this test immediately upon completion
-        given(blockHashSigner.sign(any())).willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
-        doAnswer(invocationOnMock -> {
-                    final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
-                    consumer.accept(FIRST_FAKE_SIGNATURE);
-                    return null;
-                })
-                .when(mockSigningFuture)
-                .thenAcceptAsync(any());
-
-        // When starting a round at t=0
-        final var roundStart = asInstant(CONSENSUS_THEN);
-        final var roundEnd = roundStart.plusSeconds(2);
-        given(round.getRoundNum()).willReturn(ROUND_NO);
-        given(round.getConsensusTimestamp()).willReturn(roundEnd);
-        given(round.iterator()).willReturn(Collections.emptyIterator());
-        subject.init(state, N_MINUS_2_BLOCK_HASH);
-        subject.startRound(round, state);
-        subject.writeItem(BlockItem.newBuilder()
-                .roundHeader(RoundHeader.newBuilder().roundNumber(ROUND_NO).build())
-                .build());
-        subject.endRound(state, ROUND_NO);
-
-        // Then block should close (due to the round's timestamp on the 2-second boundary
-        verify(aWriter).closeCompleteBlock();
-        final var finalInfoState = blockStreamInfoState.get();
-        // And have a block starting timestamp equal to the second round's timestamp
-        assertEquals(roundEnd, asInstant(finalInfoState.blockTime()));
+        assertEquals(CONSENSUS_THEN, finalInfoState.blockTime());
     }
 
     private void givenSubjectWith(
@@ -1341,8 +1329,12 @@ class BlockStreamManagerImplTest {
     }
 
     private void givenEndOfRoundSetup(@Nullable final AtomicReference<BlockHeader> headerRef) {
+        givenEndOfRoundSetup(headerRef, ROUND_NO);
+    }
+
+    private void givenEndOfRoundSetup(@Nullable final AtomicReference<BlockHeader> headerRef, final long roundNum) {
         // Add mock for round iterator
-        mockRoundWithTxnTimestamp(CONSENSUS_NOW);
+        mockRoundWithTxnTimestamp(CONSENSUS_NOW, roundNum);
         lenient()
                 .doAnswer(invocationOnMock -> {
                     lastAItem.set(invocationOnMock.getArgument(1));
@@ -1399,8 +1391,8 @@ class BlockStreamManagerImplTest {
                 .build();
     }
 
-    private void mockRound(Instant timestamp) {
-        given(round.getRoundNum()).willReturn(ROUND_NO);
+    private void mockRound(Instant timestamp, long roundNum) {
+        given(round.getRoundNum()).willReturn(roundNum);
         lenient().when(round.iterator()).thenReturn(new Arrays.Iterator<>(new ConsensusEvent[] {mockEvent}));
         lenient().when(round.getConsensusTimestamp()).thenReturn(timestamp);
     }
@@ -1410,7 +1402,11 @@ class BlockStreamManagerImplTest {
     }
 
     private void mockRoundWithTxnTimestamp(Instant timestamp) {
-        mockRound(timestamp);
+        mockRoundWithTxnTimestamp(timestamp, ROUND_NO);
+    }
+
+    private void mockRoundWithTxnTimestamp(Instant timestamp, long roundNum) {
+        mockRound(timestamp, roundNum);
 
         final var txn = new TransactionWrapper(Bytes.fromHex("abcdefABCDEF"));
         txn.setConsensusTimestamp(timestamp);
