@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.4;
 
-import "./ISupraRegistry.sol";
+import "common/ISupraRegistry.sol";
+
+interface IERC20 {
+    function decimals() external returns(uint8);
+}
 
 contract MockSupraRegistry is ISupraRegistry {
-    mapping(uint256 => TokenPair) public pairs;
+    mapping(uint256 => TokenPair) private pairs;
 
     // How the next verifyOracleProofV2() call should behave
     struct NextCallConfig {
@@ -23,7 +27,11 @@ contract MockSupraRegistry is ISupraRegistry {
 
     function registerPair(uint256 pairId, address tokenA, address tokenB) external {
         require(tokenA != tokenB, "MockSupraRegistry: identical tokens");
-        pairs[pairId] = TokenPair(tokenA, tokenB);
+        pairs[pairId] = TokenPair(
+            tokenA, 
+            tokenB, 
+            tokenA == address(0) ? 8 : IERC20(tokenA).decimals(), 
+            tokenB == address(0) ? 8 : IERC20(tokenB).decimals());
     }
 
     /// Configure the next call to verifyOracleProofV2() to revert
@@ -60,9 +68,9 @@ contract MockSupraRegistry is ISupraRegistry {
 
     /// --- Public API ---
 
-    function getPair(uint256 pairId) external view override returns (address tokenA, address tokenB) {
+    function getPair(uint256 pairId) external view override returns (TokenPair memory) {
         TokenPair storage p = pairs[pairId];
-        return (p.tokenA, p.tokenB);
+        return p;
     }
 
     function verifyOracleProofV2(bytes calldata) external override returns (PriceInfo memory info) {

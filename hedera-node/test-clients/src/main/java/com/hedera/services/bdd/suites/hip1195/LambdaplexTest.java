@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.hip1195;
 
 import static com.hedera.hapi.node.hooks.HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore.minimalKey;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -32,13 +33,22 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.dsl.utils.InitcodeTransform;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
+import com.hedera.services.bdd.spec.transactions.TxnVerbs;
+import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
+import com.hederahashgraph.api.proto.java.AccountAmount;
+import com.hederahashgraph.api.proto.java.EvmHookCall;
+import com.hederahashgraph.api.proto.java.HookCall;
+import com.hederahashgraph.api.proto.java.TokenTransferList;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.hiero.base.utility.CommonUtils;
@@ -47,15 +57,18 @@ import org.junit.jupiter.api.DynamicTest;
 
 /**
  * Tests exercising the Lambdaplex protocol hook.
- *
- * <p>The entries in mapping zero of this hook represent orders on a spot exchange (limit, market, stop limit, and
- * stop market). Each mapping's key and value are packed bytes with a specific layout. The mapping key's bytes include,
+ * <p>
+ * The entries in mapping zero of this hook represent orders (limit, market, stop limit, or stop market) on a
+ * self-custodied spot exchange. Each mapping's key and value are packed bytes with a specific layout.
+ * <p>
+ * The mapping key's bytes include,
  * <ul>
  *   <li>The <b>order type</b> (limit, market, stop limit, or stop market); and for a stop, the <b>direction</b>.</li>
  *   <li>The Hedera token entity number of the <b>output token</b> the hook owner is willing to be debited.</li>
  *   <li>The Hedera token entity number of the <b>input token</b> the hook owner wants to be credited.</li>
- *   <li>The maximum fee, in <b>tenths of a basis point</b>, the hook owner is willing to pay from their credit.</li>
- *   <li>The consensus expiration second at which the order.</li>
+ *   <li>The maximum fee, in <b>centi-bps (hundredths of a basis point)</b>, the hook owner is willing to pay. (This
+ *   fee is always deducted from the input token amount.)</li>
+ *   <li>The consensus expiration second at which the order expires.</li>
  *   <li>A 7-byte <b>salt</b> that is globally unique across all the user's orders; might be a counter or random.</li>
  * </ul>
  * And the mapping value's bytes include,
@@ -65,18 +78,30 @@ import org.junit.jupiter.api.DynamicTest;
  *   stop limit order, this is exact price at which the order must fill. For a market or stop market order, this is the
  *   reference price to compute slippage tolerance against. (So it is also the trigger price for a stop market order.)
  *   </li>
- *   <li>The order's <b>maximum deviation</b> from its price, in <b>tenths of a basis point</b>. This has no
+ *   <li>The order's <b>maximum deviation</b> from its price, in <b>centi-bps</b>. This has no
  *   significance for a limit order, but for a stop limit order implies the trigger price. For a market or stop
  *   market order, this is the slippage tolerance.</li>
- *   <li>The order's <b>minimum fill</b> fraction in tenths of a basis point; if set to one million, then the order
- *   has onchain fill-or-kill semantics.</li>
+ *   <li>The order's <b>minimum fill</b> fraction in centi-bps; hence if set to one million, the order has onchain
+ *   fill-or-kill semantics.</li>
  * </ul>
+ * Stop orders are triggered by providing an oracle proof of a (sufficiently recent) price that hits the trigger.
  */
 @HapiTestLifecycle
 public class LambdaplexTest implements InitcodeTransform {
+    // Order type constants
+    private static final byte LIMIT = 0;
+    private static final byte MARKET = 1;
+    // Stops that trigger on an oracle price less than or equal to the stop
+    private static final byte STOP_LIMIT_LT = 2;
+    private static final byte STOP_MARKET_LT = 3;
+    // Stops that trigger on an oracle price greater than or equal to the stop
+    private static final byte STOP_LIMIT_GT = 4;
+    private static final byte STOP_MARKET_GT = 5;
+
     private static final int HOOK_ID = 42;
     private static final int MAKER_BPS = 12;
     private static final int TAKER_BPS = 25;
+    private static final long SWAP_GAS_LIMIT = 20_000L;
 
     private static final String REGISTRY_ADDRESS_TPL = "abcdabcdabcdabcdabcdabcdabcdabcdabcdabcd";
 
@@ -97,10 +122,36 @@ public class LambdaplexTest implements InitcodeTransform {
         GT
     }
 
+    private enum TimeInForce {
+        IOC,
+        GTC,
+        FOK
+    }
+
+    private record FillParty(@NonNull SpecAccount account, @NonNull Side side, @NonNull BigDecimal debit, @NonNull BigDecimal credit, @NonNull String... b64Salts) {
+        private FillParty {
+            requireNonNull(account);
+            requireNonNull(side);
+            requireNonNull(debit);
+            requireNonNull(credit);
+            requireNonNull(b64Salts);
+        }
+
+        public static FillParty seller(SpecAccount account, BigDecimal quantity, BigDecimal averagePrice, String... b64Salts) {
+            // Seller debits base, credits quote
+            return new FillParty(account, Side.SELL, quantity.negate(), quantity.multiply(averagePrice), b64Salts);
+        }
+
+        public static FillParty buyer(SpecAccount account, BigDecimal quantity, BigDecimal averagePrice, String... b64Salts) {
+            // Buyer debits quote, credits base
+            return new FillParty(account, Side.BUY, quantity.multiply(averagePrice).negate(), quantity, b64Salts);
+        }
+    }
+
     @Contract(contract = "MockSupraRegistry", creationGas = 1_000_000L)
     static SpecContract MOCK_SUPRA_REGISTRY;
 
-    @Contract(contract = "LambdaplexHook", creationGas = 2_000_000L, initcodeTransform = LambdaplexTest.class)
+    @Contract(contract = "OrderFlowAllowance", creationGas = 2_000_000L, initcodeTransform = LambdaplexTest.class)
     static SpecContract LAMBDAPLEX_HOOK;
 
     @FungibleToken(initialSupply = 10_000 * 10_000L, decimals = 4)
@@ -116,22 +167,24 @@ public class LambdaplexTest implements InitcodeTransform {
             name = "marketMaker",
             tinybarBalance = THOUSAND_HBAR,
             maxAutoAssociations = 3,
-            hooks = {@Hook(hookId = HOOK_ID, contract = "LambdaplexHook", extensionPoint = ACCOUNT_ALLOWANCE_HOOK)})
+            hooks = {@Hook(hookId = HOOK_ID, contract = "OrderFlowAllowance", extensionPoint = ACCOUNT_ALLOWANCE_HOOK)})
     static SpecAccount MARKET_MAKER;
 
     @Account(
             name = "party",
             tinybarBalance = ONE_HUNDRED_HBARS,
             maxAutoAssociations = 3,
-            hooks = {@Hook(hookId = HOOK_ID, contract = "LambdaplexHook", extensionPoint = ACCOUNT_ALLOWANCE_HOOK)})
+            hooks = {@Hook(hookId = HOOK_ID, contract = "OrderFlowAllowance", extensionPoint = ACCOUNT_ALLOWANCE_HOOK)})
     static SpecAccount PARTY;
 
     @Account(
             name = "counterparty",
             tinybarBalance = ONE_HUNDRED_HBARS,
             maxAutoAssociations = 3,
-            hooks = {@Hook(hookId = HOOK_ID, contract = "LambdaplexHook", extensionPoint = ACCOUNT_ALLOWANCE_HOOK)})
+            hooks = {@Hook(hookId = HOOK_ID, contract = "OrderFlowAllowance", extensionPoint = ACCOUNT_ALLOWANCE_HOOK)})
     static SpecAccount COUNTERPARTY;
+
+    private final Map<String, Bytes> saltPrefixes = new HashMap<>();
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -166,7 +219,7 @@ public class LambdaplexTest implements InitcodeTransform {
         final var sellSalt = randomB64Salt();
         final var buySalt = randomB64Salt();
         return hapiTest(
-                // Standing order to sell up to 3 apples for $1.99 each
+                // Market maker places a standing order to sell up to 3 apples for $1.99 each
                 placeLimitOrder(
                         MARKET_MAKER,
                         sellSalt,
@@ -175,12 +228,107 @@ public class LambdaplexTest implements InitcodeTransform {
                         Side.SELL,
                         distantExpiry(),
                         MAKER_BPS,
-                        BigDecimal.valueOf(1.99),
-                        BigDecimal.valueOf(3)));
+                        price(1.99),
+                        quantity(3)),
+                // Party places a market order to buy 2.5 apples with no more than 5% slippage from a $2 reference price
+                placeMarketOrder(
+                        PARTY,
+                        buySalt,
+                        APPLES,
+                        USDC,
+                        Side.BUY,
+                        iocExpiry(),
+                        TAKER_BPS,
+                        price(2.00),
+                        quantity(2.5),
+                        5,
+                        TimeInForce.FOK),
+                // This is a match, so settle the implied trade
+                settleFills(
+                        APPLES,
+                        USDC,
+                        FillParty.seller(MARKET_MAKER, quantity(2.5), averagePrice(1.99), sellSalt),
+                        FillParty.buyer(PARTY, quantity(2.5), averagePrice(1.99), buySalt)));
+    }
+
+    private HapiCryptoTransfer settleFills(
+            @NonNull final SpecFungibleToken specBaseToken,
+            @NonNull final SpecFungibleToken specQuoteToken,
+            @NonNull final FillParty... fillParties) {
+        return TxnVerbs.cryptoTransfer((spec, builder) -> {
+            final var baseToken = specBaseToken.tokenOrThrow(spec.targetNetworkOrThrow());
+            final var quoteToken = specQuoteToken.tokenOrThrow(spec.targetNetworkOrThrow());
+            final List<AccountAmount> baseAdjustments = new ArrayList<>();
+            final List<AccountAmount> quoteAdjustments = new ArrayList<>();
+            for (final var party : fillParties) {
+                final var partyId = spec.registry().getAccountID(party.account().name());
+                final var prefix = saltPrefixes.get(party.b64Salts()[0]);
+                switch (party.side()) {
+                    case BUY -> {
+                        // Debiting quote token, crediting base token
+                        quoteAdjustments.add(AccountAmount.newBuilder()
+                                .setPreTxAllowanceHook(HookCall.newBuilder()
+                                        .setHookId(HOOK_ID)
+                                        .setEvmHookCall(EvmHookCall.newBuilder()
+                                                .setGasLimit(SWAP_GAS_LIMIT)
+                                                .setData(fromPbj(prefix))))
+                                .setAmount(inBaseUnits(party.debit(), quoteToken.decimals()))
+                                .setAccountID(partyId)
+                                .build());
+                        baseAdjustments.add(AccountAmount.newBuilder()
+                                .setAmount(inBaseUnits(party.credit(), baseToken.decimals()))
+                                .setAccountID(partyId)
+                                .build());
+                    }
+                    case SELL -> {
+                        // Debiting base token, crediting quote token
+                        baseAdjustments.add(AccountAmount.newBuilder()
+                                .setPreTxAllowanceHook(HookCall.newBuilder()
+                                        .setHookId(HOOK_ID)
+                                        .setEvmHookCall(EvmHookCall.newBuilder()
+                                                .setGasLimit(SWAP_GAS_LIMIT)
+                                                .setData(fromPbj(prefix))))
+                                .setAmount(inBaseUnits(party.debit(), baseToken.decimals()))
+                                .setAccountID(partyId)
+                                .build());
+                        quoteAdjustments.add(AccountAmount.newBuilder()
+                                .setAmount(inBaseUnits(party.credit(), quoteToken.decimals()))
+                                .setAccountID(partyId)
+                                .build());
+                    }
+                }
+            }
+            final var registry = spec.registry();
+            builder
+                    .addTokenTransfers(TokenTransferList.newBuilder()
+                            .setToken(registry.getTokenID(specBaseToken.name()))
+                            .addAllTransfers(baseAdjustments))
+                    .addTokenTransfers(TokenTransferList.newBuilder()
+                            .setToken(registry.getTokenID(specQuoteToken.name()))
+                            .addAllTransfers(quoteAdjustments))
+                    .build();
+        });
+
+    }
+
+    private static BigDecimal averagePrice(final double d) {
+        return BigDecimal.valueOf(d);
+    }
+
+    private static BigDecimal price(final double d) {
+        return BigDecimal.valueOf(d);
+    }
+
+    private static BigDecimal quantity(final double d) {
+        return BigDecimal.valueOf(d);
     }
 
     private static String randomB64Salt() {
         return Base64.getEncoder().encodeToString(TxnUtils.randomUtf8Bytes(7));
+    }
+
+    private static Instant iocExpiry() {
+        return Instant.now().plus(Duration.ofSeconds(30));
     }
 
     private static Instant distantExpiry() {
@@ -223,6 +371,7 @@ public class LambdaplexTest implements InitcodeTransform {
             final int feeBps,
             @NonNull final BigDecimal price,
             @NonNull final BigDecimal triggerPrice,
+            @NonNull final StopDirection stopDirection,
             @NonNull final BigDecimal quantity) {
         return placeOrderInternal(
                 account,
@@ -231,13 +380,74 @@ public class LambdaplexTest implements InitcodeTransform {
                 specQuoteToken,
                 side,
                 OrderType.STOP_LIMIT,
-                triggerPrice.compareTo(price) < 0 ? StopDirection.LT : StopDirection.GT,
+                stopDirection,
                 expiry,
                 price,
                 quantity,
                 feeBps,
-                0,
+                // We reuse priceDeviationCentiBps to encode the trigger price as a percentage of the price
+                triggerPrice
+                        .multiply(BigDecimal.valueOf(100_00))
+                        .divide(price, HALF_UP)
+                        .intValue(),
                 0);
+    }
+
+    private SpecOperation placeMarketOrder(
+            @NonNull final SpecAccount account,
+            @NonNull final String b64Salt,
+            @NonNull final SpecFungibleToken specBaseToken,
+            @NonNull final SpecFungibleToken specQuoteToken,
+            @NonNull final Side side,
+            @NonNull final Instant expiry,
+            final int feeBps,
+            @NonNull final BigDecimal referencePrice,
+            @NonNull final BigDecimal quantity,
+            final int slippagePercentTolerance,
+            TimeInForce timeInForce) {
+        return placeOrderInternal(
+                account,
+                b64Salt,
+                specBaseToken,
+                specQuoteToken,
+                side,
+                OrderType.MARKET,
+                null,
+                expiry,
+                referencePrice,
+                quantity,
+                feeBps,
+                slippagePercentTolerance * 10_000,
+                timeInForce == TimeInForce.FOK ? 1_000_000 : 0);
+    }
+
+    private SpecOperation placeStopMarketOrder(
+            @NonNull final SpecAccount account,
+            @NonNull final String b64Salt,
+            @NonNull final SpecFungibleToken specBaseToken,
+            @NonNull final SpecFungibleToken specQuoteToken,
+            @NonNull final Side side,
+            @NonNull final Instant expiry,
+            final int feeBps,
+            @NonNull final BigDecimal stopPrice,
+            @NonNull final StopDirection stopDirection,
+            @NonNull final BigDecimal quantity,
+            final int slippagePercentTolerance,
+            boolean fillOrKill) {
+        return placeOrderInternal(
+                account,
+                b64Salt,
+                specBaseToken,
+                specQuoteToken,
+                side,
+                OrderType.STOP_MARKET,
+                stopDirection,
+                expiry,
+                stopPrice,
+                quantity,
+                feeBps,
+                slippagePercentTolerance * 10_000,
+                fillOrKill ? 1_000_000 : 0);
     }
 
     private SpecOperation placeOrderInternal(
@@ -251,8 +461,8 @@ public class LambdaplexTest implements InitcodeTransform {
             @NonNull final Instant expiry,
             @NonNull final BigDecimal price,
             @NonNull final BigDecimal quantity,
-            final int feeDeciBps,
-            final int priceDeviationDeciBps,
+            final int feeCentiBps,
+            final int priceDeviationCentiBps,
             final int minFillDeciBps) {
         return sourcingContextual(spec -> {
             final var targetNetwork = spec.targetNetworkOrThrow();
@@ -274,7 +484,7 @@ public class LambdaplexTest implements InitcodeTransform {
                         // With a price in base/quote terms
                         quotePrice.biDenominator(),
                         quotePrice.biNumerator(),
-                        BigInteger.valueOf(priceDeviationDeciBps),
+                        BigInteger.valueOf(priceDeviationCentiBps),
                         BigInteger.valueOf(minFillDeciBps));
             } else {
                 // User is debited base token
@@ -287,7 +497,7 @@ public class LambdaplexTest implements InitcodeTransform {
                         // With a price in quote/base terms
                         quotePrice.biNumerator(),
                         quotePrice.biDenominator(),
-                        BigInteger.valueOf(priceDeviationDeciBps),
+                        BigInteger.valueOf(priceDeviationCentiBps),
                         BigInteger.valueOf(minFillDeciBps));
             }
             final var prefixKey = encodeOrderPrefixKey(
@@ -296,22 +506,13 @@ public class LambdaplexTest implements InitcodeTransform {
                     inputToken.tokenIdOrThrow().tokenNum(),
                     outputToken.tokenIdOrThrow().tokenNum(),
                     expiry.getEpochSecond(),
-                    feeDeciBps,
+                    feeCentiBps,
                     b64Salt);
+            saltPrefixes.put(b64Salt, prefixKey);
             return accountLambdaSStore(account.name(), HOOK_ID)
                     .putMappingEntryWithKey(Bytes.EMPTY, prefixKey, minimalKey(detailValue));
         });
     }
-
-    // Order type constants
-    private static final byte LIMIT = 0;
-    private static final byte MARKET = 1;
-    // Stops that trigger on an oracle price less than or equal to the stop
-    private static final byte STOP_LIMIT_LT = 2;
-    private static final byte STOP_MARKET_LT = 3;
-    // Stops that trigger on an oracle price greater than or equal to the stop
-    private static final byte STOP_LIMIT_GT = 4;
-    private static final byte STOP_MARKET_GT = 5;
 
     private Bytes encodeOrderPrefixKey(
             @NonNull final OrderType type,
@@ -408,6 +609,10 @@ public class LambdaplexTest implements InitcodeTransform {
         public BigInteger biDenominator() {
             return BigInteger.valueOf(denominator);
         }
+    }
+
+    private static long inBaseUnits(BigDecimal amount, int decimals) {
+        return toBigInteger(amount, decimals).longValueExact();
     }
 
     private static BigInteger toBigInteger(BigDecimal amount, int decimals) {
