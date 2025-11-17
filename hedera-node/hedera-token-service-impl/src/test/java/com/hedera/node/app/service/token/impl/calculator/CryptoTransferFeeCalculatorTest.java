@@ -523,7 +523,9 @@ class CryptoTransferFeeCalculatorTest {
         void fungibleTokenWithCustomFeesFromStore() {
             // Given: Token store returns token with custom fees
             lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
-            lenient().when(calculatorState.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
+            lenient()
+                    .when(calculatorState.readableStore(ReadableTokenStore.class))
+                    .thenReturn(tokenStore);
 
             final var tokenId = TokenID.newBuilder().tokenNum(2001L).build();
             final var token = Token.newBuilder()
@@ -568,7 +570,9 @@ class CryptoTransferFeeCalculatorTest {
         void nftWithCustomFeesFromStore() {
             // Given: Token store returns NFT token with custom fees
             lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
-            lenient().when(calculatorState.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
+            lenient()
+                    .when(calculatorState.readableStore(ReadableTokenStore.class))
+                    .thenReturn(tokenStore);
 
             final var tokenId = TokenID.newBuilder().tokenNum(3001L).build();
             final var token = Token.newBuilder()
@@ -607,20 +611,19 @@ class CryptoTransferFeeCalculatorTest {
         void tokenNotFoundDefaultsToStandard() {
             // Given: Token store returns null (token not found)
             lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
-            lenient().when(calculatorState.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
+            lenient()
+                    .when(calculatorState.readableStore(ReadableTokenStore.class))
+                    .thenReturn(tokenStore);
 
             final var tokenId = TokenID.newBuilder().tokenNum(2001L).build();
             when(tokenStore.get(tokenId)).thenReturn(null);
 
             final var tokenTransfers = TokenTransferList.newBuilder()
                     .token(tokenId)
-                    .transfers(
-                            AccountAmount.newBuilder()
-                                    .accountID(AccountID.newBuilder()
-                                            .accountNum(1001L)
-                                            .build())
-                                    .amount(-50L)
-                                    .build())
+                    .transfers(AccountAmount.newBuilder()
+                            .accountID(AccountID.newBuilder().accountNum(1001L).build())
+                            .amount(-50L)
+                            .build())
                     .build();
 
             final var op = CryptoTransferTransactionBody.newBuilder()
@@ -640,7 +643,9 @@ class CryptoTransferFeeCalculatorTest {
         void mixOfStandardAndCustomFeeTokens() {
             // Given: Multiple tokens with different fee structures
             lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
-            lenient().when(calculatorState.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
+            lenient()
+                    .when(calculatorState.readableStore(ReadableTokenStore.class))
+                    .thenReturn(tokenStore);
 
             final var standardTokenId = TokenID.newBuilder().tokenNum(2001L).build();
             final var customFeeTokenId = TokenID.newBuilder().tokenNum(2002L).build();
@@ -662,24 +667,18 @@ class CryptoTransferFeeCalculatorTest {
 
             final var standardTransfer = TokenTransferList.newBuilder()
                     .token(standardTokenId)
-                    .transfers(
-                            AccountAmount.newBuilder()
-                                    .accountID(AccountID.newBuilder()
-                                            .accountNum(1001L)
-                                            .build())
-                                    .amount(-50L)
-                                    .build())
+                    .transfers(AccountAmount.newBuilder()
+                            .accountID(AccountID.newBuilder().accountNum(1001L).build())
+                            .amount(-50L)
+                            .build())
                     .build();
 
             final var customFeeTransfer = TokenTransferList.newBuilder()
                     .token(customFeeTokenId)
-                    .transfers(
-                            AccountAmount.newBuilder()
-                                    .accountID(AccountID.newBuilder()
-                                            .accountNum(1002L)
-                                            .build())
-                                    .amount(-100L)
-                                    .build())
+                    .transfers(AccountAmount.newBuilder()
+                            .accountID(AccountID.newBuilder().accountNum(1002L).build())
+                            .amount(-100L)
+                            .build())
                     .build();
 
             final var op = CryptoTransferTransactionBody.newBuilder()
@@ -703,8 +702,12 @@ class CryptoTransferFeeCalculatorTest {
         void predictsAutoAssociationWithAvailableSlots() {
             // Given: All stores available, token without KYC/Freeze, recipient with auto-association slots
             lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
-            lenient().when(calculatorState.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
-            lenient().when(calculatorState.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
+            lenient()
+                    .when(calculatorState.readableStore(ReadableTokenStore.class))
+                    .thenReturn(tokenStore);
+            lenient()
+                    .when(calculatorState.readableStore(ReadableAccountStore.class))
+                    .thenReturn(accountStore);
             lenient()
                     .when(calculatorState.readableStore(ReadableTokenRelationStore.class))
                     .thenReturn(tokenRelStore);
@@ -730,11 +733,10 @@ class CryptoTransferFeeCalculatorTest {
 
             final var tokenTransfers = TokenTransferList.newBuilder()
                     .token(tokenId)
-                    .transfers(
-                            AccountAmount.newBuilder()
-                                    .accountID(recipientId)
-                                    .amount(50L)
-                                    .build())
+                    .transfers(AccountAmount.newBuilder()
+                            .accountID(recipientId)
+                            .amount(50L)
+                            .build())
                     .build();
 
             final var op = CryptoTransferTransactionBody.newBuilder()
@@ -754,8 +756,12 @@ class CryptoTransferFeeCalculatorTest {
         void noAutoAssociationWhenTokenHasKycKey() {
             // Given: Token with KYC key
             lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
-            lenient().when(calculatorState.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
-            lenient().when(calculatorState.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
+            lenient()
+                    .when(calculatorState.readableStore(ReadableTokenStore.class))
+                    .thenReturn(tokenStore);
+            lenient()
+                    .when(calculatorState.readableStore(ReadableAccountStore.class))
+                    .thenReturn(accountStore);
             lenient()
                     .when(calculatorState.readableStore(ReadableTokenRelationStore.class))
                     .thenReturn(tokenRelStore);
@@ -763,9 +769,8 @@ class CryptoTransferFeeCalculatorTest {
             final var tokenId = TokenID.newBuilder().tokenNum(2001L).build();
             final var recipientId = AccountID.newBuilder().accountNum(1002L).build();
 
-            final var kycKey = Key.newBuilder()
-                    .ed25519(Bytes.wrap(new byte[32]))
-                    .build();
+            final var kycKey =
+                    Key.newBuilder().ed25519(Bytes.wrap(new byte[32])).build();
             final var token = Token.newBuilder()
                     .tokenId(tokenId)
                     .tokenType(TokenType.FUNGIBLE_COMMON)
@@ -777,11 +782,10 @@ class CryptoTransferFeeCalculatorTest {
 
             final var tokenTransfers = TokenTransferList.newBuilder()
                     .token(tokenId)
-                    .transfers(
-                            AccountAmount.newBuilder()
-                                    .accountID(recipientId)
-                                    .amount(50L)
-                                    .build())
+                    .transfers(AccountAmount.newBuilder()
+                            .accountID(recipientId)
+                            .amount(50L)
+                            .build())
                     .build();
 
             final var op = CryptoTransferTransactionBody.newBuilder()
@@ -801,8 +805,12 @@ class CryptoTransferFeeCalculatorTest {
         void noAutoAssociationWhenRelationExists() {
             // Given: Token relation already exists
             lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
-            lenient().when(calculatorState.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
-            lenient().when(calculatorState.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
+            lenient()
+                    .when(calculatorState.readableStore(ReadableTokenStore.class))
+                    .thenReturn(tokenStore);
+            lenient()
+                    .when(calculatorState.readableStore(ReadableAccountStore.class))
+                    .thenReturn(accountStore);
             lenient()
                     .when(calculatorState.readableStore(ReadableTokenRelationStore.class))
                     .thenReturn(tokenRelStore);
@@ -833,11 +841,10 @@ class CryptoTransferFeeCalculatorTest {
 
             final var tokenTransfers = TokenTransferList.newBuilder()
                     .token(tokenId)
-                    .transfers(
-                            AccountAmount.newBuilder()
-                                    .accountID(recipientId)
-                                    .amount(50L)
-                                    .build())
+                    .transfers(AccountAmount.newBuilder()
+                            .accountID(recipientId)
+                            .amount(50L)
+                            .build())
                     .build();
 
             final var op = CryptoTransferTransactionBody.newBuilder()
@@ -857,8 +864,12 @@ class CryptoTransferFeeCalculatorTest {
         void noAutoAssociationWhenNoSlots() {
             // Given: Account with no available auto-association slots
             lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
-            lenient().when(calculatorState.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
-            lenient().when(calculatorState.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
+            lenient()
+                    .when(calculatorState.readableStore(ReadableTokenStore.class))
+                    .thenReturn(tokenStore);
+            lenient()
+                    .when(calculatorState.readableStore(ReadableAccountStore.class))
+                    .thenReturn(accountStore);
             lenient()
                     .when(calculatorState.readableStore(ReadableTokenRelationStore.class))
                     .thenReturn(tokenRelStore);
@@ -884,11 +895,10 @@ class CryptoTransferFeeCalculatorTest {
 
             final var tokenTransfers = TokenTransferList.newBuilder()
                     .token(tokenId)
-                    .transfers(
-                            AccountAmount.newBuilder()
-                                    .accountID(recipientId)
-                                    .amount(50L)
-                                    .build())
+                    .transfers(AccountAmount.newBuilder()
+                            .accountID(recipientId)
+                            .amount(50L)
+                            .build())
                     .build();
 
             final var op = CryptoTransferTransactionBody.newBuilder()
@@ -912,20 +922,20 @@ class CryptoTransferFeeCalculatorTest {
         void predictsHollowAccountForHbarTransferToAlias() {
             // Given: HBAR transfer to alias that doesn't exist
             lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
-            lenient().when(calculatorState.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
+            lenient()
+                    .when(calculatorState.readableStore(ReadableAccountStore.class))
+                    .thenReturn(accountStore);
 
             final var aliasBytes = Bytes.wrap(new byte[20]); // Some alias
-            final var aliasAccountId =
-                    AccountID.newBuilder().alias(aliasBytes).build();
+            final var aliasAccountId = AccountID.newBuilder().alias(aliasBytes).build();
 
             when(accountStore.getAliasedAccountById(aliasAccountId)).thenReturn(null); // No account exists
 
             final var hbarTransfers = TransferList.newBuilder()
-                    .accountAmounts(
-                            AccountAmount.newBuilder()
-                                    .accountID(aliasAccountId)
-                                    .amount(100L)
-                                    .build())
+                    .accountAmounts(AccountAmount.newBuilder()
+                            .accountID(aliasAccountId)
+                            .amount(100L)
+                            .build())
                     .build();
 
             final var op = CryptoTransferTransactionBody.newBuilder()
@@ -945,11 +955,12 @@ class CryptoTransferFeeCalculatorTest {
         void noHollowAccountWhenAccountExists() {
             // Given: Alias that corresponds to existing account
             lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
-            lenient().when(calculatorState.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
+            lenient()
+                    .when(calculatorState.readableStore(ReadableAccountStore.class))
+                    .thenReturn(accountStore);
 
             final var aliasBytes = Bytes.wrap(new byte[20]);
-            final var aliasAccountId =
-                    AccountID.newBuilder().alias(aliasBytes).build();
+            final var aliasAccountId = AccountID.newBuilder().alias(aliasBytes).build();
             final var existingAccount = Account.newBuilder()
                     .accountId(AccountID.newBuilder().accountNum(1002L).build())
                     .alias(aliasBytes)
@@ -958,11 +969,10 @@ class CryptoTransferFeeCalculatorTest {
             when(accountStore.getAliasedAccountById(aliasAccountId)).thenReturn(existingAccount);
 
             final var hbarTransfers = TransferList.newBuilder()
-                    .accountAmounts(
-                            AccountAmount.newBuilder()
-                                    .accountID(aliasAccountId)
-                                    .amount(100L)
-                                    .build())
+                    .accountAmounts(AccountAmount.newBuilder()
+                            .accountID(aliasAccountId)
+                            .amount(100L)
+                            .build())
                     .build();
 
             final var op = CryptoTransferTransactionBody.newBuilder()
@@ -982,24 +992,26 @@ class CryptoTransferFeeCalculatorTest {
         void predictsHollowAccountForTokenTransferToAlias() {
             // Given: Token transfer to alias that doesn't exist
             lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
-            lenient().when(calculatorState.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
-            lenient().when(calculatorState.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
+            lenient()
+                    .when(calculatorState.readableStore(ReadableAccountStore.class))
+                    .thenReturn(accountStore);
+            lenient()
+                    .when(calculatorState.readableStore(ReadableTokenStore.class))
+                    .thenReturn(tokenStore);
 
             final var tokenId = TokenID.newBuilder().tokenNum(2001L).build();
             final var aliasBytes = Bytes.wrap(new byte[20]);
-            final var aliasAccountId =
-                    AccountID.newBuilder().alias(aliasBytes).build();
+            final var aliasAccountId = AccountID.newBuilder().alias(aliasBytes).build();
 
             when(accountStore.getAliasedAccountById(aliasAccountId)).thenReturn(null);
             when(tokenStore.get(tokenId)).thenReturn(null); // Token not in store
 
             final var tokenTransfers = TokenTransferList.newBuilder()
                     .token(tokenId)
-                    .transfers(
-                            AccountAmount.newBuilder()
-                                    .accountID(aliasAccountId)
-                                    .amount(50L)
-                                    .build())
+                    .transfers(AccountAmount.newBuilder()
+                            .accountID(aliasAccountId)
+                            .amount(50L)
+                            .build())
                     .build();
 
             final var op = CryptoTransferTransactionBody.newBuilder()
@@ -1019,21 +1031,22 @@ class CryptoTransferFeeCalculatorTest {
         void predictsHollowAccountForNftReceiver() {
             // Given: NFT transfer to alias that doesn't exist
             lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
-            lenient().when(calculatorState.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
-            lenient().when(calculatorState.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
+            lenient()
+                    .when(calculatorState.readableStore(ReadableAccountStore.class))
+                    .thenReturn(accountStore);
+            lenient()
+                    .when(calculatorState.readableStore(ReadableTokenStore.class))
+                    .thenReturn(tokenStore);
 
             final var tokenId = TokenID.newBuilder().tokenNum(3001L).build();
-            final var senderAccountId =
-                    AccountID.newBuilder().accountNum(1001L).build();
+            final var senderAccountId = AccountID.newBuilder().accountNum(1001L).build();
             final var aliasBytes = Bytes.wrap(new byte[20]);
             final var receiverAliasAccountId =
                     AccountID.newBuilder().alias(aliasBytes).build();
 
             lenient()
                     .when(accountStore.getAliasedAccountById(senderAccountId))
-                    .thenReturn(Account.newBuilder()
-                            .accountId(senderAccountId)
-                            .build());
+                    .thenReturn(Account.newBuilder().accountId(senderAccountId).build());
             when(accountStore.getAliasedAccountById(receiverAliasAccountId)).thenReturn(null);
             when(tokenStore.get(tokenId)).thenReturn(null);
 
@@ -1065,11 +1078,12 @@ class CryptoTransferFeeCalculatorTest {
         void noDuplicateHollowAccountPredictions() {
             // Given: Multiple transfers to same alias
             lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
-            lenient().when(calculatorState.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
+            lenient()
+                    .when(calculatorState.readableStore(ReadableAccountStore.class))
+                    .thenReturn(accountStore);
 
             final var aliasBytes = Bytes.wrap(new byte[20]);
-            final var aliasAccountId =
-                    AccountID.newBuilder().alias(aliasBytes).build();
+            final var aliasAccountId = AccountID.newBuilder().alias(aliasBytes).build();
 
             when(accountStore.getAliasedAccountById(aliasAccountId)).thenReturn(null);
 
