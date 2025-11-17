@@ -20,18 +20,16 @@ import static com.hedera.services.bdd.suites.crypto.CryptoTransferSuite.sdec;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
+import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
-
-import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
@@ -47,7 +45,8 @@ public class ConsensusServiceSimpleFeesSuite {
         List<SpecOperation> provide();
     }
 
-    private static CustomSpecAssert validateChargedSimpleFees(String name, String txn, double expectedUsd, double allowedPercentDiff) {
+    private static CustomSpecAssert validateChargedSimpleFees(
+            String name, String txn, double expectedUsd, double allowedPercentDiff) {
         return assertionsHold((spec, assertLog) -> {
             final var actualUsdCharged = getChargedUsed(spec, txn);
             assertEquals(
@@ -59,6 +58,7 @@ public class ConsensusServiceSimpleFeesSuite {
                             name, sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
         });
     }
+
     private static double getChargedUsed(@NonNull final HapiSpec spec, @NonNull final String txn) {
         requireNonNull(spec);
         requireNonNull(txn);
@@ -71,16 +71,18 @@ public class ConsensusServiceSimpleFeesSuite {
                 * rcd.getReceipt().getExchangeRate().getCurrentRate().getCentEquiv()
                 / 100;
     }
-    private Stream<DynamicTest> compareSimpleToOld(OpsProvider provider, String txName, double fee, double simpleDiff, double oldDiff) {
+
+    private Stream<DynamicTest> compareSimpleToOld(
+            OpsProvider provider, String txName, double fee, double simpleDiff, double oldDiff) {
         List<SpecOperation> opsList = new ArrayList<>();
 
         opsList.add(overriding("fees.simpleFeesEnabled", "true"));
         opsList.addAll(provider.provide());
-        opsList.add(validateChargedSimpleFees("Simple Fees", txName,fee, simpleDiff));
+        opsList.add(validateChargedSimpleFees("Simple Fees", txName, fee, simpleDiff));
 
         opsList.add(overriding("fees.simpleFeesEnabled", "false"));
         opsList.addAll(provider.provide());
-        opsList.add(validateChargedSimpleFees("Old Fees",txName,fee, oldDiff));
+        opsList.add(validateChargedSimpleFees("Old Fees", txName, fee, oldDiff));
 
         return hapiTest(opsList.toArray(new SpecOperation[opsList.size()]));
     }
@@ -93,81 +95,103 @@ public class ConsensusServiceSimpleFeesSuite {
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
         @DisplayName("compare create topic")
         final Stream<DynamicTest> createTopicPlainComparison() {
-            return compareSimpleToOld(() -> Arrays.asList(
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    createTopic("testTopic")
-                            .blankMemo()
-                            .payingWith(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("create-topic-txn")),
-                    "create-topic-txn",0.01009,1,1);
+            return compareSimpleToOld(
+                    () -> Arrays.asList(
+                            cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                            createTopic("testTopic")
+                                    .blankMemo()
+                                    .payingWith(PAYER)
+                                    .fee(ONE_HBAR)
+                                    .via("create-topic-txn")),
+                    "create-topic-txn",
+                    0.01009,
+                    1,
+                    1);
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
         @DisplayName("compare create topic with admin key")
         final Stream<DynamicTest> createTopicWithAdminComparison() {
-            return compareSimpleToOld(() -> Arrays.asList(
-                    newKeyNamed(ADMIN),
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    createTopic("testTopic")
-                            .blankMemo()
-                            .payingWith(PAYER)
-                            .adminKeyName(ADMIN)
-                            .fee(ONE_HBAR)
-                            .via("create-topic-admin-txn")),
-                    "create-topic-admin-txn",0.02109,1,30);
+            return compareSimpleToOld(
+                    () -> Arrays.asList(
+                            newKeyNamed(ADMIN),
+                            cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                            createTopic("testTopic")
+                                    .blankMemo()
+                                    .payingWith(PAYER)
+                                    .adminKeyName(ADMIN)
+                                    .fee(ONE_HBAR)
+                                    .via("create-topic-admin-txn")),
+                    "create-topic-admin-txn",
+                    0.02109,
+                    1,
+                    30);
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
         @DisplayName("compare create topic with payer as admin key")
         final Stream<DynamicTest> createTopicWithPayerAdminComparison() {
-            return compareSimpleToOld(() -> Arrays.asList(
-                    newKeyNamed(ADMIN),
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    createTopic("testTopic")
-                            .blankMemo()
-                            .payingWith(PAYER)
-                            .adminKeyName(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("create-topic-admin-txn")),
-                    "create-topic-admin-txn",0.02009,1,100);
+            return compareSimpleToOld(
+                    () -> Arrays.asList(
+                            newKeyNamed(ADMIN),
+                            cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                            createTopic("testTopic")
+                                    .blankMemo()
+                                    .payingWith(PAYER)
+                                    .adminKeyName(PAYER)
+                                    .fee(ONE_HBAR)
+                                    .via("create-topic-admin-txn")),
+                    "create-topic-admin-txn",
+                    0.02009,
+                    1,
+                    100);
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
         @DisplayName("compare update topic with admin key")
         final Stream<DynamicTest> updateTopicComparisonWithPayerAdmin() {
-            return compareSimpleToOld(() -> Arrays.asList(
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    createTopic("testTopic")
-                            .blankMemo()
-                            .payingWith(PAYER)
-                            .adminKeyName(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("create-topic-admin-txn"),
-                    updateTopic("testTopic").payingWith(PAYER).fee(ONE_HBAR).via("update-topic-txn")),
-                    "update-topic-txn",0.000310,1,1000);
+            return compareSimpleToOld(
+                    () -> Arrays.asList(
+                            cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                            createTopic("testTopic")
+                                    .blankMemo()
+                                    .payingWith(PAYER)
+                                    .adminKeyName(PAYER)
+                                    .fee(ONE_HBAR)
+                                    .via("create-topic-admin-txn"),
+                            updateTopic("testTopic")
+                                    .payingWith(PAYER)
+                                    .fee(ONE_HBAR)
+                                    .via("update-topic-txn")),
+                    "update-topic-txn",
+                    0.000310,
+                    1,
+                    1000);
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
         @DisplayName("compare update topic with admin key")
         final Stream<DynamicTest> updateTopicComparisonWithAdmin() {
             final String ADMIN = "admin";
-            return compareSimpleToOld(() -> Arrays.asList(
-                    newKeyNamed(ADMIN),
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    createTopic("testTopic")
-                            .blankMemo()
-                            .payingWith(PAYER)
-                            .adminKeyName(ADMIN)
-                            .fee(ONE_HBAR)
-                            .via("create-topic-admin-txn"),
-                    updateTopic("testTopic")
-                            .adminKey(ADMIN)
-                            .payingWith(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("update-topic-txn")),
-                    "update-topic-txn",0.00131,1,100
-                    );
+            return compareSimpleToOld(
+                    () -> Arrays.asList(
+                            newKeyNamed(ADMIN),
+                            cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                            createTopic("testTopic")
+                                    .blankMemo()
+                                    .payingWith(PAYER)
+                                    .adminKeyName(ADMIN)
+                                    .fee(ONE_HBAR)
+                                    .via("create-topic-admin-txn"),
+                            updateTopic("testTopic")
+                                    .adminKey(ADMIN)
+                                    .payingWith(PAYER)
+                                    .fee(ONE_HBAR)
+                                    .via("update-topic-txn")),
+                    "update-topic-txn",
+                    0.00131,
+                    1,
+                    100);
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -177,23 +201,27 @@ public class ConsensusServiceSimpleFeesSuite {
             final var byte_size = 100;
             final byte[] messageBytes = new byte[byte_size]; // up to 1k
             Arrays.fill(messageBytes, (byte) 0b1);
-            return compareSimpleToOld(() -> Arrays.asList(
-                    newKeyNamed(PAYER),
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    // create topic, provide up to 1 hbar to pay for it
-                    createTopic("testTopic")
-                            .blankMemo()
-                            .payingWith(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("create-topic-txn"),
-                    // submit message, provide up to 1 hbar to pay for it
-                    submitMessageTo("testTopic")
-                            .blankMemo()
-                            .payingWith(PAYER)
-                            .message(new String(messageBytes))
-                            .fee(ONE_HBAR)
-                            .via("submit-message-txn")),
-                    "submit-message-txn",0.0001900,1,90);
+            return compareSimpleToOld(
+                    () -> Arrays.asList(
+                            newKeyNamed(PAYER),
+                            cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                            // create topic, provide up to 1 hbar to pay for it
+                            createTopic("testTopic")
+                                    .blankMemo()
+                                    .payingWith(PAYER)
+                                    .fee(ONE_HBAR)
+                                    .via("create-topic-txn"),
+                            // submit message, provide up to 1 hbar to pay for it
+                            submitMessageTo("testTopic")
+                                    .blankMemo()
+                                    .payingWith(PAYER)
+                                    .message(new String(messageBytes))
+                                    .fee(ONE_HBAR)
+                                    .via("submit-message-txn")),
+                    "submit-message-txn",
+                    0.0001900,
+                    1,
+                    90);
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -203,23 +231,27 @@ public class ConsensusServiceSimpleFeesSuite {
             final var byte_size = 1023;
             final byte[] messageBytes = new byte[byte_size]; // up to 1k
             Arrays.fill(messageBytes, (byte) 0b1);
-            return compareSimpleToOld(() -> Arrays.asList(
-                    newKeyNamed(PAYER),
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    // create topic, provide up to 1 hbar to pay for it
-                    createTopic("testTopic")
-                            .blankMemo()
-                            .payingWith(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("create-topic-txn"),
-                    // submit message, provide up to 1 hbar to pay for it
-                    submitMessageTo("testTopic")
-                            .blankMemo()
-                            .payingWith(PAYER)
-                            .message(new String(messageBytes))
-                            .fee(ONE_HBAR)
-                            .via("submit-message-txn")),
-                    "submit-message-txn",0.000200,1,40);
+            return compareSimpleToOld(
+                    () -> Arrays.asList(
+                            newKeyNamed(PAYER),
+                            cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                            // create topic, provide up to 1 hbar to pay for it
+                            createTopic("testTopic")
+                                    .blankMemo()
+                                    .payingWith(PAYER)
+                                    .fee(ONE_HBAR)
+                                    .via("create-topic-txn"),
+                            // submit message, provide up to 1 hbar to pay for it
+                            submitMessageTo("testTopic")
+                                    .blankMemo()
+                                    .payingWith(PAYER)
+                                    .message(new String(messageBytes))
+                                    .fee(ONE_HBAR)
+                                    .via("submit-message-txn")),
+                    "submit-message-txn",
+                    0.000200,
+                    1,
+                    40);
         }
 
         // TODO: support queries
@@ -250,20 +282,24 @@ public class ConsensusServiceSimpleFeesSuite {
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
         @DisplayName("compare delete topic with admin key")
         final Stream<DynamicTest> deleteTopicPlainComparison() {
-            return compareSimpleToOld(() -> Arrays.asList(
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    createTopic("testTopic")
-                            .blankMemo()
-                            .payingWith(PAYER)
-                            .adminKeyName(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("create-topic-admin-txn"),
-                    deleteTopic("testTopic")
-                            .signedBy(PAYER)
-                            .payingWith(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("delete-topic-txn")),
-                    "delete-topic-txn",0.005,1,10);
+            return compareSimpleToOld(
+                    () -> Arrays.asList(
+                            cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                            createTopic("testTopic")
+                                    .blankMemo()
+                                    .payingWith(PAYER)
+                                    .adminKeyName(PAYER)
+                                    .fee(ONE_HBAR)
+                                    .via("create-topic-admin-txn"),
+                            deleteTopic("testTopic")
+                                    .signedBy(PAYER)
+                                    .payingWith(PAYER)
+                                    .fee(ONE_HBAR)
+                                    .via("delete-topic-txn")),
+                    "delete-topic-txn",
+                    0.005,
+                    1,
+                    10);
         }
     }
 }
