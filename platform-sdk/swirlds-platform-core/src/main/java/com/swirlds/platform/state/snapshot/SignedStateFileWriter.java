@@ -148,7 +148,7 @@ public final class SignedStateFileWriter {
         requireNonNull(platformStateFacade);
         requireNonNull(stateLifecycleManager);
 
-        long round = platformStateFacade.roundOf(signedState.getState());
+        final long round = platformStateFacade.roundOf(signedState.getState());
         try {
             logger.info(STATE_TO_DISK.getMarker(), "Creating a snapshot on demand in {} for {}", directory, round);
             stateLifecycleManager.createSnapshot(signedState.getState(), directory);
@@ -157,7 +157,7 @@ public final class SignedStateFileWriter {
                     "Successfully created a snapshot on demand in {}  for {}",
                     directory,
                     round);
-        } catch (Throwable e) {
+        } catch (final Throwable e) {
             logger.error(
                     EXCEPTION.getMarker(), "Unable to write a snapshot on demand for {} to {}.", round, directory, e);
         }

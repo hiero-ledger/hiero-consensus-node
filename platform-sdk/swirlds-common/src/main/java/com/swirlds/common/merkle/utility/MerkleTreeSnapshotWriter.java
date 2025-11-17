@@ -34,7 +34,7 @@ public final class MerkleTreeSnapshotWriter {
     public static void createSnapshot(@NonNull final MerkleNode merkleRoot, @NonNull final Path targetPath) {
         try {
             writeMerkleRootToFile(targetPath, merkleRoot);
-        } catch (IOException e) {
+        } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }
     }
