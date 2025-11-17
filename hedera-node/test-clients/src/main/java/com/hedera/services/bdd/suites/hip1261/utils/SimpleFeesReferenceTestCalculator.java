@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip1261.utils;
 
-import com.hedera.hapi.node.base.HederaFunctionality;
-import org.hiero.hapi.support.fees.Extra;
+import static java.util.Collections.unmodifiableMap;
+import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.HederaFunctionality;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
-
-import static java.util.Collections.unmodifiableMap;
-import static java.util.Objects.requireNonNull;
+import org.hiero.hapi.support.fees.Extra;
 
 /**
  * This is an independent Simple Fees calculator that can be used in tests to verify the correctness of charged fees.
@@ -76,8 +75,7 @@ public class SimpleFeesReferenceTestCalculator {
             int networkMultiplier,
             Map<Extra, Long> priceByExtra,
             Map<HederaFunctionality, Long> serviceBaseByApi,
-            Map<HederaFunctionality, Map<Extra, Long>> serviceIncludedByApiAndExtra
-    ) {}
+            Map<HederaFunctionality, Map<Extra, Long>> serviceIncludedByApiAndExtra) {}
 
     /**
      * Builds a {@link Prepared} schedule from the parsed JSON model.
@@ -116,7 +114,7 @@ public class SimpleFeesReferenceTestCalculator {
         final Map<Extra, Long> priceByExtra = new EnumMap<>(Extra.class);
         if (schedule.extras != null) {
             for (SimpleFeesJsonSchema.ExtraPrice extraPrice : schedule.extras) {
-                final Extra extra = parseExtra(extraPrice !=null ? extraPrice.name : null);
+                final Extra extra = parseExtra(extraPrice != null ? extraPrice.name : null);
                 if (extra != null && extraPrice != null) {
                     priceByExtra.put(extra, extraPrice.fee);
                 }
@@ -127,7 +125,7 @@ public class SimpleFeesReferenceTestCalculator {
         final Map<HederaFunctionality, Long> serviceBaseByApi = new HashMap<>();
         final Map<HederaFunctionality, Map<Extra, Long>> serviceIncludedByApiAndExtra = new HashMap<>();
         if (schedule.services != null) {
-            for(SimpleFeesJsonSchema.Service service : schedule.services) {
+            for (SimpleFeesJsonSchema.Service service : schedule.services) {
                 if (service == null || service.schedule == null) {
                     continue;
                 }
@@ -168,8 +166,7 @@ public class SimpleFeesReferenceTestCalculator {
                 networkMultiplier,
                 unmodifiableMap(priceByExtra),
                 unmodifiableMap(serviceBaseByApi),
-                unmodifiableMap(serviceIncludedByApiAndExtra)
-        );
+                unmodifiableMap(serviceIncludedByApiAndExtra));
     }
 
     /**
@@ -181,35 +178,26 @@ public class SimpleFeesReferenceTestCalculator {
      * @return the computed Result with node, network, service, and total fees
      */
     public static Result compute(
-            final Prepared prepared,
-            final HederaFunctionality functionality,
-            final Map<Extra, Long> extrasCounts
-    ) {
+            final Prepared prepared, final HederaFunctionality functionality, final Map<Extra, Long> extrasCounts) {
         requireNonNull(prepared, "prepared must not be null");
         requireNonNull(functionality, "functionality must not be null");
         requireNonNull(extrasCounts, "extrasCounts must not be null");
 
         // Compute node fee
-        long nodeFee = safeAdd(prepared.nodeBase(),
-                computeExtrasFee(
-                        prepared.priceByExtra(),
-                        prepared.nodeIncludedByExtra(),
-                        extrasCounts));
+        long nodeFee = safeAdd(
+                prepared.nodeBase(),
+                computeExtrasFee(prepared.priceByExtra(), prepared.nodeIncludedByExtra(), extrasCounts));
 
         // Compute network fee
         final long networkFee = safeMultiply(nodeFee, prepared.networkMultiplier());
 
         // Compute service fee
         long serviceBaseFee = prepared.serviceBaseByApi().getOrDefault(functionality, 0L);
-        final Map<Extra, Long> serviceIncluded = prepared.serviceIncludedByApiAndExtra()
-                .getOrDefault(functionality, Map.of());
+        final Map<Extra, Long> serviceIncluded =
+                prepared.serviceIncludedByApiAndExtra().getOrDefault(functionality, Map.of());
 
-        final long serviceFee = safeAdd(
-                serviceBaseFee,
-                computeExtrasFee(
-                        prepared.priceByExtra(),
-                        serviceIncluded,
-                        extrasCounts));
+        final long serviceFee =
+                safeAdd(serviceBaseFee, computeExtrasFee(prepared.priceByExtra(), serviceIncluded, extrasCounts));
 
         final double totalFee = (1.0 * safeAdd(safeAdd(nodeFee, networkFee), serviceFee));
         return new Result(nodeFee, networkFee, serviceFee, totalFee);
@@ -218,7 +206,7 @@ public class SimpleFeesReferenceTestCalculator {
     /**
      * Defines the raw charges components in tinycents.
      */
-    public record Charges (long node, long network, long service, double payerCharged) {
+    public record Charges(long node, long network, long service, double payerCharged) {
         public double payerUsd() {
             return toUsd(payerCharged);
         }
@@ -228,32 +216,26 @@ public class SimpleFeesReferenceTestCalculator {
             final Prepared prepared,
             final HederaFunctionality functionality,
             final Map<Extra, Long> extrasCounts,
-            final SimpleFeesChargePolicy policy
-    ) {
+            final SimpleFeesChargePolicy policy) {
         requireNonNull(prepared, "prepared must not be null");
         requireNonNull(functionality, "functionality must not be null");
         requireNonNull(extrasCounts, "extrasCounts must not be null");
         requireNonNull(policy, "policy must not be null");
 
         // Compute raw fees
-        final Result rawFees = compute( prepared, functionality, extrasCounts);
+        final Result rawFees = compute(prepared, functionality, extrasCounts);
 
         // Determine payer charged fee based on policy
-        final double payerChargedFee = switch (policy) {
-            case UNREADABLE_BYTES_ZERO_PAYER,
-                 INVALID_TXN_AT_INGEST_ZERO_PAYER,
-                 INVALID_TXN_AT_PRE_HANDLE_ZERO_PAYER -> 0L;
-            case UNHANDLED_TXN_FULL_CHARGE,
-                 SUCCESS_TXN_FULL_CHARGE -> rawFees.total();
-            default -> throw new IllegalArgumentException("Unknown SimpleFeesChargePolicy: " + policy);
-        };
+        final double payerChargedFee =
+                switch (policy) {
+                    case UNREADABLE_BYTES_ZERO_PAYER,
+                            INVALID_TXN_AT_INGEST_ZERO_PAYER,
+                            INVALID_TXN_AT_PRE_HANDLE_ZERO_PAYER -> 0L;
+                    case UNHANDLED_TXN_FULL_CHARGE, SUCCESS_TXN_FULL_CHARGE -> rawFees.total();
+                    default -> throw new IllegalArgumentException("Unknown SimpleFeesChargePolicy: " + policy);
+                };
 
-        return new Charges(
-                rawFees.node(),
-                rawFees.network(),
-                rawFees.service(),
-                payerChargedFee
-        );
+        return new Charges(rawFees.node(), rawFees.network(), rawFees.service(), payerChargedFee);
     }
 
     // ------- Helpers -------
@@ -274,12 +256,10 @@ public class SimpleFeesReferenceTestCalculator {
      * Computes the extras fee component by applying the per-extra price and included counts.
      * fee = Σ for each extra [ price_per_extra * max(0, count - included(extra)) ]
      */
-
     private static long computeExtrasFee(
             final Map<Extra, Long> priceByExtra,
             final Map<Extra, Long> includedByExtra,
-            final Map<Extra, Long> extrasCounts
-    ) {
+            final Map<Extra, Long> extrasCounts) {
         long extrasFee = 0L;
         for (Map.Entry<Extra, Long> entry : extrasCounts.entrySet()) {
             final Extra extraName = entry.getKey();
@@ -296,7 +276,7 @@ public class SimpleFeesReferenceTestCalculator {
      * Convert tinycents to USD helper.
      */
     public static double toUsd(double tinycents) {
-        return tinycents / 100_000_000.0 / 100; //cent to dollar
+        return tinycents / 100_000_000.0 / 100; // cent to dollar
     }
 
     /**

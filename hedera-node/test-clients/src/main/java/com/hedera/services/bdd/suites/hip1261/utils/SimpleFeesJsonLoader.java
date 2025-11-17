@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.hip1261.utils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;

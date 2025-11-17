@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip1261.utils;
 
-import org.hiero.hapi.support.fees.Extra;
-
 import java.util.EnumMap;
+import org.hiero.hapi.support.fees.Extra;
 
 /**
  * This class is used as a builder for simple fees parameters.

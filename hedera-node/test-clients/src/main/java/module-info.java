@@ -122,6 +122,7 @@ open module com.hedera.node.test.clients {
     requires io.grpc.stub;
     requires io.grpc;
     requires io.helidon.common;
+    requires io.helidon.service.registry;
     requires io.helidon.webserver;
     requires io.netty.handler;
     requires java.desktop;
@@ -149,5 +150,4 @@ open module com.hedera.node.test.clients {
     requires static com.hedera.pbj.runtime;
     requires static com.github.spotbugs.annotations;
     requires static org.junit.platform.engine;
-    requires io.helidon.service.registry;
 }

@@ -1,20 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip1261.utils;
 
-import com.hedera.hapi.node.base.HederaFunctionality;
-import org.hiero.hapi.support.fees.Extra;
-import org.hiero.hapi.support.fees.ExtraFeeDefinition;
-import org.hiero.hapi.support.fees.ExtraFeeReference;
-import org.hiero.hapi.support.fees.FeeSchedule;
-import org.hiero.hapi.support.fees.NetworkFee;
-import org.hiero.hapi.support.fees.NodeFee;
-import org.hiero.hapi.support.fees.ServiceFeeDefinition;
-import org.hiero.hapi.support.fees.ServiceFeeSchedule;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
-
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_DELETE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_GET_TOPIC_INFO;
@@ -26,6 +12,19 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 
+import com.hedera.hapi.node.base.HederaFunctionality;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import org.hiero.hapi.support.fees.Extra;
+import org.hiero.hapi.support.fees.ExtraFeeDefinition;
+import org.hiero.hapi.support.fees.ExtraFeeReference;
+import org.hiero.hapi.support.fees.FeeSchedule;
+import org.hiero.hapi.support.fees.NetworkFee;
+import org.hiero.hapi.support.fees.NodeFee;
+import org.hiero.hapi.support.fees.ServiceFeeDefinition;
+import org.hiero.hapi.support.fees.ServiceFeeSchedule;
+
 public class JsonToFeeScheduleConverter {
 
     /**
@@ -36,13 +35,13 @@ public class JsonToFeeScheduleConverter {
             Map.entry("ConsensusUpdateTopic", CONSENSUS_UPDATE_TOPIC),
             Map.entry("ConsensusDeleteTopic", CONSENSUS_DELETE_TOPIC),
             Map.entry("ConsensusSubmitMessage", CONSENSUS_SUBMIT_MESSAGE),
-            Map.entry("ConsensusGetTopicInfo", CONSENSUS_GET_TOPIC_INFO)
-    );
+            Map.entry("ConsensusGetTopicInfo", CONSENSUS_GET_TOPIC_INFO));
 
     /**
      * Extra name mapping (string -> enum).
      */
     private static final Map<String, Extra> EXTRA_NAME_MAP = new HashMap<>();
+
     static {
         EXTRA_NAME_MAP.put("SIGNATURES", Extra.SIGNATURES);
         EXTRA_NAME_MAP.put("BYTES", Extra.BYTES);
@@ -90,7 +89,10 @@ public class JsonToFeeScheduleConverter {
 
         // ------- Network multiplier -------
         final var networkFee = (schedule.network != null)
-                ? NetworkFee.DEFAULT.copyBuilder().multiplier(schedule.network.multiplier).build()
+                ? NetworkFee.DEFAULT
+                        .copyBuilder()
+                        .multiplier(schedule.network.multiplier)
+                        .build()
                 : NetworkFee.DEFAULT;
 
         // ------- Services and their operations -------
@@ -133,26 +135,22 @@ public class JsonToFeeScheduleConverter {
 
                     // Create ServiceFeeDefinition for this API
                     final var serviceFee = makeServiceFee(
-                            functionality,
-                            apiFeeEntry.baseFee,
-                            included.toArray(new ExtraFeeReference[0])
-                    );
+                            functionality, apiFeeEntry.baseFee, included.toArray(new ExtraFeeReference[0]));
                     serviceFees.add(serviceFee);
                 }
 
                 // Create ServiceFeeSchedule for this service
                 if (!serviceFees.isEmpty()) {
-                    final var serviceFeeSchedule = makeService(
-                            serviceEntry.name,
-                            serviceFees.toArray(new ServiceFeeDefinition[0])
-                    );
+                    final var serviceFeeSchedule =
+                            makeService(serviceEntry.name, serviceFees.toArray(new ServiceFeeDefinition[0]));
                     services.add(serviceFeeSchedule);
                 }
             }
         }
 
         // Build and return the final FeeSchedule
-        final var builder = FeeSchedule.DEFAULT.copyBuilder()
+        final var builder = FeeSchedule.DEFAULT
+                .copyBuilder()
                 .extras(extraDefinitions)
                 .node(nodeFee)
                 .network(networkFee)

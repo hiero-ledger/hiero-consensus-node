@@ -1,20 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip1261;
 
-import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
-import com.hedera.services.bdd.suites.hip1261.utils.JsonToFeeScheduleConverter;
-import com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesParams;
-import com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesReferenceTestCalculator;
-import com.hederahashgraph.api.proto.java.ExchangeRateSet;
-import org.hiero.hapi.support.fees.Extra;
-import org.hiero.hapi.support.fees.FeeSchedule;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.DynamicTest;
-
-import java.util.Map;
-import java.util.stream.Stream;
-
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -31,6 +17,19 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesJsonLoader.
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesOps.overrideSimpleFees;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesOps.restoreSimpleFees;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesOps.snapshotSimpleFees;
+
+import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
+import com.hedera.services.bdd.suites.hip1261.utils.JsonToFeeScheduleConverter;
+import com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesParams;
+import com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesReferenceTestCalculator;
+import com.hederahashgraph.api.proto.java.ExchangeRateSet;
+import java.util.Map;
+import java.util.stream.Stream;
+import org.hiero.hapi.support.fees.Extra;
+import org.hiero.hapi.support.fees.FeeSchedule;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.DynamicTest;
 
 public class SimpleFeesAssertionTests {
 
@@ -68,27 +67,24 @@ public class SimpleFeesAssertionTests {
                     final var preparedSchedule = SimpleFeesReferenceTestCalculator.prepare(jsonSchedule);
 
                     // build the parameters: no extras
-                    final Map<Extra, Long> extrasCounts = SimpleFeesParams.create().get();
+                    final Map<Extra, Long> extrasCounts =
+                            SimpleFeesParams.create().get();
 
                     HapiGetTxnRecord createTopicTxn = getTxnRecord("createTopicTxn");
 
                     allRunFor(spec, createTopicTxn);
 
-                    ExchangeRateSet exchangeRate = createTopicTxn
-                            .getResponseRecord()
-                            .getReceipt()
-                            .getExchangeRate();
+                    ExchangeRateSet exchangeRate =
+                            createTopicTxn.getResponseRecord().getReceipt().getExchangeRate();
 
                     log.info("Exchange rate used for fee calculation: {}", exchangeRate);
 
                     // calculate expected fee
                     final var expectedCharges = SimpleFeesReferenceTestCalculator.computeWithPolicy(
-                            preparedSchedule,
-                            CONSENSUS_CREATE_TOPIC,
-                            extrasCounts,
-                            SUCCESS_TXN_FULL_CHARGE);
+                            preparedSchedule, CONSENSUS_CREATE_TOPIC, extrasCounts, SUCCESS_TXN_FULL_CHARGE);
 
-                    log.info("expected node = {}, network = {}, service = {}, total = {}",
+                    log.info(
+                            "expected node = {}, network = {}, service = {}, total = {}",
                             SimpleFeesReferenceTestCalculator.toUsd(expectedCharges.node()),
                             SimpleFeesReferenceTestCalculator.toUsd(expectedCharges.network()),
                             SimpleFeesReferenceTestCalculator.toUsd(expectedCharges.service()),
@@ -143,21 +139,17 @@ public class SimpleFeesAssertionTests {
 
                     allRunFor(spec, createTopicTxn);
 
-                    ExchangeRateSet exchangeRate = createTopicTxn
-                            .getResponseRecord()
-                            .getReceipt()
-                            .getExchangeRate();
+                    ExchangeRateSet exchangeRate =
+                            createTopicTxn.getResponseRecord().getReceipt().getExchangeRate();
 
                     log.info("Exchange rate used for fee calculation: {}", exchangeRate);
 
                     // calculate expected fee
                     final var expectedCharges = SimpleFeesReferenceTestCalculator.computeWithPolicy(
-                            preparedSchedule,
-                            CONSENSUS_CREATE_TOPIC,
-                            extrasCounts,
-                            SUCCESS_TXN_FULL_CHARGE);
+                            preparedSchedule, CONSENSUS_CREATE_TOPIC, extrasCounts, SUCCESS_TXN_FULL_CHARGE);
 
-                    log.info("expected node = {}, network = {}, service = {}, total = {}",
+                    log.info(
+                            "expected node = {}, network = {}, service = {}, total = {}",
                             SimpleFeesReferenceTestCalculator.toUsd(expectedCharges.node()),
                             SimpleFeesReferenceTestCalculator.toUsd(expectedCharges.network()),
                             SimpleFeesReferenceTestCalculator.toUsd(expectedCharges.service()),
