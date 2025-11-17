@@ -18,6 +18,7 @@ import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.EvmSpecVersion;
 import org.hyperledger.besu.evm.account.Account;
+import org.hyperledger.besu.evm.account.MutableAccount;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -60,12 +61,17 @@ class BEVM {
 
     // Contract bytecodes
     final byte[] _codes;
+
     // Gas available, runs down to zero
     private final long _startGas;
     private long _gas;
 
     // Recipient
-    Account _recv;
+    @NonNull Account _recv;     // Always have a readable aocount
+    MutableAccount _recvMutable;// Sometimes a writable account
+
+    // Temp per-contract storage
+    final Memory _mem;
 
     // Custom SLoad asks this global question
     final boolean _isSidecarEnabled;
@@ -74,12 +80,16 @@ class BEVM {
     //
     final ContractID _contractId;
 
-
+    // Wrap a UInt256 in a Supplier for short-term usage, without allocating
+    // per-bytecode.
+    final UI256.Wrap _wrap0 = new UI256.Wrap(), _wrap1 = new UI256.Wrap();
 
     BEVM( GasCalculator gasCalc, MessageFrame frame, FeatureFlags flags ) {
         _gasCalc = gasCalc;
         if( _gasCalc.getVeryLowTierGasCost() > 10 )
             throw new TODO("Need to restructure how gas is computed");
+        // If SSTore minimum gas is ever not-zero, will need to check in sStore
+
         _frame = frame;
         // Bytecodes
         _codes = frame.getCode().getBytes().toArrayUnsafe();
@@ -87,7 +97,12 @@ class BEVM {
         _startGas = frame.getRemainingGas();
         _gas = _startGas;
         // Account receiver
-        _recv = frame.getWorldUpdater().get(frame.getRecipientAddress());
+        _recv        = frame.getWorldUpdater().get       (frame.getRecipientAddress());
+        _recvMutable = frame.getWorldUpdater().getAccount(frame.getRecipientAddress());
+        assert _recv != null;
+
+        // Local temp storage
+        _mem = new Memory();
 
         // Hedera custom sidecar
         _isSidecarEnabled = flags.isSidecarEnabled(frame, SidecarType.CONTRACT_STATE_CHANGE);
@@ -98,14 +113,12 @@ class BEVM {
         _contractId = worldUpdater.getHederaContractId(_frame.getRecipientAddress());
     }
 
-    // Halt reason, or null
-    private ExceptionalHaltReason _halt;
-
     public BEVM run() {
         // TODO: setup
-        _halt = _run();
-        // TODO: cleanup
-        throw new TODO();
+        var halt = _run();
+        if( halt != ExceptionalHaltReason.NONE )
+            _frame.setExceptionalHaltReason(Optional.of(halt));
+        return this;
     }
 
 
@@ -160,7 +173,7 @@ class BEVM {
     private static long getLong( byte[] src, int off, int len ) {
         long adr = 0;
         if( len<=0 ) return adr;
-        adr |= (long) (src[--len+off] & 0xFF) <<  0;
+        adr |= (long) (src[--len+off] & 0xFF);
         if( len==0 ) return adr;
         adr |= (long) (src[--len+off] & 0xFF) <<  8;
         if( len==0 ) return adr;
@@ -178,56 +191,23 @@ class BEVM {
         return adr;
     }
 
-
-    // Return a memory address as a unsigned int.  Larger values are clamped at
-    // Integer.MAX_VALUE.  Result is in *WORDS*.
-    private int popMemAddress() {
+    // Clamped long
+    private long popLong() {
         assert _sp > 0;         // Caller already checked for stack underflow
         _sp--;
-        if( STK1[_sp]!=0 || STK2[_sp]!=0 || STK3[_sp]!=0 )
+        if( STK0[_sp] < 0 || STK1[_sp]!=0 || STK2[_sp]!=0 || STK3[_sp]!=0 )
+            return Long.MAX_VALUE;
+        return STK0[_sp];
+    }
+
+    // Return a memory address as a unsigned int.  Larger values are clamped at
+    // Integer.MAX_VALUE.  Result is in bytes.
+    private int popMemAddress() {
+        assert _sp > 0;         // Caller already checked for stack underflow
+        if( (STK1[--_sp] | STK2[_sp] | STK3[_sp]) !=0  || STK0[_sp] < 0 || STK0[_sp] > Integer.MAX_VALUE )
             return Integer.MAX_VALUE;
-        if( STK0[_sp] < 0 || STK0[_sp] > Integer.MAX_VALUE )
-            return Integer.MAX_VALUE;
-        return (int)(STK0[_sp]>>5); // Convert byte address to WORD
+        return (int)STK0[_sp];
     }
-
-    // All arguments are in *words*
-    private ExceptionalHaltReason popStackWriteMem( int adr ) {
-        assert _sp > 0;         // Caller already checked for underflow
-        growMem( adr+1 );
-        MEM0[adr] = STK0[--_sp];
-        MEM1[adr] = STK1[  _sp];
-        MEM2[adr] = STK2[  _sp];
-        MEM3[adr] = STK3[  _sp];
-        return null;
-    }
-
-
-    // -----------------------------------------------------------
-    // The Memory Implementation
-    int _len;                   // Current active WORDS in-use
-    private long[] MEM0 = new long[1];
-    private long[] MEM1 = new long[1];
-    private long[] MEM2 = new long[1];
-    private long[] MEM3 = new long[1];
-
-    // Grow to handle len Words
-    private void growMem( int len ) {
-        // Grow in-use words
-        if( len < _len ) return;
-        _len = len;
-        if( _len < MEM0.length ) return;
-
-        // If memory is too small, grow it
-        int newlen = MEM0.length;
-        while( len > newlen )
-            newlen <<= 1;   // Next larger power-of-2
-        MEM0 = Arrays.copyOf(MEM0, newlen);
-        MEM1 = Arrays.copyOf(MEM1, newlen);
-        MEM2 = Arrays.copyOf(MEM2, newlen);
-        MEM3 = Arrays.copyOf(MEM3, newlen);
-    }
-
 
     // -----------------------------------------------------------
     // Execute bytecodes until done
@@ -241,11 +221,20 @@ class BEVM {
             halt = switch( op ) {
 
             case 0x02 -> add();
+            case 0x10 -> lt ();
             case 0x0A -> exp();
+            case 0x16 -> and();
+            case 0x17 -> or ();
+            case 0x19 -> not();
 
+            case 0x36 -> callDataSize();
+            case 0x39 -> codeCopy();
+
+            case 0x50 -> pop();
             case 0x52 -> mstore();
-
-            case 0x54 -> customSLoad(); // Hedera custom SLOAD
+            case 0x54 -> customSLoad (); // Hedera custom SLOAD
+            case 0x55 -> customSStore(); // Hedera custom STORE
+            case 0x57 -> jumpi();
             case 0x5F -> push0();
 
             case 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6A, 0x6B, 0x6C, 0x6D, 0x6E, 0x6F,
@@ -258,14 +247,39 @@ class BEVM {
                  -> dup(op-0x80+1);
 
             case 0x90, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x99, 0x9A, 0x9B, 0x9C, 0x9D, 0x9E, 0x9F
-                 // Duplicate nth word
+                 // Swap nth word
                  -> swap(op-0x90+1);
 
+            case 0xF3 -> ret();
+
             default ->
-                throw new TODO(String.format("Unhandled bytecode 0x%02X",_codes[pc-1]));
+                throw new TODO(String.format("Unhandled bytecode 0x%02X",op));
             };
         }
         return halt;
+    }
+
+
+    // ---------------------
+    // Control flow
+
+    // Return from interpreter
+    private ExceptionalHaltReason ret() {
+        long off = popLong();
+        long len = popLong();
+
+        var halt = useGas(_gasCalc.memoryExpansionGasCost(_frame,off, len));
+        if( halt!=null ) return halt;
+        if( (off | len) < 0 || (off | len) > Integer.MAX_VALUE )
+            return ExceptionalHaltReason.INVALID_OPERATION;
+
+        _frame.setOutputData(_mem.asBytes((int)off, (int)len)); // Thin wrapper over the underlying byte[], no copy
+        _frame.setState(MessageFrame.State.CODE_SUCCESS);
+        // Halt interpreter with no error
+        return ExceptionalHaltReason.NONE;
+    }
+    private ExceptionalHaltReason jumpi() {
+        throw new TODO();
     }
 
 
@@ -277,6 +291,12 @@ class BEVM {
         var halt = useGas(_gasCalc.getBaseTierGasCost());
         if( halt!=null ) return halt;
         return push( 0L );
+    }
+
+    private ExceptionalHaltReason pushLong( long x ) {
+        var halt = useGas(_gasCalc.getBaseTierGasCost());
+        if( halt!=null ) return halt;
+        return push( x );
     }
 
     // Push an array of immediate bytes onto stack
@@ -291,10 +311,7 @@ class BEVM {
         var halt = useGas(_gasCalc.getVeryLowTierGasCost());
         if( halt!=null ) return halt;
         if( _sp < n ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
-        long x0 = STK0[_sp-n];
-        long x1 = STK1[_sp-n];
-        long x2 = STK2[_sp-n];
-        long x3 = STK3[_sp-n];
+        long x0 = STK0[_sp-n], x1 = STK1[_sp-n], x2 = STK2[_sp-n], x3 = STK3[_sp-n];
         return push(x0,x1,x2,x3);
     }
 
@@ -310,6 +327,16 @@ class BEVM {
         return null;
     }
 
+    // Pop
+    private ExceptionalHaltReason pop(  ) {
+        var halt = useGas(_gasCalc.getBaseTierGasCost());
+        if( halt!=null ) return halt;
+        if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        _sp--;
+        return null;
+    }
+
+
     // ---------------------
     // Memory ops
 
@@ -318,23 +345,25 @@ class BEVM {
         if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         int adr = popMemAddress();
         if( adr == Integer.MAX_VALUE ) return useGas(adr); // Fail, out of gas
+        assert (adr&31)==0;                                // Spec requires alignment, not checked?
 
         // Memory store gas cost from {@link FrontierGasCalculator} that is
         // decoupled from {@link MemoryFrame}.
-        long gas = _gasCalc.getVeryLowTierGasCost() + memoryExpansionGasCost(adr,1);
+        long gas = _gasCalc.getVeryLowTierGasCost() + memoryExpansionGasCost(adr,32);
         var halt = useGas(gas);
         if( halt!=null ) return halt;
 
-        return popStackWriteMem(adr);
+        _mem.write(adr, STK0[--_sp], STK1[_sp], STK2[_sp], STK3[_sp]);
+        return null;
     }
 
-    // All arguments are in *words*
-    private long memoryExpansionGasCost(int adr, int nwords) {
-        assert adr >=0 && nwords >= 0;                 // Caller already checked
-        if( adr+nwords < 0 ) return Integer.MAX_VALUE; // Overflow gas cost
-        if( adr+nwords < _len ) return 0;              // No extension, so no memory cost
-        long pre  = memoryCost( _len );
-        long post = memoryCost(adr+nwords);
+    // All arguments are in bytes
+    long memoryExpansionGasCost(int adr, int len) {
+        assert adr >=0 && len >= 0 && (len&31)==0;  // Caller already checked
+        if( adr+len < 0 ) return Integer.MAX_VALUE; // Overflow gas cost
+        if( adr+len < _mem._len ) return 0;         // No extension, so no memory cost
+        long pre  = memoryCost(_mem._len );
+        long post = memoryCost(adr + len );
         return post - pre;
     }
 
@@ -343,8 +372,8 @@ class BEVM {
     // Values larger than an int will fail for gas usage first.
     // Values int or smaller will never overflow a long, and so do not need
     // range checks or clamping.
-    private long memoryCost(int nwords) {
-        assert nwords >= 0;     // Caller checked
+    private long memoryCost(int len) {
+        int nwords = len>>5;
         long words2 = (long)nwords*nwords;
         long base = words2>>9;  // divide 512
         return base + nwords*_gasCalc.getVeryLowTierGasCost()/*FrontierGasCalculator.MEMORY_WORD_GAS_COST*/;
@@ -373,9 +402,12 @@ class BEVM {
     }
     // Get and intern a slot based on Address and key
     AdrKey getSlot( Address adr, long key0, long key1, long key2, long key3) {
+        return getSlot(adr, UI256.intern(key0,key1,key2,key3));
+    }
+    AdrKey getSlot( Address adr, UInt256 key) {
         AdrKey ak = _freeAK.isEmpty() ? new AdrKey() : _freeAK.removeLast();
         ak._adr = adr;
-        ak._ui256 = UI256.intern(key0,key1,key2,key3);
+        ak._ui256 = key;
         AdrKey ak2 = _internAK.get(ak);
         if( ak2 != null ) _freeAK.add(ak);
         else              _internAK.put((ak2=ak),ak);
@@ -383,14 +415,10 @@ class BEVM {
     }
 
 
-
     // Load from the global/permanent store
     private ExceptionalHaltReason sLoad() {
         if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
-        long key0 = STK0[--_sp];
-        long key1 = STK1[  _sp];
-        long key2 = STK2[  _sp];
-        long key3 = STK3[  _sp];
+        long key0 = STK0[--_sp], key1 = STK1[_sp], key2 = STK2[_sp], key3 = STK3[_sp];
 
         // Warmup address; true if already warm.  This is a per-transaction
         // tracking and is only for gas costs.  The actual warming happens if
@@ -411,65 +439,123 @@ class BEVM {
 
     private ExceptionalHaltReason customSLoad() {
         if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
-        // Read key before sLoad replaces it with value
-        long key0 = STK0[_sp-1];
-        long key1 = STK1[_sp-1];
-        long key2 = STK2[_sp-1];
-        long key3 = STK3[_sp-1];
+        // Read key before SLOAD replaces it with value
+        long key0 = STK0[_sp-1], key1 = STK1[_sp-1], key2 = STK2[_sp-1], key3 = STK3[_sp-1];
 
         var halt = sLoad();
         if( halt==null && _isSidecarEnabled && _tracker != null ) {
-          // The base SLOAD operation returns its read value on the stack
-          long val0 = STK0[_sp-1];
-          long val1 = STK1[_sp-1];
-          long val2 = STK2[_sp-1];
-          long val3 = STK3[_sp-1];
-          UInt256 key = UI256.intern(key0,key1,key2,key3);
-          UInt256 val = UI256.intern(val0,val1,val2,val3);
-          _tracker.trackIfFirstRead(_contractId, key, val);
+            // The base SLOAD operation returns its read value on the stack
+            long val0 = STK0[_sp-1], val1 = STK1[_sp-1], val2 = STK2[_sp-1], val3 = STK3[_sp-1];
+            UInt256 key = UI256.intern(key0,key1,key2,key3);
+            UInt256 val = UI256.intern(val0,val1,val2,val3);
+            _tracker.trackIfFirstRead(_contractId, key, val);
         }
         return halt;
     }
 
+    private ExceptionalHaltReason sStore() {
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        long key0 = STK0[--_sp], key1 = STK1[_sp], key2 = STK2[_sp], key3 = STK3[_sp];
+        long val0 = STK0[--_sp], val1 = STK1[_sp], val2 = STK2[_sp], val3 = STK3[_sp];
+
+        if( _recvMutable == null )  return ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
+
+        // Attempt to write to read-only
+        if( _frame.isStatic() ) return ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
+
+        // Intern and wrap key
+        UInt256 key = UI256.intern(key0, key1, key2, key3);
+        UInt256 val = UI256.intern(val0, val1, val2, val3);
+        _wrap0._u = _recvMutable.getStorageValue(key);
+        _wrap1._u = _recvMutable.getOriginalStorageValue(key);
+
+        // Warmup address; true if already warm.  This is a per-transaction
+        // tracking and is only for gas costs.  The actual warming happens if
+        // we get past the gas test.
+        AdrKey ak = getSlot(_recv.getAddress(), key);
+        long gas = _gasCalc.calculateStorageCost(val, _wrap0, _wrap1) +
+            (ak.isWarm() ? 0 : _gasCalc.getColdSloadCost());
+        var halt = useGas(gas);
+        if( halt!=null ) return halt;
+
+        // Increment the refund counter.
+        _gas += _gasCalc.calculateStorageRefundAmount(val, _wrap0, _wrap1);
+        // Do the store
+        _recvMutable.setStorageValue(key, val);
+        return null;
+    }
+
+    private ExceptionalHaltReason customSStore() {
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        // Read key and value before SSTORE pops it
+        long key0 = STK0[_sp-1], key1 = STK1[_sp-1], key2 = STK2[_sp-1], key3 = STK3[_sp-1];
+        long val0 = STK0[_sp-2], val1 = STK1[_sp-2], val2 = STK2[_sp-2], val3 = STK3[_sp-2];
+
+        var halt = sStore();
+        if( halt==null && _isSidecarEnabled && _tracker != null ) {
+            UInt256 key = UI256.intern(key0,key1,key2,key3);
+            UInt256 val = UI256.intern(val0,val1,val2,val3);
+            _tracker.trackIfFirstRead(_contractId, key, val);
+        }
+        return halt;
+    }
 
     // ---------------------
     // Arithmetic
 
-    // Exponent
+    // Add
     private ExceptionalHaltReason add() {
         var halt = useGas(_gasCalc.getVeryLowTierGasCost());
         if( halt!=null ) return halt;
         if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
-        long lhs0 = STK0[--_sp];
-        long lhs1 = STK1[  _sp];
-        long lhs2 = STK2[  _sp];
-        long lhs3 = STK3[  _sp];
-        long rhs0 = STK0[--_sp];
-        long rhs1 = STK1[  _sp];
-        long rhs2 = STK2[  _sp];
-        long rhs3 = STK3[  _sp];
+        long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
+        long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
 
+        // If both sign bits are the same and differ from the result, we overflowed
         long add0 = lhs0 + rhs0;
-        if( (lhs0<0 || rhs0<0) && add0>=0 ) throw new TODO();
+        if( overflow(lhs0,rhs0,add0) ) throw new TODO();
         long add1 = lhs1 + rhs1;
-        if( (lhs1<0 || rhs1<0) && add1>=0 ) throw new TODO();
+        if( overflow(lhs1,rhs1,add1) ) throw new TODO();
         long add2 = lhs2 + rhs2;
-        if( (lhs2<0 || rhs2<0) && add2>=0 ) throw new TODO();
+        if( overflow(lhs2,rhs2,add2) ) throw new TODO();
         long add3 = lhs3 + rhs3;
+        // Math is mod 256, so ignore last overflow
         return push(add0,add1,add2,add3);
+    }
+    private static boolean overflow( long x, long y, long sum ) { return (~(x^y) & (x^sum)) < 0; }
+
+    // not, bitwise complement (as opposed to a logical not)
+    private ExceptionalHaltReason not() {
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        long not0 = STK0[--_sp], not1 = STK1[_sp], not2 = STK2[_sp], not3 = STK3[_sp];
+        return push(~not0, ~not1, ~not2, ~not3);
+    }
+
+    // And
+    private ExceptionalHaltReason and() {
+        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
+        if( halt!=null ) return halt;
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
+        long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
+        return push(lhs0 & rhs0, lhs1 & rhs1, lhs2 & rhs2, lhs3 & rhs3);
+    }
+
+    // Or
+    private ExceptionalHaltReason or() {
+        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
+        if( halt!=null ) return halt;
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
+        long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
+        return push(lhs0 | rhs0, lhs1 | rhs1, lhs2 | rhs2, lhs3 | rhs3);
     }
 
     // Exponent
     private ExceptionalHaltReason exp() {
         if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
-        long base0 = STK0[--_sp];
-        long base1 = STK1[  _sp];
-        long base2 = STK2[  _sp];
-        long base3 = STK3[  _sp];
-        long pow0  = STK0[--_sp];
-        long pow1  = STK1[  _sp];
-        long pow2  = STK2[  _sp];
-        long pow3  = STK3[  _sp];
+        long base0 = STK0[--_sp], base1 = STK1[_sp], base2 = STK2[_sp], base3 = STK3[_sp];
+        long pow0  = STK0[--_sp],  pow1 = STK1[_sp],  pow2 = STK2[_sp],  pow3 = STK3[_sp];
 
         // Gas is based on busy longs in the power, converted to bytes
         int numBytes =
@@ -480,17 +566,61 @@ class BEVM {
         var halt = useGas(_gasCalc.expOperationGasCost(numBytes));
         if( halt!=null ) return halt;
 
-        if( pow1 == 0 && pow2 == 0 && pow3 == 0 ) {
-            if( pow0 == 0 )
-                // base^0 == 1
-                return push(1,0,0,0);  // big endian 1
+        if( (pow1 | pow2 | pow3) == 0 ) {
+            if( pow0 == 0 )     // base^0 == 1
+                return push(1,0,0,0);
         }
-        if( base1 == 0 && base2 == 0 && base3 == 0 ) {
-            if( base0 == 0 )
-                // 0^pow == 0
+        if( (base1 | base2 | base3) == 0 ) {
+            if( base0 == 0 )    // 0^pow == 0
                 return push(0,0,0,0);
         }
         // Prolly BigInteger
         throw new TODO();
     }
+
+
+    // Pop 2 words and compare them.  Caller safety checked.
+    private int compareTo() {
+        long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
+        long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
+        int          rez = Long.compareUnsigned(rhs3,lhs3);
+        if( rez==0 ) rez = Long.compareUnsigned(rhs2,lhs2);
+        if( rez==0 ) rez = Long.compareUnsigned(rhs1,lhs1);
+        if( rez==0 ) rez = Long.compareUnsigned(rhs0,lhs0);
+        return rez;
+    }
+
+    // Less Than
+    private ExceptionalHaltReason lt() {
+        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
+        if( halt!=null ) return halt;
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        return push( compareTo() < 0 ? 1 : 0);
+    }
+
+    // ---------------------
+    // Misc
+
+    private ExceptionalHaltReason codeCopy() {
+        if( _sp < 3 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        long memOff = popLong();
+        long srcOff = popLong();
+        long len    = popLong();
+        if( (memOff | srcOff | len) < 0 )
+            return ExceptionalHaltReason.INVALID_OPERATION;
+        if( (memOff | srcOff | len) >= Integer.MAX_VALUE )
+            return ExceptionalHaltReason.INSUFFICIENT_GAS;
+        var halt = useGas(_gasCalc.dataCopyOperationGasCost(_frame, memOff, len));
+        if( halt!=null ) return halt;
+
+        _mem.write((int)memOff, _codes, (int)srcOff, (int)len);
+        return null;
+    }
+
+
+    // Push size of call data
+    private ExceptionalHaltReason callDataSize() {
+        return pushLong( _frame.getInputData().size() );
+    }
+
 }

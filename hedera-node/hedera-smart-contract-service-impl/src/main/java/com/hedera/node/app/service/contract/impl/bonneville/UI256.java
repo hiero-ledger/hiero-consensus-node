@@ -4,8 +4,16 @@ package com.hedera.node.app.service.contract.impl.bonneville;
 import org.apache.tuweni.units.bigints.UInt256;
 import com.hedera.node.app.service.contract.impl.utils.TODO;
 
+import java.util.function.Supplier;
+
 // Utility for interning UInt256 from parts
 public abstract class UI256 {
+
+    public static class Wrap implements Supplier<UInt256> {
+        UInt256 _u;
+        @Override public UInt256 get() { return _u; }
+    }
+
 
     static UInt256 intern( long x0, long x1, long x2, long x3 ) {
         if( x1==0 && x2==0 && x3==0 ) {
@@ -21,12 +29,6 @@ public abstract class UI256 {
         for( int i=0; i<8; i++ )
             x |= u.get( (idx<<3)+i ) << ((7-i)<<3);
         return x;
-    }
-    static void putLong( byte[] dst, int off, long x ) {
-        for( int i=0; i<8; i++ ) {
-            dst[off + 7-i] = (byte)x;
-            x >>= 8;
-        }
     }
 
 
