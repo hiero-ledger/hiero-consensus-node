@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.regression.system;
 import static com.hedera.hapi.util.HapiUtils.asReadableIp;
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.CLASSIC_HAPI_TEST_NETWORK_SIZE;
 import static com.hedera.services.bdd.junit.TestTags.UPGRADE;
+import static com.hedera.services.bdd.junit.hedera.NodeSelector.allNodes;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.exceptNodeIds;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.CLASSIC_NODE_NAMES;
@@ -11,6 +12,7 @@ import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classi
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.entryById;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.nodeIdsFrom;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.VALID_CERT;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asServiceEndpoint;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.operations.transactions.TouchBalancesOperation.touchBalanceOf;
@@ -29,6 +31,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustInc
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateCandidateRoster;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateNodeAccountIdTable;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator.EXISTENCE_ONLY_VALIDATOR;
@@ -207,6 +210,8 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                 prepareFakeUpgrade(),
                 validateCandidateRoster(
                         addressBook -> assertThat(nodeIdsFrom(addressBook)).containsExactlyInAnyOrder(0L, 2L, 3L)),
+                doingContextual(spec -> validateNodeAccountIdTable(allNodes(), table -> assertThat(table)
+                        .doesNotContain(nodeIdAccountIdTableEntry(1, classicFeeCollectorIdFor(1), spec)))),
                 upgradeToNextConfigVersion(ENV_OVERRIDES, FakeNmt.removeNode(byNodeId(1))),
                 waitUntilStartOfNextStakingPeriod(1).withBackgroundTraffic(),
                 touchBalanceOf(NODE0_STAKER, NODE2_STAKER, NODE3_STAKER).andAssertStakingRewardCount(3),
@@ -232,6 +237,8 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                 prepareFakeUpgrade(),
                 validateCandidateRoster(
                         addressBook -> assertThat(nodeIdsFrom(addressBook)).containsExactlyInAnyOrder(0L, 2L)),
+                doingContextual(spec -> validateNodeAccountIdTable(allNodes(), table -> assertThat(table)
+                        .doesNotContain(nodeIdAccountIdTableEntry(3, classicFeeCollectorIdFor(3), spec)))),
                 upgradeToNextConfigVersion(ENV_OVERRIDES, FakeNmt.removeNode(byNodeId(3))),
                 waitUntilStartOfNextStakingPeriod(1).withBackgroundTraffic(),
                 touchBalanceOf(NODE0_STAKER, NODE2_STAKER).andAssertStakingRewardCount(2),
@@ -253,6 +260,8 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                 // node4 was not active before this the upgrade, so it could not have written a config.txt
                 validateCandidateRoster(exceptNodeIds(4L), addressBook -> assertThat(nodeIdsFrom(addressBook))
                         .contains(4L)),
+                doingContextual(spec -> validateNodeAccountIdTable(allNodes(), table -> assertThat(table)
+                        .doesNotContain(nodeIdAccountIdTableEntry(4, classicFeeCollectorIdFor(4), spec)))),
                 upgradeToNextConfigVersion(ENV_OVERRIDES, FakeNmt.addNode(4L)));
     }
 
@@ -316,6 +325,10 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     // Now make some changes that should not be incorporated in this upgrade
                     nodeDelete("5"),
                     nodeDelete("2"),
+                    doingContextual(spec -> validateNodeAccountIdTable(allNodes(), table -> assertThat(table)
+                            .containsExactly(
+                                    nodeIdAccountIdTableEntry(0, classicFeeCollectorIdFor(0), spec),
+                                    nodeIdAccountIdTableEntry(2, classicFeeCollectorIdFor(902), spec)))),
                     validateCandidateRoster(
                             NodeSelector.allNodes(), DabEnabledUpgradeTest::validateNodeId5MultipartEdits),
                     upgradeToNextConfigVersion(
@@ -364,5 +377,9 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
         final var classicIds =
                 LongStream.range(0, CLASSIC_HAPI_TEST_NETWORK_SIZE).boxed().collect(toSet());
         assertEquals(classicIds, entries.stream().map(RosterEntry::nodeId).collect(toSet()), "Wrong ids");
+    }
+
+    private static Map.Entry<Long, String> nodeIdAccountIdTableEntry(long nodeId, long accountNum, HapiSpec spec) {
+        return Map.entry(nodeId, asEntityString(spec.shard(), spec.realm(), accountNum));
     }
 }
