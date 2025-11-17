@@ -719,10 +719,10 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         final Pipeline<? super PublishStreamRequest> pipeline = requestPipelineRef.get();
 
         if (getConnectionState() != ConnectionState.ACTIVE || pipeline == null) {
-            logger.warn(
+            logger.debug(
                     "{} Tried to send a request but the connection is not active or initialized; ignoring request",
                     this);
-            return false; // can't send the request
+            return false;
         }
 
         if (request instanceof final BlockRequest br) {
