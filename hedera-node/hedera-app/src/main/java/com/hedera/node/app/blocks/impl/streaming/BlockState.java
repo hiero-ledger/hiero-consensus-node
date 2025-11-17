@@ -39,6 +39,10 @@ public class BlockState {
      * The timestamp associated with when this block was opened.
      */
     private volatile Instant openedTimestamp;
+    /**
+     * The size of the block in bytes.
+     */
+    private long sizeBytes;
 
     /**
      * Create a new block state object.
@@ -69,6 +73,7 @@ public class BlockState {
         if (item.hasBlockHeader()) {
             openedTimestamp = Instant.now();
         }
+        sizeBytes += item.protobufSize();
     }
 
     /**
@@ -83,6 +88,13 @@ public class BlockState {
      */
     public boolean isClosed() {
         return closedTimestamp != null;
+    }
+
+    /**
+     * @return the size of the block in bytes
+     */
+    public long sizeBytes() {
+        return sizeBytes;
     }
 
     /**

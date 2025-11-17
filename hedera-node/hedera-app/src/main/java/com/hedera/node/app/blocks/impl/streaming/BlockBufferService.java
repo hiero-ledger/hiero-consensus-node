@@ -366,6 +366,7 @@ public class BlockBufferService {
         }
         blockStreamMetrics.recordBlockClosed();
         blockStreamMetrics.recordBlockItemsPerBlock(blockState.itemCount());
+        blockStreamMetrics.recordBlockBytes(blockState.sizeBytes());
         blockState.closeBlock();
     }
 

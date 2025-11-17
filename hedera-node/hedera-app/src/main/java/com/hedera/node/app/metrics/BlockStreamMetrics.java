@@ -39,6 +39,7 @@ public class BlockStreamMetrics {
     private LongGauge connSend_streamingBlockNumberGauge;
     private RunningAverageMetric buffer_blockItemsPerBlock;
     private RunningAverageMetric buffer_blockItemBytes;
+    private RunningAverageMetric buffer_blockBytes;
     private RunningAverageMetric connSend_requestBytes;
     private RunningAverageMetric connSend_requestBlockItemCount;
     private final Map<PublishStreamRequest.RequestOneOfType, Counter> connSend_counters =
@@ -158,6 +159,12 @@ public class BlockStreamMetrics {
                 .withDescription("The average size in bytes of a BlockItem in the buffer")
                 .withFormat("%,.2f");
         buffer_blockItemBytes = metrics.getOrCreate(blockItemBytesCfg);
+
+        final RunningAverageMetric.Config blockBytesCfg = new RunningAverageMetric.Config(
+                        CATEGORY, GROUP_BUFFER + "_blockBytes")
+                .withDescription("The average size in bytes of a Block in the buffer")
+                .withFormat("%,.2f");
+        buffer_blockBytes = metrics.getOrCreate(blockBytesCfg);
     }
 
     /**
@@ -379,13 +386,6 @@ public class BlockStreamMetrics {
     }
 
     /**
-     * Record that streaming a block was attempted but there was no active connection to a block node.
-     */
-    public void recordNoActiveConnection() {
-        conn_noActiveCounter.increment();
-    }
-
-    /**
      * Record that establishing a connection to a block node failed.
      */
     public void recordConnectionCreateFailure() {
@@ -517,6 +517,14 @@ public class BlockStreamMetrics {
         if (counter != null) {
             counter.increment();
         }
+    }
+
+    /**
+     * Record the size (in bytes) of a Block.
+     * @param numBytes the size of the Block in bytes
+     */
+    public void recordBlockBytes(final long numBytes) {
+        buffer_blockBytes.update(numBytes);
     }
 
     /**
