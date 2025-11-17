@@ -1054,7 +1054,7 @@ final class TransactionCheckerTest extends AppTestBase {
                                 .withValue("governanceTransactions.isEnabled", true)
                                 .withValue("governanceTransactions.maxTxnSize", MAX_LARGE_TX_SIZE) // 130 KB
                                 .withValue("hedera.transaction.maxBytes", MAX_TX_SIZE) // 6 KB
-                                .withValue("apiPermission.governanceTransactions", "2,42-799")
+                                .withValue("accounts.governanceTransactions", "2,42-799")
                                 .getOrCreateConfig(),
                         1);
 
@@ -1082,7 +1082,7 @@ final class TransactionCheckerTest extends AppTestBase {
                                 .withValue("governanceTransactions.isEnabled", true)
                                 .withValue("governanceTransactions.maxTxnSize", MAX_LARGE_TX_SIZE) // 130 KB
                                 .withValue("hedera.transaction.maxBytes", MAX_TX_SIZE) // 6 KB
-                                .withValue("apiPermission.governanceTransactions", "2,42-799")
+                                .withValue("accounts.governanceTransactions", "2,42-799")
                                 .getOrCreateConfig(),
                         1);
 
@@ -1127,7 +1127,7 @@ final class TransactionCheckerTest extends AppTestBase {
                                 .withValue("governanceTransactions.isEnabled", true)
                                 .withValue("governanceTransactions.maxTxnSize", MAX_LARGE_TX_SIZE) // 130 KB
                                 .withValue("hedera.transaction.maxBytes", MAX_TX_SIZE) // 6 KB
-                                .withValue("apiPermission.governanceTransactions", "2,42-799")
+                                .withValue("accounts.governanceTransactions", "2,42-799")
                                 .getOrCreateConfig(),
                         1);
 

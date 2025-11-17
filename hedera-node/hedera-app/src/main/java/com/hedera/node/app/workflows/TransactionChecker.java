@@ -37,7 +37,7 @@ import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.workflows.prehandle.DueDiligenceException;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.ApiPermissionConfig;
+import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.GovernanceTransactionsConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
@@ -96,7 +96,7 @@ public class TransactionChecker {
 
     private final HederaConfig hederaConfig;
     private final JumboTransactionsConfig jumboTransactionsConfig;
-    private final ApiPermissionConfig apiPermissionConfig;
+    private final AccountsConfig accountsConfig;
     private final GovernanceTransactionsConfig governanceTransactionsConfig;
 
     // TODO We need to incorporate the check for "TRANSACTION_TOO_MANY_LAYERS". "maxProtoMessageDepth" is a property
@@ -121,8 +121,8 @@ public class TransactionChecker {
                         .withDescription(NON_PRIVILEGED_OVERSIZED_TXNS_DESC));
 
         hederaConfig = configProvider.getConfiguration().getConfigData(HederaConfig.class);
+        accountsConfig = configProvider.getConfiguration().getConfigData(AccountsConfig.class);
         jumboTransactionsConfig = configProvider.getConfiguration().getConfigData(JumboTransactionsConfig.class);
-        apiPermissionConfig = configProvider.getConfiguration().getConfigData(ApiPermissionConfig.class);
         governanceTransactionsConfig =
                 configProvider.getConfiguration().getConfigData(GovernanceTransactionsConfig.class);
     }
@@ -420,7 +420,7 @@ public class TransactionChecker {
         final int txSize = txInfo.signedTx().protobufSize();
         // Check if the payer is privileged (treasury or systemAdmin)
         final boolean isPrivilegedPayer =
-                apiPermissionConfig.governanceTransactions().contains(payerAccountId.accountNumOrElse(0L));
+                accountsConfig.governanceTransactions().contains(payerAccountId.accountNumOrElse(0L));
 
         if (isPrivilegedPayer) {
             exceedsLimit = txSize > governanceTransactionsConfig.maxTxnSize();

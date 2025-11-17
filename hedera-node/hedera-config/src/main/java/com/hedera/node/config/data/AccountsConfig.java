@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.config.NetworkProperty;
+import com.hedera.node.config.types.PermissionedAccountsRange;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -25,7 +26,8 @@ public record AccountsConfig(
         @ConfigProperty(defaultValue = "2") @NetworkProperty long treasury,
         @ConfigProperty(defaultValue = "100000000") @NetworkProperty long maxNumber,
         @ConfigProperty(value = "blocklist.enabled", defaultValue = "false") @NetworkProperty boolean blocklistEnabled,
-        @ConfigProperty(value = "blocklist.path", defaultValue = "") @NetworkProperty String blocklistResource) {
+        @ConfigProperty(value = "blocklist.path", defaultValue = "") @NetworkProperty String blocklistResource,
+        @ConfigProperty(defaultValue = "2,42-799") PermissionedAccountsRange governanceTransactions) {
 
     /**
      * Check if the given account is a superuser.

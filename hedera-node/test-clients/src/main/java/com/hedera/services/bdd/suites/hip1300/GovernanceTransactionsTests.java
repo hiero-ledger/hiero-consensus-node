@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.hip1300;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -58,6 +59,7 @@ public class GovernanceTransactionsTests implements LifecycleTest {
 
     @HapiTest
     @Order(0)
+    @Tag(ONLY_SUBPROCESS)
     @DisplayName("Normal account cannot submit more than 6KB transactions when the feature is disabled")
     public Stream<DynamicTest> nonPrivilegedAccountCannotSubmitLargeSizeTransactions() {
         final var largeSizeMemo = new String(randomMemoBytes, StandardCharsets.UTF_8);
@@ -77,6 +79,7 @@ public class GovernanceTransactionsTests implements LifecycleTest {
 
     @HapiTest
     @Order(1)
+    @Tag(ONLY_SUBPROCESS)
     @DisplayName(
             "Treasury and system admin accounts cannot submit more than 6KB transactions when the feature is disabled")
     public Stream<DynamicTest> privilegedAccountsCannotSubmitLargeSizeTransactions() {
@@ -107,6 +110,7 @@ public class GovernanceTransactionsTests implements LifecycleTest {
 
     @HapiTest
     @Order(2)
+    @Tag(ONLY_SUBPROCESS)
     @DisplayName("Update the governance config to enable governance transactions")
     public Stream<DynamicTest> updateTheConfig() {
         return hapiTest(
@@ -118,6 +122,7 @@ public class GovernanceTransactionsTests implements LifecycleTest {
 
     @HapiTest
     @Order(3)
+    @Tag(ONLY_SUBPROCESS)
     @DisplayName("Normal account still cannot submit more than 6KB transactions when the feature is enabled")
     public Stream<DynamicTest> nonPrivilegedAccountStillCannotSubmitLargeSizeTransactionsIfEnabled() {
         final var largeSizeMemo = new String(randomMemoBytes, StandardCharsets.UTF_8);
@@ -137,6 +142,7 @@ public class GovernanceTransactionsTests implements LifecycleTest {
 
     @HapiTest
     @Order(4)
+    @Tag(ONLY_SUBPROCESS)
     @DisplayName("Treasury and system admin accounts can submit more than 6KB transactions when the feature is enabled")
     public Stream<DynamicTest> privilegedAccountCanSubmitLargeSizeTransactions() {
         final var largeSizeMemo = new String(randomMemoBytes, StandardCharsets.UTF_8);

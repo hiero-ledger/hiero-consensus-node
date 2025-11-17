@@ -194,8 +194,6 @@ import java.util.function.Function;
  * @param createNode                  the permission for {@link HederaFunctionality#NODE_CREATE} functionality
  * @param updateNode                  the permission for {@link HederaFunctionality#NODE_UPDATE} functionality
  * @param deleteNode                  the permission for {@link HederaFunctionality#NODE_DELETE} functionality
- *
- * @param governanceTransactions      the permission for submitting large transactions for every transaction type
  */
 @ConfigData
 public record ApiPermissionConfig(
@@ -284,8 +282,7 @@ public record ApiPermissionConfig(
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange crsPublication,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange lambdaSStore,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange hookDispatch,
-        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange nodeStakeUpdate,
-        @ConfigProperty(defaultValue = "2,42-799") PermissionedAccountsRange governanceTransactions) {
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange nodeStakeUpdate) {
 
     private static final EnumMap<HederaFunctionality, Function<ApiPermissionConfig, PermissionedAccountsRange>>
             permissionKeys = new EnumMap<>(HederaFunctionality.class);
