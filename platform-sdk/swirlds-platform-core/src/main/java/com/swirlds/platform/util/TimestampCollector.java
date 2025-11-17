@@ -72,18 +72,13 @@ public enum TimestampCollector {
         CONSENSUS_REACHED
     }
 
-    public enum EventSource {
-        BROADCAST,
-        SYNC
-    }
-
     private static final int GAP = 100;
     private static final int MAX_ELEMENTS = 1000;
     private static final Duration WARMUP = Duration.ofMinutes(1L);
     private static final long WARMUP_NANOS = System.nanoTime() + WARMUP.toNanos();
 
     private final AtomicLong counter = new AtomicLong();
-    private final long[][] timestamps = new long[MAX_ELEMENTS][Position.values().length + 1];
+    private final long[][] timestamps = new long[MAX_ELEMENTS][Position.values().length];
     private final AtomicBoolean done = new AtomicBoolean(false);
 
     private NodeId selfId;
@@ -103,14 +98,13 @@ public enum TimestampCollector {
      * @param event the platform event to register
      * @return the index assigned to the event for timestamp collection, or -1 if the event will not be tracked
      */
-    public int register(@NonNull final PlatformEvent event, @NonNull final EventSource eventSource) {
+    public int register(@NonNull final PlatformEvent event) {
         if (System.nanoTime() > WARMUP_NANOS) {
             final long count = counter.incrementAndGet();
             if (count % TimestampCollector.GAP == 0) {
                 final int index = (int) (count / TimestampCollector.GAP);
                 if (index < MAX_ELEMENTS) {
                     event.setTimestampIndex(index);
-                    timestamps[index][0] = eventSource.ordinal();
                     timestamp(Position.GOSSIP_ENTERED, event);
                     return index;
                 } else if (index == MAX_ELEMENTS) {
@@ -130,7 +124,7 @@ public enum TimestampCollector {
     public void timestamp(@NonNull final Position position, @NonNull final PlatformEvent event) {
         final int index = event.getTimestampIndex();
         if (index >= 0) {
-            timestamps[index][position.ordinal() + 1] = System.nanoTime();
+            timestamps[index][position.ordinal()] = System.nanoTime();
         }
     }
 

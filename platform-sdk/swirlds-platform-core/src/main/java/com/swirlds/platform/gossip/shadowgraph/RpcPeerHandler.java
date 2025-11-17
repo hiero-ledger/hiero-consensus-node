@@ -19,7 +19,6 @@ import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.reconnect.FallenBehindStatus;
 import com.swirlds.platform.util.TimestampCollector;
-import com.swirlds.platform.util.TimestampCollector.EventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
@@ -336,7 +335,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         this.syncMetrics.broadcastEventReceived();
         final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
 
-        TimestampCollector.INSTANCE.register(platformEvent, EventSource.BROADCAST);
+        TimestampCollector.INSTANCE.register(platformEvent);
 
         eventHandler.accept(platformEvent);
     }
@@ -476,7 +475,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
         platformEvent.setSenderId(peerId);
 
-        TimestampCollector.INSTANCE.register(platformEvent, EventSource.SYNC);
+//        TimestampCollector.INSTANCE.register(platformEvent);
 
         this.intakeEventCounter.eventEnteredIntakePipeline(peerId);
         eventHandler.accept(platformEvent);
