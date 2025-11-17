@@ -18,7 +18,7 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.network.utils.LatencyRange;
+import org.hiero.otter.fixtures.network.LatencyRange;
 
 /**
  * An experiment that introduces high latency to all connections of a target node for a duration.

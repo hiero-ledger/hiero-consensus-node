@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.blocks.BlockStreamManager.ZERO_BLOCK_HASH;
+import static com.hedera.node.app.quiescence.QuiescenceUtils.isRelevantTransaction;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.nodeSignedTxWith;
 import static com.hedera.node.app.util.HederaAsciiArt.HEDERA;
@@ -90,14 +91,17 @@ import com.hedera.node.app.throttle.AppThrottleFactory;
 import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.tss.TssBaseServiceImpl;
+import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.HandleWorkflow;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
+import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.Utils;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
+import com.hedera.node.config.data.QuiescenceConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.types.StreamMode;
@@ -113,7 +117,6 @@ import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
@@ -151,6 +154,7 @@ import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.model.event.Event;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -191,7 +195,7 @@ import org.hiero.consensus.transaction.TransactionPoolNexus;
  * including its state. It constructs the Dagger dependency tree, and manages the gRPC server, and in all other ways,
  * controls execution of the node. If you want to understand our system, this is a great place to start!
  */
-public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gossip {
+public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gossip, Consumer<PlatformEvent> {
 
     private static final Logger logger = LogManager.getLogger(Hedera.class);
 
@@ -360,6 +364,9 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
      * The action to take, if any, when a consensus round is sealed.
      */
     private final BiPredicate<Round, State> onSealConsensusRound;
+
+    private final boolean quiescenceEnabled;
+
     /**
      * Once set, a future that resolves to the hash of the state used to initialize the application. This is known
      * immediately at genesis or on restart from a saved state; during reconnect, it is known when reconnect
@@ -468,6 +475,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         bootstrapConfigProvider = new BootstrapConfigProviderImpl();
         final var bootstrapConfig = bootstrapConfigProvider.getConfiguration();
         hapiVersion = bootstrapConfig.getConfigData(VersionConfig.class).hapiVersion();
+        quiescenceEnabled =
+                bootstrapConfig.getConfigData(QuiescenceConfig.class).enabled();
         final var versionConfig = bootstrapConfig.getConfigData(VersionConfig.class);
         version = versionConfig
                 .servicesVersion()
@@ -604,9 +613,42 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
     }
 
     @Override
+    public void accept(@NonNull final PlatformEvent event) {
+        requireNonNull(event);
+        if (quiescenceEnabled && daggerApp != null) {
+            // First set a minimal PreHandleResult on every event so the quiescence controller can classify them
+            final var transactions = new ArrayList<Transaction>(1000);
+            event.forEachTransaction(transactions::add);
+            final int maxBytes = configProvider
+                    .getConfiguration()
+                    .getConfigData(HederaConfig.class)
+                    .nodeTransactionMaxBytes();
+            transactions.stream().parallel().forEach(tx -> {
+                TransactionInfo txInfo = null;
+                try {
+                    txInfo = daggerApp
+                            .transactionChecker()
+                            .parseSignedAndCheck(tx.getApplicationTransaction(), maxBytes);
+                } catch (PreCheckException ignore) {
+                }
+                tx.setMetadata(PreHandleResult.shortCircuitingTransaction(txInfo));
+            });
+            daggerApp.quiescenceController().staleEvent(event);
+            // If this is a self-created event, decrement in-flight counts by stale transactions that landed
+            if (event.getCreatorId().equals(platform.getSelfId())) {
+                daggerApp.txPipelineTracker().countLanded(transactions.iterator());
+            }
+        }
+    }
+
+    @Override
     public void newPlatformStatus(@NonNull final PlatformStatus platformStatus) {
         this.platformStatus = platformStatus;
         transactionPool.updatePlatformStatus(platformStatus);
+        if (daggerApp != null) {
+            // No-op if quiescence is disabled
+            daggerApp.quiescenceController().platformStatusUpdate(platformStatus);
+        }
         logger.info("HederaNode#{} is {}", platform.getSelfId(), platformStatus.name());
         final var streamToBlockNodes = configProvider
                 .getConfiguration()
@@ -854,6 +896,9 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             }
             final var payload = SignedTransaction.PROTOBUF.toBytes(nodeSignedTxWith(body));
             requireNonNull(daggerApp).submissionManager().submit(body, payload);
+            if (quiescenceEnabled && isRelevantTransaction(body)) {
+                daggerApp.txPipelineTracker().incrementInFlight();
+            }
         } catch (PreCheckException e) {
             final var reason = e.responseCode();
             if (reason == DUPLICATE_TRANSACTION) {
@@ -957,32 +1002,25 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             @NonNull final State state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         final var readableStoreFactory = new ReadableStoreFactory(state);
+        // Will be null if the submitting node is no longer in the address book
         final var creatorInfo =
                 daggerApp.networkInfo().nodeInfo(event.getCreatorId().id());
-        if (creatorInfo == null) {
-            // It's normal immediately post-upgrade to still see events from a node removed from the address book
-            final var platformStateStore = readableStoreFactory.getStore(ReadablePlatformStateStore.class);
-            if (event.getEventCore().birthRound() > platformStateStore.getLatestFreezeRound()) {
-                logger.warn(
-                        "Received event with birth round {}, last freeze round is {}, from node {} "
-                                + "which is not in the address book",
-                        event.getEventCore().birthRound(),
-                        platformStateStore.getLatestFreezeRound(),
-                        event.getCreatorId());
-            }
-            return;
-        }
-
         final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback = (txn, ignored) -> {
             final var scopedTxn = new ScopedSystemTransaction<>(event.getCreatorId(), event.getBirthRound(), txn);
             stateSignatureTxnCallback.accept(scopedTxn);
         };
-
         final var transactions = new ArrayList<Transaction>(1000);
         event.forEachTransaction(transactions::add);
         daggerApp
                 .preHandleWorkflow()
                 .preHandle(readableStoreFactory, creatorInfo, transactions.stream(), shortCircuitTxnCallback);
+        if (quiescenceEnabled) {
+            daggerApp.quiescenceController().onPreHandle(transactions);
+            // If this is a self-created event, decrement in-flight counts by the transactions that landed
+            if (event.getCreatorId().equals(platform.getSelfId())) {
+                daggerApp.txPipelineTracker().countLanded(event.transactionIterator());
+            }
+        }
     }
 
     public void onNewRecoveredState() {

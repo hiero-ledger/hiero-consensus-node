@@ -21,6 +21,7 @@ produced by a given consensus node in an ordered manner.
 - Provides an interface for access any block that is held in the buffer.
 - Regularly prunes the buffer to reclaim memory after a block has been acknowledged and exceeded the max TTL.
 - Monitors the buffer for saturation (i.e. too many blocks unacknowledged) and applies back pressure if necessary.
+- Persists the buffer to disk for recovery purposes (only when `streamMode` is `BLOCKS`).
 
 ## State Management and Flow
 
@@ -157,6 +158,9 @@ be re-created.
 To address this issue, a secondary mechanism is in place: persisting the buffer itself. Upon being notified a state save
 has occurred, all the blocks in the buffer will be written to disk, regardless of if some may be covered by PCES replay.
 Upon startup of the block buffer service, an attempt will be made to load the most recent blocks from disk.
+
+**Note:** Block buffer persistence only occurs when `blockStream.streamMode` is set to `BLOCKS`. When streaming in
+`RECORDS` mode, the buffer is not persisted to disk.
 
 ## Sequence Diagrams
 
