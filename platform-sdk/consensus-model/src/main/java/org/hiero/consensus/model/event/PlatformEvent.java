@@ -38,16 +38,6 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     /** The time this event was received via gossip */
     private Instant timeReceived;
 
-    private int index;
-
-    public int getIndex() {
-        return index;
-    }
-
-    public void setIndex(final int index) {
-        this.index = index;
-    }
-
     /**
      * The id of the node which sent us this event
      * <p>

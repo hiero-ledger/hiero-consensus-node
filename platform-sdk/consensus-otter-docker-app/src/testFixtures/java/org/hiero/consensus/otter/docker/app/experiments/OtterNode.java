@@ -5,14 +5,12 @@ import static org.hiero.otter.fixtures.internal.helpers.Utils.createConfiguratio
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.io.config.FileSystemManagerConfig_;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.metrics.config.MetricsConfig_;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.PathsConfig_;
-import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.listeners.PlatformStatusChangeNotification;
 import com.swirlds.platform.util.TimestampCollector;
@@ -24,18 +22,13 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.function.Consumer;
 import org.hiero.consensus.config.EventConfig_;
-import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.otter.docker.app.platform.ConsensusNodeManager;
 
 public class OtterNode {
-
-    private IntakeEventCounter intakeEventCounter;
-    private Consumer<PlatformEvent> eventHandler;
 
     public void start(
             @NonNull final NodeId selfId, @NonNull final KeysAndCerts keysAndCerts, @NonNull final Roster roster) {
@@ -74,9 +67,6 @@ public class OtterNode {
             consensusNodeManager.registerPlatformStatusChangeListener(new Listener(latch));
             consensusNodeManager.start();
 
-            intakeEventCounter = consensusNodeManager.intakeEventCounter();
-            eventHandler = consensusNodeManager.eventHandler();
-
             System.out.println("Waiting for OtterNode to become ACTIVE");
             latch.await();
             System.out.println("OtterNode started successfully");
@@ -106,16 +96,6 @@ public class OtterNode {
                 outputDirectory.resolve("data/apps").toString(),
                 PathsConfig_.MARKER_FILES_DIR,
                 outputDirectory.resolve("data/saved/marker_files").toString());
-    }
-
-    public void processEvent(@NonNull final GossipEvent gossipEvent) {
-        final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
-        final NodeId sender = NodeId.of(gossipEvent.eventCore().creatorNodeId());
-        platformEvent.setSenderId(sender);
-        TimestampCollector.INSTANCE.register(platformEvent);
-        intakeEventCounter.eventEnteredIntakePipeline(sender);
-
-        eventHandler.accept(platformEvent);
     }
 
     private record Listener(CountDownLatch latch) implements PlatformStatusChangeListener {
