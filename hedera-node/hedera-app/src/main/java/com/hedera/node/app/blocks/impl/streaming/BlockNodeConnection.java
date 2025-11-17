@@ -399,7 +399,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * notifying the connection manager and calling onComplete on the request pipeline.
      */
     public void handleStreamFailure() {
-        logger.debug("{} Handling failed stream.", this);
+        logger.info("{} Handling failed stream.", this);
         closeAndReschedule(THIRTY_SECONDS, true);
     }
 
@@ -408,7 +408,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * notifying the connection manager without calling onComplete on the request pipeline.
      */
     public void handleStreamFailureWithoutOnComplete() {
-        logger.debug("{} Handling failed stream without onComplete.", this);
+        logger.info("{} Handling failed stream without onComplete.", this);
         closeAndReschedule(THIRTY_SECONDS, false);
     }
 
@@ -510,7 +510,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 // The block node had an end of stream error and cannot continue processing.
                 // We should wait for a short period before attempting to retry
                 // to avoid overwhelming the node if it's having issues
-                logger.debug(
+                logger.info(
                         "{} Block node reported an error at block {}. Will attempt to reestablish the stream later.",
                         this,
                         blockNumber);
@@ -521,7 +521,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 // We should restart the stream at the block immediately
                 // following the last verified and persisted block number
                 final long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
-                logger.debug(
+                logger.info(
                         "{} Block node reported status indicating immediate restart should be attempted. "
                                 + "Will restart stream at block {}.",
                         this,
@@ -540,7 +540,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 // restart the stream from there
                 final long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
                 if (blockBufferService.getBlockState(restartBlockNumber) != null) {
-                    logger.debug(
+                    logger.info(
                             "{} Block node reported it is behind. Will restart stream at block {}.",
                             this,
                             restartBlockNumber);
@@ -549,7 +549,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 } else {
                     // If we don't have the block state, we schedule retry for this connection and establish new one
                     // with different block node
-                    logger.debug("{} Block node is behind and block state is not available. Ending the stream.", this);
+                    logger.info("{} Block node is behind and block state is not available. Ending the stream.", this);
 
                     // Indicate that the block node should recover and catch up from another trustworthy block node
                     endStreamAndReschedule(TOO_FAR_BEHIND);
@@ -558,7 +558,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             case Code.UNKNOWN -> {
                 // This should never happen, but if it does, schedule this connection for a retry attempt
                 // and in the meantime select a new node to stream to
-                logger.debug("{} Block node reported an unknown error at block {}.", this, blockNumber);
+                logger.info("{} Block node reported an unknown error at block {}.", this, blockNumber);
                 closeAndReschedule(THIRTY_SECONDS, true);
             }
         }
@@ -607,7 +607,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         } else {
             // If we don't have the block state, we schedule retry for this connection and establish new one
             // with different block node
-            logger.debug(
+            logger.info(
                     "{} Block node requested a ResendBlock for block {} but that block does not exist "
                             + "on this consensus node. Closing connection and will retry later.",
                     this,
@@ -752,7 +752,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             return;
         }
 
-        logger.debug("{} Closing connection.", this);
+        logger.info("{} Closing connection.", this);
 
         try {
             closePipeline(callOnComplete);
@@ -1110,10 +1110,20 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     return true;
                 }
             } catch (final UncheckedIOException e) {
-                logger.debug("{} UncheckedIOException caught in connection worker thread", BlockNodeConnection.this, e);
+                logger.warn(
+                        "{} UncheckedIOException caught in connection worker thread (block={}, request={})",
+                        BlockNodeConnection.this,
+                        block.blockNumber(),
+                        requestCtr.get(),
+                        e);
                 handleStreamFailureWithoutOnComplete();
             } catch (final Exception e) {
-                logger.debug("{} Exception caught in connection worker thread", BlockNodeConnection.this, e);
+                logger.warn(
+                        "{} Exception caught in connection worker thread (block={}, request={})",
+                        BlockNodeConnection.this,
+                        block.blockNumber(),
+                        requestCtr.get(),
+                        e);
                 handleStreamFailure();
             }
 
