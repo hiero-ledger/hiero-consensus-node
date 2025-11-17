@@ -20,7 +20,6 @@ import java.util.stream.IntStream;
 import org.hiero.metrics.api.LongCounter;
 import org.hiero.metrics.api.core.Label;
 import org.hiero.metrics.api.core.MetricRegistry;
-import org.hiero.metrics.api.core.MetricsFacade;
 import org.hiero.metrics.api.export.MetricsExportManager;
 import org.hiero.metrics.api.export.PullingMetricsExporter;
 import org.hiero.metrics.api.export.extension.PullingMetricsExporterAdapter;
@@ -52,8 +51,12 @@ public class SinglePullingExporterMetricsExportManagerTest {
     void testConflictingGlobalLabelsThrows() {
         MetricsExportManager manager = createManager();
 
-        manager.manageMetricRegistry(MetricsFacade.createRegistry(new Label("region", "us-east-1")));
-        MetricRegistry registry = MetricsFacade.createRegistry(new Label("region", "us-east-1"));
+        manager.manageMetricRegistry(MetricRegistry.builder()
+                .addGlobalLabel(new Label("region", "us-east-1"))
+                .build());
+        MetricRegistry registry = MetricRegistry.builder()
+                .addGlobalLabels(new Label("region", "us-east-1"))
+                .build();
 
         assertThatThrownBy(() -> manager.manageMetricRegistry(registry))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -68,7 +71,7 @@ public class SinglePullingExporterMetricsExportManagerTest {
 
         // check no threads without and with managed registry
         assertThat(manager.hasRunningExportThread()).isFalse();
-        manager.manageMetricRegistry(MetricsFacade.createRegistry());
+        manager.manageMetricRegistry(MetricRegistry.builder().build());
         assertThat(manager.hasRunningExportThread()).isFalse();
     }
 
@@ -81,17 +84,17 @@ public class SinglePullingExporterMetricsExportManagerTest {
         assertThat(exporter.getSnapshot()).isEmpty();
 
         // after managing a registry, snapshot should be available
-        manager.manageMetricRegistry(MetricsFacade.createRegistry());
+        manager.manageMetricRegistry(MetricRegistry.builder().build());
         assertThat(exporter.getSnapshot()).isPresent();
     }
 
     @Test
     void testManageSameRegistryInstanceTwiceThrows() {
         MetricsExportManager manager = createManager();
-        MetricRegistry registry = MetricsFacade.createRegistry();
+        MetricRegistry registry = MetricRegistry.builder().build();
 
         manager.manageMetricRegistry(registry);
-        manager.manageMetricRegistry(MetricsFacade.createRegistry());
+        manager.manageMetricRegistry(MetricRegistry.builder().build());
 
         assertThatThrownBy(() -> manager.manageMetricRegistry(registry))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -104,28 +107,32 @@ public class SinglePullingExporterMetricsExportManagerTest {
         MetricsExportManager manager = createManager(exporter);
         assertThat(exporter.getSnapshot()).isEmpty();
 
-        MetricRegistry registry1 = MetricsFacade.createRegistry(new Label("region", "us-east-1"));
+        MetricRegistry registry1 = MetricRegistry.builder()
+                .addGlobalLabel(new Label("region", "us-east-1"))
+                .build();
         registry1.register(LongCounter.builder("counter1"));
         manager.manageMetricRegistry(registry1);
         Optional<MetricsSnapshot> optionalSnapshot = exporter.getSnapshot();
         assertThat(optionalSnapshot).isNotEmpty();
         verifySnapshotHasMetrics(optionalSnapshot.get(), "counter1");
 
-        MetricRegistry registry2 = MetricsFacade.createRegistry(new Label("region", "us-east-2"));
+        MetricRegistry registry2 = MetricRegistry.builder()
+                .addGlobalLabel(new Label("region", "us-east-2"))
+                .build();
         registry2.register(LongCounter.builder("counter2"));
         manager.manageMetricRegistry(registry2);
         optionalSnapshot = exporter.getSnapshot();
         assertThat(optionalSnapshot).isNotEmpty();
         verifySnapshotHasMetrics(optionalSnapshot.get(), "counter1", "counter2");
 
-        MetricRegistry registry3 = MetricsFacade.createRegistry();
+        MetricRegistry registry3 = MetricRegistry.builder().build();
         registry3.register(LongCounter.builder("counter3"));
         manager.manageMetricRegistry(registry3);
         optionalSnapshot = exporter.getSnapshot();
         assertThat(optionalSnapshot).isNotEmpty();
         verifySnapshotHasMetrics(optionalSnapshot.get(), "counter1", "counter2", "counter3");
 
-        MetricRegistry registry4 = MetricsFacade.createRegistry(); // second registry without global labels
+        MetricRegistry registry4 = MetricRegistry.builder().build(); // second registry without global labels
         registry4.register(LongCounter.builder("counter4"));
         manager.manageMetricRegistry(registry4);
         optionalSnapshot = exporter.getSnapshot();
@@ -140,7 +147,7 @@ public class SinglePullingExporterMetricsExportManagerTest {
 
         verify(exporter, never()).setSnapshotProvider(any());
 
-        manager.manageMetricRegistry(MetricsFacade.createRegistry());
+        manager.manageMetricRegistry(MetricRegistry.builder().build());
         verify(exporter).setSnapshotProvider(any());
 
         manager.shutdown();
@@ -169,7 +176,9 @@ public class SinglePullingExporterMetricsExportManagerTest {
         int registriesPerThread = 100;
         final MetricRegistry[] registries = IntStream.range(0, threadCount * registriesPerThread)
                 .mapToObj(i -> {
-                    MetricRegistry registry = MetricsFacade.createRegistry(new Label("region", "region_" + i));
+                    MetricRegistry registry = MetricRegistry.builder()
+                            .addGlobalLabel(new Label("region", "region_" + i))
+                            .build();
                     registry.register(LongCounter.builder("counter_" + i));
                     return registry;
                 })

@@ -23,6 +23,10 @@ public class MetricsExportManagerConfigTest {
                 .as("Export manager must be enabled by default.")
                 .isTrue();
 
+        assertThat(endpointConfig.exportIntervalSeconds())
+                .as("Export interval seconds should be 3 seconds by default.")
+                .isEqualTo(3);
+
         assertThat(endpointConfig.disabledExporters())
                 .as("Export manager disabled exporters must sbe null by default.")
                 .isNull();
