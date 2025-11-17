@@ -71,10 +71,10 @@ on:
         required: false
       gradle-cache-username:
         description: "Gradle Cache Username"
-        required: true
+        required: false
       gradle-cache-password:
         description: "Gradle Cache Password"
-        required: true
+        required: false
       grafana-agent-username:
         description: "Grafana Agent Username"
         required: false
