@@ -139,7 +139,7 @@ public class EventImpl implements Clearable {
      * @return the self parent of this
      */
     public @Nullable EventImpl getSelfParent() {
-        if (this.parents.isEmpty()) {
+        if (parents == null || parents.isEmpty()) {
             return null;
         }
         final EventImpl firstParent = parents.getFirst();
@@ -161,7 +161,7 @@ public class EventImpl implements Clearable {
     }
 
     public List<EventImpl> getOtherParents() {
-        if (this.parents.isEmpty()) {
+        if (parents == null || parents.isEmpty()) {
             return List.of();
         }
         final EventImpl firstParent = parents.getFirst();
