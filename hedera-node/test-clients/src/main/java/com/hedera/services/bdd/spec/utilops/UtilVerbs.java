@@ -2117,12 +2117,7 @@ public class UtilVerbs {
     }
 
     public static Stream<DynamicTest> compareSimpleToOld(
-            OpsProvider provider,
-            String txName,
-            double simpleFee,
-            double simpleDiff,
-            double oldFee,
-            double oldDiff) {
+            OpsProvider provider, String txName, double simpleFee, double simpleDiff, double oldFee, double oldDiff) {
         List<SpecOperation> opsList = new ArrayList<>();
 
         opsList.add(overriding("fees.simpleFeesEnabled", "true"));
@@ -2135,9 +2130,6 @@ public class UtilVerbs {
 
         return hapiTest(opsList.toArray(new SpecOperation[opsList.size()]));
     }
-
-
-
 
     public static CustomSpecAssert validateChargedUsdWithChild(
             String txn, double expectedUsd, double allowedPercentDiff) {
