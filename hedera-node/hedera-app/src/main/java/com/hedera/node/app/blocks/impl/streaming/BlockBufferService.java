@@ -523,7 +523,7 @@ public class BlockBufferService {
      * @see BlockBufferIO
      */
     public void persistBuffer() {
-        if (!isGrpcStreamingEnabled() || !isStarted.get() || !isBufferPersistenceEnabled()) {
+        if (!isBackpressureEnabled() || !isStarted.get() || !isBufferPersistenceEnabled()) {
             return;
         }
 
