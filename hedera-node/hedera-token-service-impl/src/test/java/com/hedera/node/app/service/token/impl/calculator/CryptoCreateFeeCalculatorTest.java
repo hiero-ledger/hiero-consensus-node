@@ -243,7 +243,6 @@ class CryptoCreateFeeCalculatorTest {
         }
     }
 
-    // Helper method to create test fee schedule using real production values from simpleFeesSchedules.json
     private static FeeSchedule createTestFeeSchedule() {
         return FeeSchedule.DEFAULT
                 .copyBuilder()

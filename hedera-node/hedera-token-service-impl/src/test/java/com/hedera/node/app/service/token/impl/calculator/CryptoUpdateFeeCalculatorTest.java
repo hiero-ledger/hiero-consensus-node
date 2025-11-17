@@ -264,7 +264,6 @@ class CryptoUpdateFeeCalculatorTest {
         }
     }
 
-    // Helper method to create test fee schedule using values from simpleFeesSchedules.json
     private static FeeSchedule createTestFeeSchedule() {
         return FeeSchedule.DEFAULT
                 .copyBuilder()
