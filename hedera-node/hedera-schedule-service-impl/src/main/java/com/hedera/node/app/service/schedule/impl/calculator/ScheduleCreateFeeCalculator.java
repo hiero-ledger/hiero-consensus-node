@@ -25,7 +25,7 @@ public class ScheduleCreateFeeCalculator implements ServiceFeeCalculator {
             @NonNull final FeeSchedule feeSchedule) {
         final var adminKey = txnBody.scheduleCreateOrThrow().adminKey();
         final long keys = adminKey != null ? countKeys(adminKey) : 0;
-        final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.SCHEDULE_CREATE);
+        final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.SCHEDULE_CREATE.protoName());
         feeResult.addServiceFee(1, serviceDef.baseFee());
         addExtraFee(feeResult, serviceDef, KEYS, feeSchedule, keys);
     }

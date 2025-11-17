@@ -15,7 +15,7 @@ import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
 public class StandardFeeModel extends AbstractBaseFeeModel {
 
-    public StandardFeeModel(HederaFunctionality api, String description) {
+    public StandardFeeModel(String api, String description) {
         super(api, description);
     }
 

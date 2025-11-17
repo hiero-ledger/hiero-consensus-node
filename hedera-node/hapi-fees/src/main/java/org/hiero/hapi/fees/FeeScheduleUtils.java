@@ -3,7 +3,6 @@ package org.hiero.hapi.fees;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.base.HederaFunctionality;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.ExtraFeeDefinition;
 import org.hiero.hapi.support.fees.ExtraFeeReference;
@@ -32,7 +31,7 @@ public class FeeScheduleUtils {
 
     /** Create a service fee for a specific Hedera service */
     public static ServiceFeeDefinition makeServiceFee(
-            HederaFunctionality name, long baseFee, ExtraFeeReference... reference) {
+            String name, long baseFee, ExtraFeeReference... reference) {
         return ServiceFeeDefinition.DEFAULT
                 .copyBuilder()
                 .name(name)
@@ -62,10 +61,10 @@ public class FeeScheduleUtils {
 
     /** Lookup a service fee */
     // TODO: Probably store all these in a map once when feeSchedule is updated. So, we don't need to iterate everytime
-    public static ServiceFeeDefinition lookupServiceFee(FeeSchedule feeSchedule, HederaFunctionality api) {
+    public static ServiceFeeDefinition lookupServiceFee(FeeSchedule feeSchedule, String api) {
         for (ServiceFeeSchedule service : feeSchedule.services()) {
             for (ServiceFeeDefinition def : service.schedule()) {
-                if (def.name() == api) {
+                if (def.name().equals(api)) {
                     return def;
                 }
             }
