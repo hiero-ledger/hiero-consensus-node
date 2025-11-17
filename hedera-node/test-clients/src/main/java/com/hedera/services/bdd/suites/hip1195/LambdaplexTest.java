@@ -239,6 +239,14 @@ public class LambdaplexTest implements InitcodeTransform {
                                 .between(USDC.treasury().name(), COUNTERPARTY.name())));
     }
 
+    /**
+     * Creates a test that,
+     * <ol>
+     *   <li>Puts a standing limit SELL order for up to 3 apples at $1.99 into the Lambdaplex order flow; then</li>
+     *   <li>Puts a market BUY order for 2.5 apples with no more than 5% slippage from a $2 reference price; then</li>
+     *   <li>Submits a CryptoTransfer to settle the implied trade.</li>
+     * </ol>
+     */
     @HapiTest
     final Stream<DynamicTest> singleFillLimitSellMarketBuy() {
         final var sellSalt = randomB64Salt();
