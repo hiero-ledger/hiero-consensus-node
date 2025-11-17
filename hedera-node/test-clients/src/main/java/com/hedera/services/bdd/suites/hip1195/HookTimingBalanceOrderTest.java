@@ -41,7 +41,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 
 @HapiTestLifecycle
-@TargetEmbeddedMode(CONCURRENT)
 public class HookTimingBalanceOrderTest {
     private static final String OWNER = "owner";
     private static final String RECEIVER = "receiver";
