@@ -20,10 +20,7 @@ if [ $result -eq 0 ]
 then
   echo "Node: $node_id validation of round ${currentRound} is OK"
   grep -i -E 'time.* taken' validator.log
-  #rm -rf data report.json validator.log slack_report.json
 else
   echo "Node: $node_id validation of round ${currentRound} failed"
-  #mkdir ${currentRound}.failed
-  #mv data report.json round_${currentRound}.log slack_report.json ${currentRound}.failed/
 fi
 exit $result
