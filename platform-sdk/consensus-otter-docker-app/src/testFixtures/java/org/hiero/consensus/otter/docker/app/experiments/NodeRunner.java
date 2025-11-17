@@ -7,18 +7,24 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.crypto.CryptoStatic;
+import com.swirlds.platform.crypto.KeyGeneratingException;
+import com.swirlds.platform.crypto.KeysAndCertsGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
+import java.security.SecureRandom;
 import java.security.cert.CertificateEncodingException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.Callable;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import picocli.CommandLine;
@@ -61,7 +67,7 @@ public class NodeRunner implements Callable<Integer> {
         // Generate keys and certificates for all nodes
         final List<NodeId> nodeIds =
                 IntStream.range(0, count).mapToObj(NodeId::of).toList();
-        final Map<NodeId, KeysAndCerts> keysAndCertsMap = CryptoStatic.generateKeysAndCerts(nodeIds, null);
+        final Map<NodeId, KeysAndCerts> keysAndCertsMap = generateKeysAndCerts(nodeIds);
         final KeysAndCerts selfKeysAndCerts = keysAndCertsMap.get(selfId);
 
         // Create the roster
@@ -74,6 +80,19 @@ public class NodeRunner implements Callable<Integer> {
         node.start(selfId, selfKeysAndCerts, roster);
 
         return 0;
+    }
+
+    private Map<NodeId, KeysAndCerts> generateKeysAndCerts(final List<NodeId> nodeIds)
+            throws KeyGeneratingException, NoSuchAlgorithmException, NoSuchProviderException {
+        final SecureRandom secureRandom = SecureRandom.getInstance("SHA1PRNG", "SUN");
+        secureRandom.setSeed(42L);
+        final Map<NodeId, KeysAndCerts> result = new HashMap<>();
+        for (final NodeId nodeId : nodeIds) {
+            final KeysAndCerts keysAndCerts =
+                    KeysAndCertsGenerator.generate(nodeId, SigningSchema.ED25519, secureRandom, secureRandom);
+            result.put(nodeId, keysAndCerts);
+        }
+        return result;
     }
 
     private RosterEntry createRosterEntry(@NonNull final Entry<NodeId, KeysAndCerts> nodeIdKeysAndCertsEntry) {
