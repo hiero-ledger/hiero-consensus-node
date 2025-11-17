@@ -242,7 +242,7 @@ public class LambdaplexTest implements InitcodeTransform {
     /**
      * Creates a test that,
      * <ol>
-     *   <li>Puts a standing limit SELL order for up to 3 apples at $1.99 into the Lambdaplex order flow; then</li>
+     *   <li>Puts a standing limit SELL order for up to 3 apples at $1.99 each into the order flow; then</li>
      *   <li>Puts a market BUY order for 2.5 apples with no more than 5% slippage from a $2 reference price; then</li>
      *   <li>Submits a CryptoTransfer to settle the implied trade.</li>
      * </ol>
@@ -280,7 +280,7 @@ public class LambdaplexTest implements InitcodeTransform {
                 settleFills(
                         APPLES,
                         USDC,
-                        FillParty.seller(MARKET_MAKER, quantity(2.5), averagePrice(1.99), sellSalt),
+                        FillParty.seller(MARKET_MAKER, quantity(2.5), price(1.99), sellSalt),
                         FillParty.buyer(PARTY, quantity(2.5), averagePrice(1.99), buySalt)));
     }
 
