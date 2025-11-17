@@ -3,7 +3,6 @@ package com.hedera.services.yahcli.suites;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.isIdLiteral;
-import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.yahcli.config.ConfigManager;
@@ -86,6 +85,8 @@ public class Utils {
             Map.entry("exchangeRates.json", 112L),
             Map.entry("fees", 111L),
             Map.entry("feeSchedules.json", 111L),
+            Map.entry("simpleFees", 113L),
+            Map.entry("simpleFeesSchedules.json", 113L),
             Map.entry("props", 121L),
             Map.entry("application.properties", 121L),
             Map.entry("permissions", 122L),
@@ -108,10 +109,11 @@ public class Utils {
     }
 
     public static void mismatchedShardRealmMsg(ConfigManager config, final String entityId) {
-        COMMON_MESSAGES.warn("Configured shard/realm for entity ID " + entityId + " does not match "
-                + "the target network's configured shard/realm of "
-                + config.shard().getShardNum() + "." + config.realm().getRealmNum()
-                + "! Using shard/realm configured for network instead.");
+        config.output()
+                .warn("Configured shard/realm for entity ID " + entityId + " does not match "
+                        + "the target network's configured shard/realm of "
+                        + config.shard().getShardNum() + "." + config.realm().getRealmNum()
+                        + "! Using shard/realm configured for network instead.");
     }
 
     public static EnumSet<ServiceType> rationalizedServices(final String[] services) {

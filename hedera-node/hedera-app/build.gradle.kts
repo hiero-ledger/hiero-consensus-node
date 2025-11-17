@@ -17,6 +17,8 @@ mainModuleInfo {
     runtimeOnly("io.helidon.grpc.core")
     runtimeOnly("io.helidon.webclient")
     runtimeOnly("io.helidon.webclient.grpc")
+    runtimeOnly("com.hedera.pbj.grpc.client.helidon")
+    runtimeOnly("com.hedera.pbj.grpc.helidon")
 }
 
 testModuleInfo {
@@ -29,7 +31,6 @@ testModuleInfo {
     requires("com.hedera.node.config.test.fixtures")
     requires("com.swirlds.merkledb")
     requires("com.swirlds.config.extensions.test.fixtures")
-    requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.platform.core.test.fixtures")
     requires("com.swirlds.state.api.test.fixtures")
     requires("com.swirlds.state.impl.test.fixtures")

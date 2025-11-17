@@ -1,14 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.platform;
 
+import static com.swirlds.demo.platform.PlatformTestingToolMain.CONFIGURATION;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static org.hiero.base.io.streams.SerializableStreamConstants.NULL_CLASS_ID;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.MerkleNode;
+import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.utility.ThresholdLimitingHandler;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.demo.merkle.map.FCMConfig;
 import com.swirlds.demo.merkle.map.FCMFamily;
 import com.swirlds.demo.merkle.map.internal.ExpectedFCMFamily;
@@ -21,8 +26,9 @@ import com.swirlds.demo.platform.nft.NftId;
 import com.swirlds.demo.platform.nft.NftLedger;
 import com.swirlds.demo.platform.nft.ReferenceNftLedger;
 import com.swirlds.merkle.test.fixtures.map.pta.MapKey;
-import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.state.merkle.MerkleStateRoot;
+import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.MerkleProof;
+import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -38,6 +44,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
 import org.hiero.base.constructable.ConstructableIgnored;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.roster.RosterUtils;
@@ -92,6 +99,7 @@ public class PlatformTestingToolState extends MerkleStateRoot<PlatformTestingToo
     private NodeId selfId;
 
     public PlatformTestingToolState() {
+        super(new NoOpMetrics(), Time.getCurrent(), MerkleCryptographyFactory.create(CONFIGURATION));
         expectedFCMFamily = new ExpectedFCMFamilyImpl();
         referenceNftLedger = new ReferenceNftLedger(NFT_TRACKING_FRACTION);
     }
@@ -134,6 +142,14 @@ public class PlatformTestingToolState extends MerkleStateRoot<PlatformTestingToo
     // count invalid signature ratio
     static AtomicLong totalTransactionSignatureCount = new AtomicLong(0);
     static AtomicLong expectedInvalidSignatureCount = new AtomicLong(0);
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long getRound() {
+        return DEFAULT_PLATFORM_STATE_FACADE.roundOf(this);
+    }
 
     /**
      * {@inheritDoc}
@@ -204,7 +220,7 @@ public class PlatformTestingToolState extends MerkleStateRoot<PlatformTestingToo
 
     // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19002
     @Override
-    public MerkleNode migrate(@NonNull final Configuration configuration, int version) {
+    public MerkleNode migrate(int version) {
         return this;
     }
 
@@ -484,6 +500,31 @@ public class PlatformTestingToolState extends MerkleStateRoot<PlatformTestingToo
     @Override
     protected PlatformTestingToolState copyingConstructor() {
         return new PlatformTestingToolState(this);
+    }
+
+    @Override
+    public long singletonPath(final int stateId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public long queueElementPath(final int stateId, @NonNull final Bytes expectedValue) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public long kvPath(final int stateId, @NonNull final Bytes key) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Hash getHashForPath(long path) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public MerkleProof getMerkleProof(long path) {
+        throw new UnsupportedOperationException();
     }
 
     /**

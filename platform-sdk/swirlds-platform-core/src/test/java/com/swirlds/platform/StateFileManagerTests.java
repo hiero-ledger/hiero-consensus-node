@@ -2,15 +2,14 @@
 package com.swirlds.platform;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
-import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readStateFile;
+import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.FATAL_ERROR;
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.ISS;
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.PERIODIC_SNAPSHOT;
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
 import static java.nio.file.Files.exists;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -24,17 +23,12 @@ import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader;
-import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.common.threading.framework.config.ThreadConfiguration;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.components.DefaultSavedStateController;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.config.StateConfig_;
 import com.swirlds.platform.eventhandling.StateWithHashComplexity;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DefaultStateSnapshotManager;
@@ -46,10 +40,10 @@ import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.platform.state.snapshot.SignedStateFileUtils;
 import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
-import com.swirlds.platform.test.fixtures.state.BlockingState;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestHederaVirtualMapState;
-import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -82,26 +76,21 @@ class StateFileManagerTests {
     private PlatformContext context;
     private SignedStateFilePath signedStateFilePath;
 
-    /**
-     * Temporary directory provided by JUnit
-     */
     Path testDirectory;
+    private StateLifecycleManager stateLifecycleManager;
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
         registry.registerConstructables("com.swirlds");
         registry.registerConstructables("org.hiero");
-        registerMerkleStateRootClassIds();
+        registerConstructablesForStorage(CONFIGURATION);
     }
 
     @BeforeEach
     void beforeEach() throws IOException {
-        // Don't use JUnit @TempDir as it runs into a thread race with Merkle DB DataSource release...
-        testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile(
-                "SignedStateFileReadWriteTest", TestingAppStateInitializer.CONFIGURATION);
+        testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile("SignedStateFileReadWriteTest", CONFIGURATION);
         LegacyTemporaryFileBuilder.overrideTemporaryFileLocation(testDirectory);
-        MerkleDb.resetDefaultInstancePath();
         final TestConfigBuilder configBuilder = new TestConfigBuilder()
                 .withValue(
                         StateCommonConfig_.SAVED_STATE_DIRECTORY,
@@ -111,6 +100,8 @@ class StateFileManagerTests {
                 .build();
         signedStateFilePath =
                 new SignedStateFilePath(context.getConfiguration().getConfigData(StateCommonConfig.class));
+        stateLifecycleManager =
+                new StateLifecycleManagerImpl(context.getMetrics(), context.getTime(), TestVirtualMapState::new);
     }
 
     @AfterEach
@@ -133,7 +124,6 @@ class StateFileManagerTests {
      * Make sure the signed state was properly saved.
      */
     private void validateSavingOfState(final SignedState originalState, final Path stateDirectory) throws IOException {
-
         assertEventuallyEquals(
                 -1, originalState::getReservationCount, Duration.ofSeconds(1), "invalid reservation count");
 
@@ -147,17 +137,13 @@ class StateFileManagerTests {
 
         assertEquals(-1, originalState.getReservationCount(), "invalid reservation count");
 
-        MerkleDb.resetDefaultInstancePath();
-        Configuration configuration =
-                TestPlatformContextBuilder.create().build().getConfiguration();
-        final DeserializedSignedState deserializedSignedState = readStateFile(
-                stateFile,
-                TestHederaVirtualMapState::new,
+        final DeserializedSignedState deserializedSignedState = readState(
+                stateDirectory,
+                TestVirtualMapState::new,
                 TEST_PLATFORM_STATE_FACADE,
-                PlatformContext.create(configuration));
+                TestPlatformContextBuilder.create().build());
         SignedState signedState = deserializedSignedState.reservedSignedState().get();
-        TestMerkleCryptoFactory.getInstance()
-                .digestTreeSync(signedState.getState().getRoot());
+        hashState(signedState);
 
         assertNotNull(deserializedSignedState.originalHash(), "hash should not be null");
         assertNotSame(signedState, originalState, "deserialized object should not be the same");
@@ -173,8 +159,8 @@ class StateFileManagerTests {
     @DisplayName("Standard Operation Test")
     void standardOperationTest(final boolean successExpected) throws IOException {
         final SignedState signedState = new RandomSignedStateGenerator().build();
-        makeImmutable(signedState);
-        hashState((signedState.getState()));
+        initLifecycleManagerAndMakeStateImmutable(signedState);
+        hashState(signedState);
 
         if (!successExpected) {
             // To make the save fail, create a file with the name of the directory the state will try to be saved to
@@ -185,7 +171,7 @@ class StateFileManagerTests {
         }
 
         final StateSnapshotManager manager = new DefaultStateSnapshotManager(
-                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE);
+                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE, stateLifecycleManager);
 
         final StateSavingResult stateSavingResult = manager.saveStateTask(signedState.reserve("test"));
 
@@ -198,49 +184,15 @@ class StateFileManagerTests {
     }
 
     @Test
-    @DisplayName("Save Fatal Signed State")
-    void saveFatalSignedState() throws InterruptedException, IOException {
-        final SignedState signedState =
-                new RandomSignedStateGenerator().setUseBlockingState(true).build();
-
-        final StateSnapshotManager manager = new DefaultStateSnapshotManager(
-                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE);
-        signedState.markAsStateToSave(FATAL_ERROR);
-        makeImmutable(signedState);
-        hashState((signedState.getState()));
-        ((BlockingState) signedState.getState()).enableBlockingSerialization();
-
-        final Thread thread = new ThreadConfiguration(getStaticThreadManager())
-                .setInterruptableRunnable(
-                        () -> manager.dumpStateTask(StateDumpRequest.create(signedState.reserve("test"))))
-                .build(true);
-
-        // State writing should be synchronized. So we shouldn't be able to finish until we unblock.
-        MILLISECONDS.sleep(10);
-        // shouldn't be finished yet
-        assertTrue(thread.isAlive(), "thread should still be blocked");
-
-        ((BlockingState) signedState.getState()).unblockSerialization();
-        thread.join(1000);
-
-        final Path stateDirectory = testDirectory.resolve("fatal").resolve("node1234_round" + signedState.getRound());
-        // Disabling hash validation as hashes would not be the same in this test because of the migration, explanation:
-        // Saving MerkleStateRoot
-        // Reading state -> calling `.migrate()` methods -> `MerkleStateRoot.migrate()` returns `VirtualMap`
-        // => different hash
-        validateSavingOfState(signedState, stateDirectory);
-    }
-
-    @Test
     @DisplayName("Save ISS Signed State")
     void saveISSignedState() throws IOException {
         final SignedState signedState = new RandomSignedStateGenerator().build();
 
         final StateSnapshotManager manager = new DefaultStateSnapshotManager(
-                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE);
+                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE, stateLifecycleManager);
         signedState.markAsStateToSave(ISS);
-        makeImmutable(signedState);
-        hashState((signedState.getState()));
+        initLifecycleManagerAndMakeStateImmutable(signedState);
+        hashState(signedState);
         manager.dumpStateTask(StateDumpRequest.create(signedState.reserve("test")));
 
         final Path stateDirectory = testDirectory.resolve("iss").resolve("node1234_round" + signedState.getRound());
@@ -279,7 +231,7 @@ class StateFileManagerTests {
         final double standardDeviationTimeBetweenStates = 0.5;
 
         final StateSnapshotManager manager = new DefaultStateSnapshotManager(
-                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE);
+                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE, stateLifecycleManager);
         final SavedStateController controller = new DefaultSavedStateController(context);
 
         Instant timestamp;
@@ -313,16 +265,15 @@ class StateFileManagerTests {
 
             timestamp = timestamp.plus(secondsDelta, ChronoUnit.SECONDS);
 
-            MerkleDb.resetDefaultInstancePath();
             final SignedState signedState = new RandomSignedStateGenerator(random)
                     .setConsensusTimestamp(timestamp)
                     .setRound(round)
                     .build();
             final ReservedSignedState reservedSignedState = signedState.reserve("initialTestReservation");
 
+            initLifecycleManagerAndMakeStateImmutable(reservedSignedState.get(), round != firstRound);
             controller.markSavedState(new StateWithHashComplexity(reservedSignedState, 1));
-            makeImmutable(reservedSignedState.get());
-            hashState(signedState.getState());
+            hashState(signedState);
 
             if (signedState.isStateToSave()) {
                 assertTrue(
@@ -354,16 +305,12 @@ class StateFileManagerTests {
 
                     final SavedStateInfo savedStateInfo = currentStatesOnDisk.get(index);
 
-                    Configuration configuration =
-                            TestPlatformContextBuilder.create().build().getConfiguration();
-                    // Restore to a new MerkleDb instance
-                    MerkleDb.resetDefaultInstancePath();
                     final SignedState stateFromDisk = assertDoesNotThrow(
-                            () -> SignedStateFileReader.readStateFile(
-                                            savedStateInfo.stateFile(),
-                                            TestHederaVirtualMapState::new,
+                            () -> SignedStateFileReader.readState(
+                                            savedStateInfo.stateDirectory(),
+                                            TestVirtualMapState::new,
                                             TEST_PLATFORM_STATE_FACADE,
-                                            PlatformContext.create(configuration))
+                                            context)
                                     .reservedSignedState()
                                     .get(),
                             "should be able to read state on disk");
@@ -408,7 +355,7 @@ class StateFileManagerTests {
         final int count = 10;
 
         final StateSnapshotManager manager = new DefaultStateSnapshotManager(
-                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE);
+                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE, stateLifecycleManager);
 
         final Path statesDirectory =
                 signedStateFilePath.getSignedStatesDirectoryForSwirld(MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME);
@@ -419,12 +366,11 @@ class StateFileManagerTests {
                 .getSignedStatesBaseDirectory()
                 .resolve("iss")
                 .resolve("node" + SELF_ID + "_round" + issRound);
-        MerkleDb.resetDefaultInstancePath();
         final SignedState issState =
                 new RandomSignedStateGenerator(random).setRound(issRound).build();
-        makeImmutable(issState);
+        initLifecycleManagerAndMakeStateImmutable(issState);
         issState.markAsStateToSave(ISS);
-        hashState((issState.getState()));
+        hashState(issState);
         manager.dumpStateTask(StateDumpRequest.create(issState.reserve("test")));
         validateSavingOfState(issState, issDirectory);
 
@@ -434,11 +380,10 @@ class StateFileManagerTests {
                 .getSignedStatesBaseDirectory()
                 .resolve("fatal")
                 .resolve("node" + SELF_ID + "_round" + fatalRound);
-        MerkleDb.resetDefaultInstancePath();
         final SignedState fatalState =
                 new RandomSignedStateGenerator(random).setRound(fatalRound).build();
-        makeImmutable(fatalState);
-        hashState(fatalState.getState());
+        initLifecycleManagerAndMakeStateImmutable(fatalState, true);
+        hashState(fatalState);
         fatalState.markAsStateToSave(FATAL_ERROR);
         manager.dumpStateTask(StateDumpRequest.create(fatalState.reserve("test")));
         validateSavingOfState(fatalState, fatalDirectory);
@@ -446,13 +391,12 @@ class StateFileManagerTests {
         // Save a bunch of states. After each time, check the states that are still on disk.
         final List<SignedState> states = new ArrayList<>();
         for (int round = 1; round <= count; round++) {
-            MerkleDb.resetDefaultInstancePath();
             final SignedState signedState =
                     new RandomSignedStateGenerator(random).setRound(round).build();
             issState.markAsStateToSave(PERIODIC_SNAPSHOT);
             states.add(signedState);
-            makeImmutable(signedState);
-            hashState(signedState.getState());
+            initLifecycleManagerAndMakeStateImmutable(signedState, true);
+            hashState(signedState);
             manager.saveStateTask(signedState.reserve("test"));
 
             // Verify that the states we want to be on disk are still on disk
@@ -480,12 +424,22 @@ class StateFileManagerTests {
         }
     }
 
-    // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19905
-    private static void hashState(MerkleNodeState state) {
-        TestMerkleCryptoFactory.getInstance().digestTreeSync(state.getRoot());
+    // Ensures the state is hashed by calling getHash, which hashes the state if it hasn't been hashed yet
+    static void hashState(SignedState signedState) {
+        signedState.getState().getRoot().getHash();
     }
 
-    private static void makeImmutable(SignedState signedState) {
-        signedState.getState().copy().release();
+    void initLifecycleManagerAndMakeStateImmutable(SignedState state) {
+        initLifecycleManagerAndMakeStateImmutable(state, false);
+    }
+
+    void initLifecycleManagerAndMakeStateImmutable(SignedState state, boolean createNewStateLifecycleManager) {
+        if (createNewStateLifecycleManager) {
+            stateLifecycleManager =
+                    new StateLifecycleManagerImpl(context.getMetrics(), context.getTime(), TestVirtualMapState::new);
+        }
+
+        stateLifecycleManager.initState(state.getState(), false);
+        stateLifecycleManager.getMutableState().release();
     }
 }

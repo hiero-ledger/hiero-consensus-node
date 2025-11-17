@@ -37,7 +37,6 @@ import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
@@ -197,8 +196,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
     private void initializeInternalConsensus() {
         consensus = new ConsensusImpl(platformContext, new NoOpConsensusMetrics(), roster);
         linker = new SimpleLinker();
-        orphanBuffer = new DefaultOrphanBuffer(
-                platformContext.getConfiguration(), platformContext.getMetrics(), mock(IntakeEventCounter.class));
+        orphanBuffer = new DefaultOrphanBuffer(platformContext.getMetrics(), mock(IntakeEventCounter.class));
     }
 
     /**
@@ -317,14 +315,6 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
     @NonNull
     public EventSource getSourceByIndex(final int nodeIndex) {
         return sources.get(nodeIndex);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public @NonNull AddressBook getAddressBook() {
-        return RosterUtils.buildAddressBook(roster);
     }
 
     @Override
@@ -497,6 +487,6 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
     @SuppressWarnings("unused") // useful for debugging
     public HashgraphGuiSource createGuiSource() {
         return new StandardGuiSource(
-                getAddressBook(), new GuiEventStorage(consensus, linker, platformContext.getConfiguration()));
+                getRoster(), new GuiEventStorage(consensus, linker, platformContext.getConfiguration()));
     }
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network.protocol.rpc;
 
-import static com.swirlds.logging.legacy.LogMarker.NETWORK;
+import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.platform.network.protocol.rpc.RpcMessageId.EVENT;
 import static com.swirlds.platform.network.protocol.rpc.RpcMessageId.EVENTS_FINISHED;
 import static com.swirlds.platform.network.protocol.rpc.RpcMessageId.KNOWN_TIPS;
@@ -17,6 +17,7 @@ import com.hedera.hapi.platform.message.GossipSyncData;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.threading.pool.ParallelExecutionException;
 import com.swirlds.common.threading.pool.ParallelExecutor;
+import com.swirlds.common.utility.throttle.RateLimiter;
 import com.swirlds.platform.gossip.permits.SyncPermitProvider;
 import com.swirlds.platform.gossip.rpc.GossipRpcReceiver;
 import com.swirlds.platform.gossip.rpc.GossipRpcSender;
@@ -32,6 +33,7 @@ import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.NetworkMetrics;
 import com.swirlds.platform.network.NetworkProtocolException;
+import com.swirlds.platform.network.NetworkUtils;
 import com.swirlds.platform.network.protocol.PeerProtocol;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -45,6 +47,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.ThrowingRunnable;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
@@ -81,6 +84,13 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
      * Helper class to handle ping logic
      */
     private final RpcPingHandler pingHandler;
+
+    private final boolean keepSendingEventsWhenUnhealthy;
+
+    /** A duration between reporting full stack traces for socket exceptions. */
+    private static final Duration SOCKET_EXCEPTION_DURATION = Duration.ofMinutes(1);
+
+    private final RateLimiter exceptionRateLimiter;
 
     /**
      * State machine for rpc exchange process (mostly sync process)
@@ -162,7 +172,8 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
     /**
      * Special marker to indicate that dispatch thread should exit its loop
      */
-    private static final Runnable POISON_PILL = () -> logger.error("Poison pill should never be executed");
+    private static final Runnable POISON_PILL =
+            () -> logger.error(EXCEPTION.getMarker(), "Poison pill should never be executed");
 
     /**
      * Constructs a new rpc protocol
@@ -199,6 +210,9 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         this.idleDispatchPollTimeoutMs = syncConfig.rpcIdleDispatchPollTimeout().toMillis();
         this.idleWritePollTimeoutMs = syncConfig.rpcIdleWritePollTimeout().toMillis();
         this.pingHandler = new RpcPingHandler(time, networkMetrics, remotePeerId, this);
+        this.keepSendingEventsWhenUnhealthy = syncConfig.keepSendingEventsWhenUnhealthy();
+
+        this.exceptionRateLimiter = new RateLimiter(time, SOCKET_EXCEPTION_DURATION);
     }
 
     /**
@@ -276,14 +290,17 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         conversationFinishPending = -1L;
         syncMetrics.reportSyncPhase(remotePeerId, previousPhase);
         try {
-            executor.doParallel(
+            executor.doParallelWithHandler(
                     connection::disconnect,
-                    this::dispatchInputMessages,
+                    (ThrowingRunnable) this::dispatchInputMessages,
                     () -> readMessages(connection),
                     () -> writeMessages(connection));
         } catch (final ParallelExecutionException e) {
-            logger.error(NETWORK.getMarker(), "Failure during communication with node {}", remotePeerId, e);
+            NetworkUtils.handleNetworkException(e, connection, exceptionRateLimiter);
         } finally {
+            inputQueue.clear();
+            outputQueue.clear();
+            rpcPeerHandler.cleanup();
             permitProvider.release();
             previousPhase = syncMetrics.reportSyncPhase(remotePeerId, SyncPhase.OUTSIDE_OF_RPC);
         }
@@ -308,17 +325,15 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                     }
                     message.run();
                 }
-
                 // permitProvider health indicates that system is overloaded, and we are getting backpressure; we need
                 // to give up on spamming network and/or reading new messages and let things settle down
-                if (!rpcPeerHandler.checkForPeriodicActions(permitProvider.isHealthy())) {
+                final boolean wantToExit =
+                        gossipHalted.get() || (!permitProvider.isHealthy() && !keepSendingEventsWhenUnhealthy);
+                if (!rpcPeerHandler.checkForPeriodicActions(wantToExit, !permitProvider.isHealthy())) {
                     // handler told us we are ok to stop processing messages right now due to platform not being healthy
                     processMessages = false;
                 }
             }
-        } catch (final RuntimeException exc) {
-            logger.error(NETWORK.getMarker(), "Error while dispatching messages", exc);
-            throw exc;
         } finally {
             syncMetrics.rpcDispatchThreadRunning(-1);
         }
@@ -351,7 +366,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                     syncMetrics.outputQueuePollTime(time.nanoTime() - startNanos);
                 } catch (final InterruptedException e) {
                     processMessages = false;
-                    logger.warn("Interrupted while waiting for message", e);
+                    logger.warn(EXCEPTION.getMarker(), "Interrupted while waiting for message", e);
                     break;
                 }
                 if (message == null) {
@@ -422,36 +437,32 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                 }
 
                 for (int i = 0; i < incomingBatchSize; i++) {
-                    try {
-                        final int messageType = input.read();
-                        switch (messageType) {
-                            case SYNC_DATA:
-                                final GossipSyncData gossipSyncData = input.readPbjRecord(GossipSyncData.PROTOBUF);
-                                inputQueue.add(() -> receiver.receiveSyncData(SyncData.fromProtobuf(gossipSyncData)));
-                                break;
-                            case KNOWN_TIPS:
-                                final GossipKnownTips knownTips = input.readPbjRecord(GossipKnownTips.PROTOBUF);
-                                inputQueue.add(() -> receiver.receiveTips(knownTips.knownTips()));
-                                break;
-                            case EVENT:
-                                final List<GossipEvent> events =
-                                        Collections.singletonList(input.readPbjRecord(GossipEvent.PROTOBUF));
-                                inputQueue.add(() -> receiver.receiveEvents(events));
-                                break;
-                            case EVENTS_FINISHED:
-                                inputQueue.add(receiver::receiveEventsFinished);
-                                break;
-                            case PING:
-                                pingHandler.handleIncomingPing(input.readPbjRecord(GossipPing.PROTOBUF));
-                                break;
-                            case PING_REPLY:
-                                final GossipPing pingReply = input.readPbjRecord(GossipPing.PROTOBUF);
-                                pingHandler.handleIncomingPingReply(pingReply);
-                                break;
-                        }
-                    } catch (final Exception e) {
-                        logger.error(NETWORK.getMarker(), "Error reading messages", e);
-                        throw new IOException(e);
+
+                    final int messageType = input.read();
+                    switch (messageType) {
+                        case SYNC_DATA:
+                            final GossipSyncData gossipSyncData = input.readPbjRecord(GossipSyncData.PROTOBUF);
+                            inputQueue.add(() -> receiver.receiveSyncData(SyncData.fromProtobuf(gossipSyncData)));
+                            break;
+                        case KNOWN_TIPS:
+                            final GossipKnownTips knownTips = input.readPbjRecord(GossipKnownTips.PROTOBUF);
+                            inputQueue.add(() -> receiver.receiveTips(knownTips.knownTips()));
+                            break;
+                        case EVENT:
+                            final List<GossipEvent> events =
+                                    Collections.singletonList(input.readPbjRecord(GossipEvent.PROTOBUF));
+                            inputQueue.add(() -> receiver.receiveEvents(events));
+                            break;
+                        case EVENTS_FINISHED:
+                            inputQueue.add(receiver::receiveEventsFinished);
+                            break;
+                        case PING:
+                            pingHandler.handleIncomingPing(input.readPbjRecord(GossipPing.PROTOBUF));
+                            break;
+                        case PING_REPLY:
+                            final GossipPing pingReply = input.readPbjRecord(GossipPing.PROTOBUF);
+                            pingHandler.handleIncomingPingReply(pingReply);
+                            break;
                     }
                 }
             }
@@ -539,14 +550,6 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
     public void breakConversation() {
         this.conversationFinishPending = time.currentTimeMillis();
         this.processMessages = false;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void cleanup() {
-        this.rpcPeerHandler.cleanup();
     }
 
     public void setRpcPeerHandler(final RpcPeerHandler rpcPeerHandler) {

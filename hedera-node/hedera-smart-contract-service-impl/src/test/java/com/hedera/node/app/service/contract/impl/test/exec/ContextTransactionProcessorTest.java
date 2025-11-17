@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_OVERSIZE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.*;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITHOUT_TO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITH_TO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_CREATION;
@@ -20,8 +17,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TransactionID;
@@ -31,6 +27,7 @@ import com.hedera.node.app.service.contract.impl.exec.ContextTransactionProcesso
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
+import com.hedera.node.app.service.contract.impl.exec.metrics.OpsDurationMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.tracers.EvmActionTracer;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
@@ -40,7 +37,8 @@ import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
 import com.hedera.node.app.service.contract.impl.infra.HevmTransactionFactory;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.ContractsConfig;
@@ -147,7 +145,10 @@ class ContextTransactionProcessorTest {
                 List.of(),
                 List.of(),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(
-                        ETH_DATA_WITHOUT_TO_ADDRESS, Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData())),
+                        ETH_DATA_WITHOUT_TO_ADDRESS,
+                        rootProxyWorldUpdater,
+                        Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData()),
+                        null),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
                 null,
                 null);
@@ -197,7 +198,10 @@ class ContextTransactionProcessorTest {
                 List.of(),
                 List.of(),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(
-                        ETH_DATA_WITHOUT_TO_ADDRESS, Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData())),
+                        ETH_DATA_WITHOUT_TO_ADDRESS,
+                        rootProxyWorldUpdater,
+                        Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData()),
+                        null),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
                 null,
                 null);
@@ -244,7 +248,7 @@ class ContextTransactionProcessorTest {
                 null,
                 List.of(),
                 List.of(),
-                SUCCESS_RESULT.asEvmTxResultOf(null, null),
+                SUCCESS_RESULT.asEvmTxResultOf(null, rootProxyWorldUpdater, null, null),
                 SUCCESS_RESULT.signerNonce(),
                 null,
                 null);
@@ -309,8 +313,8 @@ class ContextTransactionProcessorTest {
         given(context.payer()).willReturn(payer);
         given(hevmTransactionFactory.fromHapiTransaction(transactionBody, payer))
                 .willReturn(HEVM_Exception);
-        given(transactionBody.transactionIDOrThrow()).willReturn(transactionID);
-        given(transactionID.accountIDOrThrow()).willReturn(SENDER_ID);
+        given(transactionBody.transactionIDOrElse(TransactionID.DEFAULT)).willReturn(transactionID);
+        given(transactionID.accountIDOrElse(AccountID.DEFAULT)).willReturn(SENDER_ID);
 
         final var outcome = subject.call();
 
@@ -340,8 +344,8 @@ class ContextTransactionProcessorTest {
         given(context.payer()).willReturn(RELAYER_ID);
         given(hevmTransactionFactory.fromHapiTransaction(transactionBody, RELAYER_ID))
                 .willReturn(HEVM_OversizeException);
-        given(transactionBody.transactionIDOrThrow()).willReturn(transactionID);
-        given(transactionID.accountIDOrThrow()).willReturn(RELAYER_ID);
+        given(transactionBody.transactionIDOrElse(TransactionID.DEFAULT)).willReturn(transactionID);
+        given(transactionID.accountIDOrElse(AccountID.DEFAULT)).willReturn(RELAYER_ID);
 
         final var outcome = subject.call();
 
@@ -372,8 +376,8 @@ class ContextTransactionProcessorTest {
         given(context.payer()).willReturn(payer);
         given(hevmTransactionFactory.fromHapiTransaction(transactionBody, payer))
                 .willReturn(HEVM_Exception);
-        given(transactionBody.transactionIDOrThrow()).willReturn(transactionID);
-        given(transactionID.accountIDOrThrow()).willReturn(SENDER_ID);
+        given(transactionBody.transactionIDOrElse(TransactionID.DEFAULT)).willReturn(transactionID);
+        given(transactionID.accountIDOrElse(AccountID.DEFAULT)).willReturn(SENDER_ID);
 
         final var outcome = subject.call();
 
@@ -405,8 +409,8 @@ class ContextTransactionProcessorTest {
         given(hevmTransactionFactory.fromHapiTransaction(transactionBody, payer))
                 .willThrow(new HandleException(INVALID_CONTRACT_ID));
         given(hevmTransactionFactory.fromContractTxException(any(), any())).willReturn(HEVM_Exception);
-        given(transactionBody.transactionIDOrThrow()).willReturn(transactionID);
-        given(transactionID.accountIDOrThrow()).willReturn(SENDER_ID);
+        given(transactionBody.transactionIDOrElse(TransactionID.DEFAULT)).willReturn(transactionID);
+        given(transactionID.accountIDOrElse(AccountID.DEFAULT)).willReturn(SENDER_ID);
 
         final var outcome = subject.call();
 
@@ -440,8 +444,8 @@ class ContextTransactionProcessorTest {
         given(hevmTransactionFactory.fromHapiTransaction(transactionBody, payer))
                 .willThrow(new HandleException(INVALID_CONTRACT_ID));
         given(hevmTransactionFactory.fromContractTxException(any(), any())).willReturn(HEVM_Exception);
-        given(transactionBody.transactionIDOrThrow()).willReturn(transactionID);
-        given(transactionID.accountIDOrThrow()).willReturn(SENDER_ID);
+        given(transactionBody.transactionIDOrElse(TransactionID.DEFAULT)).willReturn(transactionID);
+        given(transactionID.accountIDOrElse(AccountID.DEFAULT)).willReturn(SENDER_ID);
 
         final var outcome = subject.call();
 
@@ -471,8 +475,8 @@ class ContextTransactionProcessorTest {
 
         given(context.body()).willReturn(transactionBody);
         given(context.payer()).willReturn(SENDER_ID);
-        given(transactionBody.transactionIDOrThrow()).willReturn(transactionID);
-        given(transactionID.accountIDOrThrow()).willReturn(SENDER_ID);
+        given(transactionBody.transactionIDOrElse(TransactionID.DEFAULT)).willReturn(transactionID);
+        given(transactionID.accountIDOrElse(AccountID.DEFAULT)).willReturn(SENDER_ID);
         given(hevmTransactionFactory.fromHapiTransaction(transactionBody, SENDER_ID))
                 .willThrow(new HandleException(INVALID_CONTRACT_ID));
         given(hevmTransactionFactory.fromContractTxException(any(), any())).willReturn(HEVM_Exception);
@@ -500,6 +504,50 @@ class ContextTransactionProcessorTest {
                 contractMetrics);
 
         assertFailsWith(INVALID_ETHEREUM_TRANSACTION, subject::call);
+    }
+
+    @Test
+    void throttleTheTransactionIfOutOfOpsDurationThrottleCapacity() {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("contracts.throttle.throttleByOpsDuration", "true")
+                .getOrCreateConfig();
+        final var contractsConfig = config.getConfigData(ContractsConfig.class);
+        final var subject = new ContextTransactionProcessor(
+                null,
+                context,
+                contractsConfig,
+                config,
+                hederaEvmContext,
+                null,
+                tracer,
+                rootProxyWorldUpdater,
+                hevmTransactionFactory,
+                processor,
+                customGasCharging,
+                contractMetrics);
+
+        final var payer = AccountID.DEFAULT;
+        given(context.body()).willReturn(transactionBody);
+        given(context.payer()).willReturn(payer);
+        given(hevmTransactionFactory.fromHapiTransaction(transactionBody, payer))
+                .willReturn(HEVM_CREATION);
+        given(transactionBody.transactionIDOrThrow()).willReturn(transactionID);
+        given(transactionBody.transactionIDOrElse(any())).willReturn(transactionID);
+        given(transactionID.accountIDOrThrow()).willReturn(SENDER_ID);
+        given(rootProxyWorldUpdater.enhancement()).willReturn(enhancement);
+        given(enhancement.operations()).willReturn(hederaOperations);
+        final var throttleAdviser = mock(ThrottleAdviser.class);
+        given(hederaOperations.getThrottleAdviser()).willReturn(throttleAdviser);
+        given(throttleAdviser.availableOpsDurationCapacity()).willReturn(0L);
+        final var opsDurationMetrics = mock(OpsDurationMetrics.class);
+        given(contractMetrics.opsDurationMetrics()).willReturn(opsDurationMetrics);
+
+        final var outcome = subject.call();
+
+        verify(opsDurationMetrics).recordTransactionThrottledByOpsDuration();
+        verify(customGasCharging).chargeGasForAbortedTransaction(any(), any(), any(), any());
+        verify(rootProxyWorldUpdater).commit();
+        assertEquals(CONSENSUS_GAS_EXHAUSTED, outcome.status());
     }
 
     void givenSenderAccount() {

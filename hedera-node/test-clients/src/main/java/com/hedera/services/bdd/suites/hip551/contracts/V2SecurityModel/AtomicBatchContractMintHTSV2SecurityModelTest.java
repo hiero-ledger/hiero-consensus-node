@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.hip551.contracts.V2SecurityModel;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.mint.MintTranslator.MINT_V2;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
@@ -54,9 +55,10 @@ import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
-public class AtomicBatchContractMintHTSV2SecurityModelTest {
+class AtomicBatchContractMintHTSV2SecurityModelTest {
     private static final String DEFAULT_BATCH_OPERATOR = "defaultBatchOperator";
 
     private static final long GAS_TO_OFFER = 2_000_000L;
@@ -111,10 +113,7 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled", "true",
-                "atomicBatch.maxNumberOfTransactions", "50",
-                "contracts.throttle.throttleByGas", "false"));
+        testLifecycle.overrideInClass(Map.of("contracts.throttle.throttleByGas", "false"));
         testLifecycle.doAdhoc(
                 uploadInitCode(
                         HTS_CALLS,
@@ -548,6 +547,7 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> V2Security003NonFungibleTokenMintInTreasuryNegativeCase2() {
         final AtomicReference<Address> nonFungibleAddress = new AtomicReference<>();
         return hapiTest(
@@ -797,6 +797,7 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> V2Security040TokenWithDelegateContractKeyCanNotMintFromStaticCallCase2() {
         final AtomicReference<Address> nonFungibleAddress = new AtomicReference<>();
         return hapiTest(

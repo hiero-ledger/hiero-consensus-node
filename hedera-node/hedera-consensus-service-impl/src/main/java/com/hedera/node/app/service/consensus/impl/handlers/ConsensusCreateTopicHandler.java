@@ -29,12 +29,12 @@ import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.WritableTopicStore;
 import com.hedera.node.app.service.consensus.impl.records.ConsensusCreateTopicStreamBuilder;
 import com.hedera.node.app.service.consensus.impl.validators.ConsensusCustomFeesValidator;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -46,8 +46,13 @@ import com.hedera.node.config.data.TopicsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.HashMap;
+import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.hapi.fees.FeeModelRegistry;
+import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
 
 /**
  * This class contains all workflow-related functionality regarding {@link HederaFunctionality#CONSENSUS_CREATE_TOPIC}.
@@ -226,6 +231,28 @@ public class ConsensusCreateTopicHandler implements TransactionHandler {
                 .feeCalculatorFactory()
                 .feeCalculator(subType)
                 .legacyCalculate(sigValueObj -> usageGiven(CommonPbjConverters.fromPbj(body), sigValueObj));
+    }
+
+    @NonNull
+    @Override
+    public FeeResult calculateFeeResult(@NonNull FeeContext feeContext) {
+        requireNonNull(feeContext);
+        final var body = feeContext.body();
+        final var hasCustomFees =
+                !body.consensusCreateTopicOrThrow().customFees().isEmpty();
+        final var subType = hasCustomFees ? SubType.TOPIC_CREATE_WITH_CUSTOM_FEES : SubType.DEFAULT;
+        final var entity = FeeModelRegistry.lookupModel(HederaFunctionality.CONSENSUS_CREATE_TOPIC);
+        var createTopic = body.consensusCreateTopicOrThrow();
+        var keyCount = createTopic.customFees().size();
+        if (createTopic.hasAdminKey()) {
+            keyCount += 1;
+        }
+        Map<Extra, Long> params = new HashMap<>();
+        params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
+        params.put(Extra.KEYS, (long) keyCount);
+        params.put(Extra.CUSTOM_FEE, hasCustomFees ? 1L : 0L);
+        return entity.computeFee(
+                params, feeContext.feeCalculatorFactory().feeCalculator(subType).getSimpleFeesSchedule());
     }
 
     private FeeData usageGiven(

@@ -17,6 +17,7 @@ import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Random;
@@ -44,11 +45,8 @@ import org.junit.jupiter.api.Test;
  */
 public class CloseFlushTest {
 
-    private static Path tmpFileDir;
-
     @BeforeAll
     public static void setup() throws IOException {
-        tmpFileDir = LegacyTemporaryFileBuilder.buildTemporaryFile(CONFIGURATION);
         Configurator.setRootLevel(Level.WARN);
     }
 
@@ -62,6 +60,7 @@ public class CloseFlushTest {
         final int count = 10000;
         final ExecutorService exec = Executors.newSingleThreadExecutor();
         final AtomicReference<Exception> exception = new AtomicReference<>();
+        final Path tmpFileDir = LegacyTemporaryFileBuilder.buildTemporaryFile(CONFIGURATION);
         for (int j = 0; j < 100; j++) {
             final Path storeDir = tmpFileDir.resolve("closeFlushTest-" + j);
             final VirtualDataSource dataSource =
@@ -132,7 +131,11 @@ public class CloseFlushTest {
 
         @NonNull
         @Override
-        public VirtualDataSource build(final String label, final boolean withDbCompactionEnabled) {
+        public VirtualDataSource build(
+                final String label,
+                @Nullable final Path sourceDir,
+                final boolean compactionEnabled,
+                final boolean offlineUse) {
             return new VirtualDataSource() {
                 @Override
                 public void close(boolean keepData) throws IOException {

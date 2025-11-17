@@ -3,7 +3,9 @@ package com.swirlds.platform.wiring;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
@@ -20,6 +22,8 @@ import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.components.appcomm.LatestCompleteStateNotifier;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
+import com.swirlds.platform.crypto.KeyGeneratingException;
+import com.swirlds.platform.crypto.KeysAndCertsGenerator;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.deduplication.EventDeduplicator;
@@ -31,7 +35,6 @@ import com.swirlds.platform.event.validation.EventSignatureValidator;
 import com.swirlds.platform.event.validation.InternalEventValidator;
 import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
-import com.swirlds.platform.publisher.PlatformPublisher;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.HashLogger;
 import com.swirlds.platform.state.iss.IssDetector;
@@ -43,11 +46,17 @@ import com.swirlds.platform.state.signed.StateGarbageCollector;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.signer.StateSigner;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
-import com.swirlds.platform.system.status.StatusStateMachine;
+import com.swirlds.platform.system.PlatformMonitor;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
+import java.security.SecureRandom;
 import java.util.stream.Stream;
 import org.hiero.consensus.crypto.EventHasher;
-import org.hiero.consensus.event.creator.impl.EventCreationManager;
-import org.hiero.consensus.event.creator.impl.signing.SelfEventSigner;
+import org.hiero.consensus.crypto.SigningSchema;
+import org.hiero.consensus.event.creator.EventCreatorModule;
+import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterHistory;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -81,24 +90,25 @@ class PlatformWiringTests {
         final WiringModel model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
-        final PlatformWiring wiring =
-                new PlatformWiring(platformContext, model, applicationCallbacks, mock(ExecutionLayer.class));
+        final PlatformComponents platformComponents = PlatformComponents.create(platformContext, model);
+        PlatformWiring.wire(
+                platformContext, mock(ExecutionLayer.class), platformComponents, ApplicationCallbacks.EMPTY);
 
         final PlatformComponentBuilder componentBuilder =
-                new PlatformComponentBuilder(mock(PlatformBuildingBlocks.class));
+                new PlatformComponentBuilder(createBuildingBlocks(platformContext));
 
+        final PlatformCoordinator coordinator = new PlatformCoordinator(platformComponents, ApplicationCallbacks.EMPTY);
         componentBuilder
                 .withEventHasher(mock(EventHasher.class))
                 .withInternalEventValidator(mock(InternalEventValidator.class))
                 .withEventDeduplicator(mock(EventDeduplicator.class))
                 .withEventSignatureValidator(mock(EventSignatureValidator.class))
                 .withStateGarbageCollector(mock(StateGarbageCollector.class))
-                .withSelfEventSigner(mock(SelfEventSigner.class))
                 .withOrphanBuffer(mock(OrphanBuffer.class))
-                .withEventCreationManager(mock(EventCreationManager.class))
+                .withEventCreator(mock(EventCreatorModule.class))
                 .withConsensusEngine(mock(ConsensusEngine.class))
                 .withConsensusEventStream(mock(ConsensusEventStream.class))
-                .withStatusStateMachine(mock(StatusStateMachine.class))
+                .withPlatformMonitor(mock(PlatformMonitor.class))
                 .withTransactionPrehandler(mock(TransactionPrehandler.class))
                 .withInlinePcesWriter(mock(InlinePcesWriter.class))
                 .withSignedStateSentinel(mock(SignedStateSentinel.class))
@@ -125,18 +135,23 @@ class PlatformWiringTests {
                         startInput,
                         stopInput,
                         clearInput,
+                        resumeInput,
+                        pauseInput,
                         systemHealthInput,
-                        platformStatusInput) -> {
+                        platformStatusInput,
+                        syncLagOutput) -> {
                     eventInput.bindConsumer(event -> {});
                     eventWindowInput.bindConsumer(eventWindow -> {});
                     startInput.bindConsumer(noInput -> {});
                     stopInput.bindConsumer(noInput -> {});
                     clearInput.bindConsumer(noInput -> {});
+                    resumeInput.bindConsumer(noInput -> {});
+                    pauseInput.bindConsumer(noInput -> {});
                     systemHealthInput.bindConsumer(duration -> {});
                     platformStatusInput.bindConsumer(platformStatus -> {});
                 });
 
-        wiring.bind(
+        platformComponents.bind(
                 componentBuilder,
                 mock(PcesReplayer.class),
                 mock(StateSignatureCollector.class),
@@ -145,11 +160,28 @@ class PlatformWiringTests {
                 mock(SignedStateNexus.class),
                 mock(LatestCompleteStateNexus.class),
                 mock(SavedStateController.class),
-                mock(AppNotifier.class),
-                mock(PlatformPublisher.class));
+                mock(AppNotifier.class));
 
-        wiring.start();
-        assertFalse(wiring.getModel().checkForUnboundInputWires());
-        wiring.stop();
+        coordinator.start();
+        assertFalse(model.checkForUnboundInputWires());
+        coordinator.stop();
+    }
+
+    private static PlatformBuildingBlocks createBuildingBlocks(final PlatformContext context) {
+        final PlatformBuildingBlocks blocks = mock(PlatformBuildingBlocks.class);
+        when(blocks.platformContext()).thenReturn(context);
+        when(blocks.secureRandomSupplier()).thenReturn(() -> mock(SecureRandom.class));
+        final RosterHistory rosterHistory = mock(RosterHistory.class);
+        when(rosterHistory.getCurrentRoster()).thenReturn(Roster.DEFAULT);
+        when(blocks.rosterHistory()).thenReturn(rosterHistory);
+        final KeysAndCerts keysAndCerts;
+        try {
+            keysAndCerts = KeysAndCertsGenerator.generate(
+                    NodeId.FIRST_NODE_ID, SigningSchema.RSA, new SecureRandom(), new SecureRandom());
+        } catch (final NoSuchAlgorithmException | NoSuchProviderException | KeyGeneratingException e) {
+            throw new RuntimeException(e);
+        }
+        when(blocks.keysAndCerts()).thenReturn(keysAndCerts);
+        return blocks;
     }
 }

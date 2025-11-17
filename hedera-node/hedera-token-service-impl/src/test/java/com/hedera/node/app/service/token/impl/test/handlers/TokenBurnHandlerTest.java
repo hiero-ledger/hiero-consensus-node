@@ -16,7 +16,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_PAUSED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_WAS_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TREASURY_MUST_OWN_BURNED_NFT;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.NFTS_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.NFTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.NFTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.TestStoreFactory.newWritableStoreWithAccounts;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.TestStoreFactory.newWritableStoreWithNfts;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.TestStoreFactory.newWritableStoreWithTokenRels;
@@ -48,7 +49,7 @@ import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.TokenAssociateTransactionBody;
 import com.hedera.hapi.node.token.TokenBurnTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.service.token.TokenService;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableNftStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
@@ -59,7 +60,6 @@ import com.hedera.node.app.service.token.impl.handlers.TokenBurnHandler;
 import com.hedera.node.app.service.token.impl.test.handlers.util.ParityTestBase;
 import com.hedera.node.app.service.token.impl.validators.TokenSupplyChangeOpsValidator;
 import com.hedera.node.app.service.token.records.TokenBurnStreamBuilder;
-import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -497,8 +497,8 @@ class TokenBurnHandlerTest extends ParityTestBase {
                     .build());
             writableNftStore = new WritableNftStore(
                     new MapWritableStates(Map.of(
-                            NFTS_KEY,
-                            MapWritableKVState.builder(TokenService.NAME, NFTS_KEY)
+                            NFTS_STATE_ID,
+                            MapWritableKVState.builder(NFTS_STATE_ID, NFTS_STATE_LABEL)
                                     .build())),
                     mock(WritableEntityCounters.class));
 

@@ -26,20 +26,22 @@ import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
+import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fees.ResourcePriceCalculatorImpl;
 import com.hedera.node.app.hapi.utils.keys.KeyComparator;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.EntityNumGeneratorImpl;
-import com.hedera.node.app.ids.WritableEntityIdStore;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.entityid.impl.EntityNumGeneratorImpl;
+import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.api.FeeStreamBuilder;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.services.ServiceScopeLookup;
 import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.signature.DefaultKeyVerifier;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
+import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -80,6 +82,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -102,10 +105,12 @@ public class ChildDispatchFactory {
     private final Authorizer authorizer;
     private final NetworkInfo networkInfo;
     private final FeeManager feeManager;
+    private final AppFeeCharging appFeeCharging;
     private final DispatchProcessor dispatchProcessor;
     private final ServiceScopeLookup serviceScopeLookup;
     private final ExchangeRateManager exchangeRateManager;
     private final TransactionChecker transactionChecker;
+    private final Map<Class<?>, ServiceApiProvider<?>> apiProviders;
 
     @Inject
     public ChildDispatchFactory(
@@ -113,18 +118,22 @@ public class ChildDispatchFactory {
             @NonNull final Authorizer authorizer,
             @NonNull final NetworkInfo networkInfo,
             @NonNull final FeeManager feeManager,
+            @NonNull final AppFeeCharging appFeeCharging,
             @NonNull final DispatchProcessor dispatchProcessor,
             @NonNull final ServiceScopeLookup serviceScopeLookup,
             @NonNull final ExchangeRateManager exchangeRateManager,
-            @NonNull final TransactionChecker transactionChecker) {
+            @NonNull final TransactionChecker transactionChecker,
+            @NonNull final Map<Class<?>, ServiceApiProvider<?>> apiProviders) {
         this.dispatcher = requireNonNull(dispatcher);
         this.authorizer = requireNonNull(authorizer);
         this.networkInfo = requireNonNull(networkInfo);
         this.feeManager = requireNonNull(feeManager);
+        this.appFeeCharging = requireNonNull(appFeeCharging);
         this.dispatchProcessor = requireNonNull(dispatchProcessor);
         this.serviceScopeLookup = requireNonNull(serviceScopeLookup);
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
         this.transactionChecker = requireNonNull(transactionChecker);
+        this.apiProviders = requireNonNull(apiProviders);
     }
 
     /**
@@ -234,7 +243,7 @@ public class ChildDispatchFactory {
             @NonNull final Instant consensusNow,
             @NonNull final DispatchMetadata dispatchMetadata,
             @NonNull final ConsensusThrottling consensusThrottling,
-            @Nullable FeeCharging customFeeCharging,
+            @Nullable final FeeCharging customFeeCharging,
             // @UserTxnScope
             @NonNull final NodeInfo creatorInfo,
             @NonNull final Configuration config,
@@ -250,16 +259,18 @@ public class ChildDispatchFactory {
             @NonNull final ExchangeRateManager exchangeRateManager,
             @NonNull final TransactionDispatcher dispatcher) {
         final var readableStoreFactory = new ReadableStoreFactory(childStack);
-        final var writableEntityIdStore = new WritableEntityIdStore(childStack.getWritableStates(EntityIdService.NAME));
+        final var writableEntityIdStore =
+                new WritableEntityIdStoreImpl(childStack.getWritableStates(EntityIdService.NAME));
         final var entityNumGenerator = new EntityNumGeneratorImpl(writableEntityIdStore);
         final var writableStoreFactory = new WritableStoreFactory(
                 childStack, serviceScopeLookup.getServiceName(txnInfo.txBody()), writableEntityIdStore);
-        final var serviceApiFactory = new ServiceApiFactory(childStack, config);
+        final var serviceApiFactory = new ServiceApiFactory(childStack, config, apiProviders);
         final var priceCalculator =
                 new ResourcePriceCalculatorImpl(consensusNow, txnInfo, feeManager, readableStoreFactory);
         final var storeFactory = new StoreFactoryImpl(readableStoreFactory, writableStoreFactory, serviceApiFactory);
         final var childFeeAccumulator = new FeeAccumulator(
                 serviceApiFactory.getApi(TokenServiceApi.class), (FeeStreamBuilder) builder, childStack);
+        final var feeCharging = customFeeCharging != null ? customFeeCharging : appFeeCharging;
         final var dispatchHandleContext = new DispatchHandleContext(
                 consensusNow,
                 creatorInfo,
@@ -269,6 +280,7 @@ public class ChildDispatchFactory {
                 blockRecordInfo,
                 priceCalculator,
                 feeManager,
+                feeCharging,
                 storeFactory,
                 payerId,
                 keyVerifier,

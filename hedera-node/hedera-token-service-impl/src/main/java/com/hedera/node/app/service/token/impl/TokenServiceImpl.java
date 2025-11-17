@@ -3,15 +3,19 @@ package com.hedera.node.app.service.token.impl;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.TokenService;
+import com.hedera.node.app.service.token.impl.calculator.CryptoCreateFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.CryptoDeleteFeeCalculator;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema;
 import com.hedera.node.app.spi.AppContext;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.ZoneId;
+import java.util.Set;
 
 /** An implementation of the {@link TokenService} interface. */
 public class TokenServiceImpl implements TokenService {
@@ -33,5 +37,10 @@ public class TokenServiceImpl implements TokenService {
         registry.register(new V0490TokenSchema());
         registry.register(new V0530TokenSchema());
         registry.register(new V0610TokenSchema());
+    }
+
+    @Override
+    public Set<ServiceFeeCalculator> serviceFeeCalculators() {
+        return Set.of(new CryptoCreateFeeCalculator(), new CryptoDeleteFeeCalculator());
     }
 }

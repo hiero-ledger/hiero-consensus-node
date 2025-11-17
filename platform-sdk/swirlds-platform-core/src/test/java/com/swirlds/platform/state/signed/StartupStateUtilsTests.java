@@ -3,6 +3,8 @@ package com.swirlds.platform.state.signed;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateToDisk;
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -12,6 +14,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.config.StateCommonConfig_;
@@ -25,7 +28,6 @@ import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.config.StateConfig_;
 import com.swirlds.platform.internal.SignedStateLoadingException;
@@ -33,9 +35,10 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestHederaVirtualMapState;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -45,7 +48,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
-import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -72,6 +74,7 @@ public class StartupStateUtilsTests {
     private final String swirldName = "swirldName";
     private SemanticVersion currentSoftwareVersion;
     private PlatformStateFacade platformStateFacade;
+    private StateLifecycleManager stateLifecycleManager;
 
     @BeforeEach
     void beforeEach() throws IOException {
@@ -95,6 +98,7 @@ public class StartupStateUtilsTests {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
         registry.registerConstructables("com.swirlds");
         registry.registerConstructables("org.hiero");
+        registerConstructablesForStorage(CONFIGURATION);
     }
 
     @NonNull
@@ -120,32 +124,30 @@ public class StartupStateUtilsTests {
             @NonNull final Random random,
             @NonNull final PlatformContext platformContext,
             final long round,
-            @Nullable final Hash epoch,
             final boolean corrupted)
             throws IOException {
-        MerkleDb.resetDefaultInstancePath();
 
-        final SignedState signedState = new RandomSignedStateGenerator(random)
-                .setRound(round)
-                .setEpoch(epoch)
-                .build();
+        final SignedState signedState =
+                new RandomSignedStateGenerator(random).setRound(round).build();
 
-        // make the state immutable
-        signedState.getState().copy().release();
+        stateLifecycleManager =
+                new StateLifecycleManagerImpl(new NoOpMetrics(), new FakeTime(), TestVirtualMapState::new);
+        stateLifecycleManager.initState(signedState.getState(), true);
+        stateLifecycleManager.getMutableState().release();
         // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19905
         TestMerkleCryptoFactory.getInstance()
                 .digestTreeSync(signedState.getState().getRoot());
 
         final Path savedStateDirectory =
                 signedStateFilePath.getSignedStateDirectory(mainClassName, selfId, swirldName, round);
-
         writeSignedStateToDisk(
                 platformContext,
                 selfId,
                 savedStateDirectory,
-                signedState,
                 StateToDiskReason.PERIODIC_SNAPSHOT,
-                platformStateFacade);
+                signedState,
+                platformStateFacade,
+                stateLifecycleManager);
 
         if (corrupted) {
             final Path stateFilePath = savedStateDirectory.resolve("SignedState.swh");
@@ -171,7 +173,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestHederaVirtualMapState::new,
+                        TestVirtualMapState::new,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -192,17 +194,16 @@ public class StartupStateUtilsTests {
         SignedState latestState = null;
         for (int i = 0; i < stateCount; i++) {
             latestRound += random.nextInt(100, 200);
-            latestState = writeState(random, platformContext, latestRound, null, false);
+            latestState = writeState(random, platformContext, latestRound, false);
         }
 
         final RecycleBin recycleBin = initializeRecycleBin(platformContext, selfId);
-        MerkleDb.resetDefaultInstancePath();
         final SignedState loadedState = StartupStateUtils.loadStateFile(
                         recycleBin,
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestHederaVirtualMapState::new,
+                        TestVirtualMapState::new,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -228,7 +229,7 @@ public class StartupStateUtilsTests {
         for (int i = 0; i < stateCount; i++) {
             latestRound += random.nextInt(100, 200);
             final boolean corrupted = i == stateCount - 1;
-            writeState(random, platformContext, latestRound, null, corrupted);
+            writeState(random, platformContext, latestRound, corrupted);
         }
         final RecycleBin recycleBin = initializeRecycleBin(platformContext, selfId);
 
@@ -237,7 +238,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestHederaVirtualMapState::new,
+                        TestVirtualMapState::new,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -271,20 +272,19 @@ public class StartupStateUtilsTests {
         for (int i = 0; i < stateCount; i++) {
             latestRound += random.nextInt(100, 200);
             final boolean corrupted = (stateCount - i) <= invalidStateCount;
-            final SignedState state = writeState(random, platformContext, latestRound, null, corrupted);
+            final SignedState state = writeState(random, platformContext, latestRound, corrupted);
             if (!corrupted) {
                 latestUncorruptedState = state;
             }
         }
         RandomSignedStateGenerator.releaseAllBuiltSignedStates();
 
-        MerkleDb.resetDefaultInstancePath();
         final SignedState loadedState = StartupStateUtils.loadStateFile(
                         recycleBin,
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestHederaVirtualMapState::new,
+                        TestVirtualMapState::new,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)

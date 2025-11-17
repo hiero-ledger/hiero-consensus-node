@@ -13,14 +13,15 @@ import com.hedera.node.app.service.consensus.impl.handlers.ConsensusHandlers;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.contract.impl.handlers.ContractHandlers;
 import com.hedera.node.app.service.contract.impl.handlers.EthereumTransactionHandler;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.impl.handlers.FileHandlers;
 import com.hedera.node.app.service.networkadmin.impl.handlers.NetworkAdminHandlers;
+import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
 import com.hedera.node.app.service.schedule.impl.handlers.ScheduleHandlers;
 import com.hedera.node.app.service.token.impl.handlers.TokenHandlers;
 import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.service.util.impl.handlers.UtilHandlers;
 import com.hedera.node.app.spi.AppContext;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.state.WorkingStateAccessor;
 import com.hedera.node.app.workflows.dispatcher.TransactionHandlers;
 import com.hedera.node.config.ConfigProvider;
@@ -52,6 +53,12 @@ public interface HandleWorkflowModule {
     @Singleton
     static Supplier<ContractHandlers> provideContractHandlers(@NonNull final ContractServiceImpl contractService) {
         return contractService::handlers;
+    }
+
+    @Provides
+    @Singleton
+    static ScheduleHandlers provideScheduleHandlers(@NonNull final ScheduleServiceImpl scheduleService) {
+        return scheduleService.handlers();
     }
 
     @Provides
@@ -141,6 +148,7 @@ public interface HandleWorkflowModule {
                 contractHandlers.get().contractSystemUndeleteHandler(),
                 contractHandlers.get().ethereumTransactionHandler(),
                 contractHandlers.get().lambdaSStoreHandler(),
+                contractHandlers.get().hookDispatchHandler(),
                 tokenHandlers.cryptoCreateHandler(),
                 tokenHandlers.cryptoUpdateHandler(),
                 tokenHandlers.cryptoTransferHandler(),

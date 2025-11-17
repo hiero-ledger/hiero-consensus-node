@@ -4,6 +4,7 @@ package com.hedera.node.app.workflows.handle.steps;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
+import static com.hedera.node.app.service.token.impl.api.TokenServiceApiProvider.TOKEN_SERVICE_API_PROVIDER;
 import static java.util.Collections.emptyMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -13,11 +14,11 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
@@ -29,10 +30,12 @@ import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.PairedStreamBuilder;
+import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
+import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.services.ServiceScopeLookup;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.Fees;
@@ -54,7 +57,8 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import java.time.Instant;
-import java.util.function.Consumer;
+import java.util.Map;
+import java.util.function.BiConsumer;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -85,6 +89,9 @@ class ParentTxnTest {
 
     @Mock
     private PreHandleResult preHandleResult;
+
+    @Mock
+    private AppFeeCharging appFeeCharging;
 
     @Mock
     private PreHandleWorkflow preHandleWorkflow;
@@ -138,29 +145,21 @@ class ParentTxnTest {
     private TransactionChecker transactionChecker;
 
     @Mock
-    private Consumer<StateSignatureTransaction> stateSignatureTxnCallback;
-
-    private SemanticVersion softwareVersionFactory = SemanticVersion.DEFAULT;
+    private BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback;
 
     @BeforeEach
     void setUp() {
-        given(preHandleWorkflow.getCurrentPreHandleResult(
-                        eq(creatorInfo),
-                        eq(PLATFORM_TXN),
-                        any(ReadableStoreFactory.class),
-                        eq(stateSignatureTxnCallback)))
-                .willReturn(preHandleResult);
-        given(preHandleResult.txInfo()).willReturn(txnInfo);
-        given(txnInfo.functionality()).willReturn(CONSENSUS_CREATE_TOPIC);
+        lenient().when(txnInfo.functionality()).thenReturn(CONSENSUS_CREATE_TOPIC);
     }
 
     @Test
     void usesPairedStreamBuilderWithDefaultConfig() {
+        givenExistingCreator();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(DEFAULT_CONFIG, 1));
 
         final var factory = createUserTxnFactory();
         final var subject =
-                factory.createUserTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback);
+                factory.createTopLevelTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, shortCircuitTxnCallback);
 
         assertSame(CONSENSUS_CREATE_TOPIC, subject.functionality());
         assertSame(CONSENSUS_NOW, subject.consensusNow());
@@ -178,15 +177,28 @@ class ParentTxnTest {
 
     @Test
     void returnsNullForStateSignatureTxn() {
+        givenExistingCreator();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(BLOCKS_CONFIG, 1));
         given(txnInfo.functionality()).willReturn(STATE_SIGNATURE_TRANSACTION);
 
         final var factory = createUserTxnFactory();
-        assertNull(factory.createUserTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback));
+        assertNull(factory.createTopLevelTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, shortCircuitTxnCallback));
+    }
+
+    @Test
+    void returnsNullForNullCreator() {
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(BLOCKS_CONFIG, 1));
+        given(preHandleWorkflow.getCurrentPreHandleResult(
+                        eq(null), eq(PLATFORM_TXN), any(ReadableStoreFactory.class), eq(shortCircuitTxnCallback)))
+                .willReturn(preHandleResult);
+        final var factory = createUserTxnFactory();
+
+        assertNull(factory.createTopLevelTxn(state, null, PLATFORM_TXN, CONSENSUS_NOW, shortCircuitTxnCallback));
     }
 
     @Test
     void constructsDispatchAsExpectedWithCongestionMultiplierGreaterThanOne() {
+        givenExistingCreator();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(BLOCKS_CONFIG, 1));
         given(txnInfo.payerID()).willReturn(PAYER_ID);
         given(txnInfo.txBody())
@@ -205,7 +217,7 @@ class ParentTxnTest {
 
         final var factory = createUserTxnFactory();
         final var subject =
-                factory.createUserTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback);
+                factory.createTopLevelTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, shortCircuitTxnCallback);
 
         final var dispatch = factory.createDispatch(subject, ExchangeRateSet.DEFAULT);
 
@@ -221,6 +233,7 @@ class ParentTxnTest {
 
     @Test
     void constructsDispatchAsExpectedWithCongestionMultiplierEqualToOne() {
+        givenExistingCreator();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(BLOCKS_CONFIG, 1));
         given(txnInfo.payerID()).willReturn(PAYER_ID);
         given(txnInfo.txBody())
@@ -238,7 +251,7 @@ class ParentTxnTest {
 
         final var factory = createUserTxnFactory();
         final var subject =
-                factory.createUserTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback);
+                factory.createTopLevelTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, shortCircuitTxnCallback);
 
         final var dispatch = factory.createDispatch(subject, ExchangeRateSet.DEFAULT);
 
@@ -261,6 +274,7 @@ class ParentTxnTest {
                 authorizer,
                 networkInfo,
                 feeManager,
+                appFeeCharging,
                 dispatchProcessor,
                 serviceScopeLookup,
                 exchangeRateManager,
@@ -269,7 +283,17 @@ class ParentTxnTest {
                 blockRecordManager,
                 blockStreamManager,
                 childDispatchFactory,
-                softwareVersionFactory,
-                transactionChecker);
+                transactionChecker,
+                Map.of(TokenServiceApi.class, TOKEN_SERVICE_API_PROVIDER));
+    }
+
+    private void givenExistingCreator() {
+        given(preHandleWorkflow.getCurrentPreHandleResult(
+                        any(NodeInfo.class),
+                        eq(PLATFORM_TXN),
+                        any(ReadableStoreFactory.class),
+                        eq(shortCircuitTxnCallback)))
+                .willReturn(preHandleResult);
+        given(preHandleResult.txInfo()).willReturn(txnInfo);
     }
 }

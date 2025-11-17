@@ -17,6 +17,7 @@ mainModuleInfo {
     annotationProcessor("com.swirlds.config.processor")
     annotationProcessor("com.google.auto.service.processor")
     runtimeOnly("com.swirlds.config.impl")
+    runtimeOnly("org.hiero.consensus.event.creator.impl")
 }
 
 jmhModuleInfo {
@@ -32,13 +33,11 @@ jmhModuleInfo {
 testModuleInfo {
     requires("com.swirlds.base.test.fixtures")
     requires("com.swirlds.metrics.impl")
-    requires("com.swirlds.state.impl")
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.platform.core")
     requires("com.swirlds.platform.core.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.state.api.test.fixtures")
-    requires("com.swirlds.state.impl")
     requires("com.swirlds.state.impl.test.fixtures")
     requires("com.swirlds.merkledb.test.fixtures")
     requires("org.hiero.base.crypto.test.fixtures")

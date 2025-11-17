@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXF: [CITR] Extended Test Suite - Dry Run"
+name: "ZXF: [CITR] XTS Dry Run"
 on:
   workflow_dispatch:
     inputs:
@@ -34,6 +34,21 @@ on:
         type: boolean
         default: true
         description: "Run MNE Regression Panel"
+      enable-mirror-node-regression-panel:
+        required: true
+        type: boolean
+        default: true
+        description: "Run Mirror Node Regression Panel"
+      enable-rpc-relay-regression-panel:
+        required: true
+        type: boolean
+        default: true
+        description: "Run JSON-RPC Relay Regression Panel"
+      enable-block-node-regression-panel:
+        required: true
+        type: boolean
+        default: true
+        description: "Run Block Node Regression Panel"
 
 permissions:
   id-token: write
@@ -48,83 +63,78 @@ defaults:
     shell: bash
 
 jobs:
-  extended-test-suite:
-    name: Execute eXtended Test Suite
-    if: ${{ inputs.enable-extended-test-suite == true }}
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+  parameters:
+    name: Workflow Parameters
+    runs-on: hiero-citr-linux-medium
+    outputs:
+      solo-version: ${{ steps.params.outputs.solo-version }}
+      helm-release-name: ${{ steps.params.outputs.helm-release-name }}
+      solo-ge-0440: ${{ steps.params.outputs.solo-ge-0440 }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Print Params
+        id: params
+        run: |
+          SOLO_GE_0440=$([[ "$(printf '%s\n' "${{vars.ADHOC_XTS_SOLO_VERSION}}" "v0.44.0" | sort -V | head -n1)" == "v0.44.0" ]] && echo "true" || echo "false")
+          HELM_NAME="mirror"
+          if [[ "${SOLO_GE_0440}" == "true" ]]; then
+            HELM_NAME="mirror-1"
+          fi
+          echo "Commit SHA: ${{ inputs.commit_sha }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Branch Name: ${{ inputs.branch_name }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Enable Extended Test Suite: ${{ inputs.enable-extended-test-suite }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Enable Abbreviated Panel: ${{ inputs.enable-abbreviated-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Enable Hedera Node JRS Panel: ${{ inputs.enable-hedera-node-jrs-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Enable SDK TCK Regression Panel: ${{ inputs.enable-sdk-tck-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Enable Mirror Node Regression Panel: ${{ inputs.enable-mirror-node-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Enable JSON-RPC Relay Regression Panel: ${{ inputs.enable-rpc-relay-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Enable Block Node Regression Panel: ${{ inputs.enable-block-node-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Solo Version: ${{ vars.ADHOC_XTS_SOLO_VERSION }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Helm Release Name: ${HELM_NAME}" | tee -a "${GITHUB_STEP_SUMMARY}"
+
+          echo "solo-version=${{ vars.ADHOC_XTS_SOLO_VERSION }}" >> "${GITHUB_OUTPUT}"
+          echo "helm-release-name=${HELM_NAME}" >> "${GITHUB_OUTPUT}"
+          echo "solo-ge-0440=${SOLO_GE_0440}" >> "${GITHUB_OUTPUT}"
+
+  xts-execution:
+    name: Execute XTS
+    needs: parameters
+    uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
-      custom-job-label: "Dry-Run: Execute eXtended Test Suite"
-      enable-timing-sensitive-tests: true
-      enable-time-consuming-tests: true
-      enable-hammer-tests: true
-      enable-hapi-tests-time-consuming: true
-      enable-network-log-capture: true
-      ref: ${{ inputs.commit_sha }}
+      commit_sha: ${{ inputs.commit_sha }}
+      branch_name: ${{ inputs.branch_name }}
+      solo-version: ${{ needs.parameters.outputs.solo-version }}
+      helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
+      solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}
+      enable-extended-test-suite: ${{ inputs.enable-extended-test-suite }}
+      enable-abbreviated-panel: ${{ inputs.enable-abbreviated-panel }}
+      enable-hedera-node-jrs-panel: ${{ inputs.enable-hedera-node-jrs-panel }}
+      enable-sdk-tck-regression-panel: ${{ inputs.enable-sdk-tck-regression-panel }}
+      enable-mirror-node-regression-panel: ${{ inputs.enable-mirror-node-regression-panel }}
+      enable-rpc-relay-regression-panel: ${{ inputs.enable-rpc-relay-regression-panel }}
+      enable-block-node-regression-panel: ${{ inputs.enable-block-node-regression-panel }}
+      custom-job-label: "XTS (Dry Run):"
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  abbreviated-panel:
-    name: JRS Panel
-    if: ${{ inputs.enable-abbreviated-panel == true }}
-    uses: ./.github/workflows/zxc-jrs-regression.yaml
-    with:
-      custom-job-name: "Dry-Run: Platform SDK"
-      panel-config: "configs/suites/GCP-PRCheck-Abbrev-4N.json"
-      ref: ${{ inputs.commit_sha }}
-      branch-name: ${{ inputs.branch_name }}
-      base-branch-name: ${{ inputs.branch_name }}
-      slack-results-channel: "regression-test"
-      slack-summary-channel: "regression-test"
-      use-branch-for-slack-channel: false
-    secrets:
-      access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-      jrs-ssh-user-name: ${{ secrets.PLATFORM_JRS_SSH_USER_NAME }}
-      jrs-ssh-key-file: ${{ secrets.PLATFORM_JRS_SSH_KEY_FILE }}
+      platform-access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
+      regression-access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       gcp-project-number: ${{ secrets.PLATFORM_GCP_PROJECT_NUMBER }}
       gcp-sa-key-contents: ${{ secrets.PLATFORM_GCP_KEY_FILE }}
-      slack-api-token: ${{ secrets.PLATFORM_SLACK_API_TOKEN }}
-      grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
-      grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
-
-  hedera-node-jrs-panel:
-    name: Hedera Node JRS Panel
-    if: ${{ inputs.enable-hedera-node-jrs-panel == true }}
-    uses: ./.github/workflows/zxc-jrs-regression.yaml
-    with:
-      custom-job-name: "Dry-Run: Abbrev Update Test"
-      ref: ${{ inputs.commit_sha }}
-      branch-name: ${{ inputs.branch_name }}
-      hedera-tests-enabled: true
-      use-branch-for-slack-channel: false
-      panel-config: "configs/services/suites/daily/GCP-Daily-Services-Abbrev-DAB-Update-4N-2C.json"
-    secrets:
-      access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
-      jrs-ssh-user-name: ${{ secrets.PLATFORM_JRS_SSH_USER_NAME }}
-      jrs-ssh-key-file: ${{ secrets.PLATFORM_JRS_SSH_KEY_FILE }}
-      gcp-project-number: ${{ secrets.PLATFORM_GCP_PROJECT_NUMBER }}
-      gcp-sa-key-contents: ${{ secrets.PLATFORM_GCP_KEY_FILE }}
-      slack-api-token: ${{ secrets.PLATFORM_SLACK_API_TOKEN }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
-
-  sdk-tck-regression-panel:
-    name: SDK TCK Regression Panel
-    if: ${{ inputs.enable-sdk-tck-regression-panel == true }}
-    uses: ./.github/workflows/zxc-tck-regression.yaml
-    with:
-      ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the JRS panel for checkout
-      custom-job-name: "Dry-Run: SDK TCK Regression"
-    secrets:
-      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
+      jrs-ssh-user-name: ${{ secrets.PLATFORM_JRS_SSH_USER_NAME }}
+      jrs-ssh-key-file: ${{ secrets.PLATFORM_JRS_SSH_KEY_FILE }}
+      slack-api-token: ${{ secrets.PLATFORM_SLACK_API_TOKEN }}
+      slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       slack-tck-report-webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
-      slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
 
+  # TODO: Move into zxc-xts-tests.yaml and update configuration there
   mirror-node-explorer-regression-panel:
     name: Mirror Node Explorer Regression Panel
     if: ${{ inputs.enable-mirror-node-explorer-regression-panel == true }}

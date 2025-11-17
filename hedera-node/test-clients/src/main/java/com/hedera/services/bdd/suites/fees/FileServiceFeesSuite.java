@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.fees;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
@@ -24,6 +25,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 public class FileServiceFeesSuite {
     private static final String MEMO = "Really quite something!";
@@ -75,6 +77,7 @@ public class FileServiceFeesSuite {
 
     @HapiTest
     @DisplayName("USD base fee as expected for file delete transaction")
+    @Tag(MATS)
     final Stream<DynamicTest> fileDeleteBaseUSDFee() {
         return hapiTest(
                 newKeyNamed("key").shape(KeyShape.SIMPLE),
@@ -118,6 +121,7 @@ public class FileServiceFeesSuite {
 
     @HapiTest
     @DisplayName("USD base fee as expected for file get content transaction")
+    @Tag(MATS)
     final Stream<DynamicTest> fileGetContentBaseUSDFee() {
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),

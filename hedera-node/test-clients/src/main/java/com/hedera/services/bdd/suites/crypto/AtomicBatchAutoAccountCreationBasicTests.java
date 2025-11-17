@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.node.app.service.token.AliasUtils.recoverAddressFromPubKey;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -37,8 +38,6 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import com.google.protobuf.ByteString;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
@@ -46,20 +45,17 @@ import com.hedera.services.bdd.spec.transactions.token.HapiTokenCreate;
 import com.hedera.services.bdd.spec.transactions.token.HapiTokenMint;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.bouncycastle.util.encoders.Hex;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
-@HapiTestLifecycle
-public class AtomicBatchAutoAccountCreationBasicTests {
+class AtomicBatchAutoAccountCreationBasicTests {
 
     private static final double BASE_FEE_BATCH_TRANSACTION = 0.001;
     private static final String FT_FOR_AUTO_ACCOUNT = "ftForAutoAccount";
@@ -77,14 +73,9 @@ public class AtomicBatchAutoAccountCreationBasicTests {
     private static final String nftSupplyKey = "nftSupplyKey";
     private static final String adminKey = "adminKey";
 
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle lifecycle) {
-        lifecycle.overrideInClass(Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-    }
-
     @HapiTest
     @DisplayName("Auto Create ED25519 Account with FT Transfer success in Atomic Batch")
-    public Stream<DynamicTest> autoCreateED25519AccountWithFT_TransferSuccessInBatch() {
+    Stream<DynamicTest> autoCreateED25519AccountWithFT_TransferSuccessInBatch() {
 
         // create transfer to alias inner transaction
         final var tokenTransferToAlias = cryptoTransfer(
@@ -146,7 +137,8 @@ public class AtomicBatchAutoAccountCreationBasicTests {
 
     @HapiTest
     @DisplayName("Auto Create ECDSA Account with FT Transfer success in Atomic Batch")
-    public Stream<DynamicTest> autoCreateECDSA_AccountWithFT_TransferSuccessInBatch() {
+    @Tag(MATS)
+    Stream<DynamicTest> autoCreateECDSA_AccountWithFT_TransferSuccessInBatch() {
 
         // create transfer to alias inner transaction
         final var tokenTransferToAlias = cryptoTransfer(
@@ -208,7 +200,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
     @HapiTest
     @DisplayName("Auto Account Create with Public Key ED25519 and ECDSA and HBAR Transfer success in "
             + "Atomic Batch - Parametrized")
-    public Stream<DynamicTest> autoCreateAccountWithHBAR_TransferSuccessInBatch_Parametrized() {
+    Stream<DynamicTest> autoCreateAccountWithHBAR_TransferSuccessInBatch_Parametrized() {
         record AliasTestCase(String displayName, String aliasKeyName, String aliasType) {}
 
         final List<AliasTestCase> aliasTypes = List.of(
@@ -256,7 +248,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
     @HapiTest
     @DisplayName("Auto Account Create with Public Key ED25519 and ECDSA and FT Transfer success in "
             + "Atomic Batch - Parametrized")
-    public Stream<DynamicTest> autoCreateAccountWithFT_TransferSuccessInBatch_Parametrized() {
+    Stream<DynamicTest> autoCreateAccountWithFT_TransferSuccessInBatch_Parametrized() {
         record AliasTestCase(String displayName, String aliasKeyName, String aliasType) {}
 
         final List<AliasTestCase> aliasTypes = List.of(
@@ -324,7 +316,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
     @HapiTest
     @DisplayName("Auto Account Create with Public Key ED25519 and ECDSA and NFT Transfer success in "
             + "Atomic Batch - Parametrized")
-    public Stream<DynamicTest> autoCreateAccountWithNFT_TransferSuccessInBatch_Parametrized() {
+    Stream<DynamicTest> autoCreateAccountWithNFT_TransferSuccessInBatch_Parametrized() {
         record AliasTestCase(String displayName, String aliasKeyName, String aliasType) {}
 
         final List<AliasTestCase> aliasTypes = List.of(
@@ -396,7 +388,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
     @HapiTest
     @DisplayName("Auto Account Create with Public Key ED25519 and ECDSA and HBAR, FT and NFT Transfers success in "
             + "Atomic Batch - Parametrized")
-    public Stream<DynamicTest> autoCreateAccountWithHBAR_FT_NFT_TransferSuccessInBatch_Parametrized() {
+    Stream<DynamicTest> autoCreateAccountWithHBAR_FT_NFT_TransferSuccessInBatch_Parametrized() {
         record AliasTestCase(String displayName, String aliasKeyName, String aliasType) {}
 
         final List<AliasTestCase> aliasTypes = List.of(
@@ -473,7 +465,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
 
     @HapiTest
     @DisplayName("Auto Create Hollow Account with HBAR Transfer success in Atomic Batch")
-    public Stream<DynamicTest> autoCreateHollowAccountWithHBAR_TransferSuccessInBatch() {
+    Stream<DynamicTest> autoCreateHollowAccountWithHBAR_TransferSuccessInBatch() {
 
         final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
 
@@ -540,7 +532,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
 
     @HapiTest
     @DisplayName("Auto Create Hollow Account with FT Transfer success in Atomic Batch")
-    public Stream<DynamicTest> autoCreateHollowAccountWithFT_TransferSuccessInBatch() {
+    Stream<DynamicTest> autoCreateHollowAccountWithFT_TransferSuccessInBatch() {
 
         final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
 
@@ -607,7 +599,8 @@ public class AtomicBatchAutoAccountCreationBasicTests {
 
     @HapiTest
     @DisplayName("Auto Create Hollow Account with NFT Transfer success in Atomic Batch")
-    public Stream<DynamicTest> autoCreateHollowAccountWithNFT_TransferSuccessInBatch() {
+    @Tag(MATS)
+    Stream<DynamicTest> autoCreateHollowAccountWithNFT_TransferSuccessInBatch() {
 
         final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
 
@@ -674,7 +667,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
 
     @HapiTest
     @DisplayName("Auto Create Hollow Account with HBAR, FT And NFT Transfers success in Atomic Batch")
-    public Stream<DynamicTest> autoCreateHollowAccountWithHBAR_FT_NFT_TransferSuccessInBatch() {
+    Stream<DynamicTest> autoCreateHollowAccountWithHBAR_FT_NFT_TransferSuccessInBatch() {
 
         final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
 
@@ -741,7 +734,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
 
     @HapiTest
     @DisplayName("Auto Create All Types - Public Key and Hollow Accounts with HBAR Transfer success in Atomic Batch")
-    public Stream<DynamicTest> autoCreatePublicKeyAndHollowAccountWithHBAR_TransferSuccessInBatch() {
+    Stream<DynamicTest> autoCreatePublicKeyAndHollowAccountWithHBAR_TransferSuccessInBatch() {
 
         final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
 
@@ -846,7 +839,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
 
     @HapiTest
     @DisplayName("Auto Create All Types - Public Key and Hollow Accounts with FT Transfer success in Atomic Batch")
-    public Stream<DynamicTest> autoCreatePublicKeyAndHollowAccountWithFT_TransferSuccessInBatch() {
+    Stream<DynamicTest> autoCreatePublicKeyAndHollowAccountWithFT_TransferSuccessInBatch() {
 
         final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
 
@@ -961,7 +954,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
 
     @HapiTest
     @DisplayName("Auto Create All Types - Public Key and Hollow Accounts with NFT Transfer success in Atomic Batch")
-    public Stream<DynamicTest> autoCreatePublicKeyAndHollowAccountWithNFT_TransferSuccessInBatch() {
+    Stream<DynamicTest> autoCreatePublicKeyAndHollowAccountWithNFT_TransferSuccessInBatch() {
 
         final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
 
@@ -1080,7 +1073,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
 
     @HapiTest
     @DisplayName("Auto Create Hollow Account and Transfer to the same ECDSA Public Key success in Atomic Batch")
-    public Stream<DynamicTest> autoCreateHollowAccountAndTransferToSameECDSA_InBatch() {
+    Stream<DynamicTest> autoCreateHollowAccountAndTransferToSameECDSA_InBatch() {
 
         final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
 
@@ -1165,7 +1158,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
     @HapiTest
     @DisplayName("Auto Create Account from Public Key and Transfer to evm alias derived from the same ECDSA Public Key "
             + "success in Atomic Batch")
-    public Stream<DynamicTest> autoCreatePublicKeyAccountAndTransferToEvmAliasFromTheSameECDSA_InBatch() {
+    Stream<DynamicTest> autoCreatePublicKeyAccountAndTransferToEvmAliasFromTheSameECDSA_InBatch() {
 
         final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
 
@@ -1249,7 +1242,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
 
     @HapiTest
     @DisplayName("Auto Create Account from Transfer to Invalid evm alias fails in Batch ")
-    public Stream<DynamicTest> autoCreateAccountFromTransferToInvalidEvmAliasFailsInBatch_Parametrized() {
+    Stream<DynamicTest> autoCreateAccountFromTransferToInvalidEvmAliasFailsInBatch_Parametrized() {
 
         record InvalidAliasCase(String description, byte[] invalidAliasBytes) {}
 
@@ -1314,7 +1307,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
 
     @HapiTest
     @DisplayName("Auto Create Account from Transfer to Invalid ECDSA and ED25519 public keys fails in Batch ")
-    public Stream<DynamicTest> autoCreateAccountFromTransferToInvalidPublicKeysFailsInBatch_Parametrized() {
+    Stream<DynamicTest> autoCreateAccountFromTransferToInvalidPublicKeysFailsInBatch_Parametrized() {
 
         record InvalidKeyCase(String description, byte[] invalidKeyBytes) {}
 
@@ -1382,7 +1375,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
     // transfer with 0 HBAR amount
     @HapiTest
     @DisplayName("Auto Create ECDSA Public Key Account with 0 Transfer fails in Atomic Batch")
-    public Stream<DynamicTest> autoCreateECDSAKeyAccountWithZeroTransferFailsInBatch() {
+    Stream<DynamicTest> autoCreateECDSAKeyAccountWithZeroTransferFailsInBatch() {
 
         // create transfer to ECDSA alias inner transaction
         final var tokenTransferTo_ECDSA_Alias = cryptoTransfer(
@@ -1421,7 +1414,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
 
     @HapiTest
     @DisplayName("Auto Create ED25519 Public Key Account with 0 Transfer fails in Atomic Batch")
-    public Stream<DynamicTest> autoCreateED25519KeyAccountWithZeroTransferFailsInBatch() {
+    Stream<DynamicTest> autoCreateED25519KeyAccountWithZeroTransferFailsInBatch() {
 
         // create transfer to ED25519 alias inner transaction
         final var tokenTransferTo_ED25519_Alias = cryptoTransfer(movingHbar(0L).between(OWNER, VALID_ALIAS_ED25519))
@@ -1459,7 +1452,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
 
     @HapiTest
     @DisplayName("Auto Create Hollow Account with 0 Transfer fails in Atomic Batch")
-    public Stream<DynamicTest> autoCreateHollowAccountWithZeroTransferFailsInBatch() {
+    Stream<DynamicTest> autoCreateHollowAccountWithZeroTransferFailsInBatch() {
 
         final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
 
@@ -1532,7 +1525,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
     // Insufficient funds for transfer
     @HapiTest
     @DisplayName("Auto Create ECDSA Public Key Account with Sender with Insufficient funds fails in Atomic Batch")
-    public Stream<DynamicTest> autoCreateECDSAKeyAccountWithInsufficientFundsSenderFailsInBatch() {
+    Stream<DynamicTest> autoCreateECDSAKeyAccountWithInsufficientFundsSenderFailsInBatch() {
 
         // create transfer to ECDSA alias inner transaction
         final var tokenTransferTo_ECDSA_Alias = cryptoTransfer(
@@ -1568,7 +1561,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
 
     @HapiTest
     @DisplayName("Auto Create ED25519 Public Key Account with Sender with Insufficient funds fails in Atomic Batch")
-    public Stream<DynamicTest> autoCreateED25519KeyAccountWithInsufficientFundsSenderFailsInBatch() {
+    Stream<DynamicTest> autoCreateED25519KeyAccountWithInsufficientFundsSenderFailsInBatch() {
 
         // create transfer to ED25519 alias inner transaction
         final var tokenTransferTo_ED25519_Alias = cryptoTransfer(
@@ -1604,7 +1597,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
 
     @HapiTest
     @DisplayName("Auto Create Hollow Account with Sender with Insufficient funds fails in Atomic Batch")
-    public Stream<DynamicTest> autoCreateHollowAccountWithInsufficientFundsSenderFailsInBatch() {
+    Stream<DynamicTest> autoCreateHollowAccountWithInsufficientFundsSenderFailsInBatch() {
 
         final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
 
@@ -1665,7 +1658,7 @@ public class AtomicBatchAutoAccountCreationBasicTests {
     // valid length alias that is not recoverable from a public key
     @HapiTest
     @DisplayName("Auto Create Account with Unrecoverable Valid Alias fails in Atomic Batch")
-    public Stream<DynamicTest> autoCreateAccountWithUnrecoverableValidAliasFailsInBatch() {
+    Stream<DynamicTest> autoCreateAccountWithUnrecoverableValidAliasFailsInBatch() {
 
         final var aliasBytes = ByteString.copyFrom(new byte[20]); // valid length but not recoverable
 

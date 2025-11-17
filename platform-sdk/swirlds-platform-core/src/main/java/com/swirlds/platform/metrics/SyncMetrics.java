@@ -22,6 +22,7 @@ import com.swirlds.platform.gossip.shadowgraph.SyncPhase;
 import com.swirlds.platform.gossip.shadowgraph.SyncResult;
 import com.swirlds.platform.gossip.shadowgraph.SyncTiming;
 import com.swirlds.platform.network.Connection;
+import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.stats.AverageAndMax;
 import com.swirlds.platform.stats.AverageAndMaxTimeStat;
 import com.swirlds.platform.stats.AverageStat;
@@ -31,6 +32,7 @@ import com.swirlds.platform.system.PlatformStatNames;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -199,9 +201,10 @@ public class SyncMetrics {
      *
      * @param metrics a reference to the metrics-system
      * @param time    time source for the system
+     * @param peers   list of all peers to pre-create dynamic metrics
      * @throws IllegalArgumentException if {@code metrics} is {@code null}
      */
-    public SyncMetrics(final Metrics metrics, final Time time) {
+    public SyncMetrics(final Metrics metrics, final Time time, final List<PeerInfo> peers) {
         this.metrics = Objects.requireNonNull(metrics);
         this.time = Objects.requireNonNull(time);
         avgBytesPerSecSync = metrics.getOrCreate(AVG_BYTES_PER_SEC_SYNC_CONFIG);
@@ -315,13 +318,28 @@ public class SyncMetrics {
                 "rpc_output_queue_poll_time",
                 "amount of us spent sleeping waiting for poll to happen or timeout on rpc output queue",
                 FORMAT_10_0);
+
+        precreateDynamicMetrics(peers);
+    }
+
+    /**
+     * Out metric csv report needs all the metrics upfront to not get confused
+     * @param peers list of all peers to pre-create dynamic metrics
+     */
+    private void precreateDynamicMetrics(final List<PeerInfo> peers) {
+        for (final PeerInfo peer : peers) {
+            final NodeId nodeId = peer.nodeId();
+            rpcInputQueueSize(nodeId, 0);
+            rpcOutputQueueSize(nodeId, 0);
+            reportSyncPhase(nodeId, SyncPhase.OUTSIDE_OF_RPC);
+        }
     }
 
     /**
      * Supplies the event window numbers of a sync for statistics
      *
-     * @param self  event window of our graph at the start of the sync
-     * @param other event window of their graph at the start of the sync
+     * @param self   event window of our graph at the start of the sync
+     * @param other  event window of their graph at the start of the sync
      */
     public void eventWindow(@NonNull final EventWindow self, @NonNull final EventWindow other) {
         syncIndicatorDiff.update(self.ancientThreshold() - other.ancientThreshold());

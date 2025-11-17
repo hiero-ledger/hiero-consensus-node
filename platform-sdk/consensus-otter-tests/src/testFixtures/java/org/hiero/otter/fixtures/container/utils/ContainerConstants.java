@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container.utils;
 
-import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Constants and utility methods used by the container setup code and the container code itself.
@@ -12,7 +12,37 @@ public class ContainerConstants {
     /**
      * Working directory of the container
      */
-    public static final String CONTAINER_APP_WORKING_DIR = "/opt/DockerApp";
+    public static final String CONTAINER_APP_WORKING_DIR = "/opt/DockerApp/";
+
+    /**
+     * Path to {@code swirdls.log} file
+     */
+    public static final String SWIRLDS_LOG_PATH = "output/swirlds.log";
+
+    /**
+     * Path to {@code swirlds-hashstream.log} file
+     */
+    public static final String HASHSTREAM_LOG_PATH = "output/swirlds-hashstream/swirlds-hashstream.log";
+
+    /**
+     * Path to {@code otter.log} file (control process logs)
+     */
+    public static final String OTTER_LOG_PATH = "output/otter.log";
+
+    /**
+     * Path to {@code MainNetStats{nodeId}.csv} file
+     */
+    public static final String METRICS_PATH = "data/stats/MainNetStats%d.csv";
+
+    /**
+     * Path to the event stream directory
+     */
+    public static final String EVENT_STREAM_DIRECTORY = "hgcapp";
+
+    /**
+     * Path to the profile output directory
+     */
+    public static final String PROFILE_OUTPUT_DIRECTORY = "profiles/";
 
     /**
      * The port to open to allow connections to the

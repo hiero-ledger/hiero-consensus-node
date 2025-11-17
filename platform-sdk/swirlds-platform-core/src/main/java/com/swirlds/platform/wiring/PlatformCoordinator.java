@@ -1,121 +1,60 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.wiring;
 
-import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.swirlds.component.framework.component.ComponentWiring;
+import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
+
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.swirlds.common.io.IOIterator;
+import com.swirlds.common.stream.RunningEventHashOverride;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.builder.ApplicationCallbacks;
+import com.swirlds.platform.components.AppNotifier;
+import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
-import com.swirlds.platform.components.consensus.ConsensusEngineOutput;
+import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.deduplication.EventDeduplicator;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.validation.EventSignatureValidator;
-import com.swirlds.platform.event.validation.InternalEventValidator;
-import com.swirlds.platform.eventhandling.TransactionHandler;
-import com.swirlds.platform.eventhandling.TransactionHandlerResult;
-import com.swirlds.platform.eventhandling.TransactionPrehandler;
-import com.swirlds.platform.state.hasher.StateHasher;
+import com.swirlds.platform.listeners.ReconnectCompleteNotification;
+import com.swirlds.platform.state.hashlogger.HashLogger;
+import com.swirlds.platform.state.iss.IssDetector;
+import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.state.signed.ReservedSignedState;
+import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
+import com.swirlds.platform.state.snapshot.StateDumpRequest;
+import com.swirlds.platform.state.snapshot.StateSnapshotManager;
+import com.swirlds.platform.system.PlatformMonitor;
+import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.StatusStateMachine;
-import com.swirlds.platform.wiring.components.GossipWiring;
+import com.swirlds.platform.system.status.actions.PlatformStatusAction;
+import com.swirlds.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.List;
 import java.util.Objects;
-import java.util.Queue;
-import org.hiero.consensus.event.creator.impl.EventCreationManager;
+import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
- * Responsible for coordinating the clearing of the platform wiring objects.
+ * Responsible for coordinating activities through the component's wire for the platform.
+ *
+ * @param components
  */
-public class PlatformCoordinator {
-
-    /**
-     * Flushes the event hasher.
-     */
-    private final Runnable flushTheEventHasher;
-
-    private final ComponentWiring<InternalEventValidator, PlatformEvent> internalEventValidatorWiring;
-    private final ComponentWiring<EventDeduplicator, PlatformEvent> eventDeduplicatorWiring;
-    private final ComponentWiring<EventSignatureValidator, PlatformEvent> eventSignatureValidatorWiring;
-    private final ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring;
-    private final GossipWiring gossipWiring;
-    private final ComponentWiring<ConsensusEngine, ConsensusEngineOutput> consensusEngineWiring;
-    private final ComponentWiring<EventCreationManager, PlatformEvent> eventCreationManagerWiring;
-    private final ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
-            applicationTransactionPrehandlerWiring;
-    private final ComponentWiring<StateSignatureCollector, List<ReservedSignedState>> stateSignatureCollectorWiring;
-    private final ComponentWiring<TransactionHandler, TransactionHandlerResult> transactionHandlerWiring;
-    private final ComponentWiring<StateHasher, ReservedSignedState> stateHasherWiring;
-    private final ComponentWiring<StatusStateMachine, PlatformStatus> statusStateMachineWiring;
-    private final ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring;
-    private final ComponentWiring<BranchReporter, Void> branchReporterWiring;
-    private final ComponentWiring<InlinePcesWriter, PlatformEvent> pcesInlineWriterWiring;
+public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNull ApplicationCallbacks callbacks)
+        implements StatusActionSubmitter {
 
     /**
      * Constructor
-     *
-     * @param flushTheEventHasher                    a lambda that flushes the event hasher
-     * @param internalEventValidatorWiring           the internal event validator wiring
-     * @param eventDeduplicatorWiring                the event deduplicator wiring
-     * @param eventSignatureValidatorWiring          the event signature validator wiring
-     * @param orphanBufferWiring                     the orphan buffer wiring
-     * @param gossipWiring                           gossip wiring
-     * @param consensusEngineWiring                  the consensus engine wiring
-     * @param eventCreationManagerWiring             the event creation manager wiring
-     * @param applicationTransactionPrehandlerWiring the application transaction prehandler wiring
-     * @param stateSignatureCollectorWiring          the system transaction prehandler wiring
-     * @param transactionHandlerWiring               the transaction handler wiring
-     * @param stateHasherWiring                      the state hasher wiring
-     * @param statusStateMachineWiring               the status state machine wiring
-     * @param branchDetectorWiring                   the branch detector wiring
-     * @param branchReporterWiring                   the branch reporter wiring
-     * @param pcesInlineWriterWiring                 the inline PCES writer wiring
      */
-    public PlatformCoordinator(
-            @NonNull final Runnable flushTheEventHasher,
-            @NonNull final ComponentWiring<InternalEventValidator, PlatformEvent> internalEventValidatorWiring,
-            @NonNull final ComponentWiring<EventDeduplicator, PlatformEvent> eventDeduplicatorWiring,
-            @NonNull final ComponentWiring<EventSignatureValidator, PlatformEvent> eventSignatureValidatorWiring,
-            @NonNull final ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring,
-            @NonNull final GossipWiring gossipWiring,
-            @NonNull final ComponentWiring<ConsensusEngine, ConsensusEngineOutput> consensusEngineWiring,
-            @NonNull final ComponentWiring<EventCreationManager, PlatformEvent> eventCreationManagerWiring,
-            @NonNull
-                    final ComponentWiring<
-                                    TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
-                            applicationTransactionPrehandlerWiring,
-            @NonNull
-                    final ComponentWiring<StateSignatureCollector, List<ReservedSignedState>>
-                            stateSignatureCollectorWiring,
-            @NonNull final ComponentWiring<TransactionHandler, TransactionHandlerResult> transactionHandlerWiring,
-            @NonNull final ComponentWiring<StateHasher, ReservedSignedState> stateHasherWiring,
-            @NonNull final ComponentWiring<StatusStateMachine, PlatformStatus> statusStateMachineWiring,
-            @NonNull final ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring,
-            @NonNull final ComponentWiring<BranchReporter, Void> branchReporterWiring,
-            @Nullable final ComponentWiring<InlinePcesWriter, PlatformEvent> pcesInlineWriterWiring) {
-
-        this.flushTheEventHasher = Objects.requireNonNull(flushTheEventHasher);
-        this.internalEventValidatorWiring = Objects.requireNonNull(internalEventValidatorWiring);
-        this.eventDeduplicatorWiring = Objects.requireNonNull(eventDeduplicatorWiring);
-        this.eventSignatureValidatorWiring = Objects.requireNonNull(eventSignatureValidatorWiring);
-        this.orphanBufferWiring = Objects.requireNonNull(orphanBufferWiring);
-        this.gossipWiring = Objects.requireNonNull(gossipWiring);
-        this.consensusEngineWiring = Objects.requireNonNull(consensusEngineWiring);
-        this.eventCreationManagerWiring = Objects.requireNonNull(eventCreationManagerWiring);
-        this.applicationTransactionPrehandlerWiring = Objects.requireNonNull(applicationTransactionPrehandlerWiring);
-        this.stateSignatureCollectorWiring = Objects.requireNonNull(stateSignatureCollectorWiring);
-        this.transactionHandlerWiring = Objects.requireNonNull(transactionHandlerWiring);
-        this.stateHasherWiring = Objects.requireNonNull(stateHasherWiring);
-        this.statusStateMachineWiring = Objects.requireNonNull(statusStateMachineWiring);
-        this.branchDetectorWiring = Objects.requireNonNull(branchDetectorWiring);
-        this.branchReporterWiring = Objects.requireNonNull(branchReporterWiring);
-        this.pcesInlineWriterWiring = pcesInlineWriterWiring;
+    public PlatformCoordinator {
+        Objects.requireNonNull(components);
+        Objects.requireNonNull(callbacks);
     }
 
     /**
@@ -129,19 +68,17 @@ public class PlatformCoordinator {
         // lines without understanding the implications of doing so. Consult the wiring diagram when deciding
         // whether to change the order of these lines.
 
-        flushTheEventHasher.run();
-        internalEventValidatorWiring.flush();
-        eventDeduplicatorWiring.flush();
-        eventSignatureValidatorWiring.flush();
-        orphanBufferWiring.flush();
-        if (pcesInlineWriterWiring != null) {
-            pcesInlineWriterWiring.flush();
-        }
-        gossipWiring.flush();
-        consensusEngineWiring.flush();
-        applicationTransactionPrehandlerWiring.flush();
-        eventCreationManagerWiring.flush();
-        branchDetectorWiring.flush();
+        components.eventHasherWiring().flush();
+        components.internalEventValidatorWiring().flush();
+        components.eventDeduplicatorWiring().flush();
+        components.eventSignatureValidatorWiring().flush();
+        components.orphanBufferWiring().flush();
+        components.pcesInlineWriterWiring().flush();
+        components.gossipWiring().flush();
+        components.consensusEngineWiring().flush();
+        components.applicationTransactionPrehandlerWiring().flush();
+        components.eventCreationManagerWiring().flush();
+        components.branchDetectorWiring().flush();
     }
 
     /**
@@ -156,47 +93,321 @@ public class PlatformCoordinator {
 
         // Phase 0: flush the status state machine.
         // When reconnecting, this will force us to adopt a status that will halt event creation and gossip.
-        statusStateMachineWiring.flush();
+        components.platformMonitorWiring().flush();
 
         // Phase 1: squelch
         // Break cycles in the system. Flush squelched components just in case there is a task being executed when
         // squelch is activated.
-        consensusEngineWiring.startSquelching();
-        consensusEngineWiring.flush();
-        eventCreationManagerWiring.startSquelching();
-        eventCreationManagerWiring.flush();
+        components.consensusEngineWiring().startSquelching();
+        components.consensusEngineWiring().flush();
+        components.eventCreationManagerWiring().startSquelching();
+        components.eventCreationManagerWiring().flush();
 
         // Also squelch the transaction handler. It isn't strictly necessary to do this to prevent dataflow through
         // the system, but it prevents the transaction handler from wasting time handling rounds that don't need to
         // be handled.
-        transactionHandlerWiring.startSquelching();
-        transactionHandlerWiring.flush();
+        components.transactionHandlerWiring().startSquelching();
+        components.transactionHandlerWiring().flush();
 
         // Phase 2: flush
         // All cycles have been broken via squelching, so now it's time to flush everything out of the system.
         flushIntakePipeline();
-        stateHasherWiring.flush();
-        stateSignatureCollectorWiring.flush();
-        transactionHandlerWiring.flush();
-        branchDetectorWiring.flush();
-        branchReporterWiring.flush();
+        components.stateHasherWiring().flush();
+        components.stateSignatureCollectorWiring().flush();
+        components.transactionHandlerWiring().flush();
+        components.branchDetectorWiring().flush();
+        components.branchReporterWiring().flush();
 
         // Phase 3: stop squelching
         // Once everything has been flushed out of the system, it's safe to stop squelching.
-        consensusEngineWiring.stopSquelching();
-        eventCreationManagerWiring.stopSquelching();
-        transactionHandlerWiring.stopSquelching();
+        components.consensusEngineWiring().stopSquelching();
+        components.eventCreationManagerWiring().stopSquelching();
+        components.transactionHandlerWiring().stopSquelching();
 
         // Phase 4: clear
         // Data is no longer moving through the system. Clear all the internal data structures in the wiring objects.
-        eventDeduplicatorWiring.getInputWire(EventDeduplicator::clear).inject(NoInput.getInstance());
-        orphanBufferWiring.getInputWire(OrphanBuffer::clear).inject(NoInput.getInstance());
-        gossipWiring.getClearInput().inject(NoInput.getInstance());
-        stateSignatureCollectorWiring
+        components
+                .eventDeduplicatorWiring()
+                .getInputWire(EventDeduplicator::clear)
+                .inject(NoInput.getInstance());
+        components.orphanBufferWiring().getInputWire(OrphanBuffer::clear).inject(NoInput.getInstance());
+        components.gossipWiring().getClearInput().inject(NoInput.getInstance());
+        components
+                .stateSignatureCollectorWiring()
                 .getInputWire(StateSignatureCollector::clear)
                 .inject(NoInput.getInstance());
-        eventCreationManagerWiring.getInputWire(EventCreationManager::clear).inject(NoInput.getInstance());
-        branchDetectorWiring.getInputWire(BranchDetector::clear).inject(NoInput.getInstance());
-        branchReporterWiring.getInputWire(BranchReporter::clear).inject(NoInput.getInstance());
+        components
+                .eventCreationManagerWiring()
+                .getInputWire(EventCreatorModule::clear)
+                .inject(NoInput.getInstance());
+        components.branchDetectorWiring().getInputWire(BranchDetector::clear).inject(NoInput.getInstance());
+        components.branchReporterWiring().getInputWire(BranchReporter::clear).inject(NoInput.getInstance());
+    }
+
+    /**
+     * Start gossiping.
+     */
+    public void startGossip() {
+        components.gossipWiring().getStartInput().inject(NoInput.getInstance());
+    }
+
+    /**
+     * Resume gossiping.
+     */
+    public void resumeGossip() {
+        components.gossipWiring().resumeInput().inject(NoInput.getInstance());
+    }
+
+    /**
+     * Pause gossiping.
+     */
+    public void pauseGossip() {
+        components.gossipWiring().pauseInput().inject(NoInput.getInstance());
+    }
+
+    /**
+     * Forward a state to the hash logger.
+     *
+     * @param signedState the state to forward
+     */
+    public void sendStateToHashLogger(@NonNull final SignedState signedState) {
+        if (signedState.getState().getHash() != null) {
+            final ReservedSignedState stateReservedForHasher = signedState.reserve("logging state hash");
+
+            final boolean offerResult = components
+                    .hashLoggerWiring()
+                    .getInputWire(HashLogger::logHashes)
+                    .offer(stateReservedForHasher);
+            if (!offerResult) {
+                stateReservedForHasher.close();
+            }
+        }
+    }
+
+    /**
+     * Update the running hash for all components that need it.
+     *
+     * @param runningHashUpdate the object containing necessary information to update the running hash
+     */
+    public void updateRunningHash(@NonNull final RunningEventHashOverride runningHashUpdate) {
+        components.runningEventHashOverrideWiring().runningHashUpdateInput().inject(runningHashUpdate);
+    }
+
+    /**
+     * Pass an overriding state to the ISS detector.
+     *
+     * @param state the overriding state
+     */
+    public void overrideIssDetectorState(@NonNull final ReservedSignedState state) {
+        components
+                .issDetectorWiring()
+                .getInputWire(IssDetector::overridingState)
+                .put(state);
+    }
+
+    /**
+     * Signal the end of the preconsensus replay to the ISS detector.
+     */
+    public void signalEndOfPcesReplay() {
+        components
+                .issDetectorWiring()
+                .getInputWire(IssDetector::signalEndOfPreconsensusReplay)
+                .put(NoInput.getInstance());
+    }
+
+    /**
+     * Inject a new event window into all components that need it.
+     *
+     * @param eventWindow the new event window
+     */
+    public void updateEventWindow(@NonNull final EventWindow eventWindow) {
+        // Future work: this method can merge with consensusSnapshotOverride
+        components
+                .eventWindowManagerWiring()
+                .getInputWire(EventWindowManager::updateEventWindow)
+                .inject(eventWindow);
+
+        // Since there is asynchronous access to the shadowgraph, it's important to ensure that
+        // it has fully ingested the new event window before continuing.
+        components.gossipWiring().flush();
+    }
+
+    /**
+     * Inject a new consensus snapshot into all components that need it. This will happen at restart and reconnect
+     * boundaries.
+     *
+     * @param consensusSnapshot the new consensus snapshot
+     */
+    public void consensusSnapshotOverride(@NonNull final ConsensusSnapshot consensusSnapshot) {
+        components
+                .consensusEngineWiring()
+                .getInputWire(ConsensusEngine::outOfBandSnapshotUpdate)
+                .inject(consensusSnapshot);
+        if (callbacks.snapshotOverrideConsumer() != null) {
+            callbacks.snapshotOverrideConsumer().accept(consensusSnapshot);
+        }
+    }
+
+    /**
+     * Flush the transaction handler.
+     */
+    public void flushTransactionHandler() {
+        components.transactionHandlerWiring().flush();
+    }
+
+    /**
+     * Flush the state hasher.
+     */
+    public void flushStateHasher() {
+        components.stateHasherWiring().flush();
+    }
+
+    /**
+     * Start the wiring framework.
+     */
+    public void start() {
+        components.model().start();
+    }
+
+    /**
+     * Stop the wiring framework.
+     */
+    public void stop() {
+        components.model().stop();
+    }
+
+    /**
+     * @see StatusStateMachine#submitStatusAction
+     */
+    public void submitStatusAction(@NonNull final PlatformStatusAction action) {
+        components
+                .platformMonitorWiring()
+                .getInputWire(PlatformMonitor::submitStatusAction)
+                .put(action);
+    }
+
+    /**
+     * @see StateSignatureCollector#addReservedState
+     */
+    public void putSignatureCollectorState(@NonNull final ReservedSignedState reserve) {
+        components
+                .stateSignatureCollectorWiring()
+                .getInputWire(StateSignatureCollector::addReservedState)
+                .put(reserve);
+    }
+
+    /**
+     * @see EventSignatureValidator#updateRosterHistory
+     */
+    public void injectRosterHistory(@NonNull final RosterHistory rosterHistory) {
+        components
+                .eventSignatureValidatorWiring()
+                .getInputWire(EventSignatureValidator::updateRosterHistory)
+                .inject(rosterHistory);
+    }
+
+    /**
+     * @see InlinePcesWriter#registerDiscontinuity
+     */
+    public void registerPcesDiscontinuity(final long round) {
+        components
+                .pcesInlineWriterWiring()
+                .getInputWire(InlinePcesWriter::registerDiscontinuity)
+                .inject(round);
+    }
+
+    /**
+     * @see AppNotifier#sendReconnectCompleteNotification
+     */
+    public void sendReconnectCompleteNotification(@NonNull final SignedState signedState) {
+        components
+                .notifierWiring()
+                .getInputWire(AppNotifier::sendReconnectCompleteNotification)
+                .put(new ReconnectCompleteNotification(
+                        signedState.getRound(), signedState.getConsensusTimestamp(), signedState.getState()));
+    }
+
+    /**
+     * @see InlinePcesWriter#setMinimumAncientIdentifierToStore
+     */
+    public void injectPcesMinimumGenerationToStore(@NonNull final long minimumGenerationNonAncientForOldestState) {
+        components
+                .pcesInlineWriterWiring()
+                .getInputWire(InlinePcesWriter::setMinimumAncientIdentifierToStore)
+                .inject(minimumGenerationNonAncientForOldestState);
+    }
+
+    /**
+     * @see com.swirlds.platform.event.preconsensus.PcesReplayer#replayPces
+     */
+    public void injectPcesReplayerIterator(@NonNull final IOIterator<PlatformEvent> iterator) {
+        components.pcesReplayerWiring().pcesIteratorInputWire().inject(iterator);
+    }
+
+    /**
+     * @see StateSnapshotManager#dumpStateTask
+     */
+    public void dumpStateToDisk(@NonNull final StateDumpRequest request) {
+        components
+                .stateSnapshotManagerWiring()
+                .getInputWire(StateSnapshotManager::dumpStateTask)
+                .put(request);
+    }
+
+    /**
+     * @see StateSignatureCollector#addReservedState(ReservedSignedState)
+     */
+    public void injectSignatureCollectorState(@NonNull final ReservedSignedState reservedSignedState) {
+        components
+                .stateSignatureCollectorWiring()
+                .getInputWire(StateSignatureCollector::addReservedState)
+                .put(reservedSignedState);
+    }
+
+    /**
+     * @see EventCreatorModule#quiescenceCommand(QuiescenceCommand)
+     */
+    public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
+        components
+                .platformMonitorWiring()
+                .getInputWire(PlatformMonitor::quiescenceCommand)
+                .inject(quiescenceCommand);
+        components
+                .eventCreationManagerWiring()
+                .getInputWire(EventCreatorModule::quiescenceCommand)
+                .inject(quiescenceCommand);
+    }
+
+    /**
+     * Load the received signed state into the platform (inline former ReconnectStateLoader#loadReconnectState).
+     */
+    public void loadReconnectState(@NonNull final Configuration configuration, @NonNull final SignedState signedState) {
+        this.overrideIssDetectorState(signedState.reserve("reconnect state to issDetector"));
+
+        components
+                .latestImmutableStateNexusWiring()
+                .getInputWire(SignedStateNexus::setState)
+                .put(signedState.reserve("set latest immutable to reconnect state"));
+        this.sendStateToHashLogger(signedState);
+        // this will send the state to the signature collector which will send it to be written to disk.
+        // in the future, we might not send it to the collector because it already has all the signatures
+        // if this is the case, we must make sure to send it to the writer directly
+        this.putSignatureCollectorState(signedState.reserve("loading reconnect state into sig collector"));
+
+        final MerkleNodeState state = signedState.getState();
+
+        final ConsensusSnapshot consensusSnapshot =
+                Objects.requireNonNull(DEFAULT_PLATFORM_STATE_FACADE.consensusSnapshotOf(state));
+        this.consensusSnapshotOverride(consensusSnapshot);
+
+        final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
+        this.injectRosterHistory(rosterHistory);
+
+        this.updateEventWindow(EventWindowUtils.createEventWindow(consensusSnapshot, configuration));
+
+        final RunningEventHashOverride runningEventHashOverride =
+                new RunningEventHashOverride(DEFAULT_PLATFORM_STATE_FACADE.legacyRunningEventHashOf(state), true);
+        this.updateRunningHash(runningEventHashOverride);
+        this.registerPcesDiscontinuity(signedState.getRound());
     }
 }

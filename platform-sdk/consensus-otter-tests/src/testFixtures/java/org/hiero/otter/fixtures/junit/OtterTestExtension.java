@@ -14,7 +14,8 @@ import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
-import org.hiero.otter.fixtures.turtle.TurtleSpecs;
+import org.hiero.otter.fixtures.specs.OtterSpecs;
+import org.hiero.otter.fixtures.specs.TurtleSpecs;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
@@ -31,6 +32,7 @@ import org.junit.jupiter.api.extension.ParameterResolver;
 import org.junit.jupiter.api.extension.TestInstancePreDestroyCallback;
 import org.junit.jupiter.api.extension.TestTemplateInvocationContext;
 import org.junit.jupiter.api.extension.TestTemplateInvocationContextProvider;
+import org.junit.jupiter.api.extension.TestWatcher;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.platform.commons.support.AnnotationSupport;
 
@@ -48,7 +50,8 @@ public class OtterTestExtension
         implements TestInstancePreDestroyCallback,
                 ParameterResolver,
                 TestTemplateInvocationContextProvider,
-                ExecutionCondition {
+                ExecutionCondition,
+                TestWatcher {
 
     private enum Environment {
         TURTLE("turtle"),
@@ -261,11 +264,15 @@ public class OtterTestExtension
      */
     @NonNull
     private TestEnvironment createTurtleTestEnvironment(@NonNull final ExtensionContext extensionContext) {
+        final Optional<OtterSpecs> otterSpecs =
+                AnnotationSupport.findAnnotation(extensionContext.getElement(), OtterSpecs.class);
+        final boolean randomNodeIds = otterSpecs.map(OtterSpecs::randomNodeIds).orElse(true);
+
         final Optional<TurtleSpecs> turtleSpecs =
                 AnnotationSupport.findAnnotation(extensionContext.getElement(), TurtleSpecs.class);
         final long randomSeed = turtleSpecs.map(TurtleSpecs::randomSeed).orElse(0L);
 
-        return new TurtleTestEnvironment(randomSeed);
+        return new TurtleTestEnvironment(randomSeed, randomNodeIds);
     }
 
     /**
@@ -277,7 +284,11 @@ public class OtterTestExtension
      */
     @NonNull
     private TestEnvironment createContainerTestEnvironment(@NonNull final ExtensionContext extensionContext) {
-        return new ContainerTestEnvironment();
+        final Optional<OtterSpecs> otterSpecs =
+                AnnotationSupport.findAnnotation(extensionContext.getElement(), OtterSpecs.class);
+        final boolean randomNodeIds = otterSpecs.map(OtterSpecs::randomNodeIds).orElse(true);
+
+        return new ContainerTestEnvironment(randomNodeIds);
     }
 
     /**

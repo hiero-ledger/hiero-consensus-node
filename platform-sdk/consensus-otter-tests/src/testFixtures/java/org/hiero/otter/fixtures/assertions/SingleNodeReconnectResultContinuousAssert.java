@@ -18,6 +18,10 @@ import org.hiero.otter.fixtures.result.SynchronizationCompleteNotification;
 
 /**
  * Continuous assertions for {@link SingleNodeReconnectResult}.
+ *
+ * <p>Please note: If two continuous assertions fail roughly at the same time, it is non-deterministic which one
+ * will report the failure first. This is even true when running a test in the Turtle environment.
+ * If deterministic behavior is required, please use regular assertions instead of continuous assertions.
  */
 @SuppressWarnings({"UnusedReturnValue", "unused"})
 public class SingleNodeReconnectResultContinuousAssert
@@ -91,12 +95,15 @@ public class SingleNodeReconnectResultContinuousAssert
             @NonNull final Duration maximumReconnectTime) {
         return checkContinuously((notification) -> {
             switch (notification) {
-                case final SynchronizationCompleteNotification s ->
-                    failWithMessage(
-                            "Expected maximum reconnect time to be <%s> was <%s>%n%s",
-                            maximumReconnectTime,
-                            Duration.ofSeconds((long) s.payload().getTimeInSeconds()),
-                            s.payload());
+                case final SynchronizationCompleteNotification s -> {
+                    final Duration actualTime =
+                            Duration.ofSeconds((long) s.payload().getTimeInSeconds());
+                    if (actualTime.compareTo(maximumReconnectTime) > 0) {
+                        failWithMessage(
+                                "Expected maximum reconnect time to be <%s> was <%s>%n%s",
+                                maximumReconnectTime, actualTime, s.payload());
+                    }
+                }
                 default -> {
                     // Ignore other notifications
                 }
@@ -115,12 +122,15 @@ public class SingleNodeReconnectResultContinuousAssert
             final Duration maximumTreeInitializationTime) {
         return checkContinuously((notification) -> {
             switch (notification) {
-                case final SynchronizationCompleteNotification s ->
-                    failWithMessage(
-                            "Expected maximum tree initialization time to be <%s> but it took <%s> to initialize the tree%n%s",
-                            maximumTreeInitializationTime,
-                            Duration.ofSeconds((long) s.payload().getInitializationTimeInSeconds()),
-                            s.payload());
+                case final SynchronizationCompleteNotification s -> {
+                    final Duration actualTime =
+                            Duration.ofSeconds((long) s.payload().getInitializationTimeInSeconds());
+                    if (actualTime.compareTo(maximumTreeInitializationTime) > 0) {
+                        failWithMessage(
+                                "Expected maximum tree initialization time to be <%s> but it took <%s> to initialize the tree%n%s",
+                                maximumTreeInitializationTime, actualTime, s.payload());
+                    }
+                }
                 default -> {
                     // Ignore other notifications
                 }

@@ -2,12 +2,12 @@
 package com.hedera.services.yahcli.commands.keys;
 
 import static com.hedera.services.yahcli.config.ConfigUtils.YAHCLI_LOGGING_CLASSES;
-import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 
 import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
 import com.hedera.node.app.hapi.utils.keys.Secp256k1Utils;
 import com.hedera.services.bdd.spec.keys.deterministic.Bip0032;
 import com.hedera.services.bdd.spec.utilops.inventory.AccessoryUtils;
+import com.hedera.services.yahcli.config.ConfigManager;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -76,9 +76,10 @@ public class ExtractDetailsCommand implements Callable<Integer> {
             output = asEd25519Output(edDSAPrivateKey);
         }
 
-        COMMON_MESSAGES.info("The public key @ " + loc + " is : " + output.hexedPubKey);
-        COMMON_MESSAGES.info("The private key @ " + loc + " is: " + output.hexedPrivKey);
-        COMMON_MESSAGES.info("  -> With DER prefix; " + output.derEncoded);
+        final var yahcliOutput = ConfigManager.outputFrom(keysCommand.getYahcli());
+        yahcliOutput.info("The public key @ " + loc + " is : " + output.hexedPubKey);
+        yahcliOutput.info("The private key @ " + loc + " is: " + output.hexedPrivKey);
+        yahcliOutput.info("  -> With DER prefix; " + output.derEncoded);
 
         return 0;
     }

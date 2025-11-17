@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token.batch;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -27,7 +28,6 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
@@ -44,7 +44,8 @@ import org.junit.jupiter.api.Tag;
  */
 @HapiTestLifecycle
 @Tag(TOKEN)
-public class AtomicTokenMetadataSpecs {
+@Tag(MATS)
+class AtomicTokenMetadataSpecs {
 
     private static final String PRIMARY = "primary";
     private static final String ADMIN_KEY = "adminKey";
@@ -56,8 +57,6 @@ public class AtomicTokenMetadataSpecs {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 

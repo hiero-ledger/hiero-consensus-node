@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.platform;
 
-import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
-import static com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema.ROSTER_STATES_KEY;
+import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -127,7 +126,7 @@ class PlatformTestingToolStateTest {
 
         final PlatformSigner signer = new PlatformSigner(keysAndCerts);
         final Hash stateHash = randotron.nextHash();
-        final Bytes signature = signer.signImmutable(stateHash);
+        final Bytes signature = signer.sign(stateHash.getBytes());
 
         stateSignatureTransaction = StateSignatureTransaction.newBuilder()
                 .round(1000L)
@@ -176,7 +175,7 @@ class PlatformTestingToolStateTest {
 
         main.submitStateSignature(stateSignatureTransaction);
         final var stateSignatureTransactionBytes =
-                main.getTransactionsForEvent().getFirst();
+                main.getTransactionsForEvent().getFirst().transaction();
 
         when(transaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
         when(secondConsensusTransaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
@@ -230,7 +229,7 @@ class PlatformTestingToolStateTest {
 
         main.submitStateSignature(stateSignatureTransaction);
         final var stateSignatureTransactionBytes =
-                main.getTransactionsForEvent().getFirst();
+                main.getTransactionsForEvent().getFirst().transaction();
         final EventCore eventCore = mock(EventCore.class);
         final GossipEvent gossipEvent = GossipEvent.newBuilder()
                 .eventCore(eventCore)
@@ -253,7 +252,7 @@ class PlatformTestingToolStateTest {
 
         main.submitStateSignature(stateSignatureTransaction);
         final var stateSignatureTransactionBytes =
-                main.getTransactionsForEvent().getFirst();
+                main.getTransactionsForEvent().getFirst().transaction();
 
         final EventCore eventCore = mock(EventCore.class);
         final GossipEvent gossipEvent = GossipEvent.newBuilder()
@@ -359,13 +358,14 @@ class PlatformTestingToolStateTest {
     private void givenPlatformContextConfig(final PlatformContext platformContext, final String config) {
         final WritableStates platformWritableStates = mock(MapWritableStates.class);
         final WritableSingletonState platformWritableSingletonState = mock(WritableSingletonState.class);
-        when(platformWritableStates.getSingleton(PLATFORM_STATE_KEY)).thenReturn(platformWritableSingletonState);
+        when(platformWritableStates.getSingleton(PLATFORM_STATE_STATE_ID)).thenReturn(platformWritableSingletonState);
         when(state.getWritableStates(PlatformStateService.NAME)).thenReturn(platformWritableStates);
 
         final WritableStates rosterWritableStates = mock(MapWritableStates.class);
         final WritableSingletonState rosterWritableSingletonState = mock(WritableSingletonState.class);
-        when(rosterWritableStates.getSingleton(ROSTER_STATES_KEY)).thenReturn(rosterWritableSingletonState);
-        when(state.getWritableStates(RosterStateId.NAME)).thenReturn(rosterWritableStates);
+        when(rosterWritableStates.getSingleton(RosterStateId.ROSTER_STATE_STATE_ID))
+                .thenReturn(rosterWritableSingletonState);
+        when(state.getWritableStates(RosterStateId.SERVICE_NAME)).thenReturn(rosterWritableStates);
 
         final PayloadCfgSimple payloadConfig = mock(PayloadCfgSimple.class);
         when(payloadConfig.isAppendSig()).thenReturn(config.equals(DEFAULT_CONFIG));

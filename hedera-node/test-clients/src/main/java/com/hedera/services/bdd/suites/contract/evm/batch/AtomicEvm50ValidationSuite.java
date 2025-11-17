@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.evm.batch;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
@@ -18,7 +19,6 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Tag;
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
 @Tag(SMART_CONTRACT)
-public class AtomicEvm50ValidationSuite {
+class AtomicEvm50ValidationSuite {
 
     private static final String Module05OpcodesExist_CONTRACT = "Module050OpcodesExist";
     private static final long A_BUNCH_OF_GAS = 500_000L;
@@ -36,8 +36,6 @@ public class AtomicEvm50ValidationSuite {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
@@ -68,6 +66,7 @@ public class AtomicEvm50ValidationSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> verifiesExistenceOfV050Opcodes() {
         final var contract = Module05OpcodesExist_CONTRACT;
         return hapiTest(

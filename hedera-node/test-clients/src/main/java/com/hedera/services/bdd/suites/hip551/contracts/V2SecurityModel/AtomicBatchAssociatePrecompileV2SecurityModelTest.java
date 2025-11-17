@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.hip551.contracts.V2SecurityModel;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.associations.AssociationsTranslator.ASSOCIATE_ONE;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -63,9 +64,10 @@ import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
-public class AtomicBatchAssociatePrecompileV2SecurityModelTest {
+class AtomicBatchAssociatePrecompileV2SecurityModelTest {
     private static final String DEFAULT_BATCH_OPERATOR = "defaultBatchOperator";
 
     private static final long GAS_TO_OFFER = 6_000_000L;
@@ -88,10 +90,7 @@ public class AtomicBatchAssociatePrecompileV2SecurityModelTest {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled", "true",
-                "atomicBatch.maxNumberOfTransactions", "50",
-                "contracts.throttle.throttleByGas", "false"));
+        testLifecycle.overrideInClass(Map.of("contracts.throttle.throttleByGas", "false"));
         testLifecycle.doAdhoc(
                 cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 // create contracts
@@ -363,6 +362,7 @@ public class AtomicBatchAssociatePrecompileV2SecurityModelTest {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> nestedAssociateNftAndNonFungibleTokens() {
         final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
         final AtomicReference<Address> nftAddress = new AtomicReference<>();
@@ -492,6 +492,7 @@ public class AtomicBatchAssociatePrecompileV2SecurityModelTest {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> tokenAssociateFromStaticcallAndCallcode() {
         final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
         final AtomicReference<Address> accountAddress = new AtomicReference<>();

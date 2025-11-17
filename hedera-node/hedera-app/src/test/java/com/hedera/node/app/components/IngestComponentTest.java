@@ -4,7 +4,8 @@ package com.hedera.node.app.components;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.spi.AppContext.Gossip.UNAVAILABLE_GOSSIP;
-import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
+import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
+import static com.hedera.node.app.state.recordcache.schemas.V0490RecordCacheSchema.TRANSACTION_RECEIPTS_STATE_ID;
 import static com.swirlds.platform.system.address.AddressBookUtils.endpointFor;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -26,12 +27,13 @@ import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
 import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.history.impl.HistoryServiceImpl;
-import com.hedera.node.app.ids.AppEntityIdFactory;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
+import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
+import com.hedera.node.app.service.token.impl.TokenServiceImpl;
 import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.AppContextImpl;
 import com.hedera.node.app.services.ServicesRegistry;
@@ -40,7 +42,8 @@ import com.hedera.node.app.signature.impl.SignatureExpanderImpl;
 import com.hedera.node.app.signature.impl.SignatureVerifierImpl;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
-import com.hedera.node.app.spi.throttle.Throttle;
+import com.hedera.node.app.spi.migrate.StartupNetworks;
+import com.hedera.node.app.spi.throttle.ScheduleThrottle;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
@@ -53,7 +56,6 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.state.lifecycle.StartupNetworks;
 import java.time.InstantSource;
 import java.util.ArrayDeque;
 import java.util.List;
@@ -77,7 +79,7 @@ class IngestComponentTest {
     private TransactionPoolNexus transactionPool;
 
     @Mock
-    private Throttle.Factory throttleFactory;
+    private ScheduleThrottle.Factory throttleFactory;
 
     @Mock
     private StartupNetworks startupNetworks;
@@ -124,7 +126,7 @@ class IngestComponentTest {
                 () -> DEFAULT_NODE_INFO,
                 () -> NO_OP_METRICS,
                 throttleFactory,
-                () -> NOOP_FEE_CHARGING,
+                () -> UNIVERSAL_NOOP_FEE_CHARGING,
                 new AppEntityIdFactory(configuration));
         final var hintsService = new HintsServiceImpl(
                 NO_OP_METRICS,
@@ -164,12 +166,12 @@ class IngestComponentTest {
                 .blockHashSigner(blockHashSigner)
                 .hintsService(hintsService)
                 .historyService(historyService)
+                .tokenServiceImpl(new TokenServiceImpl(appContext))
                 .platformStateFacade(platformStateFacade)
                 .build();
 
         final var state = new FakeState();
-        state.addService(RecordCacheService.NAME, Map.of("TransactionRecordQueue", new ArrayDeque<String>()));
-        state.addService(RecordCacheService.NAME, Map.of("TransactionReceiptQueue", new ArrayDeque<String>()));
+        state.addService(RecordCacheService.NAME, Map.of(TRANSACTION_RECEIPTS_STATE_ID, new ArrayDeque<String>()));
         app.workingStateAccessor().setState(state);
     }
 

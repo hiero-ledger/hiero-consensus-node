@@ -40,8 +40,7 @@
 			"NodeCreate",
 			"NodeUpdate",
 			"NodeDelete",
-		  	"AtomicBatch",
-			"LambdaSStore"
+		  	"AtomicBatch"
 		  ]
 		},
 		{
@@ -81,7 +80,14 @@
 			"TokenClaimAirdrop",
 			"TokenCancelAirdrop"
 		  ]
-		}
+		},
+		  {
+			  "opsPerSec": 0,
+			  "milliOpsPerSec": 50000,
+			  "operations": [
+				  "LambdaSStore"
+			  ]
+		  }
 	  ]
 	},
 	{

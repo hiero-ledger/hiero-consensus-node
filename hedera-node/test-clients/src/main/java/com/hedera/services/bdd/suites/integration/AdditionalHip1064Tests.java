@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.integration;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
+import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_STATE_ID;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
@@ -38,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.token.NodeActivity;
 import com.hedera.hapi.node.state.token.NodeRewards;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
@@ -124,7 +126,7 @@ public class AdditionalHip1064Tests {
 
                 // Set nodes with minimal activity: missing 9 out of 10 rounds = 10% active
                 // This should still get rewards since they're not 100% inactive
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> nodeRewards
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
                         .copyBuilder()
                         .numRoundsInStakingPeriod(10)
                         .nodeActivities(NodeActivity.newBuilder()
@@ -170,7 +172,7 @@ public class AdditionalHip1064Tests {
 
                 // Set all eligible nodes to miss ALL rounds (100% inactive)
                 // Based on working tests, this is what makes nodes inactive
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> {
                     final int totalRounds = (int) nodeRewards.numRoundsInStakingPeriod();
                     return nodeRewards
                             .copyBuilder()
@@ -225,7 +227,7 @@ public class AdditionalHip1064Tests {
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
 
                 // Set all nodes to be inactive (miss all rounds)
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> {
                     final int totalRounds = (int) nodeRewards.numRoundsInStakingPeriod();
                     return nodeRewards
                             .copyBuilder()
@@ -299,7 +301,7 @@ public class AdditionalHip1064Tests {
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
 
                 // Set up active nodes
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> nodeRewards
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
                         .copyBuilder()
                         .nodeActivities(NodeActivity.newBuilder()
                                 .nodeId(1)
@@ -399,7 +401,7 @@ public class AdditionalHip1064Tests {
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
 
                 // Set numRoundsInStakingPeriod to 0 - edge case that could cause division by zero
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> nodeRewards
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
                         .copyBuilder()
                         .numRoundsInStakingPeriod(0) // Zero rounds - test graceful handling
                         .nodeActivities(NodeActivity.newBuilder()
@@ -457,7 +459,7 @@ public class AdditionalHip1064Tests {
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
 
                 // Set nodes to have perfect activity - no missed rounds
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> nodeRewards
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
                         .copyBuilder()
                         .nodeActivities(
                                 NodeActivity.newBuilder()
@@ -516,7 +518,7 @@ public class AdditionalHip1064Tests {
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
 
                 // Set up active nodes (but they all decline)
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> nodeRewards
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
                         .copyBuilder()
                         .nodeActivities(
                                 NodeActivity.newBuilder()
@@ -569,7 +571,7 @@ public class AdditionalHip1064Tests {
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
 
                 // Set up active nodes
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> nodeRewards
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
                         .copyBuilder()
                         .nodeActivities(
                                 NodeActivity.newBuilder()
@@ -664,7 +666,7 @@ public class AdditionalHip1064Tests {
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
 
                 // Only node 2 is active, others are inactive
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> {
                     int totalRounds = (int) nodeRewards.numRoundsInStakingPeriod();
                     return nodeRewards
                             .copyBuilder()
@@ -731,7 +733,7 @@ public class AdditionalHip1064Tests {
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
 
                 // Set malicious/invalid activity data
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> {
                     int totalRounds = (int) nodeRewards.numRoundsInStakingPeriod();
                     return nodeRewards
                             .copyBuilder()
@@ -840,7 +842,7 @@ public class AdditionalHip1064Tests {
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
 
                 // Set up specific activity levels to test the threshold
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> {
                     assertEquals(3, nodeRewards.numRoundsInStakingPeriod());
                     assertEquals(4, nodeRewards.nodeActivities().size());
                     assertEquals(expectedNodeFees.get(), nodeRewards.nodeFeesCollected());
@@ -971,7 +973,7 @@ public class AdditionalHip1064Tests {
                                 }))),
                 sleepForBlockPeriod(),
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> nodeRewards
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
                         .copyBuilder()
                         .nodeActivities(NodeActivity.newBuilder()
                                 .nodeId(1)

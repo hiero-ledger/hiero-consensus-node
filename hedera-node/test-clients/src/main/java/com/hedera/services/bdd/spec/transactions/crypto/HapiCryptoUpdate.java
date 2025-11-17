@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREF
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.*;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static java.util.Objects.requireNonNull;
 
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.BoolValue;
@@ -30,7 +31,9 @@ import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hederahashgraph.api.proto.java.*;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -95,11 +98,30 @@ public class HapiCryptoUpdate extends HapiTxnOp<HapiCryptoUpdate> {
         return this;
     }
 
+    @SafeVarargs
+    @SuppressWarnings("varargs")
+    public final HapiCryptoUpdate withHooks(@NonNull final Function<HapiSpec, HookCreationDetails>... hooks) {
+        requireNonNull(hooks);
+        if (this.hookFactories.isEmpty()) {
+            this.hookFactories = new ArrayList<>();
+        }
+        hookFactories.addAll(Arrays.asList(hooks));
+        return this;
+    }
+
     public HapiCryptoUpdate removingHook(final long hookId) {
         if (this.hookIdsToDelete.isEmpty()) {
             this.hookIdsToDelete = new ArrayList<>();
         }
         this.hookIdsToDelete.add(hookId);
+        return this;
+    }
+
+    public HapiCryptoUpdate removingHooks(final Long... hookIds) {
+        if (this.hookIdsToDelete.isEmpty()) {
+            this.hookIdsToDelete = new ArrayList<>();
+        }
+        this.hookIdsToDelete.addAll(List.of(hookIds));
         return this;
     }
 

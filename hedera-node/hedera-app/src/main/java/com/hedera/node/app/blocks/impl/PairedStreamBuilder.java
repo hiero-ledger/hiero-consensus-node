@@ -49,6 +49,7 @@ import com.hedera.node.app.service.token.records.CryptoDeleteStreamBuilder;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.service.token.records.CryptoUpdateStreamBuilder;
 import com.hedera.node.app.service.token.records.GenesisAccountStreamBuilder;
+import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.service.token.records.NodeStakeUpdateStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenAccountWipeStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenAirdropStreamBuilder;
@@ -102,7 +103,8 @@ public class PairedStreamBuilder
                 CryptoUpdateStreamBuilder,
                 NodeCreateStreamBuilder,
                 TokenAirdropStreamBuilder,
-                ReplayableFeeStreamBuilder {
+                ReplayableFeeStreamBuilder,
+                HookDispatchStreamBuilder {
     private final BlockStreamBuilder blockStreamBuilder;
     private final RecordStreamBuilder recordStreamBuilder;
 
@@ -265,6 +267,12 @@ public class PairedStreamBuilder
     public StreamBuilder parentConsensus(@NonNull final Instant parentConsensus) {
         recordStreamBuilder.parentConsensus(parentConsensus);
         blockStreamBuilder.parentConsensus(parentConsensus);
+        return this;
+    }
+
+    @Override
+    public StreamBuilder triggeringParentConsensus(@NonNull final Instant parentConsensus) {
+        blockStreamBuilder.triggeringParentConsensus(parentConsensus);
         return this;
     }
 
@@ -679,5 +687,31 @@ public class PairedStreamBuilder
     @Override
     public HederaFunctionality functionality() {
         return blockStreamBuilder.functionality();
+    }
+
+    @Override
+    public void nextHookId(final Long nextHookId) {
+        recordStreamBuilder.nextHookId(nextHookId);
+        blockStreamBuilder.nextHookId(nextHookId);
+    }
+
+    @Override
+    public Long getNextHookId() {
+        return blockStreamBuilder.getNextHookId();
+    }
+
+    @Override
+    public Bytes getEvmCallResult() {
+        return blockStreamBuilder.getEvmCallResult();
+    }
+
+    @Override
+    public int getDeltaStorageSlotsUpdated() {
+        return blockStreamBuilder.getDeltaStorageSlotsUpdated();
+    }
+
+    @Override
+    public void setDeltaStorageSlotsUpdated(int deltaStorageSlotsUpdated) {
+        blockStreamBuilder.setDeltaStorageSlotsUpdated(deltaStorageSlotsUpdated);
     }
 }

@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.RECONNECT_COMPLETE;
 import static org.hiero.otter.fixtures.internal.helpers.LogPayloadUtils.parsePayload;
 
-import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.logging.legacy.payload.ReconnectFailurePayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.logging.legacy.payload.SynchronizationCompletePayload;
@@ -13,6 +12,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.ReconnectFailureNotification;
 import org.hiero.otter.fixtures.result.ReconnectNotification;
@@ -37,6 +37,7 @@ public class SingleNodeReconnectResultImpl implements SingleNodeReconnectResult 
     /**
      * Constructor for SingleNodeReconnectResultImpl.
      *
+     * @param nodeId the ID of the node
      * @param statusResults the platform status results for the single node
      * @param logResults the log results for the single node
      */
@@ -74,7 +75,7 @@ public class SingleNodeReconnectResultImpl implements SingleNodeReconnectResult 
     @Override
     public int numFailedReconnects() {
         return (int) logResults.logs().stream()
-                .filter(log -> log.message().contains(ReconnectFailurePayload.class.toString()))
+                .filter(log -> log.message().contains(ReconnectFailurePayload.class.getName()))
                 .count();
     }
 
@@ -85,7 +86,7 @@ public class SingleNodeReconnectResultImpl implements SingleNodeReconnectResult 
     @NonNull
     public List<SynchronizationCompletePayload> getSynchronizationCompletePayloads() {
         return logResults.logs().stream()
-                .filter(log -> log.message().contains(SynchronizationCompletePayload.class.toString()))
+                .filter(log -> log.message().contains(SynchronizationCompletePayload.class.getName()))
                 .map(log -> parsePayload(SynchronizationCompletePayload.class, log.message()))
                 .toList();
     }
@@ -115,13 +116,13 @@ public class SingleNodeReconnectResultImpl implements SingleNodeReconnectResult 
     @Nullable
     private ReconnectNotification<?> toReconnectNotification(@NonNull final StructuredLog logEntry) {
         final String message = logEntry.message();
-        if (message.contains(ReconnectFailurePayload.class.toString())) {
+        if (message.contains(ReconnectFailurePayload.class.getName())) {
             return new ReconnectFailureNotification(
                     parsePayload(ReconnectFailurePayload.class, message), logEntry.nodeId());
-        } else if (message.contains(ReconnectStartPayload.class.toString())) {
-            return new ReconnectStartNotification(
-                    parsePayload(ReconnectStartPayload.class, message), logEntry.nodeId());
-        } else if (message.contains(SynchronizationCompletePayload.class.toString())) {
+        } else if (message.contains(ReconnectStartPayload.class.getName())) {
+            final ReconnectStartPayload payload = parsePayload(ReconnectStartPayload.class, message);
+            return payload.isReceiving() ? new ReconnectStartNotification(payload, logEntry.nodeId()) : null;
+        } else if (message.contains(SynchronizationCompletePayload.class.getName())) {
             return new SynchronizationCompleteNotification(
                     parsePayload(SynchronizationCompletePayload.class, message), logEntry.nodeId());
         }

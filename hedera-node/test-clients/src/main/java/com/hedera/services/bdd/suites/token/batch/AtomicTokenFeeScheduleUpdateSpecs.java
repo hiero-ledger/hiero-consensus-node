@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token.batch;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
@@ -51,14 +52,13 @@ import org.junit.jupiter.api.Tag;
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
 @Tag(TOKEN)
-public class AtomicTokenFeeScheduleUpdateSpecs {
+@Tag(MATS)
+class AtomicTokenFeeScheduleUpdateSpecs {
 
     private static final String BATCH_OPERATOR = "batchOperator";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 

@@ -19,8 +19,11 @@ import org.hiero.base.utility.MemoryUtils;
  * Writes preconsensus events to a file using a {@link FileChannel}.
  */
 public class PcesFileChannelWriter implements PcesFileWriter {
-    /** The capacity of the ByteBuffer used to write events */
-    private static final int BUFFER_CAPACITY = 1024 * 1024 * 10;
+    /**
+     * The initial capacity of the ByteBuffer used to write events.
+     *  Can be expanded throughout the lifespan of the app.
+     **/
+    static final int BUFFER_CAPACITY = 1024 * 1024 * 10;
     /** The file channel for writing events */
     private final FileChannel channel;
     /** The buffer used to hold data being written to the file */
@@ -44,16 +47,30 @@ public class PcesFileChannelWriter implements PcesFileWriter {
      *
      * @param filePath       the path to the file to write to
      * @param extraOpenOptions extra flags to indicate how to open the file
+     * @param bufferCapacity  the size of the buffer
      * @throws IOException if an error occurs while opening the file
      */
-    public PcesFileChannelWriter(@NonNull final Path filePath, @NonNull final List<OpenOption> extraOpenOptions)
+    PcesFileChannelWriter(
+            @NonNull final Path filePath, @NonNull final List<OpenOption> extraOpenOptions, final int bufferCapacity)
             throws IOException {
         final List<OpenOption> allOpenOptions =
                 new ArrayList<>(List.of(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE));
         allOpenOptions.addAll(extraOpenOptions);
         this.channel = FileChannel.open(filePath, allOpenOptions.toArray(OpenOption[]::new));
-        this.buffer = ByteBuffer.allocateDirect(BUFFER_CAPACITY);
+        this.buffer = ByteBuffer.allocateDirect(bufferCapacity);
         this.writableSequentialData = BufferedData.wrap(buffer);
+    }
+
+    /**
+     * Create a new writer that writes events to a file using a {@link FileChannel}.
+     *
+     * @param filePath       the path to the file to write to
+     * @param extraOpenOptions extra flags to indicate how to open the file
+     * @throws IOException if an error occurs while opening the file
+     */
+    public PcesFileChannelWriter(@NonNull final Path filePath, @NonNull final List<OpenOption> extraOpenOptions)
+            throws IOException {
+        this(filePath, extraOpenOptions, BUFFER_CAPACITY);
     }
 
     @Override
@@ -65,10 +82,10 @@ public class PcesFileChannelWriter implements PcesFileWriter {
     @Override
     public long writeEvent(@NonNull final GossipEvent event) throws IOException {
         final int size = GossipEvent.PROTOBUF.measureRecord(event);
-        final boolean expandBuffer = size > buffer.capacity();
+        final boolean expandBuffer = (size + Integer.BYTES) > buffer.capacity();
         if (expandBuffer) {
             MemoryUtils.closeDirectByteBuffer(buffer);
-            buffer = ByteBuffer.allocateDirect(size);
+            buffer = ByteBuffer.allocateDirect(size + Integer.BYTES);
             writableSequentialData = BufferedData.wrap(buffer);
         }
         buffer.putInt(size);

@@ -24,6 +24,7 @@ import static com.hedera.services.bdd.suites.contract.Utils.defaultContractsRoot
 import static com.hedera.services.bdd.suites.contract.Utils.extractByteCode;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.contract.Utils.getResourcePath;
+import static java.util.Objects.requireNonNull;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -95,11 +96,14 @@ import com.hederahashgraph.api.proto.java.ContractCreateTransactionBody;
 import com.hederahashgraph.api.proto.java.CryptoDeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.CryptoTransferTransactionBody;
 import com.hederahashgraph.api.proto.java.EthereumTransactionBody;
+import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.PendingAirdropId;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
+import com.hederahashgraph.api.proto.java.TokenAirdropTransactionBody;
 import com.hederahashgraph.api.proto.java.TokenReference;
 import com.hederahashgraph.api.proto.java.TokenType;
 import com.hederahashgraph.api.proto.java.TopicID;
+import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransferList;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -114,6 +118,18 @@ import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 public class TxnVerbs {
+    /* MISC */
+    /**
+     * Returns an operation that customizes the to-be-signed tx body as the given function by using the given spec.
+     * @param function the function the tx should claim to be
+     * @param explicitDef the function that will customize the tx body
+     * @return the operation that will customize the tx body
+     */
+    public static HapiExplicitTxn explicit(
+            HederaFunctionality function, BiConsumer<HapiSpec, TransactionBody.Builder> explicitDef) {
+        return new HapiExplicitTxn(function, explicitDef);
+    }
+
     /* CRYPTO */
     public static HapiCryptoCreate cryptoCreate(String account) {
         return new HapiCryptoCreate(account);
@@ -190,6 +206,11 @@ public class TxnVerbs {
         return new HapiTokenAirdrop(sources);
     }
 
+    public static HapiTokenAirdrop tokenAirdrop(
+            @NonNull final BiConsumer<HapiSpec, TokenAirdropTransactionBody.Builder> explicitDef) {
+        return new HapiTokenAirdrop(explicitDef);
+    }
+
     public static HapiCryptoUpdate cryptoUpdateAliased(final String alias) {
         return new HapiCryptoUpdate(alias, ReferenceType.ALIAS_KEY_NAME);
     }
@@ -249,8 +270,12 @@ public class TxnVerbs {
     }
 
     /* NODE */
-    public static HapiNodeCreate nodeCreate(String node) {
-        return new HapiNodeCreate(node);
+    public static HapiNodeCreate nodeCreate(String node, Long accountNum) {
+        return new HapiNodeCreate(node, accountNum);
+    }
+
+    public static HapiNodeCreate nodeCreate(String node, String account) {
+        return new HapiNodeCreate(node, account);
     }
 
     public static HapiNodeUpdate nodeUpdate(String node) {
@@ -820,5 +845,16 @@ public class TxnVerbs {
 
     public static HapiLambdaSStore accountLambdaSStore(@NonNull final String account, final long hookId) {
         return new HapiLambdaSStore(HookEntityId.EntityIdOneOfType.ACCOUNT_ID, account, hookId);
+    }
+
+    /**
+     * Returns a {@link HapiLambdaSStore} for the given contract and hook id.
+     * @param contract the contract
+     * @param hookId the hook id
+     * @return a {@link HapiLambdaSStore} for the given contract and hook id
+     */
+    public static HapiLambdaSStore contractLambdaSStore(@NonNull final String contract, final long hookId) {
+        requireNonNull(contract);
+        return new HapiLambdaSStore(HookEntityId.EntityIdOneOfType.CONTRACT_ID, contract, hookId);
     }
 }

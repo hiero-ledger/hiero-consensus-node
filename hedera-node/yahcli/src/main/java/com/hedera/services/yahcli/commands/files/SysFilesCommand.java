@@ -24,7 +24,7 @@ public class SysFilesCommand implements Callable<Integer> {
 
     static String resolvedDir(String literal, ConfigManager config) {
         if (literal.startsWith("{network}")) {
-            literal = config.getTargetName() + File.separator + "sysfiles";
+            literal = config.getWorkingDir() + File.separator + config.getTargetName() + File.separator + "sysfiles";
         }
         ConfigUtils.ensureDir(literal);
         if (literal.endsWith(File.separator)) {

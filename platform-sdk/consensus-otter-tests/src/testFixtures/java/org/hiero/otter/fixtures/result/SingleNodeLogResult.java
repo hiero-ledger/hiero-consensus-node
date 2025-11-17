@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.result;
 
-import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.Marker;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 
 /**
@@ -45,6 +47,24 @@ public interface SingleNodeLogResult extends OtterResult {
     SingleNodeLogResult suppressingLogMarker(@NonNull LogMarker marker);
 
     /**
+     * Excludes the log results from the specified logger class from the current results.
+     *
+     * @param clazz the class whose log results are to be excluded
+     * @return a new {@code SingleNodeLogResult} instance with the specified log marker's results removed
+     */
+    @NonNull
+    SingleNodeLogResult suppressingLoggerName(@NonNull final Class<?> clazz);
+
+    /**
+     * Excludes the log results from the specified logger name from the current results.
+     *
+     * @param loggerName the name of the logger whose log results are to be excluded
+     * @return a new {@code SingleNodeLogResult} instance with the specified logger's results removed
+     */
+    @NonNull
+    SingleNodeLogResult suppressingLoggerName(@NonNull String loggerName);
+
+    /**
      * Returns the set of unique markers present in the log entries for this node.
      *
      * @return a set of {@link Marker} objects
@@ -62,4 +82,13 @@ public interface SingleNodeLogResult extends OtterResult {
      * @param subscriber the subscriber that will receive the log entries
      */
     void subscribe(@NonNull LogSubscriber subscriber);
+
+    /**
+     * Subscribes to {@link StructuredLog} entries logged by the node that match the given predicate. When it is found,
+     * the returned AtomicBoolean is set to true, and the subscription is canceled.
+     *
+     * @param matcher the predicate to match log entries
+     * @return an AtomicBoolean that will be set to true when a matching log entry is found
+     */
+    AtomicBoolean onNextMatch(@NonNull Predicate<StructuredLog> matcher);
 }

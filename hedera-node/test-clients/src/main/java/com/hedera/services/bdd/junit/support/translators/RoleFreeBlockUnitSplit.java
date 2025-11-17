@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.translators;
 
-import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_TRANSACTION_RECEIPTS_QUEUE;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_TRANSACTION_RECEIPTS;
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_SIGN;
@@ -18,6 +18,9 @@ import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionalUnit;
 import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
@@ -58,6 +61,7 @@ import org.junit.jupiter.api.Assertions;
  * {@code N+1} top-level transaction, achieving uniqueness via nonce only.
  */
 public class RoleFreeBlockUnitSplit {
+
     private static final Set<HederaFunctionality> TRIGGERING_OPS = EnumSet.of(SCHEDULE_CREATE, SCHEDULE_SIGN);
 
     /**
@@ -151,6 +155,17 @@ public class RoleFreeBlockUnitSplit {
                         final var txId = getParts.apply(i).transactionIdOrThrow();
                         topLevelIds.put(i, txId);
                     }
+                } else {
+                    try {
+                        SignedTransaction signedTxn =
+                                SignedTransaction.PROTOBUF.parse(items.get(i).signedTransaction());
+                        TransactionBody body = TransactionBody.PROTOBUF.parse(signedTxn.bodyBytes());
+                        if (body.hasStateSignatureTransaction()) {
+                            topLevelIds.put(i, body.transactionID());
+                        }
+                    } catch (ParseException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
             }
             final var nextTxIndex = txIndexes.higher(i);
@@ -229,9 +244,11 @@ public class RoleFreeBlockUnitSplit {
                     case TRANSACTION_RESULT -> pending.addResultEnforcingOrder(item.transactionResultOrThrow());
                     case TRANSACTION_OUTPUT -> pending.addOutputEnforcingOrder(item.transactionOutputOrThrow());
                     case TRACE_DATA -> pending.addTraceEnforcingOrder(item.traceDataOrThrow());
-                    case STATE_CHANGES ->
-                        requireNonNull(stateChanges)
-                                .addAll(item.stateChangesOrThrow().stateChanges());
+                    case STATE_CHANGES -> {
+                        if (stateChanges != null) {
+                            stateChanges.addAll(item.stateChangesOrThrow().stateChanges());
+                        }
+                    }
                     default -> {
                         // No-op
                     }
@@ -293,9 +310,9 @@ public class RoleFreeBlockUnitSplit {
                         .anyMatch(change -> change.hasMapUpdate()
                                 || change.hasMapDelete()
                                 || (change.hasQueuePush()
-                                        && change.stateId() != STATE_ID_TRANSACTION_RECEIPTS_QUEUE.protoOrdinal())
+                                        && change.stateId() != STATE_ID_TRANSACTION_RECEIPTS.protoOrdinal())
                                 || (change.hasQueuePop()
-                                        && change.stateId() != STATE_ID_TRANSACTION_RECEIPTS_QUEUE.protoOrdinal()));
+                                        && change.stateId() != STATE_ID_TRANSACTION_RECEIPTS.protoOrdinal()));
     }
 
     /**
@@ -365,8 +382,6 @@ public class RoleFreeBlockUnitSplit {
 
         BlockTransactionParts toBlockTransactionParts(
                 final boolean isTopLevel, final boolean hasEnrichedLegacyRecord, final boolean inBatch) {
-            // The only absolute requirement is the result is not null
-            requireNonNull(result);
             return new BlockTransactionParts(
                     parts, result, traces, outputs, isTopLevel, hasEnrichedLegacyRecord, inBatch);
         }

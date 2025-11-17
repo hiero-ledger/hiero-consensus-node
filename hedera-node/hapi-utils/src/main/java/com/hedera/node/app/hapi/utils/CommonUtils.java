@@ -6,6 +6,7 @@ import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static java.lang.System.arraycopy;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.crypto.Cryptography.NULL_HASH;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Longs;
@@ -22,6 +23,7 @@ import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionOrBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
@@ -160,7 +162,7 @@ public final class CommonUtils {
      * Converts a long-zero address to a PBJ {@link ScheduleID} using the address as the entity number
      * @param shard the shard of the Hedera network
      * @param realm the realm of the Hedera network
-     * @param address
+     * @param address the long-zero address
      * @return the PBJ {@link ScheduleID}
      */
     public static com.hederahashgraph.api.proto.java.ScheduleID asScheduleId(
@@ -170,5 +172,28 @@ public final class CommonUtils {
                 .setRealmNum(realm)
                 .setScheduleNum(address.value().longValueExact())
                 .build();
+    }
+
+    /**
+     * Adds two longs, returning {@link Long#MAX_VALUE} or {@link Long#MIN_VALUE} if overflow or underflow occurs.
+     * @param addendA the first addend
+     * @param addendB the second addend
+     * @return the sum, or {@link Long#MAX_VALUE} or {@link Long#MIN_VALUE} if overflow or underflow occurs
+     */
+    public static long clampedAdd(final long addendA, final long addendB) {
+        try {
+            return Math.addExact(addendA, addendB);
+        } catch (final ArithmeticException ae) {
+            return addendA > 0 ? Long.MAX_VALUE : Long.MIN_VALUE;
+        }
+    }
+
+    /**
+     * Returns the given hash if it is non-null and non-empty; otherwise, returns {@code NULL_HASH}
+     * @param maybeHash the possibly null or empty hash
+     * @return the given hash or {@code NULL_HASH} if the given hash is null or empty
+     */
+    public static Bytes inputOrNullHash(@Nullable final Bytes maybeHash) {
+        return (maybeHash != null && maybeHash.length() > 0) ? maybeHash : NULL_HASH.getBytes();
     }
 }

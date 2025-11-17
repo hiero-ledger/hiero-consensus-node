@@ -5,8 +5,10 @@ import static com.hedera.hapi.streams.ContractActionType.PRECOMPILE;
 import static com.hedera.hapi.streams.ContractActionType.SYSTEM;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.PrngSystemContract.PRNG_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.HOOK_OWNER_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.OPS_DURATION_COUNTER;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HTS_HOOKS_CONTRACT_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.REMAINING_GAS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.isSameResult;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_GAS;
@@ -157,11 +159,12 @@ class CustomMessageCallProcessorTest {
 
     @Test
     void callsToNonStandardSystemContractsAreNotSupported() {
-        final Deque<MessageFrame> stack = new ArrayDeque<>();
         givenCallWithCode(NON_EVM_PRECOMPILE_SYSTEM_ADDRESS);
 
         given(addressChecks.isSystemAccount(NON_EVM_PRECOMPILE_SYSTEM_ADDRESS)).willReturn(true);
         when(frame.getValue()).thenReturn(Wei.ZERO);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(stack.isEmpty()).willReturn(true);
 
         subject.start(frame, operationTracer);
         verify(frame).setOutputData(NOOP_OUTPUT_DATA);
@@ -170,13 +173,31 @@ class CustomMessageCallProcessorTest {
     }
 
     @Test
+    void callsWithHookDispatch() {
+        givenCallWithCode(HTS_HOOKS_CONTRACT_ADDRESS);
+
+        given(addressChecks.isSystemAccount(HTS_HOOKS_CONTRACT_ADDRESS)).willReturn(true);
+        when(frame.getValue()).thenReturn(Wei.ZERO);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(stack.isEmpty()).willReturn(true);
+        given(frame.getContextVariable(HOOK_OWNER_ADDRESS)).willReturn(true);
+
+        subject.start(frame, operationTracer);
+        verify(frame, never()).setOutputData(NOOP_OUTPUT_DATA);
+        verify(frame, never()).setState(MessageFrame.State.COMPLETED_SUCCESS);
+        verify(frame, never()).setExceptionalHaltReason(Optional.empty());
+        verify(frame).setState(MessageFrame.State.CODE_EXECUTING);
+    }
+
+    @Test
     void valueCannotBeTransferredToSystemContracts() {
-        final Deque<MessageFrame> stack = new ArrayDeque<>();
         final var isHalted = new AtomicBoolean();
         givenHaltableFrame(isHalted);
         givenCallWithCode(ADDRESS_6);
         given(addressChecks.isSystemAccount(ADDRESS_6)).willReturn(true);
         given(frame.getValue()).willReturn(Wei.ONE);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(stack.isEmpty()).willReturn(true);
 
         subject.start(frame, operationTracer);
 

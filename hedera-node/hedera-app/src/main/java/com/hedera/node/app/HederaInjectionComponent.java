@@ -10,6 +10,7 @@ import com.hedera.node.app.blocks.BlockStreamModule;
 import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
+import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
 import com.hedera.node.app.components.IngestInjectionComponent;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
@@ -22,14 +23,16 @@ import com.hedera.node.app.grpc.GrpcServerManager;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.info.CurrentPlatformStatus;
-import com.hedera.node.app.info.InfoInjectionModule;
 import com.hedera.node.app.metrics.MetricsInjectionModule;
 import com.hedera.node.app.platform.PlatformModule;
+import com.hedera.node.app.quiescence.QuiescenceController;
+import com.hedera.node.app.quiescence.TxPipelineTracker;
 import com.hedera.node.app.records.BlockRecordInjectionModule;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
-import com.hedera.node.app.service.schedule.ScheduleService;
+import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
+import com.hedera.node.app.service.token.impl.TokenServiceImpl;
 import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.app.services.ServicesInjectionModule;
@@ -37,8 +40,9 @@ import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.records.RecordCache;
-import com.hedera.node.app.spi.throttle.Throttle;
+import com.hedera.node.app.spi.throttle.ScheduleThrottle;
 import com.hedera.node.app.state.HederaStateInjectionModule;
 import com.hedera.node.app.state.WorkingStateAccessor;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
@@ -60,7 +64,6 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.state.notifications.AsyncFatalIssListener;
-import com.swirlds.state.lifecycle.StartupNetworks;
 import dagger.BindsInstance;
 import dagger.Component;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -85,7 +88,6 @@ import org.hiero.consensus.transaction.TransactionPoolNexus;
             GrpcInjectionModule.class,
             MetricsInjectionModule.class,
             AuthorizerInjectionModule.class,
-            InfoInjectionModule.class,
             BlockRecordInjectionModule.class,
             BlockStreamModule.class,
             PlatformModule.class,
@@ -122,6 +124,8 @@ public interface HederaInjectionComponent {
 
     IngestWorkflow ingestWorkflow();
 
+    TxPipelineTracker txPipelineTracker();
+
     @UserQueries
     QueryWorkflow queryWorkflow();
 
@@ -131,6 +135,8 @@ public interface HederaInjectionComponent {
     BlockRecordManager blockRecordManager();
 
     BlockNodeConnectionManager blockNodeConnectionManager();
+
+    BlockBufferService blockBufferService();
 
     BlockStreamManager blockStreamManager();
 
@@ -152,8 +158,13 @@ public interface HederaInjectionComponent {
 
     CurrentPlatformStatus currentPlatformStatus();
 
+    QuiescenceController quiescenceController();
+
     @Component.Builder
     interface Builder {
+        @BindsInstance
+        Builder tokenServiceImpl(TokenServiceImpl tokenService);
+
         @BindsInstance
         Builder utilServiceImpl(UtilServiceImpl utilService);
 
@@ -170,7 +181,7 @@ public interface HederaInjectionComponent {
         Builder contractServiceImpl(ContractServiceImpl contractService);
 
         @BindsInstance
-        Builder scheduleService(ScheduleService scheduleService);
+        Builder scheduleService(ScheduleServiceImpl scheduleService);
 
         @BindsInstance
         Builder configProviderImpl(ConfigProviderImpl configProvider);
@@ -203,7 +214,7 @@ public interface HederaInjectionComponent {
         Builder instantSource(InstantSource instantSource);
 
         @BindsInstance
-        Builder throttleFactory(Throttle.Factory throttleFactory);
+        Builder throttleFactory(ScheduleThrottle.Factory throttleFactory);
 
         @BindsInstance
         Builder softwareVersion(SemanticVersion softwareVersion);

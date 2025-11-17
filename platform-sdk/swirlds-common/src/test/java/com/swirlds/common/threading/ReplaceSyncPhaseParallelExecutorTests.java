@@ -40,18 +40,18 @@ class ReplaceSyncPhaseParallelExecutorTests {
     void testReplacePhase(final int phaseNum, final int taskNum) throws ParallelExecutionException {
         final AtomicInteger replacementTask = new AtomicInteger(0);
         final ReplaceSyncPhaseParallelExecutor executor = new ReplaceSyncPhaseParallelExecutor(
-                getStaticThreadManager(), phaseNum, taskNum, toCallable(replacementTask::incrementAndGet));
+                getStaticThreadManager(), phaseNum, taskNum, replacementTask::incrementAndGet);
         executor.start();
 
         executor.doParallel(
                 toCallable(PhaseTask.PHASE1_TASK1.getTask()::incrementAndGet),
-                toCallable(PhaseTask.PHASE1_TASK2.getTask()::incrementAndGet));
+                PhaseTask.PHASE1_TASK2.getTask()::incrementAndGet);
         executor.doParallel(
                 toCallable(PhaseTask.PHASE2_TASK1.getTask()::incrementAndGet),
-                toCallable(PhaseTask.PHASE2_TASK2.getTask()::incrementAndGet));
+                PhaseTask.PHASE2_TASK2.getTask()::incrementAndGet);
         executor.doParallel(
                 toCallable(PhaseTask.PHASE3_TASK1.getTask()::incrementAndGet),
-                toCallable(PhaseTask.PHASE3_TASK2.getTask()::incrementAndGet));
+                PhaseTask.PHASE3_TASK2.getTask()::incrementAndGet);
 
         for (final PhaseTask phaseTask : PhaseTask.values()) {
             if (phaseTask.matches(phaseNum, taskNum)) {
