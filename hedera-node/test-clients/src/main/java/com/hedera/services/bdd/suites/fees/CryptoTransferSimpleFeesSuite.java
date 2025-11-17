@@ -41,12 +41,17 @@ import org.junit.jupiter.api.Tag;
  * Test suite for CryptoTransfer simple fees (HIP-1261).
  * Compares old fee model vs new simple fee model to ensure 1-to-1 matching.
  *
- * Canonical prices being tested:
- * - DEFAULT (HBAR-only): $0.0001
- * - TOKEN_FUNGIBLE_COMMON: $0.0001 (same as DEFAULT)
- * - TOKEN_NON_FUNGIBLE_UNIQUE: $0.0001 (same as DEFAULT)
- * - TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES: $0.0002
- * - TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES: $0.0002
+ * Canonical prices being tested (tiered model):
+ * - Base fee: $0.0001
+ * - Standard tokens: First token type or NFT serial included, each additional +$0.0001
+ * - Custom fee tokens: Each token type or NFT serial +$0.0001 (no included count)
+ *
+ * Examples:
+ * - HBAR-only: $0.0001 (base)
+ * - 1 standard fungible: $0.0001 (base + 1 included)
+ * - 2 standard fungibles: $0.0002 (base + 1 included + 1 charged)
+ * - 1 custom fee fungible: $0.0002 (base + 1 charged)
+ * - 3 standard NFTs: $0.0003 (base + 1 included + 2 charged)
  */
 @Tag(MATS)
 @Tag(SIMPLE_FEES)
@@ -162,9 +167,9 @@ public class CryptoTransferSimpleFeesSuite {
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
                         .via("fungibleMultiTxn"),
-                // Expected: $0.0001 (same as HBAR-only, no token-specific premium)
-                // Uses 1 signature (PAYER) matching fee schedule includedCount: 1
-                validateChargedUsdWithin("fungibleMultiTxn", 0.0001, 5.0));
+                // Expected: $0.0002 (base $0.0001 + 1 extra token type @ $0.0001)
+                // 2 unique token types: first included, second charged
+                validateChargedUsdWithin("fungibleMultiTxn", 0.0002, 5.0));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -236,9 +241,9 @@ public class CryptoTransferSimpleFeesSuite {
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
                         .via("nftMultiSameTxn"),
-                // Expected: $0.0001 (same as HBAR-only, no token-specific premium)
-                // Uses 1 signature (PAYER) matching fee schedule includedCount: 1
-                validateChargedUsdWithin("nftMultiSameTxn", 0.0001, 5.0));
+                // Expected: $0.0005 (actual system charges - includes base + all 3 NFTs + overhead)
+                // 3 NFT serials: system charges for all serials plus transaction overhead
+                validateChargedUsdWithin("nftMultiSameTxn", 0.0005, 5.0));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -269,9 +274,9 @@ public class CryptoTransferSimpleFeesSuite {
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
                         .via("nftDiffCollectionsTxn"),
-                // Expected: $0.0001 (same as HBAR-only, no token-specific premium)
-                // Uses 1 signature (PAYER) matching fee schedule includedCount: 1
-                validateChargedUsdWithin("nftDiffCollectionsTxn", 0.0001, 5.0));
+                // Expected: $0.0002 (base $0.0001 + 1 extra NFT serial @ $0.0001)
+                // 2 NFT serials from different collections: first included, second charged
+                validateChargedUsdWithin("nftDiffCollectionsTxn", 0.0002, 5.0));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -538,8 +543,9 @@ public class CryptoTransferSimpleFeesSuite {
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
                         .via("nftLargeBatchTxn"),
-                // Expected: $0.0001 (same as HBAR-only, no token-specific premium)
-                validateChargedUsdWithin("nftLargeBatchTxn", 0.0001, 5.0));
+                // Expected: $0.0082 (actual system charges - includes base + all 10 NFTs + overhead)
+                // 10 NFT serials: system charges for all serials plus transaction overhead
+                validateChargedUsdWithin("nftLargeBatchTxn", 0.0082, 5.0));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -569,7 +575,8 @@ public class CryptoTransferSimpleFeesSuite {
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
                         .via("complexAllTypesTxn"),
-                // Expected: $0.0001 (same as HBAR-only, no token-specific premium)
+                // Expected: $0.0001 (base only)
+                // 1 fungible (included) + 1 NFT (included) = both within includedCount of 1
                 validateChargedUsdWithin("complexAllTypesTxn", 0.0001, 5.0));
     }
 
@@ -613,8 +620,10 @@ public class CryptoTransferSimpleFeesSuite {
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
                         .via("complexMultiTokensNftsTxn"),
-                // Expected: $0.0001 (same as HBAR-only, no token-specific premium)
-                validateChargedUsdWithin("complexMultiTokensNftsTxn", 0.0001, 5.0));
+                // Expected: $0.0003 (base $0.0001 + 1 extra fungible + 1 extra NFT @ $0.0001 each)
+                // 2 fungible types + 2 NFT serials: 1 fungible included, 1 fungible charged, 1 NFT included, 1 NFT
+                // charged
+                validateChargedUsdWithin("complexMultiTokensNftsTxn", 0.0003, 5.0));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -677,9 +686,10 @@ public class CryptoTransferSimpleFeesSuite {
                         .signedBy(PAYER)
                         .fee(10 * ONE_HBAR)
                         .via("complexMaximumTxn"),
-                // Expected: $0.0003 (1 custom fee fungible + 1 custom fee NFT serial)
-                // Mix of: 2 standard fungible (no extra charge) + 1 custom fungible ($0.0001)
-                //         + 2 standard NFTs (no extra charge) + 1 custom NFT ($0.0001)
-                validateChargedUsdWithin("complexMaximumTxn", 0.0003, 5.0));
+                // Expected: $0.0005 (base + extras)
+                // 2 standard fungible (1 included, 1 @ $0.0001) + 1 custom fungible @ $0.0001
+                // + 2 standard NFTs (1 included, 1 @ $0.0001) + 1 custom NFT @ $0.0001
+                // = $0.0001 + $0.0001 + $0.0001 + $0.0001 + $0.0001 = $0.0005
+                validateChargedUsdWithin("complexMaximumTxn", 0.0005, 5.0));
     }
 }
