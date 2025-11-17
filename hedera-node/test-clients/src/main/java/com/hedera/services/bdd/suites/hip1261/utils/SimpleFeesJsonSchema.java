@@ -9,16 +9,6 @@ import java.util.List;
  * outside the core Hedera FeeModelRegistry logic.
  * The structure mirrors the structure of the simple fees schedule JSON file used by the Simple Fees feature.
  * It can be deserialized from a JSON file, a classpath resource, or a raw JSON using Jackson.
- * </p>
- * <pre>
- * Top-level structure in JSON:
- * {
- *   "node": { "baseFee": 100000, "extras": [...] },
- *   "network": { "multiplier": 2 },
- *   "extras": [ { "name": "SIGNATURES", "fee": 60000000 }, ... ],
- *   "services": [ { "name": "Consensus", "schedule": [ ... ] }, ... ]
- * }
- * </pre>
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class SimpleFeesJsonSchema {

@@ -13,7 +13,7 @@ import org.hiero.hapi.support.fees.Extra;
 /**
  * This is an independent Simple Fees calculator that can be used in tests to verify the correctness of charged fees.
  * The class computes the expected { node, network, service, extras, total } fees for a given transaction
- * from a given JSON schedule parsed into {@link SimpleFeesJsonSchema}.
+ * from a given JSON schedule parsed into SimpleFeesJsonSchema.
  * This calculator avoids using the production {@code FeeModelRegistry} logic to ensure independence.
  * <h2>Units</h2>
  * <ul>

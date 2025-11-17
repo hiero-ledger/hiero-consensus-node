@@ -6,14 +6,6 @@ import org.hiero.hapi.support.fees.Extra;
 
 /**
  * This class is used as a builder for simple fees parameters.
- * <p>Example:
- * <pre>
- *      SimpleFeesParams params = new SimpleFeesParams.create()
- *          .signatures(3)
- *          .bytes(256)
- *          .keys(2)
- * </pre>
- * </p>
  */
 public class SimpleFeesParams {
     private final EnumMap<Extra, Long> counts = new EnumMap<>(Extra.class);
