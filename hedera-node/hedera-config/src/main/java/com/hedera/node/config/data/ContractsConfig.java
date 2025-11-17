@@ -34,11 +34,11 @@ public record ContractsConfig(
         @ConfigProperty(defaultValue = "CONTRACT_STATE_CHANGE,CONTRACT_BYTECODE,CONTRACT_ACTION") @NetworkProperty
                 Set<SidecarType> sidecars,
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean sidecarValidationEnabled,
-        @ConfigProperty(value = "throttle.throttleByGas", defaultValue = "true") @NetworkProperty
+        @ConfigProperty(value = "throttle.throttleByGas", defaultValue = "false") @NetworkProperty
                 boolean throttleThrottleByGas,
-        @ConfigProperty(value = "throttle.throttleByOpsDuration", defaultValue = "false") @NetworkProperty
+        @ConfigProperty(value = "throttle.throttleByOpsDuration", defaultValue = "true") @NetworkProperty
                 boolean throttleThrottleByOpsDuration,
-        @ConfigProperty(defaultValue = "20") @NetworkProperty int maxRefundPercentOfGasLimit,
+        @ConfigProperty(defaultValue = "100") @NetworkProperty int maxRefundPercentOfGasLimit,
         @ConfigProperty(value = "precompile.exchangeRateGasCost", defaultValue = "100") @NetworkProperty
                 long precompileExchangeRateGasCost,
         @ConfigProperty(value = "precompile.htsDefaultGasCost", defaultValue = "10000") @NetworkProperty
