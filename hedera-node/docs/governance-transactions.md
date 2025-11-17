@@ -164,4 +164,8 @@ void checkTransactionSizeLimitBasedOnPayer(
 - Transactions more than 6KB in size submitted by a non-privileged payer should be rejected
 - Transactions more than 130KB in size submitted by a privileged payer should be rejected.
 
+#### Important notes
+
+Any configurations updated during runtime of the consensus node and used in the grpc layer of the system **will not** be reflected and applied to the grpc layer until the node is restarted.
+
 **NEXT: [Privileged Transactions](privileged-transactions.md)**

@@ -44,21 +44,6 @@ final class PermissionedAccountsRangeConverterTest {
 
         // then
         Assertions.assertThat(converted).isNotNull();
-        // All ranges now use the inclusion-based format, so just verify it's not null
-        // The actual range validation is tested through the contains() method behavior
-    }
-
-    @ParameterizedTest
-    @MethodSource("validDataProvider")
-    void testContainsMethod(final TestData testData) {
-        // given
-        final PermissionedAccountsRangeConverter converter = new PermissionedAccountsRangeConverter();
-
-        // when
-        final PermissionedAccountsRange converted = converter.convert(testData.input());
-
-        // then
-        Assertions.assertThat(converted).isNotNull();
 
         // Verify that all contained numbers are indeed contained
         for (Long number : testData.containedNumbers()) {

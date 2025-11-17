@@ -231,3 +231,7 @@ public long transactionIntrinsicGasCost(final Bytes payload, final boolean isCon
 
 - validate that non-jumbo transaction bigger than 6kb should fail, if governance transactions are disabled
 - validate that jumbo transaction gets bytes throttled at ingest
+
+#### Important notes
+
+Any configurations updated during runtime of the consensus node and used in the grpc layer of the system **will not** be reflected and applied to the grpc layer until the node is restarted.
