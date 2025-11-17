@@ -12,7 +12,7 @@ import java.util.function.BooleanSupplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.util.TimeoutException;
+import org.hiero.otter.fixtures.exceptions.TimeoutException;
 
 /**
  * An abstract implementation of {@link TimeManager} that contains all functionality shared between the different
