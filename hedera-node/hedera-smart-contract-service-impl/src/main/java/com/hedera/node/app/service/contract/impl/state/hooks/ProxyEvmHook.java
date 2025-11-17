@@ -2,7 +2,7 @@
 package com.hedera.node.app.service.contract.impl.state.hooks;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS;
-import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_ID;
+import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -11,6 +11,7 @@ import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.node.app.service.contract.impl.state.AbstractProxyEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameState;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.units.bigints.UInt256;
@@ -35,12 +36,17 @@ import org.hyperledger.besu.evm.code.CodeFactory;
 public class ProxyEvmHook extends AbstractProxyEvmAccount {
     private final EvmHookState hookState;
     private final CodeFactory codeFactory;
+    private final EntityIdFactory entityIdFactory;
 
     public ProxyEvmHook(
-            @NonNull final EvmFrameState state, @NonNull final EvmHookState hookState, final CodeFactory codeFactory) {
+            @NonNull final EvmFrameState state,
+            @NonNull final EvmHookState hookState,
+            @NonNull final CodeFactory codeFactory,
+            @NonNull final EntityIdFactory entityIdFactory) {
         super(getOwnerId(hookState.hookIdOrThrow()), state);
         this.hookState = requireNonNull(hookState);
-        this.codeFactory = codeFactory;
+        this.codeFactory = requireNonNull(codeFactory);
+        this.entityIdFactory = requireNonNull(entityIdFactory);
     }
 
     @Override
@@ -56,7 +62,7 @@ public class ProxyEvmHook extends AbstractProxyEvmAccount {
     @Override
     @NonNull
     public ContractID hederaContractId() {
-        return HTS_HOOKS_CONTRACT_ID;
+        return entityIdFactory.newContractId(HTS_HOOKS_CONTRACT_NUM);
     }
 
     @Override
@@ -71,21 +77,17 @@ public class ProxyEvmHook extends AbstractProxyEvmAccount {
 
     @Override
     public @NonNull UInt256 getStorageValue(@NonNull final UInt256 key) {
-        return state.getStorageValue(HTS_HOOKS_CONTRACT_ID, key);
+        return state.getStorageValue(entityIdFactory.newContractId(HTS_HOOKS_CONTRACT_NUM), key);
     }
 
     @NonNull
     private static AccountID getOwnerId(final @NonNull HookId hookId) {
-        return requireNonNull(hookId).entityIdOrThrow().hasAccountId()
-                ? hookId.entityIdOrThrow().accountIdOrThrow()
-                : asAccountId(hookId.entityIdOrThrow().contractIdOrThrow());
+        // We always use account id for hook owner internally
+        return hookId.entityIdOrThrow().accountIdOrThrow();
     }
 
-    private static AccountID asAccountId(final ContractID contractID) {
-        return AccountID.newBuilder()
-                .shardNum(contractID.shardNum())
-                .realmNum(contractID.realmNum())
-                .accountNum(contractID.contractNumOrThrow())
-                .build();
+    @Override
+    public boolean isRegularAccount() {
+        return false;
     }
 }

@@ -2,12 +2,9 @@
 package com.hedera.node.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
 import com.swirlds.virtualmap.VirtualMap;
@@ -29,7 +26,7 @@ class HederaVirtualMapStateTest extends MerkleTestBase {
      */
     @BeforeEach
     void setUp() {
-        virtualMapState = new HederaVirtualMapState(CONFIGURATION, new NoOpMetrics());
+        virtualMapState = new HederaVirtualMapState(CONFIGURATION, new NoOpMetrics(), new FakeTime());
         setupFruitVirtualMap();
         setupSingletonCountry();
         setupSteamQueue();
@@ -39,11 +36,6 @@ class HederaVirtualMapStateTest extends MerkleTestBase {
         final var writableStates = virtualMapState.getWritableStates(FIRST_SERVICE);
         writableStates.getQueue(STEAM_STATE_ID).add(ART);
         ((CommittableWritableStates) writableStates).commit();
-        virtualMapState.init(
-                new FakeTime(),
-                new NoOpMetrics(),
-                mock(MerkleCryptography.class),
-                () -> PlatformStateAccessor.GENESIS_ROUND);
     }
 
     @Test

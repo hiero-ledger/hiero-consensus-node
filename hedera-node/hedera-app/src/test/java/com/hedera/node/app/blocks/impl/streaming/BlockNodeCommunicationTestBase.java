@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
+import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
@@ -13,12 +14,14 @@ import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.hedera.node.internal.network.BlockNodeConfig;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Objects;
+import org.hiero.block.api.BlockEnd;
 import org.hiero.block.api.BlockItemSet;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
@@ -32,8 +35,6 @@ import org.hiero.block.api.PublishStreamResponse.SkipBlock;
  * Base class for tests that involve block node communication.
  */
 public abstract class BlockNodeCommunicationTestBase {
-
-    protected static final int BATCH_SIZE = 5;
 
     @NonNull
     protected static PublishStreamResponse createSkipBlock(final long blockNumber) {
@@ -79,6 +80,22 @@ public abstract class BlockNodeCommunicationTestBase {
         return PublishStreamRequest.newBuilder().endStream(endStream).build();
     }
 
+    @NonNull
+    protected static PublishStreamRequest createRequest(final EndStream.Code endCode, final long earliestBlockNumber) {
+        final EndStream endStream = EndStream.newBuilder()
+                .endCode(endCode)
+                .earliestBlockNumber(earliestBlockNumber)
+                .build();
+        return PublishStreamRequest.newBuilder().endStream(endStream).build();
+    }
+
+    @NonNull
+    protected static PublishStreamRequest createRequest(final long blockNumber) {
+        final BlockEnd endOfBlock =
+                BlockEnd.newBuilder().blockNumber(blockNumber).build();
+        return PublishStreamRequest.newBuilder().endOfBlock(endOfBlock).build();
+    }
+
     protected TestConfigBuilder createDefaultConfigProvider() {
         final var configPath = Objects.requireNonNull(
                         BlockNodeCommunicationTestBase.class.getClassLoader().getResource("bootstrap/"))
@@ -88,7 +105,6 @@ public abstract class BlockNodeCommunicationTestBase {
         return HederaTestConfigBuilder.create()
                 .withValue("blockStream.writerMode", "FILE_AND_GRPC")
                 .withValue("blockNode.blockNodeConnectionFileDir", configPath)
-                .withValue("blockStream.blockItemBatchSize", BATCH_SIZE)
                 .withValue("blockNode.highLatencyEventsBeforeSwitching", 3)
                 .withValue("blockNode.highLatencyThresholdMs", 500);
     }
@@ -103,8 +119,20 @@ public abstract class BlockNodeCommunicationTestBase {
                 .build();
     }
 
+    protected static BlockItem newBlockHeaderItem(final long blockNumber) {
+        final BlockHeader header = BlockHeader.newBuilder().number(blockNumber).build();
+        return BlockItem.newBuilder().blockHeader(header).build();
+    }
+
     protected static BlockItem newBlockTxItem() {
         return BlockItem.newBuilder().build();
+    }
+
+    protected static BlockItem newBlockTxItem(final int bytes) {
+        final byte[] array = new byte[bytes];
+        Arrays.fill(array, (byte) 10);
+
+        return BlockItem.newBuilder().signedTransaction(Bytes.wrap(array)).build();
     }
 
     protected static BlockItem newPreProofBlockStateChangesItem() {
@@ -126,15 +154,45 @@ public abstract class BlockNodeCommunicationTestBase {
                 .build();
     }
 
-    protected static BlockNodeConfig newBlockNodeConfig(final String host, final int port, final int priority) {
-        return BlockNodeConfig.newBuilder()
-                .address(host)
-                .port(port)
-                .priority(priority)
+    protected static BlockItem newBlockProofItem(final long blockNumber, final int bytes) {
+        final byte[] array = new byte[bytes];
+        Arrays.fill(array, (byte) 10);
+
+        final BlockProof proof = BlockProof.newBuilder()
+                .block(blockNumber)
+                .signedBlockProof(TssSignedBlockProof.newBuilder()
+                        .blockSignature(Bytes.wrap(array))
+                        .build())
                 .build();
+        return BlockItem.newBuilder().blockProof(proof).build();
     }
 
-    protected static BlockNodeConfig newBlockNodeConfig(final int port, final int priority) {
+    protected static BlockNodeConfiguration newBlockNodeConfig(final int port, final int priority) {
         return newBlockNodeConfig("localhost", port, priority);
+    }
+
+    protected static BlockNodeConfiguration newBlockNodeConfig(
+            final String address, final int port, final int priority) {
+        return newBlockNodeConfig(
+                address,
+                port,
+                priority,
+                BlockNodeConnectionManager.DEFAULT_MESSAGE_SOFT_LIMIT_BYTES,
+                BlockNodeConnectionManager.DEFAULT_MESSAGE_HARD_LIMIT_BYTES);
+    }
+
+    protected static BlockNodeConfiguration newBlockNodeConfig(
+            final String address,
+            final int port,
+            final int priority,
+            final long messageSoftLimitBytes,
+            final long messageHardLimitBytes) {
+        return BlockNodeConfiguration.newBuilder()
+                .address(address)
+                .port(port)
+                .priority(priority)
+                .messageSizeSoftLimitBytes(messageSoftLimitBytes)
+                .messageSizeHardLimitBytes(messageHardLimitBytes)
+                .build();
     }
 }

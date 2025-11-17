@@ -10,13 +10,16 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
+import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.ConsensusEvent;
@@ -26,11 +29,10 @@ import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
-import org.hiero.otter.fixtures.app.services.consistency.ConsistencyService;
-import org.hiero.otter.fixtures.app.services.iss.IssService;
 import org.hiero.otter.fixtures.app.services.platform.PlatformStateService;
 import org.hiero.otter.fixtures.app.services.roster.RosterService;
 import org.hiero.otter.fixtures.app.state.OtterStateInitializer;
+import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 
 /**
  * The main entry point for the Otter application. This class is instantiated by the platform when the application is
@@ -62,16 +64,32 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
     /**
      * Create the app and its services.
      *
+     * @param configuration the configuration to use to create the app and its services
      * @param version the software version to set in the state
      */
-    public OtterApp(@NonNull final SemanticVersion version) {
+    public OtterApp(@NonNull final Configuration configuration, @NonNull final SemanticVersion version) {
         this.version = requireNonNull(version);
 
-        final IssService issService = new IssService();
-        final ConsistencyService consistencyService = new ConsistencyService();
+        final OtterAppConfig appConfig = configuration.getConfigData(OtterAppConfig.class);
+        this.appServices =
+                appConfig.services().stream().map(OtterApp::instantiateService).toList();
+        this.allServices = Stream.concat(
+                        appServices.stream(), Stream.of(new PlatformStateService(), new RosterService()))
+                .toList();
+    }
 
-        this.appServices = List.of(consistencyService, issService);
-        this.allServices = List.of(consistencyService, issService, new PlatformStateService(), new RosterService());
+    @NonNull
+    private static OtterService instantiateService(@NonNull final String className) {
+        try {
+            return (OtterService)
+                    Class.forName(className).getDeclaredConstructor().newInstance();
+        } catch (final ClassNotFoundException
+                | NoSuchMethodException
+                | InstantiationException
+                | IllegalAccessException
+                | InvocationTargetException e) {
+            throw new IllegalStateException("Failed to instantiate service: " + className, e);
+        }
     }
 
     /**
@@ -210,8 +228,14 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
             @NonNull final InitTrigger trigger,
             @Nullable final SemanticVersion previousVersion) {
         final Configuration configuration = platform.getContext().getConfiguration();
-        if (state.getReadableStates(ConsistencyService.NAME).isEmpty()) {
-            OtterStateInitializer.initOtterAppState(state, version, appServices);
+        if (!appServices.isEmpty()) {
+            final boolean stateNotInitialized = appServices.stream()
+                    .map(OtterService::name)
+                    .map(state::getReadableStates)
+                    .allMatch(ReadableStates::isEmpty);
+            if (stateNotInitialized) {
+                OtterStateInitializer.initOtterAppState(state, version, appServices);
+            }
         }
 
         for (final OtterService service : allServices) {

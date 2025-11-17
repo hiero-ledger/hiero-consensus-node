@@ -8,13 +8,12 @@ import com.swirlds.platform.gossip.permits.SyncGuardFactory;
 import com.swirlds.platform.gossip.rpc.GossipRpcSender;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.metrics.SyncMetrics;
+import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.function.Consumer;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.gossip.FallenBehindManager;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -25,8 +24,6 @@ import org.hiero.consensus.model.node.NodeId;
  * socket (unlike {@link ShadowgraphSynchronizer}
  */
 public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
-
-    private static final Logger logger = LogManager.getLogger(RpcShadowgraphSynchronizer.class);
 
     /**
      * Our own node id
@@ -51,7 +48,7 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
      * @param numberOfNodes        number of nodes in the network
      * @param syncMetrics          metrics for sync
      * @param receivedEventHandler events that are received are passed here
-     * @param fallenBehindManager  tracks if we have fallen behind
+     * @param fallenBehindMonitor  an instance of the fallenBehind Monitor which tracks if the node has fallen behind
      * @param intakeEventCounter   used for tracking events in the intake pipeline per peer
      * @param selfId               id of current node
      * @param syncLagHandler       callback for reporting median sync lag
@@ -61,10 +58,10 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
             final int numberOfNodes,
             @NonNull final SyncMetrics syncMetrics,
             @NonNull final Consumer<PlatformEvent> receivedEventHandler,
-            @NonNull final FallenBehindManager fallenBehindManager,
+            @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final NodeId selfId,
-            @NonNull final Consumer<Double> syncLagHandler) {
+            @NonNull final Consumer<SyncProgress> syncLagHandler) {
 
         super(
                 platformContext,
@@ -72,7 +69,7 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
                 numberOfNodes,
                 syncMetrics,
                 receivedEventHandler,
-                fallenBehindManager,
+                fallenBehindMonitor,
                 intakeEventCounter,
                 syncLagHandler);
         final SyncConfig syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
@@ -102,16 +99,8 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
                 time,
                 intakeEventCounter,
                 eventHandler,
-                syncGuard);
+                syncGuard,
+                fallenBehindMonitor);
         return rpcPeerHandler;
-    }
-
-    /**
-     * Called when given handler is being destroyed due to connection collapsing or other similar event.
-     *
-     * @param rpcPeerHandler handler which should be removed from internal structures
-     */
-    public void deregisterPeerHandler(final RpcPeerHandler rpcPeerHandler) {
-        // no-op for now
     }
 }

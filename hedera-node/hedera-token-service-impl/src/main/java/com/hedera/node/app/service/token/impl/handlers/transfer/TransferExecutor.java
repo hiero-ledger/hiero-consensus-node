@@ -28,12 +28,14 @@ import com.hedera.hapi.node.hooks.HookExecution;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.contracts.HookUtils;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler;
-import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookCallFactory;
 import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookCalls;
+import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookCallsFactory;
 import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookContext;
+import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookInvocation;
 import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HooksABI;
 import com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
@@ -43,7 +45,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.ArrayList;
 import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -57,16 +58,21 @@ import javax.inject.Singleton;
 @Singleton
 public class TransferExecutor extends BaseTokenHandler {
     private final CryptoTransferValidator validator;
-    private final HookCallFactory hookCallFactory;
+    private final HookCallsFactory hookCallsFactory;
+    private final EntityIdFactory entityIdFactory;
 
     /**
      * Default constructor for injection.
      */
     @Inject
-    public TransferExecutor(final CryptoTransferValidator validator, final HookCallFactory hookCallFactory) {
+    public TransferExecutor(
+            final CryptoTransferValidator validator,
+            final HookCallsFactory hookCallsFactory,
+            EntityIdFactory entityIdFactory) {
         // For Dagger injection
         this.validator = validator;
-        this.hookCallFactory = hookCallFactory;
+        this.hookCallsFactory = hookCallsFactory;
+        this.entityIdFactory = entityIdFactory;
     }
 
     /**
@@ -97,7 +103,7 @@ public class TransferExecutor extends BaseTokenHandler {
             checkNftTransfers(transfers.nftTransfers(), context, tokenMeta, op, accountStore, receiverKeyCheck);
         }
 
-        checkFungibleTokenTransfers(hbarTransfers, context, accountStore, true);
+        checkFungibleTokenTransfers(hbarTransfers, context, accountStore, true, RECEIVER_KEY_IS_REQUIRED);
     }
 
     /**
@@ -148,27 +154,18 @@ public class TransferExecutor extends BaseTokenHandler {
         final var topLevelPayer = context.payer();
         transferContext.validateHbarAllowances();
 
-        // Replace all aliases in the transaction body with its account ids
-        final var replacedOp = ensureAndReplaceAliasesInOp(txn, transferContext, context, validator);
-
-        // Use the op with replaced aliases in further steps
-        final List<TransferStep> steps = new ArrayList<>();
-        steps.add(new AssociateTokenRecipientsStep(replacedOp));
-        final var customFeeStep = new CustomFeeAssessmentStep(replacedOp);
-
+        // Replace all aliases in the transaction body with its account ids; use in all further steps
+        final var replacedOp = ensureAndReplaceAliasesInOp(txn, transferContext, validator);
         List<CryptoTransferTransactionBody> txns = List.of(replacedOp);
         if (!skipCustomFee) {
-            txns = customFeeStep.assessCustomFees(transferContext);
+            txns = new CustomFeeAssessmentStep(replacedOp).assessCustomFees(transferContext);
         }
-
-        final var hasHooks = HookUtils.hasHooks(replacedOp);
+        final var hasHooks = HookUtils.hasHookExecutions(replacedOp);
         HookCalls hookCalls = null;
-
         if (hasHooks) {
-            final var assessedFeesWithPayerDebits = transferContext.getAssessedFeesWithPayerDebits();
+            final var itemizedAssessedFees = transferContext.getItemizedAssessedFees();
             // Extract the HookCalls from the transaction bodies after custom fee assessment
-            hookCalls =
-                    hookCallFactory.from(transferContext.getHandleContext(), replacedOp, assessedFeesWithPayerDebits);
+            hookCalls = hookCallsFactory.from(transferContext.getHandleContext(), replacedOp, itemizedAssessedFees);
             dispatchHookCalls(
                     hookCalls.context(),
                     hookCalls.preOnlyHooks(),
@@ -280,7 +277,6 @@ public class TransferExecutor extends BaseTokenHandler {
      *
      * @param txn the given transaction body
      * @param transferContext the given transfer context
-     * @param context the given handle context
      * @param validator crypto transfer validator
      * @return the replaced transaction body with all aliases replaced with its account ids
      * @throws HandleException if any error occurs during the process
@@ -288,7 +284,6 @@ public class TransferExecutor extends BaseTokenHandler {
     private CryptoTransferTransactionBody ensureAndReplaceAliasesInOp(
             @NonNull final TransactionBody txn,
             @NonNull final TransferContextImpl transferContext,
-            @NonNull final HandleContext context,
             @NonNull final CryptoTransferValidator validator)
             throws HandleException {
         final var op = txn.cryptoTransferOrThrow();
@@ -322,10 +317,11 @@ public class TransferExecutor extends BaseTokenHandler {
      * @param function the ABI function to use for encoding
      */
     private void dispatchHookCalls(
-            final HookContext hookContext,
-            final List<HookCallFactory.HookInvocation> hookInvocations,
-            final HandleContext handleContext,
-            com.esaulpaugh.headlong.abi.Function function) {
+            @NonNull final HookContext hookContext,
+            @NonNull final List<HookInvocation> hookInvocations,
+            @NonNull final HandleContext handleContext,
+            @NonNull final com.esaulpaugh.headlong.abi.Function function) {
+        final boolean isolated = hookInvocations.size() == 1;
         for (final var hookInvocation : hookInvocations) {
             byte[] calldata;
             try {
@@ -346,17 +342,8 @@ public class TransferExecutor extends BaseTokenHandler {
                             .hookId(hookInvocation.hookId())
                             .build())
                     .build();
-            dispatchExecution(handleContext, execution, function);
+            dispatchExecution(handleContext, execution, function, entityIdFactory, isolated);
         }
-    }
-
-    private void checkFungibleTokenTransfers(
-            @NonNull final List<AccountAmount> transfers,
-            @NonNull final PreHandleContext ctx,
-            @NonNull final ReadableAccountStore accountStore,
-            final boolean hbarTransfer)
-            throws PreCheckException {
-        checkFungibleTokenTransfers(transfers, ctx, accountStore, hbarTransfer, RECEIVER_KEY_IS_REQUIRED);
     }
 
     /**
@@ -473,6 +460,5 @@ public class TransferExecutor extends BaseTokenHandler {
         RECEIVER_KEY_IS_REQUIRED
     }
 
-    public record HookInvocations(
-            List<HookCallFactory.HookInvocation> pre, List<HookCallFactory.HookInvocation> post) {}
+    public record HookInvocations(List<HookInvocation> pre, List<HookInvocation> post) {}
 }

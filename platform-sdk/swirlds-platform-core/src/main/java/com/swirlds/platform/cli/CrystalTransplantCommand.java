@@ -196,7 +196,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
             copyNetworkOverrideFileToCorrectDirectory();
         }
 
-        copyStateFilesToCorrectDirectory(sourceStateInfo.fileInfo().getDirectory());
+        copyStateFilesToCorrectDirectory(sourceStateInfo.fileInfo().stateDirectory());
 
         truncatePCESFilesIfNotAFreezeState();
 
@@ -246,7 +246,8 @@ public class CrystalTransplantCommand extends AbstractCommand {
                 savedStateFiles,
                 v -> {
                     try {
-                        return appMain.stateRootFromVirtualMap().apply(v);
+                        return appMain.stateRootFromVirtualMap(platformContext.getMetrics(), platformContext.getTime())
+                                .apply(v);
                     } catch (UnsupportedOperationException e) {
                         // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
                         return appMain.newStateRoot();

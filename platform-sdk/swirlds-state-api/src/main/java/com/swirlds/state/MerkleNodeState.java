@@ -6,8 +6,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.state.lifecycle.StateMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
-import java.nio.file.Path;
 import org.hiero.base.crypto.Hash;
 
 /**
@@ -75,12 +73,6 @@ public interface MerkleNodeState extends State {
     void removeServiceState(@NonNull String serviceName, int stateId);
 
     /**
-     * Loads a snapshot of a state.
-     * @param targetPath The path to load the snapshot from.
-     */
-    MerkleNodeState loadSnapshot(@NonNull Path targetPath) throws IOException;
-
-    /**
      * Get the merkle path of the singleton state by its ID.
      * @param stateId The state ID of the singleton state.
      * @return The merkle path of the singleton state
@@ -134,4 +126,11 @@ public interface MerkleNodeState extends State {
      * @return hash of the merkle node at the given path or null if the path is non-existent
      */
     Hash getHashForPath(long path);
+
+    /**
+     * Prepares a Merkle proof for the given path.
+     * @param path merkle path
+     * @return Merkle proof for the given path or null if the path is non-existent
+     */
+    MerkleProof getMerkleProof(long path);
 }

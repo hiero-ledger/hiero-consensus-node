@@ -12,6 +12,7 @@ import static org.hiero.base.utility.NonCryptographicHashing.hash64;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.ParseException;
+import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.MerkleNodeState;
@@ -80,7 +81,8 @@ public class ConsistencyTestingToolState extends VirtualMapState<ConsistencyTest
      */
     private final Set<Long> transactionsAwaitingPostHandle;
 
-    public ConsistencyTestingToolState(@NonNull final Configuration configuration, @NonNull final Metrics metrics) {
+    public ConsistencyTestingToolState(
+            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
         super(configuration, metrics);
         transactionHandlingHistory = new TransactionHandlingHistory();
         transactionsAwaitingPostHandle = ConcurrentHashMap.newKeySet();
@@ -90,8 +92,9 @@ public class ConsistencyTestingToolState extends VirtualMapState<ConsistencyTest
     /**
      * Constructor
      */
-    public ConsistencyTestingToolState(@NonNull final VirtualMap virtualMap) {
-        super(virtualMap);
+    public ConsistencyTestingToolState(
+            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
+        super(virtualMap, metrics);
         transactionHandlingHistory = new TransactionHandlingHistory();
         transactionsAwaitingPostHandle = ConcurrentHashMap.newKeySet();
         logger.info(STARTUP.getMarker(), "New State Constructed.");
@@ -113,11 +116,6 @@ public class ConsistencyTestingToolState extends VirtualMapState<ConsistencyTest
     @Override
     protected ConsistencyTestingToolState copyingConstructor() {
         return new ConsistencyTestingToolState(this);
-    }
-
-    @Override
-    protected ConsistencyTestingToolState newInstance(@NonNull final VirtualMap virtualMap) {
-        return new ConsistencyTestingToolState(virtualMap);
     }
 
     /**

@@ -27,7 +27,7 @@ import org.hiero.otter.fixtures.container.network.NetworkBehavior;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.internal.RegularTimeManager;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
-import org.hiero.otter.fixtures.network.Topology.ConnectionData;
+import org.hiero.otter.fixtures.network.Topology.ConnectionState;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
@@ -48,7 +48,6 @@ public class ContainerNetwork extends AbstractNetwork {
 
     private ToxiproxyContainer toxiproxyContainer;
     private NetworkBehavior networkBehavior;
-    private boolean restartNodesOnSelfShutdown;
 
     /**
      * Constructor for {@link ContainerNetwork}.
@@ -94,7 +93,7 @@ public class ContainerNetwork extends AbstractNetwork {
      * {@inheritDoc}
      */
     @Override
-    protected void onConnectionsChanged(@NonNull final Map<ConnectionKey, ConnectionData> connections) {
+    protected void onConnectionsChanged(@NonNull final Map<ConnectionKey, ConnectionState> connections) {
         networkBehavior.onConnectionsChanged(nodes(), connections);
     }
 
@@ -105,8 +104,8 @@ public class ContainerNetwork extends AbstractNetwork {
     @NonNull
     protected ContainerNode doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
-        final ContainerNode node =
-                new ContainerNode(nodeId, timeManager, keysAndCerts, network, dockerImage, outputDir);
+        final ContainerNode node = new ContainerNode(
+                nodeId, timeManager, keysAndCerts, network, dockerImage, outputDir, networkConfiguration);
         timeManager.addTimeTickReceiver(node);
         return node;
     }
@@ -119,8 +118,8 @@ public class ContainerNetwork extends AbstractNetwork {
     protected InstrumentedNode doCreateInstrumentedNode(
             @NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
-        final InstrumentedContainerNode node =
-                new InstrumentedContainerNode(nodeId, timeManager, keysAndCerts, network, dockerImage, outputDir);
+        final InstrumentedContainerNode node = new InstrumentedContainerNode(
+                nodeId, timeManager, keysAndCerts, network, dockerImage, outputDir, networkConfiguration);
         timeManager.addTimeTickReceiver(node);
         return node;
     }
@@ -168,5 +167,6 @@ public class ContainerNetwork extends AbstractNetwork {
         if (toxiproxyContainer != null) {
             toxiproxyContainer.stop();
         }
+        network.close();
     }
 }

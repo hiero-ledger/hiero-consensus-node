@@ -25,6 +25,11 @@ public class ContainerConstants {
     public static final String HASHSTREAM_LOG_PATH = "output/swirlds-hashstream/swirlds-hashstream.log";
 
     /**
+     * Path to {@code otter.log} file (control process logs)
+     */
+    public static final String OTTER_LOG_PATH = "output/otter.log";
+
+    /**
      * Path to {@code MainNetStats{nodeId}.csv} file
      */
     public static final String METRICS_PATH = "data/stats/MainNetStats%d.csv";
@@ -33,6 +38,11 @@ public class ContainerConstants {
      * Path to the event stream directory
      */
     public static final String EVENT_STREAM_DIRECTORY = "hgcapp";
+
+    /**
+     * Path to the profile output directory
+     */
+    public static final String PROFILE_OUTPUT_DIRECTORY = "profiles/";
 
     /**
      * The port to open to allow connections to the

@@ -5,7 +5,6 @@ import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
 import static org.hiero.consensus.otter.docker.app.ConsensusNodeMain.STARTED_MARKER_FILE;
 import static org.hiero.consensus.otter.docker.app.ConsensusNodeMain.STARTED_MARKER_FILE_NAME;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
-import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getJavaToolOptions;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getNodeCommunicationDebugPort;
 
 import com.google.protobuf.Empty;
@@ -92,16 +91,19 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
 
         this.selfId = requestSelfId;
 
+        // Set the debug port for the node communication service as JVM arguments
+        // This ensures only the main process gets the debug agent, not tools like jps/jcmd
+        final int debugPort = getNodeCommunicationDebugPort(selfId);
         final ProcessBuilder processBuilder = new ProcessBuilder(
                 "java",
+                "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:" + debugPort,
+                "-Djdk.attach.allowAttachSelf=true",
+                "-XX:+StartAttachListener",
                 "-cp",
                 DOCKER_APP_JAR + ":" + DOCKER_APP_LIBS,
                 CONSENSUS_NODE_MAIN_CLASS,
                 String.valueOf(selfId.id()));
 
-        // Set the debug port for the node communication service in the java environment variable.
-        final int debugPort = getNodeCommunicationDebugPort(selfId);
-        processBuilder.environment().put("JAVA_TOOL_OPTIONS", getJavaToolOptions(debugPort));
         processBuilder.inheritIO();
 
         log.info("Starting NodeCommunicationService with self ID: {}", selfId.id());
@@ -120,7 +122,11 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
                 responseObserver.onNext(Empty.getDefaultInstance());
                 responseObserver.onCompleted();
             } else {
-                log.error("Consensus node process started, but marker file was not detected in the allowed time");
+                if (!process.isAlive()) {
+                    log.error("Consensus node stopped prematurely. Errorcode: {}", process.exitValue());
+                } else {
+                    log.error("Consensus node process started, but marker file was not detected in the allowed time");
+                }
                 responseObserver.onError(new IllegalStateException(
                         "Consensus node process started, but marker file was not detected in the allowed time"));
             }
@@ -188,9 +194,25 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
         log.info("Received kill request: {}", request);
         if (process != null) {
             process.destroyForcibly();
+            try {
+                if (process.waitFor(request.getTimeoutSeconds(), TimeUnit.SECONDS)) {
+                    responseObserver.onNext(Empty.getDefaultInstance());
+                    responseObserver.onCompleted();
+                } else {
+                    log.error("Failed to terminate the consensus node process within the timeout period.");
+                    responseObserver.onError(new IllegalStateException(
+                            "Failed to terminate the consensus node process within the timeout period."));
+                }
+            } catch (final InterruptedException e) {
+                log.error("Interrupted while waiting for the consensus node process to terminate.", e);
+                Thread.currentThread().interrupt();
+                responseObserver.onError(new InterruptedException(
+                        "Interrupted while waiting for the consensus node process to terminate."));
+            }
+        } else {
+            responseObserver.onNext(Empty.getDefaultInstance());
+            responseObserver.onCompleted();
         }
-        responseObserver.onNext(Empty.getDefaultInstance());
-        responseObserver.onCompleted();
         log.info("Kill request completed.");
     }
 
