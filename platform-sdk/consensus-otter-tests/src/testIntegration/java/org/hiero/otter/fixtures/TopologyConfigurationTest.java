@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures;
+package org.hiero.otter.fixtures.test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import org.assertj.core.data.Percentage;
+import org.hiero.otter.fixtures.network.BandwidthLimit;
+import org.hiero.otter.fixtures.network.GeoMeshTopologyConfiguration;
+import org.hiero.otter.fixtures.network.LatencyRange;
 import org.hiero.otter.fixtures.network.MeshTopologyConfiguration;
-import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
-import org.hiero.otter.fixtures.network.utils.GeoMeshTopologyConfiguration;
-import org.hiero.otter.fixtures.network.utils.LatencyRange;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

@@ -16,6 +16,7 @@ import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.network.MeshTopology;
 import org.hiero.otter.fixtures.network.MeshTopologyConfiguration;
+import org.hiero.otter.fixtures.network.Topology.ConnectionState;
 
 /**
  * An implementation of {@link MeshTopology}.
@@ -29,7 +30,7 @@ public class MeshTopologyImpl implements MeshTopology {
     private final Function<Integer, List<? extends Node>> nodeFactory;
     private final Supplier<InstrumentedNode> instrumentedNodeFactory;
     private final List<Node> nodes = new ArrayList<>();
-    private final ConnectionData connectionData;
+    private final ConnectionState connectionData;
 
     /**
      * Constructor for the {@link MeshTopologyImpl} class with default configuration.
@@ -59,7 +60,7 @@ public class MeshTopologyImpl implements MeshTopology {
         this.nodeFactory = requireNonNull(nodeFactory);
         this.instrumentedNodeFactory = requireNonNull(instrumentedNodeFactory);
         requireNonNull(configuration);
-        this.connectionData = new ConnectionData(
+        this.connectionData = new ConnectionState(
                 true, configuration.averageLatency(), configuration.jitter(), configuration.bandwidth());
     }
 
@@ -99,7 +100,7 @@ public class MeshTopologyImpl implements MeshTopology {
      */
     @Override
     @NonNull
-    public ConnectionData getConnectionData(@NonNull final Node sender, @NonNull final Node receiver) {
+    public ConnectionState getConnectionData(@NonNull final Node sender, @NonNull final Node receiver) {
         return connectionData;
     }
 }
