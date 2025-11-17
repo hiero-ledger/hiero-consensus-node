@@ -401,6 +401,7 @@ jobs:
       custom-job-name: "Mirror Node Regression"
       solo-version: ${{ vars.CITR_SOLO_VERSION }}
       helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
+      mirror-node-version: ${{ vars.CITR_MIRROR_NODE_VERSION }}
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
