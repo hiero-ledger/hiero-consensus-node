@@ -1894,7 +1894,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         // Should have sent header, then ended stream due to size violation under configured limit
         verify(requestPipeline, timeout(2_000).atLeast(2)).onNext(any(PublishStreamRequest.class));
-        verify(connectionManager).notifyConnectionClosed(connection);
+        verify(connectionManager, timeout(2_000)).notifyConnectionClosed(connection);
     }
 
     // Tests that no response processing occurs when connection is already closed
