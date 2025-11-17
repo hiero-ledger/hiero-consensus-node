@@ -104,6 +104,7 @@ jobs:
       branch_name: ${{ inputs.branch_name }}
       solo-version: ${{ needs.parameters.outputs.solo-version }}
       helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
+      mirror-node-version: ${{ vars.CITR_MIRROR_NODE_VERSION }}
       solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}
       enable-extended-test-suite: ${{ inputs.enable-extended-test-suite }}
       enable-abbreviated-panel: ${{ inputs.enable-abbreviated-panel }}
