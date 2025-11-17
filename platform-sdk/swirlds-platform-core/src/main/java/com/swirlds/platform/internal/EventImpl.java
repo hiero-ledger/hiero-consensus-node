@@ -86,19 +86,9 @@ public class EventImpl implements Clearable {
     /** The deterministic generation, see {@link DeGen} */
     private int deGen = 0;
 
-    @Deprecated
     public EventImpl(
             @NonNull final PlatformEvent platformEvent,
-            @Nullable final EventImpl selfParent,
-            @Nullable final EventImpl otherParent) {
-        this(platformEvent, Stream.of(selfParent, otherParent)
-                .filter(Objects::nonNull)
-                .toList());
-    }
-
-    public EventImpl(
-            @NonNull final PlatformEvent platformEvent,
-            @Nullable final List<EventImpl> parents) {
+            @NonNull final List<EventImpl> parents) {
         Objects.requireNonNull(platformEvent, "baseEvent");
         this.parents = parents;
         // ConsensusImpl.currMark starts at 1 and counts up, so all events initially count as
