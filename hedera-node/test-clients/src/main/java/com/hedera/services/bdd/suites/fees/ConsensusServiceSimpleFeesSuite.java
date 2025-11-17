@@ -46,7 +46,7 @@ public class ConsensusServiceSimpleFeesSuite {
                     "create-topic-txn",
                     0.01009,
                     1,
-                    0.01009,
+                    0.01003,
                     1);
         }
 
@@ -66,8 +66,8 @@ public class ConsensusServiceSimpleFeesSuite {
                     "create-topic-admin-txn",
                     0.02109,
                     1,
-                    0.02109,
-                    30);
+                    0.01629,
+                    1);
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -86,8 +86,8 @@ public class ConsensusServiceSimpleFeesSuite {
                     "create-topic-admin-txn",
                     0.02009,
                     1,
-                    0.02009,
-                    100);
+                    0.01022,
+                    1);
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -109,8 +109,8 @@ public class ConsensusServiceSimpleFeesSuite {
                     "update-topic-txn",
                     0.000310,
                     1,
-                    0.000310,
-                    1000);
+                    0.000218,
+                    1);
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -135,8 +135,8 @@ public class ConsensusServiceSimpleFeesSuite {
                     "update-topic-txn",
                     0.00131,
                     1,
-                    0.00131,
-                    100);
+                    0.000354,
+                    1);
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -166,8 +166,8 @@ public class ConsensusServiceSimpleFeesSuite {
                     "submit-message-txn",
                     0.0001900,
                     1,
-                    0.0001900,
-                    90);
+                    0.0001000,
+                    1);
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -197,8 +197,8 @@ public class ConsensusServiceSimpleFeesSuite {
                     "submit-message-txn",
                     0.000200,
                     1,
-                    0.000200,
-                    40);
+                    0.000124,
+                    1);
         }
 
         // TODO: support queries
@@ -247,7 +247,7 @@ public class ConsensusServiceSimpleFeesSuite {
                     0.005,
                     1,
                     0.005,
-                    10);
+                    5);
         }
     }
 }
