@@ -389,7 +389,7 @@ public class SystemTransactions {
                         adminConfig.upgradePermissionOverridesFile(),
                         in -> parseConfig("override HAPI permissions", in)));
         final var feesConfig = config.getConfigData(FeesConfig.class);
-        if (feesConfig.simpleFeesEnabled()) {
+        if (feesConfig.createSimpleFeeSchedule()) {
             autoSysFileUpdates.add(new AutoEntityUpdate<>(
                     (ctx, bytes) -> dispatchSynthFileUpdate(
                             ctx, createFileID(filesConfig.simpleFeesSchedules(), config), bytes),

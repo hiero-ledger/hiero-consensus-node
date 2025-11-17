@@ -251,7 +251,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                         consensusTime);
             }
 
-            switchBlocksAt(consensusTime, state);
+            switchBlocksAt(consensusTime);
             return true;
         }
         return false;
@@ -267,33 +267,41 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * We need this to preserve unit test expectations written that assumed a bug in the original implementation,
      * in which the first consensus time of the current block was not in state.
      * @param consensusTime the consensus time at which to switch to the current block
-     * @param state the state at the end of the just-finished block
      */
     @VisibleForTesting
-    public void switchBlocksAt(@NonNull final Instant consensusTime, State state) {
+    public void switchBlocksAt(@NonNull final Instant consensusTime) {
         final long blockNo = lastBlockInfo.lastBlockNumber() + 1;
         streamFileProducer.switchBlocks(lastBlockInfo.lastBlockNumber(), blockNo, consensusTime);
         if (streamMode == RECORDS) {
+            quiescenceController.finishHandlingInProgressBlock();
             // All no-ops below if quiescence is disabled
             if (quiescenceController.switchTracker(blockNo)) {
                 // There is no asynchronous signing concept in the record stream, do it now
                 quiescenceController.blockFullySigned(blockNo - 1);
             }
-            final var lastCommand = lastQuiescenceCommand.get();
-            final var commandNow = quiescenceController.getQuiescenceStatus();
-            if (commandNow != lastCommand && lastQuiescenceCommand.compareAndSet(lastCommand, commandNow)) {
-                logger.info("Updating quiescence command from {} to {}", lastCommand, commandNow);
-                platform.quiescenceCommand(commandNow);
-                if (commandNow == QUIESCE) {
-                    final var config = configProvider.getConfiguration();
-                    final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
-                    quiescedHeartbeat.start(
-                            blockStreamConfig.quiescedHeartbeatInterval(),
-                            new TctProbe(
-                                    blockStreamConfig.maxConsecutiveScheduleSecondsToProbe(),
-                                    config.getConfigData(StakingConfig.class).periodMins(),
-                                    state));
-                }
+        }
+    }
+
+    /**
+     * If called, checks if the quiescence command has changed and updates the platform accordingly.
+     * @param state the state to use
+     */
+    @VisibleForTesting
+    public void maybeQuiesce(@NonNull final State state) {
+        final var lastCommand = lastQuiescenceCommand.get();
+        final var commandNow = quiescenceController.getQuiescenceStatus();
+        if (commandNow != lastCommand && lastQuiescenceCommand.compareAndSet(lastCommand, commandNow)) {
+            logger.info("Updating quiescence command from {} to {}", lastCommand, commandNow);
+            platform.quiescenceCommand(commandNow);
+            if (commandNow == QUIESCE) {
+                final var config = configProvider.getConfiguration();
+                final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
+                quiescedHeartbeat.start(
+                        blockStreamConfig.quiescedHeartbeatInterval(),
+                        new TctProbe(
+                                blockStreamConfig.maxConsecutiveScheduleSecondsToProbe(),
+                                config.getConfigData(StakingConfig.class).periodMins(),
+                                state));
             }
         }
     }

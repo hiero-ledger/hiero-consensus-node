@@ -215,7 +215,6 @@ public class DisabledLongTermExecutionScheduleTest {
                         .gossipCaCertificate(
                                 generateX509Certificates(2).getFirst().getEncoded())
                         .grpcCertificateHash("hash".getBytes())
-                        .accountNum(100)
                         .gossipEndpoint(GOSSIP_ENDPOINTS_IPS)
                         .serviceEndpoint(SERVICES_ENDPOINTS_IPS)
                         .adminKey(ED_25519_KEY),
@@ -235,7 +234,6 @@ public class DisabledLongTermExecutionScheduleTest {
                         .gossipCaCertificate(
                                 generateX509Certificates(2).getFirst().getEncoded())
                         .grpcCertificateHash("hash".getBytes())
-                        .accountNum(100)
                         .gossipEndpoint(GOSSIP_ENDPOINTS_IPS)
                         .serviceEndpoint(SERVICES_ENDPOINTS_IPS)
                         .adminKey(ED_25519_KEY),

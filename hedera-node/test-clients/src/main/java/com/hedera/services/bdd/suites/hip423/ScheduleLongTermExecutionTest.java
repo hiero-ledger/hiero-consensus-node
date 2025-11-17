@@ -182,11 +182,9 @@ public class ScheduleLongTermExecutionTest {
                         .gossipCaCertificate(
                                 generateX509Certificates(2).getFirst().getEncoded())
                         .grpcCertificateHash("hash".getBytes())
-                        .accountNum(100)
                         .gossipEndpoint(GOSSIP_ENDPOINTS_IPS)
                         .serviceEndpoint(SERVICES_ENDPOINTS_IPS)
                         .adminKey(ED_25519_KEY),
-                scheduleCreate("payerOnly", nodeDelete("test"))
-                        .expiringIn(ONE_MONTH));
+                scheduleCreate("payerOnly", nodeDelete("test")).expiringIn(ONE_MONTH));
     }
 }
