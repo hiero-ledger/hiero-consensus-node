@@ -25,10 +25,13 @@
 | node-zxc-build-release-artifact.yaml                  | ZXC: [Node] Deploy Release Artifacts                              |                  |                      |
 | node-zxc-compile-application-code.yaml                | ZXC: [Node] Compile Application Code                              |                  |                      |
 | node-zxc-deploy-preview.yaml                          | ZXC: [Node] Deploy Preview Network Release                        |                  |                      |
+| zxc-xts-tests.yaml                                    | ZXC: Executable XTS Tests                                         |                  |                      |
+| zxc-mats-tests.yaml                                   | ZXC: Executable MATS Tests                                        |                  |                      |
 |                                                       |                                                                   |                  |                      |
 | # CICD                                                |                                                                   |                  |                      |
 | zxf-collect-workflow-logs.yaml                        | ZXF: Collect Workflow Run Logs                                    |                  |                      |
 | zxf-dry-run-extended-test-suite.yaml                  | ZXF: [CITR] XTS Dry Run                                           |                  |                      |
+| zxf-dry-run-mats-suite.yaml                           | ZXF: [CITR] MATS Dry Run                                          |                  |                      |
 | zxf-prepare-extended-test-suite.yaml                  | ZXF: [CITR] Prepare Extended Test Suite                           |                  |                      |
 | zxf-single-day-canonical-test.yaml                    | ZXF: [CITR] Single Day Canonical Test (SDCT)                      |                  |                      |
 | zxf-single-day-longevity-test-controller-adhoc.yaml   | ZXF: [CITR] Adhoc - Single Day Longevity Test Controller          |                  |                      |
