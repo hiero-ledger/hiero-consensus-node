@@ -1237,7 +1237,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             if (block.isClosed() && block.itemCount() == itemIndex) {
                 // Send the last pending items of the block
                 trySendPendingRequest();
-                sendBlockEnd();
             } else {
                 // If the duration since the last time of sending a request exceeds the max delay configuration,
                 // send the pending items
@@ -1271,9 +1270,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         }
 
         /**
-         * Checks if the current block has all of its items sent. If so, then the next block is loaded into the worker.
-         * Additionally, if there is a request to close the connection at a block boundary and the current block is
-         * finished, then this connection will be closed.
+         * Checks if the current block has all of its items sent. If so, then the BlockEnd is sent and the next block is
+         * loaded into the worker. Alternatively, if there is a request to close the connection at a block boundary and
+         * the current block is finished, then this connection will be closed.
          */
         private void maybeAdvanceBlock() {
             final boolean finishedWithCurrentBlock = pendingRequestItems.isEmpty() // no more items ready to send
@@ -1283,6 +1282,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             if (!finishedWithCurrentBlock) {
                 return; // still more work to do
             }
+
+            // send the BlockEnd to the block node announcing we are complete with the block
+            sendBlockEnd();
 
             /*
             We are now done with the current block and have two options:
@@ -1310,6 +1312,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                             BlockNodeConnection.this,
                             nextBlockNumber);
                 }
+
+                // the block number to stream has changed, so swap the block
+                switchBlockIfNeeded();
             }
         }
 
