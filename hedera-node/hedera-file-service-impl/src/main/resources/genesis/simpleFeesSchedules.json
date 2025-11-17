@@ -72,7 +72,7 @@
       "schedule": [
         {
           "name": "ConsensusCreateTopic",
-          "baseFee": 99900000,
+          "baseFee": 99000000,
           "extras": [
             { "name": "KEYS", "includedCount": 0 }
           ]
@@ -86,7 +86,7 @@
         },
         {
           "name": "ConsensusSubmitMessage",
-          "baseFee": 900000,
+          "baseFee": 0,
           "extras": [
             { "name": "BYTES",      "includedCount": 100 }
           ]

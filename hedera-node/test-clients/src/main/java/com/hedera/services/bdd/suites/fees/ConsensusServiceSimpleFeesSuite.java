@@ -44,8 +44,8 @@ public class ConsensusServiceSimpleFeesSuite {
                                     .fee(ONE_HBAR)
                                     .via("create-topic-txn")),
                     "create-topic-txn",
-                    0.01009,
-                    1,
+                    0.01000,
+                    0.1,
                     0.01003,
                     1);
         }
@@ -133,6 +133,10 @@ public class ConsensusServiceSimpleFeesSuite {
                                     .fee(ONE_HBAR)
                                     .via("update-topic-txn")),
                     "update-topic-txn",
+                    // base fee = 2100000
+                    // node fee = base (100000) + 1 extra sig (1000000)
+                    // network fee = node fee * 9
+                    // total = 13100000
                     0.00131,
                     1,
                     0.000354,
@@ -164,7 +168,7 @@ public class ConsensusServiceSimpleFeesSuite {
                                     .fee(ONE_HBAR)
                                     .via("submit-message-txn")),
                     "submit-message-txn",
-                    0.0001900,
+                    0.0001000,
                     1,
                     0.0001000,
                     1);
@@ -195,7 +199,7 @@ public class ConsensusServiceSimpleFeesSuite {
                                     .fee(ONE_HBAR)
                                     .via("submit-message-txn")),
                     "submit-message-txn",
-                    0.000200,
+                    0.000110,
                     1,
                     0.000124,
                     1);
