@@ -88,10 +88,10 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
-                        .via("simple-hbar-txn"),
+                        .via("simpleHbarTxn"),
                 // Expected: node(0.00001) + network(0.00009) + service(0) = 0.0001
                 // Uses 1 signature (PAYER) matching fee schedule includedCount: 1
-                validateChargedUsdWithin("simple-hbar-txn", 0.0001, 5.0));
+                validateChargedUsdWithin("simpleHbarTxn", 0.0001, 5.0));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -109,11 +109,11 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
-                        .via("multi-hbar-txn"),
+                        .via("multiHbarTxn"),
                 // Expected: base $0.0001 + (4 accounts - 2 included) × $0 = $0.0001
                 // Note: ACCOUNTS extra has fee=$0, so no additional charge
                 // Uses 1 signature (PAYER) matching fee schedule includedCount: 1
-                validateChargedUsdWithin("multi-hbar-txn", 0.0001, 5.0));
+                validateChargedUsdWithin("multiHbarTxn", 0.0001, 5.0));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -132,10 +132,10 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
-                        .via("fungible-single-txn"),
+                        .via("fungibleSingleTxn"),
                 // Expected: $0.0001 (same as HBAR-only, no token-specific premium)
                 // Uses 1 signature (PAYER) matching fee schedule includedCount: 1
-                validateChargedUsdWithin("fungible-single-txn", 0.0001, 5.0));
+                validateChargedUsdWithin("fungibleSingleTxn", 0.0001, 5.0));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -161,10 +161,10 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
-                        .via("fungible-multi-txn"),
+                        .via("fungibleMultiTxn"),
                 // Expected: $0.0001 (same as HBAR-only, no token-specific premium)
                 // Uses 1 signature (PAYER) matching fee schedule includedCount: 1
-                validateChargedUsdWithin("fungible-multi-txn", 0.0001, 5.0));
+                validateChargedUsdWithin("fungibleMultiTxn", 0.0001, 5.0));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -185,10 +185,10 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
-                        .via("fungible-hbar-txn"),
+                        .via("fungibleHbarTxn"),
                 // Expected: $0.0001 (same as HBAR-only, no token-specific premium)
                 // Uses 1 signature (PAYER) matching fee schedule includedCount: 1
-                validateChargedUsdWithin("fungible-hbar-txn", 0.0001, 5.0));
+                validateChargedUsdWithin("fungibleHbarTxn", 0.0001, 5.0));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -209,10 +209,10 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
-                        .via("nft-single-txn"),
+                        .via("nftSingleTxn"),
                 // Expected: $0.0001 (same as HBAR-only, no token-specific premium)
                 // Uses 1 signature (PAYER) matching fee schedule includedCount: 1
-                validateChargedUsdWithin("nft-single-txn", 0.0001, 5.0));
+                validateChargedUsdWithin("nftSingleTxn", 0.0001, 5.0));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -235,10 +235,10 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
-                        .via("nft-multi-same-txn"),
+                        .via("nftMultiSameTxn"),
                 // Expected: $0.0001 (same as HBAR-only, no token-specific premium)
                 // Uses 1 signature (PAYER) matching fee schedule includedCount: 1
-                validateChargedUsdWithin("nft-multi-same-txn", 0.0001, 5.0));
+                validateChargedUsdWithin("nftMultiSameTxn", 0.0001, 5.0));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -268,10 +268,10 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
-                        .via("nft-diff-collections-txn"),
+                        .via("nftDiffCollectionsTxn"),
                 // Expected: $0.0001 (same as HBAR-only, no token-specific premium)
                 // Uses 1 signature (PAYER) matching fee schedule includedCount: 1
-                validateChargedUsdWithin("nft-diff-collections-txn", 0.0001, 5.0));
+                validateChargedUsdWithin("nftDiffCollectionsTxn", 0.0001, 5.0));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -294,10 +294,10 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
-                        .via("nft-hbar-txn"),
+                        .via("nftHbarTxn"),
                 // Expected: $0.0001 (same as HBAR-only, no token-specific premium)
                 // Uses 1 signature (PAYER) matching fee schedule includedCount: 1
-                validateChargedUsdWithin("nft-hbar-txn", 0.0001, 5.0));
+                validateChargedUsdWithin("nftHbarTxn", 0.0001, 5.0));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -318,10 +318,10 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(10 * ONE_HBAR)
-                        .via("fungible-custom-fee-txn"),
+                        .via("fungibleCustomFeeTxn"),
                 // Expected: $0.0002 (custom fee tokens have slight premium)
                 // Uses 1 signature (PAYER) matching fee schedule includedCount: 1
-                validateChargedUsdWithin("fungible-custom-fee-txn", 0.0002, 5.0));
+                validateChargedUsdWithin("fungibleCustomFeeTxn", 0.0002, 5.0));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -344,10 +344,10 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(10 * ONE_HBAR)
-                        .via("nft-custom-fee-txn"),
+                        .via("nftCustomFeeTxn"),
                 // Expected: $0.0002 (custom fee tokens have slight premium)
                 // Uses 1 signature (PAYER) matching fee schedule includedCount: 1
-                validateChargedUsdWithin("nft-custom-fee-txn", 0.0002, 5.0));
+                validateChargedUsdWithin("nftCustomFeeTxn", 0.0002, 5.0));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -375,9 +375,9 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(10 * ONE_HBAR)
-                        .via("mixed-standard-custom-txn"),
+                        .via("mixedStandardCustomTxn"),
                 // Expected: $0.0002 (custom fee token present, determines pricing tier)
-                validateChargedUsdWithin("mixed-standard-custom-txn", 0.0002, 5.0));
+                validateChargedUsdWithin("mixedStandardCustomTxn", 0.0002, 5.0));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -406,10 +406,10 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(10 * ONE_HBAR)
-                        .via("multiple-custom-fee-txn"),
+                        .via("multipleCustomFeeTxn"),
                 // Expected: $0.0005 (2 custom fee fungible tokens transferred)
                 // NOTE: System counts 4 custom fee token types - likely custom fee HBAR collections
-                validateChargedUsdWithin("multiple-custom-fee-txn", 0.0005, 5.0));
+                validateChargedUsdWithin("multipleCustomFeeTxn", 0.0005, 5.0));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -440,9 +440,9 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(10 * ONE_HBAR)
-                        .via("custom-fungible-nft-txn"),
+                        .via("customFungibleNftTxn"),
                 // Expected: $0.0003 (1 custom fee fungible + 1 custom fee NFT serial)
-                validateChargedUsdWithin("custom-fungible-nft-txn", 0.0003, 5.0));
+                validateChargedUsdWithin("customFungibleNftTxn", 0.0003, 5.0));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -454,9 +454,9 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
-                        .via("self-transfer-txn"),
+                        .via("selfTransferTxn"),
                 // Expected: base $0.0001 (1 account ≤ 2 includedCount, so no ACCOUNTS overage)
-                validateChargedUsdWithin("self-transfer-txn", 0.0001, 5.0));
+                validateChargedUsdWithin("selfTransferTxn", 0.0001, 5.0));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -472,9 +472,9 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
-                        .via("three-accounts-txn"),
+                        .via("threeAccountsTxn"),
                 // Expected: base $0.0001 (3 accounts - 2 included = 1 overage × $0 = base only)
-                validateChargedUsdWithin("three-accounts-txn", 0.0001, 5.0));
+                validateChargedUsdWithin("threeAccountsTxn", 0.0001, 5.0));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -500,10 +500,10 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
-                        .via("fungible-multi-recipient-txn"),
+                        .via("fungibleMultiRecipientTxn"),
                 // Expected: $0.0001 (same as HBAR-only, no token-specific premium)
                 // (Validates unique token counting: 4 AccountAmounts but 1 unique token)
-                validateChargedUsdWithin("fungible-multi-recipient-txn", 0.0001, 5.0));
+                validateChargedUsdWithin("fungibleMultiRecipientTxn", 0.0001, 5.0));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -537,9 +537,9 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
-                        .via("nft-large-batch-txn"),
+                        .via("nftLargeBatchTxn"),
                 // Expected: $0.0001 (same as HBAR-only, no token-specific premium)
-                validateChargedUsdWithin("nft-large-batch-txn", 0.0001, 5.0));
+                validateChargedUsdWithin("nftLargeBatchTxn", 0.0001, 5.0));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -568,9 +568,9 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
-                        .via("complex-all-types-txn"),
+                        .via("complexAllTypesTxn"),
                 // Expected: $0.0001 (same as HBAR-only, no token-specific premium)
-                validateChargedUsdWithin("complex-all-types-txn", 0.0001, 5.0));
+                validateChargedUsdWithin("complexAllTypesTxn", 0.0001, 5.0));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -612,9 +612,9 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
-                        .via("complex-multi-tokens-nfts-txn"),
+                        .via("complexMultiTokensNftsTxn"),
                 // Expected: $0.0001 (same as HBAR-only, no token-specific premium)
-                validateChargedUsdWithin("complex-multi-tokens-nfts-txn", 0.0001, 5.0));
+                validateChargedUsdWithin("complexMultiTokensNftsTxn", 0.0001, 5.0));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -676,10 +676,10 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .fee(10 * ONE_HBAR)
-                        .via("complex-maximum-txn"),
+                        .via("complexMaximumTxn"),
                 // Expected: $0.0003 (1 custom fee fungible + 1 custom fee NFT serial)
                 // Mix of: 2 standard fungible (no extra charge) + 1 custom fungible ($0.0001)
                 //         + 2 standard NFTs (no extra charge) + 1 custom NFT ($0.0001)
-                validateChargedUsdWithin("complex-maximum-txn", 0.0003, 5.0));
+                validateChargedUsdWithin("complexMaximumTxn", 0.0003, 5.0));
     }
 }
