@@ -11,13 +11,7 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
-import com.hedera.node.app.spi.workflows.PreHandleContext;
-import com.hedera.node.app.spi.workflows.PureChecksContext;
-import com.hedera.node.app.spi.workflows.TransactionHandler;
-import com.hedera.node.app.spi.workflows.WarmupContext;
+import com.hedera.node.app.spi.workflows.*;
 import com.hedera.node.config.data.FeesConfig;
 import com.hederahashgraph.api.proto.java.ExchangeRate;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -136,7 +130,12 @@ public class TransactionDispatcher {
         }
 
         return switch (feeContext.body().data().kind()) {
-            case CRYPTO_DELETE, CRYPTO_CREATE_ACCOUNT, SCHEDULE_CREATE, SCHEDULE_SIGN, SCHEDULE_DELETE -> true;
+            case CRYPTO_DELETE,
+                    CRYPTO_CREATE_ACCOUNT,
+                    CRYPTO_UPDATE_ACCOUNT,
+                    SCHEDULE_CREATE,
+                    SCHEDULE_SIGN,
+                    SCHEDULE_DELETE -> true;
             default -> false;
         };
     }

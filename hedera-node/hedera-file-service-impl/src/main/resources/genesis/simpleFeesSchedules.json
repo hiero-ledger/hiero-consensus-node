@@ -45,7 +45,7 @@
         },
         {
           "name": "CryptoUpdate",
-          "baseFee": 22,
+          "baseFee": 5000000,
           "extras": [
             {  "name": "KEYS",       "includedCount": 1 }
           ]

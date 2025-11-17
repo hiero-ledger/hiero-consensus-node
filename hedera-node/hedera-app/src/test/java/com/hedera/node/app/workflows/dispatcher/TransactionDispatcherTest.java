@@ -11,6 +11,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoDeleteTransactionBody;
+import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.FeeManager;
@@ -111,6 +112,23 @@ class TransactionDispatcherTest {
                                     .cryptoDelete(CryptoDeleteTransactionBody.newBuilder()
                                             .deleteAccountID(AccountID.newBuilder()
                                                     .accountNum(1002)
+                                                    .build())
+                                            .build())
+                                    .build()),
+                    Arguments.of(
+                            "CRYPTO_UPDATE_ACCOUNT",
+                            TransactionBody.newBuilder()
+                                    .transactionID(TransactionID.newBuilder()
+                                            .accountID(AccountID.newBuilder()
+                                                    .accountNum(1001)
+                                                    .build())
+                                            .transactionValidStart(Timestamp.newBuilder()
+                                                    .seconds(1234567L)
+                                                    .build())
+                                            .build())
+                                    .cryptoUpdateAccount(CryptoUpdateTransactionBody.newBuilder()
+                                            .accountIDToUpdate(AccountID.newBuilder()
+                                                    .accountNum(1003)
                                                     .build())
                                             .build())
                                     .build()));

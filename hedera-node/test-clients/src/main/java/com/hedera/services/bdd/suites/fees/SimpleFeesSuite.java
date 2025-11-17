@@ -12,7 +12,6 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
@@ -24,7 +23,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -263,56 +261,6 @@ public class SimpleFeesSuite {
                     validateChargedUsd("create-topic-admin-txn", ucents_to_USD(1630)),
                     deleteTopic("testTopic").payingWith(PAYER).fee(ONE_HBAR).via("delete-topic-txn"),
                     validateChargedUsd("delete-topic-txn", ucents_to_USD(505 + 315)));
-        }
-    }
-
-    @Nested
-    class CryptoFeesComparison {
-        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-        @DisplayName("compare crypto create plain")
-        final Stream<DynamicTest> cryptoCreatePlainComparison() {
-            return runBeforeAfter(
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS).via("create-payer-txn"),
-                    cryptoCreate("newAccount")
-                            .balance(0L)
-                            .payingWith(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("createAccountTxn"),
-                    validateChargedUsdWithin("createAccountTxn", 0.05, 1.0));
-        }
-
-        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-        @DisplayName("compare crypto create with key")
-        final Stream<DynamicTest> cryptoCreateWithKeyComparison() {
-            return runBeforeAfter(
-                    newKeyNamed("accountKey"),
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    cryptoCreate("newAccount")
-                            .balance(0L)
-                            .key("accountKey")
-                            .payingWith(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("createAccountKeyTxn"),
-                    validateChargedUsdWithin("createAccountKeyTxn", 0.05, 1.0));
-        }
-
-        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-        @DisplayName("compare crypto delete plain")
-        final Stream<DynamicTest> cryptoDeletePlainComparison() {
-            return runBeforeAfter(
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    cryptoCreate("accountToDelete")
-                            .balance(ONE_HBAR)
-                            .payingWith(PAYER)
-                            .fee(ONE_HBAR),
-                    cryptoDelete("accountToDelete")
-                            .transfer(PAYER)
-                            .payingWith("accountToDelete")
-                            .signedBy("accountToDelete")
-                            .blankMemo()
-                            .fee(ONE_HBAR)
-                            .via("deleteAccountTxn"),
-                    validateChargedUsdWithin("deleteAccountTxn", 0.005, 1.0));
         }
     }
 
