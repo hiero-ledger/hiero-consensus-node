@@ -110,7 +110,7 @@
       "schedule": [
         {
           "name": "FileCreate",
-          "baseFee": 50,
+          "baseFee": 499000000,
           "extras": [
             { "name": "KEYS", "includedCount": 1},
             { "name": "BYTES", "includedCount": 1000}
