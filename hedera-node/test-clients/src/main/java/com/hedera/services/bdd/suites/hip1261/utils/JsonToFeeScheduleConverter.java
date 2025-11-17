@@ -35,7 +35,11 @@ public class JsonToFeeScheduleConverter {
             Map.entry("ConsensusUpdateTopic", CONSENSUS_UPDATE_TOPIC),
             Map.entry("ConsensusDeleteTopic", CONSENSUS_DELETE_TOPIC),
             Map.entry("ConsensusSubmitMessage", CONSENSUS_SUBMIT_MESSAGE),
-            Map.entry("ConsensusGetTopicInfo", CONSENSUS_GET_TOPIC_INFO));
+            Map.entry("ConsensusGetTopicInfo", CONSENSUS_GET_TOPIC_INFO),
+            Map.entry("CryptoCreate", HederaFunctionality.CRYPTO_CREATE),
+            Map.entry("CryptoTransfer", HederaFunctionality.CRYPTO_TRANSFER),
+            Map.entry("CryptoUpdate", HederaFunctionality.CRYPTO_UPDATE),
+            Map.entry("CryptoDelete", HederaFunctionality.CRYPTO_DELETE));
 
     /**
      * Extra name mapping (string -> enum).
