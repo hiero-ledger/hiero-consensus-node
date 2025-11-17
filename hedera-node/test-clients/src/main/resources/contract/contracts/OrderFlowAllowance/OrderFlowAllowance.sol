@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: WTFPL
 pragma solidity >=0.8.4;
 
-import './IHieroAccountAllowanceHook.sol';
 import './DetailDecoder.sol';
 import './IocFokWriteback.sol';
 import './OrderType.sol';
 import './PRBMathCommon.sol';
 import './PrefixDecoder.sol';
+import 'common/IHieroAccountAllowanceHook.sol';
 import 'common/ISupraRegistry.sol';
 
 contract OrderFlowAllowance is IHieroAccountAllowanceHook {
