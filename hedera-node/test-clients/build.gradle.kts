@@ -203,13 +203,22 @@ tasks.register<Test>("testSubprocess") {
             .filter { it.isNotBlank() }
             .toList()
             .joinToString("|")
+    // Determine if the requested task is one of the suites that should skip validations
+    val requestedSimpleTaskNames =
+        gradle.startParameter.taskNames.map { it.substringAfterLast(":") }
+    val skipValidations =
+        requestedSimpleTaskNames.any {
+            it == "hapiTestIss" ||
+                it == "hapiTestIssMATS" ||
+                it == "hapiTestBlockNodeCommunication" ||
+                it == "hapiTestBlockNodeCommunicationMATS"
+        }
     useJUnitPlatform {
         includeTags(
             if (ciTagExpression.isBlank()) "none()|!(EMBEDDED|REPEATABLE|ISS)"
             // We don't want to run typical stream or log validation for ISS or BLOCK_NODE
             // cases
-            else if (ciTagExpression.contains("ISS") || ciTagExpression.contains("BLOCK_NODE"))
-                "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
+            else if (skipValidations) "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
             else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS)"
         )
     }
