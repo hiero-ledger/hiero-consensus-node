@@ -5,6 +5,7 @@ import static com.swirlds.config.api.ConfigProperty.NULL_DEFAULT_VALUE;
 
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
+import com.swirlds.config.api.validation.annotation.Min;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
@@ -12,12 +13,14 @@ import java.util.Set;
  * Configuration for the {@link org.hiero.metrics.api.export.MetricsExportManager}.
  *
  * @param enabled whether the export manager is enabled or disabled and no-op (default: true)
+ * @param exportIntervalSeconds interval in seconds between exports (in case not only single pulling exporter present) (default: 3)
  * @param enabledExporters comma-separated list of enabled exporter factories (default: null, meaning all exporters are enabled)
  * @param disabledExporters comma-separated list of disabled exporter factories (default: null, meaning no exporters are disabled)
  */
 @ConfigData("metrics.export.manager")
 public record MetricsExportManagerConfig(
         @ConfigProperty(defaultValue = "true") boolean enabled,
+        @ConfigProperty(defaultValue = "3") @Min(1) int exportIntervalSeconds,
         @ConfigProperty(defaultValue = NULL_DEFAULT_VALUE) Set<String> enabledExporters,
         @ConfigProperty(defaultValue = NULL_DEFAULT_VALUE) Set<String> disabledExporters) {
 

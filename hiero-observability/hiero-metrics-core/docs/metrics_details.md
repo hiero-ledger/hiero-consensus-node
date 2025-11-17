@@ -50,14 +50,14 @@ There is also package `org.hiero.metrics.api.stat` that contains custom statisti
 
 ### Metric Registry
 
-[MetricRegistry](../src/main/java/org/hiero/metrics/api/core/MetricRegistry.java) can be used to register new metrics
-and retrieve existing ones. Metrics Registry can have immutable list of global labels, which will be applied to all registered metrics.
+[MetricRegistry](../src/main/java/org/hiero/metrics/api/core/MetricRegistry.java) can be used to register new metrics and retrieve existing ones. 
+Metrics Registry can have immutable list of global labels, which will be applied to all registered metrics.
 Registry can also be managed by [MetricsExportManager](../src/main/java/org/hiero/metrics/api/export/MetricsExportManager.java)
 to export all its registered metrics - see more in [Metrics Exporting](metrics_exporting.md) documentation.
 
 There are two ways to register metrics in the registry:
 - Programmatically - by using metric builders and calling `register` method of the registry.
-This way is usually used when metrics are created in code.
+This way is usually used when metrics are created and used only in specific limited scope of the application.
 - Declaratively - by implementing [MetricsRegistrationProvider](../src/main/java/org/hiero/metrics/api/core/MetricsRegistrationProvider.java)
 interface (providing implementation via SPI) and calling `registerMetrics` method of the registry.
 
@@ -65,8 +65,8 @@ Metrics Registry cannot have two metrics with the same name.
 To identify a metric in the registry a [MetricKey](../src/main/java/org/hiero/metrics/api/core/MetricKey.java) should be used,
 which contains metric name and class of the metric interface, which is used to validate metric type and cast to required metric interface when retrieving by key.
 
-[MetricsFacade](../src/main/java/org/hiero/metrics/api/core/MetricsFacade.java) should be used to create a metrics registry.
-It allows to create an empty registry or create and populate registry by finding all available `MetricsRegistrationProvider`s via SPI.
+`MetricsRegistry.Builder` is used to create instances of Metric Registry.
+It's `discoverMetricProviders()` method allows discover all available `MetricsRegistrationProvider`s via SPI and register provided metrics.
 
 [MetricsBinder](../src/main/java/org/hiero/metrics/api/core/MetricsBinder.java) can be used to bind/propagate metrics to any external class.
 Application classes can implement this interface to register metrics in the registry or retrieve metrics by `MetricKey`s for observations.

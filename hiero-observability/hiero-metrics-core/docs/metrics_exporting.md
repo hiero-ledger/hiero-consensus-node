@@ -14,9 +14,8 @@ To be discovered by SPI mechanism implementations of this interface should be re
 `META-INF/services/org.hiero.metrics.api.export.MetricsExporterFactory` or `module-info.java` file of the module.
 
 [MetricsExportManager](../src/main/java/org/hiero/metrics/api/export/MetricsExportManager.java) is the interface to manage metrics registries and exporters.
-To export metrics of a registry it must be created using [MetricsFacade](../src/main/java/org/hiero/metrics/api/core/MetricsFacade.java)
-and then added to the export manager by calling `manageMetricRegistry`.
-`MetricsExportManager` can be created using `MetricsFacade` - it will discover all available `MetricsExporterFactory`s in module path and create required exporters.
+`MetricsExportManager.Builder` is must be used to create instance of export manager.
+It's `withDiscoverExporters()` method can be used to discover all available `MetricsExporterFactory`s in module path and create required exporters.
 
 ### Export Internals
 

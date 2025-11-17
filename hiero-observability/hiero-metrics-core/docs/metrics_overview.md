@@ -49,7 +49,33 @@ The Metrics Core module is split into two root packages:
 
 Entry points for clients are:
 - All metrics defined in `org.hiero.metrics.api` package, that can be used to create and update metrics.
-- [MetricsFacade](../src/main/java/org/hiero/metrics/api/core/MetricsFacade.java), that allows to register metrics and setup export manager.
+- [MetricsRegistry](../src/main/java/org/hiero/metrics/api/core/MetricRegistry.java) and its builder, to create registry for metrics.
+- [MetricsExportManager](../src/main/java/org/hiero/metrics/api/export/MetricsExportManager.java) and its builder, to create export manager to manage exports for metric registries.
+
+### Typical production example
+
+```java
+Configuration configuration = ConfigurationBuilder.create()
+        // init configuration
+        .build();
+
+// create export manager named "my-app-export-manager", that will discover all implementations
+// of MetricsExporterFactory SPI and create exporters using the provided configuration.
+MetricsExportManager exportManager = MetricsExportManager.builder("my-app-export-manager")
+        .withDiscoverExporters(configuration);
+
+// create metrics registry without global labels and register all metrics found
+// by any implementation of MetricsRegistrationProvider SPI
+MetricRegistry metricRegistry = MetricRegistry.builder().build();
+
+// allow export manager to manage registry and perform exports
+exportManager.manageMetricRegistry(metricRegistry);
+
+// pass metrics registry to required classes to retrieve or register metrics
+// Use IdempotentMetricsBinder to bind metrics registry in a thread-safe and idempotent way
+MetricsBinder service = new MyService();
+service.bindMetrics(metricRegistry);
+```
 
 ### Key classes
 
@@ -60,4 +86,3 @@ Entry points for clients are:
 - [MetricsExporter](../src/main/java/org/hiero/metrics/api/export/MetricsExporter.java)
 - [MetricsExporterFactory](../src/main/java/org/hiero/metrics/api/export/MetricsExporterFactory.java)
 - [MetricsExportManager](../src/main/java/org/hiero/metrics/api/export/MetricsExportManager.java)
-- [MetricsFacade](../src/main/java/org/hiero/metrics/api/core/MetricsFacade.java)
