@@ -26,6 +26,7 @@ import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.schedule.ScheduleServiceApi;
+import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.impl.TokenServiceImpl;
 import com.hedera.node.app.spi.AppContext;
@@ -82,6 +83,13 @@ public interface FacilityInitModule {
     @Singleton
     static Set<ServiceFeeCalculator> provideTokenServiceFeeCalculators(TokenServiceImpl tokenService) {
         return tokenService.serviceFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
+    static Set<ServiceFeeCalculator> provideScheduleServiceFeeCalculators(ScheduleServiceImpl scheduleService) {
+        return scheduleService.serviceFeeCalculators();
     }
 
     @Provides
