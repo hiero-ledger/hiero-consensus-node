@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -118,7 +119,7 @@ public class SimpleLinker {
         }
 
         final List<EventImpl> parents = event.getAllParents()
-                .stream().map(ed -> getParentToLink(event, ed)).toList();
+                .stream().map(ed -> getParentToLink(event, ed)).filter(Objects::nonNull).toList();
         final EventImpl linkedEvent = new EventImpl(event, parents);
         EventCounter.incrementLinkedEventCount();
 

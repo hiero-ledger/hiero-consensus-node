@@ -152,7 +152,6 @@ public class EventImpl implements Clearable {
     /**
      * @return the other parent of this
      */
-    @Deprecated
     public @Nullable EventImpl getOtherParent() {
         final List<EventImpl> otherParents = getOtherParents();
         if (otherParents.isEmpty()) {
