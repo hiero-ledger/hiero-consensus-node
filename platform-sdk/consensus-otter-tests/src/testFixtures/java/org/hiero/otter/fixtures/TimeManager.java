@@ -5,7 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.function.BooleanSupplier;
-import org.hiero.otter.fixtures.util.TimeoutException;
+import org.hiero.otter.fixtures.exceptions.TimeoutException;
 
 /**
  * Interface for managing time in Otter tests.
