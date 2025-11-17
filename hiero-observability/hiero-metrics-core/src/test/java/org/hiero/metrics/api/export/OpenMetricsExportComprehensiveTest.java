@@ -13,7 +13,6 @@ import org.hiero.metrics.api.StatelessMetric;
 import org.hiero.metrics.api.StatsGaugeAdapter;
 import org.hiero.metrics.api.core.Label;
 import org.hiero.metrics.api.core.MetricRegistry;
-import org.hiero.metrics.api.core.MetricsFacade;
 import org.hiero.metrics.api.core.NumberSupplier;
 import org.hiero.metrics.api.export.extension.writer.OpenMetricsSnapshotsWriter;
 import org.hiero.metrics.api.stat.StatUtils;
@@ -1112,9 +1111,13 @@ public class OpenMetricsExportComprehensiveTest {
 
     @Test
     void demo() throws InterruptedException {
-        MetricRegistry registry = MetricsFacade.createRegistry(new Label("env", "test"));
-        MetricsExportManager snapshotManager =
-                MetricsFacade.createExportManager(new ConsoleMetricsExporter(OpenMetricsSnapshotsWriter.DEFAULT), 1);
+        MetricRegistry registry = MetricRegistry.builder()
+                .addGlobalLabel(new Label("env", "test"))
+                .build();
+        MetricsExportManager snapshotManager = MetricsExportManager.builder("demo")
+                .withExportIntervalSeconds(1)
+                .addExporter(new ConsoleMetricsExporter(OpenMetricsSnapshotsWriter.DEFAULT))
+                .build();
         snapshotManager.manageMetricRegistry(registry);
 
         BooleanGauge booleanGauge = BooleanGauge.builder("boolean_gauge")

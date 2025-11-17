@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.metrics.api.core.Label;
 import org.hiero.metrics.api.core.MetricRegistry;
-import org.hiero.metrics.api.core.MetricsFacade;
 import org.hiero.metrics.api.export.MetricsExportManager;
 import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
 import org.hiero.metrics.internal.export.snapshot.MetricsSnapshotImpl;
@@ -50,8 +49,9 @@ public abstract class AbstractMetricsExportManager implements MetricsExportManag
     }
 
     private void initExportMetrics() {
-        SnapshotableMetricsRegistry exportMetricsRegistry =
-                (SnapshotableMetricsRegistry) MetricsFacade.createRegistry(new Label("export_manager", name));
+        SnapshotableMetricsRegistry exportMetricsRegistry = (SnapshotableMetricsRegistry) MetricRegistry.builder()
+                .addGlobalLabel(new Label("export_manager", name))
+                .build();
         registerExportMetrics("export", exportMetricsRegistry);
         snapshots.addRegistry(exportMetricsRegistry);
     }

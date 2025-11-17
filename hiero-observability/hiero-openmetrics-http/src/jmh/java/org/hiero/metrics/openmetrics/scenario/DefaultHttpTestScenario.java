@@ -2,7 +2,6 @@
 package org.hiero.metrics.openmetrics.scenario;
 
 import java.io.IOException;
-import org.hiero.metrics.api.core.MetricsFacade;
 import org.hiero.metrics.api.export.MetricsExportManager;
 import org.hiero.metrics.openmetrics.OpenMetricsHttpEndpoint;
 import org.hiero.metrics.openmetrics.config.OpenMetricsHttpEndpointConfig;
@@ -18,8 +17,10 @@ public class DefaultHttpTestScenario extends AbstractHttpTestScenario<DefaultMet
     public DefaultHttpTestScenario() throws IOException {
         super(new DefaultMetricsFramework());
 
-        exportManager = MetricsFacade.createExportManager(
-                new OpenMetricsHttpEndpoint(new OpenMetricsHttpEndpointConfig(true, getPort(), getPath(), 0)));
+        exportManager = MetricsExportManager.builder("openmetrics-http-test-scenario")
+                .addExporter(
+                        new OpenMetricsHttpEndpoint(new OpenMetricsHttpEndpointConfig(true, getPort(), getPath(), 0)))
+                .build();
         exportManager.manageMetricRegistry(getFramework().getMetricRegistry());
     }
 

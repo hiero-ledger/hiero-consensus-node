@@ -29,7 +29,6 @@ import java.util.zip.GZIPInputStream;
 import org.hiero.metrics.api.LongCounter;
 import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.MetricRegistry;
-import org.hiero.metrics.api.core.MetricsFacade;
 import org.hiero.metrics.api.export.MetricsExportManager;
 import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
 import org.hiero.metrics.api.utils.Unit;
@@ -86,10 +85,12 @@ public class OpenMetricsHttpEndpointTest {
 
         @BeforeAll
         static void setUpAll() throws IOException {
-            registry = MetricsFacade.createRegistry();
+            registry = MetricRegistry.builder().build();
 
             globalInit(endpoint -> {
-                final MetricsExportManager exportManager = MetricsFacade.createExportManager(endpoint);
+                final MetricsExportManager exportManager = MetricsExportManager.builder("test")
+                        .addExporter(endpoint)
+                        .build();
                 exportManager.manageMetricRegistry(registry);
             });
         }

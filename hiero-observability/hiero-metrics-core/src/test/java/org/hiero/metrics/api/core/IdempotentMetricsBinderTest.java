@@ -19,7 +19,7 @@ public class IdempotentMetricsBinderTest {
 
     @BeforeEach
     void setUp() {
-        registry = MetricsFacade.createRegistry();
+        registry = MetricRegistry.builder().build();
     }
 
     @Test

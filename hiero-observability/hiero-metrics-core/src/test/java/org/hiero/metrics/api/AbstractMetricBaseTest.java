@@ -13,7 +13,6 @@ import org.hiero.metrics.api.core.Label;
 import org.hiero.metrics.api.core.Metric;
 import org.hiero.metrics.api.core.MetricRegistry;
 import org.hiero.metrics.api.core.MetricType;
-import org.hiero.metrics.api.core.MetricsFacade;
 import org.hiero.metrics.api.utils.Unit;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -304,7 +303,7 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
 
         @Test
         void testRegister() {
-            MetricRegistry registry = MetricsFacade.createRegistry();
+            MetricRegistry registry = MetricRegistry.builder().build();
             B builder = emptyMetricBuilder();
 
             builder.register(registry);

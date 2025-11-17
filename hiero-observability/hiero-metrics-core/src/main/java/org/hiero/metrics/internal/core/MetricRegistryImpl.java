@@ -13,9 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.metrics.api.core.Label;
 import org.hiero.metrics.api.core.Metric;
 import org.hiero.metrics.api.core.MetricKey;
-import org.hiero.metrics.api.core.MetricsRegistrationProvider;
 import org.hiero.metrics.api.export.snapshot.DataPointSnapshot;
-import org.hiero.metrics.api.utils.MetricUtils;
 import org.hiero.metrics.internal.export.SnapshotableMetric;
 import org.hiero.metrics.internal.export.SnapshotableMetricsRegistry;
 import org.hiero.metrics.internal.export.snapshot.UpdatableMetricRegistrySnapshot;
@@ -30,8 +28,12 @@ public final class MetricRegistryImpl implements SnapshotableMetricsRegistry {
 
     private final UpdatableMetricRegistrySnapshot snapshot = new UpdatableMetricRegistrySnapshot();
 
-    public MetricRegistryImpl(@NonNull Label... globalLabels) {
-        this.globalLabels = MetricUtils.asList(globalLabels);
+    public MetricRegistryImpl() {
+        globalLabels = List.of();
+    }
+
+    public MetricRegistryImpl(@NonNull Collection<Label> globalLabels) {
+        this.globalLabels = List.copyOf(globalLabels);
     }
 
     @NonNull
@@ -44,18 +46,6 @@ public final class MetricRegistryImpl implements SnapshotableMetricsRegistry {
     @Override
     public Collection<Metric> metrics() {
         return metricsView;
-    }
-
-    @Override
-    public void registerMetrics(@NonNull MetricsRegistrationProvider provider) {
-        Objects.requireNonNull(provider, "metrics registration provider must not be null");
-
-        Collection<Metric.Builder<?, ?>> metricsToRegister = provider.getMetricsToRegister();
-        Objects.requireNonNull(metricsToRegister, "metrics collection must not be null");
-
-        for (Metric.Builder<?, ?> builder : metricsToRegister) {
-            register(builder);
-        }
     }
 
     @NonNull

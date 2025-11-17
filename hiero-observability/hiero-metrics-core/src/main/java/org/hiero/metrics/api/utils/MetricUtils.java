@@ -2,11 +2,9 @@
 package org.hiero.metrics.api.utils;
 
 import com.swirlds.base.ArgumentUtils;
-import java.util.HashSet;
 import java.util.List;
 import java.util.ServiceLoader;
 import java.util.regex.Pattern;
-import org.hiero.metrics.api.core.Label;
 
 /**
  * Utility class for metrics-related operations.
@@ -17,31 +15,6 @@ public final class MetricUtils {
     private static final Pattern NAME_PATTERN = Pattern.compile(NAME_REGEX);
 
     private MetricUtils() {}
-
-    /**
-     * Converts an array of Label objects into a List, ensuring no duplicate label names.
-     *
-     * @param labels the array of Label objects
-     * @return a List of Label objects
-     * @throws IllegalArgumentException if there are duplicate label names
-     */
-    public static List<Label> asList(Label... labels) {
-        if (labels == null || labels.length == 0) {
-            return List.of();
-        }
-
-        HashSet<String> labelNames = new HashSet<>(labels.length);
-        for (Label label : labels) {
-            if (label == null) {
-                throw new NullPointerException("Label must not be null");
-            }
-            if (!labelNames.add(label.name())) {
-                throw new IllegalArgumentException("Duplicate label name: " + label.name());
-            }
-        }
-
-        return List.of(labels);
-    }
 
     /**
      * Validates that the provided name adheres to the required character set. <br>

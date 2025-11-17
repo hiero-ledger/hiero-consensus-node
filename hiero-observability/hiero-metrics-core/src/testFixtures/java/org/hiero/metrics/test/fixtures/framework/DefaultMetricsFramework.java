@@ -11,7 +11,6 @@ import org.hiero.metrics.api.LongGauge;
 import org.hiero.metrics.api.StateSet;
 import org.hiero.metrics.api.core.Metric;
 import org.hiero.metrics.api.core.MetricRegistry;
-import org.hiero.metrics.api.core.MetricsFacade;
 import org.hiero.metrics.api.core.StatefulMetric;
 import org.hiero.metrics.test.fixtures.SateSetEnum;
 
@@ -21,7 +20,7 @@ import org.hiero.metrics.test.fixtures.SateSetEnum;
  */
 public final class DefaultMetricsFramework extends MetricFramework {
 
-    private final MetricRegistry metricRegistry = MetricsFacade.createRegistry();
+    private final MetricRegistry metricRegistry = MetricRegistry.builder().build();
 
     public DefaultMetricsFramework() {
         registerAdapter(

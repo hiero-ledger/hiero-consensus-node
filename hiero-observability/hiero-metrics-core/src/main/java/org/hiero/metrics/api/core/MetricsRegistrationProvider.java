@@ -17,7 +17,7 @@ import java.util.Collection;
  * </ul>
  * <p>
  * That way it can be discovered by SPI when creating a {@link MetricRegistry}
- * using {@link MetricsFacade#createRegistryWithDiscoveredProviders(Label...)}.
+ * using {@link MetricRegistry.Builder#discoverMetricProviders()}.
  * <p>
  * When registered metrics are used in multiple places, {@link MetricKey}'s can be saved in {@code public static final}
  * fields and used to retrieve the metrics from the registry propagated to the place where the metric is used. <br>
