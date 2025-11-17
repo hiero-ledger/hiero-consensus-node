@@ -247,15 +247,6 @@ jobs:
           fi
           echo "::endgroup::" # Set Outputs
 
-  state-validator-uberjar:
-    name: Build & Publish Hedera State Validator Uber JAR
-    needs:
-      - fetch-xts-candidate
-    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
-    uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
-    with:
-      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
-
   xts-execution:
     name: Execute XTS
     needs:
@@ -264,7 +255,7 @@ jobs:
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
-      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+      commit_sha: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
       branch_name: ${{ needs.fetch-xts-candidate.outputs.xts-commit-branch }}
       solo-version: ${{ needs.parameters.outputs.solo-version }}
       solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}
@@ -298,12 +289,11 @@ jobs:
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
-      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+      commit_sha: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
       branch_name: ${{ needs.fetch-xts-candidate.outputs.xts-commit-branch }}
       solo-version: ${{ needs.parameters.outputs.solo-version }}
       solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}
       helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
-      mirror-node-version: ${{ vars.CITR_MIRROR_NODE_VERSION }}
       custom-job-label: "XTS (Optional):"
       enable-mirror-node-regression-panel: "true"
       enable-rpc-relay-regression-panel: "true"

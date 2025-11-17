@@ -27,7 +27,6 @@
 | node-zxc-deploy-preview.yaml                          | ZXC: [Node] Deploy Preview Network Release                        |                  |                      |
 | zxc-xts-tests.yaml                                    | ZXC: Executable XTS Tests                                         |                  |                      |
 | zxc-mats-tests.yaml                                   | ZXC: Executable MATS Tests                                        |                  |                      |
-| zxc-create-github-release.yaml                        | ZXC: Create Github Release                                        |                  |                      |
 |                                                       |                                                                   |                  |                      |
 | # CICD                                                |                                                                   |                  |                      |
 | zxf-collect-workflow-logs.yaml                        | ZXF: Collect Workflow Run Logs                                    |                  |                      |
