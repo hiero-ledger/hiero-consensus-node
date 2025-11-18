@@ -65,8 +65,11 @@ public class ConsensusLinker {
      * @param platformContext the platform context
      */
     public ConsensusLinker(@NonNull final PlatformContext platformContext) {
-        this.logsAndMetrics = new LinkerLogsAndMetrics(platformContext.getMetrics(), platformContext.getTime());
+        this(new DefaultLinkerLogsAndMetrics(platformContext.getMetrics(), platformContext.getTime()));
+    }
 
+    public ConsensusLinker(final LinkerLogsAndMetrics logsAndMetrics) {
+        this.logsAndMetrics = logsAndMetrics;
         this.eventWindow = EventWindow.getGenesisEventWindow();
         this.parentDescriptorMap =
                 new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, EventDescriptorWrapper::birthRound);
@@ -113,6 +116,16 @@ public class ConsensusLinker {
             ancientEvents.add(event);
         });
         return ancientEvents;
+    }
+
+    /**
+     * Get all non-ancient events tracked by this linker.
+     *
+     * @return all non-ancient events
+     */
+    @NonNull
+    public List<EventImpl> getNonAncientEvents() {
+        return parentHashMap.values().stream().toList();
     }
 
     /**

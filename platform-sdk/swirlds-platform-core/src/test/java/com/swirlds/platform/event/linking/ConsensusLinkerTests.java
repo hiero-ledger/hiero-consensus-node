@@ -22,7 +22,6 @@ import com.swirlds.platform.test.fixtures.graph.SimpleGraphs;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -67,8 +66,7 @@ class ConsensusLinkerTests {
     }
 
     private void inOrderLinkerSetup() {
-        linker = new ConsensusLinker(
-                TestPlatformContextBuilder.create().withTime(time).build());
+        linker = new ConsensusLinker(new NoOpLinkerLogsAndMetrics());
 
         time.tick(Duration.ofSeconds(1));
         cr0genesis = new TestingEventBuilder(random)
