@@ -149,7 +149,7 @@ public final class TestingAppStateInitializer {
      */
     public static List<Builder> initRosterState(
             @NonNull final MerkleNodeState state, @NonNull final Configuration configuration) {
-        if (!(state instanceof MerkleStateRoot<?>) && !(state instanceof VirtualMapState<?>)) {
+        if (!(state instanceof MerkleStateRoot<?>) && !(state instanceof VirtualMapState)) {
             throw new IllegalArgumentException("Can only be used with MerkleStateRoot or VirtualMapState instances");
         }
         final var schema = new V0540RosterBaseSchema();
@@ -199,7 +199,7 @@ public final class TestingAppStateInitializer {
         switch (state) {
             case MerkleStateRoot<?> ignored ->
                 ((MerkleStateRoot) state).putServiceStateIfAbsent(md, nodeSupplier, n -> {});
-            case VirtualMapState<?> ignored -> state.initializeState(md);
+            case VirtualMapState ignored -> state.initializeState(md);
             default ->
                 throw new IllegalStateException(
                         "Expecting MerkleStateRoot or VirtualMapState instance to be used for state initialization");

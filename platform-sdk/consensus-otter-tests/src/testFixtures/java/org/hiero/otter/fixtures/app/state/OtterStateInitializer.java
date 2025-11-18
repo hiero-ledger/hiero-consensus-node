@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app.state;
 
+import static org.hiero.otter.fixtures.app.OtterStateUtils.commitState;
+
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
+import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import org.hiero.otter.fixtures.app.OtterAppState;
 import org.hiero.otter.fixtures.app.OtterService;
 
 /**
@@ -24,7 +26,7 @@ public class OtterStateInitializer {
      * @param services the services to initialize
      */
     public static void initOtterAppState(
-            @NonNull final OtterAppState state,
+            @NonNull final VirtualMapState state,
             @NonNull final SemanticVersion version,
             @NonNull final List<OtterService> services) {
         for (final OtterService service : services) {
@@ -38,6 +40,6 @@ public class OtterStateInitializer {
             // set up the state's default values for this service
             specification.setDefaultValues(state.getWritableStates(service.name()), version);
         }
-        state.commitState();
+        commitState(state);
     }
 }
