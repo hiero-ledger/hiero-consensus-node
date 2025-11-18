@@ -1674,7 +1674,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         assertThat(result.isHighLatency()).isFalse();
         assertThat(result.shouldSwitch()).isFalse();
-        // acknowledgement latency gauge removed; no call expected here
     }
 
     @Test
