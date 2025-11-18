@@ -7,11 +7,8 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.components.consensus.ConsensusEngineOutput;
 import com.swirlds.platform.stats.AverageAndMaxTimeStat;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
@@ -120,13 +117,9 @@ public class EventPipelineTracker {
      * @param events the events that have exited the orphan buffer
      */
     public void afterOrphanBuffer(@NonNull final List<PlatformEvent> events) {
-        if (events.isEmpty()) {
-            return;
+        for (final PlatformEvent event : events) {
+            orphanBuffer.update(event.getTimeReceived());
         }
-        orphanBuffer.update(events.stream()
-                .map(PlatformEvent::getTimeReceived)
-                .max(Comparator.naturalOrder())
-                .get());
     }
 
     /**
@@ -144,14 +137,10 @@ public class EventPipelineTracker {
      * @param output the consensus engine output containing the rounds that reached consensus
      */
     public void afterConsensus(@NonNull final ConsensusEngineOutput output) {
-        final Optional<Instant> max = output.consensusRounds().stream()
-                .map(ConsensusRound::getConsensusEvents)
-                .flatMap(List::stream)
-                .map(PlatformEvent::getTimeReceived)
-                .max(Comparator.naturalOrder());
-        if (max.isEmpty()) {
-            return;
+        for (final ConsensusRound round : output.consensusRounds()) {
+            for (final PlatformEvent event : round.getConsensusEvents()) {
+                consensus.update(event.getTimeReceived());
+            }
         }
-        consensus.update(max.get());
     }
 }
