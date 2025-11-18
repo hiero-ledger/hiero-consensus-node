@@ -3,6 +3,7 @@ package org.hiero.hapi.fees;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.HederaFunctionality;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.ExtraFeeDefinition;
 import org.hiero.hapi.support.fees.ExtraFeeReference;
@@ -70,6 +71,13 @@ public class FeeScheduleUtils {
             }
         }
         return null;
+    }
+
+    public static ServiceFeeDefinition lookupServiceFee(FeeSchedule feeSchedule, HederaFunctionality api, boolean customFees) {
+        return lookupServiceFee(feeSchedule, api.protoName()+(customFees?"CustomFees":""));
+    }
+    public static ServiceFeeDefinition lookupServiceFee(FeeSchedule feeSchedule, HederaFunctionality api) {
+        return lookupServiceFee(feeSchedule, api.protoName());
     }
 
     /**

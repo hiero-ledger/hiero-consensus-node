@@ -28,7 +28,7 @@ public class ConsensusSubmitMessageFeeCalculator implements ServiceFeeCalculator
         final var hasCustomFees = (topic != null && !topic.customFees().isEmpty());
 
         final ServiceFeeDefinition serviceDef =
-                lookupServiceFee(feeSchedule, HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE.protoName()+(hasCustomFees?"CustomFees":""));
+                lookupServiceFee(feeSchedule, HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE, hasCustomFees);
 
         feeResult.addServiceFee(1, serviceDef.baseFee());
 
