@@ -16,7 +16,7 @@ java -Xms16g -Xmx64g -XX:+UnlockExperimentalVMOptions -XX:+UseZGC -XX:ZAllocatio
      -jar /tmp/hedera-state-validator-*-all.jar ../com.hedera.services.ServicesMain/${node_id}/123/${currentRound} \
      validate rehash stateAnalyzer account tokenRelations internal leaf > validator.log 2>&1
 result=$?
-if [ $result -eq 0 ]
+if [[ ${result} -eq 0 ]]
 then
   echo "Node: $node_id validation of round ${currentRound} is OK"
   grep -i -E 'time.* taken' validator.log
