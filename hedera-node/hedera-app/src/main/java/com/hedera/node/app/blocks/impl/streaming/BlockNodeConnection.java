@@ -12,8 +12,6 @@ import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
-import com.hedera.node.config.data.BlockStreamConfig;
-import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClientConfig;
 import com.hedera.pbj.runtime.grpc.GrpcException;
 import com.hedera.pbj.runtime.grpc.Pipeline;
@@ -1512,17 +1510,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     .getConfiguration()
                     .getConfigData(BlockNodeConnectionConfig.class)
                     .streamingRequestItemPaddingBytes();
-        }
-
-        /**
-         * @return true if back pressure is enabled, else false
-         */
-        private boolean isBackPressureEnabled() {
-            return configProvider
-                            .getConfiguration()
-                            .getConfigData(BlockStreamConfig.class)
-                            .streamMode()
-                    == StreamMode.BLOCKS;
         }
     }
 }
