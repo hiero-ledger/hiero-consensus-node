@@ -35,7 +35,6 @@ do
   $k exec $LEARNER_POD -c root-container -- su - hedera -c bash -c "ps -aef | grep -w java | grep -v grep | awk '{print \$2}' | xargs kill -15"
   sleep 60
   $k exec $LEARNER_POD -c root-container -- su - hedera -c "mv $LEARNER_LOG_DIR/$LEARNER_LOG_LOCAL $LEARNER_LOG_DIR/swirlds_reconnect_${counter}.log"
-  #$k exec $LEARNER_POD -c root-container -- su - hedera -c "truncate --size=0 $LEARNER_LOG_DIR/$LEARNER_LOG_LOCAL"
 
   echo "Down for downtime=$downtime ..."
   sleep $downtime
