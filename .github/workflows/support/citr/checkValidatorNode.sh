@@ -23,4 +23,4 @@ then
 else
   echo "Node: $node_id validation of round ${currentRound} failed"
 fi
-exit $result
+exit ${result}
