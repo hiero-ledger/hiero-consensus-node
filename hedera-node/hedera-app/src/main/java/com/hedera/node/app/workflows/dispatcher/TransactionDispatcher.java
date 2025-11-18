@@ -7,6 +7,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
@@ -39,6 +40,7 @@ public class TransactionDispatcher {
     public static final String SYSTEM_UNDELETE_WITHOUT_ID_CASE = "SystemUndelete without IdCase";
 
     protected final TransactionHandlers handlers;
+    protected final FeeManager feeManager;
 
     /**
      * Creates a {@code TransactionDispatcher}.
@@ -46,8 +48,9 @@ public class TransactionDispatcher {
      * @param handlers the handlers for all transaction types
      */
     @Inject
-    public TransactionDispatcher(@NonNull final TransactionHandlers handlers) {
+    public TransactionDispatcher(@NonNull final TransactionHandlers handlers, @NonNull final FeeManager feeManager) {
         this.handlers = requireNonNull(handlers);
+        this.feeManager = requireNonNull(feeManager);
     }
 
     /**
@@ -117,7 +120,8 @@ public class TransactionDispatcher {
         try {
             final var handler = getHandler(feeContext.body());
             if (shouldUseSimpleFees(feeContext)) {
-                var feeResult = handler.calculateFeeResult(feeContext);
+                var feeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
+                        .calculateTxFee(feeContext.body(), feeContext);
                 return feeResultToFees(feeResult, fromPbj(feeContext.activeRate()));
             }
             return handler.calculateFees(feeContext);
@@ -132,8 +136,9 @@ public class TransactionDispatcher {
         }
 
         return switch (feeContext.body().data().kind()) {
-            case CONSENSUS_CREATE_TOPIC, CONSENSUS_SUBMIT_MESSAGE, CONSENSUS_UPDATE_TOPIC, CONSENSUS_DELETE_TOPIC ->
+            case CONSENSUS_CREATE_TOPIC, CONSENSUS_DELETE_TOPIC, CONSENSUS_SUBMIT_MESSAGE, CONSENSUS_UPDATE_TOPIC ->
                 true;
+            case CRYPTO_DELETE, CRYPTO_CREATE_ACCOUNT, SCHEDULE_CREATE, SCHEDULE_SIGN, SCHEDULE_DELETE -> true;
             default -> false;
         };
     }

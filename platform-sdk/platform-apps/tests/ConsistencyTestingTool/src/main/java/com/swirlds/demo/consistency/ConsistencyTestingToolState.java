@@ -6,14 +6,12 @@ import static com.swirlds.demo.consistency.V0680ConsistencyTestingToolSchema.ROU
 import static com.swirlds.demo.consistency.V0680ConsistencyTestingToolSchema.STATE_LONG_STATE_ID;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static org.hiero.base.utility.ByteUtils.byteArrayToLong;
 import static org.hiero.base.utility.NonCryptographicHashing.hash64;
 
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.ParseException;
-import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.MerkleNodeState;
@@ -43,8 +41,7 @@ import org.hiero.consensus.model.transaction.Transaction;
 /**
  * State for the Consistency Testing Tool
  */
-public class ConsistencyTestingToolState extends VirtualMapState<ConsistencyTestingToolState>
-        implements MerkleNodeState {
+public class ConsistencyTestingToolState extends VirtualMapState implements MerkleNodeState {
 
     private static final Logger logger = LogManager.getLogger(ConsistencyTestingToolState.class);
 
@@ -82,9 +79,8 @@ public class ConsistencyTestingToolState extends VirtualMapState<ConsistencyTest
      */
     private final Set<Long> transactionsAwaitingPostHandle;
 
-    public ConsistencyTestingToolState(
-            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
-        super(configuration, metrics, time);
+    public ConsistencyTestingToolState(@NonNull final Configuration configuration, @NonNull final Metrics metrics) {
+        super(configuration, metrics);
         transactionHandlingHistory = new TransactionHandlingHistory();
         transactionsAwaitingPostHandle = ConcurrentHashMap.newKeySet();
         logger.info(STARTUP.getMarker(), "New State Constructed.");
@@ -93,9 +89,8 @@ public class ConsistencyTestingToolState extends VirtualMapState<ConsistencyTest
     /**
      * Constructor
      */
-    public ConsistencyTestingToolState(
-            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
-        super(virtualMap, metrics, time);
+    public ConsistencyTestingToolState(@NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics) {
+        super(virtualMap, metrics);
         transactionHandlingHistory = new TransactionHandlingHistory();
         transactionsAwaitingPostHandle = ConcurrentHashMap.newKeySet();
         logger.info(STARTUP.getMarker(), "New State Constructed.");
@@ -114,15 +109,10 @@ public class ConsistencyTestingToolState extends VirtualMapState<ConsistencyTest
         this.transactionsAwaitingPostHandle = that.transactionsAwaitingPostHandle;
     }
 
+    @NonNull
     @Override
-    protected ConsistencyTestingToolState copyingConstructor() {
+    public VirtualMapState copy() {
         return new ConsistencyTestingToolState(this);
-    }
-
-    @Override
-    protected ConsistencyTestingToolState newInstance(
-            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
-        return new ConsistencyTestingToolState(virtualMap, metrics, time);
     }
 
     /**
@@ -154,14 +144,6 @@ public class ConsistencyTestingToolState extends VirtualMapState<ConsistencyTest
         }
 
         transactionHandlingHistory.init(logFilePath);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    protected long getRound() {
-        return DEFAULT_PLATFORM_STATE_FACADE.roundOf(this);
     }
 
     /**

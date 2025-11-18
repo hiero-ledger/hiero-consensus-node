@@ -17,6 +17,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -24,24 +25,32 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.BlockProof;
+import com.hedera.hapi.block.stream.output.BlockHeader;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.BlockItemsStreamRequest;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.StreamRequest;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.internal.network.BlockNodeConfig;
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClientConfig;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.grpc.GrpcException;
 import com.hedera.pbj.runtime.grpc.GrpcStatus;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import io.helidon.webclient.api.WebClient;
+import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.VarHandle;
+import java.lang.reflect.Method;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -54,6 +63,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.block.api.BlockEnd;
 import org.hiero.block.api.BlockItemSet;
 import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 import org.hiero.block.api.PublishStreamRequest;
@@ -79,6 +89,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     private static final Thread FAKE_WORKER_THREAD = new Thread(() -> {}, "fake-worker");
     private static final VarHandle streamingBlockNumberHandle;
     private static final VarHandle workerThreadRefHandle;
+    private static final MethodHandle sendRequestHandle;
 
     static {
         try {
@@ -89,14 +100,18 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
                     .findVarHandle(BlockNodeConnection.class, "streamingBlockNumber", AtomicLong.class);
             workerThreadRefHandle = MethodHandles.privateLookupIn(BlockNodeConnection.class, lookup)
                     .findVarHandle(BlockNodeConnection.class, "workerThreadRef", AtomicReference.class);
+
+            final Method sendRequest = BlockNodeConnection.class.getDeclaredMethod("sendRequest", StreamRequest.class);
+            sendRequest.setAccessible(true);
+            sendRequestHandle = lookup.unreflect(sendRequest);
         } catch (final Exception e) {
             throw new RuntimeException(e);
         }
     }
 
     private BlockNodeConnection connection;
-    private BlockNodeConfig nodeConfig;
-
+    private ConfigProvider configProvider;
+    private BlockNodeConfiguration nodeConfig;
     private BlockNodeConnectionManager connectionManager;
     private BlockBufferService bufferService;
     private BlockStreamPublishServiceClient grpcServiceClient;
@@ -107,10 +122,12 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     private BlockNodeStats.HighLatencyResult latencyResult;
     private BlockNodeClientFactory clientFactory;
 
+    private ExecutorService realExecutor;
+
     @BeforeEach
     @SuppressWarnings("unchecked")
     void beforeEach() throws Exception {
-        final ConfigProvider configProvider = createConfigProvider(createDefaultConfigProvider());
+        configProvider = createConfigProvider(createDefaultConfigProvider());
         nodeConfig = newBlockNodeConfig(8080, 1);
         connectionManager = mock(BlockNodeConnectionManager.class);
         bufferService = mock(BlockBufferService.class);
@@ -124,10 +141,10 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         // Set up default behavior for pipelineExecutor using a real executor
         // This ensures proper Future semantics while still being fast for tests
         // Individual tests can override this with their own specific mocks for timeout scenarios
-        final ExecutorService realExecutor = Executors.newCachedThreadPool();
+        realExecutor = Executors.newCachedThreadPool();
         lenient()
                 .doAnswer(invocation -> {
-                    Runnable runnable = invocation.getArgument(0);
+                    final Runnable runnable = invocation.getArgument(0);
                     return realExecutor.submit(runnable);
                 })
                 .when(pipelineExecutor)
@@ -144,8 +161,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         lenient()
                 .doAnswer(invocation -> {
-                    long timeout = invocation.getArgument(0);
-                    TimeUnit unit = invocation.getArgument(1);
+                    final long timeout = invocation.getArgument(0);
+                    final TimeUnit unit = invocation.getArgument(1);
                     return realExecutor.awaitTermination(timeout, unit);
                 })
                 .when(pipelineExecutor)
@@ -177,6 +194,10 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
     @AfterEach
     void afterEach() throws Exception {
+        if (realExecutor != null) {
+            realExecutor.shutdownNow();
+        }
+
         // set the connection to closed so the worker thread stops gracefully
         connection.updateConnectionState(ConnectionState.CLOSED);
         final AtomicReference<Thread> workerThreadRef = workerThreadRef();
@@ -187,7 +208,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
                 break;
             }
 
-            Thread.sleep(50);
+            sleep(50);
         }
 
         final Thread workerThread = workerThreadRef.get();
@@ -219,10 +240,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testConstructorWithInitialBlock() {
-        final ConfigProvider configProvider = createConfigProvider(createDefaultConfigProvider());
-
         // Create connection with initial block number
-        final BlockNodeConnection connectionWithInitialBlock = new BlockNodeConnection(
+        connection = new BlockNodeConnection(
                 configProvider,
                 nodeConfig,
                 connectionManager,
@@ -234,7 +253,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
                 clientFactory);
 
         // Verify the streamingBlockNumber was set
-        final AtomicLong streamingBlockNumber = streamingBlockNumber(connectionWithInitialBlock);
+        final AtomicLong streamingBlockNumber = streamingBlockNumber();
         assertThat(streamingBlockNumber).hasValue(100L);
     }
 
@@ -801,7 +820,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final PublishStreamRequest request = createRequest(newBlockHeaderItem());
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
-        connection.sendRequest(request);
+        sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false));
 
         verify(requestPipeline).onNext(request);
         verify(metrics).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
@@ -819,7 +838,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         connection.createRequestPipeline();
         connection.updateConnectionState(ConnectionState.PENDING);
-        connection.sendRequest(request);
+        sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false));
 
         verify(metrics).recordConnectionOpened();
         verifyNoMoreInteractions(metrics);
@@ -834,7 +853,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         // don't create the observer
         connection.updateConnectionState(ConnectionState.PENDING);
-        connection.sendRequest(request);
+        sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false));
 
         verifyNoInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
@@ -849,7 +868,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         doThrow(new RuntimeException("kaboom!")).when(requestPipeline).onNext(any());
         final PublishStreamRequest request = createRequest(newBlockHeaderItem());
 
-        final RuntimeException e = catchRuntimeException(() -> connection.sendRequest(request));
+        final RuntimeException e =
+                catchRuntimeException(() -> sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false)));
         assertThat(e).isInstanceOf(RuntimeException.class);
         // Exception gets wrapped when executed in virtual thread executor
         assertThat(e.getMessage()).contains("Error executing pipeline.onNext()");
@@ -871,7 +891,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
                 .getConnectionState();
         final PublishStreamRequest request = createRequest(newBlockHeaderItem());
 
-        spiedConnection.sendRequest(request);
+        sendRequest(spiedConnection, new BlockItemsStreamRequest(request, 1L, 1, 1, false));
 
         verify(requestPipeline).onNext(any());
         verify(spiedConnection, atLeast(2)).getConnectionState();
@@ -888,13 +908,200 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         connection.updateConnectionState(ConnectionState.ACTIVE);
         // requestPipeline remains null since we didn't call createRequestPipeline()
 
-        connection.sendRequest(request);
+        sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false));
 
         // Should not interact with anything since pipeline is null
         verifyNoInteractions(metrics);
         verifyNoInteractions(requestPipeline);
         verifyNoInteractions(connectionManager);
         verifyNoInteractions(bufferService);
+    }
+
+    @Test
+    void testCloseAtBlockBoundary_noActiveBlock() throws Exception {
+        // re-create the connection so we get the worker thread to run
+        final long blockNumber = 10;
+        // indicate we want to start with block 10, but don't add the block to the buffer
+
+        connection = new BlockNodeConnection(
+                configProvider,
+                nodeConfig,
+                connectionManager,
+                bufferService,
+                metrics,
+                executorService,
+                pipelineExecutor,
+                blockNumber, // start streaming with block 10
+                clientFactory);
+
+        lenient().doReturn(requestPipeline).when(grpcServiceClient).publishBlockStream(connection);
+
+        connection.createRequestPipeline();
+        connection.updateConnectionState(ConnectionState.ACTIVE); // this will start the worker thread
+
+        assertThat(workerThreadRef()).doesNotHaveNullValue();
+
+        // sleep for a bit to let the worker run
+        sleep(250);
+
+        // signal to close at the block boundary
+        connection.closeAtBlockBoundary();
+
+        // the worker should determine there is no block available to stream and with the flag enabled to close at the
+        // nearest block boundary, the connection should be closed without sending any items
+
+        // sleep for a short period to make sure the worker as run after setting the flag
+        sleep(100);
+
+        // now the connection should be closed and all the items are sent
+        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CLOSED);
+
+        final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);
+
+        // only one request should be sent and it should be the EndStream message
+        verify(requestPipeline).onNext(requestCaptor.capture());
+
+        assertThat(requestCaptor.getAllValues()).hasSize(1);
+        final PublishStreamRequest req = requestCaptor.getAllValues().getFirst();
+        final EndStream endStream = req.endStream();
+        assertThat(endStream).isNotNull();
+        assertThat(endStream.endCode()).isEqualTo(EndStream.Code.RESET);
+
+        verify(requestPipeline).onComplete();
+        verify(bufferService, atLeastOnce()).getBlockState(blockNumber);
+        verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
+        verify(bufferService).getHighestAckedBlockNumber();
+        verify(metrics).recordConnectionOpened();
+        verify(metrics).recordRequestLatency(anyLong());
+        verify(metrics).recordRequestEndStreamSent(EndStream.Code.RESET);
+        verify(metrics).recordConnectionClosed();
+        verify(metrics).recordActiveConnectionIp(-1L);
+
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestPipeline);
+        verifyNoMoreInteractions(bufferService);
+    }
+
+    @Test
+    void testCloseAtBlockBoundary_activeBlock() throws Exception {
+        // re-create the connection so we get the worker thread to run
+        final long blockNumber = 10;
+        final BlockState block = new BlockState(blockNumber);
+        when(bufferService.getBlockState(blockNumber)).thenReturn(block);
+
+        connection = new BlockNodeConnection(
+                configProvider,
+                nodeConfig,
+                connectionManager,
+                bufferService,
+                metrics,
+                executorService,
+                pipelineExecutor,
+                blockNumber, // start streaming with block 10
+                clientFactory);
+
+        lenient().doReturn(requestPipeline).when(grpcServiceClient).publishBlockStream(connection);
+
+        connection.createRequestPipeline();
+        connection.updateConnectionState(ConnectionState.ACTIVE); // this will start the worker thread
+
+        assertThat(workerThreadRef()).doesNotHaveNullValue();
+
+        block.addItem(newBlockHeaderItem(blockNumber));
+        block.addItem(newBlockTxItem(1_345));
+
+        sleep(500); // sleep for a bit to ensure the items get sent
+
+        // now signal to close the connection at the block boundary
+        connection.closeAtBlockBoundary();
+
+        // sleep for a little bit, then add more items including the proof and ensure they are all sent
+        sleep(100);
+
+        block.addItem(newBlockTxItem(5_039));
+        block.addItem(newBlockTxItem(590));
+        block.addItem(newBlockProofItem(blockNumber, 3_501));
+        block.closeBlock();
+
+        sleep(500);
+
+        // now the connection should be closed and all the items are sent
+        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CLOSED);
+
+        final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);
+
+        /*
+        There should be at least 3 requests.
+        All items, in order are:
+        1) Block header         <-+
+        2) Signed transaction     |
+        3) Signed transaction     +- 1 or more requests
+        4) Signed transaction     |
+        5) Block proof          <-+
+        6) Block end            <--- single request
+        7) EndStream with RESET <--- single request
+         */
+
+        verify(requestPipeline, atLeast(3)).onNext(requestCaptor.capture());
+        final List<PublishStreamRequest> requests = requestCaptor.getAllValues();
+
+        final PublishStreamRequest lastRequest = requests.getLast();
+        final EndStream endStream = lastRequest.endStream();
+        assertThat(endStream).isNotNull();
+        assertThat(endStream.endCode()).isEqualTo(EndStream.Code.RESET);
+
+        final PublishStreamRequest secondToLastRequest = requests.get(requests.size() - 2);
+        final BlockEnd blockEnd = secondToLastRequest.endOfBlock();
+        assertThat(blockEnd).isNotNull();
+        assertThat(blockEnd.blockNumber()).isEqualTo(blockNumber);
+
+        // collect the block items
+        final List<BlockItem> items = new ArrayList<>();
+        for (int i = 0; i < requests.size() - 2; ++i) {
+            final PublishStreamRequest request = requests.get(i);
+            final BlockItemSet bis = request.blockItems();
+            if (bis != null) {
+                items.addAll(bis.blockItems());
+            }
+        }
+
+        // there should be 5 items
+        assertThat(items).hasSize(5);
+        for (int i = 0; i < 5; ++i) {
+            final BlockItem blockItem = items.get(i);
+
+            if (i == 0) {
+                // the first item should be the block header
+                final BlockHeader header = blockItem.blockHeader();
+                assertThat(header).isNotNull();
+                assertThat(header.number()).isEqualTo(blockNumber);
+            } else if (i == 4) {
+                // the last item should be the block proof
+                final BlockProof proof = blockItem.blockProof();
+                assertThat(proof).isNotNull();
+                assertThat(proof.block()).isEqualTo(blockNumber);
+            } else {
+                // the other items should all be signed transactions
+                assertThat(blockItem.signedTransaction()).isNotNull();
+            }
+        }
+
+        verify(requestPipeline).onComplete();
+        verify(bufferService).getBlockState(blockNumber);
+        verify(bufferService).getEarliestAvailableBlockNumber();
+        verify(bufferService).getHighestAckedBlockNumber();
+        verify(metrics).recordConnectionOpened();
+        verify(metrics, atLeastOnce()).recordRequestLatency(anyLong());
+        verify(metrics, atLeastOnce()).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
+        verify(metrics, atLeastOnce()).recordBlockItemsSent(anyInt());
+        verify(metrics).recordRequestSent(RequestOneOfType.END_OF_BLOCK);
+        verify(metrics).recordRequestEndStreamSent(EndStream.Code.RESET);
+        verify(metrics).recordConnectionClosed();
+        verify(metrics).recordActiveConnectionIp(-1L);
+
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestPipeline);
+        verifyNoMoreInteractions(bufferService);
     }
 
     @Test
@@ -1083,7 +1290,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         // Override getConnectionState to trigger state change on first call
         doAnswer(invocation -> {
-                    ConnectionState result = (ConnectionState) invocation.callRealMethod();
+                    final ConnectionState result = (ConnectionState) invocation.callRealMethod();
                     if (!stateChanged.get()) {
                         stateChanged.set(true);
                         // Change the actual internal state to cause fail
@@ -1442,7 +1649,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         // sleep to let the worker detect the state change and start doing work
-        sleep(150);
+        sleep(250);
 
         assertThat(workerThreadRef).doesNotHaveNullValue();
         assertThat(streamingBlockNumber).hasValue(10);
@@ -1510,7 +1717,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         // sleep to let the worker detect the state change and start doing work
-        sleep(150);
+        sleep(250);
 
         // create a skip response to force the connection to jump to block 11
         final PublishStreamResponse skipResponse = createSkipBlock(10L);
@@ -1541,7 +1748,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testConnectionWorker_hugeItem() throws Exception {
+    void testConnectionWorker_hugeItems() throws Exception {
         openConnectionAndResetMocks();
         final AtomicReference<Thread> workerThreadRef = workerThreadRef();
         workerThreadRef.set(null); // clear the fake worker thread
@@ -1549,43 +1756,155 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         streamingBlockNumber.set(10);
 
+        final BlockNodeConfiguration config = connection.getNodeConfig();
+        // sanity check to make sure the sizes we are about to use are within the scope of the soft and hard limits
+        assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
+        assertThat(config.messageSizeHardLimitBytes()).isEqualTo(6_292_480L); // hard limit = 6 MB + 1 KB
+
         final BlockState block = new BlockState(10);
-        final BlockItem blockHeader = newBlockHeaderItem(10);
-        final BlockItem hugeItem = newBlockTxItem(3_000_000);
-        block.addItem(blockHeader);
-        block.addItem(hugeItem);
+        final BlockItem item1 = newBlockHeaderItem(10);
+        final BlockItem item2 = newBlockTxItem(5_000);
+        final BlockItem item3 = newBlockTxItem(5_000);
+        final BlockItem item4 = newBlockTxItem(3_001_500);
+        final BlockItem item5 = newBlockTxItem(255);
+        final BlockItem item6 = newBlockTxItem(1_950_000);
+        final BlockItem item7 = newBlockTxItem(1_750_000);
+        final BlockItem item8 = newBlockTxItem(25);
+        final BlockItem item9 = newBlockTxItem(9_002_875);
+
+        block.addItem(item1);
+        block.addItem(item2);
+        block.addItem(item3);
+        block.addItem(item4);
+        block.addItem(item5);
+        block.addItem(item6);
+        block.addItem(item7);
+        block.addItem(item8);
+        block.addItem(item9);
         doReturn(block).when(bufferService).getBlockState(10);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         // sleep to let the worker detect the state change and start doing work
-        sleep(150);
+        sleep(250);
 
         final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);
-        verify(requestPipeline, times(2)).onNext(requestCaptor.capture());
+        verify(requestPipeline, times(5)).onNext(requestCaptor.capture());
 
-        // there should be two requests: one for the block header and another for the EndStream
-        // the huge item should NOT be sent
-        assertThat(requestCaptor.getAllValues()).hasSize(2);
+        /*
+        There should be 5 requests:
+        Request 1: item 1, 2, and 3
+        Request 2: item 4
+        Request 3: item 5 and 6
+        Request 4: item 7 and 8
+        Request 5: EndStream.Error because item 8 was too big
+         */
+
+        assertThat(requestCaptor.getAllValues()).hasSize(5);
         final List<PublishStreamRequest> requests = requestCaptor.getAllValues();
-        assertRequestContainsItems(requests.getFirst(), blockHeader);
-        final PublishStreamRequest endStreamRequest = requests.get(1);
-        assertThat(endStreamRequest.hasEndStream()).isTrue();
-        final EndStream endStream = endStreamRequest.endStream();
+
+        final PublishStreamRequest req1 = requests.get(0);
+        assertThat(req1.blockItemsOrElse(BlockItemSet.DEFAULT).blockItems())
+                .hasSize(3)
+                .containsExactly(item1, item2, item3);
+        final PublishStreamRequest req2 = requests.get(1);
+        assertThat(req2.blockItemsOrElse(BlockItemSet.DEFAULT).blockItems())
+                .hasSize(1)
+                .containsExactly(item4);
+        final PublishStreamRequest req3 = requests.get(2);
+        assertThat(req3.blockItemsOrElse(BlockItemSet.DEFAULT).blockItems())
+                .hasSize(2)
+                .containsExactly(item5, item6);
+        final PublishStreamRequest req4 = requests.get(3);
+        assertThat(req4.blockItemsOrElse(BlockItemSet.DEFAULT).blockItems())
+                .hasSize(2)
+                .containsExactly(item7, item8);
+        final PublishStreamRequest req5 = requests.get(4);
+        assertThat(req5.hasEndStream()).isTrue();
+        final EndStream endStream = req5.endStream();
         assertThat(endStream).isNotNull();
         assertThat(endStream.endCode()).isEqualTo(EndStream.Code.ERROR);
 
-        verify(metrics).recordBlockItemsSent(1);
-        verify(metrics).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
+        verify(metrics, times(4)).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
         verify(metrics).recordRequestEndStreamSent(EndStream.Code.ERROR);
+
+        final ArgumentCaptor<Integer> metricItemsSentCaptor = ArgumentCaptor.forClass(Integer.class);
+        verify(metrics, times(4)).recordBlockItemsSent(metricItemsSentCaptor.capture());
+        int totalItems = 0;
+        for (final int count : metricItemsSentCaptor.getAllValues()) {
+            totalItems += count;
+        }
+        assertThat(totalItems).isEqualTo(8);
+
+        verify(metrics).recordRequestExceedsHardLimit();
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
-        verify(metrics, times(2)).recordRequestLatency(anyLong());
+        verify(metrics, times(5)).recordRequestLatency(anyLong());
         verify(requestPipeline).onComplete();
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(bufferService).getHighestAckedBlockNumber();
+        verify(connectionManager).notifyConnectionClosed(connection);
+
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
+        verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(bufferService);
+    }
+
+    @Test
+    void testWorkerConstructor_respectsMaxMessageSizeFromProtocolConfig() throws Exception {
+        // Provide a protocol config with a smaller max message size than the hard cap
+        final int softLimitBytes = 1_000_000;
+        final int hardLimitBytes = 2_000_000;
+
+        // Recreate connection with a protocol config that sets a smaller max message size
+        final BlockNodeClientFactory localFactory = mock(BlockNodeClientFactory.class);
+        lenient()
+                .doReturn(grpcServiceClient)
+                .when(localFactory)
+                .createClient(any(WebClient.class), any(PbjGrpcClientConfig.class), any(RequestOptions.class));
+
+        final BlockNodeConfiguration cfgWithMax = BlockNodeConfiguration.newBuilder()
+                .address(nodeConfig.address())
+                .port(nodeConfig.port())
+                .priority(nodeConfig.priority())
+                .messageSizeSoftLimitBytes(softLimitBytes)
+                .messageSizeHardLimitBytes(hardLimitBytes)
+                .build();
+
+        connection = new BlockNodeConnection(
+                configProvider,
+                cfgWithMax,
+                connectionManager,
+                bufferService,
+                metrics,
+                executorService,
+                pipelineExecutor,
+                null,
+                localFactory);
+
+        // Ensure publish stream returns pipeline
+        lenient().doReturn(requestPipeline).when(grpcServiceClient).publishBlockStream(connection);
+
+        // Start the connection to trigger worker construction
+        final AtomicReference<Thread> workerThreadRef = workerThreadRef();
+        workerThreadRef.set(null);
+        connection.createRequestPipeline();
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        // Feed one item just over configuredMax to force fatal branch if limit not respected
+        final AtomicLong streamingBlockNumber = streamingBlockNumber();
+        streamingBlockNumber.set(5);
+        final BlockState block = new BlockState(5);
+        final BlockItem header = newBlockHeaderItem(5);
+        block.addItem(header);
+        // Slightly over configuredMax to ensure split/end if not honored
+        final BlockItem tooLarge = newBlockTxItem(hardLimitBytes + 10);
+        block.addItem(tooLarge);
+        doReturn(block).when(bufferService).getBlockState(5);
+
+        // Should have sent header, then ended stream due to size violation under configured limit
+        verify(requestPipeline, timeout(2_000).atLeast(2)).onNext(any(PublishStreamRequest.class));
+        verify(connectionManager, timeout(2_000)).notifyConnectionClosed(connection);
     }
 
     // Tests that no response processing occurs when connection is already closed
@@ -2018,7 +2337,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
         final PublishStreamRequest request = createRequest(newBlockHeaderItem());
-        connection.sendRequest(request);
+        sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false));
 
         // Verify the request was sent successfully
         verify(requestPipeline).onNext(request);
@@ -2045,7 +2364,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final PublishStreamRequest request = createRequest(newBlockHeaderItem());
 
         // Since connection is not ACTIVE, sendRequest should not do anything
-        connection.sendRequest(request);
+        sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false));
 
         // Verify no interactions since connection is not ACTIVE
         verifyNoInteractions(requestPipeline);
@@ -2109,7 +2428,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final PublishStreamRequest request = createRequest(newBlockHeaderItem());
 
         // Should throw RuntimeException wrapped by the executor
-        final RuntimeException exception = catchRuntimeException(() -> connection.sendRequest(request));
+        final RuntimeException exception =
+                catchRuntimeException(() -> sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false)));
 
         assertThat(exception).isNotNull();
         // Exception gets wrapped when executed in virtual thread executor
@@ -2138,11 +2458,11 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CLOSED);
 
         // Give the executor a moment to shutdown
-        Thread.sleep(100);
+        sleep(100);
 
         // Try to send a request after close - should be ignored since connection is CLOSED
         final PublishStreamRequest request = createRequest(newBlockHeaderItem());
-        connection.sendRequest(request);
+        sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false));
 
         // Verify that the pipeline was NOT called (executor should be shut down and connection is CLOSED)
         verify(requestPipeline, times(1)).onComplete(); // Only from the close() call
@@ -2174,7 +2494,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final PublishStreamRequest request = createRequest(newBlockHeaderItem());
 
         // Send request - should trigger timeout handling immediately
-        connection.sendRequest(request);
+        sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false));
 
         // Verify timeout was detected and handled
         // Note: future.get() is called twice - once for sendRequest (times out)
@@ -2297,7 +2617,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
      * Tests InterruptedException handling during pipeline operation.
      */
     @Test
-    void testSendRequest_interruptedException() {
+    void testSendRequest_interruptedException() throws Exception {
         openConnectionAndResetMocks();
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
@@ -2309,7 +2629,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         doAnswer(invocation -> {
                     try {
                         latch.await();
-                    } catch (InterruptedException e) {
+                    } catch (final InterruptedException e) {
                         Thread.currentThread().interrupt();
                         throw new RuntimeException("Interrupted", e);
                     }
@@ -2323,28 +2643,20 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         // Send request in a separate thread
         final Thread testThread = Thread.ofVirtual().start(() -> {
             try {
-                connection.sendRequest(request);
-            } catch (RuntimeException e) {
+                sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false));
+            } catch (final RuntimeException e) {
                 exceptionRef.set(e);
             }
         });
 
         // Give the thread time to start and block
-        try {
-            Thread.sleep(100);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        sleep(100);
 
         // Interrupt the thread
         testThread.interrupt();
 
         // Wait for thread to complete
-        try {
-            testThread.join(2000);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        testThread.join(2000);
 
         // Verify exception was thrown
         assertThat(exceptionRef.get()).isNotNull();
@@ -2366,9 +2678,10 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         doThrow(new RuntimeException("Execution failed")).when(requestPipeline).onNext(any());
 
         final PublishStreamRequest request = createRequest(newBlockHeaderItem());
+        final BlockItemsStreamRequest bisReq = new BlockItemsStreamRequest(request, 10L, 1, 1, false);
 
         // Should throw RuntimeException wrapping ExecutionException
-        final RuntimeException exception = catchRuntimeException(() -> connection.sendRequest(request));
+        final RuntimeException exception = catchRuntimeException(() -> sendRequest(bisReq));
 
         assertThat(exception).isNotNull();
         assertThat(exception.getMessage()).contains("Error executing pipeline.onNext()");
@@ -2406,6 +2719,266 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CLOSED);
     }
 
+    @Test
+    void testConnectionWorker_sendPendingRequest_multiItemRequestExceedsSoftLimit() throws Exception {
+        final TestConfigBuilder cfgBuilder = createDefaultConfigProvider()
+                .withValue("blockNode.streamingRequestPaddingBytes", "0")
+                .withValue("blockNode.streamingRequestItemPaddingBytes", "0");
+        configProvider = createConfigProvider(cfgBuilder);
+        connection = new BlockNodeConnection(
+                configProvider,
+                nodeConfig,
+                connectionManager,
+                bufferService,
+                metrics,
+                executorService,
+                pipelineExecutor,
+                null,
+                clientFactory);
+
+        lenient().doReturn(requestPipeline).when(grpcServiceClient).publishBlockStream(connection);
+        openConnectionAndResetMocks();
+        final AtomicReference<Thread> workerThreadRef = workerThreadRef();
+        workerThreadRef.set(null); // clear the fake worker thread
+        final AtomicLong streamingBlockNumber = streamingBlockNumber();
+
+        streamingBlockNumber.set(10);
+
+        final BlockNodeConfiguration config = connection.getNodeConfig();
+        // sanity check to make sure the sizes we are about to use are within the scope of the soft and hard limits
+        assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
+        assertThat(config.messageSizeHardLimitBytes()).isEqualTo(6_292_480L); // hard limit = 6 MB + 1 KB
+
+        final BlockState block = new BlockState(10);
+        doReturn(block).when(bufferService).getBlockState(10);
+        /*
+        Items 1, 2, and 3 are sized such that, given a request padding of 0 and an item padding of 0, during the pending
+        request building phase where the size is estimated, the total estimated size will be exactly the soft limit size
+        of 2_097_152. When we try to send the request, we will build the real PublishStreamRequest and validate the
+        actual size. During this phase, the size will exceed the soft limit size (approximately 2_097_167). This will
+        trigger a rebuilding of the pending request where the last item is removed to ensure the request adheres to the
+        soft limit. The last item (item 3) will get sent in a subsequent request along with item 4.
+         */
+        final BlockItem item1 = newBlockTxItem(2_095_148);
+        final BlockItem item2 = newBlockTxItem(997);
+        final BlockItem item3 = newBlockTxItem(997);
+        final BlockItem item4 = newBlockTxItem(1_500);
+
+        block.addItem(item1);
+        block.addItem(item2);
+        block.addItem(item3);
+        block.addItem(item4);
+        block.closeBlock();
+
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+        // sleep to let the worker detect the state change and start doing work
+        sleep(300);
+
+        final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);
+        verify(requestPipeline, times(3)).onNext(requestCaptor.capture());
+        assertThat(requestCaptor.getAllValues()).hasSize(3);
+        final List<PublishStreamRequest> requests = requestCaptor.getAllValues();
+
+        final PublishStreamRequest req1 = requests.get(0);
+        assertThat(req1.blockItemsOrElse(BlockItemSet.DEFAULT).blockItems())
+                .hasSize(2)
+                .containsExactly(item1, item2);
+
+        final PublishStreamRequest req2 = requests.get(1);
+        assertThat(req2.blockItemsOrElse(BlockItemSet.DEFAULT).blockItems())
+                .hasSize(2)
+                .containsExactly(item3, item4);
+
+        final PublishStreamRequest req3 = requests.get(2);
+        assertThat(req3.endOfBlockOrElse(BlockEnd.DEFAULT).blockNumber()).isEqualTo(block.blockNumber());
+
+        verify(metrics).recordMultiItemRequestExceedsSoftLimit();
+        verify(metrics, times(3)).recordRequestLatency(anyLong());
+        verify(metrics, times(2)).recordBlockItemsSent(2);
+        verify(metrics, times(2)).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
+        verify(metrics).recordRequestSent(RequestOneOfType.END_OF_BLOCK);
+
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestPipeline);
+        verifyNoInteractions(connectionManager);
+    }
+
+    @Test
+    void testConnectionWorker_sendPendingRequest_singleItemRequestExceedsHardLimit() throws Exception {
+        final TestConfigBuilder cfgBuilder = createDefaultConfigProvider()
+                .withValue("blockNode.streamingRequestPaddingBytes", "0")
+                .withValue("blockNode.streamingRequestItemPaddingBytes", "0");
+        configProvider = createConfigProvider(cfgBuilder);
+        connection = new BlockNodeConnection(
+                configProvider,
+                nodeConfig,
+                connectionManager,
+                bufferService,
+                metrics,
+                executorService,
+                pipelineExecutor,
+                null,
+                clientFactory);
+
+        lenient().doReturn(requestPipeline).when(grpcServiceClient).publishBlockStream(connection);
+        openConnectionAndResetMocks();
+        final AtomicReference<Thread> workerThreadRef = workerThreadRef();
+        workerThreadRef.set(null); // clear the fake worker thread
+        final AtomicLong streamingBlockNumber = streamingBlockNumber();
+
+        streamingBlockNumber.set(10);
+
+        final BlockNodeConfiguration config = connection.getNodeConfig();
+        // sanity check to make sure the sizes we are about to use are within the scope of the soft and hard limits
+        assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
+        assertThat(config.messageSizeHardLimitBytes()).isEqualTo(6_292_480L); // hard limit = 6 MB + 1 KB
+
+        final BlockState block = new BlockState(10);
+        doReturn(block).when(bufferService).getBlockState(10);
+        /*
+        The item is sized such that, given a request padding of 0 and an item padding of 0, during the pending request
+        building phase where the size is estimated, the total estimated size will be exactly the hard limit size
+        of 6_292_480. When we try to send the request, we will build the real PublishStreamRequest and validate the
+        actual size. During this phase, the size will exceed the hard limit size (approximately 6_292_490). Since it has
+        exceeded the hard limit, the item will not get sent and the connection will be closed.
+         */
+        final BlockItem item = newBlockTxItem(6_292_475);
+
+        block.addItem(item);
+
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+        // sleep to let the worker detect the state change and start doing work
+        sleep(300);
+
+        final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);
+        verify(requestPipeline).onNext(requestCaptor.capture());
+        assertThat(requestCaptor.getAllValues()).hasSize(1);
+        final List<PublishStreamRequest> requests = requestCaptor.getAllValues();
+        final PublishStreamRequest req1 = requests.getFirst();
+        final EndStream endStream = req1.endStream();
+        assertThat(endStream).isNotNull();
+        assertThat(endStream.endCode()).isEqualTo(EndStream.Code.ERROR);
+
+        verify(metrics).recordRequestExceedsHardLimit();
+        verify(metrics).recordRequestEndStreamSent(EndStream.Code.ERROR);
+        verify(metrics).recordRequestLatency(anyLong());
+        verify(metrics).recordConnectionClosed();
+        verify(metrics).recordActiveConnectionIp(-1L);
+        verify(requestPipeline).onComplete();
+        verify(bufferService).getEarliestAvailableBlockNumber();
+        verify(bufferService).getHighestAckedBlockNumber();
+        verify(connectionManager).notifyConnectionClosed(connection);
+
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestPipeline);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoMoreInteractions(bufferService);
+    }
+
+    @Test
+    void testConnectionWorker_sendMultipleBlocks() {
+        openConnectionAndResetMocks();
+        final AtomicReference<Thread> workerThreadRef = workerThreadRef();
+        workerThreadRef.set(null); // clear the fake worker thread
+        final AtomicLong streamingBlockNumber = streamingBlockNumber();
+
+        final BlockState block1 = new BlockState(1);
+        final BlockState block2 = new BlockState(2);
+        final BlockState block3 = new BlockState(3);
+        final BlockState block4 = new BlockState(4);
+        final BlockState block5 = new BlockState(5);
+        final BlockState block6 = new BlockState(6);
+
+        streamingBlockNumber.set(block1.blockNumber());
+
+        doReturn(block1).when(bufferService).getBlockState(block1.blockNumber());
+        doReturn(block2).when(bufferService).getBlockState(block2.blockNumber());
+        doReturn(block3).when(bufferService).getBlockState(block3.blockNumber());
+        doReturn(block4).when(bufferService).getBlockState(block4.blockNumber());
+        doReturn(block5).when(bufferService).getBlockState(block5.blockNumber());
+        doReturn(block6).when(bufferService).getBlockState(block6.blockNumber());
+
+        final BlockNodeConfiguration config = connection.getNodeConfig();
+        // sanity check to make sure the sizes we are about to use are within the scope of the soft and hard limits
+        assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
+        assertThat(config.messageSizeHardLimitBytes()).isEqualTo(6_292_480L); // hard limit = 6 MB + 1 KB
+
+        final List<BlockItem> block1Items = newRandomBlockItems(block1.blockNumber(), 2_500_000);
+        block1Items.forEach(block1::addItem);
+        block1.closeBlock();
+        final List<BlockItem> block2Items = newRandomBlockItems(block2.blockNumber(), 2_500_000);
+        block2Items.forEach(block2::addItem);
+        block2.closeBlock();
+        final List<BlockItem> block3Items = newRandomBlockItems(block3.blockNumber(), 2_500_000);
+        block3Items.forEach(block3::addItem);
+        block3.closeBlock();
+        final List<BlockItem> block4Items = newRandomBlockItems(block4.blockNumber(), 2_500_000);
+        block4Items.forEach(block4::addItem);
+        block4.closeBlock();
+        final List<BlockItem> block5Items = newRandomBlockItems(block5.blockNumber(), 2_500_000);
+        block5Items.forEach(block5::addItem);
+        block5.closeBlock();
+
+        final List<BlockItem> allItems = new ArrayList<>();
+        allItems.addAll(block1Items);
+        allItems.addAll(block2Items);
+        allItems.addAll(block3Items);
+        allItems.addAll(block4Items);
+        allItems.addAll(block5Items);
+
+        final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);
+
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        // wait up to 10 seconds for all block ends to be sent
+        verify(metrics, timeout(10_000).times(5)).recordRequestSent(RequestOneOfType.END_OF_BLOCK);
+        verify(requestPipeline, atLeast(10)).onNext(requestCaptor.capture());
+
+        // there should be at least 6 requests (3 for items and 3 for block ends)
+        final List<PublishStreamRequest> requests = requestCaptor.getAllValues();
+        assertThat(requests).hasSizeGreaterThanOrEqualTo(6);
+
+        final Set<Long> blockNumbers = new HashSet<>(Set.of(
+                block1.blockNumber(),
+                block2.blockNumber(),
+                block3.blockNumber(),
+                block4.blockNumber(),
+                block5.blockNumber()));
+        final List<BlockItem> blockItems = new ArrayList<>();
+
+        for (final PublishStreamRequest request : requests) {
+            final BlockItemSet bis = request.blockItems();
+            if (bis != null) {
+                blockItems.addAll(bis.blockItems());
+            }
+            final BlockEnd blockEnd = request.endOfBlock();
+            if (blockEnd != null) {
+                assertThat(blockNumbers.remove(blockEnd.blockNumber())).isTrue();
+            }
+        }
+
+        assertThat(blockNumbers).as("BlockEnd should be found for each block").isEmpty();
+
+        assertThat(blockItems).containsExactly(allItems.toArray(new BlockItem[0]));
+
+        verify(metrics, times(requests.size())).recordRequestLatency(anyLong());
+        verify(metrics, times(requests.size() - 5)).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
+
+        final ArgumentCaptor<Integer> numItemsSentCaptor = ArgumentCaptor.forClass(Integer.class);
+        verify(metrics, atLeastOnce()).recordBlockItemsSent(numItemsSentCaptor.capture());
+        final int itemsSentCount = numItemsSentCaptor.getAllValues().stream().reduce(0, Integer::sum);
+        assertThat(itemsSentCount).isEqualTo(allItems.size());
+
+        verify(bufferService, atLeast(6)).getBlockState(anyLong());
+        verify(connectionManager, times(5))
+                .recordBlockProofSent(any(BlockNodeConfiguration.class), anyLong(), any(Instant.class));
+
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestPipeline);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoMoreInteractions(bufferService);
+    }
+
     // Utilities
 
     private void openConnectionAndResetMocks() {
@@ -2425,10 +2998,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
     private AtomicLong streamingBlockNumber() {
         return (AtomicLong) streamingBlockNumberHandle.get(connection);
-    }
-
-    private AtomicLong streamingBlockNumber(final BlockNodeConnection conn) {
-        return (AtomicLong) streamingBlockNumberHandle.get(conn);
     }
 
     @SuppressWarnings("unchecked")
@@ -2463,5 +3032,21 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
     private static void sleep(final long millis) throws InterruptedException {
         Thread.sleep(millis);
+    }
+
+    private void sendRequest(final StreamRequest request) {
+        sendRequest(connection, request);
+    }
+
+    private void sendRequest(final BlockNodeConnection connection, final StreamRequest request) {
+        try {
+            sendRequestHandle.invoke(connection, request);
+        } catch (final Throwable e) {
+            if (e instanceof final RuntimeException re) {
+                throw re;
+            } else {
+                throw new RuntimeException(e);
+            }
+        }
     }
 }

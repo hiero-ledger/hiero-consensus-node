@@ -45,11 +45,9 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.otter.fixtures.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.Node;
-import org.hiero.otter.fixtures.ProtobufConverter;
+import org.hiero.otter.fixtures.ProfilerEvent;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.app.services.consistency.ConsistencyServiceConfig;
 import org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
@@ -68,11 +66,14 @@ import org.hiero.otter.fixtures.container.utils.ContainerConstants;
 import org.hiero.otter.fixtures.container.utils.ContainerUtils;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
+import org.hiero.otter.fixtures.internal.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.internal.NetworkConfiguration;
+import org.hiero.otter.fixtures.internal.ProtobufConverter;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeEventStreamResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodeReconnectResultImpl;
+import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeEventStreamResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
@@ -123,6 +124,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     /** A source of randomness for the node */
     private final Random random;
 
+    /** The profiler for this node */
+    private final ContainerProfiler profiler;
+
     /**
      * Constructor for the {@link ContainerNode} class.
      *
@@ -168,6 +172,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
         // Blocking stub for initializing and killing the consensus node
         containerControlBlockingStub = ContainerControlServiceGrpc.newBlockingStub(containerControlChannel);
+
+        profiler = new ContainerProfiler(selfId, container, localOutputDirectory);
     }
 
     /**
@@ -462,6 +468,25 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     @NonNull
     public SingleNodeReconnectResult newReconnectResult() {
         return new SingleNodeReconnectResultImpl(selfId, newPlatformStatusResult(), newLogResult());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void startProfiling(
+            @NonNull final String outputFilename,
+            @NonNull final Duration samplingInterval,
+            @NonNull final ProfilerEvent... events) {
+        profiler.startProfiling(outputFilename, samplingInterval, events);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void stopProfiling() {
+        profiler.stopProfiling();
     }
 
     /**

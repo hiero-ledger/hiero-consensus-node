@@ -48,6 +48,9 @@ import com.swirlds.platform.system.state.notifications.NewRecoveredStateListener
 import com.swirlds.platform.system.state.notifications.NewRecoveredStateNotification;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -57,6 +60,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.CompareTo;
@@ -85,7 +89,7 @@ public final class EventRecoveryWorkflow {
      * disk.
      *
      * @param platformContext         the platform context
-     * @param signedStateFile         the bootstrap signed state file
+     * @param signedStateDir         the bootstrap signed state file
      * @param configurationFiles      files containing configuration
      * @param eventStreamDirectory    a directory containing the event stream
      * @param mainClassName           the fully qualified class name of the {@link SwirldMain} for the app
@@ -100,7 +104,7 @@ public final class EventRecoveryWorkflow {
      */
     public static void recoverState(
             @NonNull final PlatformContext platformContext,
-            @NonNull final Path signedStateFile,
+            @NonNull final Path signedStateDir,
             @NonNull final List<Path> configurationFiles,
             @NonNull final Path eventStreamDirectory,
             @NonNull final String mainClassName,
@@ -112,7 +116,7 @@ public final class EventRecoveryWorkflow {
             @NonNull final PlatformStateFacade platformStateFacade)
             throws IOException {
         Objects.requireNonNull(platformContext);
-        Objects.requireNonNull(signedStateFile, "signedStateFile must not be null");
+        Objects.requireNonNull(signedStateDir, "signedStateDir must not be null");
         Objects.requireNonNull(configurationFiles, "configurationFiles must not be null");
         Objects.requireNonNull(eventStreamDirectory, "eventStreamDirectory must not be null");
         Objects.requireNonNull(mainClassName, "mainClassName must not be null");
@@ -143,18 +147,21 @@ public final class EventRecoveryWorkflow {
             Files.createDirectories(resultingStateDirectory);
         }
 
-        logger.info(STARTUP.getMarker(), "Loading state from {}", signedStateFile);
+        logger.info(STARTUP.getMarker(), "Loading state from {}", signedStateDir);
         // FUTURE-WORK: Follow Browser approach
         final SwirldMain<? extends MerkleNodeState> hederaApp =
                 HederaUtils.createHederaAppMain(platformContext, platformStateFacade);
 
-        final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readStateFile(
-                signedStateFile,
+        final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readState(
+                signedStateDir,
                 v -> hederaApp
-                        .stateRootFromVirtualMap(platformContext.getMetrics(), platformContext.getTime())
+                        .stateRootFromVirtualMap(platformContext.getMetrics())
                         .apply(v),
                 platformStateFacade,
                 platformContext);
+        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+                platformContext.getMetrics(), platformContext.getTime(), (Function<VirtualMap, MerkleNodeState>)
+                        hederaApp.stateRootFromVirtualMap(platformContext.getMetrics()));
         try (final ReservedSignedState initialState = deserializedSignedState.reservedSignedState()) {
             HederaUtils.updateStateHash(hederaApp, deserializedSignedState);
 
@@ -196,7 +203,8 @@ public final class EventRecoveryWorkflow {
                     selfId,
                     resultingStateDirectory,
                     recoveredState.state().get(),
-                    platformStateFacade);
+                    platformStateFacade,
+                    stateLifecycleManager);
             final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
             updateEmergencyRecoveryFile(
                     stateConfig, resultingStateDirectory, initialState.get().getConsensusTimestamp());

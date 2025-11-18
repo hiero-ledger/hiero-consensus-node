@@ -4,7 +4,6 @@ package com.swirlds.demo.iss;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.swirlds.base.time.Time;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -90,7 +89,7 @@ public class ISSTestingToolMain extends DefaultSwirldMain<ISSTestingToolState> {
     @Override
     @NonNull
     public ISSTestingToolState newStateRoot() {
-        final ISSTestingToolState state = new ISSTestingToolState(CONFIGURATION, new NoOpMetrics(), Time.getCurrent());
+        final ISSTestingToolState state = new ISSTestingToolState(CONFIGURATION, new NoOpMetrics());
         TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
         return state;
     }
@@ -99,10 +98,9 @@ public class ISSTestingToolMain extends DefaultSwirldMain<ISSTestingToolState> {
      * {@inheritDoc}
      */
     @Override
-    public Function<VirtualMap, ISSTestingToolState> stateRootFromVirtualMap(
-            @NonNull final Metrics metrics, @NonNull final Time time) {
+    public Function<VirtualMap, ISSTestingToolState> stateRootFromVirtualMap(@NonNull final Metrics metrics) {
         return virtualMap -> {
-            final ISSTestingToolState state = new ISSTestingToolState(virtualMap, new NoOpMetrics(), time);
+            final ISSTestingToolState state = new ISSTestingToolState(virtualMap, new NoOpMetrics());
             TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
             return state;
         };

@@ -2,18 +2,16 @@
 package com.hedera.statevalidation.util;
 
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
-import static com.hedera.statevalidation.util.ConfigUtils.STATE_FILE_NAME;
 import static com.hedera.statevalidation.util.ConfigUtils.getConfiguration;
 import static com.hedera.statevalidation.util.PlatformContextHelper.getPlatformContext;
 import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
-import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readStateFile;
+import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.hapi.platform.state.StateValue;
-import com.hedera.node.app.HederaVirtualMapState;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
@@ -66,6 +64,7 @@ import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.constructable.ConstructableUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -111,10 +110,9 @@ public final class StateUtils {
             serviceRegistry.register(
                     new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getState, platformStateFacade));
 
-            deserializedSignedState = readStateFile(
-                    Path.of(ConfigUtils.STATE_DIR, STATE_FILE_NAME).toAbsolutePath(),
-                    virtualMap -> new HederaVirtualMapState(
-                            virtualMap, platformContext.getMetrics(), platformContext.getTime()),
+            deserializedSignedState = readState(
+                    Path.of(ConfigUtils.STATE_DIR).toAbsolutePath(),
+                    virtualMap -> new VirtualMapState(virtualMap, platformContext.getMetrics()),
                     platformStateFacade,
                     platformContext);
 

@@ -264,7 +264,7 @@ public class Browser {
                     recycleBin,
                     appMain.getSemanticVersion(),
                     appMain::newStateRoot,
-                    appMain.stateRootFromVirtualMap(guiMetrics, Time.getCurrent()),
+                    appMain.stateRootFromVirtualMap(guiMetrics),
                     appMain.getClass().getName(),
                     appDefinition.getSwirldName(),
                     nodeId,
@@ -309,7 +309,7 @@ public class Browser {
                     String.valueOf(nodeId),
                     rosterHistory,
                     platformStateFacade,
-                    appMain.stateRootFromVirtualMap(guiMetrics, Time.getCurrent()));
+                    appMain.stateRootFromVirtualMap(guiMetrics));
             if (showUi && index == 0) {
                 builder.withPreconsensusEventCallback(guiEventStorage::handlePreconsensusEvent);
                 builder.withConsensusSnapshotOverrideCallback(guiEventStorage::handleSnapshotOverride);
