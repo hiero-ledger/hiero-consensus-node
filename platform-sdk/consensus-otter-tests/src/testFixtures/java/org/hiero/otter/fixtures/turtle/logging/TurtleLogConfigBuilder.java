@@ -161,10 +161,6 @@ public final class TurtleLogConfigBuilder {
 
         builder.add(root);
 
-        builder.add(builder.newLogger("org.hiero.otter", Level.INFO)
-                .add(builder.newAppenderRef("Console"))
-                .addAttribute("additivity", false));
-
         Configurator.reconfigure(builder.build());
 
         LogManager.getLogger(TurtleLogConfigBuilder.class).info("Unified logging configuration (re)initialized");
