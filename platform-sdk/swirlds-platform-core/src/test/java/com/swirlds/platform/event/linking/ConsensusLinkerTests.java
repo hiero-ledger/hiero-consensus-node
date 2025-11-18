@@ -18,9 +18,11 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
+import com.swirlds.platform.test.fixtures.graph.SimpleGraphs;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -180,6 +182,25 @@ class ConsensusLinkerTests {
                 .build();
 
         assertParents(linker.linkEvent(cr0br5), null, null);
+    }
+
+    @Test
+    void multipleOtherParents(){
+        inOrderLinkerSetup();
+
+        final List<PlatformEvent> events = SimpleGraphs.mopGraph(random);
+        assertParentsMop(linker.linkEvent(events.get(0)), null, List.of());
+        assertParentsMop(linker.linkEvent(events.get(1)), null, List.of());
+        assertParentsMop(linker.linkEvent(events.get(2)), null, List.of());
+        assertParentsMop(linker.linkEvent(events.get(3)), null, List.of());
+        assertParentsMop(linker.linkEvent(events.get(4)), events.get(0), List.of());
+        assertParentsMop(linker.linkEvent(events.get(5)), events.get(1), List.of(events.get(0), events.get(2)));
+        assertParentsMop(linker.linkEvent(events.get(6)), events.get(2), List.of(events.get(1), events.get(3)));
+        assertParentsMop(linker.linkEvent(events.get(7)), events.get(3), List.of());
+        assertParentsMop(linker.linkEvent(events.get(8)), events.get(4), List.of());
+        assertParentsMop(linker.linkEvent(events.get(9)), events.get(5), List.of(events.get(4), events.get(6)));
+        assertParentsMop(linker.linkEvent(events.get(10)), events.get(6), List.of(events.get(5), events.get(7)));
+        assertParentsMop(linker.linkEvent(events.get(11)), events.get(7), List.of());
     }
 
     @Test
@@ -429,6 +450,7 @@ class ConsensusLinkerTests {
         }
         if(expectedOtherParents.isEmpty()) {
             assertNull(toAssert.getOtherParent(), "Other parent should be null");
+            assertEquals(0, toAssert.getOtherParents().size(), "Other parents list should be empty");
         }else {
             assertNotNull(toAssert.getOtherParent(), "Other parent should not be null");
             assertSame(
