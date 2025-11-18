@@ -1336,7 +1336,6 @@ jobs:
           heli_swap_load_result: ${{ needs.performance-HeliSwapLoadTest.result }}
           smart_contract_load_result: ${{ needs.performance-SmartContractLoadTest.result }}
           validator_result: ${{ needs.performance-post-test-validation.outputs.ValidatorStatus }}
-
         run: |
           # result is 'success' or 'failure'. If any of the tests failed, we return 'failure'
           RESULT="failure"
