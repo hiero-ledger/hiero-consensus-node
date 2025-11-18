@@ -291,7 +291,7 @@ jobs:
       enable-block-node-regression-panel: "true"
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
-      slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+      slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
 
   tag-for-promotion:
     name: Tag as XTS-Passing
