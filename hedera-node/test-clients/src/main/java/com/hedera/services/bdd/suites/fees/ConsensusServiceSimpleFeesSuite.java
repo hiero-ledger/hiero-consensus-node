@@ -133,10 +133,10 @@ public class ConsensusServiceSimpleFeesSuite {
                                     .fee(ONE_HBAR)
                                     .via("update-topic-txn")),
                     "update-topic-txn",
-                    // base fee = 2100000
+                    // base fee = 1200000
                     // node fee = base (100000) + 1 extra sig (1000000)
                     // network fee = node fee * 9
-                    // total = 13100000
+                    // total = 12200000
                     0.00122,
                     1,
                     0.000354,
