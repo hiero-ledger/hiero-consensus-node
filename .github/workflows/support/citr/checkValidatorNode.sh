@@ -21,6 +21,6 @@ then
   echo "Node: ${node_id} validation of round ${currentRound} is OK"
   grep -i -E 'time.* taken' validator.log
 else
-  echo "Node: $node_id validation of round ${currentRound} failed"
+  echo "Node: ${node_id} validation of round ${currentRound} failed"
 fi
 exit ${result}
