@@ -110,12 +110,6 @@ public class Hip1195BasicTests {
     @Contract(contract = "FalseTruePrePostHook", creationGas = 5_000_000)
     static SpecContract FALSE_TRUE_ALLOWANCE_HOOK;
 
-    @Contract(contract = "CreateOpHook", creationGas = 5_000_000)
-    static SpecContract CREATE_HOOK;
-
-    @Contract(contract = "Create2OpHook", creationGas = 5_000_000)
-    static SpecContract CREATE2_HOOK;
-
     @Contract(contract = "SelfDestructOpHook", creationGas = 5_000_000)
     static SpecContract SELF_DESTRUCT_HOOK;
 
@@ -126,8 +120,6 @@ public class Hip1195BasicTests {
         testLifecycle.doAdhoc(TRUE_ALLOWANCE_HOOK.getInfo());
         testLifecycle.doAdhoc(TRUE_PRE_POST_ALLOWANCE_HOOK.getInfo());
         testLifecycle.doAdhoc(FALSE_PRE_POST_ALLOWANCE_HOOK.getInfo());
-        testLifecycle.doAdhoc(CREATE_HOOK.getInfo());
-        testLifecycle.doAdhoc(CREATE2_HOOK.getInfo());
         testLifecycle.doAdhoc(SELF_DESTRUCT_HOOK.getInfo());
         testLifecycle.doAdhoc(FALSE_TRUE_ALLOWANCE_HOOK.getInfo());
 
