@@ -42,9 +42,15 @@ public class SimpleFeesReferenceTestCalculator {
     /**
      * Convert raw fee components from tinycents to a Result record in USD.
      */
-    public record Result(long node, long network, long service, double total) {
-        public double totalUsd() {
-            return toUsd(total);
+    public record Result(long node, long network, long service, long nodeExtras, long serviceExtras) {
+        // node + network + service in tinycents
+        public long total() {
+            return safeAdd(safeAdd(node, network), service);
+        }
+
+        // nodeExtras + serviceExtras in tinycents
+        public long totalExtras() {
+            return safeAdd(nodeExtras, serviceExtras);
         }
 
         public double nodeUsd() {
@@ -57,6 +63,68 @@ public class SimpleFeesReferenceTestCalculator {
 
         public double serviceUsd() {
             return toUsd(service);
+        }
+
+        public double totalUsd() {
+            return toUsd(total());
+        }
+
+        public double nodeExtrasUsd() {
+            return toUsd(nodeExtras);
+        }
+
+        public double serviceExtrasUsd() {
+            return toUsd(serviceExtras);
+        }
+
+        public double totalExtrasUsd() {
+            return toUsd(totalExtras());
+        }
+    }
+
+    /**
+     * Defines the raw charges components + payer charged amount in tinycents.
+     */
+    public record Charges(
+            long node, long network, long service, long nodeExtras, long serviceExtras, double payerCharged) {
+        public long total() {
+            return safeAdd(safeAdd(node, network), service);
+        }
+
+        public long totalExtras() {
+            return safeAdd(nodeExtras, serviceExtras);
+        }
+
+        public double nodeUsd() {
+            return toUsd(node);
+        }
+
+        public double networkUsd() {
+            return toUsd(network);
+        }
+
+        public double serviceUsd() {
+            return toUsd(service);
+        }
+
+        public double totalUsd() {
+            return toUsd(total());
+        }
+
+        public double nodeExtrasUsd() {
+            return toUsd(nodeExtras);
+        }
+
+        public double serviceExtrasUsd() {
+            return toUsd(serviceExtras);
+        }
+
+        public double totalExtrasUsd() {
+            return toUsd(totalExtras());
+        }
+
+        public double payerChargedUsd() {
+            return toUsd(payerCharged);
         }
     }
 
@@ -184,9 +252,11 @@ public class SimpleFeesReferenceTestCalculator {
         requireNonNull(extrasCounts, "extrasCounts must not be null");
 
         // Compute node fee
-        long nodeFee = safeAdd(
-                prepared.nodeBase(),
-                computeExtrasFee(prepared.priceByExtra(), prepared.nodeIncludedByExtra(), extrasCounts));
+
+        final long nodeExtrasFee =
+                computeExtrasFee(prepared.priceByExtra(), prepared.nodeIncludedByExtra(), extrasCounts);
+
+        long nodeFee = safeAdd(prepared.nodeBase(), nodeExtrasFee);
 
         // Compute network fee
         final long networkFee = safeMultiply(nodeFee, prepared.networkMultiplier());
@@ -196,20 +266,11 @@ public class SimpleFeesReferenceTestCalculator {
         final Map<Extra, Long> serviceIncluded =
                 prepared.serviceIncludedByApiAndExtra().getOrDefault(functionality, Map.of());
 
-        final long serviceFee =
-                safeAdd(serviceBaseFee, computeExtrasFee(prepared.priceByExtra(), serviceIncluded, extrasCounts));
+        final long serviceExtrasFee = computeExtrasFee(prepared.priceByExtra(), serviceIncluded, extrasCounts);
 
-        final double totalFee = (1.0 * safeAdd(safeAdd(nodeFee, networkFee), serviceFee));
-        return new Result(nodeFee, networkFee, serviceFee, totalFee);
-    }
+        final long serviceFee = safeAdd(serviceBaseFee, serviceExtrasFee);
 
-    /**
-     * Defines the raw charges components in tinycents.
-     */
-    public record Charges(long node, long network, long service, double payerCharged) {
-        public double payerUsd() {
-            return toUsd(payerCharged);
-        }
+        return new Result(nodeFee, networkFee, serviceFee, nodeExtrasFee, serviceExtrasFee);
     }
 
     public static Charges computeWithPolicy(
@@ -226,7 +287,7 @@ public class SimpleFeesReferenceTestCalculator {
         final Result rawFees = compute(prepared, functionality, extrasCounts);
 
         // Determine payer charged fee based on policy
-        final double payerChargedFee =
+        final long payerChargedFee =
                 switch (policy) {
                     case UNREADABLE_BYTES_ZERO_PAYER,
                             INVALID_TXN_AT_INGEST_ZERO_PAYER,
@@ -235,7 +296,13 @@ public class SimpleFeesReferenceTestCalculator {
                     default -> throw new IllegalArgumentException("Unknown SimpleFeesChargePolicy: " + policy);
                 };
 
-        return new Charges(rawFees.node(), rawFees.network(), rawFees.service(), payerChargedFee);
+        return new Charges(
+                rawFees.node(),
+                rawFees.network(),
+                rawFees.service(),
+                rawFees.nodeExtras(),
+                rawFees.serviceExtras(),
+                payerChargedFee);
     }
 
     // ------- Helpers -------

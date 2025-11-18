@@ -509,7 +509,6 @@ public class SimpleFeesInitialAssertionTests {
                             .get();
 
                     HapiGetTxnRecord createAccountTxn = getTxnRecord("createAccountTxn");
-
                     allRunFor(spec, createAccountTxn);
 
                     // calculate expected fee
@@ -517,13 +516,17 @@ public class SimpleFeesInitialAssertionTests {
                             preparedSchedule, CRYPTO_CREATE, extrasCounts, SUCCESS_TXN_FULL_CHARGE);
 
                     log.info(
-                            "expected node = {}, network = {}, service = {}, total = {}",
-                            SimpleFeesReferenceTestCalculator.toUsd(expectedCharges.node()),
-                            SimpleFeesReferenceTestCalculator.toUsd(expectedCharges.network()),
-                            SimpleFeesReferenceTestCalculator.toUsd(expectedCharges.service()),
-                            SimpleFeesReferenceTestCalculator.toUsd(expectedCharges.payerCharged()));
+                            "LOG: expected node_usd = {}, network_usd = {}, service_usd = {}, "
+                                    + "node_extras_usd = {}, service_extras_usd = {}, total_usd = {}, payer_charged_usd = {}",
+                            expectedCharges.nodeUsd(),
+                            expectedCharges.networkUsd(),
+                            expectedCharges.serviceUsd(),
+                            expectedCharges.nodeExtrasUsd(),
+                            expectedCharges.serviceExtrasUsd(),
+                            expectedCharges.totalUsd(),
+                            expectedCharges.payerChargedUsd());
 
-                    allRunFor(spec, validateChargedUsd("createAccountTxn", expectedCharges.payerUsd()));
+                    allRunFor(spec, validateChargedUsd("createAccountTxn", expectedCharges.payerChargedUsd()));
                 }),
                 restoreSimpleFees("originalSimpleFees"));
     }
@@ -561,12 +564,10 @@ public class SimpleFeesInitialAssertionTests {
 
                     // build the parameters
                     final Map<Extra, Long> extrasCounts = SimpleFeesParams.create()
-                            .signatures(2L) // payer signature is included
-                            .keys(1L) // adminKey not included
+                            .signatures(3L) // payer signature is included
                             .get();
 
                     HapiGetTxnRecord createAccountTxn = getTxnRecord("createAccountTxn");
-
                     allRunFor(spec, createAccountTxn);
 
                     // calculate expected fee
@@ -574,20 +575,24 @@ public class SimpleFeesInitialAssertionTests {
                             preparedSchedule, CRYPTO_CREATE, extrasCounts, SUCCESS_TXN_FULL_CHARGE);
 
                     log.info(
-                            "expected node = {}, network = {}, service = {}, total = {}",
-                            SimpleFeesReferenceTestCalculator.toUsd(expectedCharges.node()),
-                            SimpleFeesReferenceTestCalculator.toUsd(expectedCharges.network()),
-                            SimpleFeesReferenceTestCalculator.toUsd(expectedCharges.service()),
-                            SimpleFeesReferenceTestCalculator.toUsd(expectedCharges.payerCharged()));
+                            "LOG: expected node_usd = {}, network_usd = {}, service_usd = {}, "
+                                    + "node_extras_usd = {}, service_extras_usd = {}, total_usd = {}, payer_charged_usd = {}",
+                            expectedCharges.nodeUsd(),
+                            expectedCharges.networkUsd(),
+                            expectedCharges.serviceUsd(),
+                            expectedCharges.nodeExtrasUsd(),
+                            expectedCharges.serviceExtrasUsd(),
+                            expectedCharges.totalUsd(),
+                            expectedCharges.payerChargedUsd());
 
-                    allRunFor(spec, validateChargedUsd("createAccountTxn", expectedCharges.payerUsd()));
+                    allRunFor(spec, validateChargedUsd("createAccountTxn", expectedCharges.payerChargedUsd()));
                 }),
                 restoreSimpleFees("originalSimpleFees"));
     }
 
     @HapiTest
-    @DisplayName("Crypto Create - full charging with extra signature and key")
-    Stream<DynamicTest> cryptoCreateWithCustomScheduleWithExtraSignatureAndKey() {
+    @DisplayName("Crypto Create - full charging with included key and extra signature")
+    Stream<DynamicTest> cryptoCreateWithCustomScheduleWithIncludedKeyAndExtraSignature() {
 
         return hapiTest(
                 // save the current active schedule to registry
@@ -603,10 +608,11 @@ public class SimpleFeesInitialAssertionTests {
                 // perform the transaction under test
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(ADMIN_KEY),
+                newKeyNamed(SUBMIT_KEY),
                 cryptoCreate("testAccount")
                         .key(ADMIN_KEY)
                         .payingWith(PAYER)
-                        .signedBy(PAYER, ADMIN_KEY)
+                        .signedBy(PAYER, ADMIN_KEY, SUBMIT_KEY)
                         .fee(ONE_HBAR)
                         .via("createAccountTxn"),
 
@@ -618,12 +624,11 @@ public class SimpleFeesInitialAssertionTests {
 
                     // build the parameters
                     final Map<Extra, Long> extrasCounts = SimpleFeesParams.create()
-                            .signatures(2L) // payer signature is included
-                            .keys(1L) // adminKey not included
+                            .signatures(3L) // payer signature is included
+                            .keys(1L) // adminKey is included
                             .get();
 
                     HapiGetTxnRecord createAccountTxn = getTxnRecord("createAccountTxn");
-
                     allRunFor(spec, createAccountTxn);
 
                     // calculate expected fee
@@ -631,13 +636,79 @@ public class SimpleFeesInitialAssertionTests {
                             preparedSchedule, CRYPTO_CREATE, extrasCounts, SUCCESS_TXN_FULL_CHARGE);
 
                     log.info(
-                            "expected node = {}, network = {}, service = {}, total = {}",
-                            SimpleFeesReferenceTestCalculator.toUsd(expectedCharges.node()),
-                            SimpleFeesReferenceTestCalculator.toUsd(expectedCharges.network()),
-                            SimpleFeesReferenceTestCalculator.toUsd(expectedCharges.service()),
-                            SimpleFeesReferenceTestCalculator.toUsd(expectedCharges.payerCharged()));
+                            "LOG: expected node_usd = {}, network_usd = {}, service_usd = {}, "
+                                    + "node_extras_usd = {}, service_extras_usd = {}, total_usd = {}, payer_charged_usd = {}",
+                            expectedCharges.nodeUsd(),
+                            expectedCharges.networkUsd(),
+                            expectedCharges.serviceUsd(),
+                            expectedCharges.nodeExtrasUsd(),
+                            expectedCharges.serviceExtrasUsd(),
+                            expectedCharges.totalUsd(),
+                            expectedCharges.payerChargedUsd());
 
-                    allRunFor(spec, validateChargedUsd("createAccountTxn", expectedCharges.payerUsd()));
+                    allRunFor(spec, validateChargedUsd("createAccountTxn", expectedCharges.payerChargedUsd()));
+                }),
+                restoreSimpleFees("originalSimpleFees"));
+    }
+
+    @HapiTest
+    @DisplayName("Crypto Create - full charging with extra key and extra signatures")
+    Stream<DynamicTest> cryptoCreateWithCustomScheduleWithExtraKeyAndExtraSignatures() {
+
+        return hapiTest(
+                // save the current active schedule to registry
+                snapshotSimpleFees("originalSimpleFees"),
+
+                // override the active schedule with custom schedule for this test
+                withOpContext((spec, log) -> {
+                    final var jsonSchedule = fromClassPath("/hip1261/customSimpleFees.json");
+                    FeeSchedule pbjSchedule = JsonToFeeScheduleConverter.toFeeSchedule(jsonSchedule);
+                    allRunFor(spec, overrideSimpleFees(pbjSchedule));
+                }),
+
+                // perform the transaction under test
+                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                newKeyNamed(ADMIN_KEY),
+                newKeyNamed(SUBMIT_KEY),
+                cryptoCreate("testAccount")
+                        .key(ADMIN_KEY)
+                        .key(SUBMIT_KEY)
+                        .payingWith(PAYER)
+                        .signedBy(PAYER, ADMIN_KEY, SUBMIT_KEY)
+                        .fee(ONE_HBAR)
+                        .via("createAccountTxn"),
+
+                // validate charged fees
+                withOpContext((spec, log) -> {
+                    // prepare the custom fee schedule for calculations
+                    final var jsonSchedule = fromClassPath("/hip1261/customSimpleFees.json");
+                    final var preparedSchedule = SimpleFeesReferenceTestCalculator.prepare(jsonSchedule);
+
+                    // build the parameters
+                    final Map<Extra, Long> extrasCounts = SimpleFeesParams.create()
+                            .signatures(3L) // payer signature is included
+                            .keys(2L) // adminKey is included
+                            .get();
+
+                    HapiGetTxnRecord createAccountTxn = getTxnRecord("createAccountTxn");
+                    allRunFor(spec, createAccountTxn);
+
+                    // calculate expected fee
+                    final var expectedCharges = SimpleFeesReferenceTestCalculator.computeWithPolicy(
+                            preparedSchedule, CRYPTO_CREATE, extrasCounts, SUCCESS_TXN_FULL_CHARGE);
+
+                    log.info(
+                            "LOG: expected node_usd = {}, network_usd = {}, service_usd = {}, "
+                                    + "node_extras_usd = {}, service_extras_usd = {}, total_usd = {}, payer_charged_usd = {}",
+                            expectedCharges.nodeUsd(),
+                            expectedCharges.networkUsd(),
+                            expectedCharges.serviceUsd(),
+                            expectedCharges.nodeExtrasUsd(),
+                            expectedCharges.serviceExtrasUsd(),
+                            expectedCharges.totalUsd(),
+                            expectedCharges.payerChargedUsd());
+
+                    allRunFor(spec, validateChargedUsd("createAccountTxn", expectedCharges.payerChargedUsd()));
                 }),
                 restoreSimpleFees("originalSimpleFees"));
     }
