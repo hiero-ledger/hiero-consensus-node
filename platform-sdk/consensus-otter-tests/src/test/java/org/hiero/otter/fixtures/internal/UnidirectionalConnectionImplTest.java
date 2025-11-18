@@ -21,16 +21,16 @@ import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.BandwidthLimit;
-import org.hiero.otter.fixtures.network.DirectionalConnection;
 import org.hiero.otter.fixtures.network.Topology;
+import org.hiero.otter.fixtures.network.UnidirectionalConnection;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * Integration tests for {@link AbstractNetwork.DirectionalConnectionImpl}.
+ * Integration tests for {@code AbstractNetwork.UnidirectionalConnectionImpl}.
  * Tests the behavior through the Network's public API since DirectionalConnectionImpl is private.
  */
-class DirectionalConnectionImplTest {
+class UnidirectionalConnectionImplTest {
 
     private TestableNetwork network;
     private Node node1;
@@ -48,7 +48,7 @@ class DirectionalConnectionImplTest {
 
     @Test
     void returnsCorrectNodes() {
-        final DirectionalConnection connection = network.directionalConnection(node1, node2);
+        final UnidirectionalConnection connection = network.unidirectionalConnection(node1, node2);
 
         assertThat(connection.sender()).isEqualTo(node1);
         assertThat(connection.receiver()).isEqualTo(node2);
@@ -56,8 +56,8 @@ class DirectionalConnectionImplTest {
 
     @Test
     void changesConnectionState() {
-        final DirectionalConnection connection = network.directionalConnection(node1, node2);
-        final DirectionalConnection reverse = network.directionalConnection(node2, node1);
+        final UnidirectionalConnection connection = network.unidirectionalConnection(node1, node2);
+        final UnidirectionalConnection reverse = network.unidirectionalConnection(node2, node1);
         assertThat(connection.isConnected()).isTrue();
         assertThat(reverse.isConnected()).isTrue();
 
@@ -79,7 +79,7 @@ class DirectionalConnectionImplTest {
 
     @Test
     void setLatencyUpdatesLatency() {
-        final DirectionalConnection connection = network.directionalConnection(node1, node2);
+        final UnidirectionalConnection connection = network.unidirectionalConnection(node1, node2);
         final Duration newLatency = connection.latency().plus(100, MILLIS);
 
         connection.latency(newLatency);
@@ -89,8 +89,8 @@ class DirectionalConnectionImplTest {
 
     @Test
     void latencyChangesAreIndependentPerDirection() {
-        final DirectionalConnection forward = network.directionalConnection(node1, node2);
-        final DirectionalConnection backward = network.directionalConnection(node2, node1);
+        final UnidirectionalConnection forward = network.unidirectionalConnection(node1, node2);
+        final UnidirectionalConnection backward = network.unidirectionalConnection(node2, node1);
 
         final Duration forwardLatency = Duration.ofMillis(100);
         final Duration backwardLatency = Duration.ofMillis(200);
@@ -104,7 +104,7 @@ class DirectionalConnectionImplTest {
 
     @Test
     void setJitterUpdatesJitter() {
-        final DirectionalConnection connection = network.directionalConnection(node1, node2);
+        final UnidirectionalConnection connection = network.unidirectionalConnection(node1, node2);
         final Percentage newJitter = Percentage.withPercentage(15.0);
 
         connection.jitter(newJitter);
@@ -114,8 +114,8 @@ class DirectionalConnectionImplTest {
 
     @Test
     void jitterChangesAreIndependentPerDirection() {
-        final DirectionalConnection forward = network.directionalConnection(node1, node2);
-        final DirectionalConnection backward = network.directionalConnection(node2, node1);
+        final UnidirectionalConnection forward = network.unidirectionalConnection(node1, node2);
+        final UnidirectionalConnection backward = network.unidirectionalConnection(node2, node1);
 
         final Percentage forwardJitter = Percentage.withPercentage(10.0);
         final Percentage backwardJitter = Percentage.withPercentage(20.0);
@@ -129,7 +129,7 @@ class DirectionalConnectionImplTest {
 
     @Test
     void restoreLatencyResetsToDefault() {
-        final DirectionalConnection connection = network.directionalConnection(node1, node2);
+        final UnidirectionalConnection connection = network.unidirectionalConnection(node1, node2);
         final Duration originalLatency = connection.latency();
         final Percentage originalJitter = connection.jitter();
 
@@ -144,7 +144,7 @@ class DirectionalConnectionImplTest {
 
     @Test
     void setBandwidthLimitUpdatesBandwidth() {
-        final DirectionalConnection connection = network.directionalConnection(node1, node2);
+        final UnidirectionalConnection connection = network.unidirectionalConnection(node1, node2);
         final BandwidthLimit newLimit = BandwidthLimit.ofMegabytesPerSecond(5);
 
         connection.bandwidthLimit(newLimit);
@@ -154,8 +154,8 @@ class DirectionalConnectionImplTest {
 
     @Test
     void bandwidthLimitChangesAreIndependentPerDirection() {
-        final DirectionalConnection forward = network.directionalConnection(node1, node2);
-        final DirectionalConnection backward = network.directionalConnection(node2, node1);
+        final UnidirectionalConnection forward = network.unidirectionalConnection(node1, node2);
+        final UnidirectionalConnection backward = network.unidirectionalConnection(node2, node1);
 
         final BandwidthLimit forwardLimit = BandwidthLimit.ofKilobytesPerSecond(1000);
         final BandwidthLimit backwardLimit = BandwidthLimit.ofKilobytesPerSecond(2000);
@@ -169,7 +169,7 @@ class DirectionalConnectionImplTest {
 
     @Test
     void restoreBandwidthLimitResetsToDefault() {
-        final DirectionalConnection connection = network.directionalConnection(node1, node2);
+        final UnidirectionalConnection connection = network.unidirectionalConnection(node1, node2);
         final BandwidthLimit originalLimit = connection.bandwidthLimit();
 
         connection.bandwidthLimit(BandwidthLimit.ofMegabytesPerSecond(10));
@@ -181,7 +181,7 @@ class DirectionalConnectionImplTest {
 
     @Test
     void restoreConnectivityResetsAllProperties() {
-        final DirectionalConnection connection = network.directionalConnection(node1, node2);
+        final UnidirectionalConnection connection = network.unidirectionalConnection(node1, node2);
         final Duration originalLatency = connection.latency();
         final Percentage originalJitter = connection.jitter();
         final BandwidthLimit originalBandwidth = connection.bandwidthLimit();
@@ -201,8 +201,8 @@ class DirectionalConnectionImplTest {
 
     @Test
     void multipleConnectionObjectsReferSameUnderlyingConnection() {
-        final DirectionalConnection connection1 = network.directionalConnection(node1, node2);
-        final DirectionalConnection connection2 = network.directionalConnection(node1, node2);
+        final UnidirectionalConnection connection1 = network.unidirectionalConnection(node1, node2);
+        final UnidirectionalConnection connection2 = network.unidirectionalConnection(node1, node2);
 
         connection1.disconnect();
         connection1.latency(Duration.ofMillis(999));
