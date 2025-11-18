@@ -284,6 +284,7 @@ jobs:
       solo-version: ${{ needs.parameters.outputs.solo-version }}
       solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}
       helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
+      mirror-node-version: ${{ vars.CITR_MIRROR_NODE_VERSION }}
       custom-job-label: "XTS (Optional):"
       enable-mirror-node-regression-panel: "true"
       enable-rpc-relay-regression-panel: "true"
