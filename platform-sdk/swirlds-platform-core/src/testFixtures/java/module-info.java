@@ -12,11 +12,11 @@ open module com.swirlds.platform.core.test.fixtures {
     requires transitive com.swirlds.state.api;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
-    requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.consensus.model.test.fixtures;
     requires transitive org.hiero.consensus.model;
     requires transitive org.assertj.core;
     requires transitive org.junit.jupiter.api;
+    requires com.swirlds.base.test.fixtures;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires com.swirlds.merkledb.test.fixtures;

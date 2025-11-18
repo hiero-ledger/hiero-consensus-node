@@ -5,6 +5,8 @@ import static com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountAmount;
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransferList;
@@ -98,5 +100,20 @@ public class HookUtils {
             }
         }
         return false;
+    }
+
+    /**
+     * Converts a ContractID to an AccountID.
+     *
+     * @param contractID the ContractID to convert
+     * @return the corresponding AccountID
+     */
+    public static AccountID asAccountId(@NonNull final ContractID contractID) {
+        requireNonNull(contractID);
+        return AccountID.newBuilder()
+                .shardNum(contractID.shardNum())
+                .realmNum(contractID.realmNum())
+                .accountNum(contractID.contractNumOrThrow())
+                .build();
     }
 }

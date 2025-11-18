@@ -2,7 +2,7 @@
 package com.hedera.services.bdd.suites.integration.hip1195;
 
 import static com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore.minimalKey;
-import static com.hedera.services.bdd.junit.TestTags.ADHOC;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
@@ -10,11 +10,16 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountLambdaSStore;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractLambdaSStore;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createDefaultContract;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
-import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.encodeParametersForConstructor;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
+import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewContract;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.GLOBAL_WATCHER;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.expectContractStateChangesSidecarFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
@@ -22,6 +27,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.traceability.EncodingUtils.formattedAssertionValue;
 import static com.hedera.services.bdd.suites.integration.hip1195.Hip1195EnabledTest.HOOK_CONTRACT_NUM;
@@ -33,10 +39,13 @@ import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.hyperledger.besu.crypto.Hash.keccak256;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.esaulpaugh.headlong.abi.Single;
+import com.esaulpaugh.headlong.abi.TupleType;
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.hooks.LambdaMappingEntry;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
@@ -45,7 +54,6 @@ import com.hedera.services.bdd.spec.assertions.StateChange;
 import com.hedera.services.bdd.spec.assertions.StorageChange;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
-import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -63,9 +71,6 @@ import org.junit.jupiter.api.Tag;
 @TargetEmbeddedMode(CONCURRENT)
 public class Hip1195StorageTest {
     private static final String OWNER = "owner";
-    private static final String PAYER = "payer";
-    private static final String STRING_ABI =
-            "{\"inputs\":[{\"internalType\":\"string\",\"name\":\"_password\",\"type\":\"string\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"}";
 
     @Contract(contract = "StorageMappingHook", creationGas = 5_000_000)
     static SpecContract STORAGE_GET_MAPPING_HOOK;
@@ -76,12 +81,16 @@ public class Hip1195StorageTest {
     @Contract(contract = "StorageAccessHook", creationGas = 5_000_000)
     static SpecContract STORAGE_GET_SLOT_HOOK;
 
+    @Contract(contract = "StorageLinkedListHook", creationGas = 5_000_000)
+    static SpecContract STORAGE_MODIFICATIONS_HOOK;
+
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
         testLifecycle.doAdhoc(STORAGE_GET_SLOT_HOOK.getInfo());
         testLifecycle.doAdhoc(STORAGE_GET_MAPPING_HOOK.getInfo());
         testLifecycle.doAdhoc(STORAGE_SET_SLOT_HOOK.getInfo());
+        testLifecycle.doAdhoc(STORAGE_MODIFICATIONS_HOOK.getInfo());
         testLifecycle.doAdhoc(withOpContext(
                 (spec, opLog) -> GLOBAL_WATCHER.set(new SidecarWatcher(spec.recordStreamsLoc(byNodeId(0))))));
     }
@@ -96,15 +105,11 @@ public class Hip1195StorageTest {
                 accountLambdaSStore("ownerAccount", 235L)
                         .putSlot(slotKey, oldValue)
                         .signedBy(DEFAULT_PAYER, "ownerAccount"),
-                viewAccount("ownerAccount", (Account a) -> {
-                    assertEquals(1, a.numberLambdaStorageSlots());
-                }),
+                viewAccount("ownerAccount", (Account a) -> assertEquals(1, a.numberLambdaStorageSlots())),
                 accountLambdaSStore("ownerAccount", 235L)
                         .putSlot(slotKey, newValue)
                         .signedBy(DEFAULT_PAYER, "ownerAccount"),
-                viewAccount("ownerAccount", (Account a) -> {
-                    assertEquals(1, a.numberLambdaStorageSlots());
-                }));
+                viewAccount("ownerAccount", (Account a) -> assertEquals(1, a.numberLambdaStorageSlots())));
     }
 
     @HapiTest
@@ -113,15 +118,11 @@ public class Hip1195StorageTest {
         final Bytes slotValue = Bytes.wrap("newValue");
         return hapiTest(
                 cryptoCreate("ownerAccount").withHooks(accountAllowanceHook(234L, STORAGE_GET_SLOT_HOOK.name())),
-                viewAccount("ownerAccount", (Account a) -> {
-                    assertEquals(0, a.numberLambdaStorageSlots());
-                }),
+                viewAccount("ownerAccount", (Account a) -> assertEquals(0, a.numberLambdaStorageSlots())),
                 accountLambdaSStore("ownerAccount", 234L)
                         .putSlot(slotKey, slotValue)
                         .signedBy(DEFAULT_PAYER, "ownerAccount"),
-                viewAccount("ownerAccount", (Account a) -> {
-                    assertEquals(1, a.numberLambdaStorageSlots());
-                }));
+                viewAccount("ownerAccount", (Account a) -> assertEquals(1, a.numberLambdaStorageSlots())));
     }
 
     @HapiTest
@@ -137,17 +138,13 @@ public class Hip1195StorageTest {
                         .putSlot(slot2, value)
                         .putSlot(slot3, value)
                         .signedBy(DEFAULT_PAYER, "ownerAccount"),
-                viewAccount("ownerAccount", (Account a) -> {
-                    assertEquals(3, a.numberLambdaStorageSlots());
-                }),
+                viewAccount("ownerAccount", (Account a) -> assertEquals(3, a.numberLambdaStorageSlots())),
                 accountLambdaSStore("ownerAccount", 237L)
                         .removeSlot(slot1)
                         .removeSlot(slot2)
                         .removeSlot(slot3)
                         .signedBy(DEFAULT_PAYER, "ownerAccount"),
-                viewAccount("ownerAccount", (Account a) -> {
-                    assertEquals(0, a.numberLambdaStorageSlots());
-                }));
+                viewAccount("ownerAccount", (Account a) -> assertEquals(0, a.numberLambdaStorageSlots())));
     }
 
     @HapiTest
@@ -163,20 +160,16 @@ public class Hip1195StorageTest {
                         .hasKnownStatus(INVALID_SIGNATURE));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> removeStorageSlotsAndDeleteHook() {
         final Bytes A = Bytes.wrap("a");
         final Bytes B = Bytes.wrap("Bb");
         return hapiTest(
                 cryptoCreate("accountToCleanup").withHooks(accountAllowanceHook(221L, STORAGE_GET_SLOT_HOOK.name())),
                 accountLambdaSStore("accountToCleanup", 221L).putSlot(A, B),
-                viewAccount("accountToCleanup", (Account a) -> {
-                    assertEquals(1, a.numberLambdaStorageSlots());
-                }),
+                viewAccount("accountToCleanup", (Account a) -> assertEquals(1, a.numberLambdaStorageSlots())),
                 accountLambdaSStore("accountToCleanup", 221L).removeSlot(A),
-                viewAccount("accountToCleanup", (Account a) -> {
-                    assertEquals(0, a.numberLambdaStorageSlots());
-                }),
+                viewAccount("accountToCleanup", (Account a) -> assertEquals(0, a.numberLambdaStorageSlots())),
                 cryptoUpdate("accountToCleanup").removingHooks(221L),
                 viewAccount("accountToCleanup", (Account a) -> {
                     assertEquals(0L, a.firstHookId());
@@ -184,8 +177,8 @@ public class Hip1195StorageTest {
                 }));
     }
 
-    @HapiTest
-    final Stream<DynamicTest> lambdaSStoreWithMappingEntry() {
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+    final Stream<DynamicTest> accountLambdaSStoreWithMappingEntry() {
         final var mappingSlot = Bytes.EMPTY;
         final AtomicReference<byte[]> keyMirror = new AtomicReference<>();
         return hapiTest(
@@ -200,12 +193,30 @@ public class Hip1195StorageTest {
                                         .value(Bytes.wrap(new byte[] {(byte) 0x01}))
                                         .build())
                         .signedBy(DEFAULT_PAYER, "ownerAccount")),
-                viewAccount("ownerAccount", (Account a) -> {
-                    assertEquals(1, a.numberLambdaStorageSlots());
-                }));
+                viewAccount("ownerAccount", (Account a) -> assertEquals(1, a.numberLambdaStorageSlots())));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+    final Stream<DynamicTest> contractLambdaSStoreWithMappingEntry() {
+        final var mappingSlot = Bytes.EMPTY;
+        final AtomicReference<byte[]> keyMirror = new AtomicReference<>();
+        return hapiTest(
+                createDefaultContract("ownerContract")
+                        .withHooks(accountAllowanceHook(238L, STORAGE_GET_MAPPING_HOOK.name())),
+                withOpContext((spec, opLog) -> keyMirror.set(
+                        unhex(asHexedSolidityAddress(spec.registry().getAccountID(DEFAULT_PAYER))))),
+                sourcing(() -> contractLambdaSStore("ownerContract", 238L)
+                        .putMappingEntry(
+                                mappingSlot,
+                                LambdaMappingEntry.newBuilder()
+                                        .key(Bytes.wrap(keyMirror.get()))
+                                        .value(Bytes.wrap(new byte[] {(byte) 0x01}))
+                                        .build())
+                        .signedBy(DEFAULT_PAYER, "ownerContract")),
+                viewAccount("ownerContract", (Account a) -> assertEquals(1, a.numberLambdaStorageSlots())));
+    }
+
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> cryptoCreateAccountWithHookWithStorageSlotsAndMappingEntries() {
         final var mappingSlot = Bytes.EMPTY;
         final AtomicReference<byte[]> payerMirror = new AtomicReference<>();
@@ -237,7 +248,7 @@ public class Hip1195StorageTest {
                         .withHooks(accountAllowanceHook(124L, STORAGE_GET_SLOT_HOOK.name()))
                         .receiverSigRequired(true),
                 // gets rejected because the return value from the allow function is false bye default
-                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                cryptoTransfer(movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
@@ -246,47 +257,52 @@ public class Hip1195StorageTest {
                         .putSlot(Bytes.EMPTY, Bytes.wrap(new byte[] {(byte) 0x01}))
                         .signedBy(DEFAULT_PAYER, OWNER),
                 // now the transfer works
-                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                cryptoTransfer(movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER));
     }
 
-    @HapiTest
-    @Tag(ADHOC)
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> storageSettingWorks() {
         final var passcode = "open-sesame";
-        final var passHash32 = Bytes.wrap(keccak256(org.apache.tuweni.bytes.Bytes.wrap(passcode.getBytes(UTF_8)))
+        final var passcodeHash = Bytes.wrap(keccak256(org.apache.tuweni.bytes.Bytes.wrap(passcode.getBytes(UTF_8)))
                 .toArray());
-        final var correctPassword =
-                ByteString.copyFrom(encodeParametersForConstructor(new Object[] {passcode}, STRING_ABI));
-        final var wrongPassword =
-                ByteString.copyFrom(encodeParametersForConstructor(new Object[] {"wrong password"}, STRING_ABI));
+        final var tupleType = TupleType.parse("(string)");
+        final var correctPassword = ByteString.copyFrom(tupleType.encode(Single.of(passcode)));
+        final var wrongPassword = ByteString.copyFrom(tupleType.encode(Single.of("open-sunflower")));
 
         return hapiTest(
                 cryptoCreate(OWNER).withHooks(accountAllowanceHook(124L, STORAGE_SET_SLOT_HOOK.name())),
-                // gets rejected because the return value from the allow function is false bye default
-                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                viewAccount(OWNER, (Account a) -> {
+                    assertEquals(124L, a.firstHookId());
+                    assertEquals(1, a.numberHooksInUse());
+                    assertEquals(0, a.numberLambdaStorageSlots());
+                }),
+                // gets rejected because the return value from the allow function is false by default
+                cryptoTransfer(movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
                 // update the required pass code in the hook.
                 // Since the contract uses a keccak256 hash of the passcode, we store that in the slot 0
                 accountLambdaSStore(OWNER, 124L)
-                        .putSlot(Bytes.EMPTY, passHash32)
+                        .putSlot(Bytes.EMPTY, passcodeHash)
                         .signedBy(DEFAULT_PAYER, OWNER),
+                viewAccount(OWNER, (Account a) -> assertEquals(1, a.numberLambdaStorageSlots())),
                 // since the contract calls abi.decode on the input bytes, we need to pass in the encoded
                 // parameters
-                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                cryptoTransfer(movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 25_000L, wrongPassword)
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
                 // submitting the correct encoded passcode works
-                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                cryptoTransfer(movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 25_000L, correctPassword)
                         .signedBy(DEFAULT_PAYER)
                         .via("storageSetTxn"),
+                viewAccount(OWNER, (Account a) -> assertEquals(0, a.numberLambdaStorageSlots())),
                 // since it resets the storage slots we should not be able to do another transfer
-                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                cryptoTransfer(movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 25_000L, correctPassword)
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
@@ -296,22 +312,60 @@ public class Hip1195StorageTest {
                         List.of(StateChange.stateChangeFor(HOOK_CONTRACT_NUM)
                                 .withStorageChanges(StorageChange.readAndWritten(
                                         formattedAssertionValue(0),
-                                        formattedAssertionValue(passHash32.toHex()),
+                                        formattedAssertionValue(passcodeHash.toHex()),
                                         formattedAssertionValue(0))))),
                 withOpContext(
                         (spec, opLog) -> requireNonNull(GLOBAL_WATCHER.get()).assertExpectations(spec)));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+    final Stream<DynamicTest> contractStorageSettingWorks() {
+        final var passcode = "open-sesame";
+        final var passHash32 = Bytes.wrap(keccak256(org.apache.tuweni.bytes.Bytes.wrap(passcode.getBytes(UTF_8)))
+                .toArray());
+        final var tupleType = TupleType.parse("(string)");
+        final var correctPassword = ByteString.copyFrom(tupleType.encode(Single.of(passcode)));
+        final var wrongPassword = ByteString.copyFrom(tupleType.encode(Single.of("open-sunflower")));
+
+        return hapiTest(
+                createDefaultContract(OWNER).withHooks(accountAllowanceHook(124L, STORAGE_SET_SLOT_HOOK.name())),
+                cryptoTransfer(movingHbar(ONE_HUNDRED_HBARS).between(DEFAULT_PAYER, OWNER)),
+                viewAccount(OWNER, (Account a) -> {
+                    assertEquals(124L, a.firstHookId());
+                    assertEquals(1, a.numberHooksInUse());
+                    assertEquals(0, a.numberLambdaStorageSlots());
+                }),
+                cryptoTransfer(movingHbar(10).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 124L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                contractLambdaSStore(OWNER, 124L)
+                        .putSlot(Bytes.EMPTY, passHash32)
+                        .signedBy(DEFAULT_PAYER, OWNER),
+                viewAccount(OWNER, (Account a) -> assertEquals(1, a.numberLambdaStorageSlots())),
+                cryptoTransfer(movingHbar(10).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 124L, 25_000L, wrongPassword)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                cryptoTransfer(movingHbar(10).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 124L, 25_000L, correctPassword),
+                viewAccount(OWNER, (Account a) -> assertEquals(0, a.numberLambdaStorageSlots())),
+                // Passcode is a one-time use
+                cryptoTransfer(movingHbar(10).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 124L, 25_000L, correctPassword)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
+    }
+
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> storageAccessFromMappingWorks() {
         final var mappingSlot = Bytes.EMPTY;
         final AtomicReference<byte[]> defaultPayerMirror = new AtomicReference<>();
 
         return hapiTest(
                 cryptoCreate(OWNER).withHooks(accountAllowanceHook(124L, STORAGE_GET_MAPPING_HOOK.name())),
+                viewAccount(OWNER, (Account a) -> assertEquals(0, a.numberLambdaStorageSlots())),
                 withOpContext(
                         (spec, opLog) -> defaultPayerMirror.set(unhex(asHexedSolidityAddress(asAccount(spec, 2))))),
-                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                cryptoTransfer(movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
@@ -326,12 +380,80 @@ public class Hip1195StorageTest {
                                         .value(Bytes.wrap(new byte[] {(byte) 0x01}))
                                         .build())
                         .signedBy(DEFAULT_PAYER, OWNER)),
-                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                viewAccount(OWNER, (Account a) -> assertEquals(1, a.numberLambdaStorageSlots())),
+                cryptoTransfer(movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 25_000L, "")
-                        .signedBy(DEFAULT_PAYER));
+                        .signedBy(DEFAULT_PAYER),
+                viewAccount(OWNER, (Account a) -> assertEquals(1, a.numberLambdaStorageSlots())));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+    final Stream<DynamicTest> hookZeroWriteIntoEmptySlotDoesNotChangeCount() {
+        final var opcode = ByteString.copyFrom(new byte[] {0x01});
+        return hapiTest(
+                cryptoCreate("ownerZero").withHooks(accountAllowanceHook(246L, STORAGE_MODIFICATIONS_HOOK.name())),
+                viewAccount("ownerZero", (Account a) -> assertEquals(0, a.numberLambdaStorageSlots())),
+                cryptoTransfer(movingHbar(10).between("ownerZero", GENESIS))
+                        .withPreHookFor("ownerZero", 246L, 250_000L, opcode)
+                        .signedBy(DEFAULT_PAYER),
+                viewAccount("ownerZero", (Account a) -> assertEquals(0, a.numberLambdaStorageSlots())));
+    }
+
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+    final Stream<DynamicTest> hookRemoveAllExistingSlotsInOneTransaction() {
+        final var opAdd = ByteString.copyFrom(new byte[] {0x02});
+        final var opRemoveAll = ByteString.copyFrom(new byte[] {0x03});
+        return hapiTest(
+                cryptoCreate("ownerRemove").withHooks(accountAllowanceHook(247L, STORAGE_MODIFICATIONS_HOOK.name())),
+                // Populate three slots
+                cryptoTransfer(movingHbar(10).between("ownerRemove", GENESIS))
+                        .withPreHookFor("ownerRemove", 247L, 250_000L, opAdd)
+                        .signedBy(DEFAULT_PAYER),
+                viewAccount("ownerRemove", (Account a) -> assertEquals(3, a.numberLambdaStorageSlots())),
+                // Remove all slots in one transaction
+                cryptoTransfer(movingHbar(10).between("ownerRemove", GENESIS))
+                        .withPreHookFor("ownerRemove", 247L, 250_000L, opRemoveAll)
+                        .signedBy(DEFAULT_PAYER),
+                viewAccount("ownerRemove", (Account a) -> assertEquals(0, a.numberLambdaStorageSlots())));
+    }
+
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+    final Stream<DynamicTest> hookRemoveAllExistingSlotsInOneTransactionContract() {
+        final var opAdd = ByteString.copyFrom(new byte[] {0x02});
+        final var opRemoveAll = ByteString.copyFrom(new byte[] {0x03});
+        final var MULTIPURPOSE = "Multipurpose";
+        return hapiTest(
+                uploadInitCode(MULTIPURPOSE),
+                contractCreate(MULTIPURPOSE)
+                        .balance(ONE_HUNDRED_HBARS)
+                        .withHooks(accountAllowanceHook(247L, STORAGE_MODIFICATIONS_HOOK.name())),
+                viewContract(MULTIPURPOSE, (Account a) -> assertEquals(0, a.numberLambdaStorageSlots())),
+                // Populate three slots
+                cryptoTransfer(movingHbar(10).between(MULTIPURPOSE, GENESIS))
+                        .withPreHookFor(MULTIPURPOSE, 247L, 250_000L, opAdd)
+                        .signedBy(DEFAULT_PAYER),
+                viewContract(MULTIPURPOSE, (Account a) -> assertEquals(3, a.numberLambdaStorageSlots())),
+                // Remove all slots in one transaction
+                cryptoTransfer(movingHbar(10).between(MULTIPURPOSE, GENESIS))
+                        .withPreHookFor(MULTIPURPOSE, 247L, 250_000L, opRemoveAll)
+                        .signedBy(DEFAULT_PAYER),
+                viewContract(MULTIPURPOSE, (Account a) -> assertEquals(0, a.numberLambdaStorageSlots())));
+    }
+
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+    final Stream<DynamicTest> hookAddAndRemoveAllInSingleTransaction() {
+        final var opAddRemove = ByteString.copyFrom(new byte[] {0x04});
+        return hapiTest(
+                cryptoCreate("ownerAddRem").withHooks(accountAllowanceHook(248L, STORAGE_MODIFICATIONS_HOOK.name())),
+                viewAccount("ownerAddRem", (Account a) -> assertEquals(0, a.numberLambdaStorageSlots())),
+                // Add and remove all in one transaction
+                cryptoTransfer(movingHbar(10).between("ownerAddRem", GENESIS))
+                        .withPreHookFor("ownerAddRem", 248L, 250_000L, opAddRemove)
+                        .signedBy(DEFAULT_PAYER),
+                viewAccount("ownerAddRem", (Account a) -> assertEquals(0, a.numberLambdaStorageSlots())));
+    }
+
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> deleteHooksWithoutStorageSlots() {
         return hapiTest(
                 cryptoCreate("accountToDelete").withHooks(accountAllowanceHook(222L, STORAGE_GET_SLOT_HOOK.name())),

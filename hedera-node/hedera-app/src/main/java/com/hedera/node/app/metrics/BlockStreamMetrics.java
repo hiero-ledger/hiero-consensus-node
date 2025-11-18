@@ -35,6 +35,8 @@ public class BlockStreamMetrics {
     private Counter connSend_failureCounter;
     private Counter connSend_blockItemsCounter;
     private RunningAverageMetric connSend_publishStreamRequestLatency;
+    private Counter connSend_multiItemRequestExceedsSoftLimitCounter;
+    private Counter connSend_requestExceedsHardLimitCounter;
     private final Map<PublishStreamRequest.RequestOneOfType, Counter> connSend_counters =
             new EnumMap<>(PublishStreamRequest.RequestOneOfType.class);
     private final Map<PublishStreamRequest.EndStream.Code, Counter> connSend_endStreamCounters =
@@ -61,6 +63,7 @@ public class BlockStreamMetrics {
     private Counter conn_endOfStreamLimitCounter;
     private DoubleGauge conn_ackLatencyGauge;
     private Counter conn_highLatencyCounter;
+    private Counter conn_pipelineOperationTimeoutCounter;
 
     // buffer metrics
     private static final long BACK_PRESSURE_ACTIVE = 3;
@@ -282,6 +285,11 @@ public class BlockStreamMetrics {
         final Counter.Config highLatencyCfg = newCounter(GROUP_CONN, "highLatencyEvents")
                 .withDescription("Count of high latency events from the active block node connection");
         conn_highLatencyCounter = metrics.getOrCreate(highLatencyCfg);
+
+        final Counter.Config pipelineTimeoutCfg = newCounter(GROUP_CONN, "pipelineOperationTimeout")
+                .withDescription(
+                        "Number of times a pipeline onNext() or onComplete() operation timed out on a block node connection");
+        conn_pipelineOperationTimeoutCounter = metrics.getOrCreate(pipelineTimeoutCfg);
     }
 
     /**
@@ -355,6 +363,13 @@ public class BlockStreamMetrics {
      */
     public void recordHighLatencyEvent() {
         conn_highLatencyCounter.increment();
+    }
+
+    /**
+     * Record that a pipeline onNext() or onComplete() operation timed out.
+     */
+    public void recordPipelineOperationTimeout() {
+        conn_pipelineOperationTimeoutCounter.increment();
     }
 
     // Connection RECV metrics -----------------------------------------------------------------------------------------
@@ -493,6 +508,16 @@ public class BlockStreamMetrics {
                 .withDescription("Number of individual block items sent to block nodes");
         this.connSend_blockItemsCounter = metrics.getOrCreate(blockItemsCfg);
 
+        final Counter.Config multiItemReqExceedsSoftLimitCfg = newCounter(
+                        GROUP_CONN_SEND, "multiItemRequestExceedsSoftLimit")
+                .withDescription(
+                        "Number of requests that contain multiple items whose total size exceeds the soft limit size");
+        this.connSend_multiItemRequestExceedsSoftLimitCounter = metrics.getOrCreate(multiItemReqExceedsSoftLimitCfg);
+
+        final Counter.Config requestExceedsHardLimitCfg = newCounter(GROUP_CONN_SEND, "requestExceedsHardLimit")
+                .withDescription("Number of requests that exceed the hard limit size");
+        this.connSend_requestExceedsHardLimitCounter = metrics.getOrCreate(requestExceedsHardLimitCfg);
+
         final RunningAverageMetric.Config publishStreamRequestLatencyCfg = new RunningAverageMetric.Config(
                         CATEGORY, GROUP_CONN_SEND + "_requestSendLatency")
                 .withDescription("The average latency (ms) for a PublishStreamRequest to be sent to a block node")
@@ -545,6 +570,20 @@ public class BlockStreamMetrics {
      */
     public void recordRequestSendFailure() {
         connSend_failureCounter.increment();
+    }
+
+    /**
+     * Record that a pending request with multiple items exceeds the configured soft limit size.
+     */
+    public void recordMultiItemRequestExceedsSoftLimit() {
+        connSend_multiItemRequestExceedsSoftLimitCounter.increment();
+    }
+
+    /**
+     * Record that a pending request has exceeded the hard limit size.
+     */
+    public void recordRequestExceedsHardLimit() {
+        connSend_requestExceedsHardLimitCounter.increment();
     }
 
     // Utilities -------------------------------------------------------------------------------------------------------

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi;
 
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.systemtasks.SystemTaskHandler;
 import com.hedera.pbj.runtime.RpcServiceDefinition;
 import com.swirlds.state.lifecycle.Service;
@@ -25,6 +26,14 @@ public interface RpcService extends Service {
      * @return The system task handlers if this service can handle system tasks.
      */
     default Set<SystemTaskHandler> systemTaskHandlers() {
+        return Set.of();
+    }
+
+    /**
+     * Returns all the handlers fee calculators for this service.
+     * @return The set of fee calculators.
+     */
+    default Set<ServiceFeeCalculator> serviceFeeCalculators() {
         return Set.of();
     }
 }

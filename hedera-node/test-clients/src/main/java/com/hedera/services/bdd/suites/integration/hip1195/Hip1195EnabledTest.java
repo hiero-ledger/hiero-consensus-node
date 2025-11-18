@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.integration.hip1195;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
@@ -13,6 +14,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountLambdaSStore;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
@@ -28,6 +30,7 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.roy
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.GLOBAL_WATCHER;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
@@ -46,10 +49,10 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_IN_USE
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_GAS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_HOOK_CALL;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -58,6 +61,7 @@ import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.hooks.LambdaMappingEntry;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
@@ -116,15 +120,24 @@ public class Hip1195EnabledTest {
     @Contract(contract = "TokenRedirectHook", creationGas = 5_000_000)
     static SpecContract TOKEN_REDIRECT_HOOK;
 
+    @Contract(contract = "CreateOpHook", creationGas = 5_000_000)
+    static SpecContract CREATE_OP_HOOK;
+
+    @Contract(contract = "Create2OpHook", creationGas = 5_000_000)
+    static SpecContract CREATE2_OP_HOOK;
+
     static final String OWNER = "owner";
     static final String PAYER = "payer";
-    static final String HOOK_CONTRACT_NUM = "365";
+    public static final String HOOK_CONTRACT_NUM = "365";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
         testLifecycle.doAdhoc(FALSE_ALLOWANCE_HOOK.getInfo());
         testLifecycle.doAdhoc(TRUE_ALLOWANCE_HOOK.getInfo());
+        testLifecycle.doAdhoc(CREATE_OP_HOOK.getInfo());
+        testLifecycle.doAdhoc(CREATE2_OP_HOOK.getInfo());
+
         testLifecycle.doAdhoc(TRUE_PRE_POST_ALLOWANCE_HOOK.getInfo());
         testLifecycle.doAdhoc(FALSE_PRE_POST_ALLOWANCE_HOOK.getInfo());
         testLifecycle.doAdhoc(TRANSFER_HOOK.getInfo());
@@ -139,7 +152,7 @@ public class Hip1195EnabledTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> callAndStaticCallUsesOwner() {
+    final Stream<DynamicTest> transferWithCallHook() {
         final var mappingSlot = Bytes.EMPTY;
         final AtomicReference<byte[]> payerMirror = new AtomicReference<>();
         return hapiTest(
@@ -304,7 +317,12 @@ public class Hip1195EnabledTest {
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 1_000_000L, "")
-                        .signedBy(DEFAULT_PAYER));
+                        .signedBy(DEFAULT_PAYER)
+                        .via("successfulTransfer"),
+                getTxnRecord("successfulTransfer")
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS))
+                        .logged());
     }
 
     @HapiTest
@@ -438,17 +456,13 @@ public class Hip1195EnabledTest {
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 123L, -1L, "")
                         .signedBy(DEFAULT_PAYER)
-                        .hasKnownStatus(INVALID_HOOK_CALL),
+                        .hasKnownStatus(INSUFFICIENT_GAS),
                 // less than minimum intrinsic gas of 1000
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 123L, 999L, "")
                         .signedBy(DEFAULT_PAYER)
-                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .hasKnownStatus(INSUFFICIENT_GAS)
                         .via("txnWithLessThanIntrinsicGas"),
-                getTxnRecord("txnWithLessThanIntrinsicGas")
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INSUFFICIENT_GAS))
-                        .logged(),
                 overriding("contracts.maxGasPerTransaction", "15_000_000"),
                 // more than maximum gas limit of 15 million
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
@@ -481,17 +495,13 @@ public class Hip1195EnabledTest {
                 cryptoTransfer(TokenMovement.moving(10, "token").between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 123L, -1L, "")
                         .signedBy(DEFAULT_PAYER)
-                        .hasKnownStatus(INVALID_HOOK_CALL),
+                        .hasKnownStatus(INSUFFICIENT_GAS),
                 // less than minimum intrinsic gas of 1000
                 cryptoTransfer(TokenMovement.moving(10, "token").between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 123L, 999L, "")
                         .signedBy(DEFAULT_PAYER)
-                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .hasKnownStatus(INSUFFICIENT_GAS)
                         .via("txnWithLessThanIntrinsicGas"),
-                getTxnRecord("txnWithLessThanIntrinsicGas")
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INSUFFICIENT_GAS))
-                        .logged(),
                 overriding("contracts.maxGasPerTransaction", "15_000_000"),
                 // more than maximum gas limit of 15 million
                 cryptoTransfer(TokenMovement.moving(10, "token").between(OWNER, GENESIS))
@@ -530,17 +540,13 @@ public class Hip1195EnabledTest {
                 cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(OWNER, GENESIS))
                         .withNftSenderPreHookFor(OWNER, 123L, -1L, "")
                         .signedBy(DEFAULT_PAYER)
-                        .hasKnownStatus(INVALID_HOOK_CALL),
+                        .hasKnownStatus(INSUFFICIENT_GAS),
                 // less than minimum intrinsic gas of 1000
                 cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(OWNER, GENESIS))
                         .withNftSenderPreHookFor(OWNER, 123L, 999L, "")
                         .signedBy(DEFAULT_PAYER)
-                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .hasKnownStatus(INSUFFICIENT_GAS)
                         .via("txnWithLessThanIntrinsicGas"),
-                getTxnRecord("txnWithLessThanIntrinsicGas")
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INSUFFICIENT_GAS))
-                        .logged(),
                 overriding("contracts.maxGasPerTransaction", "15_000_000"),
                 //                 more than maximum gas limit of 15 million
                 cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(OWNER, GENESIS))
@@ -605,7 +611,7 @@ public class Hip1195EnabledTest {
                 getTxnRecord("customFeeTxn").logged());
     }
 
-    //    @HapiTest
+    @HapiTest
     final Stream<DynamicTest> royaltyAndFractionalTogetherCaseStudy() {
         final var alice = "alice";
         final var amelie = "AMELIE";
@@ -658,7 +664,9 @@ public class Hip1195EnabledTest {
                         .payingWith(amelie)
                         .via(txnFromAmelie)
                         .fee(ONE_HBAR),
-                getTxnRecord(txnFromAmelie).logged());
+                getTxnRecord(txnFromAmelie).logged()
+                // manually check the proposed transfers in logs
+                );
     }
 
     @HapiTest
@@ -1163,6 +1171,81 @@ public class Hip1195EnabledTest {
                     assertEquals(1L, a.firstHookId());
                     assertEquals(1, a.numberHooksInUse());
                     assertEquals(2, a.numberLambdaStorageSlots());
+                }));
+    }
+
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+    final Stream<DynamicTest> createOpHook_createsChildOwnedByHookOwner_and_onlyOwnerChecks() {
+        final String ONLY_OWNER_ABI =
+                "{\"inputs\":[],\"name\":\"onlyOwner\",\"outputs\":[],\"stateMutability\":\"view\",\"type\":\"function\"}";
+        return hapiTest(
+                cryptoCreate(PAYER),
+                cryptoCreate(OWNER).withHooks(accountAllowanceHook(210L, CREATE_OP_HOOK.name())),
+                viewAccount(OWNER, a -> assertEquals(0, a.ethereumNonce())),
+                cryptoTransfer(movingHbar(1).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 210L, 5_000_000L, "")
+                        .payingWith(PAYER)
+                        .via("createHookTxn"),
+                withOpContext((spec, opLog) -> {
+                    final var successTxn = getTxnRecord("createHookTxn")
+                            .andAllChildRecords()
+                            .hasNonStakingChildRecordCount(2)
+                            .logged();
+                    allRunFor(spec, successTxn);
+
+                    spec.registry()
+                            .saveContractId(
+                                    "HOOK_CHILD",
+                                    successTxn.getChildRecord(1).getReceipt().getContractID());
+
+                    final var op1 = contractCallWithFunctionAbi("HOOK_CHILD", ONLY_OWNER_ABI)
+                            .payingWith(OWNER)
+                            .gas(100_000)
+                            .via("onlyOwnerByOwner");
+                    final var op2 = contractCallWithFunctionAbi("HOOK_CHILD", ONLY_OWNER_ABI)
+                            .payingWith(PAYER)
+                            .gas(100_000)
+                            .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                            .via("onlyOwnerByNonOwner");
+                    allRunFor(spec, op1, op2);
+                }),
+                // Note the hook owner's nonce has been incremented as a CREATE opcode side effect
+                viewAccount(OWNER, a -> assertEquals(1, a.ethereumNonce())));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> create2OpHook_createsChildOwnedByHookOwner_and_onlyOwnerChecks() {
+        final String ONLY_OWNER_ABI =
+                "{\"inputs\":[],\"name\":\"onlyOwner\",\"outputs\":[],\"stateMutability\":\"view\",\"type\":\"function\"}";
+        return hapiTest(
+                cryptoCreate(PAYER),
+                cryptoCreate(OWNER).withHooks(accountAllowanceHook(211L, CREATE2_OP_HOOK.name())),
+                cryptoTransfer(movingHbar(1).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 211L, 5_000_000L, "")
+                        .payingWith(OWNER)
+                        .via("create2HookTxn"),
+                withOpContext((spec, opLog) -> {
+                    final var successTxn = getTxnRecord("create2HookTxn")
+                            .andAllChildRecords()
+                            .hasNonStakingChildRecordCount(2)
+                            .logged();
+                    allRunFor(spec, successTxn);
+
+                    spec.registry()
+                            .saveContractId(
+                                    "HOOK_CHILD2",
+                                    successTxn.getChildRecord(1).getReceipt().getContractID());
+
+                    final var op1 = contractCallWithFunctionAbi("HOOK_CHILD2", ONLY_OWNER_ABI)
+                            .payingWith(OWNER)
+                            .gas(100_000)
+                            .via("onlyOwner2ByOwner");
+                    final var op2 = contractCallWithFunctionAbi("HOOK_CHILD2", ONLY_OWNER_ABI)
+                            .payingWith(PAYER)
+                            .gas(100_000)
+                            .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                            .via("onlyOwner2ByNonOwner");
+                    allRunFor(spec, op1, op2);
                 }));
     }
 }

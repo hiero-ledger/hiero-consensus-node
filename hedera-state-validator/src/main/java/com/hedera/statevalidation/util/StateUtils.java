@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.util;
 
-import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
-import static com.hedera.statevalidation.util.ConfigUtils.STATE_FILE_NAME;
+import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
 import static com.hedera.statevalidation.util.ConfigUtils.getConfiguration;
 import static com.hedera.statevalidation.util.PlatformContextHelper.getPlatformContext;
 import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
-import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readStateFile;
+import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
@@ -111,8 +110,8 @@ public final class StateUtils {
             serviceRegistry.register(
                     new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getState, platformStateFacade));
 
-            deserializedSignedState = readStateFile(
-                    Path.of(ConfigUtils.STATE_DIR, STATE_FILE_NAME).toAbsolutePath(),
+            deserializedSignedState = readState(
+                    Path.of(ConfigUtils.STATE_DIR).toAbsolutePath(),
                     virtualMap -> new HederaVirtualMapState(
                             virtualMap, platformContext.getMetrics(), platformContext.getTime()),
                     platformStateFacade,
@@ -161,7 +160,7 @@ public final class StateUtils {
                 NoOpMetrics::new,
                 new AppThrottleFactory(
                         configSupplier, () -> null, () -> ThrottleDefinitions.DEFAULT, ThrottleAccumulator::new),
-                () -> NOOP_FEE_CHARGING,
+                () -> UNIVERSAL_NOOP_FEE_CHARGING,
                 new AppEntityIdFactory(config));
 
         final AtomicReference<ExecutorComponent> componentRef = new AtomicReference<>();

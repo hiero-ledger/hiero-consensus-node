@@ -20,6 +20,8 @@ import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableStates;
 import java.io.IOException;
@@ -41,9 +43,9 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
     /**
      * The path to state to edit
      */
-    @CommandLine.Parameters(description = "The path to the state to edit", index = "0")
+    @CommandLine.Parameters(description = "The path to the directory of the state to edit", index = "0")
     private void setStatePath(final Path statePath) {
-        this.statePath = pathMustExist(statePath.toAbsolutePath());
+        this.statePath = dirMustExist(statePath.toAbsolutePath());
     }
 
     /**
@@ -60,10 +62,15 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
         BootstrapUtils.setupConstructableRegistry();
 
         final PlatformContext platformContext = PlatformContext.create(configuration);
+        final StateLifecycleManager stateLifecycleManager =
+                new StateLifecycleManagerImpl(platformContext.getMetrics(), platformContext.getTime(), (virtualMap) -> {
+                    // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
+                    throw new UnsupportedOperationException();
+                });
 
         System.out.printf("Reading from %s %n", statePath.toAbsolutePath());
         final PlatformStateFacade stateFacade = DEFAULT_PLATFORM_STATE_FACADE;
-        final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readStateFile(
+        final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readState(
                 statePath,
                 (virtualMap) -> {
                     // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
@@ -92,7 +99,12 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
                     .get();
             System.out.printf("Writing modified state to %s %n", outputDir.toAbsolutePath());
             writeSignedStateFilesToDirectory(
-                    platformContext, NO_NODE_ID, outputDir, reservedSignedState.get(), stateFacade);
+                    platformContext,
+                    NO_NODE_ID,
+                    outputDir,
+                    reservedSignedState.get(),
+                    stateFacade,
+                    stateLifecycleManager);
         }
 
         return 0;

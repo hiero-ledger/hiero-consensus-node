@@ -12,6 +12,7 @@ public record FeesConfig(
         @ConfigProperty(defaultValue = "60") @NetworkProperty int minCongestionPeriod,
         @ConfigProperty(defaultValue = "90,10x,95,25x,99,100x") CongestionMultipliers percentCongestionMultipliers,
         @ConfigProperty(defaultValue = "DEFAULT(0,1:1)") EntityScaleFactors percentUtilizationScaleFactors,
-        @ConfigProperty(defaultValue = "380") @NetworkProperty int tokenTransferUsageMultiplier,
         @ConfigProperty(value = "indirectKeyExtraTinycents", defaultValue = "100000000000") @NetworkProperty
-                long indirectKeyExtraTinycents) {}
+                long indirectKeyExtraTinycents,
+        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean simpleFeesEnabled,
+        @ConfigProperty(defaultValue = "380") @NetworkProperty int tokenTransferUsageMultiplier) {}

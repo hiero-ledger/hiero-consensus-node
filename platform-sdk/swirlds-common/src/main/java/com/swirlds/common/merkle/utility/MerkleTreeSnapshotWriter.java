@@ -33,20 +33,20 @@ public final class MerkleTreeSnapshotWriter {
      * @param targetPath the {@link Path} to write the snapshot to
      */
     public static void createSnapshot(
-            @NonNull final MerkleNode merkleRoot, @NonNull final Path targetPath, long round) {
-        logger.info(STATE_TO_DISK.getMarker(), "Creating a snapshot on demand in {} for round {}", targetPath, round);
+            @NonNull final MerkleNode merkleRoot, @NonNull final Path targetPath, @NonNull final String rootInfo) {
+        logger.info(STATE_TO_DISK.getMarker(), "Creating a snapshot on demand in {} for {}", targetPath, rootInfo);
         try {
             writeMerkleRootToFile(targetPath, merkleRoot);
             logger.info(
                     STATE_TO_DISK.getMarker(),
-                    "Successfully created a snapshot on demand in {}  for round {}",
+                    "Successfully created a snapshot on demand in {}  for {}",
                     targetPath,
-                    round);
+                    rootInfo);
         } catch (final Throwable e) {
             logger.error(
                     EXCEPTION.getMarker(),
-                    "Unable to write a snapshot on demand for round {} to {}.",
-                    round,
+                    "Unable to write a snapshot on demand for {} to {}.",
+                    rootInfo,
                     targetPath,
                     e);
         }

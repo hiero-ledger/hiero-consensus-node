@@ -51,6 +51,7 @@ import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.info.CurrentPlatformStatus;
+import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.service.entityid.EntityIdService;
@@ -180,6 +181,7 @@ public class HandleWorkflow {
     private final BlockHashSigner blockHashSigner;
     private final BlockBufferService blockBufferService;
     private final Map<Class<?>, ServiceApiProvider<?>> apiProviders;
+    private final QuiescenceController quiescenceController;
 
     @Nullable
     private final AtomicBoolean systemEntitiesCreatedFlag;
@@ -228,7 +230,8 @@ public class HandleWorkflow {
             @NonNull final NodeRewardManager nodeRewardManager,
             @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final BlockBufferService blockBufferService,
-            @NonNull final Map<Class<?>, ServiceApiProvider<?>> apiProviders) {
+            @NonNull final Map<Class<?>, ServiceApiProvider<?>> apiProviders,
+            @NonNull final QuiescenceController quiescenceController) {
         this.networkInfo = requireNonNull(networkInfo);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.dispatchProcessor = requireNonNull(dispatchProcessor);
@@ -254,10 +257,9 @@ public class HandleWorkflow {
         this.scheduleService = requireNonNull(scheduleService);
         this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
         this.congestionMetrics = requireNonNull(congestionMetrics);
-        this.streamMode = configProvider
-                .getConfiguration()
-                .getConfigData(BlockStreamConfig.class)
-                .streamMode();
+        this.quiescenceController = requireNonNull(quiescenceController);
+        final var config = configProvider.getConfiguration();
+        this.streamMode = config.getConfigData(BlockStreamConfig.class).streamMode();
         this.hintsService = requireNonNull(hintsService);
         this.historyService = requireNonNull(historyService);
         this.blockHashSigner = requireNonNull(blockHashSigner);
@@ -412,9 +414,7 @@ public class HandleWorkflow {
                 blockStreamManager.writeItem(txnItem);
             };
 
-            // log start of event to transaction state log
             logStartEvent(event, creator);
-            // handle each transaction of the event
             for (final var it = event.consensusTransactionIterator(); it.hasNext(); ) {
                 final var platformTxn = it.next();
                 try {
@@ -426,6 +426,15 @@ public class HandleWorkflow {
                                     + "While this node may not die right away, it is in a bad way, most likely fatally.",
                             e);
                 }
+                // No-op if quiescence is disabled
+                quiescenceController.inProgressBlockTransaction(platformTxn);
+                // Clear tx metadata now that we won't use it again
+                platformTxn.setMetadata(null);
+            }
+            if (!transactionsDispatched) {
+                // If there were no platform transactions to follow with scheduled transactions, then
+                // use the round consensus time as the execution start time for scheduled transactions
+                transactionsDispatched = executeScheduledTransactions(state, round.getConsensusTimestamp(), creator);
             }
             recordCache.maybeCommitReceiptsBatch(
                     state,
@@ -557,6 +566,7 @@ public class HandleWorkflow {
             }
         }
 
+        // IMPORTANT - this has the side effect of ensuring the tx's metadata is a PreHandleResult
         final var topLevelTxn =
                 parentTxnFactory.createTopLevelTxn(state, creator, txn, consensusNow, shortCircuitTxnCallback);
         if (topLevelTxn == null) {
@@ -579,45 +589,58 @@ public class HandleWorkflow {
         opWorkflowMetrics.updateDuration(topLevelTxn.functionality(), (int) (System.nanoTime() - handleStart));
         congestionMetrics.updateMultiplier(topLevelTxn.txnInfo(), topLevelTxn.readableStoreFactory());
 
+        executeScheduledTransactions(state, topLevelTxn.consensusNow(), topLevelTxn.creatorInfo());
+
+        return true;
+    }
+
+    private boolean executeScheduledTransactions(
+            @NonNull final State state,
+            @NonNull final Instant consensusNow,
+            @NonNull final NodeInfo proximalCreatorInfo) {
         var executionStart = streamMode == RECORDS
                 ? blockRecordManager.lastIntervalProcessTime()
                 : blockStreamManager.lastIntervalProcessTime();
         if (executionStart.equals(EPOCH)) {
-            executionStart = topLevelTxn.consensusNow();
+            executionStart = consensusNow;
         }
         try {
             // We execute as many schedules expiring in [lastIntervalProcessTime, consensusNow]
             // as there are available consensus times and execution slots (ordinarily there will
             // be more than enough of both, but we must be prepared for the edge cases)
-            final var systemDispatchState = executeAsManyScheduled(
-                    state, executionStart, topLevelTxn.consensusNow(), topLevelTxn.creatorInfo());
+            final var systemDispatchState =
+                    executeAsManyScheduled(state, executionStart, consensusNow, proximalCreatorInfo);
             // Then, within any remaining capacity, execute pending system tasks
             doAsManyPending(state, systemDispatchState);
+            return systemDispatchState.schedulesExecuted();
         } catch (Exception e) {
             logger.error(
                     "{} - unhandled exception while executing schedules between [{}, {}]",
                     ALERT_MESSAGE,
                     executionStart,
-                    topLevelTxn.consensusNow(),
+                    consensusNow,
                     e);
             // This should never happen, but if it does, we skip over everything in the interval to
             // avoid being stuck in a crash loop here
             if (streamMode != RECORDS) {
-                blockStreamManager.setLastIntervalProcessTime(topLevelTxn.consensusNow());
+                blockStreamManager.setLastIntervalProcessTime(consensusNow);
             } else {
-                blockRecordManager.setLastIntervalProcessTime(topLevelTxn.consensusNow(), state);
+                blockRecordManager.setLastIntervalProcessTime(consensusNow, state);
             }
+            return false;
         }
-        return true;
     }
 
     /**
      * The state of the system dispatches.
+     *
      * @param remaining the maximum number of dispatches remaining
      * @param lastUsableTime the last usable time
      * @param nextTime the next time
+     * @param schedulesExecuted whether scheduled transactions were executed before the system tasks
      */
-    private record SystemDispatchState(int remaining, Instant lastUsableTime, Instant nextTime) {}
+    private record SystemDispatchState(
+            int remaining, Instant lastUsableTime, Instant nextTime, boolean schedulesExecuted) {}
 
     /**
      * Executes as many transactions scheduled to expire in the interval {@code [executionStart, consensusNow]} as
@@ -638,6 +661,7 @@ public class HandleWorkflow {
             @NonNull final Instant executionStart,
             @NonNull final Instant consensusNow,
             @NonNull final NodeInfo creatorInfo) {
+        boolean transactionsDispatched = false;
         // Non-final right endpoint of the execution interval, in case we cannot do all the scheduled work
         var executionEnd = consensusNow;
 
@@ -687,6 +711,7 @@ public class HandleWorkflow {
                         blockRecordManager.startUserTransaction(nextTime, state);
                     }
                     final var handleOutput = executeScheduled(state, nextTime, creatorInfo, executableTxn);
+                    transactionsDispatched = true;
                     if (streamMode != RECORDS) {
                         handleOutput.blockRecordSourceOrThrow().forEachItem(blockStreamManager::writeItem);
                     } else if (handleOutput.lastAssignedConsensusTime().isAfter(consensusNow)) {
@@ -728,7 +753,7 @@ public class HandleWorkflow {
             blockRecordManager.setLastIntervalProcessTime(executionEnd, state);
         }
 
-        return new SystemDispatchState(n, lastUsableTime, nextTime);
+        return new SystemDispatchState(n, lastUsableTime, nextTime, transactionsDispatched);
     }
 
     /**

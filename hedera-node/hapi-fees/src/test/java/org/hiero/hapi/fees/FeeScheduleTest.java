@@ -22,7 +22,7 @@ public class FeeScheduleTest {
     void testLoadingFeeScheduleFromJson() throws ParseException {
         final var fin = FeeScheduleTest.class.getClassLoader().getResourceAsStream("simple-fee-schedule.json");
         final FeeSchedule buf = FeeSchedule.JSON.parse(new ReadableStreamingData(Objects.requireNonNull(fin)));
-        assertTrue(FeeScheduleUtils.validate(buf), "Fee schedule validation failed");
+        assertTrue(FeeScheduleUtils.isValid(buf), "Fee schedule validation failed");
     }
 
     // extra definitions must have positive values
@@ -32,7 +32,7 @@ public class FeeScheduleTest {
                 .copyBuilder()
                 .extras(makeExtraDef(Extra.KEYS, -88))
                 .build();
-        assertFalse(FeeScheduleUtils.validate(badSchedule), "Fee schedule validation didn't catch negative value");
+        assertFalse(FeeScheduleUtils.isValid(badSchedule), "Fee schedule validation didn't catch negative value");
     }
 
     // all referenced extras must exist in the defined extras
@@ -50,7 +50,6 @@ public class FeeScheduleTest {
                                 makeExtraIncluded(Extra.SIGNATURES, 1))))
                 .build();
         assertFalse(
-                FeeScheduleUtils.validate(badSchedule),
-                "Fee schedule validation failed to find the missing extras def");
+                FeeScheduleUtils.isValid(badSchedule), "Fee schedule validation failed to find the missing extras def");
     }
 }

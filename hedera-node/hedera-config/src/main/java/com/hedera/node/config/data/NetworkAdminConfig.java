@@ -27,6 +27,7 @@ public record NetworkAdminConfig(
         @ConfigProperty(defaultValue = "data/upgrade/current/data/keys") @NodeProperty String keysPath,
         @ConfigProperty(defaultValue = "data/config") String upgradeSysFilesLoc,
         @ConfigProperty(defaultValue = "feeSchedules.json") String upgradeFeeSchedulesFile,
+        @ConfigProperty(defaultValue = "simpleFeesSchedules.json") String upgradeSimpleFeeSchedulesFile,
         @ConfigProperty(defaultValue = "throttles.json") String upgradeThrottlesFile,
         @ConfigProperty(defaultValue = "application-override.properties") String upgradePropertyOverridesFile,
         @ConfigProperty(defaultValue = "api-permission-override.properties") String upgradePermissionOverridesFile,

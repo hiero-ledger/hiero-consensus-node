@@ -5,6 +5,8 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.converter.BytesConverter;
+import com.hedera.node.config.converter.CongestionMultipliersConverter;
+import com.hedera.node.config.converter.EntityScaleFactorsConverter;
 import com.hedera.node.config.converter.LongPairConverter;
 import com.hedera.node.config.converter.SemanticVersionConverter;
 import com.hedera.node.config.data.AccountsConfig;
@@ -12,14 +14,18 @@ import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.ContractsConfig;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.OpsDurationConfig;
+import com.hedera.node.config.data.QuiescenceConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.sources.PropertyConfigSource;
+import com.hedera.node.config.types.CongestionMultipliers;
+import com.hedera.node.config.types.EntityScaleFactors;
 import com.hedera.node.config.types.LongPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -57,12 +63,16 @@ public class BootstrapConfigProviderImpl extends ConfigProviderBase {
                 .withConfigDataType(LedgerConfig.class)
                 .withConfigDataType(AccountsConfig.class)
                 .withConfigDataType(TssConfig.class)
+                .withConfigDataType(QuiescenceConfig.class)
                 .withConfigDataType(ContractsConfig.class)
                 .withConfigDataType(BlockNodeConnectionConfig.class)
                 .withConfigDataType(OpsDurationConfig.class)
                 .withConfigDataType(JumboTransactionsConfig.class)
+                .withConfigDataType(FeesConfig.class)
                 .withConverter(Bytes.class, new BytesConverter())
                 .withConverter(SemanticVersion.class, new SemanticVersionConverter())
+                .withConverter(CongestionMultipliers.class, new CongestionMultipliersConverter())
+                .withConverter(EntityScaleFactors.class, new EntityScaleFactorsConverter())
                 .withConverter(LongPair.class, new LongPairConverter());
 
         try {

@@ -9,6 +9,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_GET_NFT_INFOS;
 import static com.hedera.hapi.node.base.HederaFunctionality.TRANSACTION_GET_FAST_RECORD;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.hapi.fees.FeeScheduleUtils.isValid;
 
 import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
 import com.hedera.hapi.node.base.FeeComponents;
@@ -22,6 +23,9 @@ import com.hedera.hapi.node.base.TransactionFeeSchedule;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.spi.fees.FeeCalculator;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
+import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -49,6 +53,12 @@ import org.apache.logging.log4j.Logger;
 @Singleton
 public final class FeeManager {
     private static final Logger logger = LogManager.getLogger(FeeManager.class);
+    private org.hiero.hapi.support.fees.FeeSchedule simpleFeesSchedule;
+
+    @Nullable
+    private SimpleFeeCalculator simpleFeeCalculator;
+
+    private final Set<ServiceFeeCalculator> serviceFeeCalculators;
 
     private record Entry(HederaFunctionality function, SubType subType) {}
 
@@ -88,9 +98,11 @@ public final class FeeManager {
     @Inject
     public FeeManager(
             @NonNull final ExchangeRateManager exchangeRateManager,
-            @NonNull CongestionMultipliers congestionMultipliers) {
+            @NonNull CongestionMultipliers congestionMultipliers,
+            @NonNull Set<ServiceFeeCalculator> serviceFeeCalculators) {
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
         this.congestionMultipliers = requireNonNull(congestionMultipliers);
+        this.serviceFeeCalculators = requireNonNull(serviceFeeCalculators);
     }
 
     /**
@@ -158,6 +170,31 @@ public final class FeeManager {
     }
 
     /**
+     * Updates the fee schedule based on the given file content.
+     *
+     * <p>IMPORTANT:</p> This can only be called when initializing a state or handling a transaction.
+     *
+     * @param bytes The new fee schedule file content.
+     */
+    public ResponseCodeEnum updateSimpleFees(@NonNull final Bytes bytes) {
+        // Parse the current and next fee schedules
+        try {
+            final org.hiero.hapi.support.fees.FeeSchedule schedule =
+                    org.hiero.hapi.support.fees.FeeSchedule.PROTOBUF.parse(bytes);
+            if (isValid(schedule)) {
+                this.simpleFeesSchedule = schedule;
+                this.simpleFeeCalculator = new SimpleFeeCalculatorImpl(schedule, serviceFeeCalculators);
+                return SUCCESS;
+            } else {
+                logger.warn("Unable to validate fee schedule.");
+                return ResponseCodeEnum.FEE_SCHEDULE_FILE_PART_UPLOADED;
+            }
+        } catch (final BufferUnderflowException | ParseException ex) {
+            return ResponseCodeEnum.FEE_SCHEDULE_FILE_PART_UPLOADED;
+        }
+    }
+
+    /**
      * Create a {@link FeeCalculator} for the given transaction and its details.
      */
     @NonNull
@@ -191,7 +228,8 @@ public final class FeeManager {
                 exchangeRateManager.activeRate(consensusTime),
                 isInternalDispatch,
                 congestionMultipliers,
-                storeFactory);
+                storeFactory,
+                this.simpleFeesSchedule);
     }
 
     public long congestionMultiplierFor(
@@ -216,7 +254,8 @@ public final class FeeManager {
                 exchangeRateManager.activeRate(consensusTime),
                 congestionMultipliers,
                 storeFactory,
-                functionality);
+                functionality,
+                this.simpleFeesSchedule);
     }
 
     /**
@@ -239,6 +278,13 @@ public final class FeeManager {
         return result;
     }
 
+    /** Gets the current exchange rate manager.
+     */
+    @NonNull
+    public ExchangeRateManager getExchangeRateManager() {
+        return exchangeRateManager;
+    }
+
     /**
      * Used during {@link #update(Bytes)} to populate the fee data map based on the configuration.
      * @param feeDataMap The map to populate.
@@ -259,5 +305,10 @@ public final class FeeManager {
                         t.hederaFunctionality());
             }
         });
+    }
+
+    @Nullable
+    public SimpleFeeCalculator getSimpleFeeCalculator() {
+        return simpleFeeCalculator;
     }
 }

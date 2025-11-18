@@ -4,12 +4,15 @@ package com.hedera.node.app.service.token.impl;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.service.token.TokenService;
+import com.hedera.node.app.service.token.impl.calculator.CryptoCreateFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.CryptoDeleteFeeCalculator;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V069TokenSchema;
 import com.hedera.node.app.service.token.impl.systemtasks.KeyPropagationSystemTaskHandler;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.systemtasks.SystemTaskHandler;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -39,5 +42,10 @@ public class TokenServiceImpl implements TokenService {
     @Override
     public Set<SystemTaskHandler> systemTaskHandlers() {
         return Set.of(new KeyPropagationSystemTaskHandler());
+    }
+
+    @Override
+    public Set<ServiceFeeCalculator> serviceFeeCalculators() {
+        return Set.of(new CryptoCreateFeeCalculator(), new CryptoDeleteFeeCalculator());
     }
 }
