@@ -854,8 +854,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                                 blockState.setHeaderSentMs(sentMs);
                             }
                         }
-                        blockStreamMetrics.recordRequestBlockItemCount(
-                                r.streamRequest().blockItems().blockItems().size());
+                        blockStreamMetrics.recordRequestBlockItemCount(r.numItems());
                         blockStreamMetrics.recordRequestBytes(r.streamRequest().protobufSize());
                     }
                 }

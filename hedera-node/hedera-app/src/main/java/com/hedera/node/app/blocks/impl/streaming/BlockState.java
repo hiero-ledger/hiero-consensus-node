@@ -189,7 +189,7 @@ public class BlockState {
      * Sets the header sent milliseconds for this block.
      * @param headerSentMs the milliseconds from epoch when the block header was sent
      */
-    public void setHeaderSentMs(long headerSentMs) {
+    public void setHeaderSentMs(final long headerSentMs) {
         this.headerSentMs = headerSentMs;
     }
 
@@ -197,7 +197,7 @@ public class BlockState {
      * Sets the block end sent milliseconds for this block.
      * @param blockEndSentMs the milliseconds from epoch when the block end was sent
      */
-    public void setBlockEndSentMs(long blockEndSentMs) {
+    public void setBlockEndSentMs(final long blockEndSentMs) {
         this.blockEndSentMs = blockEndSentMs;
     }
 
@@ -205,7 +205,7 @@ public class BlockState {
      * Gets the header sent milliseconds for this block.
      * @return the milliseconds from epoch when the block header was sent
      */
-    public Long getHeaderSentMs() {
+    public @Nullable Long getHeaderSentMs() {
         return headerSentMs;
     }
 
@@ -213,7 +213,7 @@ public class BlockState {
      * Gets the block end sent milliseconds for this block.
      * @return the milliseconds from epoch when the block end was sent
      */
-    public Long getBlockEndSentMs() {
+    public @Nullable Long getBlockEndSentMs() {
         return blockEndSentMs;
     }
 }
