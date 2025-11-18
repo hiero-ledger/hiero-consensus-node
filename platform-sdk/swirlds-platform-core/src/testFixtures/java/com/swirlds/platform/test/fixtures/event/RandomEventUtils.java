@@ -36,7 +36,8 @@ public class RandomEventUtils {
             final EventImpl otherParent,
             final boolean fakeHash) {
 
-        final List<EventImpl> allParents = Stream.of(selfParent, otherParent).filter(Objects::nonNull).toList();
+        final List<EventImpl> allParents =
+                Stream.of(selfParent, otherParent).filter(Objects::nonNull).toList();
 
         final UnsignedEvent unsignedEvent = randomUnsignedEventWithTimestamp(
                 random, creatorId, timestamp, birthRound, transactions, allParents, fakeHash);
@@ -69,7 +70,7 @@ public class RandomEventUtils {
                 creatorId,
                 allParents.stream()
                         .map(EventImpl::getBaseEvent)
-                        .filter(e-> e.getHash() != null)
+                        .filter(e -> e.getHash() != null)
                         .map(PlatformEvent::getDescriptor)
                         .toList(),
                 birthRound,

@@ -57,9 +57,8 @@ public class UnsignedEvent implements Hashable {
             final long coin) {
         this.transactions = Objects.requireNonNull(transactions, "transactions must not be null");
         this.metadata = new EventMetadata(creatorId, allParents, timeCreated, transactions, birthRound);
-        this.parents = allParents.stream()
-                .map(EventDescriptorWrapper::eventDescriptor)
-                .toList();
+        this.parents =
+                allParents.stream().map(EventDescriptorWrapper::eventDescriptor).toList();
         this.eventCore = new EventCore(creatorId.id(), birthRound, HapiUtils.asTimestamp(timeCreated), coin);
     }
 

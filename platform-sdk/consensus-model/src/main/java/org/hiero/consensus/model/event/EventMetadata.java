@@ -73,7 +73,7 @@ public class EventMetadata extends AbstractHashable {
 
         Objects.requireNonNull(transactions, "The transactions must not be null");
         this.creatorId = Objects.requireNonNull(creatorId, "The creatorId must not be null");
-        if(!allParents.isEmpty() && allParents.getFirst().creator().equals(creatorId)){
+        if (!allParents.isEmpty() && allParents.getFirst().creator().equals(creatorId)) {
             // this event has a self parent
             this.selfParent = allParents.getFirst();
             this.otherParents = allParents.subList(1, allParents.size());
@@ -100,12 +100,10 @@ public class EventMetadata extends AbstractHashable {
                 NodeId.of(Objects.requireNonNull(gossipEvent.eventCore(), "The eventCore must not be null")
                         .creatorNodeId()),
                 gossipEvent.parents().stream().map(EventDescriptorWrapper::new).toList(),
-                HapiUtils.asInstant(
-                        Objects.requireNonNull(gossipEvent.eventCore().timeCreated(),
-                                "The timeCreated must not be null")),
+                HapiUtils.asInstant(Objects.requireNonNull(
+                        gossipEvent.eventCore().timeCreated(), "The timeCreated must not be null")),
                 gossipEvent.transactions(),
-                gossipEvent.eventCore().birthRound()
-        );
+                gossipEvent.eventCore().birthRound());
     }
 
     /**
@@ -195,5 +193,4 @@ public class EventMetadata extends AbstractHashable {
 
         return descriptor;
     }
-
 }

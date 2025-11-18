@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.linking;
 
 import com.swirlds.platform.internal.EventImpl;
@@ -13,8 +14,7 @@ public interface LinkerLogsAndMetrics {
      * @param child            the child event
      * @param parentDescriptor the descriptor of the missing parent
      */
-    void childHasMissingParent(
-            @NonNull PlatformEvent child, @NonNull EventDescriptorWrapper parentDescriptor);
+    void childHasMissingParent(@NonNull PlatformEvent child, @NonNull EventDescriptorWrapper parentDescriptor);
 
     /**
      * This method is called when a child event has a parent with a different birth round than claimed.

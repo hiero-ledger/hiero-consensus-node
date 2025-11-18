@@ -43,6 +43,8 @@ public class EventImplTestUtils {
                 .setOtherParent(otherParentPlatformEvent)
                 .build();
 
-        return new EventImpl(platformEvent, Stream.of(selfParent, otherParent).filter(Objects::nonNull).toList());
+        return new EventImpl(
+                platformEvent,
+                Stream.of(selfParent, otherParent).filter(Objects::nonNull).toList());
     }
 }

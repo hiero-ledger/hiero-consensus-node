@@ -183,7 +183,7 @@ class ConsensusLinkerTests {
     }
 
     @Test
-    void multipleOtherParents(){
+    void multipleOtherParents() {
         inOrderLinkerSetup();
 
         final List<PlatformEvent> events = SimpleGraphs.mopGraph(random);
@@ -283,8 +283,7 @@ class ConsensusLinkerTests {
                 .setCreatorId(cr0)
                 .setSelfParent(cr0genesis)
                 .setOtherParent(cr1genesis)
-                .overrideOtherParentBirthRound(
-                        cr1genesis.getBirthRound() + 1) // birth round doesn't match actual
+                .overrideOtherParentBirthRound(cr1genesis.getBirthRound() + 1) // birth round doesn't match actual
                 .build();
         assertParents(linker.linkEvent(child), cr0genesis, null);
     }
@@ -430,9 +429,8 @@ class ConsensusLinkerTests {
             @Nullable final EventImpl toAssert,
             @Nullable final PlatformEvent expectedSelfParent,
             @Nullable final PlatformEvent expectedOtherParent) {
-        assertParentsMop(toAssert,
-                expectedSelfParent,
-                expectedOtherParent == null ? List.of() : List.of(expectedOtherParent));
+        assertParentsMop(
+                toAssert, expectedSelfParent, expectedOtherParent == null ? List.of() : List.of(expectedOtherParent));
     }
 
     private static void assertParentsMop(
@@ -440,16 +438,16 @@ class ConsensusLinkerTests {
             @Nullable final PlatformEvent expectedSelfParent,
             @NonNull final List<PlatformEvent> expectedOtherParents) {
         assertNotNull(toAssert, "The linker event should not be null");
-        if(expectedSelfParent == null) {
+        if (expectedSelfParent == null) {
             assertNull(toAssert.getSelfParent(), "Self parent should be null");
-        }else {
+        } else {
             assertNotNull(toAssert.getSelfParent(), "Self parent should not be null");
             assertSame(expectedSelfParent, toAssert.getSelfParent().getBaseEvent(), "Self parent does not match");
         }
-        if(expectedOtherParents.isEmpty()) {
+        if (expectedOtherParents.isEmpty()) {
             assertNull(toAssert.getOtherParent(), "Other parent should be null");
             assertEquals(0, toAssert.getOtherParents().size(), "Other parents list should be empty");
-        }else {
+        } else {
             assertNotNull(toAssert.getOtherParent(), "Other parent should not be null");
             assertSame(
                     expectedOtherParents.getFirst(),
@@ -459,7 +457,9 @@ class ConsensusLinkerTests {
         for (final EventImpl otherParent : toAssert.getOtherParents()) {
             assertNotNull(otherParent, "The list of other-parents should not contain nulls");
         }
-        assertEquals(expectedOtherParents, toAssert.getOtherParents().stream().map(EventImpl::getBaseEvent).toList(),
+        assertEquals(
+                expectedOtherParents,
+                toAssert.getOtherParents().stream().map(EventImpl::getBaseEvent).toList(),
                 "Other parents list does not match");
         for (final EventImpl otherParent : toAssert.getParents()) {
             assertNotNull(otherParent, "The list of all parents should not contain nulls");
@@ -470,6 +470,5 @@ class ConsensusLinkerTests {
                         .toList(),
                 toAssert.getParents().stream().map(EventImpl::getBaseEvent).toList(),
                 "All parents list does not match");
-
     }
 }

@@ -535,17 +535,17 @@ class ShadowgraphByBirthRoundTests {
 
         for (int i = 0; i < 1000; i++) {
             child = emitter.emit();
-            final Set<Hash> parentsSet = child.getOtherParents().stream().map(EventDescriptorWrapper::hash)
+            final Set<Hash> parentsSet = child.getOtherParents().stream()
+                    .map(EventDescriptorWrapper::hash)
                     .collect(Collectors.toSet());
-            if(parentsSet.contains(parent.getHash())){
+            if (parentsSet.contains(parent.getHash())) {
                 break;
             }
         }
 
         final PlatformEvent finalChild = child;
         assertDoesNotThrow(
-                () -> shadowGraph.addEvent(finalChild),
-                "Events with an unknown other parent should be added.");
+                () -> shadowGraph.addEvent(finalChild), "Events with an unknown other parent should be added.");
     }
 
     @Test
@@ -553,8 +553,8 @@ class ShadowgraphByBirthRoundTests {
         initShadowGraph(RandomUtils.getRandomPrintSeed(), 100, 4);
 
         final EventImpl newEvent = emitter.emitEvent();
-        //newEvent.setSelfParent(emitter.emitEvent());
-        //TODO same here
+        // newEvent.setSelfParent(emitter.emitEvent());
+        // TODO same here
 
         assertDoesNotThrow(
                 () -> shadowGraph.addEvent(newEvent.getBaseEvent()),

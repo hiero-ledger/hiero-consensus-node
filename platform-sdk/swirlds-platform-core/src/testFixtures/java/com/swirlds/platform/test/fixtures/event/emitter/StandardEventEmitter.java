@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.event.emitter;
 
-import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -32,7 +31,7 @@ public class StandardEventEmitter extends AbstractEventEmitter {
         return event;
     }
 
-    public PlatformEvent emit(){
+    public PlatformEvent emit() {
         return emitEvent().getBaseEvent();
     }
 

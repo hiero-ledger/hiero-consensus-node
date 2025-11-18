@@ -88,8 +88,10 @@ public class ConsensusLinker {
             return null;
         }
 
-        final List<EventImpl> parents = event.getAllParents()
-                .stream().map(ed -> getParentToLink(event, ed)).filter(Objects::nonNull).toList();
+        final List<EventImpl> parents = event.getAllParents().stream()
+                .map(ed -> getParentToLink(event, ed))
+                .filter(Objects::nonNull)
+                .toList();
         final EventImpl linkedEvent = new EventImpl(event, parents);
         EventCounter.incrementLinkedEventCount();
 

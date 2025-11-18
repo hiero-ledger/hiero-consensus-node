@@ -472,14 +472,18 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
         // reinitialize the internal consensus with the last snapshot
         initializeInternalConsensus();
         consensus.loadSnapshot(consensusSnapshot);
-        EventWindowUtils.createEventWindow(consensusSnapshot, platformContext
-                .getConfiguration()
-                .getConfigData(ConsensusConfig.class)
-                .roundsNonAncient());
-        linker.setEventWindow(EventWindowUtils.createEventWindow(consensusSnapshot, platformContext
-                .getConfiguration()
-                .getConfigData(ConsensusConfig.class)
-                .roundsNonAncient()));
+        EventWindowUtils.createEventWindow(
+                consensusSnapshot,
+                platformContext
+                        .getConfiguration()
+                        .getConfigData(ConsensusConfig.class)
+                        .roundsNonAncient());
+        linker.setEventWindow(EventWindowUtils.createEventWindow(
+                consensusSnapshot,
+                platformContext
+                        .getConfiguration()
+                        .getConfigData(ConsensusConfig.class)
+                        .roundsNonAncient()));
         // re-add all non-ancient events
         for (final EventImpl event : nonAncientEvents) {
             updateConsensus(event);

@@ -11,7 +11,6 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Stream;
 import org.hiero.base.Clearable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
@@ -86,9 +85,7 @@ public class EventImpl implements Clearable {
     /** The deterministic generation, see {@link DeGen} */
     private int deGen = 0;
 
-    public EventImpl(
-            @NonNull final PlatformEvent platformEvent,
-            @NonNull final List<EventImpl> parents) {
+    public EventImpl(@NonNull final PlatformEvent platformEvent, @NonNull final List<EventImpl> parents) {
         Objects.requireNonNull(platformEvent, "baseEvent");
         this.parents = parents;
         // ConsensusImpl.currMark starts at 1 and counts up, so all events initially count as

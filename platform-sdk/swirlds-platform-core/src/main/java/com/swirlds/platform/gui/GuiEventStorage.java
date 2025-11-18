@@ -117,9 +117,8 @@ public class GuiEventStorage {
     public synchronized void handleSnapshotOverride(@NonNull final ConsensusSnapshot snapshot) {
         consensus.loadSnapshot(snapshot);
         linker.clear();
-        linker.setEventWindow(EventWindowUtils.createEventWindow(snapshot, configuration
-                .getConfigData(ConsensusConfig.class)
-                .roundsNonAncient()));
+        linker.setEventWindow(EventWindowUtils.createEventWindow(
+                snapshot, configuration.getConfigData(ConsensusConfig.class).roundsNonAncient()));
         lastConsensusRound = null;
     }
 

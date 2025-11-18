@@ -27,7 +27,7 @@ public class SimpleGraphs {
      * </pre>
      *
      */
-    public static List<PlatformEvent> mopGraph(@NonNull final Random random){
+    public static List<PlatformEvent> mopGraph(@NonNull final Random random) {
         final PlatformEvent e0 =
                 new TestingEventBuilder(random).setCreatorId(NodeId.of(1)).build();
         final PlatformEvent e1 =
@@ -37,9 +37,8 @@ public class SimpleGraphs {
         final PlatformEvent e3 =
                 new TestingEventBuilder(random).setCreatorId(NodeId.of(4)).build();
 
-        final PlatformEvent e4 = new TestingEventBuilder(random)
-                .setSelfParent(e0)
-                .build();
+        final PlatformEvent e4 =
+                new TestingEventBuilder(random).setSelfParent(e0).build();
         final PlatformEvent e5 = new TestingEventBuilder(random)
                 .setSelfParent(e1)
                 .setOtherParents(List.of(e0, e2))
@@ -48,13 +47,11 @@ public class SimpleGraphs {
                 .setSelfParent(e2)
                 .setOtherParents(List.of(e1, e3))
                 .build();
-        final PlatformEvent e7 = new TestingEventBuilder(random)
-                .setSelfParent(e3)
-                .build();
+        final PlatformEvent e7 =
+                new TestingEventBuilder(random).setSelfParent(e3).build();
 
-        final PlatformEvent e8 = new TestingEventBuilder(random)
-                .setSelfParent(e4)
-                .build();
+        final PlatformEvent e8 =
+                new TestingEventBuilder(random).setSelfParent(e4).build();
         final PlatformEvent e9 = new TestingEventBuilder(random)
                 .setSelfParent(e5)
                 .setOtherParents(List.of(e4, e6))
@@ -63,9 +60,8 @@ public class SimpleGraphs {
                 .setSelfParent(e6)
                 .setOtherParents(List.of(e5, e7))
                 .build();
-        final PlatformEvent e11 = new TestingEventBuilder(random)
-                .setSelfParent(e7)
-                .build();
+        final PlatformEvent e11 =
+                new TestingEventBuilder(random).setSelfParent(e7).build();
         return List.of(e0, e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11);
     }
 
