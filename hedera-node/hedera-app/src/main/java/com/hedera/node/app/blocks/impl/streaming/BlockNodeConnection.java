@@ -500,15 +500,15 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
             if (start <= end) {
                 for (long blkNum = start; blkNum <= end; blkNum++) {
-                    BlockState blockState = blockBufferService.getBlockState(blkNum);
+                    final BlockState blockState = blockBufferService.getBlockState(blkNum);
                     if (blockState != null) {
                         if (blockState.openedTimestamp() != null) {
-                            long headerProducedToAckMs =
+                            final long headerProducedToAckMs =
                                     nowMs - blockState.openedTimestamp().toEpochMilli();
                             blockStreamMetrics.recordHeaderProducedToAckLatency(headerProducedToAckMs);
                         }
                         if (blockState.closedTimestamp() != null) {
-                            long blockClosedToAckMs =
+                            final long blockClosedToAckMs =
                                     nowMs - blockState.closedTimestamp().toEpochMilli();
                             blockStreamMetrics.recordBlockClosedToAckLatency(blockClosedToAckMs);
                         }
@@ -849,7 +849,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                                     nodeConfig, r.blockNumber(), Instant.ofEpochMilli(sentMs));
                         }
                         if (r.hasBlockHeader()) {
-                            BlockState blockState = blockBufferService.getBlockState(r.blockNumber());
+                            final BlockState blockState = blockBufferService.getBlockState(r.blockNumber());
                             if (blockState != null) {
                                 blockState.setHeaderSentMs(sentMs);
                             }
